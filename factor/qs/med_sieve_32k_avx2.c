@@ -607,6 +607,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     uint32_t prime, root1, root2, tmp, stop;
     uint8_t logp;
     __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
+    __m512i vinterval = _mm512_set1_epi16(4 * BLOCKSIZE);
     __m512i vzero = _mm512_setzero_epi32();
 
     ALIGNED_MEM uint16_t r_id1[32];
@@ -635,8 +636,8 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
 
         // make it so we write to a dummy sieve location for non-sieved primes
-        vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vblock);
-        vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vblock);
+        vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vinterval);
+        vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vinterval);
 
         // until things start to drop off the end of the interval, 
         // simply dump in all logs.

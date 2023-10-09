@@ -1424,6 +1424,9 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 #endif
 
 #ifdef USE_POLY_BUCKET_SS
+
+#define TRY_PN_BUCKET_COMBINE_TDIV
+
 void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
@@ -1432,43 +1435,79 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     int smooth_num;
     uint32_t* fb_offsets;
     uint32_t block_loc;
-    //__m512i vblock;
+    struct timeval start1, stop1;
+
+    gettimeofday(&start1, NULL);
 
     fb_offsets = &dconf->fb_offsets[report_num][0];
     smooth_num = dconf->smooth_num[report_num];
     block_loc = dconf->reports[report_num];
 
-    // 16 copies of the 16-bit block_loc in the lower half of
-    // each of the 32-bit vector elements.
-    //vblock = _mm512_set1_epi32(block_loc);
-
     //int pidx = dconf->numB;
     int pidx = dconf->polymap[dconf->numB];
     //printf("mapping b-index %d to bucket %d\n", dconf->numB, pidx);
+
+    block_loc += bnum * 32768;
+    __m512i vloc = _mm512_set1_epi32(block_loc);
+    __m512i vrootmask = _mm512_set1_epi32(0x1ffff);
+    __m512i vposmask = _mm512_set1_epi32(1 << 17);
 
     if (parity == 0)
     {
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            //uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
             uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
             int k;
-            //for (k = 0; k < dconf->ss_slices_p[i].buckets[pidx].size; k++)
-            for (k = 0; k < dconf->ss_slices_p[i].size[pidx]; k++)
+            for (k = 0; k < dconf->ss_slices_p[i].size[pidx] - 16; k += 16)
             {
-                root = (bucketelements[k] & 0x3ffff) - bnum * 32768;
+                __m512i vr = _mm512_loadu_epi32(bucketelements + k);
+                __mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
+                vr = _mm512_and_epi32(vr, vrootmask);
+
+                mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> 18));
+                    uint32_t prime = sconf->factor_base->list->prime[pid];
+
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u "
+                            "pid = %u, fboffset = %u\n",
+                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, dconf->numB, pid, fboffset);
+                    }
+
+                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                    {
+                        fb_offsets[++smooth_num] = pid;
+                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                            prime);
+                    }
+
+                    mpos = _reset_lsb(mpos);
+                }
+            }
+
+
+            for ( ; k < dconf->ss_slices_p[i].size[pidx]; k++)
+            {
+#ifdef TRY_PN_BUCKET_COMBINE_TDIV
+                root = (bucketelements[k] & 0x1ffff);
+                if ((bucketelements[k] & 0x20000)) continue;
+#else
+                root = (bucketelements[k] & 0x3ffff);
+#endif
 
                 if (block_loc == root)
                 {
                     uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
-
-                    // todo: still a few invalid initial roots here using poly-buckets.
-                    // random polys.  all seem to be side 0, slice 0
-                    // need to look into it.
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
                     {
@@ -1479,8 +1518,6 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
                     {
-                        //printf("prime %u (idx %d) divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-                        //    prime, pid, block_loc, dconf->numB, smooth_num + 1);
                         fb_offsets[++smooth_num] = pid;
                         mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
                             prime);
@@ -1494,16 +1531,54 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     {
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            //uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
-            uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * 16384;
+
+#ifdef TRY_PN_BUCKET_COMBINE_TDIV
+
+
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
             uint32_t root;
-            uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
+            uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
             int k;
-            //for (k = 0; k < dconf->ss_slices_n[i].buckets[pidx].size; k++)
-            for (k = 0; k < dconf->ss_slices_n[i].size[pidx]; k++)
+            for (k = 0; k < dconf->ss_slices_p[i].size[pidx] - 16; k += 16)
             {
-                root = (bucketelements[k] & 0x3ffff) - bnum * 32768;
+                __m512i vr = _mm512_loadu_epi32(bucketelements + k);
+                __mmask16 mpos = _mm512_test_epi32_mask(vr, vposmask);
+                vr = _mm512_and_epi32(vr, vrootmask);
+
+                mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> 18));
+                    uint32_t prime = sconf->factor_base->list->prime[pid];
+
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u "
+                            "pid = %u, fboffset = %u\n",
+                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, 
+                            dconf->numB, pid, fboffset);
+                    }
+
+                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                    {
+                        fb_offsets[++smooth_num] = pid;
+                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                            prime);
+                    }
+
+                    mpos = _reset_lsb(mpos);
+                }
+            }
+
+
+            for ( ; k < dconf->ss_slices_p[i].size[pidx]; k++)
+            {
+                root = (bucketelements[k] & 0x1ffff);
+                if ((bucketelements[k] & 0x20000) == 0) continue;
 
                 if (block_loc == root)
                 {
@@ -1526,8 +1601,85 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                 }
             }
+#else
+            uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * 16384;
+            uint32_t root;
+            uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
+
+            int k;
+            for (k = 0; k < dconf->ss_slices_n[i].size[pidx] - 16; k += 16)
+            {
+                __m512i vr = _mm512_loadu_epi32(bucketelements + k);
+                __mmask16 mpos = 0xffff; // _mm512_test_epi32_mask(vr, vposmask);
+                vr = _mm512_and_epi32(vr, vrootmask);
+
+                mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> 18));
+                    uint32_t prime = sconf->factor_base->list->prime[pid];
+
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u "
+                            "pid = %u, fboffset = %u\n",
+                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, dconf->numB, pid, fboffset);
+                    }
+
+                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                    {
+                        //printf("dividing out p-side hit @ loc %u for prime %u\n",
+                        //    block_loc, prime);
+                        fb_offsets[++smooth_num] = pid;
+                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                            prime);
+
+                        //dumped++;
+                    }
+
+                    mpos = _reset_lsb(mpos);
+                }
+            }
+
+            for ( ; k < dconf->ss_slices_n[i].size[pidx]; k++)
+            {
+                root = (bucketelements[k] & 0x3ffff);
+
+                if (block_loc == root)
+                {
+                    uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
+                    uint32_t prime = sconf->factor_base->list->prime[pid];
+
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u in slice %u, side %u, poly %u "
+                            "pid = %u, fboffset = %u\n",
+                            root, i, parity, dconf->numB, pid, fboffset);
+                    }
+
+                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                    {
+                        //printf("dividing out n-side hit @ loc %u for prime %u\n",
+                        //    block_loc, prime);
+                        fb_offsets[++smooth_num] = pid;
+                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                            prime);
+                        dumped++;
+                    }
+
+                }
+            }
+
+#endif
         }
+
     }
+
+    gettimeofday(&stop1, NULL);
+    sconf->t_time4 += ytools_difftime(&start1, &stop1);
 
     dconf->smooth_num[report_num] = smooth_num;
 

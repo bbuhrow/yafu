@@ -37,7 +37,9 @@ code to the public domain.
 		bnum = root1 >> 15;				\
 	}											\
 
+#ifdef USE_SS_SEARCH
 #define SS_TIMING
+#endif
 
 void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
@@ -175,7 +177,11 @@ void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 // than the current qs-gnfs crossover).
 
 
-#ifdef USE_POLY_BUCKET_SS
+#if defined( USE_POLY_BUCKET_SS ) && defined(USE_AVX512F)
+
+#define TRY_PN_BUCKET_COMBINE
+//#define TRY_GATHER_SCATTER
+
 void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
 	// the subset-sum search algorithm using a bucket sort to
@@ -358,6 +364,8 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 	int totalbins2 = 0;
 	int totalbins3 = 0;
 
+	int nump = 0;
+
 	for (i = fb->ss_start_B; i < fb->B; i++)
 	{
 		int numB;
@@ -385,6 +393,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			exit(0);
 		}
 
+		nump++;
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		if (sconf->knmod8 == 1)
@@ -523,7 +532,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
 
 		// now sort the sets into a moderate number of bins over the range 0:p
-		numbins = p / (2 * interval) + 1;
+		numbins = p / (6 * interval) + 1;
 		binsize = p / numbins + 1;
 
 		// initialize bin sizes
@@ -653,22 +662,22 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		//   same poly bucket.  sort p vs. n during sieving.  half the buckets
 		//   to write to here trading off hopefully very slight hit to sieve time.
 
-		printf("prime = %u, binsize = %d, interval = %d, num bpoly = %d\n", prime, binsize, interval, num_bpoly);
+		//printf("prime = %u, binsize = %d, interval = %d, num bpoly = %d\n", prime, binsize, interval, num_bpoly);
 		for (ii = 0; ii < numbins; ii++)
 		{
 			int x = binsize * ii + binsize / 2;
 			int px = p - x;
 			int b = px / binsize;
 
-			if (((b+1) < numbins) && ((b-1) >= 0))
-				printf("pairing bin %d with bin %d (and %d,%d) of %d total bins.  sizes: %d,%d,%d,%d\n",
-					ii, b, b + 1, b - 1, numbins, bins2[b].size, bins2[b+1].size, bins2[b-1].size, bins1[ii].size);
-			else if ((b + 1) >= numbins)
-				printf("pairing bin %d with bin %d (and %d) of %d total bins.  sizes: %d,%d,%d\n",
-					ii, b, b - 1, numbins, bins2[b].size, bins2[b - 1].size, bins1[ii].size);
-			else if ((b - 1) <= 0)
-				printf("pairing bin %d with bin %d (and %d) of %d total bins.  sizes: %d,%d,%d\n",
-					ii, b, b + 1, numbins, bins2[b].size, bins2[b + 1].size, bins1[ii].size);
+			//if (((b+1) < numbins) && ((b-1) >= 0))
+			//	printf("pairing bin %d with bin %d (and %d,%d) of %d total bins.  sizes: %d,%d,%d,%d\n",
+			//		ii, b, b + 1, b - 1, numbins, bins2[b].size, bins2[b+1].size, bins2[b-1].size, bins1[ii].size);
+			//else if ((b + 1) >= numbins)
+			//	printf("pairing bin %d with bin %d (and %d) of %d total bins.  sizes: %d,%d,%d\n",
+			//		ii, b, b - 1, numbins, bins2[b].size, bins2[b - 1].size, bins1[ii].size);
+			//else if ((b - 1) <= 0)
+			//	printf("pairing bin %d with bin %d (and %d) of %d total bins.  sizes: %d,%d,%d\n",
+			//		ii, b, b + 1, numbins, bins2[b].size, bins2[b + 1].size, bins1[ii].size);
 
 			int k;
 			for (k = 0; k < bins2[b].size; k++)
@@ -697,6 +706,57 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
 					__mmask16 mneg = loadmask & (~mpos);
 
+#ifdef TRY_PN_BUCKET_COMBINE
+					__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
+					vdiffp = _mm512_mask_sub_epi32(vdiffp, mneg, vp, vsum);
+
+					mpos = _mm512_cmplt_epi32_mask(vdiffp, vi);
+
+					vdiffp = _mm512_or_epi32(vdiffp, vpid);
+					vdiffp = _mm512_mask_or_epi32(vdiffp, mneg, vdiffp, _mm512_set1_epi32(1 << 17));
+
+					__m512i vb1poly = _mm512_mask_loadu_epi32(vz, loadmask,
+						&bins1[ii].polynum[j]);
+
+#ifdef TRY_GATHER_SCATTER
+					vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
+					__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
+					__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+					vindex = _mm512_add_epi32(vindex, vbsz);
+
+					_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
+					vbsz = _mm512_add_epi32(vbsz, _mm512_set1_epi32(1));
+					_mm512_mask_i32scatter_epi32(psize_ptr, mpos, vb1poly, vbsz, 4);
+
+					nummatch += _mm_popcnt_u32(mpos);
+#else
+					if (mpos > 0)
+					{
+						uint32_t sum[16], poly[16];
+					
+						_mm512_storeu_epi32(sum, vdiffp);
+						_mm512_storeu_epi32(poly, _mm512_add_epi32(vb1poly, vb2poly));
+					
+						while (mpos > 0)
+						{
+							int pos = _trail_zcnt(mpos);
+							int idx = poly[pos];
+					
+							uint32_t bsz = psize_ptr[idx];
+							pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
+							psize_ptr[idx]++;
+					
+							if (psize_ptr[idx] >= 16384)
+								printf("error bucket overflow: size of poly bucket %d = %d\n",
+									idx, psize_ptr[idx]);
+					
+							mpos = _reset_lsb(mpos);
+							nummatch++;
+						}
+					}
+#endif
+
+#else
 					__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
 					__m512i vdiffn = _mm512_mask_sub_epi32(vp, mneg, vp, vsum);
 
@@ -725,31 +785,37 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 							psize_ptr[idx]++;
 
+							if (psize_ptr[idx] >= 16384)
+								printf("error bucket overflow: size of poly bucket %d = %d\n",
+									idx, psize_ptr[idx]);
+
 							mpos = _reset_lsb(mpos);
 							nummatch++;
 						}
 					}
-					
+
 					if (mneg > 0)
 					{
 						uint32_t sum[16], poly[16];
-
+					
 						_mm512_mask_storeu_epi32(sum, mneg, vdiffn);
 						_mm512_mask_storeu_epi32(poly, mneg, _mm512_add_epi32(vb1poly, vb2poly));
-
+					
 						while (mneg > 0)
 						{
 							int pos = _trail_zcnt(mneg);
 							int idx = poly[pos];
-
+					
 							uint32_t bsz = nsize_ptr[idx];
 							nslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 							nsize_ptr[idx]++;
-
+					
 							mneg = _reset_lsb(mneg);
 							nummatch++;
 						}
 					}
+
+#endif
 
 					j += 16;
 				}
@@ -765,6 +831,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						int polysum = bins1[ii].polynum[j] + bins2[b].polynum[k];
 						int idx = polysum;
 				
+#ifdef TRY_PN_BUCKET_COMBINE
 						if (sign1)
 						{
 							uint32_t bsz = psize_ptr[idx];
@@ -773,10 +840,29 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						}
 						else
 						{
+							sum1 |= (1 << 17);
+							uint32_t bsz = psize_ptr[idx];
+							pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+							psize_ptr[idx]++;
+						}
+#else
+						if (sign1)
+						{
+							uint32_t bsz = psize_ptr[idx];
+							pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+							psize_ptr[idx]++;
+					}
+						else
+						{
 							uint32_t bsz = nsize_ptr[idx];
 							nslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
 							nsize_ptr[idx]++;
 						}
+#endif
+
+						if (psize_ptr[idx] >= 16384)
+							printf("error bucket overflow: size of poly bucket %d = %d\n",
+								idx, psize_ptr[idx]);
 				
 						nummatch++;
 					}
@@ -1008,7 +1094,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					//if (j = 0) //
 					//for (j = 0; j < bins1[ii].size; j += 16)
 					j = 0;
-					if (bins1[ii].size > 4)
+					if (bins1[ii].size > 7)
 					{
 						__mmask16 loadmask;
 
@@ -1024,11 +1110,63 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
 						__mmask16 mneg = loadmask & (~mpos);
 
+#ifdef TRY_PN_BUCKET_COMBINE
+						__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
+						vdiffp = _mm512_mask_sub_epi32(vdiffp, mneg, vp, vsum);
+
+						mpos = _mm512_cmplt_epi32_mask(vdiffp, vi);
+
+						vdiffp = _mm512_or_epi32(vdiffp, vpid);
+						vdiffp = _mm512_mask_or_epi32(vdiffp, mneg, vdiffp, _mm512_set1_epi32(1 << 17));
+
+						__m512i vb1poly = _mm512_mask_loadu_epi32(vz, loadmask,
+							&bins1[ii].polynum[j]);
+
+#ifdef TRY_GATHER_SCATTER
+						vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
+						__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
+						__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+						vindex = _mm512_add_epi32(vindex, vbsz);
+
+						_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
+						vbsz = _mm512_add_epi32(vbsz, _mm512_set1_epi32(1));
+						_mm512_mask_i32scatter_epi32(psize_ptr, mpos, vb1poly, vbsz, 4);
+
+						matchp1 += _mm_popcnt_u32(mpos);
+
+#else
+						if (mpos > 0)
+						{
+							uint32_t sum[16], poly[16];
+						
+							_mm512_storeu_epi32(sum, vdiffp);
+							_mm512_storeu_epi32(poly, _mm512_add_epi32(vb1poly, vb2poly));
+						
+							while (mpos > 0)
+							{
+								int pos = _trail_zcnt(mpos);
+								int idx = poly[pos];
+						
+								uint32_t bsz = psize_ptr[idx];
+								pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
+								psize_ptr[idx]++;
+						
+								if (psize_ptr[idx] >= 16384)
+									printf("error bucket overflow: size of poly bucket %d = %d\n",
+										idx, psize_ptr[idx]);
+						
+								mpos = _reset_lsb(mpos);
+								matchp1++;
+							}
+						}
+#endif
+
+#else
 						__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
 						__m512i vdiffn = _mm512_mask_sub_epi32(vp, mneg, vp, vsum);
 
-						__mmask16 mhitp = _mm512_cmplt_epi32_mask(vdiffp, vi);
-						__mmask16 mhitn = _mm512_cmplt_epi32_mask(vdiffn, vi);
+						mpos = _mm512_cmplt_epi32_mask(vdiffp, vi);
+						mneg = _mm512_cmplt_epi32_mask(vdiffn, vi);
 
 						vdiffp = _mm512_or_epi32(vdiffp, vpid);
 						vdiffn = _mm512_or_epi32(vdiffn, vpid);
@@ -1036,47 +1174,53 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						__m512i vb1poly = _mm512_mask_loadu_epi32(vz, loadmask,
 							&bins1[ii].polynum[j]);
 
-						if (mhitp > 0)
+						if (mpos > 0)
 						{
 							uint32_t sum[16], poly[16];
 
-							_mm512_mask_storeu_epi32(sum, mhitp, vdiffp);
-							_mm512_mask_storeu_epi32(poly, mhitp, _mm512_add_epi32(vb1poly, vb2poly));
+							_mm512_mask_storeu_epi32(sum, mpos, vdiffp);
+							_mm512_mask_storeu_epi32(poly, mpos, _mm512_add_epi32(vb1poly, vb2poly));
 
-							while (mhitp > 0)
+							while (mpos > 0)
 							{
-								int pos = _trail_zcnt(mhitp);
+								int pos = _trail_zcnt(mpos);
 								int idx = poly[pos];
 
 								uint32_t bsz = psize_ptr[idx];
 								pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 								psize_ptr[idx]++;
 
-								mhitp = _reset_lsb(mhitp);
+								if (psize_ptr[idx] >= 16384)
+									printf("error bucket overflow: size of poly bucket %d = %d\n",
+										idx, psize_ptr[idx]);
+
+								mpos = _reset_lsb(mpos);
 								matchp1++;
 							}
 						}
 
-						if (mhitn > 0)
+						if (mneg > 0)
 						{
 							uint32_t sum[16], poly[16];
 
-							_mm512_mask_storeu_epi32(sum, mhitn, vdiffn);
-							_mm512_mask_storeu_epi32(poly, mhitn, _mm512_add_epi32(vb1poly, vb2poly));
+							_mm512_mask_storeu_epi32(sum, mneg, vdiffn);
+							_mm512_mask_storeu_epi32(poly, mneg, _mm512_add_epi32(vb1poly, vb2poly));
 
-							while (mhitn > 0)
+							while (mneg > 0)
 							{
-								int pos = _trail_zcnt(mhitn);
+								int pos = _trail_zcnt(mneg);
 								int idx = poly[pos];
 
 								uint32_t bsz = nsize_ptr[idx];
 								nslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 								nsize_ptr[idx]++;
 
-								mhitn = _reset_lsb(mhitn);
+								mneg = _reset_lsb(mneg);
 								matchp1++;
 							}
 						}
+
+#endif
 
 						j += 16;
 					}
@@ -1092,6 +1236,21 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							int polysum = bins1[ii].polynum[j] + bins2[b + 1].polynum[k];
 							int idx = polysum;
 
+#ifdef TRY_PN_BUCKET_COMBINE
+							if (sign1)
+							{
+								uint32_t bsz = psize_ptr[idx];
+								pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+								psize_ptr[idx]++;
+							}
+							else
+							{
+								sum1 |= (1 << 17);
+								uint32_t bsz = psize_ptr[idx];
+								pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+								psize_ptr[idx]++;
+							}
+#else
 							if (sign1)
 							{
 								uint32_t bsz = psize_ptr[idx];
@@ -1104,6 +1263,11 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 								nslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
 								nsize_ptr[idx]++;
 							}
+#endif
+
+							if (psize_ptr[idx] >= 16384)
+								printf("error bucket overflow: size of poly bucket %d = %d\n",
+									idx, psize_ptr[idx]);
 
 							matchp1++;
 						}
@@ -1123,7 +1287,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					//if (j = 0) //
 					//for (j = 0; j < bins1[ii].size; j += 16)
 					j = 0;
-					if (bins1[ii].size > 4)
+					if (bins1[ii].size > 7)
 					{
 						__mmask16 loadmask;
 
@@ -1139,11 +1303,63 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
 						__mmask16 mneg = loadmask & (~mpos);
 
+#ifdef TRY_PN_BUCKET_COMBINE
+						__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
+						vdiffp = _mm512_mask_sub_epi32(vdiffp, mneg, vp, vsum);
+
+						mpos = _mm512_cmplt_epi32_mask(vdiffp, vi);
+
+						vdiffp = _mm512_or_epi32(vdiffp, vpid);
+						vdiffp = _mm512_mask_or_epi32(vdiffp, mneg, vdiffp, _mm512_set1_epi32(1 << 17));
+
+						__m512i vb1poly = _mm512_mask_loadu_epi32(vz, loadmask,
+							&bins1[ii].polynum[j]);
+
+#ifdef TRY_GATHER_SCATTER
+						vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
+						__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
+						__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+						vindex = _mm512_add_epi32(vindex, vbsz);
+
+						_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
+						vbsz = _mm512_add_epi32(vbsz, _mm512_set1_epi32(1));
+						_mm512_mask_i32scatter_epi32(psize_ptr, mpos, vb1poly, vbsz, 4);
+
+						matchm1 += _mm_popcnt_u32(mpos);
+#else
+
+						if (mpos > 0)
+						{
+							uint32_t sum[16], poly[16];
+						
+							_mm512_mask_storeu_epi32(sum, mpos, vdiffp);
+							_mm512_mask_storeu_epi32(poly, mpos, _mm512_add_epi32(vb1poly, vb2poly));
+						
+							while (mpos > 0)
+							{
+								int pos = _trail_zcnt(mpos);
+								int idx = poly[pos];
+						
+								uint32_t bsz = psize_ptr[idx];
+								pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
+								psize_ptr[idx]++;
+						
+								if (psize_ptr[idx] >= 16384)
+									printf("error bucket overflow: size of poly bucket %d = %d\n",
+										idx, psize_ptr[idx]);
+						
+								mpos = _reset_lsb(mpos);
+								matchm1++;
+							}
+						}
+#endif
+
+#else
 						__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
 						__m512i vdiffn = _mm512_mask_sub_epi32(vp, mneg, vp, vsum);
 
-						__mmask16 mhitp = _mm512_cmplt_epi32_mask(vdiffp, vi);
-						__mmask16 mhitn = _mm512_cmplt_epi32_mask(vdiffn, vi);
+						mpos = _mm512_cmplt_epi32_mask(vdiffp, vi);
+						mneg = _mm512_cmplt_epi32_mask(vdiffn, vi);
 
 						vdiffp = _mm512_or_epi32(vdiffp, vpid);
 						vdiffn = _mm512_or_epi32(vdiffn, vpid);
@@ -1151,47 +1367,53 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						__m512i vb1poly = _mm512_mask_loadu_epi32(vz, loadmask,
 							&bins1[ii].polynum[j]);
 
-						if (mhitp > 0)
+						if (mpos > 0)
 						{
 							uint32_t sum[16], poly[16];
 
-							_mm512_mask_storeu_epi32(sum, mhitp, vdiffp);
-							_mm512_mask_storeu_epi32(poly, mhitp, _mm512_add_epi32(vb1poly, vb2poly));
+							_mm512_mask_storeu_epi32(sum, mpos, vdiffp);
+							_mm512_mask_storeu_epi32(poly, mpos, _mm512_add_epi32(vb1poly, vb2poly));
 
-							while (mhitp > 0)
+							while (mpos > 0)
 							{
-								int pos = _trail_zcnt(mhitp);
+								int pos = _trail_zcnt(mpos);
 								int idx = poly[pos];
 
 								uint32_t bsz = psize_ptr[idx];
 								pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 								psize_ptr[idx]++;
 
-								mhitp = _reset_lsb(mhitp);
+								if (psize_ptr[idx] >= 16384)
+									printf("error bucket overflow: size of poly bucket %d = %d\n",
+										idx, psize_ptr[idx]);
+
+								mpos = _reset_lsb(mpos);
 								matchm1++;
 							}
 						}
 
-						if (mhitn > 0)
+						if (mneg > 0)
 						{
 							uint32_t sum[16], poly[16];
 
-							_mm512_mask_storeu_epi32(sum, mhitn, vdiffn);
-							_mm512_mask_storeu_epi32(poly, mhitn, _mm512_add_epi32(vb1poly, vb2poly));
+							_mm512_mask_storeu_epi32(sum, mneg, vdiffn);
+							_mm512_mask_storeu_epi32(poly, mneg, _mm512_add_epi32(vb1poly, vb2poly));
 
-							while (mhitn > 0)
+							while (mneg > 0)
 							{
-								int pos = _trail_zcnt(mhitn);
+								int pos = _trail_zcnt(mneg);
 								int idx = poly[pos];
 
 								uint32_t bsz = nsize_ptr[idx];
 								nslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 								nsize_ptr[idx]++;
 
-								mhitn = _reset_lsb(mhitn);
+								mneg = _reset_lsb(mneg);
 								matchm1++;
 							}
 						}
+
+#endif
 
 						j += 16;
 					}
@@ -1207,6 +1429,21 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							int polysum = bins1[ii].polynum[j] + bins2[b - 1].polynum[k];
 							int idx = polysum;
 
+#ifdef TRY_PN_BUCKET_COMBINE
+							if (sign1)
+							{
+								uint32_t bsz = psize_ptr[idx];
+								pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+								psize_ptr[idx]++;
+							}
+							else
+							{
+								sum1 |= (1 << 17);
+								uint32_t bsz = psize_ptr[idx];
+								pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+								psize_ptr[idx]++;
+							}
+#else
 							if (sign1)
 							{
 								uint32_t bsz = psize_ptr[idx];
@@ -1219,6 +1456,11 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 								nslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
 								nsize_ptr[idx]++;
 							}
+#endif
+
+							if (psize_ptr[idx] >= 16384)
+								printf("error bucket overflow: size of poly bucket %d = %d\n",
+									idx, psize_ptr[idx]);
 
 							matchm1++;
 						}
@@ -1230,7 +1472,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 		}
 
-		exit(1);
+		//exit(1);
 
 
 #ifdef SS_TIMING
@@ -1242,6 +1484,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 
 #ifdef SS_TIMING
+	printf("ran subset-sum on %d primes\n", nump);
 	printf("found %d sieve hits matching bins\n", nummatch);
 	printf("found %d sieve hits matching bins + 1\n", matchp1);
 	printf("found %d sieve hits matching bins - 1\n", matchm1);
@@ -1280,11 +1523,10 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 	free(ss_set2b.root);
 	free(ss_set2b.polynum);
 
-
-#endif
-
 	return;
 }
+
+#endif
 
 void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
@@ -1577,107 +1819,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	logp = fb->list->logprime[fb->med_B-1];
 	for (i=fb->med_B;i<fb->large_B;i++)
 	{
-
-#ifdef DO_VLP_OPT
-        if (i >= check_bound)
-        {
-            room = 0;
-            /* find the most filled bucket */
-            for (k = 0; k < numblocks; k++)
-            {
-                if (*(numptr_p + k) > room)
-                    room = *(numptr_p + k);
-                if (*(numptr_n + k) > room)
-                    room = *(numptr_n + k);
-            }
-            room = BUCKET_ALLOC - room;
-
-            /* if it is filled close to the allocation, start recording in a new set of buckets */
-            if (room < 32)
-            {
-                //printf("firstroots: bucket full, now at fb index %d, starting new slice %d\n",
-                //    i, bound_index + 1);
-                //uint32_t ii;
-                //uint32_t bb;
-                //for (bb = 0; bb < numblocks; bb++)
-                //{
-                //    printf("%u lp p-roots in slice %d, block %d:\n", numptr_p[bb], bound_index, bb);
-                //    for (ii = 0; ii < numptr_p[bb]; ii++)
-                //    {
-                //        //bptr = sliceptr_p + ((uint64_t)bb << BLOCKBITS) + (uint64_t)ii;
-                //        //printf("%08x ", *bptr);
-                //        printf("%08x ", sliceptr_p[bb * BUCKET_ALLOC + ii]);
-                //    }
-                //    printf("\n");
-                //}
-                //
-                //for (bb = 0; bb < numblocks; bb++)
-                //{
-                //    printf("%u lp n-roots in slice %d, block %d:\n", numptr_n[bb], bound_index, bb);
-                //    for (ii = 0; ii < numptr_n[bb]; ii++)
-                //    {
-                //        //bptr = sliceptr_n + ((uint64_t)bb << BLOCKBITS) + (uint64_t)ii;
-                //        //printf("%08x ", *bptr);
-                //        printf("%08x ", sliceptr_n[bb * BUCKET_ALLOC + ii]);
-                //    }
-                //    printf("\n");
-                //}
-                logp = update_data.logp[i];
-                lp_bucket_p->logp[bound_index] = logp;
-                bound_index++;
-                lp_bucket_p->fb_bounds[bound_index] = i;
-                bound_val = i;
-                sliceptr_p += (numblocks << (BUCKET_BITS + 1));
-                sliceptr_n += (numblocks << (BUCKET_BITS + 1));
-                numptr_p += (numblocks << 1);
-                numptr_n += (numblocks << 1);
-                check_bound += BUCKET_ALLOC >> 1;
-            }
-            else
-            {
-                check_bound += room >> 1;
-            }
-        }
-        else if ((i - bound_val) >= 65536)
-        {
-            //printf("firstroots: prime slice limit, starting new slice %d\n",
-            //    bound_index + 1);
-            //int ii;
-            //int bb;
-            //for (bb = 0; bb < numblocks; bb++)
-            //{
-            //    printf("lp p-roots in slice %d, block %d:\n", bound_index, bb);
-            //    for (ii = 0; ii < numptr_p[bb]; ii++)
-            //    {
-            //        printf("%u ", sliceptr_p[bb * BUCKET_ALLOC + ii]);
-            //    }
-            //    printf("\n");
-            //}
-            //
-            //for (bb = 0; bb < numblocks; bb++)
-            //{
-            //    printf("lp n-roots in slice %d, block %d:\n", bound_index, bb);
-            //    for (ii = 0; ii < numptr_n[bb]; ii++)
-            //    {
-            //        printf("%u ", sliceptr_n[bb * BUCKET_ALLOC + ii]);
-            //    }
-            //    printf("\n");
-            //}
-            lp_bucket_p->logp[bound_index] = logp;
-            bound_index++;
-            lp_bucket_p->fb_bounds[bound_index] = i;
-            bound_val = i;
-            sliceptr_p += (numblocks << (BUCKET_BITS + 1));
-            sliceptr_n += (numblocks << (BUCKET_BITS + 1));
-            numptr_p += (numblocks << 1);
-            numptr_n += (numblocks << 1);
-            check_bound += BUCKET_ALLOC >> 1;
-        }
-#else
-
         CHECK_NEW_SLICE(i);
-
-#endif
 
 		prime = fb->list->prime[i];
 		root1 = modsqrt[i];
@@ -1722,7 +1864,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	}
     
 	logp = fb->list->logprime[fb->large_B-1];
-
     for (i = fb->large_B; i < fb->B; i++)
     {
         CHECK_NEW_SLICE(i);
@@ -1774,14 +1915,13 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
     }
 
 
-#ifdef USE_SS_SEARCH
+#if defined( USE_POLY_BUCKET_SS ) && defined(USE_AVX512F)
 	if ((sconf->factor_base->ss_start_B > 0) &&
 		(sconf->factor_base->ss_start_B < sconf->factor_base->B))
 	{
 		//ss_search_linked_lists(sconf, dconf);
 		//ss_search_sorted_lists(sconf, dconf);
 		ss_search_poly_buckets(sconf, dconf);
-		//ss_search_poly_buckets_x16(sconf, dconf);
 	}
 #endif
 

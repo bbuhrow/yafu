@@ -33,7 +33,9 @@ code to the public domain.
 
 #include "soe.h"
 
-//#define SS_TIMING
+#ifdef USE_SS_SEARCH
+#define SS_TIMING
+#endif
 
 //#define VDEBUG
 // opt debug will print out some info relevant to the process used to 
@@ -1134,7 +1136,22 @@ done:
     // free dynamic thread data
     for (i = 0; i < fobj->THREADS; i++)
     {
+#if defined(USE_SS_SEARCH)
+        if ((static_conf->factor_base->ss_start_B > 0) &&
+            (static_conf->factor_base->ss_start_B < static_conf->factor_base->B))
+        {
+            free(thread_data[i].dconf->ss_sieve_p);
+            free(thread_data[i].dconf->ss_sieve_n);
+        }
+        else
+        {
+            free_sieve(thread_data[i].dconf);
+            
+        }
+#else
         free_sieve(thread_data[i].dconf);
+#endif
+        
         free(thread_data[i].dconf->relation_buf);
     }
 
@@ -1261,11 +1278,23 @@ void *process_poly(void *vptr)
 
         if (using_ss_search)
         {
-            memset(dconf->ss_sieve_p, blockinit, num_blocks * 32768);
+            //printf("initializing interval with blockinit %d, minblock is %d\n", 
+            //    blockinit, minblock);
+
+            for (i = 0; i < num_blocks; i++)
+            {
+                if (i == minblock)
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
+                else
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
+            }
+
 #ifdef SS_TIMING
             gettimeofday(&start1, NULL);
 #endif
+
             lp_sieve_ss(dconf->ss_sieve_p, 0, dconf);
+
 #ifdef SS_TIMING
             gettimeofday(&stop1, NULL);
             t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
@@ -1274,11 +1303,14 @@ void *process_poly(void *vptr)
 
 #endif
 
+        //memcpy(dconf->ss_sieve_n, dconf->ss_sieve_p, (num_blocks + 1) * 32768);
+
         for (i = 0; i < num_blocks; i++)
         {
             if (using_ss_search)
             {
-                dconf->sieve = sieve = dconf->ss_sieve_p + i * 32768;
+                dconf->sieve = dconf->ss_sieve_p + i * 32768;
+                sieve = dconf->sieve;
             }
 
             // set the roots for the factors of a such that
@@ -1308,7 +1340,32 @@ void *process_poly(void *vptr)
 #endif
                 med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
             }
+
+            //int j;
+            //for (j = 0; j < 32768; j++)
+            //{
+            //    if (((i + 1) < num_blocks) && 
+            //        (sieve[32768 + j] != dconf->ss_sieve_n[(i + 1) * 32768 + j]))
+            //    {
+            //        printf("med_sieve modified sieve loc %d in the next block %d (%u,%u)\n", 
+            //            j, i + 1, dconf->ss_sieve_n[(i + 1) * 32768 + j], sieve[32768 + j]);
+            //    }
+            //}
+            //printf("\n");
+            //
+
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
+
+            //
+            //printf("sieve after lp_sieve block %d\n", i);
+            //for (j = 0; j < 32768; j++)
+            //{
+            //    if (j % 64 == 0)
+            //        printf("\n");
+            //    printf("%02x", sieve[j]);
+            //}
+            //printf("\n");
+            
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
@@ -1316,19 +1373,27 @@ void *process_poly(void *vptr)
             scan_ptr(i, 0, sconf, dconf);
         }
 
+        //exit(0);
+
 #if defined( USE_SS_SEARCH )
 
-        if ((sconf->factor_base->ss_start_B > 0) &&
-            (sconf->factor_base->ss_start_B < sconf->factor_base->B))
+
+        if (using_ss_search)
         {
-            //memset(dconf->ss_sieve_p, 0, num_blocks * 32768);
-            //lp_sieve_interval_ss(dconf->ss_sieve_p, 0, dconf);
-            memset(dconf->ss_sieve_n, blockinit, num_blocks * 32768);
+            for (i = 0; i < num_blocks; i++)
+            {
+                if (i == minblock)
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
+                else
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
+            }
 
 #ifdef SS_TIMING
             gettimeofday(&start1, NULL);
 #endif
-            lp_sieve_ss(dconf->ss_sieve_n, 1, dconf);
+
+            lp_sieve_ss(dconf->ss_sieve_p, 1, dconf);
+
 #ifdef SS_TIMING
             gettimeofday(&stop1, NULL);
             t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
@@ -1336,11 +1401,14 @@ void *process_poly(void *vptr)
         }
 #endif
 
+        
+
         for (i = 0; i < num_blocks; i++)
         {
             if (using_ss_search)
             {
-                dconf->sieve = sieve = dconf->ss_sieve_n + i * 32768;
+                dconf->sieve = dconf->ss_sieve_p + i * 32768;
+                sieve = dconf->sieve;
             }
 
             // set the roots for the factors of a such that
@@ -1378,7 +1446,7 @@ void *process_poly(void *vptr)
             scan_ptr(i, 1, sconf, dconf);
         }
 
-        // exit(0);
+        //exit(0);
 
         // print a little more status info for huge jobs.
         if (sconf->digits_n > 110)
@@ -1907,9 +1975,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
                 sconf->factor_base->list->prime[sconf->factor_base->ss_start_B],
                 sconf->factor_base->num_ss_slices);
 #endif
-
-#endif
         }
+#endif
+        
 
         printf("using SPV correction of %d bits, starting at offset %d\n",
             sconf->tf_small_cutoff, sconf->sieve_small_fb_start);
@@ -2132,18 +2200,29 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("\tupdate data: %d bytes\n", memsize);
     }
 
+
+#ifdef USE_SS_SEARCH
+    if ((sconf->factor_base->ss_start_B > 0) &&
+        (sconf->factor_base->ss_start_B < sconf->factor_base->B))
+    {
+        dconf->ss_sieve_p = (uint8_t*)xmalloc_align(2 * sconf->num_blocks *
+            sconf->qs_blocksize * sizeof(uint8_t));
+        dconf->ss_sieve_n = (uint8_t*)xmalloc_align(2 * sconf->num_blocks *
+            sconf->qs_blocksize * sizeof(uint8_t));
+    }
+    else
+    {
+        dconf->sieve = (uint8_t*)xmalloc_align(
+            (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
+        dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
+    }
+#else
     // allocate the sieve with a guard region.  this lets
     // us be a little more sloppy with vector-based sieving
     // and resieving.
-    dconf->sieve = (uint8_t *)xmalloc_align(
+    dconf->sieve = (uint8_t*)xmalloc_align(
         (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
     dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
-
-#ifdef USE_SS_SEARCH
-    dconf->ss_sieve_p = (uint8_t*)xmalloc_align(2 * sconf->num_blocks * 
-        sconf->qs_blocksize * sizeof(uint8_t));
-    dconf->ss_sieve_n = (uint8_t*)xmalloc_align(2 * sconf->num_blocks * 
-        sconf->qs_blocksize * sizeof(uint8_t));
 #endif
 
     if (sconf->obj->VFLAG > 2)
@@ -2270,12 +2349,25 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
                 dconf->ss_slices_n[i].curr_poly_num = 0;
                 dconf->ss_slices_p[i].fboffset = i * slicesz + sconf->factor_base->ss_start_B;
                 dconf->ss_slices_n[i].fboffset = i * slicesz + sconf->factor_base->ss_start_B;
-                dconf->ss_slices_p[i].logp = (i * slicesz + sconf->factor_base->ss_start_B < sconf->factor_base->B) ?
-                    sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B] :
-                    sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
-                dconf->ss_slices_n[i].logp = (i * slicesz + sconf->factor_base->ss_start_B < sconf->factor_base->B) ?
-                    sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B] :
-                    sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+
+                if ((i * slicesz + sconf->factor_base->ss_start_B) < sconf->factor_base->B)
+                {
+                    dconf->ss_slices_p[i].logp =
+                        sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B];
+                    dconf->ss_slices_n[i].logp =
+                        sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B];
+                }
+                else
+                {
+                    dconf->ss_slices_p[i].logp =
+                        sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+                    dconf->ss_slices_n[i].logp =
+                        sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+                }
+
+                //printf("assigned slice %d logp = %d (max %d)\n",
+                //    i, dconf->ss_slices_p[i].logp,
+                //    sconf->factor_base->list->logprime[sconf->factor_base->B - 1]);
             }
         }
 
@@ -3125,6 +3217,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     {
         sconf->factor_base->ss_start_B = sconf->factor_base->B;
     }
+#else
+    sconf->factor_base->ss_start_B = sconf->factor_base->B;
 #endif
     
     sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B - 1];
@@ -4623,8 +4717,10 @@ int free_sieve(dynamic_conf_t *dconf)
 	uint32_t i;
 
 	//can free sieving structures now
+#if !defined(USE_SS_SEARCH)
     dconf->sieve = dconf->sieve - 2 * 32768;
-	align_free(dconf->sieve);
+    align_free(dconf->sieve);
+#endif
 	align_free(dconf->comp_sieve_p->prime);
 	align_free(dconf->comp_sieve_p->root1);
 	align_free(dconf->comp_sieve_p->root2);

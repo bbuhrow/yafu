@@ -1044,13 +1044,18 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     // factor all reports in this block
     for (j = 0; j < dconf->num_reports; j++)
     {
-        if (dconf->valid_Qs[j])
-        {
-            dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+		if (dconf->valid_Qs[j])
+		{
+			dconf->total_surviving_reports++;
+			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 
 #ifdef USE_SS_SEARCH
-			tdiv_SS(j, parity, blocknum, sconf, dconf);
+			if ((sconf->factor_base->ss_start_B > 0) &&
+				(sconf->factor_base->ss_start_B < sconf->factor_base->B))
+			{
+				tdiv_SS(j, parity, blocknum, sconf, dconf);
+			}
+		
 #endif
 
             trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);

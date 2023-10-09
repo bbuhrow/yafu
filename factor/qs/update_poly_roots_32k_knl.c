@@ -1209,6 +1209,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if !defined(USE_BATCHPOLY_X2)
 
+
 #if defined(USE_SS_SEARCH)
         for (j = xlarge_B; j < sconf->factor_base->ss_start_B; j += 16, ptr += 16)
 #else
@@ -1608,43 +1609,6 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 #else
         lp_bucket_p->num_slices = bound_index + 1;
         slicelogp_ptr[bound_index] = logp;
-
-        
-        //for (k = 0; k < dconf->poly_batchsize; k++)
-        //{
-        //    int jj;
-        //    printf("poly %d: num slices = %u\n", k, lp_bucket_p->num_slices);
-        //    //for (jj = 0; jj < lp_bucket_p->alloc_slices; jj++)
-        //    //{
-        //    //    printf("\tslice %d: fb_bounds = %u, logp = %u\n", jj,
-        //    //        lp_bucket_p->fb_bounds[k * lp_bucket_p->alloc_slices + jj],
-        //    //        lp_bucket_p->logp[k * lp_bucket_p->alloc_slices + jj]);
-        //    //    int i;
-        //    //    for (i = 0; i < numblocks; i++)
-        //    //    {
-        //    //        printf("\t\tblock %d: pnum = %u\n", i,
-        //    //            lp_bucket_p->num[jj * lp_bucket_p->alloc_slices + i]);
-        //    //    }
-        //    //    for (; i < 2 * numblocks; i++)
-        //    //    {
-        //    //        printf("\t\tblock %d: nnum = %u\n", i - numblocks,
-        //    //            lp_bucket_p->num[jj * lp_bucket_p->alloc_slices + i]);
-        //    //    }
-        //    //}
-        //
-        //    for (jj = 0; jj < lp_bucket_p->list_size; jj++)
-        //    {
-        //        if ((jj % (2 * numblocks)) == 0)
-        //        {
-        //            int ns = jj / (2 * numblocks);
-        //            printf("\tslice %d: fb_bounds = %u, logp = %u\n", ns,
-        //                lp_bucket_p->fb_bounds[ns], lp_bucket_p->logp[ns]);
-        //        }
-        //        printf("\t\tblock %d: num = %u\n", jj,
-        //            lp_bucket_p->num[jj]);
-        //
-        //    }
-        //}
 #endif
         
     }

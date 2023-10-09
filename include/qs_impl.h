@@ -27,8 +27,8 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
-#define USE_SS_SEARCH 
-#define USE_POLY_BUCKET_SS
+//#define USE_SS_SEARCH 
+//#define USE_POLY_BUCKET_SS
 //#define USE_LINKED_LIST_SS
 //#define USE_SORTED_LIST_SS
 

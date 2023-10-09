@@ -227,15 +227,6 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         }
 #endif
 
-
-        //#if defined(USE_BATCHPOLY_X2)
-        //        printf("lp sieve: dumping %d primes from slice %d of %d for poly %d, bucket/block %d\n", 
-        //            lpnum, j, dconf->buckets->num_slices_batch[pnum], pnum, bnum);
-        //#else
-        //        printf("lp sieve: dumping %d primes from slice %d of %d for poly %d, bucket/block %d\n",
-        //            lpnum, j, dconf->buckets->num_slices, pnum, bnum);
-        //#endif
-
         __m512i vlogp = _mm512_set1_epi32(logp);
         vnextbuckets = _mm512_and_epi32(vmask, _mm512_load_epi32((__m512i*)(&bptr[0])));
 
@@ -785,51 +776,128 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 #endif
 
 #ifdef USE_POLY_BUCKET_SS
+
+#define TRY_PN_BUCKET_COMBINE_SIEVE
+
 void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 {
-    // _sorted_buckets
     int i;
     int j;
 
     //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
     int pidx = dconf->polymap[dconf->numB];
     //printf("mapping b-index %d to bucket %d\n", dconf->numB, pidx);
+    __m512i vrootmask = _mm512_set1_epi32(0x1ffff);
+    __m512i vposmask = _mm512_set1_epi32(1 << 17);
 
     if ((side & 1) == 0)
     {
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            //uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
             uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
             uint32_t root;
-            uint8_t logp = dconf->ss_slices_p[i].logp + 1;
+            uint8_t logp = dconf->ss_slices_p[i].logp;
 
-            //printf("%d p-side hits\n", dconf->ss_slices_p[i].buckets[pidx].size);
-            //for (j = 0; j < dconf->ss_slices_p[i].buckets[pidx].size; j++)
+#ifdef TRY_PN_BUCKET_COMBINE_SIEVE
+
+            for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j += 16)
+            {
+                __m512i vr = _mm512_loadu_epi32(bucketelements + j);
+                __mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
+             
+                vr = _mm512_and_epi32(vr, vrootmask);
+                ALIGNED_MEM uint32_t roots[16];
+            
+                //_mm512_mask_compressstoreu_epi32(roots, mpos, vr);
+                //int num = _mm_popcnt_u32(mpos) - 1;
+                //while (num >= 0)
+                //{
+                //    sieve[roots[num--]] -= logp;
+                //}
+            
+                _mm512_store_epi32(roots, vr);
+                
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+                    sieve[roots[idx]] -= logp;
+                    mpos = _reset_lsb(mpos);
+                
+                }
+            }
+
+            for ( ; j < dconf->ss_slices_p[i].size[pidx]; j++)
+            {
+                if ((bucketelements[j] & 0x20000) == 0)
+                {
+                    sieve[bucketelements[j] & 0x1ffff] -= logp;
+                }
+            }
+
+#else
             for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j++)
             {
                 root = (bucketelements[j] & 0x3ffff);
                 sieve[root] -= logp;
             }
+#endif
         }
+
     }
     else
     {
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            //uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
+#ifdef TRY_PN_BUCKET_COMBINE_SIEVE
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
+            uint32_t root;
+            uint8_t logp = dconf->ss_slices_p[i].logp;
+
+            for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j += 16)
+            {
+                __m512i vr = _mm512_loadu_epi32(bucketelements + j);
+                __mmask16 mpos = _mm512_test_epi32_mask(vr, vposmask);
+                vr = _mm512_and_epi32(vr, vrootmask);
+                ALIGNED_MEM uint32_t roots[16];
+                
+                //_mm512_mask_compressstoreu_epi32(roots, mpos, vr);
+                //int num = _mm_popcnt_u32(mpos) - 1;
+                //while (num >= 0)
+                //{
+                //    sieve[roots[num--]] -= logp;
+                //}
+            
+                _mm512_store_epi32(roots, vr);
+                
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+                    sieve[roots[idx]] -= logp;
+                    mpos = _reset_lsb(mpos);
+                }
+            }
+
+            for ( ; j < dconf->ss_slices_p[i].size[pidx]; j++)
+            {
+                if ((bucketelements[j] & 0x20000))
+                {
+                    sieve[bucketelements[j] & 0x1ffff] -= logp;
+                }
+            }
+           
+#else
             uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * 16384;
             uint32_t root;
             uint8_t logp = dconf->ss_slices_n[i].logp + 1;
 
-            //printf("%d n-side hits\n", dconf->ss_slices_p[i].buckets[pidx].size);
-            //for (j = 0; j < dconf->ss_slices_n[i].buckets[pidx].size; j++)
             for (j = 0; j < dconf->ss_slices_n[i].size[pidx]; j++)
             {
                 root = (bucketelements[j] & 0x3ffff);
                 sieve[root] -= logp;
             }
+#endif
         }
+
     }
 
     return;
