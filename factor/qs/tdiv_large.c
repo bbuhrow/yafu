@@ -1432,7 +1432,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     int smooth_num;
     uint32_t* fb_offsets;
     uint32_t block_loc;
-    __m512i vblock;
+    //__m512i vblock;
 
     fb_offsets = &dconf->fb_offsets[report_num][0];
     smooth_num = dconf->smooth_num[report_num];
@@ -1440,7 +1440,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     // 16 copies of the 16-bit block_loc in the lower half of
     // each of the 32-bit vector elements.
-    vblock = _mm512_set1_epi32(block_loc);
+    //vblock = _mm512_set1_epi32(block_loc);
 
     //int pidx = dconf->numB;
     int pidx = dconf->polymap[dconf->numB];

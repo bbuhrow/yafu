@@ -48,9 +48,6 @@ void med_sieveblock_32k(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *full_f
 
     med_B = full_fb->med_B;
 
-    //initialize the block
-    BLOCK_INIT;
-
 #if defined(USE_ASM_SMALL_PRIME_SIEVING)
 
 	asm_input.logptr = fb->logp;

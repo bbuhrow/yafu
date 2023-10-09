@@ -689,6 +689,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if !defined(USE_BATCHPOLY_X2)
 
 #if defined(USE_SS_SEARCH)
+
         for (j = xlarge_B; j < sconf->factor_base->ss_start_B; j += 16, ptr += 16)
 #else
         for (j = xlarge_B; j < bound; j += 16, ptr += 16)

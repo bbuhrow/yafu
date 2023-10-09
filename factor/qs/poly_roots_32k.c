@@ -1775,10 +1775,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 
 #ifdef USE_SS_SEARCH
-	//ss_search_linked_lists(sconf, dconf);
-	//ss_search_sorted_lists(sconf, dconf);
-	ss_search_poly_buckets(sconf, dconf);
-	//ss_search_poly_buckets_x16(sconf, dconf);
+	if ((sconf->factor_base->ss_start_B > 0) &&
+		(sconf->factor_base->ss_start_B < sconf->factor_base->B))
+	{
+		//ss_search_linked_lists(sconf, dconf);
+		//ss_search_sorted_lists(sconf, dconf);
+		ss_search_poly_buckets(sconf, dconf);
+		//ss_search_poly_buckets_x16(sconf, dconf);
+	}
 #endif
 
     if (lp_bucket_p->list != NULL)

@@ -2795,6 +2795,26 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_init(highz);
             mpz_set(lowz, operands[0]);
             mpz_set(highz, operands[1]);
+
+            uint64_t* sievep, nump, pmax, pmin;
+            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+            sievep = soe_wrapper(sdata, 0, mpz_get_ui(operands[2]), 0, &nump, 0, 0);
+
+            if (sievep != NULL)
+            {
+                pmin = sievep[0];
+                pmax = sievep[nump - 1];
+            }
+
+            sdata->num_sp = nump;
+            sdata->sieve_p = (uint32_t*)xrealloc(sdata->sieve_p, nump * sizeof(uint32_t));
+            for (i = 0; i < nump; i++)
+            {
+                sdata->sieve_p[i] = sievep[i];
+            }
+
+            free(sievep);
+
             primes = sieve_to_depth(sdata, lowz, highz,
                 0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
                 &num_found, metadata->pscreen, metadata->pfile);
@@ -2805,6 +2825,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_clear(lowz);
             mpz_clear(highz);
             mpz_set_ui(operands[0], num_found);
+            soe_finalize(sdata);
         }
 
         break;
@@ -2827,6 +2848,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_init(highz);
             mpz_set(lowz, operands[0]);
             mpz_set(highz, operands[1]);
+
+            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+
             primes = sieve_to_depth(sdata, lowz, highz,
                 0, 0, mpz_get_ui(operands[2]),
                 &num_found, metadata->pscreen, metadata->pfile);
@@ -2837,6 +2861,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_clear(lowz);
             mpz_clear(highz);
             mpz_set_ui(operands[0], num_found);
+            soe_finalize(sdata);
         }
 
         break;

@@ -54,9 +54,6 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 
 	med_B = full_fb->med_B;
 
-	//initialize the block
-	BLOCK_INIT;
-
 	// sieve primes less than 2^13 using optimized loops: it becomes
 	// inefficient to do fully unrolled sse2 loops as the number of
 	// steps through the block increases.  While I didn't specifically

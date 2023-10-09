@@ -86,7 +86,7 @@ __m512i _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mm
 __m512i _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout)
 {
     __m512i t = _mm512_add_epi64(a, _mm512_maskz_set1_epi64(c, 1));
-    *cout = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL));
+    *cout = c & _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL));
     t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
     return t;
 }
