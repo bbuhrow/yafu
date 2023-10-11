@@ -786,6 +786,18 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 
     //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
     int pidx = dconf->polymap[dconf->numB];
+    int bucketalloc = dconf->ss_slices_p[0].alloc;
+
+    // if the mapped binary-encoded poly isn't in this block of 
+    // poly buckets then just skip large prime sieving.
+    //if ((pidx < dconf->ss_slices_p[0].curr_poly_idx) ||
+    //    (pidx >= (dconf->ss_slices_p[0].curr_poly_idx + (1 << dconf->ss_set1.size))))
+    //    return;
+
+    //printf("commencing large_sieve_ss on side %d, pidx %u (gray-index %d, set2 instance %d), sizes %d,%d\n",
+    //    side, pidx, dconf->numB, polymask / (1 << dconf->ss_set2.size),
+    //    (1 << dconf->ss_set1.size), (1 << dconf->ss_set2.size));
+
     //printf("mapping b-index %d to bucket %d\n", dconf->numB, pidx);
     __m512i vrootmask = _mm512_set1_epi32(0x1ffff);
     __m512i vposmask = _mm512_set1_epi32(1 << 17);
@@ -794,7 +806,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
     {
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
             uint32_t root;
             uint8_t logp = dconf->ss_slices_p[i].logp;
 
@@ -849,7 +861,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
 #ifdef TRY_PN_BUCKET_COMBINE_SIEVE
-            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
             uint32_t root;
             uint8_t logp = dconf->ss_slices_p[i].logp;
 

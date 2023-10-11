@@ -1258,7 +1258,24 @@ void *process_poly(void *vptr)
     }
 #endif
 
+    if (using_ss_search)
+    {
+        ss_search_setup(sconf, dconf);
+    }
+
     firstRoots_ptr(sconf, dconf);
+
+#if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
+    
+    if (using_ss_search)
+    {
+        //ss_search_sort_set_1(sconf, dconf);
+        //for (i = 1; i <= (1 << dconf->ss_set2.size); i++)
+        //    ss_search_poly_buckets_2(sconf, dconf, 1);
+        ss_search_poly_buckets(sconf, dconf);
+    }
+
+#endif
 
     // loop over each possible b value, for the current a value
     for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
@@ -1273,6 +1290,14 @@ void *process_poly(void *vptr)
         mpz_set(dconf->gmptmp3, dconf->gmptmp1);
         mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
         minblock = mpz_get_ui(dconf->gmptmp1);
+
+        //if (using_ss_search &&
+        //    ((dconf->numB % (1 << dconf->ss_set1.size)) == 0))
+        //{
+        ////    //printf("running search roots on set2 instance %d\n",
+        ////    //    dconf->numB / (1 << dconf->ss_set1.size));
+        //    ss_search_poly_buckets_2(sconf, dconf, dconf->numB / (1 << dconf->ss_set1.size));
+        //}
 
 #if defined( USE_SS_SEARCH ) //&& defined( USE_LINKED_LIST_SS )
 
@@ -1643,6 +1668,13 @@ void *process_poly(void *vptr)
 #endif
 
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
+
+#if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
+    if (using_ss_search)
+    {
+        ss_search_clear(sconf, dconf);
+    }
+#endif
 
 #if defined( USE_SS_SEARCH ) && defined( USE_LINK_LIST_SS )
     free(dconf->poly_ll_ptr_p);
@@ -2322,11 +2354,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             int slicesz = sconf->factor_base->slice_size;
             printf("allocating %d slices of size %d for subset sum buckets\n", numslices, slicesz);
 
+            dconf->firstroot1a = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+            dconf->firstroot1b = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+            dconf->firstroot2 = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+
             dconf->ss_slices_p = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
             dconf->ss_slices_n = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
-
-            // supports 2^16 bpolys
-            dconf->polymap = (int*)xmalloc(65536 * sizeof(int));
 
             dconf->num_ss_slices = numslices;
             dconf->poly_buckets_allocated = 0;
@@ -2335,14 +2368,18 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
                 // at most 2^14 polys... for now
                 //dconf->ss_slices_p[i].buckets = (ss_bucket_t*)xmalloc(32768 * sizeof(ss_bucket_t));
                 //dconf->ss_slices_n[i].buckets = (ss_bucket_t*)xmalloc(32768 * sizeof(ss_bucket_t));
-                dconf->ss_slices_p[i].elements = (uint32_t*)xmalloc(16384 * 16384 * sizeof(uint32_t));
-                dconf->ss_slices_n[i].elements = (uint32_t*)xmalloc(16384 * 16384 * sizeof(uint32_t));
-                dconf->ss_slices_p[i].size = (uint32_t*)xmalloc(16384 * sizeof(uint32_t));
-                dconf->ss_slices_n[i].size = (uint32_t*)xmalloc(16384 * sizeof(uint32_t));
-                dconf->ss_slices_p[i].alloc = 16384;
-                dconf->ss_slices_n[i].alloc = 16384;
-                dconf->ss_slices_p[i].numbuckets = 16384;
-                dconf->ss_slices_n[i].numbuckets = 16384;
+                dconf->ss_slices_p[i].alloc = 4096;
+                //dconf->ss_slices_n[i].alloc = 16384;
+                dconf->ss_slices_p[i].numbuckets = 65536;
+                //dconf->ss_slices_n[i].numbuckets = 16384;
+                int a = dconf->ss_slices_p[i].alloc;
+                int nb = dconf->ss_slices_p[i].numbuckets;
+
+                dconf->ss_slices_p[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
+                //dconf->ss_slices_n[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
+                dconf->ss_slices_p[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
+                //dconf->ss_slices_n[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
+
                 dconf->ss_slices_p[i].curr_poly_idx = 0;
                 dconf->ss_slices_n[i].curr_poly_idx = 0;
                 dconf->ss_slices_p[i].curr_poly_num = 0;

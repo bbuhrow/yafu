@@ -1444,8 +1444,21 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     block_loc = dconf->reports[report_num];
 
     //int pidx = dconf->numB;
+    //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
     int pidx = dconf->polymap[dconf->numB];
+    int bucketalloc = dconf->ss_slices_p[0].alloc;
+
+    // if the mapped binary-encoded poly isn't in this block of 
+    // poly buckets then just skip large prime sieving.
+    //if ((pidx < dconf->ss_slices_p[0].curr_poly_idx) ||
+    //    (pidx >= (dconf->ss_slices_p[0].curr_poly_idx + (1 << dconf->ss_set1.size))))
+    //    return;
+
     //printf("mapping b-index %d to bucket %d\n", dconf->numB, pidx);
+
+    //printf("commencing tdiv_ss on side %d on pidx %u (set2 instance %d), sizes %d,%d\n",
+    //    parity, pidx, polymask / (1 << dconf->ss_set2.size),
+    //    (1 << dconf->ss_set1.size), (1 << dconf->ss_set2.size));
 
     block_loc += bnum * 32768;
     __m512i vloc = _mm512_set1_epi32(block_loc);
@@ -1456,12 +1469,12 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     {
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
             int k;
-            for (k = 0; k < dconf->ss_slices_p[i].size[pidx] - 16; k += 16)
+            for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 16); k += 16)
             {
                 __m512i vr = _mm512_loadu_epi32(bucketelements + k);
                 __mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
@@ -1478,9 +1491,11 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
                     {
-                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u "
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u (%u) "
                             "pid = %u, fboffset = %u\n",
-                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, dconf->numB, pid, fboffset);
+                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, 
+                            dconf->numB, pidx, pid, fboffset);
+                        exit(1);
                     }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
@@ -1514,6 +1529,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                         printf("tdiv invalid root %u in slice %u, side %u, poly %u "
                             "pid = %u, fboffset = %u\n",
                             root, i, parity, dconf->numB, pid, fboffset);
+                        exit(1);
                     }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
@@ -1535,12 +1551,12 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 #ifdef TRY_PN_BUCKET_COMBINE_TDIV
 
 
-            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
             int k;
-            for (k = 0; k < dconf->ss_slices_p[i].size[pidx] - 16; k += 16)
+            for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 16); k += 16)
             {
                 __m512i vr = _mm512_loadu_epi32(bucketelements + k);
                 __mmask16 mpos = _mm512_test_epi32_mask(vr, vposmask);
@@ -1557,10 +1573,11 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
                     {
-                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u "
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u (%u) "
                             "pid = %u, fboffset = %u\n",
-                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, 
-                            dconf->numB, pid, fboffset);
+                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity,
+                            dconf->numB, pidx, pid, fboffset);
+                        exit(1);
                     }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
@@ -1590,6 +1607,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                         printf("tdiv invalid root %u in slice %u, side %u, poly %u "
                             "pid = %u, fboffset = %u\n",
                             root, i, parity, dconf->numB, pid, fboffset);
+                        exit(1);
                     }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)

@@ -27,8 +27,8 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
-//#define USE_SS_SEARCH 
-//#define USE_POLY_BUCKET_SS
+#define USE_SS_SEARCH 
+#define USE_POLY_BUCKET_SS
 //#define USE_LINKED_LIST_SS
 //#define USE_SORTED_LIST_SS
 
@@ -546,12 +546,29 @@ typedef struct {
     ss_bucket_slice_t* ss_slices_p;
     ss_bucket_slice_t* ss_slices_n;
     int poly_buckets_allocated;
+    ss_set_t ss_set1;
+    ss_set_t ss_set2;
+    mpz_t polyb1;
+    mpz_t polyb2;
+    ss_set_t* bins1;
+    ss_set_t* bins2;
+    ss_set_t** bins1_mp;
+    int binsize;
+    int bindepth;
+    int numbins;
+    int* firstroot1a;
+    int* firstroot1b;
+    int* firstroot2;
 #else
     ss_slice_t* ss_slices_p;
     ss_slice_t* ss_slices_n;
 #endif
 
     int* polymap;
+    int* polynums;
+    int* polyv;
+    int* polysign;
+
     uint32_t num_ss_slices;
     uint64_t* poly_ll_ptr_p;
     uint64_t* poly_ll_ptr_n;
@@ -748,6 +765,12 @@ void nextB(dynamic_conf_t* dconf, static_conf_t* sconf, int needC);
 
 void firstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 extern void (*firstRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+
+void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf);
+void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf);
+void ss_search_poly_buckets_2(static_conf_t* sconf, dynamic_conf_t* dconf, int set2_poly_id);
+void ss_search_clear(static_conf_t* sconf, dynamic_conf_t* dconf);
+void ss_search_sort_set_1(static_conf_t* sconf, dynamic_conf_t* dconf);
 
 void nextRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_sse41(static_conf_t* sconf, dynamic_conf_t* dconf);

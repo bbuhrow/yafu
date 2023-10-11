@@ -180,22 +180,40 @@ void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined( USE_POLY_BUCKET_SS ) && defined(USE_AVX512F)
 
 #define TRY_PN_BUCKET_COMBINE
-//#define TRY_GATHER_SCATTER
+#define TRY_GATHER_SCATTER
 
-void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
+void ss_search_clear(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
-	// the subset-sum search algorithm using a bucket sort to
-	// organize the sieve-hits per poly.  
-	// bucket sorting makes sieving very fast because it is just
-	// a linear dump from a bucket into the sieve, and
-	// SIMD can even help a little with that.
-	// But sorting itself is very slow because there are *many* 
-	// polynomials and they are widely spaced in memory, making 
-	// the sort slow.
-	// An idea is sort groups of polynomials so that we aren't 
-	// accessing so many buckets during the sort.  Then sieving
-	// can use similar bookkeeping to the sorted-lists approach
-	// within each poly-group bucket.
+	int i;
+
+	mpz_clear(dconf->polyb1);
+	mpz_clear(dconf->polyb2);
+	free(dconf->polyv);
+	free(dconf->polysign);
+	free(dconf->polynums);
+	free(dconf->polymap);
+
+	for (i = 0; i < dconf->numbins; i++)
+	{
+		free(dconf->bins1[i].root);
+		free(dconf->bins2[i].root);
+		free(dconf->bins1[i].polynum);
+		free(dconf->bins2[i].polynum);
+	}
+
+	free(dconf->bins1);
+	free(dconf->bins2);
+
+	free(dconf->ss_set1.root);
+	free(dconf->ss_set1.polynum);
+	free(dconf->ss_set2.root);
+	free(dconf->ss_set2.polynum);
+
+	return;
+}
+
+void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
 	siqs_poly* poly = dconf->curr_poly;
 	fb_list* fb = sconf->factor_base;
 	uint32_t numblocks = sconf->num_blocks;
@@ -205,52 +223,44 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 	numblocks = sconf->num_blocks;
 	interval = numblocks << 15;
 
-	int i, j, ii;
+	int i, j, k, ii;
 	int ss_num_poly_terms = poly->s / 2;
-	ss_set_t ss_set1a, ss_set1b, ss_set2a, ss_set2b;
+	ss_set_t* ss_set1 = &dconf->ss_set1;
+	ss_set_t* ss_set2 = &dconf->ss_set2;
 
-	mpz_t polyb1, polyb2;
-	mpz_init(polyb1);
-	mpz_init(polyb2);
+	mpz_init(dconf->polyb1);
+	mpz_init(dconf->polyb2);
 
-	ss_set1a.root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set1a.polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set1a.size = ss_num_poly_terms;
+	ss_set1->root = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
+	ss_set1->polynum = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
+	ss_set1->size = ss_num_poly_terms;
 
-	ss_set1b.root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set1b.polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set1b.size = ss_num_poly_terms;
-
-	//gmp_printf("%Zd\n", dconf->Bl[0]);
-	mpz_set(polyb1, dconf->Bl[0]);
-
+	mpz_set(dconf->polyb1, dconf->Bl[0]);
 	for (ii = 1; ii < ss_num_poly_terms; ii++) {
-		//gmp_printf("%Zd\n", dconf->Bl[ii]);
-		mpz_add(polyb1, polyb1, dconf->Bl[ii]);
+		mpz_add(dconf->polyb1, dconf->polyb1, dconf->Bl[ii]);
 	}
-	mpz_tdiv_q_2exp(polyb1, polyb1, 1);
+	mpz_tdiv_q_2exp(dconf->polyb1, dconf->polyb1, 1);
 
 	ss_num_poly_terms = (poly->s - 1) - ss_num_poly_terms;
 
-	ss_set2a.root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set2a.polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set2a.size = ss_num_poly_terms;
+	ss_set2->root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
+	ss_set2->polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
+	ss_set2->size = ss_num_poly_terms;
 
-	ss_set2b.root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set2b.polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set2b.size = ss_num_poly_terms;
+	//printf("ss_setup: %d,%d terms on L,R sides\n", ss_set1->size, ss_set2->size);
 
 	// first poly b: sum of first n positive Bl
-	mpz_set(polyb2, dconf->Bl[ii]);
-
+	mpz_set(dconf->polyb2, dconf->Bl[ii]);
 	for (ii++; ii < poly->s; ii++) {
-		mpz_add(polyb2, polyb2, dconf->Bl[ii]);
+		mpz_add(dconf->polyb2, dconf->polyb2, dconf->Bl[ii]);
 	}
-	mpz_tdiv_q_2exp(polyb2, polyb2, 1);
+	mpz_tdiv_q_2exp(dconf->polyb2, dconf->polyb2, 1);
 
-	int numbins = 2 * fb->list->prime[fb->B - 1] / (interval)+1;
-	int bindepth = 256;
-	int binsize;
+	dconf->numbins = 2 * fb->list->prime[fb->B - 1] / (interval)+1;
+	dconf->bindepth = 256;
+
+	int numbins = dconf->numbins;
+	int bindepth = dconf->bindepth;
 
 	ss_set_t* bins1;
 	ss_set_t* bins2;
@@ -271,17 +281,20 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		bins2[ii].size = 0;
 	}
 
-	// create a map from poly number back to 
-	// gray code enumeration order.
+	dconf->bins1 = bins1;
+	dconf->bins2 = bins2;
+
+	// create a map from gray code enumeration order
+	// to polynomial binary encoding.
 	int polynum = 0;
-	int* polymap = dconf->polymap;
-	int* polynums = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
-	int* polyv = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
-	int* polysign = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
+	dconf->polymap = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
+	dconf->polynums = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
+	dconf->polyv = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
+	dconf->polysign = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
 
 	//polymap[0] = 1;
-	polymap[1] = 0;
-	polynums[0] = 0;
+	dconf->polymap[1] = 0;
+	dconf->polynums[0] = 0;
 
 	for (ii = 1, polynum = 0; ii < (1 << (poly->s - 1)); ii++)
 	{
@@ -296,38 +309,35 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			v++, j >>= 1;
 		tmp = ii + (1 << v) - 1;
 		tmp = (tmp >> v);
-		polyv[ii] = v;
+		dconf->polyv[ii] = v;
 		if (tmp & 1)
-			polysign[ii] = -1;
+			dconf->polysign[ii] = -1;
 		else
-			polysign[ii] = 1;
+			dconf->polysign[ii] = 1;
 
 		// next polynum
 		polynum ^= (1 << (v - 1));
-		polynums[ii] = polynum;
-		//polymap[polynum] = ii + 1;
-		polymap[ii + 1] = polynum;
+		dconf->polynums[ii] = polynum;
+		dconf->polymap[ii + 1] = polynum;
 
 		//printf("%d <- %d (%d)\n", ii + 1, polynum, polynums[ii]);
 	}
-	int invalid_polynum = polynum;
 
 	int num_bpoly = 1 << (dconf->curr_poly->s - 1);
 
-	if (num_bpoly > dconf->ss_slices_n[0].numbuckets)
+	if (num_bpoly > dconf->ss_slices_p[0].numbuckets)
 	{
 		printf("not enough buckets allocated (%d) for current number of b-polys (%d)\n",
-			dconf->ss_slices_n[0].numbuckets, num_bpoly);
+			dconf->ss_slices_p[0].numbuckets, num_bpoly);
 		exit(1);
 	}
 
-	int need_bucket_alloc = !dconf->poly_buckets_allocated;
 	for (i = 0; i < dconf->num_ss_slices; i++)
 	{
 		for (ii = 0; ii <= (2 * num_bpoly); ii++)
 		{
 			dconf->ss_slices_p[i].size[ii] = 0;
-			dconf->ss_slices_n[i].size[ii] = 0;
+			//dconf->ss_slices_n[i].size[ii] = 0;
 		}
 
 		dconf->ss_slices_p[i].curr_poly_idx = 0;
@@ -335,10 +345,185 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		dconf->ss_slices_p[i].curr_poly_num = 0;
 		dconf->ss_slices_n[i].curr_poly_num = 0;
 	}
-	if (need_bucket_alloc)
+
+	return;
+}
+
+void ss_search_sort_set_1(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+	siqs_poly* poly = dconf->curr_poly;
+	fb_list* fb = sconf->factor_base;
+	uint32_t numblocks = sconf->num_blocks;
+	uint32_t interval;
+	int slicesz = sconf->factor_base->slice_size;
+
+	numblocks = sconf->num_blocks;
+	interval = numblocks << 15;
+
+	ss_set_t* ss_set1 = &dconf->ss_set1;
+
+	int* rootupdates = dconf->rootupdates;
+	update_t update_data = dconf->update_data;
+	uint32_t* modsqrt = sconf->modsqrt_array;
+
+	int i, j, k, ii;
+
+	struct timeval start, stop;
+	double t_enum_roots = 0.0;
+	double t_sort_roots = 0.0;
+
+	dconf->bins1_mp = (ss_set_t**)xmalloc((fb->B - fb->ss_start_B) * sizeof(ss_set_t*));
+	int size1 = ss_set1->size;
+	int bindepth = dconf->bindepth;
+
+	for (i = fb->ss_start_B; i < fb->B; i++)
 	{
-		dconf->poly_buckets_allocated = 1;
+		int r1 = update_data.firstroots1[i], r2 = update_data.firstroots2[i];
+		uint32_t bound = sconf->factor_base->B;
+		int polynum = 0;
+		int slice = (int)((i - sconf->factor_base->ss_start_B) / slicesz);
+		int fboffset = dconf->ss_slices_p[slice].fboffset;
+		int prime;
+		int root1;
+		int root2;
+		uint8_t logp = fb->list->logprime[i];
+
+		if (slice >= sconf->factor_base->num_ss_slices)
+		{
+			printf("error slice number %d too large, %d allocated, at fb index %d (prime %u)\n",
+				slice, sconf->factor_base->num_ss_slices, i, prime);
+			exit(0);
+		}
+
+		// create set1, an enumeration of (+/-t - b)(a)^-1 mod p
+		// for b in the set [+/-B1 +/- B2 +/- ... Bs/2]
+		int ii;
+		int tmp;
+
+#ifdef SS_TIMING
+		gettimeofday(&start, NULL);
+#endif
+
+		prime = fb->list->prime[i];
+		r1 = dconf->firstroot1a[i];
+		r2 = dconf->firstroot1b[i];
+
+		int* ptr;
+
+		// enumerate set1 roots
+		for (ii = 1, k = 0, polynum = 0; ii < (1 << size1); ii++, k += 2) {
+			// these roots go into the set
+			ss_set1->root[k + 0] = r1;
+			ss_set1->root[k + 1] = r2;
+			ss_set1->polynum[k + 0] = polynum;
+			ss_set1->polynum[k + 1] = polynum;
+
+			// next polynum
+			polynum = dconf->polynums[ii];
+
+			// next roots
+			ptr = &rootupdates[(dconf->polyv[ii] - 1) * bound + i];
+			if (dconf->polysign[ii] > 0)
+			{
+				r1 = (int)r1 - *ptr;
+				r2 = (int)r2 - *ptr;
+				r1 = (r1 < 0) ? r1 + prime : r1;
+				r2 = (r2 < 0) ? r2 + prime : r2;
+			}
+			else
+			{
+				r1 = (int)r1 + *ptr;
+				r2 = (int)r2 + *ptr;
+				r1 = (r1 >= prime) ? r1 - prime : r1;
+				r2 = (r2 >= prime) ? r2 - prime : r2;
+			}
+		}
+		// these roots go into the set
+		ss_set1->root[k + 0] = r1;
+		ss_set1->root[k + 1] = r2;
+		ss_set1->polynum[k + 0] = polynum;
+		ss_set1->polynum[k + 1] = polynum;
+
+#ifdef SS_TIMING
+		gettimeofday(&stop, NULL);
+		t_enum_roots += ytools_difftime(&start, &stop);
+
+		gettimeofday(&start, NULL);
+#endif
+
+		// sort into a set of bins for this prime
+		int numbins = prime / (6 * interval) + 1;
+		int binsize = prime / numbins + 1;
+		int binid = i - fb->ss_start_B;
+
+		dconf->bins1_mp[binid] = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+
+		// initialize bin sizes
+		for (ii = 0; ii < numbins; ii++)
+		{
+			dconf->bins1_mp[binid][ii].root = (int*)xmalloc(bindepth * sizeof(int));
+			dconf->bins1_mp[binid][ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
+			dconf->bins1_mp[binid][ii].alloc = bindepth;
+			dconf->bins1_mp[binid][ii].size = 0;
+		}
+
+		// sort roots into set 1
+		for (ii = 0; ii < (2 << ss_set1->size); ii++)
+		{
+			int binnum = ss_set1->root[ii] / binsize;
+			if (binnum < numbins)
+			{
+				int sz = dconf->bins1_mp[binid][binnum].size;
+				dconf->bins1_mp[binid][binnum].root[sz] = ss_set1->root[ii];
+				dconf->bins1_mp[binid][binnum].polynum[sz] = ss_set1->polynum[ii];
+				dconf->bins1_mp[binid][binnum].size++;
+				if (dconf->bins1_mp[binid][binnum].size >= bindepth)
+				{
+					printf("\nbin overflow\n\n");
+					exit(1);
+				}
+			}
+			else
+			{
+				printf("element %d of set 1, prime %u, root %d, invalid bin %d [of %d] with binsize %u\n",
+					ii, prime, ss_set1->root[ii], binnum, numbins, binsize);
+				exit(1);
+			}
+		}
+
+#ifdef SS_TIMING
+		gettimeofday(&stop, NULL);
+		t_sort_roots += ytools_difftime(&start, &stop);
+#endif
 	}
+
+#ifdef SS_TIMING
+	printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
+	printf("sorting roots: %1.4f seconds\n", t_sort_roots);
+#endif
+
+	return;
+}
+
+void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+	// the subset-sum search algorithm using a bucket sort to
+	// organize the sieve-hits per poly.  
+	siqs_poly* poly = dconf->curr_poly;
+	fb_list* fb = sconf->factor_base;
+	uint32_t numblocks = sconf->num_blocks;
+	uint32_t interval;
+	int slicesz = sconf->factor_base->slice_size;
+
+	numblocks = sconf->num_blocks;
+	interval = numblocks << 15;
+
+	int i, j, k, ii;
+	
+	ss_set_t* ss_set1 = &dconf->ss_set1;
+	ss_set_t* ss_set2 = &dconf->ss_set2;
+	ss_set_t* bins1 = dconf->bins1;
+	ss_set_t* bins2 = dconf->bins2;
 
 	double t_enum_roots;
 	double t_sort_roots;
@@ -376,15 +561,10 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		int polynum = 0;
 		int slice = (int)((i - sconf->factor_base->ss_start_B) / slicesz);
 		int fboffset = dconf->ss_slices_p[slice].fboffset;
-		int prime = fb->list->prime[i];
-		int p = prime;
-		int root1 = modsqrt[i];
-		int root2 = prime - root1;
+		int prime;
+		int root1;
+		int root2;
 		uint8_t logp = fb->list->logprime[i];
-
-		int amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a, prime);
-		int bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b, prime);
-		int inv;
 
 		if (slice >= sconf->factor_base->num_ss_slices)
 		{
@@ -394,16 +574,6 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		}
 
 		nump++;
-
-		//find a^-1 mod p = inv(a mod p) mod p
-		if (sconf->knmod8 == 1)
-		{
-			inv = modinv_1(2 * amodp, prime);
-		}
-		else
-		{
-			inv = modinv_1(amodp, prime);
-		}
 
 		// create set1, an enumeration of (+/-t - b)(a)^-1 mod p
 		// for b in the set [+/-B1 +/- B2 +/- ... Bs/2]
@@ -415,50 +585,23 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
 
 		prime = fb->list->prime[i];
-		root1 = modsqrt[i];
-		root2 = prime - root1;
-
-		// first poly b: sum of first n positive Bl
-		bmodp = (int)mpz_tdiv_ui(polyb1, prime);
-
-		// under these conditions polya is added to polyb.
-		// here we account for that by adding amodp into bmodp.
-		// only here in set1 enumeration.
-		if (sconf->knmod8 == 1)
-		{
-			if (sconf->charcount == 1)
-			{
-				bmodp += amodp;
-				if (bmodp >= prime)
-				{
-					bmodp -= prime;
-				}
-			}
-		}
-
-		//COMPUTE_FIRST_ROOTS;
-		r1 = (int)root1 - bmodp;
-		r2 = (int)root2 - bmodp;
-		if (r1 < 0) r1 += prime;
-		if (r2 < 0) r2 += prime;
-
-		r1 = (int)((uint64_t)inv * (uint64_t)r1 % (uint64_t)prime);
-		r2 = (int)((uint64_t)inv * (uint64_t)r2 % (uint64_t)prime);
+		r1 = dconf->firstroot1a[i];
+		r2 = dconf->firstroot1b[i];
 
 		int* ptr;
 
 		// enumerate set1 roots
-		for (ii = 1, polynum = 0; ii < (1 << n); ii++) {
+		for (ii = 1, k = 0, polynum = 0; ii < (1 << n); ii++, k += 2) {
 			// these roots go into the set
-			ss_set1a.root[ii - 1] = r1;
-			ss_set1b.root[ii - 1] = r2;
-			ss_set1a.polynum[ii - 1] = polynum;
-			ss_set1b.polynum[ii - 1] = polynum;
+			ss_set1->root[k + 0] = r1;
+			ss_set1->root[k + 1] = r2;
+			ss_set1->polynum[k + 0] = polynum;
+			ss_set1->polynum[k + 1] = polynum;
 
 			// next polynum
-			polynum = polynums[ii];
-			sign = polysign[ii];
-			v = polyv[ii];
+			polynum = dconf->polynums[ii];
+			sign = dconf->polysign[ii];
+			v = dconf->polyv[ii];
 
 			// next roots
 			ptr = &rootupdates[(v - 1) * bound + i];
@@ -478,10 +621,10 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			}
 		}
 		// these roots go into the set
-		ss_set1a.root[ii - 1] = r1;
-		ss_set1a.polynum[ii - 1] = polynum;
-		ss_set1b.root[ii - 1] = r2;
-		ss_set1b.polynum[ii - 1] = polynum;
+		ss_set1->root[k + 0] = r1;
+		ss_set1->root[k + 1] = r2;
+		ss_set1->polynum[k + 0] = polynum;
+		ss_set1->polynum[k + 1] = polynum;
 
 		int size1 = n;
 
@@ -489,22 +632,50 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		// for b in the set [+/-Bs/2+1 +/- Bs/2+2 ... + Bs]
 		n = (poly->s - 1) - n;
 
-		bmodp = (int)mpz_tdiv_ui(polyb2, prime);
+		r1 = dconf->firstroot2[i];
 
-		// - (B1 + B2 + B3 + ... Bs-1)
-		bmodp = prime - bmodp;
+		uint32_t polymask = (1 << ss_set1->size) - 1;
 
-		r1 = (uint32_t)((uint64_t)inv * (uint64_t)bmodp % (uint64_t)prime);
+		//if (ss_set1->size == ss_set2->size)
+		//{
+		//	printf("polys generated by set2 polynum %d:\n", 0);
+		//	for (k = 0; k < (2 << ss_set1->size); k += 2)
+		//	{
+		//		printf("binary poly encoding: %d, masked: %04x, gray code enumeration: %d, masked: %04x\n",
+		//			ss_set1->polynum[k] + 0, (ss_set1->polynum[k] + 0) & polymask,
+		//			dconf->polymap[ss_set1->polynum[k] + 0],
+		//			dconf->polymap[ss_set1->polynum[k] + 0] & polymask);
+		//	}
+		//}
 
-		// enumerate set2 roots
+		// enumerate set2 roots.
+		// each one of these generates a set of 2^n1 polys where
+		// n1 is the size of set1.  These will all be the next
+		// 2^n1 polys needed in the gray code enumeration with
+		// the exception of the powers of 2.  
+		// 
+		// Except it's not.  For example when the number of terms
+		// is equal on the left and right side then the a block of 
+		// binary encoded polynums doesn't always map to the same
+		// block of gray-encoded polynums.  There is still a regular
+		// pattern so this scheme could work, but since initial tests
+		// indicate its still not any faster then it doesn't seem
+		// worth it to work out a solution.
+		// Although even if it isn't any faster, the drastically reduced
+		// memory usage means we could use SSS for much larger numbers.
+		// 
+		// Assuming we generate
+		// and store the powers of 2 somewhere, then each call here
+		// can reuse a set of 2^n1 poly buckets for the next 2^n1
+		// gray-code polys.
 		for (ii = 1, polynum = 0; ii < (1 << n); ii++) {
 			// these roots go into the set
-			ss_set2a.root[ii - 1] = r1;
-			ss_set2a.polynum[ii - 1] = polynum;
+			ss_set2->root[ii - 1] = r1;
+			ss_set2->polynum[ii - 1] = polynum;
 
-			polynum = polynums[ii] << size1;
-			sign = polysign[ii];
-			v = polyv[ii];
+			polynum = dconf->polynums[ii] << size1;
+			sign = dconf->polysign[ii];
+			v = dconf->polyv[ii];
 
 			// next roots
 			ptr = &rootupdates[(size1 + v - 1) * bound + i];
@@ -518,11 +689,28 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 				r1 = (int)r1 + *ptr;
 				r1 = (r1 >= prime) ? r1 - prime : r1;
 			}
+
+			//if (ss_set1->size == ss_set2->size)
+			//{
+			//	printf("polys generated by set2 polynum %d:\n", ii);
+			//	for (k = 0; k < (2 << ss_set1->size); k += 2)
+			//	{
+			//		printf("binary poly encoding: %d, masked: %04x, gray code enumeration: %d, masked: %04x\n",
+			//			ss_set1->polynum[k] + polynum, (ss_set1->polynum[k] + polynum) & polymask,
+			//			dconf->polymap[ss_set1->polynum[k] + polynum],
+			//			dconf->polymap[ss_set1->polynum[k] + polynum] & polymask);
+			//	}
+			//}
 		}
 
+		//if (ss_set1->size == ss_set2->size)
+		//{
+		//	exit(1);
+		//}
+
 		// these roots go into the set
-		ss_set2a.root[ii - 1] = r1;
-		ss_set2a.polynum[ii - 1] = polynum;
+		ss_set2->root[ii - 1] = r1;
+		ss_set2->polynum[ii - 1] = polynum;
 
 #ifdef SS_TIMING
 		gettimeofday(&stop, NULL);
@@ -532,8 +720,12 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
 
 		// now sort the sets into a moderate number of bins over the range 0:p
-		numbins = p / (6 * interval) + 1;
-		binsize = p / numbins + 1;
+		dconf->numbins = prime / (6 * interval) + 1;
+		dconf->binsize = prime / dconf->numbins + 1;
+
+		int numbins = dconf->numbins;
+		int binsize = dconf->binsize;
+		int bindepth = dconf->bindepth;
 
 		// initialize bin sizes
 		for (ii = 0; ii < numbins; ii++)
@@ -542,15 +734,14 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			bins2[ii].size = 0;
 		}
 
-		// sort root1 into set 1
-		for (ii = 0; ii < (1 << ss_set1a.size); ii++)
+		// sort roots into set 1
+		for (ii = 0; ii < (2 << ss_set1->size); ii++)
 		{
-			int binnum = ss_set1a.root[ii] / binsize;
+			int binnum = ss_set1->root[ii] / binsize;
 			if (binnum < numbins)
 			{
-				//printf("bin %d <-- set1a root %d (L polynum %d)\n", binnum, ss_set1a.root[ii], ss_set1a.polynum[ii]);
-				bins1[binnum].root[bins1[binnum].size] = ss_set1a.root[ii];
-				bins1[binnum].polynum[bins1[binnum].size] = ss_set1a.polynum[ii];
+				bins1[binnum].root[bins1[binnum].size] = ss_set1->root[ii];
+				bins1[binnum].polynum[bins1[binnum].size] = ss_set1->polynum[ii];
 				bins1[binnum].size++;
 				if (bins1[binnum].size >= bindepth)
 				{
@@ -561,42 +752,18 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			else
 			{
 				printf("element %d of set 1, root %d, invalid bin %d [of %d]\n",
-					ii, ss_set1a.root[ii], binnum, numbins);
-			}
-		}
-
-		// sort root2 into set 1
-		for (ii = 0; ii < (1 << ss_set1b.size); ii++)
-		{
-			int binnum = ss_set1b.root[ii] / binsize;
-			if (binnum < numbins)
-			{
-				// printf("bin %d <-- set1b root %d (polynum 0)\n", binnum, ss_set1a.root[ii]);
-				bins1[binnum].root[bins1[binnum].size] = ss_set1b.root[ii];
-				bins1[binnum].polynum[bins1[binnum].size] = ss_set1b.polynum[ii];
-				bins1[binnum].size++;
-				if (bins1[binnum].size >= bindepth)
-				{
-					printf("\nbin overflow\n\n");
-					exit(1);
-				}
-			}
-			else
-			{
-				printf("element %d of set 1, root %d, invalid bin %d [of %d]\n",
-					ii, ss_set1b.root[ii], binnum, numbins);
+					ii, ss_set1->root[ii], binnum, numbins);
 			}
 		}
 
 		// sort set 2
-		for (ii = 0; ii < (1 << ss_set2a.size); ii++)
+		for (ii = 0; ii < (1 << ss_set2->size); ii++)
 		{
-			int binnum = ss_set2a.root[ii] / binsize;
+			int binnum = ss_set2->root[ii] / binsize;
 			if (binnum < numbins)
 			{
-				//printf("bin %d <-- set2a root %d (R polynum %d)\n", binnum, ss_set2a.root[ii], ss_set2a.polynum[ii]);
-				bins2[binnum].root[bins2[binnum].size] = ss_set2a.root[ii];
-				bins2[binnum].polynum[bins2[binnum].size] = ss_set2a.polynum[ii];
+				bins2[binnum].root[bins2[binnum].size] = ss_set2->root[ii];
+				bins2[binnum].polynum[bins2[binnum].size] = ss_set2->polynum[ii];
 				bins2[binnum].size++;
 				if (bins2[binnum].size > bindepth)
 				{
@@ -607,7 +774,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			else
 			{
 				printf("element %d of set 2, root %d, invalid bin %d [of %d]\n",
-					ii, ss_set2a.root[ii], binnum, numbins);
+					ii, ss_set2->root[ii], binnum, numbins);
 			}
 		}
 
@@ -648,8 +815,9 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		uint32_t* nsize_ptr = dconf->ss_slices_n[slice].size;
 
 		// ideas to try:
-		// * put p-side and n-side hits into the same elements array so that 
-		//   all hits can be gather/scattered from one base address.
+		// * don't sort all of the polys at once.  Increment set2 so that we sort
+		//   set1-sized groups of polynomials at a time.  every so often come back 
+		//   here to get some more.
 		// * sort the bins by poly prior to matching?  bins are relatively sparse
 		//   so sorting them is hopefully fast.  Bin2 holds the upper bits
 		//   of the poly and bin1 hold the lower bits, so when we match an element
@@ -658,28 +826,13 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		//   even consecutive polys are not super close.  Still, may be helpful.
 		// * process a couple b-bins at a time, the independent operations could 
 		//   hide some latency.
-		// * don't separate p and n side buckets, put all hits, p or n, into the
-		//   same poly bucket.  sort p vs. n during sieving.  half the buckets
-		//   to write to here trading off hopefully very slight hit to sieve time.
 
-		//printf("prime = %u, binsize = %d, interval = %d, num bpoly = %d\n", prime, binsize, interval, num_bpoly);
 		for (ii = 0; ii < numbins; ii++)
 		{
 			int x = binsize * ii + binsize / 2;
-			int px = p - x;
+			int px = prime - x;
 			int b = px / binsize;
 
-			//if (((b+1) < numbins) && ((b-1) >= 0))
-			//	printf("pairing bin %d with bin %d (and %d,%d) of %d total bins.  sizes: %d,%d,%d,%d\n",
-			//		ii, b, b + 1, b - 1, numbins, bins2[b].size, bins2[b+1].size, bins2[b-1].size, bins1[ii].size);
-			//else if ((b + 1) >= numbins)
-			//	printf("pairing bin %d with bin %d (and %d) of %d total bins.  sizes: %d,%d,%d\n",
-			//		ii, b, b - 1, numbins, bins2[b].size, bins2[b - 1].size, bins1[ii].size);
-			//else if ((b - 1) <= 0)
-			//	printf("pairing bin %d with bin %d (and %d) of %d total bins.  sizes: %d,%d,%d\n",
-			//		ii, b, b + 1, numbins, bins2[b].size, bins2[b + 1].size, bins1[ii].size);
-
-			int k;
 			for (k = 0; k < bins2[b].size; k++)
 			{
 				__m512i vb2root = _mm512_set1_epi32(bins2[b].root[k]);
@@ -721,7 +874,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #ifdef TRY_GATHER_SCATTER
 					vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
 					__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
-					__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+					__m512i vindex = _mm512_slli_epi32(vb1poly, 12);
 					vindex = _mm512_add_epi32(vindex, vbsz);
 
 					_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
@@ -746,7 +899,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 							psize_ptr[idx]++;
 					
-							if (psize_ptr[idx] >= 16384)
+							if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
 								printf("error bucket overflow: size of poly bucket %d = %d\n",
 									idx, psize_ptr[idx]);
 					
@@ -860,7 +1013,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						}
 #endif
 
-						if (psize_ptr[idx] >= 16384)
+						if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
 							printf("error bucket overflow: size of poly bucket %d = %d\n",
 								idx, psize_ptr[idx]);
 				
@@ -1094,7 +1247,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					//if (j = 0) //
 					//for (j = 0; j < bins1[ii].size; j += 16)
 					j = 0;
-					if (bins1[ii].size > 7)
+					if (bins1[ii].size > 4)
 					{
 						__mmask16 loadmask;
 
@@ -1125,7 +1278,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #ifdef TRY_GATHER_SCATTER
 						vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
 						__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
-						__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+						__m512i vindex = _mm512_slli_epi32(vb1poly, 12);
 						vindex = _mm512_add_epi32(vindex, vbsz);
 
 						_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
@@ -1151,7 +1304,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 								pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 								psize_ptr[idx]++;
 						
-								if (psize_ptr[idx] >= 16384)
+								if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
 									printf("error bucket overflow: size of poly bucket %d = %d\n",
 										idx, psize_ptr[idx]);
 						
@@ -1265,7 +1418,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							}
 #endif
 
-							if (psize_ptr[idx] >= 16384)
+							if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
 								printf("error bucket overflow: size of poly bucket %d = %d\n",
 									idx, psize_ptr[idx]);
 
@@ -1287,7 +1440,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					//if (j = 0) //
 					//for (j = 0; j < bins1[ii].size; j += 16)
 					j = 0;
-					if (bins1[ii].size > 7)
+					if (bins1[ii].size > 4)
 					{
 						__mmask16 loadmask;
 
@@ -1318,7 +1471,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #ifdef TRY_GATHER_SCATTER
 						vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
 						__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
-						__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+						__m512i vindex = _mm512_slli_epi32(vb1poly, 12);
 						vindex = _mm512_add_epi32(vindex, vbsz);
 
 						_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
@@ -1344,7 +1497,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 								pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
 								psize_ptr[idx]++;
 						
-								if (psize_ptr[idx] >= 16384)
+								if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
 									printf("error bucket overflow: size of poly bucket %d = %d\n",
 										idx, psize_ptr[idx]);
 						
@@ -1458,7 +1611,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							}
 #endif
 
-							if (psize_ptr[idx] >= 16384)
+							if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
 								printf("error bucket overflow: size of poly bucket %d = %d\n",
 									idx, psize_ptr[idx]);
 
@@ -1497,31 +1650,337 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 	//exit(0);
 
-	mpz_clear(polyb1);
-	mpz_clear(polyb2);
-	free(polyv);
-	free(polysign);
-	free(polynums);
+	return;
+}
 
-	for (ii = 0; ii < numbins; ii++)
+void ss_search_poly_buckets_2(static_conf_t* sconf, dynamic_conf_t* dconf, int set2_poly_id)
+{
+	// the subset-sum search algorithm using a bucket sort to
+	// organize the sieve-hits per poly.  
+	siqs_poly* poly = dconf->curr_poly;
+	fb_list* fb = sconf->factor_base;
+	uint32_t numblocks = sconf->num_blocks;
+	uint32_t interval;
+	int slicesz = sconf->factor_base->slice_size;
+
+	numblocks = sconf->num_blocks;
+	interval = numblocks << 15;
+
+	int i, j, k, ii;
+
+	ss_set_t* ss_set1 = &dconf->ss_set1;
+	ss_set_t* ss_set2 = &dconf->ss_set2;
+	ss_set_t* bins1 = dconf->bins1;
+	ss_set_t* bins2 = dconf->bins2;
+
+	double t_enum_roots;
+	double t_sort_roots;
+	double t_match_roots;
+	double t_sort_buckets;
+	struct timeval start, stop;
+
+	int* rootupdates = dconf->rootupdates;
+	update_t update_data = dconf->update_data;
+	uint32_t* modsqrt = sconf->modsqrt_array;
+
+	int maxbin1 = 0;
+	int maxbin2 = 0;
+	int nummatch = 0;
+	int matchp1 = 0;
+	int matchm1 = 0;
+
+	double avg_size1 = 0.0;
+	double avg_size2 = 0.0;
+	double avg_size3 = 0.0;
+
+	int totalbins1 = 0;
+	int totalbins2 = 0;
+	int totalbins3 = 0;
+
+	int nump = 0;
+	int size1 = poly->s / 2;
+	int size2 = (poly->s - 1) - size1;
+	int set2_poly = dconf->polynums[set2_poly_id - 1] << size1;
+
+	int poly2_sign = dconf->polysign[set2_poly_id];
+	int poly2_v = dconf->polyv[set2_poly_id];
+
+	if (set2_poly_id == (1 << size2))
 	{
-		free(bins1[ii].root);
-		free(bins2[ii].root);
-		free(bins1[ii].polynum);
-		free(bins2[ii].polynum);
+		poly2_sign = -1;
+		poly2_v = -1;
+	}
+	else
+	{
+		poly2_sign = dconf->polysign[set2_poly_id];
+		poly2_v = dconf->polyv[set2_poly_id];
 	}
 
-	free(bins1);
-	free(bins2);
+	for (i = fb->ss_start_B; i < fb->B; i++)
+	{
+		int numB;
+		int maxB = 1 << (dconf->curr_poly->s - 1);
+		int r1 = update_data.firstroots1[i], r2 = update_data.firstroots2[i];
+		uint32_t bound = sconf->factor_base->B;
+		uint32_t med_B = sconf->factor_base->med_B;
+		int polynum = 0;
+		int slice = (int)((i - sconf->factor_base->ss_start_B) / slicesz);
+		int fboffset = dconf->ss_slices_p[slice].fboffset;
+		int prime;
+		int root1;
+		int root2;
+		uint8_t logp = fb->list->logprime[i];
 
-	free(ss_set1a.root);
-	free(ss_set1a.polynum);
-	free(ss_set1b.root);
-	free(ss_set1b.polynum);
-	free(ss_set2a.root);
-	free(ss_set2a.polynum);
-	free(ss_set2b.root);
-	free(ss_set2b.polynum);
+		if (slice >= sconf->factor_base->num_ss_slices)
+		{
+			printf("error slice number %d too large, %d allocated, at fb index %d (prime %u)\n",
+				slice, sconf->factor_base->num_ss_slices, i, prime);
+			exit(0);
+		}
+
+		nump++;
+
+		int ii;
+		int tmp;
+
+		prime = fb->list->prime[i];
+		r1 = dconf->firstroot1a[i];
+		r2 = dconf->firstroot1b[i];
+
+		int* ptr;
+
+		// create set2 instance, an enumeration of (+/-t - b)(a)^-1 mod p
+		// for b in the set [+/-Bs/2+1 +/- Bs/2+2 ... + Bs].
+		// each set2 instance generates a set of 2^n1 polys where
+		// n1 is the size of set1.  These will all be the next
+		// 2^n1 polys needed in the gray code enumeration with
+		// the exception of the powers of 2.  Assuming we generate
+		// and store the powers of 2 somewhere, then each call here
+		// can reuse a set of 2^n1 poly buckets for the next 2^n1
+		// gray-code polys.
+
+		// these roots go into the set
+		r1 = dconf->firstroot2[i];
+		int set2_root = r1;
+
+		// next roots for this prime
+		if (poly2_v >= 0)
+		{
+			ptr = &rootupdates[(size1 + poly2_v - 1) * bound + i];
+			if (poly2_sign > 0)
+			{
+				r1 = (int)r1 - *ptr;
+				r1 = (r1 < 0) ? r1 + prime : r1;
+			}
+			else
+			{
+				r1 = (int)r1 + *ptr;
+				r1 = (r1 >= prime) ? r1 - prime : r1;
+			}
+
+			dconf->firstroot2[i] = r1;
+		}
+
+		// now sort the sets into a moderate number of bins over the range 0:p
+		dconf->numbins = prime / (6 * interval) + 1;
+		dconf->binsize = prime / dconf->numbins + 1;
+
+		int numbins = dconf->numbins;
+		int binsize = dconf->binsize;
+		int bindepth = dconf->bindepth;
+
+		// look up set1, an enumeration of (+/-t - b)(a)^-1 mod p
+		// for b in the set [+/-B1 +/- B2 +/- ... Bs/2]
+		int binid = i - fb->ss_start_B;
+		bins1 = dconf->bins1_mp[binid];
+
+		int binnum2 = set2_root / binsize;
+
+#ifdef SS_TIMING
+		gettimeofday(&start, NULL);
+#endif
+
+		// commence matching
+		uint32_t pid = (uint32_t)(i - fboffset) << 18;
+
+		if ((i - fboffset) >= slicesz)
+		{
+			printf("pid %d too large for slice %d with fboffset %d\n",
+				pid, slice, fboffset);
+			exit(1);
+		}
+
+		for (ii = 0; ii < numbins; ii++)
+		{
+			avg_size1 += bins1[ii].size;
+		}
+		totalbins1 += numbins;
+
+		__m512i vp = _mm512_set1_epi32(prime);
+		__m512i vi = _mm512_set1_epi32(interval);
+		__m512i vz = _mm512_setzero_epi32();
+		__m512i vpid = _mm512_set1_epi32(pid);
+
+		uint32_t bucketalloc = dconf->ss_slices_p[0].alloc;
+		uint32_t* pslice_ptr = dconf->ss_slices_p[slice].elements;
+		uint32_t* psize_ptr = dconf->ss_slices_p[slice].size;
+
+		// reuse the set1-size number of poly bins for this set2-instance.
+		for (ii = 0; ii < (1 << size1); ii++)
+		{
+			psize_ptr[ii] = 0;
+		}
+
+		dconf->ss_slices_p[slice].curr_poly_idx = set2_poly;
+		dconf->ss_slices_p[slice].curr_poly_num = size1;
+
+		for (ii = 0; ii < numbins; ii++)
+		{
+			int x = binsize * ii + binsize / 2;
+			int px = prime - x;
+			int b = px / binsize;
+
+			if (b == binnum2)
+			{
+				__m512i vb2root = _mm512_set1_epi32(set2_root);
+				__m512i vb2poly = _mm512_set1_epi32(set2_poly);
+
+
+				//if (j = 0) //
+				//for (j = 0; j < bins1[ii].size; j += 16)
+				j = 0;
+				if (bins1[ii].size > 4)
+				{
+					__mmask16 loadmask;
+
+					if ((bins1[ii].size - j) >= 16)
+						loadmask = 0xffff;
+					else
+						loadmask = (1 << (bins1[ii].size - j)) - 1;
+
+					__m512i vb1root = _mm512_mask_loadu_epi32(vz, loadmask,
+						&bins1[ii].root[j]);
+
+					__m512i vsum = _mm512_add_epi32(vb1root, vb2root);
+					__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
+					__mmask16 mneg = loadmask & (~mpos);
+
+					__m512i vdiffp = _mm512_mask_sub_epi32(vp, mpos, vsum, vp);
+					vdiffp = _mm512_mask_sub_epi32(vdiffp, mneg, vp, vsum);
+
+					mpos = _mm512_cmplt_epi32_mask(vdiffp, vi);
+
+					vdiffp = _mm512_or_epi32(vdiffp, vpid);
+					vdiffp = _mm512_mask_or_epi32(vdiffp, mneg, vdiffp, _mm512_set1_epi32(1 << 17));
+
+					__m512i vb1poly = _mm512_mask_loadu_epi32(vz, loadmask,
+						&bins1[ii].polynum[j]);
+
+#ifdef TRY_GATHER_SCATTER
+					vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
+					__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
+					__m512i vindex = _mm512_slli_epi32(vb1poly, 14);
+					vindex = _mm512_add_epi32(vindex, vbsz);
+
+					_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
+					vbsz = _mm512_add_epi32(vbsz, _mm512_set1_epi32(1));
+					_mm512_mask_i32scatter_epi32(psize_ptr, mpos, vb1poly, vbsz, 4);
+
+					nummatch += _mm_popcnt_u32(mpos);
+#else
+					if (mpos > 0)
+					{
+						uint32_t sum[16], poly[16];
+
+						_mm512_storeu_epi32(sum, vdiffp);
+						_mm512_storeu_epi32(poly, vb1poly); // _mm512_add_epi32(vb1poly, vb2poly));
+
+						while (mpos > 0)
+						{
+							int pos = _trail_zcnt(mpos);
+							int idx = poly[pos];
+
+							uint32_t bsz = psize_ptr[idx];
+							pslice_ptr[idx * bucketalloc + bsz] = sum[pos];
+							psize_ptr[idx]++;
+
+							if (psize_ptr[idx] >= 16384)
+							{
+								printf("error bucket overflow: size of poly bucket %d = %d\n",
+									idx, psize_ptr[idx]);
+								exit(1);
+							}
+
+							mpos = _reset_lsb(mpos);
+							nummatch++;
+						}
+					}
+#endif
+
+					j += 16;
+				}
+
+				for (; j < bins1[ii].size; j++)
+				{
+					int sum1 = set2_root + bins1[ii].root[j];
+					int sign1 = (sum1 >= prime);
+					sum1 = sign1 ? sum1 - prime : prime - sum1;
+
+					if (sum1 < interval)
+					{
+						int polysum = bins1[ii].polynum[j]; // +set2_poly;
+						int idx = polysum;
+
+						if (sign1)
+						{
+							uint32_t bsz = psize_ptr[idx];
+							pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+							psize_ptr[idx]++;
+						}
+						else
+						{
+							sum1 |= (1 << 17);
+							uint32_t bsz = psize_ptr[idx];
+							pslice_ptr[idx * bucketalloc + bsz] = (pid | sum1);
+							psize_ptr[idx]++;
+						}
+
+						if (psize_ptr[idx] >= 16384)
+						{
+							printf("error bucket overflow: size of poly bucket %d = %d\n",
+								idx, psize_ptr[idx]);
+							exit(1);
+						}
+
+						nummatch++;
+					}
+
+				}
+
+			}
+		}
+
+#ifdef SS_TIMING
+		gettimeofday(&stop, NULL);
+		t_match_roots += ytools_difftime(&start, &stop);
+#endif
+
+	}
+
+
+#ifdef SS_TIMING
+	//printf("ran subset-sum on %d primes\n", nump);
+	//printf("found %d sieve hits in matching bins\n", nummatch);
+	//printf("found %d sieve hits matching bins + 1\n", matchp1);
+	//printf("found %d sieve hits matching bins - 1\n", matchm1);
+	//printf("avg_size bins1 = %1.4f\n", avg_size1 / totalbins1);
+	//printf("avg_size bins2 = %1.4f\n", avg_size3 / totalbins1);
+	//printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
+	//printf("sorting roots: %1.4f seconds\n", t_sort_roots);
+	//printf("matching roots: %1.4f seconds\n", t_match_roots);
+#endif
+
+	//exit(0);
 
 	return;
 }
@@ -1563,6 +2022,13 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
     FILE *out;
     uint32_t shift = 24;
     int u = 0;
+	int using_ss_search = 0;
+
+	if ((sconf->factor_base->ss_start_B > 0) &&
+		(sconf->factor_base->ss_start_B < sconf->factor_base->B))
+	{
+		using_ss_search = 1;
+	}
 
 	numblocks = sconf->num_blocks;
 	interval = numblocks << 15;
@@ -1901,6 +2367,46 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         FILL_ONE_PRIME_N(i);
 
+#ifdef USE_SS_SEARCH
+
+		if (using_ss_search)
+		{
+			// first poly b: sum of first n positive Bl
+			bmodp = (int)mpz_tdiv_ui(dconf->polyb1, prime);
+
+			// under these conditions polya is added to polyb.
+			// here we account for that by adding amodp into bmodp.
+			// only here in set1 enumeration.
+			if (sconf->knmod8 == 1)
+			{
+				if (sconf->charcount == 1)
+				{
+					bmodp += amodp;
+					if (bmodp >= prime)
+					{
+						bmodp -= prime;
+					}
+				}
+			}
+
+			//COMPUTE_FIRST_ROOTS;
+			root1 = (int)(modsqrt[i]) - bmodp;
+			root2 = (int)(prime - modsqrt[i]) - bmodp;
+			if (root1 < 0) root1 += prime;
+			if (root2 < 0) root2 += prime;
+
+			dconf->firstroot1a[i] = (int)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+			dconf->firstroot1b[i] = (int)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
+
+			bmodp = (int)mpz_tdiv_ui(dconf->polyb2, prime);
+
+			// - (B1 + B2 + B3 + ... Bs-1)
+			bmodp = prime - bmodp;
+
+			dconf->firstroot2[i] = (uint32_t)((uint64_t)inv * (uint64_t)bmodp % (uint64_t)prime);
+		}
+#endif
+
         //for this factor base prime, compute the rootupdate value for all s
         //Bl values.  amodp holds a^-1 mod p
         //the rootupdate value is given by 2*Bj*amodp
@@ -1914,16 +2420,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
     }
 
-
-#if defined( USE_POLY_BUCKET_SS ) && defined(USE_AVX512F)
-	if ((sconf->factor_base->ss_start_B > 0) &&
-		(sconf->factor_base->ss_start_B < sconf->factor_base->B))
-	{
-		//ss_search_linked_lists(sconf, dconf);
-		//ss_search_sorted_lists(sconf, dconf);
-		ss_search_poly_buckets(sconf, dconf);
-	}
-#endif
 
     if (lp_bucket_p->list != NULL)
     {
