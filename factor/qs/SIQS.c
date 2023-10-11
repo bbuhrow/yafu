@@ -33,7 +33,7 @@ code to the public domain.
 
 #include "soe.h"
 
-#ifdef USE_SS_SEARCH
+#if defined( USE_SS_SEARCH ) && defined(USE_POLY_BUCKET_SS)
 #define SS_TIMING
 #endif
 
@@ -1182,6 +1182,257 @@ done:
 	return;
 }
 
+
+void init_Qval(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int polyid, int offset, int parity, int report_num)
+{
+    dconf->reports[report_num] = offset;
+    dconf->num++;
+
+    if (sconf->knmod8 == 1)
+    {
+        // this one is close enough, compute 
+        // Q(x) = (2ax + b)^2 - N, where x is the sieve index
+        // Q(x)/4a = (ax + b)x + c;	
+        mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+
+        if (parity)
+            mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        else
+            mpz_add(dconf->Qvals[report_num], dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+
+        mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], offset);
+        mpz_add(dconf->Qvals[report_num], dconf->Qvals[report_num], dconf->curr_poly->mpz_poly_c);
+
+        if (mpz_sgn(dconf->Qvals[report_num]) < 0)
+        {
+            mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
+        }
+
+        // minimum Q(x) should occur when (2ax + b)^2 = N
+        // 2ax + b = sqrt(N)
+        // 2ax = sqrt(N) - b
+        // x = (sqrt(N) - b) / 2a
+
+        //mpz_sqrt(dconf->gmptmp1, sconf->n);
+        //mpz_sub(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        //mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
+        //mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, 1);
+        //
+        //gmp_printf("Min x occurs at offset %Zd, this offset: %d\n", dconf->gmptmp1, offset);
+        //gmp_printf("This Q: %Zd\n", dconf->Qvals[report_num]);
+        //
+        //mpz_mul(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, dconf->gmptmp1);
+        //
+        //if (parity)
+        //    mpz_sub(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        //else
+        //    mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        //
+        //mpz_mul_ui(dconf->gmptmp1, dconf->gmptmp1, offset);
+        //mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_c);
+        //
+        //if (mpz_sgn(dconf->gmptmp1) < 0)
+        //{
+        //    mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+        //}
+        //
+        //gmp_printf("Min Q : %Zd\n", dconf->gmptmp1);
+        //
+        //mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, 0);
+        //
+        //if (parity)
+        //    mpz_sub(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        //else
+        //    mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        //
+        //mpz_mul_ui(dconf->gmptmp1, dconf->gmptmp1, offset);
+        //mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_c);
+        //
+        //if (mpz_sgn(dconf->gmptmp1) < 0)
+        //{
+        //    mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+        //}
+        //
+        //gmp_printf("Q(0)  : %Zd\n", dconf->gmptmp1);
+        //exit(1);
+    }
+    else
+    {
+        // this one is close enough, compute 
+        // Q(x) = (ax + b)^2 - N, where x is the sieve index
+        // Q(x)/a = (ax + 2b)x + c;	
+        mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1);
+        mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+
+        if (parity)
+            mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2);
+        else
+            mpz_add(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2);
+
+        mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], offset);
+        mpz_add(dconf->Qvals[report_num], dconf->Qvals[report_num], dconf->curr_poly->mpz_poly_c);
+
+        if (mpz_sgn(dconf->Qvals[report_num]) < 0)
+        {
+            mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
+        }
+    }
+}
+
+int td_small_p(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int polyid, int offset, int parity, int report_num)
+{
+    uint8_t bits = 0, logp;
+    int smooth_num;
+    int i;
+    tiny_fb_element_siqs* fullfb_ptr, * fullfb = sconf->factor_base->tinylist;
+    sieve_fb_compressed* fbc;
+    uint32_t tmp1, tmp2, tmp3, tmp4;
+    uint64_t q64;
+    uint32_t tmp, prime, root1, root2;
+    siqs_poly* poly = dconf->curr_poly;
+
+    fullfb_ptr = fullfb;
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+    dconf->smooth_num[report_num] = 0;
+    smooth_num = 0;
+
+    //take care of powers of two
+    while (mpz_even_p(dconf->Qvals[report_num]))
+    {
+        mpz_tdiv_q_2exp(dconf->Qvals[report_num], dconf->Qvals[report_num], 1);
+        bits++;
+    }
+
+    i = 2;
+    // explicitly trial divide by small primes which we have not
+    // been sieving.  because we haven't been sieving, their progressions
+    // have not been updated and thus we can't use faster methods.
+    // fortunately, there shouldn't be many of these to test.
+
+    int k = 0;
+    int index_to_skip = poly->qlisort[k];
+
+    // finish up the rest of the small primes
+    while ((uint32_t)i < sconf->sieve_small_fb_start)
+    {
+        uint64_t q64;
+
+        if (i == index_to_skip)
+        {
+            k++;
+            if (k < poly->s)
+                index_to_skip = poly->qlisort[k];
+            else
+                index_to_skip = -1;
+            continue;
+        }
+
+        prime = fbc->prime[i];
+        //root1 = fbc->root1[i];
+        //root2 = fbc->root2[i];
+        logp = fbc->logp[i];
+        //
+        //// this is just offset % prime (but divisionless!)
+        //tmp = offset + fullfb_ptr->correction[i];
+        //q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
+        //tmp = q64 >> 32;
+        //tmp = offset - tmp * prime;
+
+        // if offset % prime == either root, it's on the progression.  also
+        // need to check for the case if root1 or root2 == prime at the same
+        // time as offset mod prime = 0.  for small primes, this happens fairly
+        // often.  the simple offset % prime check will miss these cases.
+        //if (tmp == root1 || tmp == root2)
+        {
+            while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+            {
+                mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);
+                bits += logp;
+            }
+        }
+        i++;
+    }
+
+    if (bits < sconf->tf_small_cutoff)
+        dconf->valid_Qs[report_num] = 0;
+    else
+        dconf->valid_Qs[report_num] = 1;
+
+    if (dconf->valid_Qs[report_num])
+    {
+
+        while ((uint32_t)i < sconf->factor_base->fb_15bit_B)
+        {
+            uint64_t q64;
+
+            if (i == index_to_skip)
+            {
+                k++;
+                if (k < poly->s)
+                    index_to_skip = poly->qlisort[k];
+                else
+                    index_to_skip = -1;
+                continue;
+            }
+
+            prime = fbc->prime[i];
+            //root1 = fbc->root1[i];
+            //root2 = fbc->root2[i];
+            //logp = fbc->logp[i];
+            //
+            //// this is just offset % prime (but divisionless!)
+            //tmp = offset + fullfb_ptr->correction[i];
+            //q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
+            //tmp = q64 >> 32;
+            //tmp = offset - tmp * prime;
+
+            // if offset % prime == either root, it's on the progression.  also
+            // need to check for the case if root1 or root2 == prime at the same
+            // time as offset mod prime = 0.  for small primes, this happens fairly
+            // often.  the simple offset % prime check will miss these cases.
+            //if (tmp == root1 || tmp == root2)
+            {
+                while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                {
+                    dconf->fb_offsets[report_num][smooth_num++] = i;
+                    mpz_tdiv_q_ui(dconf->Qvals[report_num],
+                        dconf->Qvals[report_num], prime);
+                }
+            }
+            i++;
+        }
+    }
+   
+
+    // don't reject a sieve hit if it is within a small distance
+    // of the poly root as these locations are much more likely
+    // to factor over the fb.
+    //if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
+    //    abs(offset - minoffset) > 2000)
+
+    //printf("%d small-prime bits divided out of Q (threshold = %d), smooth_num = %d\n", 
+    //    bits, sconf->tf_small_cutoff, smooth_num);
+    // 
+    //
+    
+    
+
+    dconf->smooth_num[report_num] = smooth_num;
+    //dconf->valid_Qs[report_num] = 1;
+
+    return dconf->valid_Qs[report_num];
+}
+
 void *process_poly(void *vptr)
 {
     // top-level sieving function which performs all work for a single
@@ -1258,10 +1509,13 @@ void *process_poly(void *vptr)
     }
 #endif
 
+
+#if defined( USE_SS_SEARCH )
     if (using_ss_search)
     {
         ss_search_setup(sconf, dconf);
     }
+#endif
 
     firstRoots_ptr(sconf, dconf);
 
@@ -1273,6 +1527,280 @@ void *process_poly(void *vptr)
         //for (i = 1; i <= (1 << dconf->ss_set2.size); i++)
         //    ss_search_poly_buckets_2(sconf, dconf, 1);
         ss_search_poly_buckets(sconf, dconf);
+    }
+
+#endif
+
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
+
+    if (using_ss_search)
+    {
+        int p, s;
+        int num_bpoly = 1 << (dconf->curr_poly->s - 1);
+        int locs_to_resieve = 0;
+        int sieve_sz = dconf->ss_sieve_sz;
+        update_t update_data = dconf->update_data;
+        int* rootupdates = dconf->rootupdates;
+        uint32_t bound = sconf->factor_base->B;
+
+        memset(dconf->ss_sieve_p, blockinit, num_bpoly * sieve_sz * sizeof(uint8_t));
+        memset(dconf->ss_sieve_n, blockinit, num_bpoly * sieve_sz * sizeof(uint8_t));
+
+        // for primes up to this bound, do a normal sieve process
+        // into the sieve region for all polys.
+        // p is the gray-code enumeration.
+        for (p = 1; p < num_bpoly; p++)
+        {
+            int k = 0;
+            int index_to_skip = poly->qlisort[k];
+
+            // map the gray-code enumeration to binary-polynum encoding,
+            // because that's the way the subset-sum code wants it and
+            // we need to agree with that here.
+            int pidx = dconf->polymap[p];
+
+            for (i = sconf->sieve_small_fb_start; i < fb->fb_15bit_B; i++)
+            {
+                if (i == index_to_skip)
+                {
+                    k++;
+                    if (k < poly->s)
+                        index_to_skip = poly->qlisort[k];
+                    else
+                        index_to_skip = -1;
+                    continue;
+                }
+
+                uint16_t logp = sconf->factor_base->list->logprime[i];
+                uint16_t prime = fb_sieve_p->prime[i];
+                uint16_t r1 = fb_sieve_p->root1[i];
+                uint16_t r2 = fb_sieve_p->root2[i];
+
+                while (r2 < sieve_sz)
+                {
+                    dconf->ss_sieve_p[pidx * sieve_sz + r2] -= logp;
+                    dconf->ss_sieve_p[pidx * sieve_sz + r1] -= logp;
+                    r1 += prime;
+                    r2 += prime;
+                }
+                if (r1 < sieve_sz)
+                {
+                    dconf->ss_sieve_p[pidx * sieve_sz + r1] -= logp;
+                }
+
+                r1 = fb_sieve_n->root1[i];
+                r2 = fb_sieve_n->root2[i];
+
+                while (r2 < sieve_sz)
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz + r2] -= logp;
+                    dconf->ss_sieve_n[pidx * sieve_sz + r1] -= logp;
+                    r1 += prime;
+                    r2 += prime;
+                }
+                if (r1 < sieve_sz)
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz + r1] -= logp;
+                }
+
+                r1 = (uint32_t)update_data.sm_firstroots1[i];
+                r2 = (uint32_t)update_data.sm_firstroots2[i];
+
+                // next roots
+                //ptr = &rootupdates[(dconf->polyv[ii] - 1) * bound + i];
+                //if (dconf->polysign[ii] > 0)
+
+                int sign = dconf->polysign[p];
+                int v = dconf->polyv[p];
+                int* ptr = &rootupdates[(v - 1) * bound + i];
+
+                if (sign > 0)
+                {
+                    r1 = (int)r1 - *ptr;
+                    r2 = (int)r2 - *ptr;
+                    r1 = (r1 < 0) ? r1 + prime : r1;
+                    r2 = (r2 < 0) ? r2 + prime : r2;
+                }
+                else
+                {
+                    r1 = (int)r1 + *ptr;
+                    r2 = (int)r2 + *ptr;
+                    r1 = (r1 >= prime) ? r1 - prime : r1;
+                    r2 = (r2 >= prime) ? r2 - prime : r2;
+                }
+
+                if (r2 < r1)
+                {
+                    update_data.sm_firstroots1[i] = (uint16_t)r2;
+                    update_data.sm_firstroots2[i] = (uint16_t)r1;
+
+                    fb_sieve_p->root1[i] = (uint16_t)r2;
+                    fb_sieve_p->root2[i] = (uint16_t)r1;
+                    fb_sieve_n->root1[i] = (uint16_t)(prime - r1);
+                    fb_sieve_n->root2[i] = (uint16_t)(prime - r2);
+                }
+                else
+                {
+                    update_data.sm_firstroots1[i] = (uint16_t)r1;
+                    update_data.sm_firstroots2[i] = (uint16_t)r2;
+
+                    fb_sieve_p->root1[i] = (uint16_t)r1;
+                    fb_sieve_p->root2[i] = (uint16_t)r2;
+                    fb_sieve_n->root1[i] = (uint16_t)(prime - r2);
+                    fb_sieve_n->root2[i] = (uint16_t)(prime - r1);
+                }
+            }
+        }
+
+        // this does the bulk of the sieving.  All polynomials and
+        // all primes > 15-bit
+        dconf->num_ss_slices = 0;   // indicator for resieveing
+        ss_search_poly_buckets(sconf, dconf);
+
+        // for each polynomial, look at the entries and decide whether
+        // to process further.
+        int report_num = 0;
+        for (p = 1; p < num_bpoly; p++)
+        {
+            // map the gray-code enumeration to binary-polynum encoding
+            int pidx = dconf->polymap[p];
+
+            for (s = 0; s < dconf->ss_sieve_sz; s++)
+            {
+                if (dconf->ss_sieve_p[pidx * sieve_sz + s] & 0x80)
+                {
+                    // mark this location for re-sieving
+                    dconf->ss_sieve_p[pidx * sieve_sz + s] = report_num++;
+                }
+                else
+                {
+                    dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
+                }
+
+                if (dconf->ss_sieve_n[pidx * sieve_sz + s] & 0x80)
+                {
+                    // mark this location for re-sieving
+                    dconf->ss_sieve_n[pidx * sieve_sz + s] = report_num++;
+                }
+                else
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
+                }
+            }
+        }
+
+        // last poly is invalid but subset-sum will still hit it.
+        for (s = 0; s < dconf->ss_sieve_sz; s++)
+        {
+            dconf->ss_sieve_p[dconf->polymap[p] * sieve_sz + s] = 0xff;
+            dconf->ss_sieve_n[dconf->polymap[p] * sieve_sz + s] = 0xff;
+        }
+
+        // and finally process for any large primes and store discovered relations.
+        printf("found %d locations to resieve\n", report_num);
+
+        // now initialize Q and divide out the small primes at the marked locations.
+        // here we need to actually increment through the b-polys.
+        dconf->numB = 1;
+        report_num = 0;
+        for (p = 1; p < num_bpoly; p++)
+        {
+            // map the gray-code enumeration to binary-polynum encoding
+            int pidx = dconf->polymap[p];
+
+            for (s = 0; s < dconf->ss_sieve_sz; s++)
+            {
+                if (dconf->ss_sieve_p[pidx * sieve_sz + s] < 0xff)
+                {
+                    // initialize Qval for poly p at offset s
+                    int rnum = dconf->ss_sieve_p[pidx * sieve_sz + s];
+                    //printf("initializing report %d at pidx %d loc %d p-side\n",
+                    //    rnum, pidx, s);
+                    init_Qval(sconf, dconf, p - 1, s, 0, rnum);
+                    int valid = td_small_p(sconf, dconf, p - 1, s, 0, rnum);
+                    if (valid)
+                    {
+                        report_num++;
+                    }
+                    else
+                    {
+                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
+                    }
+                }
+                if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
+                {
+                    // initialize Qval for poly p at offset -s
+                    int rnum = dconf->ss_sieve_n[pidx * sieve_sz + s];
+                    //printf("initializing report %d at pidx %d loc %d n-side\n",
+                    //    rnum, pidx, s);
+                    init_Qval(sconf, dconf, p - 1, s, 1, rnum);
+                    int valid = td_small_p(sconf, dconf, p - 1, s, 1, rnum);
+                    if (valid)
+                    {
+                        report_num++;
+                    }
+                    else
+                    {
+                        dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
+                    }
+                }
+            }
+
+            // next polynomial
+            // use the stored Bl's and the gray code to find the next b
+            nextB(dconf, sconf, 1);
+            dconf->numB++;
+        }
+
+        printf("initialized %d resieve locations\n", report_num);
+
+        // do the resieve.  Same as before but now we divide out the primes
+        // for hits at the marked locations.
+        if (report_num > 0)
+        {
+            printf("commencing subset-sum resieve\n");
+            dconf->num_ss_slices = 1;   // indicator for resieveing
+            ss_search_poly_buckets(sconf, dconf);
+        }
+
+        // examine what's left
+        computeBl(sconf, dconf, 1);
+        dconf->numB = 1;
+        for (p = 1; p < num_bpoly; p++)
+        {
+            // map the gray-code enumeration to binary-polynum encoding
+            int pidx = dconf->polymap[p];
+
+            for (s = 0; s < dconf->ss_sieve_sz; s++)
+            {
+                if (dconf->ss_sieve_p[pidx * sieve_sz + s] < 0xff)
+                {
+                    // initialize Qval for poly p at offset s
+                    int rnum = dconf->ss_sieve_p[pidx * sieve_sz + s];
+                    trial_divide_Q_siqs(rnum, 0, p - 1, 0, sconf, dconf);
+
+                    //gmp_printf("Q[pidx=%d,offset=%d] = %Zd\n", 
+                    //    pidx, s, dconf->Qvals[rnum]);
+                }
+                if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
+                {
+                    // initialize Qval for poly p at offset -s
+                    int rnum = dconf->ss_sieve_n[pidx * sieve_sz + s];
+                    trial_divide_Q_siqs(rnum, 1, p - 1, 0, sconf, dconf);
+
+                    //gmp_printf("Q[pidx=%d,offset=%d] = %Zd\n", 
+                    //    pidx, s, dconf->Qvals[rnum]);
+                }
+            }
+
+            // next polynomial
+            // use the stored Bl's and the gray code to find the next b
+            nextB(dconf, sconf, 1);
+            dconf->numB++;
+            dconf->tot_poly++;
+        }
+
+        goto done;
     }
 
 #endif
@@ -1659,8 +2187,12 @@ void *process_poly(void *vptr)
 
     //exit(0);
 
+done:
+
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
+
+    //printf("processed poly in: %1.4f seconds\n", t_time);
 
 #ifdef SS_TIMING
     printf("sieve buckets: %1.4f\n", t_sieve_ss_buckets);
@@ -1670,6 +2202,13 @@ void *process_poly(void *vptr)
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
 #if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
+    if (using_ss_search)
+    {
+        ss_search_clear(sconf, dconf);
+    }
+#endif
+
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
     if (using_ss_search)
     {
         ss_search_clear(sconf, dconf);
@@ -2006,6 +2545,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
                 sconf->factor_base->ss_start_B,
                 sconf->factor_base->list->prime[sconf->factor_base->ss_start_B],
                 sconf->factor_base->num_ss_slices);
+#elif defined(USE_DIRECT_SIEVE_SS)
+            printf("using direct-sieve subsum-search at fb index > %d (prime %u), %d slices\n",
+                sconf->factor_base->ss_start_B,
+                sconf->factor_base->list->prime[sconf->factor_base->ss_start_B],
+                sconf->factor_base->num_ss_slices);
 #endif
         }
 #endif
@@ -2237,10 +2781,22 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     if ((sconf->factor_base->ss_start_B > 0) &&
         (sconf->factor_base->ss_start_B < sconf->factor_base->B))
     {
+
+#if defined(USE_SS_SEARCH) && defined( USE_DIRECT_SIEVE_SS )
+        dconf->ss_sieve_sz = 1024;
+
+        // 65536 is max number of polys
+        dconf->ss_sieve_p = (uint8_t*)xmalloc_align(8192 * 
+            dconf->ss_sieve_sz * sizeof(uint8_t));
+        dconf->ss_sieve_n = (uint8_t*)xmalloc_align(8192 *
+            dconf->ss_sieve_sz * sizeof(uint8_t));
+
+#else
         dconf->ss_sieve_p = (uint8_t*)xmalloc_align(2 * sconf->num_blocks *
             sconf->qs_blocksize * sizeof(uint8_t));
         dconf->ss_sieve_n = (uint8_t*)xmalloc_align(2 * sconf->num_blocks *
             sconf->qs_blocksize * sizeof(uint8_t));
+#endif
     }
     else
     {
@@ -2408,6 +2964,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             }
         }
 
+#elif defined(USE_SS_SEARCH) && defined( USE_DIRECT_SIEVE_SS )
+
+        dconf->firstroot1a = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+        dconf->firstroot1b = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+        dconf->firstroot2 = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+
 #endif
 
         //initialize the bucket lists and auxilary info.
@@ -2512,17 +3074,17 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     // array of sieve locations scanned from the sieve block that we
     // will submit to trial division.  make it the size of a sieve block 
     // in the pathological case that every sieve location is a report
-    dconf->reports = (uint32_t *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32_t));
+    dconf->reports = (uint32_t *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(uint32_t));
     dconf->num_reports = 0;
-    dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
-    for (i = 0; i < MAX_SIEVE_REPORTS; i++)
+    dconf->Qvals = (mpz_t *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(mpz_t));
+    for (i = 0; i < 4 * MAX_SIEVE_REPORTS; i++)
     {
         mpz_init(dconf->Qvals[i]); //, 2*sconf->bits);
         mpz_set_ui(dconf->Qvals[i], 0);
     }
 
-    dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
-    dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
+    dconf->valid_Qs = (int *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(int));
+    dconf->smooth_num = (int *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(int));
     dconf->failed_squfof = 0;
     dconf->attempted_squfof = 0;
     dconf->dlp_outside_range = 0;
@@ -3576,7 +4138,12 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	//values of g_{a,b}(x) as uniform as possible
 	mpz_mul_2exp(sconf->target_a, sconf->n, 1);
 	mpz_sqrt(sconf->target_a, sconf->target_a);
-	mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, sconf->sieve_interval); 
+#if defined (USE_SS_SEARCH) && defined( USE_DIRECT_SIEVE_SS)
+    mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, 1024);
+#else
+    mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, sconf->sieve_interval);
+#endif
+	
     if (sconf->knmod8 == 1)
     {
         mpz_tdiv_q_2exp(sconf->target_a, sconf->target_a, 1);

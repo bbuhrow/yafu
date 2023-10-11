@@ -1157,6 +1157,10 @@ void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factor
 	rel->large_prime[1] = large_prime[1];
 	rel->large_prime[2] = large_prime[2];
 
+    //printf("buffered relation at a,b = %d,%d, offset %d, side %d, lp=%u,%u\n",
+    //    rel->apoly_idx, rel->poly_idx, rel->sieve_offset, rel->parity,
+    //    rel->large_prime[0], rel->large_prime[1]);
+
 	conf->buffered_rels++;
 	return;
 }

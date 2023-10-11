@@ -1049,7 +1049,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 			dconf->total_surviving_reports++;
 			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 
-#ifdef USE_SS_SEARCH
+#if defined( USE_SS_SEARCH ) && defined(USE_POLY_BUCKET_SS)
 			if ((sconf->factor_base->ss_start_B > 0) &&
 				(sconf->factor_base->ss_start_B < sconf->factor_base->B))
 			{

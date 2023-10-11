@@ -28,7 +28,8 @@
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
 #define USE_SS_SEARCH 
-#define USE_POLY_BUCKET_SS
+#define USE_DIRECT_SIEVE_SS
+//#define USE_POLY_BUCKET_SS
 //#define USE_LINKED_LIST_SS
 //#define USE_SORTED_LIST_SS
 
@@ -527,8 +528,7 @@ typedef struct {
     sieve_fb_compressed* comp_sieve_p;		// scratch space for a packed versions of fb
     sieve_fb_compressed* comp_sieve_n;		// for use during sieving smallish primes
 
-    uint8_t* ss_sieve_p;
-    uint8_t* ss_sieve_n;
+    
 
     //large prime sieving
     update_t update_data;		// data for updating root values
@@ -559,6 +559,24 @@ typedef struct {
     int* firstroot1a;
     int* firstroot1b;
     int* firstroot2;
+    uint8_t* ss_sieve_p;
+    uint8_t* ss_sieve_n;
+#elif defined( USE_DIRECT_SIEVE_SS )
+    ss_set_t ss_set1;
+    ss_set_t ss_set2;
+    mpz_t polyb1;
+    mpz_t polyb2;
+    ss_set_t* bins1;
+    ss_set_t* bins2;
+    int binsize;
+    int bindepth;
+    int numbins;
+    int* firstroot1a;
+    int* firstroot1b;
+    int* firstroot2;
+    int ss_sieve_sz;
+    uint8_t* ss_sieve_p;
+    uint8_t* ss_sieve_n;
 #else
     ss_slice_t* ss_slices_p;
     ss_slice_t* ss_slices_n;

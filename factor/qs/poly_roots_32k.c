@@ -505,6 +505,8 @@ void ss_search_sort_set_1(static_conf_t* sconf, dynamic_conf_t* dconf)
 	return;
 }
 
+
+
 void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
 	// the subset-sum search algorithm using a bucket sort to
@@ -817,7 +819,11 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		// ideas to try:
 		// * don't sort all of the polys at once.  Increment set2 so that we sort
 		//   set1-sized groups of polynomials at a time.  every so often come back 
-		//   here to get some more.
+		//   here to get some more. (difficult because binary-encoded polynomials 
+		//   produces in batches of set2 don't necessarily match up to batches of
+		//   gray-code polynomials.  Does drastically reduce the memory requirements
+		//   though, so more work to find a solution might be worth it.  Might need
+		//   to force an odd number of terms in poly-a.)
 		// * sort the bins by poly prior to matching?  bins are relatively sparse
 		//   so sorting them is hopefully fast.  Bin2 holds the upper bits
 		//   of the poly and bin1 hold the lower bits, so when we match an element
@@ -1987,6 +1993,688 @@ void ss_search_poly_buckets_2(static_conf_t* sconf, dynamic_conf_t* dconf, int s
 
 #endif
 
+#if defined( USE_DIRECT_SIEVE_SS )
+void ss_search_clear(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+	int i;
+
+	mpz_clear(dconf->polyb1);
+	mpz_clear(dconf->polyb2);
+	free(dconf->polyv);
+	free(dconf->polysign);
+	free(dconf->polynums);
+	free(dconf->polymap);
+
+	for (i = 0; i < dconf->numbins; i++)
+	{
+		free(dconf->bins1[i].root);
+		free(dconf->bins2[i].root);
+		free(dconf->bins1[i].polynum);
+		free(dconf->bins2[i].polynum);
+	}
+
+	free(dconf->bins1);
+	free(dconf->bins2);
+
+	free(dconf->ss_set1.root);
+	free(dconf->ss_set1.polynum);
+	free(dconf->ss_set2.root);
+	free(dconf->ss_set2.polynum);
+
+	return;
+}
+
+void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+	siqs_poly* poly = dconf->curr_poly;
+	fb_list* fb = sconf->factor_base;
+	uint32_t numblocks = sconf->num_blocks;
+	uint32_t interval;
+	int slicesz = sconf->factor_base->slice_size;
+
+	interval = dconf->ss_sieve_sz;
+
+	int i, j, k, ii;
+	int ss_num_poly_terms = poly->s / 2;
+	ss_set_t* ss_set1 = &dconf->ss_set1;
+	ss_set_t* ss_set2 = &dconf->ss_set2;
+
+	mpz_init(dconf->polyb1);
+	mpz_init(dconf->polyb2);
+
+	ss_set1->root = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
+	ss_set1->polynum = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
+	ss_set1->size = ss_num_poly_terms;
+
+	mpz_set(dconf->polyb1, dconf->Bl[0]);
+	for (ii = 1; ii < ss_num_poly_terms; ii++) {
+		mpz_add(dconf->polyb1, dconf->polyb1, dconf->Bl[ii]);
+	}
+	mpz_tdiv_q_2exp(dconf->polyb1, dconf->polyb1, 1);
+
+	ss_num_poly_terms = (poly->s - 1) - ss_num_poly_terms;
+
+	ss_set2->root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
+	ss_set2->polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
+	ss_set2->size = ss_num_poly_terms;
+
+	//printf("ss_setup: %d,%d terms on L,R sides\n", ss_set1->size, ss_set2->size);
+
+	// first poly b: sum of first n positive Bl
+	mpz_set(dconf->polyb2, dconf->Bl[ii]);
+	for (ii++; ii < poly->s; ii++) {
+		mpz_add(dconf->polyb2, dconf->polyb2, dconf->Bl[ii]);
+	}
+	mpz_tdiv_q_2exp(dconf->polyb2, dconf->polyb2, 1);
+
+	dconf->numbins = 2 * fb->list->prime[fb->B - 1] / (interval)+1;
+	dconf->bindepth = 2048;
+
+	int numbins = dconf->numbins;
+	int bindepth = dconf->bindepth;
+
+	ss_set_t* bins1;
+	ss_set_t* bins2;
+
+	// init bins
+	bins1 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+	bins2 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+
+	for (ii = 0; ii < numbins; ii++)
+	{
+		bins1[ii].root = (int*)xmalloc(bindepth * sizeof(int));
+		bins2[ii].root = (int*)xmalloc(bindepth * sizeof(int));
+		bins1[ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
+		bins2[ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
+		bins1[ii].alloc = bindepth;
+		bins2[ii].alloc = bindepth;
+		bins1[ii].size = 0;
+		bins2[ii].size = 0;
+	}
+
+	dconf->bins1 = bins1;
+	dconf->bins2 = bins2;
+
+	// create a map from gray code enumeration order
+	// to polynomial binary encoding.
+	int polynum = 0;
+	dconf->polymap = (int*)xmalloc((2 << (poly->s - 1))  * sizeof(int));
+	dconf->polynums = (int*)xmalloc((2 << (poly->s - 1)) * sizeof(int));
+	dconf->polyv = (int*)xmalloc((2 << (poly->s - 1)) * sizeof(int));
+	dconf->polysign = (int*)xmalloc((2 << (poly->s - 1)) * sizeof(int));
+
+	//polymap[0] = 1;
+	dconf->polymap[1] = 0;
+	dconf->polynums[0] = 0;
+
+	//printf("binary %d <- gray %d\n", dconf->polymap[1], 1);
+
+	for (ii = 1, polynum = 0; ii < (1 << (poly->s - 1)); ii++)
+	{
+		int v;
+		int tmp;
+		int sign;
+
+		// next poly enumeration
+		v = 1;
+		j = ii;
+		while ((j & 1) == 0)
+			v++, j >>= 1;
+		tmp = ii + (1 << v) - 1;
+		tmp = (tmp >> v);
+		dconf->polyv[ii] = v;
+		if (tmp & 1)
+			dconf->polysign[ii] = -1;
+		else
+			dconf->polysign[ii] = 1;
+
+		// next polynum
+		polynum ^= (1 << (v - 1));
+		dconf->polynums[ii] = polynum;
+		dconf->polymap[ii + 1] = polynum;
+
+		//printf("binary %d <- gray %d\n", dconf->polymap[ii + 1], ii + 1);
+	}
+	//exit(1);
+
+	return;
+}
+
+void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+	// the subset-sum search algorithm that directly  
+	// populates a tiny sieve region.
+	siqs_poly* poly = dconf->curr_poly;
+	fb_list* fb = sconf->factor_base;
+	uint32_t numblocks = sconf->num_blocks;
+	uint32_t interval;
+	int slicesz = sconf->factor_base->slice_size;
+
+	interval = dconf->ss_sieve_sz;
+
+	int i, j, k, ii;
+
+	ss_set_t* ss_set1 = &dconf->ss_set1;
+	ss_set_t* ss_set2 = &dconf->ss_set2;
+	ss_set_t* bins1 = dconf->bins1;
+	ss_set_t* bins2 = dconf->bins2;
+
+	double t_enum_roots;
+	double t_sort_roots;
+	double t_match_roots;
+	double t_sort_buckets;
+	struct timeval start, stop;
+
+	int* rootupdates = dconf->rootupdates;
+	update_t update_data = dconf->update_data;
+	uint32_t* modsqrt = sconf->modsqrt_array;
+
+	int maxbin1 = 0;
+	int maxbin2 = 0;
+	int nummatch = 0;
+	int matchp1 = 0;
+	int matchm1 = 0;
+
+	double avg_size1 = 0.0;
+	double avg_size2 = 0.0;
+	double avg_size3 = 0.0;
+
+	int totalbins1 = 0;
+	int totalbins2 = 0;
+	int totalbins3 = 0;
+
+	int nump = 0;
+
+	int resieve = dconf->num_ss_slices;
+
+	//for (i = fb->ss_start_B; i < fb->B; i++)
+	for (i = fb->fb_15bit_B; i < fb->B; i++)
+	{
+		uint32_t bound = sconf->factor_base->B;
+		int polynum = 0;
+		int prime;
+		int root1;
+		int root2;
+		int r1;
+		int r2;
+		uint8_t logp = fb->list->logprime[i];
+
+		nump++;
+
+		// create set1, an enumeration of (+/-t - b)(a)^-1 mod p
+		// for b in the set [+/-B1 +/- B2 +/- ... Bs/2]
+		int ii, v, sign, n = poly->s / 2;
+		int tmp;
+
+#ifdef SS_TIMING
+		gettimeofday(&start, NULL);
+#endif
+
+		prime = fb->list->prime[i];
+		r1 = dconf->firstroot1a[i];
+		r2 = dconf->firstroot1b[i];
+
+		int* ptr;
+
+		//if ((i & 32767) == 0) printf("sss-index = %d\n", i);
+
+		// enumerate set1 roots
+		for (ii = 1, k = 0, polynum = 0; ii < (1 << n); ii++, k += 2) {
+			// these roots go into the set
+			ss_set1->root[k + 0] = r1;
+			ss_set1->root[k + 1] = r2;
+			ss_set1->polynum[k + 0] = polynum;
+			ss_set1->polynum[k + 1] = polynum;
+
+			// next polynum
+			polynum = dconf->polynums[ii];
+			sign = dconf->polysign[ii];
+			v = dconf->polyv[ii];
+
+			// next roots
+			ptr = &rootupdates[(v - 1) * bound + i];
+			if (sign > 0)
+			{
+				r1 = (int)r1 - *ptr;
+				r2 = (int)r2 - *ptr;
+				r1 = (r1 < 0) ? r1 + prime : r1;
+				r2 = (r2 < 0) ? r2 + prime : r2;
+			}
+			else
+			{
+				r1 = (int)r1 + *ptr;
+				r2 = (int)r2 + *ptr;
+				r1 = (r1 >= prime) ? r1 - prime : r1;
+				r2 = (r2 >= prime) ? r2 - prime : r2;
+			}
+		}
+		// these roots go into the set
+		ss_set1->root[k + 0] = r1;
+		ss_set1->root[k + 1] = r2;
+		ss_set1->polynum[k + 0] = polynum;
+		ss_set1->polynum[k + 1] = polynum;
+
+		int size1 = n;
+
+		// create set2, an enumeration of (+/-t - b)(a)^-1 mod p
+		// for b in the set [+/-Bs/2+1 +/- Bs/2+2 ... + Bs]
+		n = (poly->s - 1) - n;
+
+		r1 = dconf->firstroot2[i];
+
+		for (ii = 1, polynum = 0; ii < (1 << n); ii++) {
+			// these roots go into the set
+			ss_set2->root[ii - 1] = r1;
+			ss_set2->polynum[ii - 1] = polynum;
+
+			polynum = dconf->polynums[ii] << size1;
+			sign = dconf->polysign[ii];
+			v = dconf->polyv[ii];
+
+			// next roots
+			ptr = &rootupdates[(size1 + v - 1) * bound + i];
+			if (sign > 0)
+			{
+				r1 = (int)r1 - *ptr;
+				r1 = (r1 < 0) ? r1 + prime : r1;
+			}
+			else
+			{
+				r1 = (int)r1 + *ptr;
+				r1 = (r1 >= prime) ? r1 - prime : r1;
+			}
+		}
+
+		// these roots go into the set
+		ss_set2->root[ii - 1] = r1;
+		ss_set2->polynum[ii - 1] = polynum;
+
+#ifdef SS_TIMING
+		gettimeofday(&stop, NULL);
+		t_enum_roots += ytools_difftime(&start, &stop);
+
+		gettimeofday(&start, NULL);
+#endif
+
+		// now sort the sets into a moderate number of bins over the range 0:p
+		dconf->numbins = prime / (6 * interval) + 1;
+		dconf->binsize = prime / dconf->numbins + 1;
+
+		int numbins = dconf->numbins;
+		int binsize = dconf->binsize;
+		int bindepth = dconf->bindepth;
+
+		// initialize bin sizes
+		for (ii = 0; ii < numbins; ii++)
+		{
+			bins1[ii].size = 0;
+			bins2[ii].size = 0;
+		}
+
+		// sort roots into set 1
+		for (ii = 0; ii < (2 << ss_set1->size); ii++)
+		{
+			int binnum = ss_set1->root[ii] / binsize;
+			if (binnum < numbins)
+			{
+				bins1[binnum].root[bins1[binnum].size] = ss_set1->root[ii];
+				bins1[binnum].polynum[bins1[binnum].size] = ss_set1->polynum[ii];
+				bins1[binnum].size++;
+				if (bins1[binnum].size >= bindepth)
+				{
+					printf("\nbin overflow\n\n");
+					exit(1);
+				}
+			}
+			else
+			{
+				printf("element %d of set 1, root %d, invalid bin %d [of %d]\n",
+					ii, ss_set1->root[ii], binnum, numbins);
+			}
+		}
+
+		// sort set 2
+		for (ii = 0; ii < (1 << ss_set2->size); ii++)
+		{
+			int binnum = ss_set2->root[ii] / binsize;
+			if (binnum < numbins)
+			{
+				bins2[binnum].root[bins2[binnum].size] = ss_set2->root[ii];
+				bins2[binnum].polynum[bins2[binnum].size] = ss_set2->polynum[ii];
+				bins2[binnum].size++;
+				if (bins2[binnum].size > bindepth)
+				{
+					printf("bin overflow\n");
+					exit(1);
+				}
+			}
+			else
+			{
+				printf("element %d of set 2, root %d, invalid bin %d [of %d]\n",
+					ii, ss_set2->root[ii], binnum, numbins);
+			}
+		}
+
+
+#ifdef SS_TIMING
+		gettimeofday(&stop, NULL);
+		t_sort_roots += ytools_difftime(&start, &stop);
+
+		gettimeofday(&start, NULL);
+#endif
+
+		// commence matching
+		for (ii = 0; ii < numbins; ii++)
+		{
+			avg_size1 += bins1[ii].size;
+			avg_size3 += bins2[ii].size;
+		}
+		totalbins1 += numbins;
+
+		__m512i vp = _mm512_set1_epi32(prime);
+		__m512i vi = _mm512_set1_epi32(interval);
+		__m512i vz = _mm512_setzero_epi32();
+
+		int sieve_sz = dconf->ss_sieve_sz;
+
+		for (ii = 0; ii < numbins; ii++)
+		{
+			int x = binsize * ii + binsize / 2;
+			int px = prime - x;
+			int b = px / binsize;
+
+			for (k = 0; k < bins2[b].size; k++)
+			{
+				__m512i vb2root = _mm512_set1_epi32(bins2[b].root[k]);
+				__m512i vb2poly = _mm512_set1_epi32(bins2[b].polynum[k]);
+				int bin2root = bins2[b].root[k];
+
+				//if (j = 0) //
+				//for (j = 0; j < bins1[ii].size; j += 16)
+				j = 0;
+				if (0) //bins1[ii].size > 4)
+				{
+					__mmask16 loadmask;
+
+					if ((bins1[ii].size - j) >= 16)
+						loadmask = 0xffff;
+					else
+						loadmask = (1 << (bins1[ii].size - j)) - 1;
+
+					__m512i vb1root = _mm512_mask_loadu_epi32(vz, loadmask,
+						&bins1[ii].root[j]);
+
+					__m512i vsum = _mm512_add_epi32(vb1root, vb2root);
+					__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
+					__mmask16 mneg = loadmask & (~mpos);
+
+					j += 16;
+				}
+
+				for (; j < bins1[ii].size; j++)
+				{
+					int sum1 = bin2root + bins1[ii].root[j];
+					int sign1 = (sum1 >= prime);
+					sum1 = sign1 ? sum1 - prime : prime - sum1;
+
+					if (sum1 < interval)
+					{
+						int polysum = bins1[ii].polynum[j] + bins2[b].polynum[k];
+						int idx = polysum;
+
+						if (resieve)
+						{
+							uint16_t report_num;
+
+							if (sign1)
+							{
+								report_num = dconf->ss_sieve_p[idx * sieve_sz + sum1];
+							}
+							else
+							{
+								report_num = dconf->ss_sieve_n[idx * sieve_sz + sum1];
+							}
+
+							if (report_num < 0xff)
+							{
+								//printf("prime %d found to hit resieve idx %d at poly %d "
+								//	"loc %d, side %d, currently at smooth_num = %d\n",
+								//	prime, report_num, idx, sum1, sign1,
+								//	dconf->smooth_num[report_num]);
+								//gmp_printf("Qstart = %Zd\n", dconf->Qvals[report_num]);
+
+								int smooth_num = dconf->smooth_num[report_num];
+								while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+								{
+									dconf->fb_offsets[report_num][smooth_num++] = i;
+									mpz_tdiv_q_ui(dconf->Qvals[report_num],
+										dconf->Qvals[report_num], prime);
+								}
+
+								//gmp_printf("smoothnum = %d, Qend = %Zd\n", smooth_num,
+								//	dconf->Qvals[report_num]);
+								dconf->smooth_num[report_num] = smooth_num;
+							}
+						}
+						else
+						{
+							if (sign1)
+							{
+								dconf->ss_sieve_p[idx * sieve_sz + sum1] -= logp;
+							}
+							else
+							{
+								dconf->ss_sieve_n[idx * sieve_sz + sum1] -= logp;
+							}
+						}
+
+						nummatch++;
+					}
+				}
+			}
+
+#if 1
+
+			if ((b + 1) < numbins)
+			{
+				for (k = 0; k < bins2[b + 1].size; k++)
+				{
+					__m512i vb2root = _mm512_set1_epi32(bins2[b + 1].root[k]);
+					__m512i vb2poly = _mm512_set1_epi32(bins2[b + 1].polynum[k]);
+					int bin2root = bins2[b + 1].root[k];
+
+					//if (j = 0) //
+					//for (j = 0; j < bins1[ii].size; j += 16)
+					j = 0;
+					if (0) //bins1[ii].size > 4)
+					{
+						__mmask16 loadmask;
+
+						if ((bins1[ii].size - j) >= 16)
+							loadmask = 0xffff;
+						else
+							loadmask = (1 << (bins1[ii].size - j)) - 1;
+
+						__m512i vb1root = _mm512_mask_loadu_epi32(vz, loadmask,
+							&bins1[ii].root[j]);
+
+						__m512i vsum = _mm512_add_epi32(vb1root, vb2root);
+						__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
+						__mmask16 mneg = loadmask & (~mpos);
+
+						j += 16;
+					}
+
+					for (; j < bins1[ii].size; j++)
+					{
+						int sum1 = bin2root + bins1[ii].root[j];
+						int sign1 = (sum1 >= prime);
+						sum1 = sign1 ? sum1 - prime : prime - sum1;
+
+						if (sum1 < interval)
+						{
+							int polysum = bins1[ii].polynum[j] + bins2[b + 1].polynum[k];
+							int idx = polysum;
+
+							if (resieve)
+							{
+								int report_num;
+
+								if (sign1)
+									report_num = dconf->ss_sieve_p[idx * sieve_sz + sum1];
+								else
+									report_num = dconf->ss_sieve_n[idx * sieve_sz + sum1];
+
+								if (report_num < 0xff)
+								{
+									//printf("prime %d found to hit resieve idx %d at poly %d "
+									//	"loc %d, currently at smooth_num = %d\n",
+									//	prime, report_num, idx, sum1,
+									//	dconf->smooth_num[report_num]);
+									//gmp_printf("Qstart = %Zd\n", dconf->Qvals[report_num]);
+
+									int smooth_num = dconf->smooth_num[report_num];
+									while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+									{
+										dconf->fb_offsets[report_num][smooth_num++] = i;
+										mpz_tdiv_q_ui(dconf->Qvals[report_num],
+											dconf->Qvals[report_num], prime);
+									}
+
+									//gmp_printf("smoothnum = %d, Qend = %Zd\n", smooth_num,
+									//	dconf->Qvals[report_num]);
+									dconf->smooth_num[report_num] = smooth_num;
+								}
+							}
+							else
+							{
+								if (sign1)
+									dconf->ss_sieve_p[idx * sieve_sz + sum1] -= logp;
+								else
+									dconf->ss_sieve_n[idx * sieve_sz + sum1] -= logp;
+							}
+							matchp1++;
+						}
+					}
+				}
+			}
+
+			if ((b - 1) >= 0)
+			{
+				for (k = 0; k < bins2[b - 1].size; k++)
+				{
+					__m512i vb2root = _mm512_set1_epi32(bins2[b - 1].root[k]);
+					__m512i vb2poly = _mm512_set1_epi32(bins2[b - 1].polynum[k]);
+					int bin2root = bins2[b - 1].root[k];
+
+					//if (j = 0) //
+					//for (j = 0; j < bins1[ii].size; j += 16)
+					j = 0;
+					if (0) //bins1[ii].size > 4)
+					{
+						__mmask16 loadmask;
+
+						if ((bins1[ii].size - j) >= 16)
+							loadmask = 0xffff;
+						else
+							loadmask = (1 << (bins1[ii].size - j)) - 1;
+
+						__m512i vb1root = _mm512_mask_loadu_epi32(vz, loadmask,
+							&bins1[ii].root[j]);
+
+						__m512i vsum = _mm512_add_epi32(vb1root, vb2root);
+						__mmask16 mpos = loadmask & _mm512_cmpge_epi32_mask(vsum, vp);
+						__mmask16 mneg = loadmask & (~mpos);
+
+						j += 16;
+					}
+
+					for (; j < bins1[ii].size; j++)
+					{
+						int sum1 = bin2root + bins1[ii].root[j];
+						int sign1 = (sum1 >= prime);
+						sum1 = sign1 ? sum1 - prime : prime - sum1;
+
+						if (sum1 < interval)
+						{
+							int polysum = bins1[ii].polynum[j] + bins2[b - 1].polynum[k];
+							int idx = polysum;
+
+							if (resieve)
+							{
+								int report_num;
+
+								if (sign1)
+									report_num = dconf->ss_sieve_p[idx * sieve_sz + sum1];
+								else
+									report_num = dconf->ss_sieve_n[idx * sieve_sz + sum1];
+
+								if (report_num < 0xff)
+								{
+									//printf("prime %d found to hit resieve idx %d at poly %d "
+									//	"loc %d, currently at smooth_num = %d\n",
+									//	prime, report_num, idx, sum1,
+									//	dconf->smooth_num[report_num]);
+									//gmp_printf("Qstart = %Zd\n", dconf->Qvals[report_num]);
+
+									int smooth_num = dconf->smooth_num[report_num];
+									while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+									{
+										dconf->fb_offsets[report_num][smooth_num++] = i;
+										mpz_tdiv_q_ui(dconf->Qvals[report_num],
+											dconf->Qvals[report_num], prime);
+									}
+
+									//gmp_printf("smoothnum = %d, Qend = %Zd\n", smooth_num,
+									//	dconf->Qvals[report_num]);
+									dconf->smooth_num[report_num] = smooth_num;
+								}
+							}
+							else
+							{
+								if (sign1)
+									dconf->ss_sieve_p[idx * sieve_sz + sum1] -= logp;
+								else
+									dconf->ss_sieve_n[idx * sieve_sz + sum1] -= logp;
+							}
+							matchm1++;
+						}
+					}
+				}
+			}
+#endif
+
+		}
+
+		//exit(1);
+
+
+#ifdef SS_TIMING
+		gettimeofday(&stop, NULL);
+		t_match_roots += ytools_difftime(&start, &stop);
+#endif
+
+		}
+
+
+#ifdef SS_TIMING
+	//printf("ran subset-sum on %d primes\n", nump);
+	//printf("found %d sieve hits matching bins\n", nummatch);
+	//printf("found %d sieve hits matching bins + 1\n", matchp1);
+	//printf("found %d sieve hits matching bins - 1\n", matchm1);
+	//printf("avg_size bins1 = %1.4f\n", avg_size1 / totalbins1);
+	//printf("avg_size bins2 = %1.4f\n", avg_size3 / totalbins1);
+	//printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
+	//printf("sorting roots: %1.4f seconds\n", t_sort_roots);
+	//printf("matching roots: %1.4f seconds\n", t_match_roots);
+#endif
+
+	//exit(0);
+
+	return;
+}
+#endif
+
 void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//the roots are computed using a and b as follows:
@@ -2188,6 +2876,17 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			fb_n->root2[i] = (uint16_t)(prime - root1);
 		}
 
+
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
+
+		if (using_ss_search)
+		{
+			// put these roots directly into the sieve region.
+
+
+		}
+#endif
+
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
 		//the rootupdate value is given by 2*Bj*amodp
@@ -2205,6 +2904,17 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			rootupdates[(j)*fb->B+i] = x;
 			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16_t)x;
 		}
+
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
+
+		if (using_ss_search)
+		{
+			// enumerate the rest of the polys for this prime
+			// and log any sieve hits.
+
+
+		}
+#endif
 	}
 
 	for (i=fb->fb_15bit_B;i<fb->med_B;i++)
@@ -2262,6 +2972,45 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			fb_n->root2[i] = (uint16_t)(prime - root1);
 		}
 
+#ifdef USE_SS_SEARCH
+
+		if (using_ss_search)
+		{
+			// first poly b: sum of first n positive Bl
+			bmodp = (int)mpz_tdiv_ui(dconf->polyb1, prime);
+
+			// under these conditions polya is added to polyb.
+			// here we account for that by adding amodp into bmodp.
+			// only here in set1 enumeration.
+			if (sconf->knmod8 == 1)
+			{
+				if (sconf->charcount == 1)
+				{
+					bmodp += amodp;
+					if (bmodp >= prime)
+					{
+						bmodp -= prime;
+					}
+				}
+			}
+
+			//COMPUTE_FIRST_ROOTS;
+			root1 = (int)(modsqrt[i]) - bmodp;
+			root2 = (int)(prime - modsqrt[i]) - bmodp;
+			if (root1 < 0) root1 += prime;
+			if (root2 < 0) root2 += prime;
+
+			dconf->firstroot1a[i] = (int)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+			dconf->firstroot1b[i] = (int)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
+
+			bmodp = (int)mpz_tdiv_ui(dconf->polyb2, prime);
+
+			// - (B1 + B2 + B3 + ... Bs-1)
+			bmodp = prime - bmodp;
+
+			dconf->firstroot2[i] = (uint32_t)((uint64_t)inv * (uint64_t)bmodp % (uint64_t)prime);
+		}
+#endif
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
 		//the rootupdate value is given by 2*Bj*amodp
@@ -2316,6 +3065,46 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		FILL_ONE_PRIME_LOOP_P(i);
 		FILL_ONE_PRIME_LOOP_N(i);
+
+#ifdef USE_SS_SEARCH
+
+		if (using_ss_search)
+		{
+			// first poly b: sum of first n positive Bl
+			bmodp = (int)mpz_tdiv_ui(dconf->polyb1, prime);
+
+			// under these conditions polya is added to polyb.
+			// here we account for that by adding amodp into bmodp.
+			// only here in set1 enumeration.
+			if (sconf->knmod8 == 1)
+			{
+				if (sconf->charcount == 1)
+				{
+					bmodp += amodp;
+					if (bmodp >= prime)
+					{
+						bmodp -= prime;
+					}
+				}
+			}
+
+			//COMPUTE_FIRST_ROOTS;
+			root1 = (int)(modsqrt[i]) - bmodp;
+			root2 = (int)(prime - modsqrt[i]) - bmodp;
+			if (root1 < 0) root1 += prime;
+			if (root2 < 0) root2 += prime;
+
+			dconf->firstroot1a[i] = (int)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+			dconf->firstroot1b[i] = (int)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
+
+			bmodp = (int)mpz_tdiv_ui(dconf->polyb2, prime);
+
+			// - (B1 + B2 + B3 + ... Bs-1)
+			bmodp = prime - bmodp;
+
+			dconf->firstroot2[i] = (uint32_t)((uint64_t)inv * (uint64_t)bmodp % (uint64_t)prime);
+		}
+#endif
 
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
