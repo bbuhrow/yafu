@@ -27,11 +27,22 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
+
+// to use subset-sum searching, define this...
 //#define USE_SS_SEARCH 
+
+// and either this one
 //#define USE_DIRECT_SIEVE_SS
+
+// or this one, but not both
 //#define USE_POLY_BUCKET_SS
-//#define USE_LINKED_LIST_SS
-//#define USE_SORTED_LIST_SS
+// This can stay defined, it only impacts anything
+// if both USE_SS_SEARCH and USE_POLY_BUCKET_SS are
+// defined and if they are, this should be too.
+//#define USE_POLY_BUCKET_PN_COMBINED_VARIATION
+
+// this doesn't currently work
+//#define SS_POLY_BUCKET_SMALL_GROUPS
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
@@ -565,6 +576,7 @@ typedef struct {
     int* firstroot2;
     uint8_t* ss_sieve_p;
     uint8_t* ss_sieve_n;
+    int ss_signbit;
 #elif defined( USE_DIRECT_SIEVE_SS )
     ss_set_t ss_set1;
     ss_set_t ss_set2;
@@ -584,21 +596,17 @@ typedef struct {
     uint16_t* report_ht_p;
     uint16_t* report_ht_n;
     int report_ht_size;
-#else
-    ss_slice_t* ss_slices_p;
-    ss_slice_t* ss_slices_n;
 #endif
 
+#ifdef USE_SS_SEARCH
     int* polymap;
     int* polynums;
     int* polyv;
     int* polysign;
 
+    int using_ss_search;
     uint32_t num_ss_slices;
-    uint64_t* poly_ll_ptr_p;
-    uint64_t* poly_ll_ptr_n;
-    uint64_t* poly_ll_first_p;
-    uint64_t* poly_ll_first_n;
+#endif
 
     //scratch
     mpz_t gmptmp1;

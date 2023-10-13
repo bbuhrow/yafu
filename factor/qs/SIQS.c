@@ -1192,6 +1192,7 @@ done:
 	return;
 }
 
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
 int check_Qval(static_conf_t* sconf, dynamic_conf_t* dconf,
     int polyid, int offset, int parity)
 {
@@ -1517,24 +1518,26 @@ int td_small_p(static_conf_t* sconf, dynamic_conf_t* dconf,
     return dconf->valid_Qs[report_num];
 }
 
-void *process_poly(void *vptr)
+#endif
+
+void* process_poly(void* vptr)
 {
     // top-level sieving function which performs all work for a single
     // new a coefficient.  has pthread calling conventions, meant to be
     // used in a multi-threaded environment
-    tpool_t *tdata = (tpool_t *)vptr;
-    siqs_userdata_t *udata = tdata->user_data;
-    thread_sievedata_t *thread_data = &udata->thread_data[tdata->tindex];
-    static_conf_t *sconf = thread_data->sconf;
-    dynamic_conf_t *dconf = thread_data->dconf;
+    tpool_t* tdata = (tpool_t*)vptr;
+    siqs_userdata_t* udata = tdata->user_data;
+    thread_sievedata_t* thread_data = &udata->thread_data[tdata->tindex];
+    static_conf_t* sconf = thread_data->sconf;
+    dynamic_conf_t* dconf = thread_data->dconf;
 
     // unpack stuff from the job data structure
-    sieve_fb_compressed *fb_sieve_p = dconf->comp_sieve_p;
-    sieve_fb_compressed *fb_sieve_n = dconf->comp_sieve_n;
-    siqs_poly *poly = dconf->curr_poly;
-    uint8_t *sieve = dconf->sieve;
-    fb_list *fb = sconf->factor_base;
-    lp_bucket *buckets = dconf->buckets;
+    sieve_fb_compressed* fb_sieve_p = dconf->comp_sieve_p;
+    sieve_fb_compressed* fb_sieve_n = dconf->comp_sieve_n;
+    siqs_poly* poly = dconf->curr_poly;
+    uint8_t* sieve = dconf->sieve;
+    fb_list* fb = sconf->factor_base;
+    lp_bucket* buckets = dconf->buckets;
     uint32_t start_prime = sconf->sieve_small_fb_start;
     uint32_t num_blocks = sconf->num_blocks;
     uint8_t blockinit = sconf->blockinit;
@@ -1576,23 +1579,6 @@ void *process_poly(void *vptr)
     dconf->numB = 1;
     computeBl(sconf, dconf, 1);
 
-#if defined( USE_SS_SEARCH ) && defined( USE_LINKED_LIST_SS )
-    // pointers for the linked lists.
-    // instead of sorting, make arrays of hits for each poly linked lists.
-    // use upper 16 bits to store the distance to the next hit for that poly.
-    
-    uint32_t num_bpoly = (1 << (dconf->curr_poly->s - 1));
-    dconf->poly_ll_ptr_p = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
-    dconf->poly_ll_ptr_n = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
-    dconf->poly_ll_first_p = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
-    dconf->poly_ll_first_n = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
-    for (i = 0; i < num_bpoly; i++)
-    {
-        dconf->poly_ll_ptr_p[i] = (uint64_t)(-1);
-        dconf->poly_ll_ptr_n[i] = (uint64_t)(-1);
-    }
-#endif
-
 
 #if defined( USE_SS_SEARCH )
     if (using_ss_search)
@@ -1604,7 +1590,7 @@ void *process_poly(void *vptr)
     firstRoots_ptr(sconf, dconf);
 
 #if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
-    
+
     if (using_ss_search)
     {
         //ss_search_sort_set_1(sconf, dconf);
@@ -1617,7 +1603,7 @@ void *process_poly(void *vptr)
 
 #if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
 
-//#define MANY_PBUCKETS
+    //#define MANY_PBUCKETS
 
     if (using_ss_search)
     {
@@ -1625,13 +1611,13 @@ void *process_poly(void *vptr)
         int num_bpoly = 1 << (dconf->curr_poly->s - 1);
         int locs_to_resieve = 0;
         int sieve_sz = dconf->ss_sieve_sz;
-        update_t *update_data = &dconf->update_data;
+        update_t* update_data = &dconf->update_data;
         int* rootupdates = dconf->rootupdates;
         uint32_t bound = sconf->factor_base->B;
 
 #ifdef MANY_PBUCKETS
         poly_bucket_t* polybuckets;
-        
+
         polybuckets = (poly_bucket_t*)xmalloc(num_bpoly * sizeof(poly_bucket_t));
         for (p = 0; p < num_bpoly; p++)
         {
@@ -1642,9 +1628,9 @@ void *process_poly(void *vptr)
                 polybuckets[p].hitalloc * sizeof(uint32_t));
             polybuckets[p].numhits = 0;
         }
-        
+
         printf("\nallocated %lu bytes for small prime polybuckets\n",
-            (uint64_t)num_bpoly * (uint64_t)polybuckets[0].hitalloc * 
+            (uint64_t)num_bpoly * (uint64_t)polybuckets[0].hitalloc *
             (uint64_t)sizeof(uint32_t) * 2ULL);
 #else
         poly_bucket_t polybucket;
@@ -1794,7 +1780,7 @@ void *process_poly(void *vptr)
 
             for (i = fb->med_B; i < fb->x2_large_B; i += 16)
             {
-                
+
                 int* ptr = &rootupdates[(v - 1) * bound + i];
 
                 __m512i vprime;
@@ -1819,7 +1805,7 @@ void *process_poly(void *vptr)
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
                     polybuckets[p].numhits, m1, vroot1);
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                    polybuckets[p].numhits, m1, 
+                    polybuckets[p].numhits, m1,
                     _mm512_add_epi32(vindex, vinc));
 
                 polybuckets[p].numhits += _mm_popcnt_u32(m1);
@@ -1827,7 +1813,7 @@ void *process_poly(void *vptr)
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
                     polybuckets[p].numhits, m2, vroot2);
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                    polybuckets[p].numhits, m2, 
+                    polybuckets[p].numhits, m2,
                     _mm512_add_epi32(vindex, vinc));
 
                 polybuckets[p].numhits += _mm_popcnt_u32(m2);
@@ -1858,7 +1844,7 @@ void *process_poly(void *vptr)
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
                     polybuckets[p].numhits, m1, _mm512_add_epi32(vprime, vnroot1));
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                    polybuckets[p].numhits, m1, 
+                    polybuckets[p].numhits, m1,
                     _mm512_add_epi32(vindex, vinc));
 
                 polybuckets[p].numhits += _mm_popcnt_u32(m1);
@@ -1866,7 +1852,7 @@ void *process_poly(void *vptr)
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
                     polybuckets[p].numhits, m2, _mm512_add_epi32(vprime, vnroot2));
                 _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                    polybuckets[p].numhits, m2, 
+                    polybuckets[p].numhits, m2,
                     _mm512_add_epi32(vindex, vinc));
 
                 polybuckets[p].numhits += _mm_popcnt_u32(m2);
@@ -1922,7 +1908,7 @@ void *process_poly(void *vptr)
                     _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
                     _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
                 }
-                
+
             }
 
 #ifdef MANY_PBUCKETS
@@ -2041,7 +2027,7 @@ void *process_poly(void *vptr)
 
         gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
-        
+
 #ifdef MANY_PBUCKETS
         printf("sieving of %d primes took: %1.4f seconds\n",
             fb->x2_large_B - sconf->sieve_small_fb_start, t_time);
@@ -2104,7 +2090,7 @@ void *process_poly(void *vptr)
 #endif
 
         // and finally process for any large primes and store discovered relations.
-        printf("found %d locations to resieve, %d hashtable collisions\n", 
+        printf("found %d locations to resieve, %d hashtable collisions\n",
             report_num, collisions);
 
         // now initialize Q and divide out the small primes at the marked locations.
@@ -2307,8 +2293,12 @@ void *process_poly(void *vptr)
     {
         uint32_t invalid_root_marker = 0xFFFFFFFF;
         uint32_t minblock;
+
         mpz_sub(dconf->gmptmp1, sconf->sqrt_n, dconf->curr_poly->mpz_poly_b);
         mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
+        if (sconf->knmod8 == 1)
+            mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, 1);
+
         if (mpz_sgn(dconf->gmptmp1) < 0)
             mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
 
@@ -2316,21 +2306,21 @@ void *process_poly(void *vptr)
         mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
         minblock = mpz_get_ui(dconf->gmptmp1);
 
-        //if (using_ss_search &&
-        //    ((dconf->numB % (1 << dconf->ss_set1.size)) == 0))
-        //{
-        ////    //printf("running search roots on set2 instance %d\n",
-        ////    //    dconf->numB / (1 << dconf->ss_set1.size));
-        //    ss_search_poly_buckets_2(sconf, dconf, dconf->numB / (1 << dconf->ss_set1.size));
-        //}
+#ifdef SS_POLY_BUCKET_SMALL_GROUPS
+
+        if (using_ss_search &&
+            ((dconf->numB % (1 << dconf->ss_set1.size)) == 0))
+        {
+        //    //printf("running search roots on set2 instance %d\n",
+        //    //    dconf->numB / (1 << dconf->ss_set1.size));
+            ss_search_poly_buckets_2(sconf, dconf, dconf->numB / (1 << dconf->ss_set1.size));
+        }
+#endif
 
 #if defined( USE_SS_SEARCH ) //&& defined( USE_LINKED_LIST_SS )
 
         if (using_ss_search)
         {
-            //printf("initializing interval with blockinit %d, minblock is %d\n", 
-            //    blockinit, minblock);
-
             for (i = 0; i < num_blocks; i++)
             {
                 if (i == minblock)
@@ -2353,15 +2343,23 @@ void *process_poly(void *vptr)
 
 #endif
 
-        //memcpy(dconf->ss_sieve_n, dconf->ss_sieve_p, (num_blocks + 1) * 32768);
+#if 0 //defined( USE_SS_SEARCH )
+        if (using_ss_search)
+        {
+            // test if anything in the block sieve modifies values outside the block
+            memcpy(dconf->ss_sieve_n, dconf->ss_sieve_p, (num_blocks + 1) * 32768);
+        }
+#endif
 
         for (i = 0; i < num_blocks; i++)
         {
+#if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
                 dconf->sieve = dconf->ss_sieve_p + i * 32768;
                 sieve = dconf->sieve;
             }
+#endif
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
@@ -2391,37 +2389,38 @@ void *process_poly(void *vptr)
                 med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
             }
 
-            //int j;
-            //for (j = 0; j < 32768; j++)
-            //{
-            //    if (((i + 1) < num_blocks) && 
-            //        (sieve[32768 + j] != dconf->ss_sieve_n[(i + 1) * 32768 + j]))
-            //    {
-            //        printf("med_sieve modified sieve loc %d in the next block %d (%u,%u)\n", 
-            //            j, i + 1, dconf->ss_sieve_n[(i + 1) * 32768 + j], sieve[32768 + j]);
-            //    }
-            //}
-            //printf("\n");
-            //
+#if 0 //defined( USE_SS_SEARCH )
+            if (using_ss_search)
+            {
+                // test if anything in the block sieve modifies values outside the block
+                if ((i + 1) < num_blocks)
+                {
+                    int j;
+                    int a = 0;
+                    for (j = 0; j < 32768; j++)
+                    {
+                        if (sieve[32768 + j] != dconf->ss_sieve_n[(i + 1) * 32768 + j])
+                        {
+                            printf("med_sieve modified next block location %d from %u to %u\n",
+                                j, dconf->ss_sieve_n[(i + 1) * 32768 + j], sieve[32768 + j]);
+                            a = 1;
+                        }
+                    }
+                    if (a == 1)
+                        exit(1);
+                }
+            }
+#endif
 
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
-
-            //
-            //printf("sieve after lp_sieve block %d\n", i);
-            //for (j = 0; j < 32768; j++)
-            //{
-            //    if (j % 64 == 0)
-            //        printf("\n");
-            //    printf("%02x", sieve[j]);
-            //}
-            //printf("\n");
-            
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
             scan_ptr(i, 0, sconf, dconf);
         }
+
+        
 
         //exit(0);
 
@@ -2455,11 +2454,13 @@ void *process_poly(void *vptr)
 
         for (i = 0; i < num_blocks; i++)
         {
+#if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
                 dconf->sieve = dconf->ss_sieve_p + i * 32768;
                 sieve = dconf->sieve;
             }
+#endif
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
@@ -2689,11 +2690,13 @@ done:
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
 
-    //printf("processed poly in: %1.4f seconds\n", t_time);
 
 #ifdef SS_TIMING
-    printf("sieve buckets: %1.4f\n", t_sieve_ss_buckets);
-    printf("tdiv  buckets: %1.4f\n", sconf->t_time4);
+    if (using_ss_search)
+    {
+        printf("sieve buckets: %1.4f\n", t_sieve_ss_buckets);
+        printf("tdiv  buckets: %1.4f\n", sconf->t_time4);
+    }
 #endif
 
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
@@ -2703,20 +2706,6 @@ done:
     {
         ss_search_clear(sconf, dconf);
     }
-#endif
-
-#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
-    if (using_ss_search)
-    {
-        ss_search_clear(sconf, dconf);
-    }
-#endif
-
-#if defined( USE_SS_SEARCH ) && defined( USE_LINK_LIST_SS )
-    free(dconf->poly_ll_ptr_p);
-    free(dconf->poly_ll_ptr_n);
-    free(dconf->poly_ll_first_p);
-    free(dconf->poly_ll_first_n);
 #endif
 
 	return 0;
@@ -3275,9 +3264,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 
 #ifdef USE_SS_SEARCH
+    
+
     if ((sconf->factor_base->ss_start_B > 0) &&
         (sconf->factor_base->ss_start_B < sconf->factor_base->B))
     {
+        dconf->using_ss_search = 1;
 
 #if defined(USE_SS_SEARCH) && defined( USE_DIRECT_SIEVE_SS )
 
@@ -3300,6 +3292,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     }
     else
     {
+        dconf->using_ss_search = 0;
+
         dconf->ss_sieve_n = NULL;
         dconf->ss_sieve_p = NULL;
 
@@ -3370,41 +3364,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->poly_batchsize = 1;
 #endif
 
-#if defined(USE_SS_SEARCH) && (defined(USE_LINKED_LIST_SS) || defined(USE_SORTED_LIST_SS))
-        int numslices = sconf->factor_base->num_ss_slices;
-        //printf("allocating %d slices for subset sum buckets\n", numslices);
 
-        dconf->ss_slices_p = (ss_slice_t*)xmalloc(numslices * sizeof(ss_slice_t));
-        dconf->ss_slices_n = (ss_slice_t*)xmalloc(numslices * sizeof(ss_slice_t));
-
-        dconf->num_ss_slices = numslices;
-        
-        for (i = 0; i < numslices; i++)
-        {
-            dconf->ss_slices_p[i].element = (uint64_t*)xmalloc(32768 * sizeof(uint64_t));
-            dconf->ss_slices_n[i].element = (uint64_t*)xmalloc(32768 * sizeof(uint64_t));
-            dconf->ss_slices_p[i].alloc = 32768;
-            dconf->ss_slices_n[i].alloc = 32768;
-            dconf->ss_slices_p[i].size = 0;
-            dconf->ss_slices_n[i].size = 0;
-            dconf->ss_slices_p[i].curr_poly_idx = 0;
-            dconf->ss_slices_n[i].curr_poly_idx = 0;
-            dconf->ss_slices_p[i].curr_poly_num = 0;
-            dconf->ss_slices_n[i].curr_poly_num = 0;
-            dconf->ss_slices_p[i].fboffset = i * 65536 + sconf->factor_base->x2_large_B;
-            dconf->ss_slices_n[i].fboffset = i * 65536 + sconf->factor_base->x2_large_B;
-            dconf->ss_slices_p[i].logp = (i * 65536 + sconf->factor_base->x2_large_B < sconf->factor_base->B) ? 
-                sconf->factor_base->list->logprime[i * 65536 + sconf->factor_base->x2_large_B] :
-                sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
-            dconf->ss_slices_n[i].logp = (i * 65536 + sconf->factor_base->x2_large_B < sconf->factor_base->B) ? 
-                sconf->factor_base->list->logprime[i * 65536 + sconf->factor_base->x2_large_B] :
-                sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
-        }
-
-        //printf("done allocating %u bytes\n", numslices * 32768 * 2 * 8); fflush(stdout);
-
-
-#elif defined(USE_SS_SEARCH) && defined(USE_POLY_BUCKET_SS)
+#if defined(USE_SS_SEARCH) && defined(USE_POLY_BUCKET_SS)
 
         if ((sconf->factor_base->ss_start_B > 0) &&
             (sconf->factor_base->ss_start_B < sconf->factor_base->B))
@@ -3420,24 +3381,35 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             dconf->ss_slices_p = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
             dconf->ss_slices_n = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
 
+            dconf->ss_signbit = 0;
+            while (slicesz > 0)
+            {
+                slicesz >>= 1;
+                dconf->ss_signbit++;
+            }
+            dconf->ss_signbit = 32 - dconf->ss_signbit;
+            slicesz = sconf->factor_base->slice_size;
+
             dconf->num_ss_slices = numslices;
             dconf->poly_buckets_allocated = 0;
             for (i = 0; i < numslices; i++)
             {
-                // at most 2^14 polys... for now
-                //dconf->ss_slices_p[i].buckets = (ss_bucket_t*)xmalloc(32768 * sizeof(ss_bucket_t));
-                //dconf->ss_slices_n[i].buckets = (ss_bucket_t*)xmalloc(32768 * sizeof(ss_bucket_t));
-                dconf->ss_slices_p[i].alloc = 4096;
-                //dconf->ss_slices_n[i].alloc = 16384;
+                dconf->ss_slices_p[i].alloc = 2048;
                 dconf->ss_slices_p[i].numbuckets = 65536;
-                //dconf->ss_slices_n[i].numbuckets = 16384;
+#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
+                dconf->ss_slices_n[i].alloc = 4096;
+                dconf->ss_slices_n[i].numbuckets = 65536;
+#endif
+
                 int a = dconf->ss_slices_p[i].alloc;
                 int nb = dconf->ss_slices_p[i].numbuckets;
 
                 dconf->ss_slices_p[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
-                //dconf->ss_slices_n[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
                 dconf->ss_slices_p[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
-                //dconf->ss_slices_n[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
+#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
+                dconf->ss_slices_n[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
+                dconf->ss_slices_n[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
+#endif
 
                 dconf->ss_slices_p[i].curr_poly_idx = 0;
                 dconf->ss_slices_n[i].curr_poly_idx = 0;
@@ -3460,10 +3432,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
                     dconf->ss_slices_n[i].logp =
                         sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
                 }
-
-                //printf("assigned slice %d logp = %d (max %d)\n",
-                //    i, dconf->ss_slices_p[i].logp,
-                //    sconf->factor_base->list->logprime[sconf->factor_base->B - 1]);
             }
         }
 
@@ -4331,7 +4299,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     if (sconf->factor_base->large_B < sconf->factor_base->med_B)
         sconf->factor_base->large_B = sconf->factor_base->med_B;
 
-    sconf->factor_base->slice_size = 16384;
+    sconf->factor_base->slice_size = 8192;
     int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) / 
         sconf->factor_base->slice_size) + 1;
     sconf->factor_base->num_ss_slices = numslices;
@@ -5822,13 +5790,13 @@ int update_final(static_conf_t *sconf)
 	return 0;
 }
 
-int free_sieve(dynamic_conf_t *dconf)
+int free_sieve(dynamic_conf_t* dconf)
 {
-	uint32_t i;
+    uint32_t i;
 
-	//can free sieving structures now
+    //can free sieving structures now
 #if defined(USE_SS_SEARCH)
-    if (dconf->ss_sieve_n != NULL)
+    if (dconf->using_ss_search)
     {
         align_free(dconf->ss_sieve_n);
         align_free(dconf->ss_sieve_p);
@@ -5838,12 +5806,28 @@ int free_sieve(dynamic_conf_t *dconf)
         dconf->sieve = dconf->sieve - 2 * 32768;
         align_free(dconf->sieve);
     }
-    free(dconf->firstroot1a);
-    free(dconf->firstroot1b);
-    free(dconf->firstroot2);
+    if (dconf->using_ss_search)
+    {
+        free(dconf->firstroot1a);
+        free(dconf->firstroot1b);
+        free(dconf->firstroot2);
+    }
 #ifdef USE_DIRECT_SIEVE_SS
     free(dconf->report_ht_n);
     free(dconf->report_ht_p);
+#endif
+#ifdef USE_POLY_BUCKET_SS
+    if (dconf->using_ss_search)
+    {
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            free(dconf->ss_slices_p[i].elements);
+            free(dconf->ss_slices_p[i].size);
+        }
+
+        free(dconf->ss_slices_p);
+        free(dconf->ss_slices_n);
+    }
 #endif
 #else
     dconf->sieve = dconf->sieve - 2 * 32768;

@@ -185,7 +185,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 						if ((2 * num_large_primes + 1) >= alloc_lp)
 						{
                             alloc_lp *= 2;
-                            large_primes = (uint32_t)xrealloc(large_primes, 
+                            large_primes = (uint32_t *)xrealloc(large_primes, 
                                 alloc_lp * sizeof(uint32_t));
 						}
 					}

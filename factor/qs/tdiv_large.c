@@ -53,9 +53,7 @@ this file contains code implementing 5)
 
 */
 
-#if defined(USE_AVX512F)
 #include <immintrin.h>
-#endif
 
 const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 0x10, 0x20, 0x40, 0x80,
@@ -1024,408 +1022,9 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
 #endif
 
-#ifdef USE_LINKED_LINK_SS
-void tdiv_SS_linked_lists(uint32_t report_num, uint8_t parity, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf)
-{
-    // with linked lists per poly.
-    int i;
-    int smooth_num;
-    uint32_t* fb_offsets;
-    uint32_t block_loc;
-    __m512i vblock;
-
-    fb_offsets = &dconf->fb_offsets[report_num][0];
-    smooth_num = dconf->smooth_num[report_num];
-    block_loc = dconf->reports[report_num];
-
-    // 16 copies of the 16-bit block_loc in the lower half of
-    // each of the 32-bit vector elements.
-    vblock = _mm512_set1_epi32(block_loc);
-
-    if (parity == 0)
-    {
-        //printf("searching %d bucket locations on side %d for poly %d for divisors of sieve loc %d\n",
-        //    dconf->ss_size_p[dconf->numB], parity, dconf->numB, block_loc);
-
-
-        // find the first hit for this poly.  should probably instead store
-        // a list of first locations for each poly.
-        uint32_t eidx = 0;
-        //while ((dconf->ss_slices_p[0].element[eidx] & 0xffff) != dconf->numB)
-        //{
-        //    eidx++;
-        //}
-        uint32_t root;
-        eidx = dconf->poly_ll_first_p[dconf->numB];
-
-        for (i = 0; i < dconf->num_ss_slices; i++)
-        {
-            uint64_t* elements = dconf->ss_slices_p[i].element;
-            uint32_t nextentry;
-            uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
-
-            do
-            {
-                root = (dconf->ss_slices_p[i].element[eidx] & 0xffffff) - bnum * 32768;
-                if (root == block_loc)
-                {
-                    uint32_t pid = fboffset + 
-                        (((elements[eidx]) >> 24) & 0xffff);
-                    uint32_t prime = sconf->factor_base->list->prime[pid];
-
-                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
-                    {
-                        printf("tdiv invalid root %u in slice %u, side %u, eindex %u, poly %u "
-                            "pid = %u, fboffset = %u, ss_start_offset = %u\n",
-                            root, i, parity, eidx, dconf->numB, pid, fboffset, 
-                            sconf->factor_base->x2_large_B);
-                    }
-
-                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-                    {
-                        //printf("prime %u (idx %d) divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-                        //    prime, pid, block_loc, dconf->numB, smooth_num + 1);
-                        fb_offsets[++smooth_num] = pid;
-                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                            prime);
-                    }
-
-                }
-                                
-                nextentry = elements[eidx] >> 40;
-                eidx += nextentry;
-            } while ((eidx < dconf->ss_slices_p[i].size) && (nextentry != 0xffffff));
-
-            if (nextentry == 0xffffff)
-            {
-                // last entry for this poly
-                break;
-            }
-            else
-            {
-                // more entries in the next slice.  adjust the element index
-                // for the remainder of this slice's size.
-                eidx -= dconf->ss_slices_p[i].size;
-            }
-
-            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
-            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
-        }
-
-    }
-    else
-    {
-        // find the first hit for this poly.  should probably instead store
-        // a list of first locations for each poly.
-        uint32_t eidx = 0;
-        //while ((dconf->ss_slices_n[0].element[eidx] & 0xffff) != dconf->numB)
-        //{
-        //    eidx++;
-        //}
-        uint32_t root;
-        eidx = dconf->poly_ll_first_n[dconf->numB];
-
-        for (i = 0; i < dconf->num_ss_slices; i++)
-        {
-            uint64_t* elements = dconf->ss_slices_n[i].element;
-            uint32_t nextentry;
-            uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
-
-            do
-            {
-                root = (dconf->ss_slices_n[i].element[eidx] & 0xffffff) - bnum * 32768;
-                if (root == block_loc)
-                {
-                    uint32_t pid = fboffset +
-                        (((elements[eidx]) >> 24) & 0xffff);
-                    uint32_t prime = sconf->factor_base->list->prime[pid];
-
-                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
-                    {
-                        printf("tdiv invalid root %u in slice %u, side %u, eindex %u, poly %u "
-                            "pid = %u, fboffset = %u, ss_start_offset = %u\n",
-                            root, i, parity, eidx, dconf->numB, pid - fboffset, fboffset,
-                            sconf->factor_base->x2_large_B);
-                    }
-
-                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-                    {
-                        //printf("prime %u (idx %d) divides block loc -%d of poly %d, adding to fb_offsets[%d]\n",
-                        //    prime, pid, block_loc, dconf->numB, smooth_num + 1);
-                        fb_offsets[++smooth_num] = pid;
-                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                            prime);
-                    }
-
-                }
-
-                nextentry = elements[eidx] >> 40;
-                eidx += nextentry;
-            } while ((eidx < dconf->ss_slices_n[i].size) && (nextentry != 0xffffff));
-
-            if (nextentry == 0xffffff)
-            {
-                // last entry for this poly
-                break;
-            }
-            else
-            {
-                // more entries in the next slice.  adjust the element index
-                // for the remainder of this slice's size.
-                eidx -= dconf->ss_slices_n[i].size;
-            }
-
-            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
-            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
-        }
-    }
-
-    dconf->smooth_num[report_num] = smooth_num;
-
-    return;
-}
-#endif
-
-#ifdef USE_SORTED_LIST_SS
-void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf)
-{
-    // _sorted_buckets
-    int i;
-    int smooth_num;
-    uint32_t* fb_offsets;
-    uint32_t block_loc;
-    __m512i vblock;
-
-    fb_offsets = &dconf->fb_offsets[report_num][0];
-    smooth_num = dconf->smooth_num[report_num];
-    block_loc = dconf->reports[report_num];
-
-    // 16 copies of the 16-bit block_loc in the lower half of
-    // each of the 32-bit vector elements.
-    vblock = _mm512_set1_epi32(block_loc);
-
-    if (parity == 0)
-    {
-        //printf("searching %d bucket locations on side %d for poly %d for divisors of sieve loc %d\n",
-        //    dconf->ss_size_p[dconf->numB], parity, dconf->numB, block_loc);
-
-
-        for (i = 0; i < dconf->num_ss_slices; i++)
-        {
-            uint64_t* elements = dconf->ss_slices_p[i].element;
-            uint32_t curr_poly_idx = dconf->ss_slices_p[i].curr_poly_idx;
-            uint32_t root;
-            uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
-
-            //printf("checking block loc %d over %d bucket elements for poly %d on side %d bucket %d, working backwards from index %d\n",
-            //    block_loc, dconf->ss_slices_p[i].curr_poly_num, dconf->numB, parity, i, curr_poly_idx);
-
-            int j;
-            int k;
-            for (j = curr_poly_idx - 1, k = 0; k < dconf->ss_slices_p[i].curr_poly_num; j--, k++)
-            {
-                root = (elements[j] & 0xffff);
-                if (block_loc == root)
-                {
-                    uint32_t pid = fboffset + (((elements[j]) >> 24) & 0xffff);
-                    uint32_t prime = sconf->factor_base->list->prime[pid];
-
-                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
-                    {
-                        printf("tdiv invalid root %u in slice %u, side %u, poly %u "
-                            "pid = %u, fboffset = %u ",
-                            root, i, parity, dconf->numB, pid, fboffset);
-                        if (dconf->numB != (elements[j] >> 40))
-                        {
-                            printf("poly %d doesn't match element poly %d",
-                                dconf->numB, elements[j] >> 40);
-                        }
-                        printf("\n");
-                    }
-
-                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-                    {
-                        //printf("prime %u (idx %d) divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-                        //    prime, pid, block_loc, dconf->numB, smooth_num + 1);
-                        fb_offsets[++smooth_num] = pid;
-                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                            prime);
-                    }
-
-                }
-            }
-        }
-
-
-        //for (i = 0; i < dconf->ss_size_p[dconf->numB] - 16; i += 16)
-        //{
-        //    uint32_t idx;
-        //    __m512i velements = _mm512_load_epi32(dconf->ss_slices_p[dconf->numB].root + i);
-        //    uint32_t result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
-        //
-        //    while (result > 0)
-        //    {
-        //        idx = _trail_zcnt(result);
-        //        
-        //        uint32_t prime = sconf->factor_base->list->prime[
-        //            dconf->ss_slices_p[dconf->numB].fbid[i + idx]];
-        //        
-        //        while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-        //        {
-        //            //printf("prime %u divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-        //            //    prime, block_loc, dconf->numB, smooth_num + 1);
-        //            fb_offsets[++smooth_num] = dconf->ss_slices_p[dconf->numB].fbid[i];
-        //            mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-        //                prime);
-        //        }
-        //
-        //        result = _reset_lsb(result);
-        //    }
-        //
-        //}
-
-
-        //for ( ; i < dconf->ss_size_p[dconf->numB]; i++)
-        //{
-        //    if (block_loc == dconf->ss_slices_p[dconf->numB].root[i])
-        //    {
-        //        uint32_t prime = sconf->factor_base->list->prime[
-        //            dconf->ss_slices_p[dconf->numB].fbid[i]];
-        //
-        //        //if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0))
-        //        //{
-        //        //    printf("prime %u doesn't divide block loc +%d of poly %d during SS tdiv\n",
-        //        //        prime, block_loc, dconf->numB);
-        //        //    //exit(1);
-        //        //}
-        //
-        //        while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-        //        {
-        //            //printf("prime %u divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-        //            //    prime, block_loc, dconf->numB, smooth_num + 1);
-        //            fb_offsets[++smooth_num] = dconf->ss_slices_p[dconf->numB].fbid[i];
-        //            mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], 
-        //                prime);
-        //        }
-        //    }
-        //}
-    }
-    else
-    {
-        //printf("searching %d bucket locations on side %d for poly %d for divisors of sieve loc %d\n",
-        //    dconf->ss_size_n[dconf->numB], parity, dconf->numB, block_loc);
-
-        for (i = 0; i < dconf->num_ss_slices; i++)
-        {
-            uint64_t* elements = dconf->ss_slices_n[i].element;
-            uint32_t curr_poly_idx = dconf->ss_slices_n[i].curr_poly_idx;
-            uint32_t root;
-            uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
-
-            //printf("checking block loc %d over %d bucket elements for poly %d on side %d bucket %d, working backwards from index %d\n",
-            //    block_loc, dconf->ss_slices_p[i].curr_poly_num, dconf->numB, parity, i, curr_poly_idx);
-
-            int j;
-            int k;
-            for (j = curr_poly_idx - 1, k = 0; k < dconf->ss_slices_n[i].curr_poly_num; j--, k++)
-            {
-                root = (elements[j] & 0xffff);
-                if (block_loc == root)
-                {
-                    uint32_t pid = fboffset + (((elements[j]) >> 24) & 0xffff);
-                    uint32_t prime = sconf->factor_base->list->prime[pid];
-
-                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
-                    {
-                        printf("tdiv invalid root %u in slice %u, side %u, poly %u "
-                            "pid = %u, fboffset = %u ",
-                            root, i, parity, dconf->numB, pid, fboffset);
-                        if (dconf->numB != (elements[j] >> 40))
-                        {
-                            printf("poly %d doesn't match element poly %d",
-                                dconf->numB, elements[j] >> 40);
-                        }
-                        printf("\n");
-                    }
-
-                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-                    {
-                        //printf("prime %u (idx %d) divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-                        //    prime, pid, block_loc, dconf->numB, smooth_num + 1);
-                        fb_offsets[++smooth_num] = pid;
-                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                            prime);
-                    }
-
-                }
-            }
-        }
-
-
-        //for (i = 0; i < dconf->ss_size_n[dconf->numB] - 16; i += 16)
-        //{
-        //    uint32_t idx;
-        //    __m512i velements = _mm512_load_epi32(dconf->ss_slices_n[dconf->numB].root + i);
-        //    uint32_t result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
-        //
-        //    while (result > 0)
-        //    {
-        //        idx = _trail_zcnt(result);
-        //
-        //        uint32_t prime = sconf->factor_base->list->prime[
-        //            dconf->ss_slices_n[dconf->numB].fbid[i + idx]];
-        //
-        //        while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-        //        {
-        //            //printf("prime %u divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-        //            //    prime, block_loc, dconf->numB, smooth_num + 1);
-        //            fb_offsets[++smooth_num] = dconf->ss_slices_n[dconf->numB].fbid[i];
-        //            mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-        //                prime);
-        //        }
-        //
-        //        result = _reset_lsb(result);
-        //    }
-        //
-        //}
-
-        //for ( ; i < dconf->ss_size_n[dconf->numB]; i++)
-        //{
-        //    if (block_loc == dconf->ss_slices_n[dconf->numB].root[i])
-        //    {
-        //        uint32_t prime = sconf->factor_base->list->prime[
-        //            dconf->ss_slices_n[dconf->numB].fbid[i]];
-        //
-        //        //if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0))
-        //        //{
-        //        //    printf("prime %u doesn't divide block loc -%d of poly %d during SS tdiv\n",
-        //        //        prime, block_loc, dconf->numB);
-        //        //    //exit(1);
-        //        //}
-        //
-        //        while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-        //        {
-        //            //printf("prime %u divides block loc -%d of poly %d, adding to fb_offsets[%d]\n",
-        //            //    prime, block_loc, dconf->numB, smooth_num+1);
-        //            fb_offsets[++smooth_num] = dconf->ss_slices_n[dconf->numB].fbid[i];
-        //            mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-        //                prime);
-        //        }
-        //    }
-        //}
-    }
-
-    dconf->smooth_num[report_num] = smooth_num;
-
-    return;
-}
-#endif
-
 #ifdef USE_POLY_BUCKET_SS
 
-#define TRY_PN_BUCKET_COMBINE_TDIV
+#define USE_POLY_BUCKET_PN_COMBINED_VARIATION
 
 void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
@@ -1461,9 +1060,30 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     //    (1 << dconf->ss_set1.size), (1 << dconf->ss_set2.size));
 
     block_loc += bnum * 32768;
+    
+
+#ifdef USE_POLY_BUCKET_PN_COMBINED_VARIATION
+    uint32_t signbit = (1 << dconf->ss_signbit);
+    uint32_t rootmask = signbit - 1;
+    uint32_t pid_offset = dconf->ss_signbit + 1;
+
+#ifdef USE_AVX512F
     __m512i vloc = _mm512_set1_epi32(block_loc);
-    __m512i vrootmask = _mm512_set1_epi32(0x1ffff);
-    __m512i vposmask = _mm512_set1_epi32(1 << 17);
+    __m512i vrootmask = _mm512_set1_epi32(rootmask);
+    __m512i vposmask = _mm512_set1_epi32(signbit);
+
+#elif defined(USE_AVX2)
+    __m256i vz = _mm256_setzero_si256();
+    __m256i vloc = _mm256_set1_epi32(block_loc);
+    __m256i vrootmask = _mm256_set1_epi32(rootmask);
+    __m256i vposmask = _mm256_set1_epi32(signbit);
+
+#endif
+
+    //printf("signbit = %08x, rootmask = %08x\n", signbit, rootmask);
+#else
+    __m512i vrootmask = _mm512_set1_epi32(0x3ffff);
+#endif
 
     if (parity == 0)
     {
@@ -1474,10 +1094,16 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
             int k;
+
+#ifdef USE_AVX512F
             for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 16); k += 16)
             {
                 __m512i vr = _mm512_loadu_epi32(bucketelements + k);
+#ifdef USE_POLY_BUCKET_PN_COMBINED_VARIATION
                 __mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
+#else
+                __mmask16 mpos = 0xffff;
+#endif
                 vr = _mm512_and_epi32(vr, vrootmask);
 
                 mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
@@ -1486,14 +1112,14 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 {
                     int idx = _trail_zcnt(mpos);
 
-                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> 18));
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
                     {
                         printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u (%u) "
                             "pid = %u, fboffset = %u\n",
-                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity, 
+                            bucketelements[k + idx] & rootmask, block_loc, i, parity,
                             dconf->numB, pidx, pid, fboffset);
                         exit(1);
                     }
@@ -1509,19 +1135,65 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 }
             }
 
+#elif defined(USE_AVX2)
+
+            printf(".");
+            for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 8); k += 8)
+            {
+                __m256i vr = _mm256_load_si256((__m256i *)(&bucketelements[k]));
+                //__mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
+                __m256i cmp = _mm256_and_si256(vr, vposmask);
+                cmp = _mm256_cmpeq_epi32(cmp, vz);
+                uint32_t mpos = _mm256_movemask_epi8(cmp);
+
+                //mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
+                vr = _mm256_and_si256(vr, vrootmask);
+                cmp = _mm256_cmpeq_epi32(vr, vloc);
+                mpos &= _mm256_movemask_epi8(cmp);
+                
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> pid_offset));
+                    uint32_t prime = sconf->factor_base->list->prime[pid];
+
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u (%u) "
+                            "pid = %u, fboffset = %u\n",
+                            bucketelements[k + idx] & rootmask, block_loc, i, parity,
+                            dconf->numB, pidx, pid, fboffset);
+                        exit(1);
+                    }
+
+                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                    {
+                        fb_offsets[++smooth_num] = pid;
+                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                            prime);
+                    }
+
+                    mpos = _reset_lsb(mpos);
+                }
+            }
 
             for ( ; k < dconf->ss_slices_p[i].size[pidx]; k++)
+#else
+            for (k = 0; k < dconf->ss_slices_p[i].size[pidx]; k++)
+#endif
             {
-#ifdef TRY_PN_BUCKET_COMBINE_TDIV
-                root = (bucketelements[k] & 0x1ffff);
-                if ((bucketelements[k] & 0x20000)) continue;
+#ifdef USE_POLY_BUCKET_PN_COMBINED_VARIATION
+                root = (bucketelements[k] & rootmask);
+                if ((bucketelements[k] & signbit)) continue;
 #else
                 root = (bucketelements[k] & 0x3ffff);
 #endif
 
                 if (block_loc == root)
                 {
-                    uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
+                    uint32_t pid = fboffset + (((bucketelements[k]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
@@ -1548,7 +1220,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
 
-#ifdef TRY_PN_BUCKET_COMBINE_TDIV
+#ifdef USE_POLY_BUCKET_PN_COMBINED_VARIATION
 
 
             uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
@@ -1556,6 +1228,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
             int k;
+#ifdef USE_AVX512F
             for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 16); k += 16)
             {
                 __m512i vr = _mm512_loadu_epi32(bucketelements + k);
@@ -1568,14 +1241,14 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 {
                     int idx = _trail_zcnt(mpos);
 
-                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> 18));
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
                     {
                         printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u (%u) "
                             "pid = %u, fboffset = %u\n",
-                            bucketelements[k + idx] & 0x1ffff, block_loc, i, parity,
+                            bucketelements[k + idx] & rootmask, block_loc, i, parity,
                             dconf->numB, pidx, pid, fboffset);
                         exit(1);
                     }
@@ -1591,15 +1264,61 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 }
             }
 
+#elif defined(USE_AVX2)
+
+            printf(".");
+            for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 8); k += 8)
+            {
+                __m256i vr = _mm256_load_si256((__m256i*)(&bucketelements[k]));
+                //__mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
+                __m256i cmp = _mm256_and_si256(vr, vposmask);
+                cmp = _mm256_cmpgt_epi32(cmp, vz);
+                uint32_t mpos = _mm256_movemask_epi8(cmp);
+
+                //mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
+                vr = _mm256_and_si256(vr, vrootmask);
+                cmp = _mm256_cmpeq_epi32(vr, vloc);
+                mpos &= _mm256_movemask_epi8(cmp);
+
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos);
+
+                    uint32_t pid = fboffset + (((bucketelements[k + idx]) >> pid_offset));
+                    uint32_t prime = sconf->factor_base->list->prime[pid];
+
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u for loc %u in slice %u, side %u, poly %u (%u) "
+                            "pid = %u, fboffset = %u\n",
+                            bucketelements[k + idx] & rootmask, block_loc, i, parity,
+                            dconf->numB, pidx, pid, fboffset);
+                        exit(1);
+                    }
+
+                    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+                    {
+                        fb_offsets[++smooth_num] = pid;
+                        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                            prime);
+                    }
+
+                    mpos = _reset_lsb(mpos);
+                }
+            }
 
             for ( ; k < dconf->ss_slices_p[i].size[pidx]; k++)
+#else
+            for (k = 0; k < dconf->ss_slices_p[i].size[pidx]; k++)
+#endif
             {
-                root = (bucketelements[k] & 0x1ffff);
-                if ((bucketelements[k] & 0x20000) == 0) continue;
+                root = (bucketelements[k] & rootmask);
+                if ((bucketelements[k] & signbit) == 0) continue;
 
                 if (block_loc == root)
                 {
-                    uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
+                    uint32_t pid = fboffset + (((bucketelements[k]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
@@ -1620,11 +1339,12 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 }
             }
 #else
-            uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * 16384;
+            uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * bucketalloc;
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
 
             int k;
+#ifdef USE_AVX512F
             for (k = 0; k < dconf->ss_slices_n[i].size[pidx] - 16; k += 16)
             {
                 __m512i vr = _mm512_loadu_epi32(bucketelements + k);
@@ -1663,6 +1383,9 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
             }
 
             for ( ; k < dconf->ss_slices_n[i].size[pidx]; k++)
+#else
+            for (k = 0; k < dconf->ss_slices_n[i].size[pidx]; k++)
+#endif
             {
                 root = (bucketelements[k] & 0x3ffff);
 

@@ -119,6 +119,14 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 	{
 		uint64_t q64;
 
+#if defined(USE_SS_SEARCH) && defined(USE_POLY_BUCKET_SS)
+		if (dconf->reports[report_num] == 32767)
+		{
+			dconf->valid_Qs[report_num] = 0;
+			continue;
+		}
+#endif
+
 		// this one qualifies to check further, log that fact.
 		dconf->num++;
 
