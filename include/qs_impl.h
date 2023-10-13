@@ -27,8 +27,8 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
-#define USE_SS_SEARCH 
-#define USE_DIRECT_SIEVE_SS
+//#define USE_SS_SEARCH 
+//#define USE_DIRECT_SIEVE_SS
 //#define USE_POLY_BUCKET_SS
 //#define USE_LINKED_LIST_SS
 //#define USE_SORTED_LIST_SS
@@ -90,7 +90,11 @@
 #define MAX_SMOOTH_PRIMES 200	//maximum number of factors for a smooth, including duplicates
 #endif
 
+#ifdef USE_DIRECT_SIEVE_SS
+#define MAX_SIEVE_REPORTS 65536
+#else
 #define MAX_SIEVE_REPORTS 2048
+#endif
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
 #define MAX_A_FACTORS 20
@@ -577,6 +581,9 @@ typedef struct {
     int ss_sieve_sz;
     uint8_t* ss_sieve_p;
     uint8_t* ss_sieve_n;
+    uint16_t* report_ht_p;
+    uint16_t* report_ht_n;
+    int report_ht_size;
 #else
     ss_slice_t* ss_slices_p;
     ss_slice_t* ss_slices_n;

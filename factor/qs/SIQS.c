@@ -25,6 +25,7 @@ code to the public domain.
 #include "gmp_xface.h"
 #include "threadpool.h"
 #include "cofactorize.h"
+#include <immintrin.h>
 
 #ifdef USE_BATCH_FACTOR
 #include "batch_factor.h"
@@ -84,6 +85,15 @@ typedef struct
     uint32_t done_batch_override[256];
 
 } siqs_userdata_t;
+
+
+typedef struct
+{
+    uint32_t* hitloc;
+    uint32_t* prime;
+    uint32_t numhits;
+    uint32_t hitalloc;
+} poly_bucket_t;
 
 
 uint64_t* siqs_primes;
@@ -1182,12 +1192,101 @@ done:
 	return;
 }
 
+int check_Qval(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int polyid, int offset, int parity)
+{
+
+    if (sconf->knmod8 == 1)
+    {
+        // this one is close enough, compute 
+        // Q(x) = (2ax + b)^2 - N, where x is the sieve index
+        // Q(x)/4a = (ax + b)x + c;	
+        mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+
+        if (parity)
+            mpz_sub(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+        else
+            mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+
+        mpz_mul_ui(dconf->gmptmp1, dconf->gmptmp1, offset);
+        mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_c);
+
+        if (mpz_sgn(dconf->gmptmp1) < 0)
+        {
+            mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+        }
+    }
+    else
+    {
+        // this one is close enough, compute 
+        // Q(x) = (ax + b)^2 - N, where x is the sieve index
+        // Q(x)/a = (ax + 2b)x + c;	
+        mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1);
+        mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+
+        if (parity)
+            mpz_sub(dconf->gmptmp1, dconf->gmptmp1, dconf->gmptmp2);
+        else
+            mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->gmptmp2);
+
+        mpz_mul_ui(dconf->gmptmp1, dconf->gmptmp1, offset);
+        mpz_add(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_c);
+
+        if (mpz_sgn(dconf->gmptmp1) < 0)
+        {
+            mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+        }
+    }
+
+    uint32_t fboffsets[100];
+    uint8_t sieveval = sconf->blockinit;
+    int i;
+    int j = 0;
+    mpz_set(dconf->gmptmp2, dconf->gmptmp1);
+    for (i = sconf->sieve_small_fb_start; i < sconf->factor_base->B; i++)
+    {
+        uint32_t prime = sconf->factor_base->list->prime[i];
+        uint8_t logp = sconf->factor_base->list->logprime[i];
+
+        while (mpz_tdiv_ui(dconf->gmptmp2, prime) == 0)
+        {
+            sieveval -= logp;
+            fboffsets[j++] = i;
+            mpz_tdiv_q_ui(dconf->gmptmp2, dconf->gmptmp2, prime);
+        }
+    }
+
+    if ((sieveval & 0x80))
+    {
+        gmp_printf("Q(%d,%d), logp = %02x: %Zd = %u ", polyid, offset, 
+            sieveval, dconf->gmptmp1,
+            sconf->factor_base->list->prime[fboffsets[0]]);
+        for (i = 1; i < j; i++)
+        {
+            printf("* %u ", sconf->factor_base->list->prime[fboffsets[i]]);
+        }
+
+        while (mpz_even_p(dconf->gmptmp2))
+            mpz_tdiv_q_2exp(dconf->gmptmp2, dconf->gmptmp2, 1);
+
+        for (i = 2; i < sconf->sieve_small_fb_start; i++)
+        {
+            uint32_t prime = sconf->factor_base->list->prime[i];
+            if (mpz_tdiv_ui(dconf->gmptmp1, prime) == 0)
+                mpz_tdiv_q_ui(dconf->gmptmp2, dconf->gmptmp2, prime);
+        }
+        gmp_printf("* %Zd\n", dconf->gmptmp2);
+    }
+
+    return ((sieveval & 0x80) > 0);
+}
 
 void init_Qval(static_conf_t* sconf, dynamic_conf_t* dconf,
     int polyid, int offset, int parity, int report_num)
 {
     dconf->reports[report_num] = offset;
     dconf->num++;
+    dconf->total_reports++;
 
     if (sconf->knmod8 == 1)
     {
@@ -1281,7 +1380,7 @@ void init_Qval(static_conf_t* sconf, dynamic_conf_t* dconf,
 }
 
 int td_small_p(static_conf_t* sconf, dynamic_conf_t* dconf,
-    int polyid, int offset, int parity, int report_num)
+    int polyid, int offset, int parity, int report_num, poly_bucket_t *pbucket)
 {
     uint8_t bits = 0, logp;
     int smooth_num;
@@ -1371,7 +1470,7 @@ int td_small_p(static_conf_t* sconf, dynamic_conf_t* dconf,
     if (dconf->valid_Qs[report_num])
     {
 
-        while ((uint32_t)i < sconf->factor_base->fb_15bit_B)
+        while ((uint32_t)i < sconf->factor_base->med_B)
         {
             uint64_t q64;
 
@@ -1386,50 +1485,35 @@ int td_small_p(static_conf_t* sconf, dynamic_conf_t* dconf,
             }
 
             prime = fbc->prime[i];
-            //root1 = fbc->root1[i];
-            //root2 = fbc->root2[i];
-            //logp = fbc->logp[i];
-            //
-            //// this is just offset % prime (but divisionless!)
-            //tmp = offset + fullfb_ptr->correction[i];
-            //q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
-            //tmp = q64 >> 32;
-            //tmp = offset - tmp * prime;
 
-            // if offset % prime == either root, it's on the progression.  also
-            // need to check for the case if root1 or root2 == prime at the same
-            // time as offset mod prime = 0.  for small primes, this happens fairly
-            // often.  the simple offset % prime check will miss these cases.
-            //if (tmp == root1 || tmp == root2)
+            while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
             {
-                while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
-                {
-                    dconf->fb_offsets[report_num][smooth_num++] = i;
-                    mpz_tdiv_q_ui(dconf->Qvals[report_num],
-                        dconf->Qvals[report_num], prime);
-                }
+                dconf->fb_offsets[report_num][smooth_num++] = i;
+                mpz_tdiv_q_ui(dconf->Qvals[report_num],
+                    dconf->Qvals[report_num], prime);
             }
             i++;
         }
+
+#if 1
+
+        for (i = 0; i < pbucket->numhits; i++)
+        {
+            uint32_t pid = pbucket->prime[i];
+            prime = sconf->factor_base->list->prime[pid];
+
+            while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
+            {
+                dconf->fb_offsets[report_num][smooth_num++] = pid;
+                mpz_tdiv_q_ui(dconf->Qvals[report_num],
+                    dconf->Qvals[report_num], prime);
+            }
+
+        }
+#endif
     }
    
-
-    // don't reject a sieve hit if it is within a small distance
-    // of the poly root as these locations are much more likely
-    // to factor over the fb.
-    //if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
-    //    abs(offset - minoffset) > 2000)
-
-    //printf("%d small-prime bits divided out of Q (threshold = %d), smooth_num = %d\n", 
-    //    bits, sconf->tf_small_cutoff, smooth_num);
-    // 
-    //
-    
-    
-
     dconf->smooth_num[report_num] = smooth_num;
-    //dconf->valid_Qs[report_num] = 1;
-
     return dconf->valid_Qs[report_num];
 }
 
@@ -1533,33 +1617,94 @@ void *process_poly(void *vptr)
 
 #if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
 
+//#define MANY_PBUCKETS
+
     if (using_ss_search)
     {
         int p, s;
         int num_bpoly = 1 << (dconf->curr_poly->s - 1);
         int locs_to_resieve = 0;
         int sieve_sz = dconf->ss_sieve_sz;
-        update_t update_data = dconf->update_data;
+        update_t *update_data = &dconf->update_data;
         int* rootupdates = dconf->rootupdates;
         uint32_t bound = sconf->factor_base->B;
 
+#ifdef MANY_PBUCKETS
+        poly_bucket_t* polybuckets;
+        
+        polybuckets = (poly_bucket_t*)xmalloc(num_bpoly * sizeof(poly_bucket_t));
+        for (p = 0; p < num_bpoly; p++)
+        {
+            polybuckets[p].hitalloc = 32768;
+            polybuckets[p].hitloc = (uint32_t*)xmalloc(
+                polybuckets[p].hitalloc * sizeof(uint32_t));
+            polybuckets[p].prime = (uint32_t*)xmalloc(
+                polybuckets[p].hitalloc * sizeof(uint32_t));
+            polybuckets[p].numhits = 0;
+        }
+        
+        printf("\nallocated %lu bytes for small prime polybuckets\n",
+            (uint64_t)num_bpoly * (uint64_t)polybuckets[0].hitalloc * 
+            (uint64_t)sizeof(uint32_t) * 2ULL);
+#else
+        poly_bucket_t polybucket;
+        polybucket.hitalloc = 65536;
+        polybucket.hitloc = (uint32_t*)xmalloc(polybucket.hitalloc * sizeof(uint32_t));
+        polybucket.prime = (uint32_t*)xmalloc(polybucket.hitalloc * sizeof(uint32_t));
+        polybucket.numhits = 0;
+#endif
+
+        memset(dconf->report_ht_p, 0, dconf->report_ht_size * sizeof(uint16_t));
+        memset(dconf->report_ht_n, 0, dconf->report_ht_size * sizeof(uint16_t));
         memset(dconf->ss_sieve_p, blockinit, num_bpoly * sieve_sz * sizeof(uint8_t));
         memset(dconf->ss_sieve_n, blockinit, num_bpoly * sieve_sz * sizeof(uint8_t));
 
         // for primes up to this bound, do a normal sieve process
         // into the sieve region for all polys.
         // p is the gray-code enumeration.
+        uint32_t inc[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+        __m512i vinterval = _mm512_set1_epi32(sieve_sz);
+        __m512i vinc = _mm512_loadu_epi32(inc);
+
+
+        // this does the bulk of the sieving.  All polynomials and
+        // all primes > 15-bit
+        dconf->num_ss_slices = 0;   // indicator for resieveing
+        ss_search_poly_buckets(sconf, dconf);
+        gettimeofday(&stop, NULL);
+        t_time = ytools_difftime(&start, &stop);
+        printf("subset-sum sieving of %u primes took: %1.4f seconds\n",
+            fb->B - fb->x2_large_B, t_time);
+        gettimeofday(&start, NULL);
+
+        // last poly is invalid but subset-sum will still hit it.
+        for (s = 0; s < dconf->ss_sieve_sz; s++)
+        {
+            dconf->ss_sieve_p[dconf->polymap[num_bpoly] * sieve_sz + s] = 0xff;
+            dconf->ss_sieve_n[dconf->polymap[num_bpoly] * sieve_sz + s] = 0xff;
+        }
+
+        int report_num = 1;
+        int valid_report_num = 0;
+        int collisions = 0;
+        dconf->numB = 1;
         for (p = 1; p < num_bpoly; p++)
         {
             int k = 0;
             int index_to_skip = poly->qlisort[k];
+            int sign = dconf->polysign[p];
+            int v = dconf->polyv[p];
 
             // map the gray-code enumeration to binary-polynum encoding,
             // because that's the way the subset-sum code wants it and
             // we need to agree with that here.
             int pidx = dconf->polymap[p];
 
-            for (i = sconf->sieve_small_fb_start; i < fb->fb_15bit_B; i++)
+#ifndef MANY_PBUCKETS
+            polybucket.numhits = 0;
+#endif
+
+            for (i = sconf->sieve_small_fb_start; i < fb->med_B; i++)
             {
                 if (i == index_to_skip)
                 {
@@ -1603,12 +1748,8 @@ void *process_poly(void *vptr)
                     dconf->ss_sieve_n[pidx * sieve_sz + r1] -= logp;
                 }
 
-                r1 = (uint32_t)update_data.sm_firstroots1[i];
-                r2 = (uint32_t)update_data.sm_firstroots2[i];
-
-                // next roots
-                //ptr = &rootupdates[(dconf->polyv[ii] - 1) * bound + i];
-                //if (dconf->polysign[ii] > 0)
+                r1 = (uint32_t)update_data->sm_firstroots1[i];
+                r2 = (uint32_t)update_data->sm_firstroots2[i];
 
                 int sign = dconf->polysign[p];
                 int v = dconf->polyv[p];
@@ -1616,23 +1757,23 @@ void *process_poly(void *vptr)
 
                 if (sign > 0)
                 {
-                    r1 = (int)r1 - *ptr;
-                    r2 = (int)r2 - *ptr;
-                    r1 = (r1 < 0) ? r1 + prime : r1;
-                    r2 = (r2 < 0) ? r2 + prime : r2;
+                    r1 = r1 - *ptr;
+                    r2 = r2 - *ptr;
+                    r1 = (r1 >> 15) ? r1 + prime : r1;
+                    r2 = (r2 >> 15) ? r2 + prime : r2;
                 }
                 else
                 {
-                    r1 = (int)r1 + *ptr;
-                    r2 = (int)r2 + *ptr;
+                    r1 = r1 + *ptr;
+                    r2 = r2 + *ptr;
                     r1 = (r1 >= prime) ? r1 - prime : r1;
                     r2 = (r2 >= prime) ? r2 - prime : r2;
                 }
 
                 if (r2 < r1)
                 {
-                    update_data.sm_firstroots1[i] = (uint16_t)r2;
-                    update_data.sm_firstroots2[i] = (uint16_t)r1;
+                    update_data->sm_firstroots1[i] = (uint16_t)r2;
+                    update_data->sm_firstroots2[i] = (uint16_t)r1;
 
                     fb_sieve_p->root1[i] = (uint16_t)r2;
                     fb_sieve_p->root2[i] = (uint16_t)r1;
@@ -1641,8 +1782,8 @@ void *process_poly(void *vptr)
                 }
                 else
                 {
-                    update_data.sm_firstroots1[i] = (uint16_t)r1;
-                    update_data.sm_firstroots2[i] = (uint16_t)r2;
+                    update_data->sm_firstroots1[i] = (uint16_t)r1;
+                    update_data->sm_firstroots2[i] = (uint16_t)r2;
 
                     fb_sieve_p->root1[i] = (uint16_t)r1;
                     fb_sieve_p->root2[i] = (uint16_t)r2;
@@ -1650,27 +1791,209 @@ void *process_poly(void *vptr)
                     fb_sieve_n->root2[i] = (uint16_t)(prime - r1);
                 }
             }
-        }
 
-        // this does the bulk of the sieving.  All polynomials and
-        // all primes > 15-bit
-        dconf->num_ss_slices = 0;   // indicator for resieveing
-        ss_search_poly_buckets(sconf, dconf);
+            for (i = fb->med_B; i < fb->x2_large_B; i += 16)
+            {
+                
+                int* ptr = &rootupdates[(v - 1) * bound + i];
 
-        // for each polynomial, look at the entries and decide whether
-        // to process further.
-        int report_num = 0;
-        for (p = 1; p < num_bpoly; p++)
-        {
-            // map the gray-code enumeration to binary-polynum encoding
-            int pidx = dconf->polymap[p];
+                __m512i vprime;
+                __m512i vroot1;
+                __m512i vroot2;
+                __m512i vpval;
+                __m512i vnroot1;
+                __m512i vnroot2;
+                __mmask16 mask1;
+                __mmask16 mask2;
+                __m512i vindex = _mm512_set1_epi32(i);
+                uint32_t logp = update_data->logp[i];
 
+                vprime = _mm512_load_epi32((__m512i*)(&update_data->prime[i]));
+                vroot1 = _mm512_load_epi32((__m512i*)(&update_data->firstroots1[i]));
+                vroot2 = _mm512_load_epi32((__m512i*)(&update_data->firstroots2[i]));
+
+                __mmask16 m1 = _mm512_cmplt_epi32_mask(vroot1, vinterval);
+                __mmask16 m2 = _mm512_cmplt_epi32_mask(vroot2, vinterval);
+
+#ifdef MANY_PBUCKETS
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
+                    polybuckets[p].numhits, m1, vroot1);
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
+                    polybuckets[p].numhits, m1, 
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybuckets[p].numhits += _mm_popcnt_u32(m1);
+
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
+                    polybuckets[p].numhits, m2, vroot2);
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
+                    polybuckets[p].numhits, m2, 
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybuckets[p].numhits += _mm_popcnt_u32(m2);
+#else
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m1, vroot1);
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m1,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m1);
+
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m2, vroot2);
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m2,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m2);
+#endif
+                vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+                vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+                m1 = _mm512_cmplt_epi32_mask(vnroot1, vinterval);
+                m2 = _mm512_cmplt_epi32_mask(vnroot2, vinterval);
+
+#ifdef MANY_PBUCKETS
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
+                    polybuckets[p].numhits, m1, _mm512_add_epi32(vprime, vnroot1));
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
+                    polybuckets[p].numhits, m1, 
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybuckets[p].numhits += _mm_popcnt_u32(m1);
+
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
+                    polybuckets[p].numhits, m2, _mm512_add_epi32(vprime, vnroot2));
+                _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
+                    polybuckets[p].numhits, m2, 
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybuckets[p].numhits += _mm_popcnt_u32(m2);
+
+                if (polybuckets[p].numhits + 64 > polybuckets[p].hitalloc)
+                {
+                    printf("polybucket almost full\n");
+                }
+#else
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m1, _mm512_add_epi32(vprime, vnroot1));
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m1,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m1);
+
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m2, _mm512_add_epi32(vprime, vnroot2));
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m2,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m2);
+
+                if (polybucket.numhits + 64 > polybucket.hitalloc)
+                {
+                    printf("polybucket almost full\n");
+                }
+#endif
+
+                if (sign > 0)
+                {
+                    vpval = _mm512_load_epi32((__m512i*)ptr);
+                    mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+                    mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+                    vroot1 = _mm512_sub_epi32(vroot1, vpval);
+                    vroot2 = _mm512_sub_epi32(vroot2, vpval);
+                    vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                    vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
+                }
+                else
+                {
+                    vpval = _mm512_load_epi32((__m512i*)ptr);
+                    vroot1 = _mm512_add_epi32(vroot1, vpval);
+                    vroot2 = _mm512_add_epi32(vroot2, vpval);
+                    mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+                    mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+                    vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+                    vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
+                }
+                
+            }
+
+#ifdef MANY_PBUCKETS
+            for (i = 0; i < polybuckets[p].numhits; i++)
+            {
+                uint32_t prime = update_data->prime[polybuckets[p].prime[i]];
+                uint32_t logp = update_data->logp[polybuckets[p].prime[i]];
+
+                if (polybuckets[p].hitloc[i] > sieve_sz)
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz +
+                        (polybuckets[p].hitloc[i] - prime)] -= logp;
+                }
+                else
+                {
+                    dconf->ss_sieve_p[pidx * sieve_sz +
+                        polybuckets[p].hitloc[i]] -= logp;
+                }
+            }
+#else
+
+            for (i = 0; i < polybucket.numhits; i++)
+            {
+                uint32_t prime = update_data->prime[polybucket.prime[i]];
+                uint32_t logp = update_data->logp[polybucket.prime[i]];
+
+                if (polybucket.hitloc[i] > sieve_sz)
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz +
+                        (polybucket.hitloc[i] - prime)] -= logp;
+                }
+                else
+                {
+                    dconf->ss_sieve_p[pidx * sieve_sz +
+                        polybucket.hitloc[i]] -= logp;
+                }
+            }
+#endif
+
+#if !defined(MANY_PBUCKETS)
+
+            // search for hits and assign report numbers to hits.
+            // initialize Q's for each hit and trial divide up to 
+            // the subset-sum bound.  Hits can be disqualified 
+            // due to the small-prime variation.
             for (s = 0; s < dconf->ss_sieve_sz; s++)
             {
                 if (dconf->ss_sieve_p[pidx * sieve_sz + s] & 0x80)
                 {
                     // mark this location for re-sieving
-                    dconf->ss_sieve_p[pidx * sieve_sz + s] = report_num++;
+                    int ht_idx = hash64(pidx * sieve_sz + s) %
+                        dconf->report_ht_size;
+
+                    if (dconf->report_ht_p[ht_idx] > 0)
+                        collisions++;
+
+                    dconf->report_ht_p[ht_idx] = report_num++;
+                    int rnum = dconf->report_ht_p[ht_idx];
+
+                    init_Qval(sconf, dconf, p - 1, s, 0, rnum);
+                    int valid = td_small_p(sconf, dconf, p - 1, s, 0, rnum, &polybucket);
+
+                    if (valid)
+                    {
+                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 1;
+                        valid_report_num++;
+                    }
+                    else
+                    {
+                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
+                    }
                 }
                 else
                 {
@@ -1680,69 +2003,31 @@ void *process_poly(void *vptr)
                 if (dconf->ss_sieve_n[pidx * sieve_sz + s] & 0x80)
                 {
                     // mark this location for re-sieving
-                    dconf->ss_sieve_n[pidx * sieve_sz + s] = report_num++;
-                }
-                else
-                {
-                    dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
-                }
-            }
-        }
+                    int ht_idx = hash64(pidx * sieve_sz + s) %
+                        dconf->report_ht_size;
 
-        // last poly is invalid but subset-sum will still hit it.
-        for (s = 0; s < dconf->ss_sieve_sz; s++)
-        {
-            dconf->ss_sieve_p[dconf->polymap[p] * sieve_sz + s] = 0xff;
-            dconf->ss_sieve_n[dconf->polymap[p] * sieve_sz + s] = 0xff;
-        }
+                    dconf->ss_sieve_n[pidx * sieve_sz + s] = 1;
+                    if (dconf->report_ht_n[ht_idx] > 0)
+                        collisions++;
 
-        // and finally process for any large primes and store discovered relations.
-        printf("found %d locations to resieve\n", report_num);
+                    dconf->report_ht_n[ht_idx] = report_num++;
+                    int rnum = dconf->report_ht_n[ht_idx];
 
-        // now initialize Q and divide out the small primes at the marked locations.
-        // here we need to actually increment through the b-polys.
-        dconf->numB = 1;
-        report_num = 0;
-        for (p = 1; p < num_bpoly; p++)
-        {
-            // map the gray-code enumeration to binary-polynum encoding
-            int pidx = dconf->polymap[p];
-
-            for (s = 0; s < dconf->ss_sieve_sz; s++)
-            {
-                if (dconf->ss_sieve_p[pidx * sieve_sz + s] < 0xff)
-                {
-                    // initialize Qval for poly p at offset s
-                    int rnum = dconf->ss_sieve_p[pidx * sieve_sz + s];
-                    //printf("initializing report %d at pidx %d loc %d p-side\n",
-                    //    rnum, pidx, s);
-                    init_Qval(sconf, dconf, p - 1, s, 0, rnum);
-                    int valid = td_small_p(sconf, dconf, p - 1, s, 0, rnum);
-                    if (valid)
-                    {
-                        report_num++;
-                    }
-                    else
-                    {
-                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
-                    }
-                }
-                if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
-                {
-                    // initialize Qval for poly p at offset -s
-                    int rnum = dconf->ss_sieve_n[pidx * sieve_sz + s];
-                    //printf("initializing report %d at pidx %d loc %d n-side\n",
-                    //    rnum, pidx, s);
                     init_Qval(sconf, dconf, p - 1, s, 1, rnum);
-                    int valid = td_small_p(sconf, dconf, p - 1, s, 1, rnum);
+                    int valid = td_small_p(sconf, dconf, p - 1, s, 1, rnum, &polybucket);
+
                     if (valid)
                     {
-                        report_num++;
+                        valid_report_num++;
                     }
                     else
                     {
                         dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
                     }
+                }
+                else
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
                 }
             }
 
@@ -1750,22 +2035,176 @@ void *process_poly(void *vptr)
             // use the stored Bl's and the gray code to find the next b
             nextB(dconf, sconf, 1);
             dconf->numB++;
+#endif
+
         }
 
-        printf("initialized %d resieve locations\n", report_num);
+        gettimeofday(&stop, NULL);
+        t_time = ytools_difftime(&start, &stop);
+        
+#ifdef MANY_PBUCKETS
+        printf("sieving of %d primes took: %1.4f seconds\n",
+            fb->x2_large_B - sconf->sieve_small_fb_start, t_time);
+#else
+        printf("sieving and trial division of %d primes took: %1.4f seconds\n",
+            fb->x2_large_B - sconf->sieve_small_fb_start, t_time);
+#endif
+
+        gettimeofday(&start, NULL);
+
+
+        // for each polynomial, look at the entries and decide whether
+        // to process further.
+#ifdef MANY_PBUCKETS
+        {
+            for (p = 1; p < num_bpoly; p++)
+            {
+                // map the gray-code enumeration to binary-polynum encoding
+                int pidx = dconf->polymap[p];
+
+                for (s = 0; s < dconf->ss_sieve_sz; s++)
+                {
+                    if (dconf->ss_sieve_p[pidx * sieve_sz + s] & 0x80)
+                    {
+                        // mark this location for re-sieving
+                        int ht_idx = hash64(pidx * sieve_sz + s) %
+                            dconf->report_ht_size;
+
+                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 1;
+                        if (dconf->report_ht_p[ht_idx] > 0)
+                            collisions++;
+                        //    printf("report_ht_p collision at index %d\n", ht_idx);
+
+                        dconf->report_ht_p[ht_idx] = report_num++;
+                    }
+                    else
+                    {
+                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
+                    }
+
+                    if (dconf->ss_sieve_n[pidx * sieve_sz + s] & 0x80)
+                    {
+                        // mark this location for re-sieving
+                        int ht_idx = hash64(pidx * sieve_sz + s) %
+                            dconf->report_ht_size;
+
+                        dconf->ss_sieve_n[pidx * sieve_sz + s] = 1;
+                        if (dconf->report_ht_n[ht_idx] > 0)
+                            collisions++;
+                        //    printf("report_ht_n collision at index %d\n", ht_idx);
+                        dconf->report_ht_n[ht_idx] = report_num++;
+                    }
+                    else
+                    {
+                        dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
+                    }
+                }
+            }
+        }
+#endif
+
+        // and finally process for any large primes and store discovered relations.
+        printf("found %d locations to resieve, %d hashtable collisions\n", 
+            report_num, collisions);
+
+        // now initialize Q and divide out the small primes at the marked locations.
+        // here we need to actually increment through the b-polys.
+#ifdef MANY_PBUCKETS
+        {
+            valid_report_num = 0;
+            for (p = 1; p < num_bpoly; p++)
+            {
+                // map the gray-code enumeration to binary-polynum encoding
+                int pidx = dconf->polymap[p];
+
+                for (s = 0; s < dconf->ss_sieve_sz; s++)
+                {
+                    if (dconf->ss_sieve_p[pidx * sieve_sz + s] < 0xff)
+                    {
+                        // initialize Qval for poly p at offset s
+                        int ht_idx = hash64(pidx * sieve_sz + s) %
+                            dconf->report_ht_size;
+                        int rnum = dconf->report_ht_p[ht_idx];
+
+                        if (rnum == 0)
+                            printf("invalid rnum %d in p-side hashtable: pidx %d loc %d\n",
+                                rnum, pidx, s);
+
+                        //printf("initializing report %d at pidx %d loc %d p-side\n",
+                        //    rnum, pidx, s);
+
+                        init_Qval(sconf, dconf, p - 1, s, 0, rnum);
+                        int valid = td_small_p(sconf, dconf, p - 1, s, 0, rnum, &polybuckets[p]);
+                        if (valid)
+                        {
+                            valid_report_num++;
+                        }
+                        else
+                        {
+                            dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
+                        }
+                    }
+                    if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
+                    {
+                        // initialize Qval for poly p at offset -s
+                        int ht_idx = hash64(pidx * sieve_sz + s) %
+                            dconf->report_ht_size;
+                        int rnum = dconf->report_ht_n[ht_idx];
+
+                        if (rnum == 0)
+                            printf("invalid rnum %d in n-side hashtable: pidx %d loc %d\n",
+                                rnum, pidx, s);
+
+                        //printf("initializing report %d at pidx %d loc %d n-side\n",
+                        //    rnum, pidx, s);
+
+                        init_Qval(sconf, dconf, p - 1, s, 1, rnum);
+                        int valid = td_small_p(sconf, dconf, p - 1, s, 1, rnum, &polybuckets[p]);
+                        if (valid)
+                        {
+                            valid_report_num++;
+                        }
+                        else
+                        {
+                            dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
+                        }
+                    }
+                }
+
+                // next polynomial
+                // use the stored Bl's and the gray code to find the next b
+                nextB(dconf, sconf, 1);
+                dconf->numB++;
+            }
+        }
+        gettimeofday(&stop, NULL);
+        t_time = ytools_difftime(&start, &stop);
+        printf("initialization and small-prime trial division of %d surviving hits "
+            "took: %1.4f seconds\n", valid_report_num, t_time);
+        gettimeofday(&start, NULL);
+
+#endif
+        dconf->total_surviving_reports += valid_report_num;
+
+        // reset the poly so we can scan over them again later.
+        computeBl(sconf, dconf, 1);
+        dconf->numB = 1;
 
         // do the resieve.  Same as before but now we divide out the primes
         // for hits at the marked locations.
-        if (report_num > 0)
+        if (valid_report_num > 0)
         {
-            printf("commencing subset-sum resieve\n");
+            //printf("commencing subset-sum resieve\n");
             dconf->num_ss_slices = 1;   // indicator for resieveing
             ss_search_poly_buckets(sconf, dconf);
         }
 
-        // examine what's left
-        computeBl(sconf, dconf, 1);
-        dconf->numB = 1;
+        gettimeofday(&stop, NULL);
+        t_time = ytools_difftime(&start, &stop);
+        printf("subset-sum re-sieving took: %1.4f seconds\n", t_time);
+        gettimeofday(&start, NULL);
+
+        int invalid_report_count = 0;
         for (p = 1; p < num_bpoly; p++)
         {
             // map the gray-code enumeration to binary-polynum encoding
@@ -1773,10 +2212,35 @@ void *process_poly(void *vptr)
 
             for (s = 0; s < dconf->ss_sieve_sz; s++)
             {
+                //int result;
+                //result = check_Qval(sconf, dconf, pidx, s, 0);
+                //if (result && (dconf->ss_sieve_p[pidx * sieve_sz + s] == 0xff))
+                //{
+                //    printf("missed potential relation at pidx=%d (p=%d), s = %d, p-side\n",
+                //        pidx, p, s);
+                //}
+                //result = check_Qval(sconf, dconf, pidx, s, 1);
+                //if (result && (dconf->ss_sieve_n[pidx * sieve_sz + s] == 0xff))
+                //{
+                //    printf("missed potential relation at pidx=%d (p=%d), s = %d, n-side\n",
+                //        pidx, p, s);
+                //}
+
                 if (dconf->ss_sieve_p[pidx * sieve_sz + s] < 0xff)
                 {
                     // initialize Qval for poly p at offset s
-                    int rnum = dconf->ss_sieve_p[pidx * sieve_sz + s];
+                    int ht_idx = hash64(pidx * sieve_sz + s) %
+                        dconf->report_ht_size;
+                    int rnum = dconf->report_ht_p[ht_idx];
+
+                    if (rnum == 0)
+                    {
+                        //printf("invalid rnum %d in p-side hashtable: pidx %d loc %d\n",
+                        //    rnum, pidx, s);
+                        invalid_report_count++;
+                        continue;
+                    }
+
                     trial_divide_Q_siqs(rnum, 0, p - 1, 0, sconf, dconf);
 
                     //gmp_printf("Q[pidx=%d,offset=%d] = %Zd\n", 
@@ -1785,7 +2249,18 @@ void *process_poly(void *vptr)
                 if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
                 {
                     // initialize Qval for poly p at offset -s
-                    int rnum = dconf->ss_sieve_n[pidx * sieve_sz + s];
+                    int ht_idx = hash64(pidx * sieve_sz + s) %
+                        dconf->report_ht_size;
+                    int rnum = dconf->report_ht_n[ht_idx];
+
+                    if (rnum == 0)
+                    {
+                        //printf("invalid rnum %d in n-side hashtable: pidx %d loc %d\n",
+                        //    rnum, pidx, s);
+                        invalid_report_count++;
+                        continue;
+                    }
+
                     trial_divide_Q_siqs(rnum, 1, p - 1, 0, sconf, dconf);
 
                     //gmp_printf("Q[pidx=%d,offset=%d] = %Zd\n", 
@@ -1799,6 +2274,28 @@ void *process_poly(void *vptr)
             dconf->numB++;
             dconf->tot_poly++;
         }
+
+        gettimeofday(&stop, NULL);
+        t_time = ytools_difftime(&start, &stop);
+        if (invalid_report_count > 0)
+        {
+            printf("%d invalid reports pulled during trial division\n", invalid_report_count);
+        }
+        printf("large prime trial division took: %1.4f seconds\n", t_time);
+
+        dconf->total_blocks += num_bpoly * 2;
+
+#ifdef MANY_PBUCKETS
+        for (p = 0; p < num_bpoly; p++)
+        {
+            free(polybuckets[p].hitloc);
+            free(polybuckets[p].prime);
+        }
+        free(polybuckets);
+#else
+        free(polybucket.hitloc);
+        free(polybucket.prime);
+#endif
 
         goto done;
     }
@@ -2783,12 +3280,15 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     {
 
 #if defined(USE_SS_SEARCH) && defined( USE_DIRECT_SIEVE_SS )
-        dconf->ss_sieve_sz = 1024;
+
+        // this should be scaled such that the total sieve 
+        // area fits in L3 cache.
+        dconf->ss_sieve_sz = 8192;
 
         // 65536 is max number of polys
-        dconf->ss_sieve_p = (uint8_t*)xmalloc_align(8192 * 
+        dconf->ss_sieve_p = (uint8_t*)xmalloc_align(65536 * 
             dconf->ss_sieve_sz * sizeof(uint8_t));
-        dconf->ss_sieve_n = (uint8_t*)xmalloc_align(8192 *
+        dconf->ss_sieve_n = (uint8_t*)xmalloc_align(65536 *
             dconf->ss_sieve_sz * sizeof(uint8_t));
 
 #else
@@ -2800,6 +3300,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     }
     else
     {
+        dconf->ss_sieve_n = NULL;
+        dconf->ss_sieve_p = NULL;
+
         dconf->sieve = (uint8_t*)xmalloc_align(
             (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
         dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
@@ -2969,6 +3472,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->firstroot1a = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
         dconf->firstroot1b = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
         dconf->firstroot2 = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
+        dconf->report_ht_p = (uint16_t*)xcalloc((1<<24), sizeof(uint16_t));
+        dconf->report_ht_n = (uint16_t*)xcalloc((1<<24), sizeof(uint16_t));
+        dconf->report_ht_size = (1 << 24);
 
 #endif
 
@@ -3074,17 +3580,17 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     // array of sieve locations scanned from the sieve block that we
     // will submit to trial division.  make it the size of a sieve block 
     // in the pathological case that every sieve location is a report
-    dconf->reports = (uint32_t *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(uint32_t));
+    dconf->reports = (uint32_t *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32_t));
     dconf->num_reports = 0;
-    dconf->Qvals = (mpz_t *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(mpz_t));
-    for (i = 0; i < 4 * MAX_SIEVE_REPORTS; i++)
+    dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
+    for (i = 0; i < MAX_SIEVE_REPORTS; i++)
     {
         mpz_init(dconf->Qvals[i]); //, 2*sconf->bits);
         mpz_set_ui(dconf->Qvals[i], 0);
     }
 
-    dconf->valid_Qs = (int *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(int));
-    dconf->smooth_num = (int *)malloc(4 * MAX_SIEVE_REPORTS * sizeof(int));
+    dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
+    dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
     dconf->failed_squfof = 0;
     dconf->attempted_squfof = 0;
     dconf->dlp_outside_range = 0;
@@ -5321,7 +5827,25 @@ int free_sieve(dynamic_conf_t *dconf)
 	uint32_t i;
 
 	//can free sieving structures now
-#if !defined(USE_SS_SEARCH)
+#if defined(USE_SS_SEARCH)
+    if (dconf->ss_sieve_n != NULL)
+    {
+        align_free(dconf->ss_sieve_n);
+        align_free(dconf->ss_sieve_p);
+    }
+    else
+    {
+        dconf->sieve = dconf->sieve - 2 * 32768;
+        align_free(dconf->sieve);
+    }
+    free(dconf->firstroot1a);
+    free(dconf->firstroot1b);
+    free(dconf->firstroot2);
+#ifdef USE_DIRECT_SIEVE_SS
+    free(dconf->report_ht_n);
+    free(dconf->report_ht_p);
+#endif
+#else
     dconf->sieve = dconf->sieve - 2 * 32768;
     align_free(dconf->sieve);
 #endif

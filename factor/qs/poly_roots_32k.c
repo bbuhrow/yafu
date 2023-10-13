@@ -2166,7 +2166,6 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 	struct timeval start, stop;
 
 	int* rootupdates = dconf->rootupdates;
-	update_t update_data = dconf->update_data;
 	uint32_t* modsqrt = sconf->modsqrt_array;
 
 	int maxbin1 = 0;
@@ -2186,9 +2185,13 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 	int nump = 0;
 
 	int resieve = dconf->num_ss_slices;
+	int invalid_report_count = 0;
 
 	//for (i = fb->ss_start_B; i < fb->B; i++)
-	for (i = fb->fb_15bit_B; i < fb->B; i++)
+	//for (i = fb->fb_15bit_B; i < fb->B; i++)
+	//for (i = fb->large_B; i < fb->B; i++)
+	//for (i = fb->med_B; i < fb->B; i++)
+	for (i = fb->x2_large_B; i < fb->B; i++)
 	{
 		uint32_t bound = sconf->factor_base->B;
 		int polynum = 0;
@@ -2297,7 +2300,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
 
 		// now sort the sets into a moderate number of bins over the range 0:p
-		dconf->numbins = prime / (6 * interval) + 1;
+		dconf->numbins = prime / (16 * interval) + 1;
 		dconf->binsize = prime / dconf->numbins + 1;
 
 		int numbins = dconf->numbins;
@@ -2376,7 +2379,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		__m512i vz = _mm512_setzero_epi32();
 
 		int sieve_sz = dconf->ss_sieve_sz;
-
+		
 		for (ii = 0; ii < numbins; ii++)
 		{
 			int x = binsize * ii + binsize / 2;
@@ -2425,18 +2428,38 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 						if (resieve)
 						{
 							uint16_t report_num;
+							uint8_t sieve_val;
 
 							if (sign1)
 							{
-								report_num = dconf->ss_sieve_p[idx * sieve_sz + sum1];
+								sieve_val = dconf->ss_sieve_p[idx * sieve_sz + sum1];
 							}
 							else
 							{
-								report_num = dconf->ss_sieve_n[idx * sieve_sz + sum1];
+								sieve_val = dconf->ss_sieve_n[idx * sieve_sz + sum1];
 							}
 
-							if (report_num < 0xff)
+							if (sieve_val < 0xff)
 							{
+								if (sign1)
+								{
+									report_num = dconf->report_ht_p[hash64(idx * sieve_sz + sum1) %
+										dconf->report_ht_size];
+								}
+								else
+								{
+									report_num = dconf->report_ht_n[hash64(idx * sieve_sz + sum1) %
+										dconf->report_ht_size];
+								}
+
+								if (report_num == 0)
+								{
+									//printf("invalid report num during resieve at idx %d loc %d\n",
+									//	idx, sum1);
+									invalid_report_count++;
+									continue;
+								}
+
 								//printf("prime %d found to hit resieve idx %d at poly %d "
 								//	"loc %d, side %d, currently at smooth_num = %d\n",
 								//	prime, report_num, idx, sum1, sign1,
@@ -2519,14 +2542,37 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							if (resieve)
 							{
 								int report_num;
+								uint8_t sieve_val;
 
 								if (sign1)
-									report_num = dconf->ss_sieve_p[idx * sieve_sz + sum1];
-								else
-									report_num = dconf->ss_sieve_n[idx * sieve_sz + sum1];
-
-								if (report_num < 0xff)
 								{
+									sieve_val = dconf->ss_sieve_p[idx * sieve_sz + sum1];
+								}
+								else
+								{
+									sieve_val = dconf->ss_sieve_n[idx * sieve_sz + sum1];
+								}
+
+								if (sieve_val < 0xff)
+								{
+									if (sign1)
+									{
+										report_num = dconf->report_ht_p[hash64(idx * sieve_sz + sum1) %
+											dconf->report_ht_size];
+									}
+									else
+									{
+										report_num = dconf->report_ht_n[hash64(idx * sieve_sz + sum1) %
+											dconf->report_ht_size];
+									}
+
+									if (report_num == 0)
+									{
+										//printf("invalid report num during resieve at idx %d loc %d\n",
+										//	idx, sum1);
+										invalid_report_count++;
+										continue;
+									}
 									//printf("prime %d found to hit resieve idx %d at poly %d "
 									//	"loc %d, currently at smooth_num = %d\n",
 									//	prime, report_num, idx, sum1,
@@ -2603,14 +2649,37 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 							if (resieve)
 							{
 								int report_num;
+								uint8_t sieve_val;
 
 								if (sign1)
-									report_num = dconf->ss_sieve_p[idx * sieve_sz + sum1];
-								else
-									report_num = dconf->ss_sieve_n[idx * sieve_sz + sum1];
-
-								if (report_num < 0xff)
 								{
+									sieve_val = dconf->ss_sieve_p[idx * sieve_sz + sum1];
+								}
+								else
+								{
+									sieve_val = dconf->ss_sieve_n[idx * sieve_sz + sum1];
+								}
+
+								if (sieve_val < 0xff)
+								{
+									if (sign1)
+									{
+										report_num = dconf->report_ht_p[hash64(idx * sieve_sz + sum1) %
+											dconf->report_ht_size];
+									}
+									else
+									{
+										report_num = dconf->report_ht_n[hash64(idx * sieve_sz + sum1) %
+											dconf->report_ht_size];
+									}
+
+									if (report_num == 0)
+									{
+										//printf("invalid report num during resieve at idx %d loc %d\n",
+										//	idx, sum1);
+										invalid_report_count++;
+										continue;
+									}
 									//printf("prime %d found to hit resieve idx %d at poly %d "
 									//	"loc %d, currently at smooth_num = %d\n",
 									//	prime, report_num, idx, sum1,
@@ -2658,15 +2727,20 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 
 #ifdef SS_TIMING
-	//printf("ran subset-sum on %d primes\n", nump);
-	//printf("found %d sieve hits matching bins\n", nummatch);
-	//printf("found %d sieve hits matching bins + 1\n", matchp1);
-	//printf("found %d sieve hits matching bins - 1\n", matchm1);
-	//printf("avg_size bins1 = %1.4f\n", avg_size1 / totalbins1);
-	//printf("avg_size bins2 = %1.4f\n", avg_size3 / totalbins1);
-	//printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
-	//printf("sorting roots: %1.4f seconds\n", t_sort_roots);
-	//printf("matching roots: %1.4f seconds\n", t_match_roots);
+	printf("ran subset-sum on %d primes\n", nump);
+	printf("found %d sieve hits matching bins\n", nummatch);
+	printf("found %d sieve hits matching bins + 1\n", matchp1);
+	printf("found %d sieve hits matching bins - 1\n", matchm1);
+	printf("avg_size bins1 = %1.4f\n", avg_size1 / totalbins1);
+	printf("avg_size bins2 = %1.4f\n", avg_size3 / totalbins1);
+	printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
+	printf("sorting roots: %1.4f seconds\n", t_sort_roots);
+	printf("matching roots: %1.4f seconds\n", t_match_roots);
+	if ((resieve) && (invalid_report_count > 0))
+	{
+		printf("%d invalid reports pulled during resieving\n", invalid_report_count);
+	}
+
 #endif
 
 	//exit(0);
@@ -2876,17 +2950,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			fb_n->root2[i] = (uint16_t)(prime - root1);
 		}
 
-
-#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
-
-		if (using_ss_search)
-		{
-			// put these roots directly into the sieve region.
-
-
-		}
-#endif
-
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
 		//the rootupdate value is given by 2*Bj*amodp
@@ -2905,16 +2968,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16_t)x;
 		}
 
-#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
-
-		if (using_ss_search)
-		{
-			// enumerate the rest of the polys for this prime
-			// and log any sieve hits.
-
-
-		}
-#endif
 	}
 
 	for (i=fb->fb_15bit_B;i<fb->med_B;i++)
