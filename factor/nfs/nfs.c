@@ -656,6 +656,7 @@ void nfs(fact_obj_t *fobj)
 					fwrite(relatLine, sizeof(char), strlen(relatLine), dat);
 					job.current_rels++;
 				}
+				fclose(relatFile);
 			}
 			fclose(logFile);
 			fclose(dat);
