@@ -198,28 +198,23 @@ void ss_search_clear(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
 	int i;
 
-	mpz_clear(dconf->polyb1);
-	mpz_clear(dconf->polyb2);
-	free(dconf->polyv);
-	free(dconf->polysign);
-	free(dconf->polynums);
-	free(dconf->polymap);
+	
 
-	for (i = 0; i < dconf->numbins; i++)
-	{
-		free(dconf->bins1[i].root);
-		free(dconf->bins2[i].root);
-		free(dconf->bins1[i].polynum);
-		free(dconf->bins2[i].polynum);
-	}
-
-	free(dconf->bins1);
-	free(dconf->bins2);
-
-	free(dconf->ss_set1.root);
-	free(dconf->ss_set1.polynum);
-	free(dconf->ss_set2.root);
-	free(dconf->ss_set2.polynum);
+	//for (i = 0; i < dconf->numbins; i++)
+	//{
+	//	free(dconf->bins1[i].root);
+	//	free(dconf->bins2[i].root);
+	//	free(dconf->bins1[i].polynum);
+	//	free(dconf->bins2[i].polynum);
+	//}
+	//
+	//free(dconf->bins1);
+	//free(dconf->bins2);
+	//
+	//free(dconf->ss_set1.root);
+	//free(dconf->ss_set1.polynum);
+	//free(dconf->ss_set2.root);
+	//free(dconf->ss_set2.polynum);
 
 	return;
 }
@@ -240,11 +235,8 @@ void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf)
 	ss_set_t* ss_set1 = &dconf->ss_set1;
 	ss_set_t* ss_set2 = &dconf->ss_set2;
 
-	mpz_init(dconf->polyb1);
-	mpz_init(dconf->polyb2);
-
-	ss_set1->root = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
-	ss_set1->polynum = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
+	//ss_set1->root = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
+	//ss_set1->polynum = (int*)xmalloc((2 << ss_num_poly_terms) * sizeof(int));
 	ss_set1->size = ss_num_poly_terms;
 
 	mpz_set(dconf->polyb1, dconf->Bl[0]);
@@ -255,8 +247,8 @@ void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 	ss_num_poly_terms = (poly->s - 1) - ss_num_poly_terms;
 
-	ss_set2->root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
-	ss_set2->polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
+	//ss_set2->root = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
+	//ss_set2->polynum = (int*)xmalloc((1 << ss_num_poly_terms) * sizeof(int));
 	ss_set2->size = ss_num_poly_terms;
 
 	//printf("ss_setup: %d,%d terms on L,R sides\n", ss_set1->size, ss_set2->size);
@@ -271,38 +263,34 @@ void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf)
 	dconf->numbins = 2 * fb->list->prime[fb->B - 1] / (interval)+1;
 	dconf->bindepth = 256;
 
-	int numbins = dconf->numbins;
-	int bindepth = dconf->bindepth;
-
-	ss_set_t* bins1;
-	ss_set_t* bins2;
-
-	// init bins
-	bins1 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
-	bins2 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
-
-	for (ii = 0; ii < numbins; ii++)
-	{
-		bins1[ii].root = (int*)xmalloc(bindepth * sizeof(int));
-		bins2[ii].root = (int*)xmalloc(bindepth * sizeof(int));
-		bins1[ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
-		bins2[ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
-		bins1[ii].alloc = bindepth;
-		bins2[ii].alloc = bindepth;
-		bins1[ii].size = 0;
-		bins2[ii].size = 0;
-	}
-
-	dconf->bins1 = bins1;
-	dconf->bins2 = bins2;
+	//int numbins = dconf->numbins;
+	//int bindepth = dconf->bindepth;
+	//
+	//ss_set_t* bins1;
+	//ss_set_t* bins2;
+	//
+	//// init bins
+	//bins1 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+	//bins2 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+	//
+	//for (ii = 0; ii < numbins; ii++)
+	//{
+	//	bins1[ii].root = (int*)xmalloc(bindepth * sizeof(int));
+	//	bins2[ii].root = (int*)xmalloc(bindepth * sizeof(int));
+	//	bins1[ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
+	//	bins2[ii].polynum = (int*)xmalloc(bindepth * sizeof(int));
+	//	bins1[ii].alloc = bindepth;
+	//	bins2[ii].alloc = bindepth;
+	//	bins1[ii].size = 0;
+	//	bins2[ii].size = 0;
+	//}
+	//
+	//dconf->bins1 = bins1;
+	//dconf->bins2 = bins2;
 
 	// create a map from gray code enumeration order
 	// to polynomial binary encoding.
 	int polynum = 0;
-	dconf->polymap = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
-	dconf->polynums = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
-	dconf->polyv = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
-	dconf->polysign = (int*)xmalloc((1 << (poly->s - 1)) * sizeof(int));
 
 	//polymap[0] = 1;
 	dconf->polymap[1] = 0;
@@ -1221,7 +1209,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #ifdef TRY_GATHER_SCATTER
 					vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
 					__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
-					__m512i vindex = _mm512_slli_epi32(vb1poly, 11);
+					__m512i vindex = _mm512_slli_epi32(vb1poly, 10);
 					vindex = _mm512_add_epi32(vindex, vbsz);
 
 					_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
@@ -1393,7 +1381,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					//if (j = 0) //
 					//for (j = 0; j < bins1[ii].size; j += 16)
 					j = 0;
-					if (bins1[ii].size > 4)
+					if (bins1[ii].size > 8)
 					{
 						__mmask16 loadmask;
 
@@ -1424,7 +1412,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #ifdef TRY_GATHER_SCATTER
 						vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
 						__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
-						__m512i vindex = _mm512_slli_epi32(vb1poly, 8);
+						__m512i vindex = _mm512_slli_epi32(vb1poly, 10);
 						vindex = _mm512_add_epi32(vindex, vbsz);
 
 						_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
@@ -1586,7 +1574,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					//if (j = 0) //
 					//for (j = 0; j < bins1[ii].size; j += 16)
 					j = 0;
-					if (bins1[ii].size > 4)
+					if (bins1[ii].size > 8)
 					{
 						__mmask16 loadmask;
 
@@ -1617,7 +1605,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 #ifdef TRY_GATHER_SCATTER
 						vb1poly = _mm512_add_epi32(vb1poly, vb2poly);
 						__m512i vbsz = _mm512_mask_i32gather_epi32(vbsz, mpos, vb1poly, psize_ptr, 4);
-						__m512i vindex = _mm512_slli_epi32(vb1poly, 8);
+						__m512i vindex = _mm512_slli_epi32(vb1poly, 10);
 						vindex = _mm512_add_epi32(vindex, vbsz);
 
 						_mm512_mask_i32scatter_epi32(pslice_ptr, mpos, vindex, vdiffp, 4);
@@ -1768,6 +1756,8 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 				}
 			}
 #endif
+
+
 
 #else
 	
@@ -2894,7 +2884,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef USE_SS_SEARCH
 
-		if (using_ss_search)
+		if (using_ss_search && (i >= sconf->factor_base->ss_start_B))
 		{
 			// first poly b: sum of first n positive Bl
 			bmodp = (int)mpz_tdiv_ui(dconf->polyb1, prime);
@@ -2988,7 +2978,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef USE_SS_SEARCH
 
-		if (using_ss_search)
+		if (using_ss_search && (i >= sconf->factor_base->ss_start_B))
 		{
 			// first poly b: sum of first n positive Bl
 			bmodp = (int)mpz_tdiv_ui(dconf->polyb1, prime);
@@ -3078,7 +3068,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef USE_SS_SEARCH
 
-		if (using_ss_search)
+		if (using_ss_search && (i >= sconf->factor_base->ss_start_B))
 		{
 			// first poly b: sum of first n positive Bl
 			bmodp = (int)mpz_tdiv_ui(dconf->polyb1, prime);

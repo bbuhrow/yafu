@@ -261,6 +261,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 
     __m256i vzero = _mm256_setzero_si256();
     __m256i vblock = _mm256_set1_epi16(BLOCKSIZE);
+    //__m256i vinterval = _mm256_set1_epi16(4 * BLOCKSIZE);
     __m256i vprime, vroot1, vroot2, vtmp1, vtmp2;
     __m256i valid_mask_1, valid_mask_2, initial_mask;
     ALIGNED_MEM uint16_t r_id1[16];
@@ -636,6 +637,10 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
 
         // make it so we write to a dummy sieve location for non-sieved primes
+        // NOTE: this doesn't work in subset-sum variations where we sieve 
+        // a whole interval - end up overwriting things in subsequent blocks.
+        // plus the interval could be larger than 16 bits.  we could maybe save and
+        // restore sieve indices that are impacted by this.
         vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vinterval);
         vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vinterval);
 

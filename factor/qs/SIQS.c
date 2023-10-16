@@ -1551,6 +1551,8 @@ void* process_poly(void* vptr)
     struct timeval start, stop, st;
 
     double t_sieve_ss_buckets = 0.0;
+    double t_update_buckets = 0.0;
+    double t_ss_search_total = 0.0;
     struct timeval start1, stop1;
 
     sconf->t_time4 = 0.0;
@@ -1579,10 +1581,13 @@ void* process_poly(void* vptr)
     dconf->numB = 1;
     computeBl(sconf, dconf, 1);
 
+    
+
 
 #if defined( USE_SS_SEARCH )
     if (using_ss_search)
     {
+        gettimeofday(&start1, NULL);
         ss_search_setup(sconf, dconf);
     }
 #endif
@@ -1593,10 +1598,15 @@ void* process_poly(void* vptr)
 
     if (using_ss_search)
     {
+#ifdef SS_POLY_BUCKET_SMALL_GROUPS
         //ss_search_sort_set_1(sconf, dconf);
         //for (i = 1; i <= (1 << dconf->ss_set2.size); i++)
         //    ss_search_poly_buckets_2(sconf, dconf, 1);
+#else
         ss_search_poly_buckets(sconf, dconf);
+        gettimeofday(&stop1, NULL);
+        t_ss_search_total += ytools_difftime(&start1, &stop1);
+#endif
     }
 
 #endif
@@ -2288,6 +2298,7 @@ void* process_poly(void* vptr)
 
 #endif
 
+
     // loop over each possible b value, for the current a value
     for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
     {
@@ -2317,6 +2328,8 @@ void* process_poly(void* vptr)
         }
 #endif
 
+        gettimeofday(&start1, NULL);
+
 #if defined( USE_SS_SEARCH ) //&& defined( USE_LINKED_LIST_SS )
 
         if (using_ss_search)
@@ -2329,16 +2342,7 @@ void* process_poly(void* vptr)
                     memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
             }
 
-#ifdef SS_TIMING
-            gettimeofday(&start1, NULL);
-#endif
-
             lp_sieve_ss(dconf->ss_sieve_p, 0, dconf);
-
-#ifdef SS_TIMING
-            gettimeofday(&stop1, NULL);
-            t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
-#endif
         }
 
 #endif
@@ -2350,6 +2354,8 @@ void* process_poly(void* vptr)
             memcpy(dconf->ss_sieve_n, dconf->ss_sieve_p, (num_blocks + 1) * 32768);
         }
 #endif
+
+        
 
         for (i = 0; i < num_blocks; i++)
         {
@@ -2422,8 +2428,6 @@ void* process_poly(void* vptr)
 
         
 
-        //exit(0);
-
 #if defined( USE_SS_SEARCH )
 
 
@@ -2437,16 +2441,16 @@ void* process_poly(void* vptr)
                     memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
             }
 
-#ifdef SS_TIMING
-            gettimeofday(&start1, NULL);
-#endif
+//#ifdef SS_TIMING
+//            gettimeofday(&start1, NULL);
+//#endif
 
             lp_sieve_ss(dconf->ss_sieve_p, 1, dconf);
 
-#ifdef SS_TIMING
-            gettimeofday(&stop1, NULL);
-            t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
-#endif
+//#ifdef SS_TIMING
+//            gettimeofday(&stop1, NULL);
+//            t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+//#endif
         }
 #endif
 
@@ -2497,7 +2501,11 @@ void* process_poly(void* vptr)
             scan_ptr(i, 1, sconf, dconf);
         }
 
-        //exit(0);
+
+        gettimeofday(&stop1, NULL);
+        t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+        gettimeofday(&start1, NULL);
+
 
         // print a little more status info for huge jobs.
         if (sconf->digits_n > 110)
@@ -2672,6 +2680,9 @@ void* process_poly(void* vptr)
 
 #endif
 
+        gettimeofday(&stop1, NULL);
+        t_update_buckets += ytools_difftime(&start1, &stop1);
+
         if (sconf->obj->THREADS >= 32)
         {
             // other threads may have got us past the threshold while we
@@ -2690,14 +2701,9 @@ done:
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
 
-
-#ifdef SS_TIMING
-    if (using_ss_search)
-    {
-        printf("sieve buckets: %1.4f\n", t_sieve_ss_buckets);
-        printf("tdiv  buckets: %1.4f\n", sconf->t_time4);
-    }
-#endif
+    printf("ss search total    : %1.4f\n", t_ss_search_total);
+    printf("sieve/tdiv  buckets: %1.4f\n", t_sieve_ss_buckets);
+    printf("poly update buckets: %1.4f\n", t_update_buckets);
 
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
@@ -3378,6 +3384,47 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             dconf->firstroot1b = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
             dconf->firstroot2 = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
 
+            dconf->polymap = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+            dconf->polynums = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+            dconf->polyv = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+            dconf->polysign = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+
+            mpz_init(dconf->polyb1);
+            mpz_init(dconf->polyb2);
+
+            dconf->ss_set1.root = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+            dconf->ss_set1.polynum = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+            dconf->ss_set2.root = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+            dconf->ss_set2.polynum = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
+
+            ss_set_t *bins1;
+            ss_set_t *bins2;
+
+            dconf->numbins = 2 * sconf->factor_base->list->prime[sconf->factor_base->B - 1] / (sconf->num_blocks * 32768)+1;
+            dconf->bindepth = 256;
+
+            int numbins = dconf->numbins;
+            int bindepth = dconf->bindepth;
+
+            // init bins
+            bins1 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+            bins2 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
+
+            for (i = 0; i < numbins; i++)
+            {
+                bins1[i].root = (int*)xmalloc(bindepth * sizeof(int));
+                bins2[i].root = (int*)xmalloc(bindepth * sizeof(int));
+                bins1[i].polynum = (int*)xmalloc(bindepth * sizeof(int));
+                bins2[i].polynum = (int*)xmalloc(bindepth * sizeof(int));
+                bins1[i].alloc = bindepth;
+                bins2[i].alloc = bindepth;
+                bins1[i].size = 0;
+                bins2[i].size = 0;
+            }
+
+            dconf->bins1 = bins1;
+            dconf->bins2 = bins2;
+
             dconf->ss_slices_p = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
             dconf->ss_slices_n = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
 
@@ -3394,7 +3441,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             dconf->poly_buckets_allocated = 0;
             for (i = 0; i < numslices; i++)
             {
-                dconf->ss_slices_p[i].alloc = 2048;
+                dconf->ss_slices_p[i].alloc = 1024;
                 dconf->ss_slices_p[i].numbuckets = 65536;
 #ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
                 dconf->ss_slices_n[i].alloc = 4096;
@@ -3732,6 +3779,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
                 printf("assigning med_sieveblock_32k_avx2 ptr\n");
             }
         }
+
 #else
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         lp_sieveblock_ptr = &lp_sieveblock_avx512f;
@@ -4299,7 +4347,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     if (sconf->factor_base->large_B < sconf->factor_base->med_B)
         sconf->factor_base->large_B = sconf->factor_base->med_B;
 
-    sconf->factor_base->slice_size = 8192;
+    sconf->factor_base->slice_size = 4096;
     int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) / 
         sconf->factor_base->slice_size) + 1;
     sconf->factor_base->num_ss_slices = numslices;
@@ -5811,6 +5859,27 @@ int free_sieve(dynamic_conf_t* dconf)
         free(dconf->firstroot1a);
         free(dconf->firstroot1b);
         free(dconf->firstroot2);
+        mpz_clear(dconf->polyb1);
+        mpz_clear(dconf->polyb2);
+        free(dconf->polyv);
+        free(dconf->polysign);
+        free(dconf->polynums);
+        free(dconf->polymap);
+        for (i = 0; i < dconf->numbins; i++)
+        {
+            free(dconf->bins1[i].root);
+            free(dconf->bins2[i].root);
+            free(dconf->bins1[i].polynum);
+            free(dconf->bins2[i].polynum);
+        }
+
+        free(dconf->bins1);
+        free(dconf->bins2);
+
+        free(dconf->ss_set1.root);
+        free(dconf->ss_set1.polynum);
+        free(dconf->ss_set2.root);
+        free(dconf->ss_set2.polynum);
     }
 #ifdef USE_DIRECT_SIEVE_SS
     free(dconf->report_ht_n);

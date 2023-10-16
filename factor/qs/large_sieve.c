@@ -28,6 +28,9 @@ code to the public domain.
 #ifdef USE_AVX512F
 #include <immintrin.h>
 #define NUM_LANES 16
+#elif defined(USE_AVX2)
+#define NUM_LANES 8
+#include <immintrin.h>
 #endif
 
 
@@ -417,10 +420,18 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
     __m512i vrootmask = _mm512_set1_epi32(rootmask);
     __m512i vposmask = _mm512_set1_epi32(signbit);
     //printf("signbit = %08x, rootmask = %08x\n", signbit, rootmask);
+
+#elif USE_AVX2
+
+    __m256i vrootmask = _mm256_set1_epi32(rootmask);
+    __m256i vposmask = _mm256_set1_epi32(signbit);
+    __m256i vz = _mm256_setzero_si256();
+
 #endif
 
 #else
-    __m512i vrootmask = _mm512_set1_epi32(0x3ffff);
+
+
 #endif
     
 
@@ -460,10 +471,32 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
                 
                 }
             }
-#endif
 
-#ifdef USE_AVX512F
-            for ( ; j < dconf->ss_slices_p[i].size[pidx]; j++)
+            for (; j < dconf->ss_slices_p[i].size[pidx]; j++)
+#elif USE_AVX2
+
+            for (j = 0; j < (int)dconf->ss_slices_p[i].size[pidx] - 8; j += 8)
+            {
+                __m256i vr = _mm256_load_si256((__m256i*)(&bucketelements[j]));
+                //__mmask16 mpos = _mm512_test_epi32_mask(vr, vposmask);
+                __m256i cmp = _mm256_and_si256(vr, vposmask);
+                cmp = _mm256_cmpeq_epi32(cmp, vz);
+                uint32_t mpos = _mm256_movemask_epi8(cmp) & 0x88888888;
+
+                vr = _mm256_and_si256(vr, vrootmask);
+                ALIGNED_MEM uint32_t roots[8];
+
+                _mm256_store_si256(roots, vr);
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos) >> 2;
+                    sieve[roots[idx]] -= logp;
+                    mpos = _reset_lsb(mpos);
+                }
+            }
+
+            for (; j < dconf->ss_slices_p[i].size[pidx]; j++)
 #else
             for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j++)
 #endif
@@ -524,6 +557,31 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
             }
 
             for ( ; j < dconf->ss_slices_p[i].size[pidx]; j++)
+
+#elif USE_AVX2
+
+            for (j = 0; j < (int)dconf->ss_slices_p[i].size[pidx] - 8; j += 8)
+            {
+                __m256i vr = _mm256_load_si256((__m256i *)(&bucketelements[j]));
+                //__mmask16 mpos = _mm512_test_epi32_mask(vr, vposmask);
+                __m256i cmp = _mm256_and_si256(vr, vposmask);
+                cmp = _mm256_cmpgt_epi32(cmp, vz);
+                uint32_t mpos = _mm256_movemask_epi8(cmp) & 0x88888888;
+
+                vr = _mm256_and_si256(vr, vrootmask);
+                ALIGNED_MEM uint32_t roots[8];
+
+                _mm256_store_si256(roots, vr);
+
+                while (mpos > 0)
+                {
+                    int idx = _trail_zcnt(mpos) >> 2;
+                    sieve[roots[idx]] -= logp;
+                    mpos = _reset_lsb(mpos);
+                }
+            }
+
+            for (; j < dconf->ss_slices_p[i].size[pidx]; j++)
 #else
             for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j++)
 #endif

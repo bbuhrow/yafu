@@ -1024,8 +1024,6 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
 #ifdef USE_POLY_BUCKET_SS
 
-#define USE_POLY_BUCKET_PN_COMBINED_VARIATION
-
 void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
@@ -1036,7 +1034,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     uint32_t block_loc;
     struct timeval start1, stop1;
 
-    gettimeofday(&start1, NULL);
+    //gettimeofday(&start1, NULL);
 
     fb_offsets = &dconf->fb_offsets[report_num][0];
     smooth_num = dconf->smooth_num[report_num];
@@ -1047,6 +1045,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     int pidx = dconf->polymap[dconf->numB];
     int bucketalloc = dconf->ss_slices_p[0].alloc;
 
+#ifdef SS_POLY_BUCKET_SMALL_GROUPS
     // if the mapped binary-encoded poly isn't in this block of 
     // poly buckets then just skip large prime sieving.
     //if ((pidx < dconf->ss_slices_p[0].curr_poly_idx) ||
@@ -1058,14 +1057,16 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     //printf("commencing tdiv_ss on side %d on pidx %u (set2 instance %d), sizes %d,%d\n",
     //    parity, pidx, polymask / (1 << dconf->ss_set2.size),
     //    (1 << dconf->ss_set1.size), (1 << dconf->ss_set2.size));
+#endif
 
     block_loc += bnum * 32768;
     
+    uint32_t pid_offset = dconf->ss_signbit + 1;
 
 #ifdef USE_POLY_BUCKET_PN_COMBINED_VARIATION
     uint32_t signbit = (1 << dconf->ss_signbit);
     uint32_t rootmask = signbit - 1;
-    uint32_t pid_offset = dconf->ss_signbit + 1;
+    
 
 #ifdef USE_AVX512F
     __m512i vloc = _mm512_set1_epi32(block_loc);
@@ -1082,7 +1083,13 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     //printf("signbit = %08x, rootmask = %08x\n", signbit, rootmask);
 #else
+
+#ifdef USE_AVX512F0
     __m512i vrootmask = _mm512_set1_epi32(0x3ffff);
+#elif defined(USE_AVX20)
+    __m256i vrootmask = _mm256_set1_epi32(0x3ffff);
+#endif
+
 #endif
 
     if (parity == 0)
@@ -1093,7 +1100,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
-            int k;
+            int k = 0;
 
 #ifdef USE_AVX512F
             for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 16); k += 16)
@@ -1137,14 +1144,13 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
 #elif defined(USE_AVX2)
 
-            printf(".");
             for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 8); k += 8)
             {
                 __m256i vr = _mm256_load_si256((__m256i *)(&bucketelements[k]));
                 //__mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
                 __m256i cmp = _mm256_and_si256(vr, vposmask);
                 cmp = _mm256_cmpeq_epi32(cmp, vz);
-                uint32_t mpos = _mm256_movemask_epi8(cmp);
+                uint32_t mpos = _mm256_movemask_epi8(cmp) & 0x88888888;;
 
                 //mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
                 vr = _mm256_and_si256(vr, vrootmask);
@@ -1154,7 +1160,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                 while (mpos > 0)
                 {
-                    int idx = _trail_zcnt(mpos);
+                    int idx = _trail_zcnt(mpos) >> 2;
 
                     uint32_t pid = fboffset + (((bucketelements[k + idx]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
@@ -1178,7 +1184,10 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                     mpos = _reset_lsb(mpos);
                 }
             }
+            
+#endif
 
+#if defined(USE_AVX512F) || (USE_AVX2)
             for ( ; k < dconf->ss_slices_p[i].size[pidx]; k++)
 #else
             for (k = 0; k < dconf->ss_slices_p[i].size[pidx]; k++)
@@ -1227,7 +1236,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
-            int k;
+            int k = 0;
 #ifdef USE_AVX512F
             for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 16); k += 16)
             {
@@ -1266,14 +1275,13 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
 #elif defined(USE_AVX2)
 
-            printf(".");
             for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 8); k += 8)
             {
                 __m256i vr = _mm256_load_si256((__m256i*)(&bucketelements[k]));
                 //__mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
                 __m256i cmp = _mm256_and_si256(vr, vposmask);
                 cmp = _mm256_cmpgt_epi32(cmp, vz);
-                uint32_t mpos = _mm256_movemask_epi8(cmp);
+                uint32_t mpos = _mm256_movemask_epi8(cmp) & 0x88888888;
 
                 //mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
                 vr = _mm256_and_si256(vr, vrootmask);
@@ -1283,7 +1291,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                 while (mpos > 0)
                 {
-                    int idx = _trail_zcnt(mpos);
+                    int idx = _trail_zcnt(mpos) >> 2;
 
                     uint32_t pid = fboffset + (((bucketelements[k + idx]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
@@ -1307,8 +1315,10 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                     mpos = _reset_lsb(mpos);
                 }
             }
+#endif
 
-            for ( ; k < dconf->ss_slices_p[i].size[pidx]; k++)
+#if defined(USE_AVX512F) || (USE_AVX2)
+            for (; k < dconf->ss_slices_p[i].size[pidx]; k++)
 #else
             for (k = 0; k < dconf->ss_slices_p[i].size[pidx]; k++)
 #endif
@@ -1326,7 +1336,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                         printf("tdiv invalid root %u in slice %u, side %u, poly %u "
                             "pid = %u, fboffset = %u\n",
                             root, i, parity, dconf->numB, pid, fboffset);
-                        exit(1);
+                        //exit(1);
                     }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
@@ -1344,7 +1354,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
             uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
 
             int k;
-#ifdef USE_AVX512F
+#ifdef USE_AVX512F0
             for (k = 0; k < dconf->ss_slices_n[i].size[pidx] - 16; k += 16)
             {
                 __m512i vr = _mm512_loadu_epi32(bucketelements + k);
@@ -1391,7 +1401,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
                 if (block_loc == root)
                 {
-                    uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
+                    uint32_t pid = fboffset + (((bucketelements[k]) >> pid_offset));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
                     if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
@@ -1399,16 +1409,14 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                         printf("tdiv invalid root %u in slice %u, side %u, poly %u "
                             "pid = %u, fboffset = %u\n",
                             root, i, parity, dconf->numB, pid, fboffset);
+                        exit(1);
                     }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
                     {
-                        //printf("dividing out n-side hit @ loc %u for prime %u\n",
-                        //    block_loc, prime);
                         fb_offsets[++smooth_num] = pid;
                         mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
                             prime);
-                        dumped++;
                     }
 
                 }
@@ -1419,8 +1427,8 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     }
 
-    gettimeofday(&stop1, NULL);
-    sconf->t_time4 += ytools_difftime(&start1, &stop1);
+    //gettimeofday(&stop1, NULL);
+    //sconf->t_time4 += ytools_difftime(&start1, &stop1);
 
     dconf->smooth_num[report_num] = smooth_num;
 

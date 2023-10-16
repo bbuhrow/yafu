@@ -2355,7 +2355,11 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
         logp = update_data.logp[j - 1];
 
+#if defined(USE_SS_SEARCH)
+        for (j = large_B; j < sconf->factor_base->ss_start_B; j += 8, ptr += 8)
+#else
         for (j = large_B; j < bound; j += 8, ptr += 8)
+#endif
         {
             //int i;
             int k;
@@ -2840,7 +2844,11 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
 
         logp = update_data.logp[j - 1];
+#if defined(USE_SS_SEARCH)
+        for (j = large_B; j < sconf->factor_base->ss_start_B; j += 8, ptr += 8)
+#else
         for (j = large_B; j < bound; j += 8, ptr += 8)
+#endif
         {
             //int i;
 
