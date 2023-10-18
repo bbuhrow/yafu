@@ -1587,7 +1587,6 @@ void* process_poly(void* vptr)
 #if defined( USE_SS_SEARCH )
     if (using_ss_search)
     {
-        gettimeofday(&start1, NULL);
         ss_search_setup(sconf, dconf);
     }
 #endif
@@ -1603,6 +1602,7 @@ void* process_poly(void* vptr)
         //for (i = 1; i <= (1 << dconf->ss_set2.size); i++)
         //    ss_search_poly_buckets_2(sconf, dconf, 1);
 #else
+        gettimeofday(&start1, NULL);
         ss_search_poly_buckets(sconf, dconf);
         gettimeofday(&stop1, NULL);
         t_ss_search_total += ytools_difftime(&start1, &stop1);
@@ -2341,6 +2341,13 @@ void* process_poly(void* vptr)
                 else
                     memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
             }
+            for ( ; i < 2 * num_blocks; i++)
+            {
+                if ((i - num_blocks) == minblock)
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
+                else
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
+            }
 
             lp_sieve_ss(dconf->ss_sieve_p, 0, dconf);
         }
@@ -2362,7 +2369,7 @@ void* process_poly(void* vptr)
 #if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
-                dconf->sieve = dconf->ss_sieve_p + i * 32768;
+                dconf->sieve = dconf->ss_sieve_p + i * 32768 + num_blocks * 32768;
                 sieve = dconf->sieve;
             }
 #endif
@@ -2431,27 +2438,18 @@ void* process_poly(void* vptr)
 #if defined( USE_SS_SEARCH )
 
 
-        if (using_ss_search)
-        {
-            for (i = 0; i < num_blocks; i++)
-            {
-                if (i == minblock)
-                    memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
-                else
-                    memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
-            }
-
-//#ifdef SS_TIMING
-//            gettimeofday(&start1, NULL);
-//#endif
-
-            lp_sieve_ss(dconf->ss_sieve_p, 1, dconf);
-
-//#ifdef SS_TIMING
-//            gettimeofday(&stop1, NULL);
-//            t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
-//#endif
-        }
+        //if (using_ss_search)
+        //{
+        //    for (i = 0; i < num_blocks; i++)
+        //    {
+        //        if (i == minblock)
+        //            memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
+        //        else
+        //            memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
+        //    }
+        //
+        //    lp_sieve_ss(dconf->ss_sieve_p, 1, dconf);
+        //}
 #endif
 
         
@@ -3290,9 +3288,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             dconf->ss_sieve_sz * sizeof(uint8_t));
 
 #else
-        dconf->ss_sieve_p = (uint8_t*)xmalloc_align(2 * sconf->num_blocks *
+        dconf->ss_sieve_p = (uint8_t*)xmalloc_align(4 * sconf->num_blocks *
             sconf->qs_blocksize * sizeof(uint8_t));
-        dconf->ss_sieve_n = (uint8_t*)xmalloc_align(2 * sconf->num_blocks *
+        dconf->ss_sieve_n = (uint8_t*)xmalloc_align(4 * sconf->num_blocks *
             sconf->qs_blocksize * sizeof(uint8_t));
 #endif
     }
@@ -4347,7 +4345,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     if (sconf->factor_base->large_B < sconf->factor_base->med_B)
         sconf->factor_base->large_B = sconf->factor_base->med_B;
 
-    sconf->factor_base->slice_size = 4096;
+    sconf->factor_base->slice_size = 8192;
     int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) / 
         sconf->factor_base->slice_size) + 1;
     sconf->factor_base->num_ss_slices = numslices;

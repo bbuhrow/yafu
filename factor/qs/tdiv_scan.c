@@ -1031,7 +1031,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
                 do
                 {
                     k = _trail_zcnt(a_msk) >> 3;
-                    dconf->reports[dconf->num_reports++] = thisloc + k + idx * 4;
+	                dconf->reports[dconf->num_reports++] = thisloc + k + idx * 4;
                     a_msk = _blsr_u32(a_msk);
                 } while (a_msk > 0);
 

@@ -398,6 +398,72 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
     //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
     int pidx = dconf->polymap[dconf->numB];
     int bucketalloc = dconf->ss_slices_p[0].alloc;
+    uint32_t rootmask = 0x7ffff;
+
+//#ifdef USE_AVX512F
+//    __m512i vrootmask = _mm512_set1_epi32(rootmask);
+//
+//#elif USE_AVX2
+//
+//    __m256i vrootmask = _mm256_set1_epi32(rootmask);
+//    __m256i vz = _mm256_setzero_si256();
+//
+//#endif
+
+    for (i = 0; i < dconf->num_ss_slices; i++)
+    {
+        uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
+        uint8_t logp = dconf->ss_slices_p[i].logp;
+
+        //__m512i vlogp = _mm512_set1_epi8(logp);
+        //__m512i vnextr = _mm512_and_epi32(vrootmask, _mm512_load_epi32((__m512i*)(&bucketelements[0])));
+        //
+        //for (j = 0; j < (int)dconf->ss_slices_p[i].size[pidx] - 16; j += 16)
+        //{
+        //    __m512i vr = vnextr;
+        //    if ((j + 16) < dconf->ss_slices_p[i].size[pidx])
+        //    {
+        //        vnextr = _mm512_and_epi32(vrootmask,
+        //            _mm512_load_epi32((__m512i*)(&bucketelements[j + 16])));
+        //    }
+        //
+        //    // ignore conflicts...
+        //    __m512i vsieve = _mm512_i32gather_epi32(vr, sieve, _MM_SCALE_1);
+        //    vsieve = _mm512_sub_epi8(vsieve, vlogp);
+        //    _mm512_i32scatter_epi32(sieve, vr, vsieve, _MM_SCALE_1);
+        //}
+
+
+        for (j = 0; j < (int)dconf->ss_slices_p[i].size[pidx] - 4; j+=4)
+        {
+            uint32_t root1 = (bucketelements[j+0] & 0x7ffff);
+            uint32_t root2 = (bucketelements[j+1] & 0x7ffff);
+            uint32_t root3 = (bucketelements[j+2] & 0x7ffff);
+            uint32_t root4 = (bucketelements[j+3] & 0x7ffff);
+            sieve[root1] -= logp;
+            sieve[root2] -= logp;
+            sieve[root3] -= logp;
+            sieve[root4] -= logp;
+        }
+
+        for ( ; j < dconf->ss_slices_p[i].size[pidx]; j++)
+        {
+            uint32_t root = (bucketelements[j] & 0x7ffff);
+            sieve[root] -= logp;
+        }
+    }
+
+    return;
+}
+
+void lp_sieve_ss_good(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+{
+    int i;
+    int j;
+
+    //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
+    int pidx = dconf->polymap[dconf->numB];
+    int bucketalloc = dconf->ss_slices_p[0].alloc;
 
 #ifdef SS_POLY_BUCKET_SMALL_GROUPS
     // if the mapped binary-encoded poly isn't in this block of 
