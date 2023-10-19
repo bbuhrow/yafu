@@ -1024,7 +1024,7 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
 #ifdef USE_POLY_BUCKET_SS
 
-void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
+void tdiv_SS_fullinterval(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
     // bucket-sorted by polynomial
@@ -1060,6 +1060,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     __m512i vloc = _mm512_set1_epi32(block_loc);
 #elif defined(USE_AVX2)
     __m256i vrootmask = _mm256_set1_epi32(rootmask);
+    __m256i vloc = _mm256_set1_epi32(block_loc);
 #endif
 
     for (i = 0; i < dconf->num_ss_slices; i++)
@@ -1093,14 +1094,6 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
                         dconf->numB, pidx, pid, fboffset);
                     exit(1);
                 }
-                //else
-                //{
-                //    printf("commencing tdiv of root %u for loc %u in slice %u, side %u, poly %u (%u) "
-                //        "pid = %u, fboffset = %u\n",
-                //        bucketelements[k + idx] & rootmask, block_loc, i, parity,
-                //        dconf->numB, pidx, pid, fboffset);
-                //}
-
 
                 while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
                 {
@@ -1118,16 +1111,9 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
         for (k = 0; k < ((int)dconf->ss_slices_p[i].size[pidx] - 8); k += 8)
         {
             __m256i vr = _mm256_load_si256((__m256i*)(&bucketelements[k]));
-            //__mmask16 mpos = ~_mm512_test_epi32_mask(vr, vposmask);
-            __m256i cmp = _mm256_and_si256(vr, vposmask);
-            cmp = _mm256_cmpeq_epi32(cmp, vz);
-            uint32_t mpos = _mm256_movemask_epi8(cmp) & 0x88888888;;
-
-            //mpos = _mm512_mask_cmpeq_epi32_mask(mpos, vr, vloc);
             vr = _mm256_and_si256(vr, vrootmask);
-            cmp = _mm256_cmpeq_epi32(vr, vloc);
-            mpos &= _mm256_movemask_epi8(cmp);
-
+            __m256i cmp = _mm256_cmpeq_epi32(vr, vloc);
+            __mmask8 mpos = _mm256_movemask_epi8(cmp);
 
             while (mpos > 0)
             {
@@ -1195,7 +1181,7 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     return;
 }
 
-void tdiv_SS_good(uint32_t report_num, uint8_t parity, uint32_t bnum,
+void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
     // bucket-sorted by polynomial
@@ -1605,5 +1591,6 @@ void tdiv_SS_good(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     return;
 }
+
 #endif
 

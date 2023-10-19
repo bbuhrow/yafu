@@ -711,8 +711,8 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 extern void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
     lp_bucket* , int , dynamic_conf_t* );
 
+// sieving of primes using subset-sum
 void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf);
-void lp_sieve_interval_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf);
 
 // trial division
 int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity,
@@ -776,6 +776,7 @@ void save_relation_siqs(uint32_t offset, uint32_t* large_prime, uint32_t num_fac
     uint32_t* fb_offsets, uint32_t poly_id, uint32_t apoly_id, uint32_t parity,
     static_conf_t* conf);
 
+// trial division for primes sieved using subset-sum
 void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 
@@ -799,10 +800,12 @@ void nextB(dynamic_conf_t* dconf, static_conf_t* sconf, int needC);
 void firstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 extern void (*firstRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
+// functions implementing the subset-sum algorithm
 void ss_search_setup(static_conf_t* sconf, dynamic_conf_t* dconf);
-void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf);
-void ss_search_poly_buckets_2(static_conf_t* sconf, dynamic_conf_t* dconf, int set2_poly_id);
+void ss_search_poly_buckets_sorted(static_conf_t* sconf, dynamic_conf_t* dconf);
+void ss_search_poly_buckets_binned(static_conf_t* sconf, dynamic_conf_t* dconf);
 void ss_search_clear(static_conf_t* sconf, dynamic_conf_t* dconf);
+void ss_search_poly_buckets_2(static_conf_t* sconf, dynamic_conf_t* dconf, int set2_poly_id);
 void ss_search_sort_set_1(static_conf_t* sconf, dynamic_conf_t* dconf);
 
 void nextRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);

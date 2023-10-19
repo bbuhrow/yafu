@@ -390,7 +390,7 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 
 #ifdef USE_POLY_BUCKET_SS
 
-void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+void lp_sieve_ss_fullinterval(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 {
     int i;
     int j;
@@ -456,7 +456,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
     return;
 }
 
-void lp_sieve_ss_good(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 {
     int i;
     int j;

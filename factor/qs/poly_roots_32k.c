@@ -790,6 +790,8 @@ typedef struct
 	uint32_t polynum;
 } ss_sortable_set_t;
 
+//#define USE_QSORT
+#define ENABLE_BUCKET_PROTECTION
 
 int qsort_ss_set(const void* x, const void* y)
 {
@@ -804,6 +806,7 @@ int qsort_ss_set(const void* x, const void* y)
 		return -1;
 }
 
+#ifdef USE_QSORT
 int binary_find_ge(ss_sortable_set_t* ss_set, int set_sz, int element)
 {
 	int lo_idx = 0;
@@ -826,13 +829,42 @@ int binary_find_ge(ss_sortable_set_t* ss_set, int set_sz, int element)
 			return mid_idx;
 		}
 	}
-	//printf("returning %d with lo,hi index = %d,%d, element %d\n",
-	//	hi_idx, lo_idx, hi_idx, element);
+
 	if (element > ss_set[hi_idx].root)
 		return set_sz;
 	else
 		return hi_idx;
 }
+#else
+int binary_find_ge(int* root, int set_sz, int element)
+{
+	int lo_idx = 0;
+	int hi_idx = set_sz - 1;
+
+	while ((hi_idx - lo_idx) > 1)
+	{
+		int mid_idx = lo_idx + (hi_idx - lo_idx) / 2;
+
+		if ((uint32_t)root[mid_idx] > (uint32_t)element)
+		{
+			hi_idx = mid_idx;
+		}
+		else if ((uint32_t)root[mid_idx] < (uint32_t)element)
+		{
+			lo_idx = mid_idx;
+		}
+		else
+		{
+			return mid_idx;
+		}
+	}
+
+	if ((uint32_t)element > (uint32_t)root[hi_idx])
+		return set_sz;
+	else
+		return hi_idx;
+}
+#endif
 
 void merge(ss_sortable_set_t* ss_set, ss_sortable_set_t* ap, ss_sortable_set_t* am, int sz)
 {
@@ -970,7 +1002,60 @@ void shift(ss_sortable_set_t* ss_set, int m, int offset, int rupdate, int prime)
 	free(am);
 }
 
-void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
+#define QS_COMPARE(a,b) ((a)-(b))  
+
+void QuickSort(int* list, int* list2, int beg, int end)
+{
+	int piv, tmp;
+	int tmp2, piv2;
+
+	int  l, r, p;
+
+	while (beg < end)    // This while loop will avoid the second recursive call  
+	{
+		l = beg; p = (beg + end) / 2; r = end;
+
+		piv = list[p];
+		piv2 = list2[p];
+
+		while (1)
+		{
+			while ((l <= r) && (QS_COMPARE(list[l], piv) <= 0)) l++;
+			while ((l <= r) && (QS_COMPARE(list[r], piv) > 0)) r--;
+
+			if (l > r) break;
+
+			tmp = list[l];  list[l] = list[r];   list[r] = tmp;
+			tmp2 = list2[l]; list2[l] = list2[r]; list2[r] = tmp2;
+
+			if (p == r) p = l;
+
+			l++; r--;
+		}
+
+		list[p] = list[r]; list[r] = piv;
+		list2[p] = list2[r]; list2[r] = piv2;
+		r--;
+
+		// Recursion on the shorter side & loop (with new indexes) on the longer  
+		if ((r - beg) < (end - l))
+		{
+			QuickSort(list, list2, beg, r);
+			beg = l;
+		}
+		else
+		{
+			QuickSort(list, list2, l, end);
+			end = r;
+		}
+	}
+}
+
+// this version performs the search slower, but doesn't
+// need AVX512 and efficiently finds all of the sieve events.
+// the larger number of sieve hits results in an overall
+// larger relation discovery rate (rels/sec).
+void ss_search_poly_buckets_sorted(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
 	// the subset-sum search algorithm using a bucket sort to
 	// organize the sieve-hits per poly.  
@@ -987,46 +1072,57 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 	int i, j, k, ii;
 
+#ifdef USE_QSORT
 	ss_sortable_set_t *ss_set1;
 	ss_sortable_set_t *ss_set2;
+#else
+	ss_set_t ss_set1;
+	ss_set_t ss_set2;
+#endif
 
 	double t_enum_roots;
 	double t_sort_roots;
 	double t_match_roots;
-	double t_sort_buckets;
 	struct timeval start, stop;
 
 	int* rootupdates = dconf->rootupdates;
 	update_t update_data = dconf->update_data;
 	uint32_t* modsqrt = sconf->modsqrt_array;
 
-	int maxbin1 = 0;
-	int maxbin2 = 0;
 	int nummatch = 0;
-	int matchp1 = 0;
-	int matchm1 = 0;
+	//int maxbin1 = 0;
+	//int maxbin2 = 0;
+	//int matchp1 = 0;
+	//int matchm1 = 0;
 
-	double avg_size1 = 0.0;
-	double avg_size2 = 0.0;
-	double avg_size3 = 0.0;
-
-	int totalbins1 = 0;
-	int totalbins2 = 0;
-	int totalbins3 = 0;
+	//double avg_size1 = 0.0;
+	//double avg_size2 = 0.0;
+	//double avg_size3 = 0.0;
+	//
+	//int totalbins1 = 0;
+	//int totalbins2 = 0;
+	//int totalbins3 = 0;
 
 	int nump = 0;
 
-	int case1size = 0;
-	int case2asize = 0;
-	int case2bsize = 0;
-	int num_case1 = 0;
-	int num_case2a = 0;
-	int num_case2b = 0;
-	int big_case1 = 0;
-	int bigger_case1 = 0;
+	//int case1size = 0;
+	//int case2asize = 0;
+	//int case2bsize = 0;
+	//int num_case1 = 0;
+	//int num_case2a = 0;
+	//int num_case2b = 0;
+	//int big_case1 = 0;
+	//int bigger_case1 = 0;
 	
+#ifdef USE_QSORT
 	ss_set1 = (ss_sortable_set_t*)xmalloc((2 << (MAX_A_FACTORS / 2)) * sizeof(ss_sortable_set_t));
 	ss_set2 = (ss_sortable_set_t*)xmalloc((2 << (MAX_A_FACTORS / 2)) * sizeof(ss_sortable_set_t));
+#else
+	ss_set1.root = (int*)xmalloc((2 << (MAX_A_FACTORS / 2)) * sizeof(int));
+	ss_set2.root = (int*)xmalloc((2 << (MAX_A_FACTORS / 2)) * sizeof(int));
+	ss_set1.polynum = (int*)xmalloc((2 << (MAX_A_FACTORS / 2)) * sizeof(int));
+	ss_set2.polynum = (int*)xmalloc((2 << (MAX_A_FACTORS / 2)) * sizeof(int));
+#endif
 
 	for (i = fb->ss_start_B; i < fb->B; i++)
 	{
@@ -1068,7 +1164,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		int* ptr;
 
 		// enumerate set1 roots
-		if (0)
+#if 0
 		{
 			printf("set1 first root: %d,%d for prime %d\n", r1, r2, prime);
 
@@ -1169,13 +1265,21 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 			exit(0);
 		}
+#endif
 
 		for (ii = 1, k = 0, polynum = 0; ii < (1 << n); ii++, k += 2) {
 			// these roots go into the set
+#ifdef USE_QSORT
 			ss_set1[k + 0].root = r1;
 			ss_set1[k + 1].root = r2;
 			ss_set1[k + 0].polynum = polynum;
 			ss_set1[k + 1].polynum = polynum;
+#else
+			ss_set1.root[k + 0] = r1;
+			ss_set1.root[k + 1] = r2;
+			ss_set1.polynum[k + 0] = polynum;
+			ss_set1.polynum[k + 1] = polynum;
+#endif
 
 			// next polynum
 			polynum = dconf->polynums[ii];
@@ -1200,10 +1304,18 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 			}
 		}
 		// these roots go into the set
+#ifdef USE_QSORT
 		ss_set1[k + 0].root = r1;
 		ss_set1[k + 1].root = r2;
 		ss_set1[k + 0].polynum = polynum;
 		ss_set1[k + 1].polynum = polynum;
+#else
+		ss_set1.root[k + 0] = r1;
+		ss_set1.root[k + 1] = r2;
+		ss_set1.polynum[k + 0] = polynum;
+		ss_set1.polynum[k + 1] = polynum;
+#endif
+		
 
 		int size1 = n;
 
@@ -1214,7 +1326,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		int size2 = n;
 		r1 = dconf->firstroot2[i];
 
-		if (0)
+#if 0
 		{
 			printf("set2 first root: %d for prime %d\n", r1, prime);
 
@@ -1296,13 +1408,21 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 			exit(0);
 		}
+
 		else
+#else
 		{
 
 			for (ii = 1, polynum = 0; ii < (1 << n); ii++) {
 				// these roots go into the set
+#ifdef USE_QSORT
 				ss_set2[ii - 1].root = r1;
 				ss_set2[ii - 1].polynum = polynum;
+#else
+				ss_set2.root[ii - 1] = r1;
+				ss_set2.polynum[ii - 1] = polynum;
+#endif
+				
 
 				polynum = dconf->polynums[ii] << size1;
 				sign = dconf->polysign[ii];
@@ -1322,10 +1442,16 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 				}
 			}
 			// these roots go into the set
+#ifdef USE_QSORT
 			ss_set2[ii - 1].root = r1;
 			ss_set2[ii - 1].polynum = polynum;
+#else
+			ss_set2.root[ii - 1] = r1;
+			ss_set2.polynum[ii - 1] = polynum;
+#endif
+			
 		}
-
+#endif
 
 #ifdef SS_TIMING
 		gettimeofday(&stop, NULL);
@@ -1338,8 +1464,11 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		// sort the 2nd set.  Note Kleinjung has a different
 		// method to enumerate roots that avoids this sort.  
 		//qsort(ss_set1, 2 << size1, sizeof(ss_sortable_set_t), &qsort_ss_set);
+#ifdef USE_QSORT
 		qsort(ss_set2, 1 << size2, sizeof(ss_sortable_set_t), &qsort_ss_set);
-
+#else
+		QuickSort(ss_set2.root, ss_set2.polynum, 0, (1 << size2) - 1);
+#endif
 
 
 #ifdef SS_TIMING
@@ -1372,7 +1501,7 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 		// from the beginning and stops once r1'' >= interval - r0.
 		// The second substep finds by binary search the element r1' >= p - r0
 		// and then from there iterates to the end of the set2 array.
-		// commence matching
+		
 		uint32_t pid = (uint32_t)(i - fboffset) << pid_offset;
 
 		if ((i - fboffset) >= slicesz)
@@ -1381,152 +1510,158 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 				pid, slice, fboffset);
 			exit(1);
 		}
-//#define ENABLE_DEBUG
-		int debug_id = 91262;
-
-#define FULL_INTERVAL_NOTATION
 
 		uint32_t bucketalloc = dconf->ss_slices_p[0].alloc;
 		uint32_t* pslice_ptr = dconf->ss_slices_p[slice].elements;
 		uint32_t* psize_ptr = dconf->ss_slices_p[slice].size;
 		int num_set2 = 1 << size2;
 
-#ifdef ENABLE_DEBUG
-		if (debug_id == ((pid >> pid_offset) + fboffset))
+
+#if 0
+		// vectorizing strategy:
+		// for each of 16 set 1 roots, find the starting id
+		// in set2, put into a local temp array and load into
+		// a register.  Then in a loop, gather the set2 elements,
+		// compute the combined roots, test for hits, and
+		// scatter hits into poly buckets.  Increment all set2 indices
+		// and test for within set2 array bounds.  Keep a mask
+		// of hits and valid ids, which will gradually become 0, then
+		// exit the loop and repeat with 16 more set 1 roots.
+
+		__m512i vpid = _mm512_set1_epi32(pid);
+		__m512i vone = _mm512_set1_epi32(1);
+		__m512i vprime = _mm512_set1_epi32(prime);
+		__m512i vinterval = _mm512_set1_epi32(interval);
+		__m512i vinterval2 = _mm512_set1_epi32(interval2);
+		__m512i vz = _mm512_setzero_epi32();
+		__m512i vset2_sz = _mm512_set1_epi32(num_set2);
+
+		for (ii = 0; ii < (2 << size1); ii += 16)
+		//if (0)
 		{
-			printf("set2 roots for prime %d, pid %d: \n", prime, i);
-			for (ii = 0; ii < (1 << size2); ii++)
+			ALIGNED_MEM uint32_t startids[16];
+			ALIGNED_MEM uint32_t root1s[16];
+			ALIGNED_MEM uint32_t root2s[16];
+			__mmask16 validmask = 0;
+
+			for (j = 0; j < 16; j++)
 			{
-				printf("%d\n", ss_set2[ii].root);
+				// case 1 and case 2b use the same logic
+				root1s[j] = ss_set1.root[ii + j];
+				startids[j] = binary_find_ge(ss_set2.root, num_set2, prime - root1s[j] - interval);
+				int valid = startids[j] < num_set2;
+				validmask |= (valid << j);
+				root1s[j] = root1s[j] - prime + interval;
+				
+				if (valid)
+					root2s[j] = ss_set2.root[startids[j]];
 			}
-			printf("\n");
+
+			__m512i vroot1 = _mm512_load_epi32(root1s);
+
+			while (validmask)
+			{
+				__m512i vroot2 = _mm512_load_epi32(root2s);
+				vroot2 = _mm512_add_epi32(vroot2, vroot1);
+
+				// check if this is a sieve event.
+				validmask &= _mm512_cmplt_epi32_mask(vroot2, vinterval2);
+
+				if (validmask > 0)
+				{
+					// int sign1 = sum1 >= interval;
+					//if (sign1 == 0) sum1 = interval - sum1;
+					__mmask16 signmask = _mm512_cmplt_epi32_mask(vroot2, vinterval);
+					vroot2 = _mm512_mask_sub_epi32(vroot2, signmask, vinterval, vroot2);
+					vroot2 = _mm512_or_epi32(vroot2, vpid);
+
+					uint32_t vmask = validmask;
+
+					_mm512_storeu_epi32(root1s, vroot2);
+
+					while (vmask > 0)
+					{
+						int pos = _trail_zcnt(vmask);
+						int idx = ss_set1.polynum[ii + pos] + ss_set2.polynum[startids[pos]];
+
+						uint32_t bsz = psize_ptr[idx];
+						pslice_ptr[idx * bucketalloc + bsz] = root1s[pos];
+						psize_ptr[idx]++;
+
+						//if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
+						//	printf("error bucket overflow: size of poly bucket %d = %d\n",
+						//		idx, psize_ptr[idx]);
+
+						vmask = _reset_lsb(vmask);
+						nummatch++;
+
+						startids[pos]++;
+						if (startids[pos] < num_set2)
+							root2s[pos] = ss_set2.root[startids[pos]];
+						else
+							validmask ^= (1 << pos);
+					}
+				}
+			}
 		}
 #endif
 
+		// commence matching
 		for (ii = 0; ii < (2 << size1); ii++)
 		{
+#ifdef USE_QSORT
 			root1 = ss_set1[ii].root;
 			int poly1 = ss_set1[ii].polynum;
+#else
+			root1 = ss_set1.root[ii];
+			int poly1 = ss_set1.polynum[ii];
+#endif
 
-			if (root1 >= interval)
+
+			// this case always occurs, either as case 1
+			// or as case 2b
 			{
+#ifdef USE_QSORT
 				int startid = binary_find_ge(ss_set2, num_set2, prime - root1 - interval);
 				root2 = ss_set2[startid].root;
-
-#ifdef ENABLE_DEBUG
-				if (debug_id == ((pid >> pid_offset) + fboffset))
-				{
-					printf("starting case 1 at set2 index %d: "
-						"r1 = %d, r2 = %d, prime = %d, interval = %d, matches = %d\n",
-						startid, root1, root2, prime, interval, nummatch);
-				}
+#else
+				int startid = binary_find_ge(ss_set2.root, num_set2, prime - root1 - interval);
+				root2 = ss_set2.root[startid];
 #endif
-					
+
+#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
 				root1 = root1 - prime + interval;
-				num_case1++;
-
-				int start_c1sz = case1size;
-
-				//while (((startid+1) < num_set2) && 
-				//	((root1 + root2) < interval2))
-				if (0)
-				{
-					int idx1 = ss_set2[startid].polynum + poly1;
-					int idx2 = ss_set2[startid+1].polynum + poly1;
-
-					case1size+=2;
-
-#ifdef FULL_INTERVAL_NOTATION
-					int sum1 = root1 + ss_set2[startid].root;
-					int sum2 = root1 + root2;
-					int sign1 = sum1 >= interval;
-					int sign2 = sum2 >= interval;
-
-					// the smoothness checking code all assumes -side hits
-					// are arranged with respect to the 0 point, symmetric 
-					// to +side hits.  so if this is a -side hit we need
-					// to flip its orientation relative to the 0 point so
-					// that smoothness checking works.  Note that the
-					// exact 0 point is ignored for now because it raises
-					// errors in trial division... need to look into how to
-					// properly handle hits at sum = interval.
-					if (sign1 == 0) sum1 = interval - sum1;
-					if (sign2 == 0) sum2 = interval - sum2;
-
 #else
-					int sum = root1 + root2 - prime;
-					int sign = sum >= 0;
+				root1 = root1 - prime;
 #endif
+				//num_case1++;
+				//int start_c1sz = case1size;
 
-#ifdef FULL_INTERVAL_NOTATION
-
-#else
-					if (sign)
-#endif
-					
-					{
-#ifdef ENABLE_DEBUG
-						if (debug_id == ((pid >> pid_offset) + fboffset))
-						{
-							printf("found +hit @ %d with r1,r2,p = %d,%d,%d\n",
-								sum, root1, root2, prime);
-						}
-#endif
-						uint32_t bsz = psize_ptr[idx1];
-						pslice_ptr[idx1 * bucketalloc + bsz] = (pid | sum1);
-						psize_ptr[idx1]++;
-
-						bsz = psize_ptr[idx2];
-						pslice_ptr[idx2 * bucketalloc + bsz] = (pid | sum2);
-						psize_ptr[idx2]++;
-
-						if (psize_ptr[idx1] >= dconf->ss_slices_p[slice].alloc)
-						{
-							printf("error bucket overflow: size of poly bucket %d = %d\n",
-								idx1, psize_ptr[idx1]);
-							exit(1);
-						}
-
-						if (psize_ptr[idx2] >= dconf->ss_slices_p[slice].alloc)
-						{
-							printf("error bucket overflow: size of poly bucket %d = %d\n",
-								idx2, psize_ptr[idx2]);
-							exit(1);
-						}
-					}
-#ifdef FULL_INTERVAL_NOTATION
-
-#else
-					else
-					{
-						sum = 0 - sum;
-#ifdef ENABLE_DEBUG
-						if (debug_id == ((pid >> pid_offset) + fboffset))
-						{
-							printf("found -hit @ %d with r1,r2,p = %d,%d,%d\n",
-								sum, root1, root2, prime);
-						}
-#endif
-						sum |= (1 << dconf->ss_signbit);
-						uint32_t bsz = psize_ptr[idx];
-						pslice_ptr[idx * bucketalloc + bsz] = (pid | sum);
-						psize_ptr[idx]++;
-					}
-#endif
-					startid+=2;
-					root2 = ss_set2[startid+1].root;
-					nummatch+=2;
-				}
-
+				// case 1: middle of set2 array matching
+#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
 				while (((startid) < num_set2) &&
 					((root1 + root2) < interval2))
+#else
+				while (((startid) < num_set2) &&
+					((root1 + root2) < interval))
+#endif
 				{
+#ifdef USE_QSORT
 					int idx1 = ss_set2[startid].polynum + poly1;
+#else
+					int idx1 = ss_set2.polynum[startid] + poly1;
+#endif
 
-					case1size++;
 
-#ifdef FULL_INTERVAL_NOTATION
+					//case1size++;
+
+#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
+#ifdef USE_QSORT
 					int sum1 = root1 + ss_set2[startid].root;
+#else
+					int sum1 = root1 + ss_set2.root[startid];
+#endif
+
 					int sign1 = sum1 >= interval;
 
 					// the smoothness checking code all assumes -side hits
@@ -1540,95 +1675,68 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					if (sign1 == 0) sum1 = interval - sum1;
 
 #else
-					int sum = root1 + root2 - prime;
-					int sign = sum >= 0;
-#endif
-
-#ifdef FULL_INTERVAL_NOTATION
-
+#ifdef USE_QSORT
+					int sum1 = root1 + ss_set2[startid].root;
 #else
-					if (sign)
+					int sum1 = root1 + ss_set2.root[startid];
 #endif
-
+					int sign = sum1 >= 0;
+					if (sign == 0)
 					{
-#ifdef ENABLE_DEBUG
-						if (debug_id == ((pid >> pid_offset) + fboffset))
-						{
-							printf("found +hit @ %d with r1,r2,p = %d,%d,%d\n",
-								sum, root1, root2, prime);
-						}
-#endif
-						uint32_t bsz = psize_ptr[idx1];
-						pslice_ptr[idx1 * bucketalloc + bsz] = (pid | sum1);
-						psize_ptr[idx1]++;
-
-						//if (psize_ptr[idx1] >= dconf->ss_slices_p[slice].alloc)
-						//{
-						//	printf("error bucket overflow: size of poly bucket %d = %d\n",
-						//		idx1, psize_ptr[idx1]);
-						//	exit(1);
-						//}
-
-					}
-#ifdef FULL_INTERVAL_NOTATION
-
-#else
-					else
-					{
-						sum = 0 - sum;
-#ifdef ENABLE_DEBUG
-						if (debug_id == ((pid >> pid_offset) + fboffset))
-						{
-							printf("found -hit @ %d with r1,r2,p = %d,%d,%d\n",
-								sum, root1, root2, prime);
-						}
-#endif
-						sum |= (1 << dconf->ss_signbit);
-						uint32_t bsz = psize_ptr[idx];
-						pslice_ptr[idx * bucketalloc + bsz] = (pid | sum);
-						psize_ptr[idx]++;
+						sum1 = 0 - sum1;
+						sum1 |= (1 << dconf->ss_signbit);
 					}
 #endif
+
+					uint32_t bsz = psize_ptr[idx1];
+					pslice_ptr[idx1 * bucketalloc + bsz] = (pid | sum1);
+					psize_ptr[idx1]++;
+
+#ifdef ENABLE_BUCKET_PROTECTION
+					if (psize_ptr[idx1] >= dconf->ss_slices_p[slice].alloc)
+					{
+						printf("error bucket overflow: size of poly bucket %d = %d\n",
+							idx1, psize_ptr[idx1]);
+						exit(1);
+					}
+#endif
+
 					startid++;
+#ifdef USE_QSORT
 					root2 = ss_set2[startid].root;
+#else
+					root2 = ss_set2.root[startid];
+#endif
+
 					nummatch++;
 				}
-
-#ifdef ENABLE_DEBUG
-					if (debug_id == ((pid >> pid_offset) + fboffset))
-					{
-						printf("finished case 1 at set2 index %d, root %d, matches = %d\n",
-							startid, ss_set2[startid - 1].root, nummatch);
-					}
-#endif
-
-				if ((case1size - start_c1sz) > 4)
-					big_case1++;
-
-				if ((case1size - start_c1sz) > 8)
-					bigger_case1++;
 			}
-			else
+
+			// case 2a only occurs if the initial root is really small
+			root1 = ss_set1.root[ii];
+			if (root1 < interval)
 			{
 				int startid = 0;
+#ifdef USE_QSORT
 				root2 = ss_set2[startid].root;
-
-#ifdef ENABLE_DEBUG
-				if (debug_id == ((pid >> pid_offset) + fboffset))
-				{
-					printf("starting case 2a at set2 index %d: "
-						"r1 = %d, r2 = %d, prime = %d, interval = %d, matches = %d\n",
-						startid, root1, root2, prime, interval, nummatch);
-				}
+#else
+				root2 = ss_set2.root[startid];
 #endif
-				num_case2a++;
 
+				//num_case2a++;
+
+				// case 2a: beginning of set2 array matching
 				while ((startid < num_set2) && ((root1 + root2) < interval))
 				{
+#ifdef USE_QSORT
 					int polysum = ss_set2[startid].polynum + poly1;
+#else
+					int polysum = ss_set2.polynum[startid] + poly1;
+#endif
+
 					int idx = polysum;
 
-					case2asize++;
+					//case2asize++;
 
 #ifdef FULL_INTERVAL_NOTATION
 					int sum = root1 + root2 + interval;
@@ -1639,122 +1747,27 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 					int sum = root1 + root2;
 #endif
 
-#ifdef ENABLE_DEBUG
-					if (debug_id == ((pid >> pid_offset) + fboffset))
-					{
-						printf("found +hit @ %d with r1,r2,p = %d,%d,%d\n",
-							sum, root1, root2, prime);
-					}
-#endif
 					uint32_t bsz = psize_ptr[idx];
 					pslice_ptr[idx * bucketalloc + bsz] = (pid | sum);
 					psize_ptr[idx]++;
 
-					//if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
-					//{
-					//	printf("error bucket overflow: size of poly bucket %d = %d\n",
-					//		idx, psize_ptr[idx]);
-					//	exit(1);
-					//}
+#ifdef ENABLE_BUCKET_PROTECTION
+					if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
+					{
+						printf("error bucket overflow: size of poly bucket %d = %d\n",
+							idx, psize_ptr[idx]);
+						exit(1);
+					}
+#endif
 
 					startid++;
+#ifdef USE_QSORT
 					root2 = ss_set2[startid].root;
+#else
+					root2 = ss_set2.root[startid];
+#endif
 					nummatch++;
 				}
-
-#ifdef ENABLE_DEBUG
-				if (debug_id == ((pid >> pid_offset) + fboffset))
-				{
-					if (startid > 0)
-						printf("finished case 2a at set2 index %d, root %d, matches = %d\n",
-							startid, ss_set2[startid - 1].root, nummatch);
-				}
-#endif
-
-				startid = binary_find_ge(ss_set2, num_set2, prime - root1 - interval);
-				root2 = ss_set2[startid].root;
-
-#ifdef ENABLE_DEBUG
-				if (debug_id == ((pid >> pid_offset) + fboffset))
-				{
-					printf("starting case 2b at set2 index %d: "
-						"r1 = %d, r2 = %d, prime = %d, interval = %d, matches = %d\n",
-						startid, root1, root2, prime, interval, nummatch);
-				}
-#endif
-
-				case2bsize += (num_set2 - startid);
-				num_case2b++;
-
-				for (; startid < num_set2; startid++)
-				{
-					root2 = ss_set2[startid].root;
-					int polysum = ss_set2[startid].polynum + poly1;
-					int idx = polysum;
-#ifdef FULL_INTERVAL_NOTATION
-					int sum = root1 + root2 - prime + interval;
-					int sign = sum >= interval;
-
-					if (sign == 0) sum = interval - sum;
-#else
-					int sum = root1 + root2 - prime;
-					int sign = sum >= 0;
-#endif
-
-#ifdef FULL_INTERVAL_NOTATION
-
-#else
-					if (sign)
-#endif
-					{
-#ifdef ENABLE_DEBUG
-						if (debug_id == ((pid >> pid_offset) + fboffset))
-						{
-							printf("found +hit @ %d with r1,r2,p = %d,%d,%d\n",
-								sum, root1, root2, prime);
-						}
-#endif
-						uint32_t bsz = psize_ptr[idx];
-						pslice_ptr[idx * bucketalloc + bsz] = (pid | sum);
-						psize_ptr[idx]++;
-
-						//if (psize_ptr[idx] >= dconf->ss_slices_p[slice].alloc)
-						//{
-						//	printf("error bucket overflow: size of poly bucket %d = %d\n",
-						//		idx, psize_ptr[idx]);
-						//	exit(1);
-						//}
-					}
-#ifdef FULL_INTERVAL_NOTATION
-
-#else
-					else
-					{
-						sum = 0 - sum;
-#ifdef ENABLE_DEBUG
-						if (debug_id == ((pid >> pid_offset) + fboffset))
-						{
-							printf("found -hit @ %d with r1,r2,p = %d,%d,%d\n",
-								sum, root1, root2, prime);
-						}
-#endif
-						sum |= (1 << dconf->ss_signbit);
-						uint32_t bsz = psize_ptr[idx];
-						pslice_ptr[idx * bucketalloc + bsz] = (pid | sum);
-						psize_ptr[idx]++;
-					}
-#endif
-					
-					nummatch++;
-				}
-
-#ifdef ENABLE_DEBUG
-				if (debug_id == ((pid >> pid_offset) + fboffset))
-				{
-					printf("finished case 2b at set2 index %d, root %d, matches = %d\n",
-						startid, ss_set2[startid - 1].root, nummatch);
-				}
-#endif
 			}
 		}
 
@@ -1770,20 +1783,29 @@ void ss_search_poly_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
 	printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
 	printf("sorting roots: %1.4f seconds\n", t_sort_roots);
 	printf("matching roots: %1.4f seconds\n", t_match_roots);
-	printf("average length of case 1: %1.4f\n", (double)case1size / (double)num_case1);
-	printf("average length of case 2a: %1.4f\n", (double)case2asize / (double)num_case2a);
-	printf("average length of case 2b: %1.4f\n", (double)case2bsize / (double)num_case2b);
-	printf("big case1s = %d of %d\n", big_case1, num_case1);
-	printf("bigger case1s = %d of %d\n", bigger_case1, num_case1);
+	//printf("average length of case 1: %1.4f\n", (double)case1size / (double)num_case1);
+	//printf("average length of case 2a: %1.4f\n", (double)case2asize / (double)num_case2a);
+	//printf("average length of case 2b: %1.4f\n", (double)case2bsize / (double)num_case2b);
 #endif
 
+#ifdef USE_QSORT
 	free(ss_set1);
 	free(ss_set2);
+#else
+	free(ss_set1.root);
+	free(ss_set2.root);
+	free(ss_set1.polynum);
+	free(ss_set2.polynum);
+#endif
+	
 
 	return;
 }
 
-void ss_search_poly_buckets_good(static_conf_t* sconf, dynamic_conf_t* dconf)
+// this version performs the search faster, thanks to lots
+// of avx512 code, but doesn't find all of the sieve events
+// because of the binning strategy. 
+void ss_search_poly_buckets_binned(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
 	// the subset-sum search algorithm using a bucket sort to
 	// organize the sieve-hits per poly.  

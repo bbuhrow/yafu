@@ -641,8 +641,10 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         // a whole interval - end up overwriting things in subsequent blocks.
         // plus the interval could be larger than 16 bits.  we could maybe save and
         // restore sieve indices that are impacted by this.
-        vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vinterval);
-        vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vinterval);
+        //vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vinterval); 
+        //vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vinterval); 
+        vroot1 = _mm512_mask_set1_epi16(vroot1, ~initial_mask, 0); 
+        vroot2 = _mm512_mask_set1_epi16(vroot2, ~initial_mask, 0); 
 
         // until things start to drop off the end of the interval, 
         // simply dump in all logs.
@@ -742,6 +744,9 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
             valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
         }
+
+        // restore sieve locations associated with roots we didn't sieve
+        //sieve[0] = 0x7f;
 
         // now all larger roots are invalid.  Last iteration for 
         // possibly still valid root1s.  If they are still valid, 

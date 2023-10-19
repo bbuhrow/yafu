@@ -1603,7 +1603,7 @@ void* process_poly(void* vptr)
         //    ss_search_poly_buckets_2(sconf, dconf, 1);
 #else
         gettimeofday(&start1, NULL);
-        ss_search_poly_buckets(sconf, dconf);
+        ss_search_poly_buckets_sorted(sconf, dconf);
         gettimeofday(&stop1, NULL);
         t_ss_search_total += ytools_difftime(&start1, &stop1);
 #endif
@@ -2341,13 +2341,14 @@ void* process_poly(void* vptr)
                 else
                     memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
             }
-            for ( ; i < 2 * num_blocks; i++)
-            {
-                if ((i - num_blocks) == minblock)
-                    memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
-                else
-                    memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
-            }
+
+            //for ( ; i < 2 * num_blocks; i++)
+            //{
+            //    if ((i - num_blocks) == minblock)
+            //        memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
+            //    else
+            //        memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
+            //}
 
             lp_sieve_ss(dconf->ss_sieve_p, 0, dconf);
         }
@@ -2369,7 +2370,8 @@ void* process_poly(void* vptr)
 #if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
-                dconf->sieve = dconf->ss_sieve_p + i * 32768 + num_blocks * 32768;
+                //dconf->sieve = dconf->ss_sieve_p + i * 32768 + num_blocks * 32768;
+                dconf->sieve = dconf->ss_sieve_p + i * 32768;
                 sieve = dconf->sieve;
             }
 #endif
@@ -2438,18 +2440,18 @@ void* process_poly(void* vptr)
 #if defined( USE_SS_SEARCH )
 
 
-        //if (using_ss_search)
-        //{
-        //    for (i = 0; i < num_blocks; i++)
-        //    {
-        //        if (i == minblock)
-        //            memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
-        //        else
-        //            memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
-        //    }
-        //
-        //    lp_sieve_ss(dconf->ss_sieve_p, 1, dconf);
-        //}
+        if (using_ss_search)
+        {
+            for (i = 0; i < num_blocks; i++)
+            {
+                if (i == minblock)
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit - 4, 32768);
+                else
+                    memset(dconf->ss_sieve_p + i * 32768, blockinit, 32768);
+            }
+        
+            lp_sieve_ss(dconf->ss_sieve_p, 1, dconf);
+        }
 #endif
 
         
@@ -3439,7 +3441,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             dconf->poly_buckets_allocated = 0;
             for (i = 0; i < numslices; i++)
             {
-                dconf->ss_slices_p[i].alloc = 1024;
+                dconf->ss_slices_p[i].alloc = 2048;
                 dconf->ss_slices_p[i].numbuckets = 65536;
 #ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
                 dconf->ss_slices_n[i].alloc = 4096;
@@ -4345,7 +4347,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     if (sconf->factor_base->large_B < sconf->factor_base->med_B)
         sconf->factor_base->large_B = sconf->factor_base->med_B;
 
-    sconf->factor_base->slice_size = 8192;
+    sconf->factor_base->slice_size = 4096;
     int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) / 
         sconf->factor_base->slice_size) + 1;
     sconf->factor_base->num_ss_slices = numslices;
