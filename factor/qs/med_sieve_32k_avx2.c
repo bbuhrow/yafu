@@ -911,8 +911,10 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         UPDATE_ROOTS;
     }
 
+#ifdef USE_SS_SEARCH
     // restore sieve locations associated with roots we didn't sieve
     sieve[0] = 0x7f;
+#endif
 
     return;
 

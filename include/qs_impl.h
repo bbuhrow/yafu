@@ -571,13 +571,8 @@ typedef struct {
     int binsize;
     int bindepth;
     int numbins;
-    int* firstroot1a;
-    int* firstroot1b;
-    int* firstroot2;
-    uint8_t* ss_sieve_p;
-    uint8_t* ss_sieve_n;
-    int ss_signbit;
 #elif defined( USE_DIRECT_SIEVE_SS )
+    ss_bucket_slice_t* ss_slices_p;
     ss_set_t ss_set1;
     ss_set_t ss_set2;
     mpz_t polyb1;
@@ -587,12 +582,7 @@ typedef struct {
     int binsize;
     int bindepth;
     int numbins;
-    int* firstroot1a;
-    int* firstroot1b;
-    int* firstroot2;
     int ss_sieve_sz;
-    uint8_t* ss_sieve_p;
-    uint8_t* ss_sieve_n;
     uint16_t* report_ht_p;
     uint16_t* report_ht_n;
     int report_ht_size;
@@ -604,8 +594,15 @@ typedef struct {
     int* polyv;
     int* polysign;
 
+    int ss_signbit;
     int using_ss_search;
     uint32_t num_ss_slices;
+
+    int* firstroot1a;
+    int* firstroot1b;
+    int* firstroot2;
+    uint8_t* ss_sieve_p;
+    uint8_t* ss_sieve_n;
 #endif
 
     //scratch
