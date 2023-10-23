@@ -745,9 +745,6 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
             valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
         }
 
-        // restore sieve locations associated with roots we didn't sieve
-        //sieve[0] = 0x7f;
-
         // now all larger roots are invalid.  Last iteration for 
         // possibly still valid root1s.  If they are still valid, 
         // record the sieve hit, advance them, and swap with the
@@ -913,6 +910,9 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
         UPDATE_ROOTS;
     }
+
+    // restore sieve locations associated with roots we didn't sieve
+    sieve[0] = 0x7f;
 
     return;
 
