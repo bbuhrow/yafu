@@ -390,102 +390,21 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 
 #ifdef USE_POLY_BUCKET_SS
 
-void lp_sieve_ss_fullinterval(uint8_t* sieve, int side, dynamic_conf_t* dconf)
-{
-    int i;
-    int j;
-
-    //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
-    int pidx = dconf->polymap[dconf->numB];
-    int bucketalloc = dconf->ss_slices_p[0].alloc;
-    uint32_t rootmask = 0x7ffff;
-
-//#ifdef USE_AVX512F
-//    __m512i vrootmask = _mm512_set1_epi32(rootmask);
-//
-//#elif USE_AVX2
-//
-//    __m256i vrootmask = _mm256_set1_epi32(rootmask);
-//    __m256i vz = _mm256_setzero_si256();
-//
-//#endif
-
-    for (i = 0; i < dconf->num_ss_slices; i++)
-    {
-        uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * bucketalloc;
-        uint8_t logp = dconf->ss_slices_p[i].logp;
-
-        //__m512i vlogp = _mm512_set1_epi8(logp);
-        //__m512i vnextr = _mm512_and_epi32(vrootmask, _mm512_load_epi32((__m512i*)(&bucketelements[0])));
-        //
-        //for (j = 0; j < (int)dconf->ss_slices_p[i].size[pidx] - 16; j += 16)
-        //{
-        //    __m512i vr = vnextr;
-        //    if ((j + 16) < dconf->ss_slices_p[i].size[pidx])
-        //    {
-        //        vnextr = _mm512_and_epi32(vrootmask,
-        //            _mm512_load_epi32((__m512i*)(&bucketelements[j + 16])));
-        //    }
-        //
-        //    // ignore conflicts...
-        //    __m512i vsieve = _mm512_i32gather_epi32(vr, sieve, _MM_SCALE_1);
-        //    vsieve = _mm512_sub_epi8(vsieve, vlogp);
-        //    _mm512_i32scatter_epi32(sieve, vr, vsieve, _MM_SCALE_1);
-        //}
-
-
-        for (j = 0; j < (int)dconf->ss_slices_p[i].size[pidx] - 4; j+=4)
-        {
-            uint32_t root1 = (bucketelements[j+0] & 0x7ffff);
-            uint32_t root2 = (bucketelements[j+1] & 0x7ffff);
-            uint32_t root3 = (bucketelements[j+2] & 0x7ffff);
-            uint32_t root4 = (bucketelements[j+3] & 0x7ffff);
-            sieve[root1] -= logp;
-            sieve[root2] -= logp;
-            sieve[root3] -= logp;
-            sieve[root4] -= logp;
-        }
-
-        for ( ; j < dconf->ss_slices_p[i].size[pidx]; j++)
-        {
-            uint32_t root = (bucketelements[j] & 0x7ffff);
-            sieve[root] -= logp;
-        }
-    }
-
-    return;
-}
-
 void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 {
     int i;
     int j;
 
-    //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
     int pidx = dconf->polymap[dconf->numB];
     int bucketalloc = dconf->ss_slices_p[0].alloc;
 
-#ifdef SS_POLY_BUCKET_SMALL_GROUPS
-    // if the mapped binary-encoded poly isn't in this block of 
-    // poly buckets then just skip large prime sieving.
-    //if ((pidx < dconf->ss_slices_p[0].curr_poly_idx) ||
-    //    (pidx >= (dconf->ss_slices_p[0].curr_poly_idx + (1 << dconf->ss_set1.size))))
-    //    return;
-
-    //printf("commencing large_sieve_ss on side %d, pidx %u (gray-index %d, set2 instance %d), sizes %d,%d\n",
-    //    side, pidx, dconf->numB, polymask / (1 << dconf->ss_set2.size),
-    //    (1 << dconf->ss_set1.size), (1 << dconf->ss_set2.size));
-#endif
-
-    //printf("mapping b-index %d to bucket %d\n", dconf->numB, pidx);
 #ifdef USE_POLY_BUCKET_PN_COMBINED_VARIATION
-    uint32_t signbit = (1 << dconf->ss_signbit);
-    uint32_t rootmask = signbit - 1;
+    uint32_t signbit = SS_MAX_ROOT;
+    uint32_t rootmask = SS_ROOT_MASK;
 
 #ifdef USE_AVX512F
     __m512i vrootmask = _mm512_set1_epi32(rootmask);
     __m512i vposmask = _mm512_set1_epi32(signbit);
-    //printf("signbit = %08x, rootmask = %08x\n", signbit, rootmask);
 
 #elif USE_AVX2
 
@@ -519,14 +438,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
              
                 vr = _mm512_and_epi32(vr, vrootmask);
                 ALIGNED_MEM uint32_t roots[16];
-            
-                //_mm512_mask_compressstoreu_epi32(roots, mpos, vr);
-                //int num = _mm_popcnt_u32(mpos) - 1;
-                //while (num >= 0)
-                //{
-                //    sieve[roots[num--]] -= logp;
-                //}
-            
+
                 _mm512_store_epi32(roots, vr);
                 
                 while (mpos > 0)
@@ -576,7 +488,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 #else
             for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j++)
             {
-                root = (bucketelements[j] & 0x3ffff);
+                root = (bucketelements[j] & SS_ROOT_MASK);
                 sieve[root] -= logp;
             }
 #endif
@@ -604,14 +516,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
                 __mmask16 mpos = _mm512_test_epi32_mask(vr, vposmask);
                 vr = _mm512_and_epi32(vr, vrootmask);
                 ALIGNED_MEM uint32_t roots[16];
-                
-                //_mm512_mask_compressstoreu_epi32(roots, mpos, vr);
-                //int num = _mm_popcnt_u32(mpos) - 1;
-                //while (num >= 0)
-                //{
-                //    sieve[roots[num--]] -= logp;
-                //}
-            
+
                 _mm512_store_epi32(roots, vr);
                 
                 while (mpos > 0)
@@ -665,7 +570,7 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 
             for (j = 0; j < dconf->ss_slices_n[i].size[pidx]; j++)
             {
-                root = (bucketelements[j] & 0x3ffff);
+                root = (bucketelements[j] & SS_ROOT_MASK);
                 sieve[root] -= logp;
             }
 #endif

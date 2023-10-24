@@ -1074,8 +1074,10 @@ void vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
 void vec_bignum52_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
 void vec_bignum52_mask_rshift_n(vec_bignum_t* u, vec_bignum_t* v, int n, uint32_t wmask);
 void vec_bignum52_mask_rshift_vn(vec_bignum_t* u, vec_bignum_t* v, int* n, uint32_t wmask);
-void vecmul52_1(vec_bignum_t* a, __m512i b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 
+#ifdef USE_AVX512F
+void vecmul52_1(vec_bignum_t* a, __m512i b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
+#endif
 
 void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmul52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);

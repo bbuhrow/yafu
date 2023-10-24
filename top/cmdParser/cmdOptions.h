@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 108
+#define NUMOPTIONS 110
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -110,6 +110,7 @@ typedef struct
     uint32_t siqsLPB;
     uint32_t siqsBT;
     uint32_t siqsSSidx;
+    uint32_t siqsSSalloc;
     double siqsMFBD;
     double siqsMFBT;
     double siqsBDiv;
@@ -144,6 +145,7 @@ typedef struct
     uint32_t cadoMsieve;
     char cado_dir[MAXARGLEN];
     char convert_poly_path[MAXARGLEN];
+    int skip_snfscheck;
 
     // ecm/pp1/pm1/rho/tdiv options
     uint64_t B1pm1;

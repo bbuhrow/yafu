@@ -1076,7 +1076,15 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
     {
         mpz_set(fobj->nfs_obj.gmp_n, b);
 #ifdef USE_NFS
-        poly = snfs_find_form(fobj);
+
+		if (fobj->nfs_obj.skip_snfs_check)
+		{
+			poly = NULL;
+		}
+		else
+		{
+			poly = snfs_find_form(fobj);
+		}
 
         if (poly != NULL)
         {

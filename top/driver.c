@@ -1680,6 +1680,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_time = options->siqsT;
     fobj->qs_obj.gbl_override_ssidx_flag = (options->siqsSSidx > 0);
     fobj->qs_obj.gbl_override_ssidx = options->siqsSSidx;
+    fobj->qs_obj.gbl_override_ssalloc_flag = (options->siqsSSalloc > 0);
+    fobj->qs_obj.gbl_override_ssalloc = options->siqsSSalloc;
     fobj->qs_obj.inmem_cutoff = options->inmem_cutoff;
     if ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0))
     {
@@ -1853,6 +1855,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.cadoMsieve = options->cadoMsieve;
     strcpy(fobj->nfs_obj.cado_dir, options->cado_dir);
     strcpy(fobj->nfs_obj.convert_poly_path, options->convert_poly_path);
+    fobj->nfs_obj.skip_snfs_check = options->skip_snfscheck;
 
     // initialize autofactor object
     // whether we want to output certain info to their own files...

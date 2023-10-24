@@ -126,6 +126,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.gbl_override_3lp_bat = 0;
     fobj->qs_obj.gbl_override_ssidx_flag = 0;
     fobj->qs_obj.gbl_override_ssidx = 0;
+    fobj->qs_obj.gbl_override_ssidx_flag = 0;
+    fobj->qs_obj.gbl_override_ssidx = 12;
     fobj->qs_obj.gbl_btarget = 1000000;
     fobj->qs_obj.flags = 0;
     fobj->qs_obj.gbl_force_DLP = 0;
@@ -191,6 +193,7 @@ void init_factobj(fact_obj_t* fobj)
 
     fobj->nfs_obj.cadoMsieve = 0;
     strcpy(fobj->nfs_obj.convert_poly_path, "");
+    fobj->nfs_obj.skip_snfs_check = 0;
 
     //initialize autofactor object
     //whether we want to output certain info to their own files...
@@ -465,6 +468,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->qs_obj.gbl_btarget = src->qs_obj.gbl_btarget;
     dest->qs_obj.gbl_override_ssidx_flag = src->qs_obj.gbl_override_ssidx_flag;
     dest->qs_obj.gbl_override_ssidx = src->qs_obj.gbl_override_ssidx;
+    dest->qs_obj.gbl_override_ssalloc_flag = src->qs_obj.gbl_override_ssalloc_flag;
+    dest->qs_obj.gbl_override_ssalloc = src->qs_obj.gbl_override_ssalloc;
     dest->qs_obj.flags = src->qs_obj.flags;
     dest->qs_obj.gbl_force_DLP = src->qs_obj.gbl_force_DLP;
     dest->qs_obj.gbl_force_TLP = src->qs_obj.gbl_force_TLP;
@@ -504,6 +509,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->nfs_obj.nfs_phases = src->nfs_obj.nfs_phases;
     dest->nfs_obj.snfs_testsieve_threshold = src->nfs_obj.snfs_testsieve_threshold;
     strcpy(dest->nfs_obj.filearg, src->nfs_obj.filearg);
+    dest->nfs_obj.skip_snfs_check = src->nfs_obj.skip_snfs_check;
 
     dest->nfs_obj.polybatch = src->nfs_obj.polybatch;
     strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);

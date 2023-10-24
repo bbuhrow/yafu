@@ -246,6 +246,7 @@ typedef struct
     uint32_t gbl_override_blocks;		//override the # of blocks used
     uint32_t gbl_override_lpmult;		//override the large prime multiplier
     uint32_t gbl_override_ssidx;
+    uint32_t gbl_override_ssalloc;
     float gbl_override_bdiv;        // override the lpmax divider for batch GCD
     uint32_t gbl_btarget;             // the target number of batch relations
     uint32_t gbl_override_lpb;		// override the large prime bound (specified in bits)
@@ -265,6 +266,7 @@ typedef struct
     int gbl_override_lpmult_flag;
     int gbl_override_bdiv_flag;
     int gbl_override_ssidx_flag;
+    int gbl_override_ssalloc_flag;
 
     uint32_t num_factors;			//number of factors found in this method
     uint32_t flags;				//each bit corresponds to a location in the 
@@ -331,6 +333,7 @@ typedef struct
 	uint32_t polybatch;
 	uint32_t nfs_phases;
 	uint32_t snfs_testsieve_threshold;
+    int skip_snfs_check;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;

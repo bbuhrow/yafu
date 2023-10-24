@@ -79,7 +79,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path",
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
-    "stopbase", "stopprime", "siqsSSidx"
+    "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     };
 
 // help strings displayed with -h
@@ -193,7 +193,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): stop if a factor is found of greater than or equal to <n> digits",
     "(Integer < 32-bit): Base to use for stopXY options(default 10, range: 2 <= b <= 62)",
     "                  : Use for stopXY options to add constraint that number is prime",
-    "(Integer < 32-bit): Factor base index at which to start using subset sum algorithm (default 0: unused)"
+    "(Integer < 32-bit): Factor base index at which to start using subset sum algorithm (default 0: unused)",
+    "(Integer < 32-bit): Size of a poly-bucket, in bits.  Smaller is better as long as it's big enough. 12 is default.",
+    "                  : Set this to skip all checks for the existance of SNFS polynomials for the input"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -223,7 +225,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,0,1,1,  // resume, json-pretty, new cado options
     1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
-    1,0,1       // "stopbase", "stopprime"
+    1,0,1,1,0   // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
 };
 
 // command line option aliases, specified by '--'
@@ -251,7 +253,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", ""
+    "", "", "", "", ""
 };
 
 
@@ -1084,6 +1086,16 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "siqsSSidx"
         options->siqsSSidx = atoi(arg);
     }
+    else if (strcmp(opt, OptionArray[108]) == 0)
+    {
+        // argument "siqsSSalloc"
+        options->siqsSSalloc = atoi(arg);
+    }
+    else if (strcmp(opt, OptionArray[109]) == 0)
+    {
+        // argument "skipSNFScheck"
+        options->skip_snfscheck = 1;
+    }
     else
     {
         int i;
@@ -1205,6 +1217,7 @@ options_t* initOpt(void)
 #else
     strcpy(options->ggnfs_dir, "./");
 #endif
+    options->skip_snfscheck = 0;
     
     // prime finding options
     options->soe_blocksize = 32768;
@@ -1226,6 +1239,7 @@ options_t* initOpt(void)
     options->siqsTFSm = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
+    options->siqsSSalloc = 12;
     options->siqsForceTLP = 0;
     options->siqsLPB = 0;
     options->siqsMFBD = 1.85;

@@ -29,17 +29,37 @@
 //#define USE_BATCHPOLY_X2
 
 // to use subset-sum searching, define this...
-//#define USE_SS_SEARCH 
+#define USE_SS_SEARCH 
 
 // and either this one
 //#define USE_DIRECT_SIEVE_SS
 
 // or this one, but not both
-//#define USE_POLY_BUCKET_SS
-// This can stay defined, it only impacts anything
-// if both USE_SS_SEARCH and USE_POLY_BUCKET_SS are
-// defined and if they are, this should be too.
-//#define USE_POLY_BUCKET_PN_COMBINED_VARIATION
+#define USE_POLY_BUCKET_SS
+
+#ifdef USE_SS_SEARCH
+#define USE_POLY_BUCKET_PN_COMBINED_VARIATION
+
+// an element of a poly-bucket is a 32-bit integer divided
+// into two pieces of information.  The high X bits store an
+// index into the factor base starting from the current slice
+// fboffset.  Smaller slice bits means more slices are needed
+// for a given number of primes treated by subset-sum.  
+// The bottom 32-X bits are for storing the sieve hit.  Thus
+// this field determines the maximum sieve region size.  
+// Note, too many slices can be detrimental to performance, so
+// it is a balancing act between allowing large sieve regions and
+// the right amount of factor-base slices.  Further, different
+// combinations of these may be best for differently sized inputs.
+// 12 slice bits and 20 bits for sieve hits (max sieve interval
+// of 16 blocks per side: 16 * 2 * 32768 = 2^20) seems to be
+// a good general-purpose combination.
+#define SS_SLICE_SIZE 4096      // these must agree
+#define SS_SLICE_BITS 12        // these must agree
+#define SS_SIGN_BIT (31 - SS_SLICE_BITS)
+#define SS_MAX_ROOT (1 << (SS_SIGN_BIT))
+#define SS_ROOT_MASK (SS_MAX_ROOT - 1)
+#endif
 
 // this doesn't currently work
 //#define SS_POLY_BUCKET_SMALL_GROUPS
@@ -281,7 +301,6 @@ typedef struct
     uint32_t alloc_slices;	// the number of fb slices allocated
 } xlp_bucket_t;
 
-
 typedef struct
 {
     int* root;
@@ -292,33 +311,11 @@ typedef struct
 
 typedef struct
 {
-    uint64_t* element;      // bottom 16-bits holds polynum, next 16 bits holds root, top 32 bits holds fb index of prime
-    uint32_t alloc;         // allocated number of elements
-    uint32_t size;          // actual number of elements
-    uint32_t fboffset;      // starting fb offset for this bucket
-    uint32_t curr_poly_idx; // 
-    uint32_t curr_poly_num;
-    uint8_t logp;           // logp for this bucket.
-} ss_slice_t;
-
-
-typedef struct
-{
-    uint32_t* element;      // bottom 16-bits holds root, top 16 bits holds fb index of prime
-    uint32_t alloc;         // allocated number of elements
-    uint32_t size;          // actual number of elements
-} ss_bucket_t;
-
-typedef struct
-{
-    //ss_bucket_t* buckets;   // one per bpoly
     uint32_t* elements;     // one huge list for all buckets
     uint32_t* size;         // number of filled elements in each bucket (a portion of the huge array).
     uint32_t alloc;         // the portion in the huge array that is allocated to each poly
-    uint32_t numbuckets;    // number of buckets
-    uint32_t fboffset;      // starting fb offset for this bucket
-    uint32_t curr_poly_idx; // 
-    uint32_t curr_poly_num;
+    uint32_t numbuckets;    // number of buckets, need one for each b-poly
+    uint32_t fboffset;      // starting fb offset for this slice
     uint8_t logp;           // logp for this bucket.
 } ss_bucket_slice_t;
 
@@ -561,27 +558,7 @@ typedef struct {
     ss_bucket_slice_t* ss_slices_p;
     ss_bucket_slice_t* ss_slices_n;
     int poly_buckets_allocated;
-    ss_set_t ss_set1;
-    ss_set_t ss_set2;
-    mpz_t polyb1;
-    mpz_t polyb2;
-    ss_set_t* bins1;
-    ss_set_t* bins2;
-    ss_set_t** bins1_mp;
-    int binsize;
-    int bindepth;
-    int numbins;
 #elif defined( USE_DIRECT_SIEVE_SS )
-    ss_bucket_slice_t* ss_slices_p;
-    ss_set_t ss_set1;
-    ss_set_t ss_set2;
-    mpz_t polyb1;
-    mpz_t polyb2;
-    ss_set_t* bins1;
-    ss_set_t* bins2;
-    int binsize;
-    int bindepth;
-    int numbins;
     int ss_sieve_sz;
     uint16_t* report_ht_p;
     uint16_t* report_ht_n;
@@ -594,7 +571,9 @@ typedef struct {
     int* polyv;
     int* polysign;
 
-    int ss_signbit;
+    mpz_t polyb1;
+    mpz_t polyb2;
+
     int using_ss_search;
     uint32_t num_ss_slices;
 

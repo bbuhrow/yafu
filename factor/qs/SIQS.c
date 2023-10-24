@@ -1613,8 +1613,6 @@ void* process_poly(void* vptr)
 
 #if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
 
-    //#define MANY_PBUCKETS
-
     if (using_ss_search)
     {
         int p, s;
@@ -1625,30 +1623,16 @@ void* process_poly(void* vptr)
         int* rootupdates = dconf->rootupdates;
         uint32_t bound = sconf->factor_base->B;
 
-#ifdef MANY_PBUCKETS
-        poly_bucket_t* polybuckets;
-
-        polybuckets = (poly_bucket_t*)xmalloc(num_bpoly * sizeof(poly_bucket_t));
-        for (p = 0; p < num_bpoly; p++)
-        {
-            polybuckets[p].hitalloc = 32768;
-            polybuckets[p].hitloc = (uint32_t*)xmalloc(
-                polybuckets[p].hitalloc * sizeof(uint32_t));
-            polybuckets[p].prime = (uint32_t*)xmalloc(
-                polybuckets[p].hitalloc * sizeof(uint32_t));
-            polybuckets[p].numhits = 0;
-        }
-
-        printf("\nallocated %lu bytes for small prime polybuckets\n",
-            (uint64_t)num_bpoly * (uint64_t)polybuckets[0].hitalloc *
-            (uint64_t)sizeof(uint32_t) * 2ULL);
-#else
         poly_bucket_t polybucket;
         polybucket.hitalloc = 1 << 24;
         polybucket.hitloc = (uint32_t*)xmalloc(polybucket.hitalloc * sizeof(uint32_t));
         polybucket.prime = (uint32_t*)xmalloc(polybucket.hitalloc * sizeof(uint32_t));
         polybucket.numhits = 0;
-#endif
+
+        dconf->ss_sieve_p = (uint8_t*)xrealloc(dconf->ss_sieve_p, num_bpoly *
+            dconf->ss_sieve_sz * sizeof(uint8_t));
+        dconf->ss_sieve_n = (uint8_t*)xrealloc(dconf->ss_sieve_n, num_bpoly *
+            dconf->ss_sieve_sz * sizeof(uint8_t));
 
         memset(dconf->report_ht_p, 0, dconf->report_ht_size * sizeof(uint16_t));
         memset(dconf->report_ht_n, 0, dconf->report_ht_size * sizeof(uint16_t));
@@ -1696,9 +1680,7 @@ void* process_poly(void* vptr)
             // we need to agree with that here.
             int pidx = dconf->polymap[p];
 
-#ifndef MANY_PBUCKETS
             polybucket.numhits = 0;
-#endif
 
             for (i = sconf->sieve_small_fb_start; i < fb->med_B; i++)
             {
@@ -1792,7 +1774,6 @@ void* process_poly(void* vptr)
             {
                 for (i = fb->med_B; i < fb->x2_large_B; i += 16)
                 {
-
                     int* ptr = &rootupdates[(v - 1) * bound + i];
 
                     __m512i vprime;
@@ -1813,23 +1794,6 @@ void* process_poly(void* vptr)
                     __mmask16 m1 = _mm512_cmplt_epi32_mask(vroot1, vinterval);
                     __mmask16 m2 = _mm512_cmplt_epi32_mask(vroot2, vinterval);
 
-#ifdef MANY_PBUCKETS
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
-                        polybuckets[p].numhits, m1, vroot1);
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                        polybuckets[p].numhits, m1,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybuckets[p].numhits += _mm_popcnt_u32(m1);
-
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
-                        polybuckets[p].numhits, m2, vroot2);
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                        polybuckets[p].numhits, m2,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybuckets[p].numhits += _mm_popcnt_u32(m2);
-#else
                     _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
                         polybucket.numhits, m1, vroot1);
                     _mm512_mask_compressstoreu_epi32(polybucket.prime +
@@ -1845,35 +1809,12 @@ void* process_poly(void* vptr)
                         _mm512_add_epi32(vindex, vinc));
 
                     polybucket.numhits += _mm_popcnt_u32(m2);
-#endif
                     vnroot1 = _mm512_sub_epi32(vprime, vroot1);
                     vnroot2 = _mm512_sub_epi32(vprime, vroot2);
 
                     m1 = _mm512_cmplt_epi32_mask(vnroot1, vinterval);
                     m2 = _mm512_cmplt_epi32_mask(vnroot2, vinterval);
 
-#ifdef MANY_PBUCKETS
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
-                        polybuckets[p].numhits, m1, _mm512_add_epi32(vprime, vnroot1));
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                        polybuckets[p].numhits, m1,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybuckets[p].numhits += _mm_popcnt_u32(m1);
-
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].hitloc +
-                        polybuckets[p].numhits, m2, _mm512_add_epi32(vprime, vnroot2));
-                    _mm512_mask_compressstoreu_epi32(polybuckets[p].prime +
-                        polybuckets[p].numhits, m2,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybuckets[p].numhits += _mm_popcnt_u32(m2);
-
-                    if (polybuckets[p].numhits + 64 > polybuckets[p].hitalloc)
-                    {
-                        printf("polybucket almost full\n");
-                }
-#else
                     _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
                         polybucket.numhits, m1, _mm512_add_epi32(vprime, vnroot1));
                     _mm512_mask_compressstoreu_epi32(polybucket.prime +
@@ -1894,7 +1835,6 @@ void* process_poly(void* vptr)
                     {
                         printf("polybucket almost full\n");
                     }
-#endif
 
                     if (sign > 0)
                     {
@@ -1923,24 +1863,6 @@ void* process_poly(void* vptr)
 
                 }
 
-#ifdef MANY_PBUCKETS
-                for (i = 0; i < polybuckets[p].numhits; i++)
-                {
-                    uint32_t prime = update_data->prime[polybuckets[p].prime[i]];
-                    uint32_t logp = update_data->logp[polybuckets[p].prime[i]];
-
-                    if (polybuckets[p].hitloc[i] > sieve_sz)
-                    {
-                        dconf->ss_sieve_n[pidx * sieve_sz +
-                            (polybuckets[p].hitloc[i] - prime)] -= logp;
-                    }
-                    else
-                    {
-                        dconf->ss_sieve_p[pidx * sieve_sz +
-                            polybuckets[p].hitloc[i]] -= logp;
-            }
-        }
-#else
 
                 for (i = 0; i < polybucket.numhits; i++)
                 {
@@ -1959,9 +1881,6 @@ void* process_poly(void* vptr)
                     }
                 }
             }
-#endif
-
-#if !defined(MANY_PBUCKETS)
 
             // search for hits and assign report numbers to hits.
             // initialize Q's for each hit and trial divide up to 
@@ -2034,73 +1953,17 @@ void* process_poly(void* vptr)
             // use the stored Bl's and the gray code to find the next b
             nextB(dconf, sconf, 1);
             dconf->numB++;
-#endif
+
 
         }
 
         gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
-#ifdef MANY_PBUCKETS
-        printf("sieving of %d primes took: %1.4f seconds\n",
-            fb->x2_large_B - sconf->sieve_small_fb_start, t_time);
-#else
         printf("sieving and trial division of %d primes took: %1.4f seconds\n",
             fb->x2_large_B - sconf->sieve_small_fb_start, t_time);
-#endif
 
         gettimeofday(&start, NULL);
-
-
-        // for each polynomial, look at the entries and decide whether
-        // to process further.
-#ifdef MANY_PBUCKETS
-        {
-            for (p = 1; p < num_bpoly; p++)
-            {
-                // map the gray-code enumeration to binary-polynum encoding
-                int pidx = dconf->polymap[p];
-
-                for (s = 0; s < dconf->ss_sieve_sz; s++)
-                {
-                    if (dconf->ss_sieve_p[pidx * sieve_sz + s] & 0x80)
-                    {
-                        // mark this location for re-sieving
-                        int ht_idx = hash64(pidx * sieve_sz + s) %
-                            dconf->report_ht_size;
-
-                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 1;
-                        if (dconf->report_ht_p[ht_idx] > 0)
-                            collisions++;
-                        //    printf("report_ht_p collision at index %d\n", ht_idx);
-
-                        dconf->report_ht_p[ht_idx] = report_num++;
-                    }
-                    else
-                    {
-                        dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
-                    }
-
-                    if (dconf->ss_sieve_n[pidx * sieve_sz + s] & 0x80)
-                    {
-                        // mark this location for re-sieving
-                        int ht_idx = hash64(pidx * sieve_sz + s) %
-                            dconf->report_ht_size;
-
-                        dconf->ss_sieve_n[pidx * sieve_sz + s] = 1;
-                        if (dconf->report_ht_n[ht_idx] > 0)
-                            collisions++;
-                        //    printf("report_ht_n collision at index %d\n", ht_idx);
-                        dconf->report_ht_n[ht_idx] = report_num++;
-                    }
-                    else
-                    {
-                        dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
-                    }
-                }
-            }
-        }
-#endif
 
         // and finally process for any large primes and store discovered relations.
         printf("found %d locations to resieve, %d hashtable collisions\n",
@@ -2108,81 +1971,6 @@ void* process_poly(void* vptr)
 
         // now initialize Q and divide out the small primes at the marked locations.
         // here we need to actually increment through the b-polys.
-#ifdef MANY_PBUCKETS
-        {
-            valid_report_num = 0;
-            for (p = 1; p < num_bpoly; p++)
-            {
-                // map the gray-code enumeration to binary-polynum encoding
-                int pidx = dconf->polymap[p];
-
-                for (s = 0; s < dconf->ss_sieve_sz; s++)
-                {
-                    if (dconf->ss_sieve_p[pidx * sieve_sz + s] < 0xff)
-                    {
-                        // initialize Qval for poly p at offset s
-                        int ht_idx = hash64(pidx * sieve_sz + s) %
-                            dconf->report_ht_size;
-                        int rnum = dconf->report_ht_p[ht_idx];
-
-                        if (rnum == 0)
-                            printf("invalid rnum %d in p-side hashtable: pidx %d loc %d\n",
-                                rnum, pidx, s);
-
-                        //printf("initializing report %d at pidx %d loc %d p-side\n",
-                        //    rnum, pidx, s);
-
-                        init_Qval(sconf, dconf, p - 1, s, 0, rnum);
-                        int valid = td_small_p(sconf, dconf, p - 1, s, 0, rnum, &polybuckets[p]);
-                        if (valid)
-                        {
-                            valid_report_num++;
-                        }
-                        else
-                        {
-                            dconf->ss_sieve_p[pidx * sieve_sz + s] = 0xff;
-                        }
-                    }
-                    if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
-                    {
-                        // initialize Qval for poly p at offset -s
-                        int ht_idx = hash64(pidx * sieve_sz + s) %
-                            dconf->report_ht_size;
-                        int rnum = dconf->report_ht_n[ht_idx];
-
-                        if (rnum == 0)
-                            printf("invalid rnum %d in n-side hashtable: pidx %d loc %d\n",
-                                rnum, pidx, s);
-
-                        //printf("initializing report %d at pidx %d loc %d n-side\n",
-                        //    rnum, pidx, s);
-
-                        init_Qval(sconf, dconf, p - 1, s, 1, rnum);
-                        int valid = td_small_p(sconf, dconf, p - 1, s, 1, rnum, &polybuckets[p]);
-                        if (valid)
-                        {
-                            valid_report_num++;
-                        }
-                        else
-                        {
-                            dconf->ss_sieve_n[pidx * sieve_sz + s] = 0xff;
-                        }
-                    }
-                }
-
-                // next polynomial
-                // use the stored Bl's and the gray code to find the next b
-                nextB(dconf, sconf, 1);
-                dconf->numB++;
-            }
-        }
-        gettimeofday(&stop, NULL);
-        t_time = ytools_difftime(&start, &stop);
-        printf("initialization and small-prime trial division of %d surviving hits "
-            "took: %1.4f seconds\n", valid_report_num, t_time);
-        gettimeofday(&start, NULL);
-
-#endif
         dconf->total_surviving_reports += valid_report_num;
 
         // reset the poly so we can scan over them again later.
@@ -2234,16 +2022,11 @@ void* process_poly(void* vptr)
 
                     if (rnum == 0)
                     {
-                        //printf("invalid rnum %d in p-side hashtable: pidx %d loc %d\n",
-                        //    rnum, pidx, s);
                         invalid_report_count++;
                         continue;
                     }
 
                     trial_divide_Q_siqs(rnum, 0, p - 1, 0, sconf, dconf);
-
-                    //gmp_printf("Q[pidx=%d,offset=%d] = %Zd\n", 
-                    //    pidx, s, dconf->Qvals[rnum]);
                 }
                 if (dconf->ss_sieve_n[pidx * sieve_sz + s] < 0xff)
                 {
@@ -2254,16 +2037,11 @@ void* process_poly(void* vptr)
 
                     if (rnum == 0)
                     {
-                        //printf("invalid rnum %d in n-side hashtable: pidx %d loc %d\n",
-                        //    rnum, pidx, s);
                         invalid_report_count++;
                         continue;
                     }
 
                     trial_divide_Q_siqs(rnum, 1, p - 1, 0, sconf, dconf);
-
-                    //gmp_printf("Q[pidx=%d,offset=%d] = %Zd\n", 
-                    //    pidx, s, dconf->Qvals[rnum]);
                 }
             }
 
@@ -2284,17 +2062,8 @@ void* process_poly(void* vptr)
 
         dconf->total_blocks += num_bpoly * 2;
 
-#ifdef MANY_PBUCKETS
-        for (p = 0; p < num_bpoly; p++)
-        {
-            free(polybuckets[p].hitloc);
-            free(polybuckets[p].prime);
-        }
-        free(polybuckets);
-#else
         free(polybucket.hitloc);
         free(polybucket.prime);
-#endif
 
         goto done;
     }
@@ -2707,9 +2476,12 @@ done:
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
 #if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
-    printf("ss search total    : %1.4f\n", t_ss_search_total);
-    printf("sieve/tdiv  buckets: %1.4f\n", t_sieve_ss_buckets);
-    printf("poly update buckets: %1.4f\n", t_update_buckets);
+    if ((using_ss_search) || (sconf->obj->VFLAG > 1))
+    {
+        printf("ss search total    : %1.4f\n", t_ss_search_total);
+        printf("sieve/tdiv  buckets: %1.4f\n", t_sieve_ss_buckets);
+        printf("poly update buckets: %1.4f\n", t_update_buckets);
+    }
     if (using_ss_search)
     {
         ss_search_clear(sconf, dconf);
@@ -3380,7 +3152,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         {
             int numslices = sconf->factor_base->num_ss_slices;
             int slicesz = sconf->factor_base->slice_size;
-            printf("allocating %d slices of size %d for subset sum buckets\n", numslices, slicesz);
 
             dconf->firstroot1a = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
             dconf->firstroot1b = (int*)xmalloc(sconf->factor_base->B * sizeof(int));
@@ -3394,62 +3165,49 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             mpz_init(dconf->polyb1);
             mpz_init(dconf->polyb2);
 
-            dconf->ss_set1.root = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
-            dconf->ss_set1.polynum = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
-            dconf->ss_set2.root = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
-            dconf->ss_set2.polynum = (int*)xmalloc((1 << MAX_A_FACTORS) * sizeof(int));
-
-            ss_set_t *bins1;
-            ss_set_t *bins2;
-
-            dconf->numbins = 2 * sconf->factor_base->list->prime[sconf->factor_base->B - 1] /
-                (sconf->num_blocks * 32768) + 1;
-            dconf->bindepth = 256;
-
-            int numbins = dconf->numbins;
-            int bindepth = dconf->bindepth;
-
-            // init bins
-            bins1 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
-            bins2 = (ss_set_t*)xmalloc(numbins * sizeof(ss_set_t));
-
-            for (i = 0; i < numbins; i++)
-            {
-                bins1[i].root = (int*)xmalloc(bindepth * sizeof(int));
-                bins2[i].root = (int*)xmalloc(bindepth * sizeof(int));
-                bins1[i].polynum = (int*)xmalloc(bindepth * sizeof(int));
-                bins2[i].polynum = (int*)xmalloc(bindepth * sizeof(int));
-                bins1[i].alloc = bindepth;
-                bins2[i].alloc = bindepth;
-                bins1[i].size = 0;
-                bins2[i].size = 0;
-            }
-
-            dconf->bins1 = bins1;
-            dconf->bins2 = bins2;
-
             dconf->ss_slices_p = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
             dconf->ss_slices_n = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
 
-            dconf->ss_signbit = 0;
-            while (slicesz > 0)
-            {
-                slicesz >>= 1;
-                dconf->ss_signbit++;
-            }
-            dconf->ss_signbit = 32 - dconf->ss_signbit;
-            slicesz = sconf->factor_base->slice_size;
-
             dconf->num_ss_slices = numslices;
-            dconf->poly_buckets_allocated = 0;
+
+            // the size of a poly bucket, in bits. This choice
+            // will depend on the slice and sieve-region size choices
+            // made at compile time.  A poly-bucket must be
+            // large enough to store all sieve-hits for all primes treated
+            // by subset-sum.  The probability of a sieve-hit for a prime
+            // is sieve-region-size / p, per root.  So as more primes are 
+            // treated by subset-sum, and with larger allowed sieve-region
+            // size, the buckets will have to be correspondingly larger.
+            // Making this as small as possible is best, because we need one
+            // bucket per b-poly so it multiplies up quickly.
+            if (sconf->obj->qs_obj.gbl_override_ssalloc_flag > 0)
+            {
+                if (sconf->obj->qs_obj.gbl_override_ssalloc >= 32)
+                {
+                    // invalid entry, use default
+                    printf("Invalid subset-sum bucket alloc, should be a number of bits < 16\n");
+                    printf("Using default value of 12 bits per bucket\n");
+                    dconf->poly_buckets_allocated = 12;
+                }
+                else
+                {
+                    dconf->poly_buckets_allocated = sconf->obj->qs_obj.gbl_override_ssalloc;
+                }
+            }
+            else
+            {
+                dconf->poly_buckets_allocated = 12;
+            }
+            
+
             for (i = 0; i < numslices; i++)
             {
                 // larger slices means more primes per slice which means the buckets
                 // need to be bigger per slice.  also of course, larger slices
                 // means fewer maximum blocks allowed, because we need more bits to
                 // store prime id's and so we have fewer bits for storing root locations.
-                dconf->ss_slices_p[i].alloc = 4096;
-                dconf->ss_slices_p[i].numbuckets = 16384;
+                dconf->ss_slices_p[i].alloc = (1 << dconf->poly_buckets_allocated);
+                dconf->ss_slices_p[i].numbuckets = 65536;
 
 #ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
                 dconf->ss_slices_n[i].alloc = 2048;
@@ -3503,60 +3261,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
         mpz_init(dconf->polyb1);
         mpz_init(dconf->polyb2);
-
-        int numslices = sconf->factor_base->num_ss_slices;
-        int slicesz = sconf->factor_base->slice_size;
-
-        dconf->ss_slices_p = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
-
-        dconf->ss_signbit = 0;
-        while (slicesz > 0)
-        {
-            slicesz >>= 1;
-            dconf->ss_signbit++;
-        }
-        dconf->ss_signbit = 32 - dconf->ss_signbit;
-        slicesz = sconf->factor_base->slice_size;
-
-        dconf->num_ss_slices = numslices;
-
-        for (i = 0; i < numslices; i++)
-        {
-            dconf->ss_slices_p[i].alloc = 65536;
-            // one bucket to hold all hits for all polys, used for resieving
-            dconf->ss_slices_p[i].numbuckets = 1;
-
-#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
-            dconf->ss_slices_n[i].alloc = 4096;
-            dconf->ss_slices_n[i].numbuckets = 65536;
-#endif
-
-            int a = dconf->ss_slices_p[i].alloc;
-            int nb = dconf->ss_slices_p[i].numbuckets;
-
-            dconf->ss_slices_p[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
-            dconf->ss_slices_p[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
-            dconf->ss_slices_p[i].size[0] = 0;
-
-#ifndef USE_POLY_BUCKET_PN_COMBINED_VARIATION
-            dconf->ss_slices_n[i].elements = (uint32_t*)xmalloc(a * nb * sizeof(uint32_t));
-            dconf->ss_slices_n[i].size = (uint32_t*)xmalloc(nb * sizeof(uint32_t));
-#endif
-
-            dconf->ss_slices_p[i].fboffset = i * slicesz + sconf->factor_base->ss_start_B;
-
-            if ((i * slicesz + sconf->factor_base->ss_start_B) < sconf->factor_base->B)
-            {
-                dconf->ss_slices_p[i].logp =
-                    sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B];
-            }
-            else
-            {
-                dconf->ss_slices_p[i].logp =
-                    sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
-            }
-        }
-
 #endif
 
         //initialize the bucket lists and auxilary info.
@@ -4416,6 +4120,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     {
         sconf->factor_base->ss_start_B = sconf->factor_base->B;
     }
+
+    // larger slices means more primes per slice which means the buckets
+    // need to be bigger per slice.  also of course, larger slices
+    // means fewer maximum blocks allowed, because we need more bits to
+    // store prime id's and so we have fewer bits for storing root locations.
+    sconf->factor_base->slice_size = SS_SLICE_SIZE;
+    int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) /
+        sconf->factor_base->slice_size) + 1;
+    sconf->factor_base->num_ss_slices = numslices;
 #else
     sconf->factor_base->ss_start_B = sconf->factor_base->B;
 #endif
@@ -4425,14 +4138,6 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     if (sconf->factor_base->large_B < sconf->factor_base->med_B)
         sconf->factor_base->large_B = sconf->factor_base->med_B;
 
-    // larger slices means more primes per slice which means the buckets
-    // need to be bigger per slice.  also of course, larger slices
-    // means fewer maximum blocks allowed, because we need more bits to
-    // store prime id's and so we have fewer bits for storing root locations.
-    sconf->factor_base->slice_size = 8192;
-    int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) / 
-        sconf->factor_base->slice_size) + 1;
-    sconf->factor_base->num_ss_slices = numslices;
     
 	if (VFLAG > 1)
 	{
@@ -5947,21 +5652,6 @@ int free_sieve(dynamic_conf_t* dconf)
         free(dconf->polysign);
         free(dconf->polynums);
         free(dconf->polymap);
-        for (i = 0; i < dconf->numbins; i++)
-        {
-            free(dconf->bins1[i].root);
-            free(dconf->bins2[i].root);
-            free(dconf->bins1[i].polynum);
-            free(dconf->bins2[i].polynum);
-        }
-
-        free(dconf->bins1);
-        free(dconf->bins2);
-
-        free(dconf->ss_set1.root);
-        free(dconf->ss_set1.polynum);
-        free(dconf->ss_set2.root);
-        free(dconf->ss_set2.polynum);
     }
 #ifdef USE_DIRECT_SIEVE_SS
     free(dconf->report_ht_n);
