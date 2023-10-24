@@ -29,13 +29,13 @@
 //#define USE_BATCHPOLY_X2
 
 // to use subset-sum searching, define this...
-#define USE_SS_SEARCH 
+//#define USE_SS_SEARCH 
 
 // and either this one
 //#define USE_DIRECT_SIEVE_SS
 
 // or this one, but not both
-#define USE_POLY_BUCKET_SS
+//#define USE_POLY_BUCKET_SS
 
 #ifdef USE_SS_SEARCH
 #define USE_POLY_BUCKET_PN_COMBINED_VARIATION
