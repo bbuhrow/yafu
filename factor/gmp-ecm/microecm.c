@@ -3367,6 +3367,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
         __m512i lgcd = _mm512_loadu_epi64(tarray);
         __mmask8 m1 = _mm512_cmplt_epi64_mask(lgcd, v_n);
         __mmask8 m2 = _mm512_cmpgt_epi64_mask(lgcd, uecm_set64(1));
+
 #ifdef _INTEL_COMPILER
         __m512i rem = _mm512_rem_epi64(v_n, lgcd);
 #else
@@ -3376,6 +3377,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
         }
         __m512i rem = _mm512_loadu_epi64(tarray);
 #endif
+
         __mmask8 m3 = _mm512_cmpeq_epi64_mask(rem, _mm512_setzero_si512());
         _mm512_mask_store_epi64(tarray, m2 & msk & m1 & m3, lgcd);
         msk &= (~(m2 & m1 & m3));

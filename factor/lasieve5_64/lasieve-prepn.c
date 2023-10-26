@@ -32,6 +32,9 @@
 #include <immintrin.h>
 #include "avx512_aux.h"
 
+#include <fenv.h>
+#pragma STDC FENV_ACCESS ON
+
 #ifdef _MSC_VER
 // so that I can read the code in MSVC without it being grayed out.
 // It will not build in Visual studio.
@@ -40,123 +43,181 @@
 
 #ifdef AVX512_LASIEVE_SETUP
 
-#if !defined( __INTEL_COMPILER) && !defined (__INTEL_LLVM_COMPILER)
+#if defined(INTEL_COMPILER) || defined(INTEL_LLVM_COMPILER)
+#define ROUNDING_MODE (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)
+#else
+#define ROUNDING_MODE _MM_FROUND_CUR_DIRECTION
+#endif
 
-
-__m512i _mm512_rem_epu32(__m512i a, __m512i b)
+__m512i rem_epu32_x16(__m512i n, __m512i d)
 {
-	__m512i mask32 = _mm512_set1_epi64(0xffffffff);
-	__m512d npd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(a, mask32)); // numerator in 64-bit float
-	__m512d npd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(a, 32));   // numerator in 64-bit float
-	__m512d dpd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(b, mask32));     // denominator in 32-bit float
-	__m512d dpd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(b, 32));     // denominator in 32-bit float
+	// DANGER: I haven't proven this works for every possible input.
+	__m512 d1ps = _mm512_cvtepu32_ps(d);
+	__m512 n1ps = _mm512_cvtepu32_ps(n);
+	__m512i q2, q, r;
 
-	npd1 = _mm512_div_pd(npd1, dpd1);
-	npd2 = _mm512_div_pd(npd2, dpd2);
+	//n1ps = _mm512_div_ps(n1ps, d1ps);
+	//q = _mm512_cvt_roundps_epu32(n1ps, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 
-	__m512i tmp64a = _mm512_and_epi64(_mm512_cvt_roundpd_epu64(npd1, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), mask32);
-	__m512i tmp64b = _mm512_slli_epi64(_mm512_cvt_roundpd_epu64(npd2, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), 32);
-	__m512i tmp = _mm512_or_epi64(tmp64a, tmp64b);
+	n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
+	q = _mm512_cvttps_epu32(n1ps);
 
-	return _mm512_sub_epi32(a, _mm512_mullo_epi32(tmp, b));
+	__m512i qd = _mm512_mullo_epi32(q, d);
+	r = _mm512_sub_epi32(n, qd);
+
+	// fix q too big by a little, with special check for
+	// numerators close to 2^32 and denominators close to 1
+	__mmask16 err = _mm512_cmpgt_epu32_mask(r, n) |
+		(_mm512_cmpgt_epu32_mask(r, d) & _mm512_cmplt_epu32_mask(
+			_mm512_sub_epi32(_mm512_set1_epi32(0), r), _mm512_set1_epi32(1024)));
+	if (err)
+	{
+		n1ps = _mm512_cvtepu32_ps(_mm512_sub_epi32(_mm512_set1_epi32(0), r));
+		
+		//n1ps = _mm512_div_ps(n1ps, d1ps);
+		//q2 = _mm512_add_epi32(_mm512_set1_epi32(1), tmp_cvtround_ps_epu32(n1ps,
+		//    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)));
+
+		n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
+		q2 = _mm512_add_epi32(_mm512_set1_epi32(1), _mm512_cvttps_epu32(n1ps));
+
+		q = _mm512_mask_sub_epi32(q, err, q, q2);
+		r = _mm512_mask_add_epi32(r, err, r, _mm512_mullo_epi32(q2, d));
+	}
+
+	// fix q too small by a little bit
+	err = _mm512_cmpge_epu32_mask(r, d);
+	if (err)
+	{
+		n1ps = _mm512_cvtepu32_ps(r);
+
+		//n1ps = _mm512_div_ps(n1ps, d1ps);
+		//q2 = tmp_cvtround_ps_epu32(n1ps,
+		//    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+		n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
+		q2 = _mm512_cvttps_epu32(n1ps);
+
+		q = _mm512_mask_add_epi32(q, err, q, q2);
+		r = _mm512_mask_sub_epi32(r, err, r, _mm512_mullo_epi32(q2, d));
+	}
+
+	return r;
 }
-#define modmul32_16 barrett_16
 
-
-static u64_t* barrett_m;
-static u32_t barrett_init = 0;
-u64_t* bptr;
-
-static __m512d barrett_dbias;
-static __m512i barrett_vbias1;
-static __m512i barrett_vbias2;
-static __m512i barrett_lo52mask;
-
-__inline static __m512i barrett_mul52lo(__m512i b, __m512i c)
+__m512i rem_epu64_x8(__m512i n, __m512i d)
 {
-	return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
+	// DANGER: I haven't proven this works for every possible input.
+	__m512d d1pd = _mm512_cvtepu64_pd(d);
+	__m512d n1pd = _mm512_cvtepu64_pd(n);
+	__m512i q, q2, r;
+
+	//n1pd = _mm512_div_pd(n1pd, d1pd);
+	//q = _mm512_cvt_roundpd_epu64(n1pd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+	
+	n1pd = _mm512_div_round_pd(n1pd, d1pd, ROUNDING_MODE);
+	q = _mm512_cvttpd_epu64(n1pd);
+	
+	__m512i qd = _mm512_mullox_epi64(q, d);
+	r = _mm512_sub_epi64(n, qd);
+
+	// fix q too big by a little, with special check for
+	// numerators close to 2^64 and denominators close to 1
+	// DANGER: the special check is unused for 64-bits, only for 32-bits.
+	// This routine is only used in modmul32 and input numerators
+	// shouldn't get that large in normal cases.  The factor base
+	// would need to be close to 2^32...
+	__mmask8 err = _mm512_cmpgt_epu64_mask(r, n); // |
+		//(_mm512_cmpgt_epu64_mask(r, d) & _mm512_cmplt_epu64_mask(
+		//	_mm512_sub_epi64(_mm512_set1_epi64(0), r), _mm512_set1_epi64(1024)));
+	if (err)
+	{
+		n1pd = _mm512_cvtepu64_pd(_mm512_sub_epi64(_mm512_set1_epi64(0), r));
+		
+		//n1pd = _mm512_div_pd(n1pd, d1pd);
+		//q2 = _mm512_add_epi64(_mm512_set1_epi64(1), _mm512_cvt_roundpd_epu64(n1pd,
+		//	(_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)));
+
+		n1pd = _mm512_div_round_pd(n1pd, d1pd, ROUNDING_MODE);
+		q2 = _mm512_add_epi64(_mm512_set1_epi64(1), _mm512_cvttpd_epu64(n1pd));
+
+		q = _mm512_mask_sub_epi64(q, err, q, q2);
+		r = _mm512_mask_add_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+	}
+
+	// fix q too small by a little bit
+	err = _mm512_cmpge_epu64_mask(r, d);
+	if (err)
+	{
+		n1pd = _mm512_cvtepu64_pd(r);
+		
+		//n1pd = _mm512_div_pd(n1pd, d1pd);
+		//q2 = _mm512_cvt_roundpd_epu64(n1pd,
+		//	(_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+		n1pd = _mm512_div_round_pd(n1pd, d1pd, ROUNDING_MODE);
+		q2 = _mm512_cvttpd_epu64(n1pd);
+
+		q = _mm512_mask_add_epi64(q, err, q, q2);
+		r = _mm512_mask_sub_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+	}
+
+	return r;
 }
-__inline static __m512i barrett_mul52hi(__m512i b, __m512i c)
+
+void divrem_mask_epu32_x16(__m512i* q, __m512i* r, __mmask16 msk, __m512i n, __m512i d)
 {
-	__m512d prod1_ld = _mm512_cvtepu64_pd(b);
-	__m512d prod2_ld = _mm512_cvtepu64_pd(c);
-	prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, barrett_dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-	return _mm512_sub_epi64(_mm512_castpd_si512(prod1_ld), barrett_vbias1);
-}
-__inline static void barrett_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
-{
-	__m512d prod1_ld = _mm512_cvtepu64_pd(b);
-	__m512d prod2_ld = _mm512_cvtepu64_pd(c);
-	__m512d prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, barrett_dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-	*h = _mm512_sub_epi64(_mm512_castpd_si512(prod1_hd), barrett_vbias1);
-	prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(barrett_vbias2), prod1_hd);
-	prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-	*l = _mm512_castpd_si512(prod1_ld);
-	*l = _mm512_and_si512(*l, barrett_lo52mask);
-	*h = _mm512_and_si512(*h, barrett_lo52mask);
+	// DANGER: I haven't proven this works for every possible input.
+	__m512 d1ps = _mm512_cvtepu32_ps(d);
+	__m512 n1ps = _mm512_cvtepu32_ps(n);
+	__m512i q2;
+
+	// n1ps = _mm512_div_ps(n1ps, d1ps);
+	// *q = _mm512_mask_cvt_roundps_epu32(*q, msk, n1ps, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+	n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
+	*q = _mm512_mask_cvttps_epu32(*q, msk, n1ps);
+
+	__m512i qd = _mm512_mullo_epi32(*q, d);
+	*r = _mm512_mask_sub_epi32(*r, msk, n, qd);
+
+	// fix q too big by a little, with special check for
+	// numerators close to 2^32 and denominators close to 1
+	__mmask16 err = _mm512_mask_cmpgt_epu32_mask(msk, *r, n) |
+		(_mm512_mask_cmpgt_epu32_mask(msk, *r, d) & _mm512_mask_cmplt_epu32_mask(msk,
+			_mm512_sub_epi32(_mm512_set1_epi32(0), *r), _mm512_set1_epi32(1024)));
+	if (err)
+	{
+		n1ps = _mm512_cvtepu32_ps(_mm512_sub_epi32(_mm512_set1_epi32(0), *r));
+
+		//n1ps = _mm512_div_ps(n1ps, d1ps);
+		//q2 = _mm512_add_epi32(_mm512_set1_epi32(1), tmp_cvtround_ps_epu32(n1ps,
+		//    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)));
+
+		n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
+		q2 = _mm512_add_epi32(_mm512_set1_epi32(1), _mm512_cvttps_epu32(n1ps));
+
+		*q = _mm512_mask_sub_epi32(*q, err, *q, q2);
+		*r = _mm512_mask_add_epi32(*r, err, *r, _mm512_mullo_epi32(q2, d));
+	}
+
+	// fix q too small by a little bit
+	err = _mm512_mask_cmpge_epu32_mask(msk, *r, d);
+	if (err)
+	{
+		n1ps = _mm512_cvtepu32_ps(*r);
+
+		//n1ps = _mm512_div_ps(n1ps, d1ps);
+		//q2 = tmp_cvtround_ps_epu32(n1ps,
+		//    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+		n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
+		q2 = _mm512_cvttps_epu32(n1ps);
+
+		*q = _mm512_mask_add_epi32(*q, err, *q, q2);
+		*r = _mm512_mask_sub_epi32(*r, err, *r, _mm512_mullo_epi32(q2, d));
+	}
+
 	return;
 }
-__inline static void barrett_carryprop(__m512i* lo, __m512i* hi)
-{
-	__m512i a0 = _mm512_srli_epi64(*lo, 52);
-	*hi = _mm512_add_epi64(*hi, a0);
-	*lo = _mm512_and_epi64(barrett_lo52mask, *lo);
-}
-
-__m512i barrett_16(__m512i z, __mmask16 ndmsk, __m512i x, __m512i y, __m512i p)
-{
-	// vector Barrett modular multiplication.
-	// m = 2^52 / p is precomputed in bptr
-
-	__m512i u1 = _mm512_loadu_epi64(bptr);
-	__m512i u2 = _mm512_loadu_epi64(bptr + 8);
-	__m512i x1 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(x, 0));
-	__m512i y1 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(y, 0));
-	__m512i x2 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(x, 1));
-	__m512i y2 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(y, 1));
-	__m512i p1 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(p, 0));
-	__m512i p2 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(p, 1));
-	__m512i z1l, z1h, z2l, z2h, q1a, q1b, q1c, q2a, q2b, q2c, qt1, qt2;
-	__mmask8 msk1, msk2;
-
-	// z = x * y
-	barrett_mul52lohi(x1, y1, &z1l, &z1h);
-	barrett_mul52lohi(x2, y2, &z2l, &z2h);
-
-	// now q = (z * m) >> 2^52
-	barrett_mul52lohi(z1l, u1, &q1a, &q1b);
-	barrett_mul52lohi(z1h, u1, &qt1, &q1c);
-	q1b = _mm512_add_epi64(q1b, qt1);
-
-	barrett_mul52lohi(z2l, u2, &q2a, &q2b);
-	barrett_mul52lohi(z2h, u2, &qt2, &q2c);
-	q2b = _mm512_add_epi64(q2b, qt2);
-
-	q1a = barrett_mul52lo(q1b, p1);
-	q2a = barrett_mul52lo(q2b, p2);
-
-	// now z - (q * p)
-	z1l = _mm512_sub_epi64(z1l, q1a);
-	z2l = _mm512_sub_epi64(z2l, q2a);
-
-	// and one more subtract if necessary
-	msk1 = _mm512_cmpge_epi64_mask(z1l, p1);
-	msk2 = _mm512_cmpge_epi64_mask(z2l, p2);
-	z1l = _mm512_mask_sub_epi64(z1l, msk1, z1l, p1);
-	z2l = _mm512_mask_sub_epi64(z2l, msk2, z2l, p2);
-
-	// recombine
-	x1 = _mm512_inserti32x8(x1, _mm512_cvtepi64_epi32(z1l), 0);
-	x1 = _mm512_inserti32x8(x1, _mm512_cvtepi64_epi32(z2l), 1);
-
-	return _mm512_mask_mov_epi32(z, ndmsk, x1);
-
-}
-
-
-#else
-
-#define USE_SVML 1
 
 __m512i modmul32_16(__m512i z, __mmask16 ndmsk, __m512i x, __m512i y, __m512i p)
 {
@@ -171,14 +232,15 @@ __m512i modmul32_16(__m512i z, __mmask16 ndmsk, __m512i x, __m512i y, __m512i p)
 	__m512i e = _mm512_mul_epu32(x, y);
 	__m512i o = _mm512_mul_epu32(_mm512_shuffle_epi32(x, 0xB1), _mm512_shuffle_epi32(y, 0xB1));
 
-	e = _mm512_rem_epu64(e, _mm512_and_epi64(p, _mm512_set1_epi64(0x00000000ffffffff)));
-	o = _mm512_rem_epu64(o, _mm512_and_epi64(_mm512_shuffle_epi32(p, 0xB1), _mm512_set1_epi64(0x00000000ffffffff)));
+	//e = _mm512_rem_epu64(e, _mm512_and_epi64(p, _mm512_set1_epi64(0x00000000ffffffff)));
+	//o = _mm512_rem_epu64(o, _mm512_and_epi64(_mm512_shuffle_epi32(p, 0xB1), _mm512_set1_epi64(0x00000000ffffffff)));
+
+	e = rem_epu64_x8(e, _mm512_and_epi64(p, _mm512_set1_epi64(0x00000000ffffffff)));
+	o = rem_epu64_x8(o, _mm512_and_epi64(_mm512_shuffle_epi32(p, 0xB1), _mm512_set1_epi64(0x00000000ffffffff)));
 
 	x = _mm512_or_epi64(e, _mm512_shuffle_epi32(o, 0xB1));
 	return _mm512_mask_blend_epi32(ndmsk, z, x);
 }
-
-#endif
 
 __m512i modinv_16(__m512i y, __mmask16 ndmsk, __m512i x, __m512i p)
 {
@@ -274,51 +336,7 @@ __m512i modinv_16(__m512i y, __mmask16 ndmsk, __m512i x, __m512i p)
 
 										if (lmsk > 0) {
 
-#ifdef USE_SVML_DIVREM // defined( __INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
-											q = _mm512_mask_div_epu32(q, lmsk, dividend, divisor);
-											rem = _mm512_mask_rem_epu32(rem, lmsk, dividend, divisor);
-
-											
-
-#else
-
-											__m512d npd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(dividend, mask32)); // numerator in 64-bit float
-											__m512d npd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(dividend, 32));   // numerator in 64-bit float
-											__m512d dpd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(divisor, mask32));     // denominator in 32-bit float
-											__m512d dpd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(divisor, 32));     // denominator in 32-bit float
-
-											npd1 = _mm512_div_pd(npd1, dpd1);
-											npd2 = _mm512_div_pd(npd2, dpd2);
-
-											__m512i tmp64a = _mm512_and_epi64(_mm512_cvt_roundpd_epu64(npd1, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), mask32);
-											__m512i tmp64b = _mm512_slli_epi64(_mm512_cvt_roundpd_epu64(npd2, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), 32);
-											__m512i tmp = _mm512_or_epi64(tmp64a, tmp64b);
-
-											q = _mm512_mask_mov_epi32(q, lmsk, tmp);
-											tmp = _mm512_mullo_epi32(q, divisor);
-											rem = _mm512_mask_sub_epi32(rem, lmsk, dividend, tmp);
-
-
-											if (0)
-											{
-												uint32_t nm[16], dm[16];
-												_mm512_store_epi32(nm, dividend);
-												_mm512_store_epi32(dm, divisor);
-												int ii;
-												for (ii = 0; ii < 16; ii++)
-												{
-													if (lmsk & (1 << ii))
-													{
-														uint32_t tq = nm[ii] / dm[ii];
-														uint32_t tr = nm[ii] % dm[ii];
-														nm[ii] = tq;
-														dm[ii] = tr;
-													}
-												}
-												q = _mm512_mask_load_epi32(q, lmsk, nm);
-												rem = _mm512_mask_load_epi32(rem, lmsk, dm);
-											}
-#endif
+											divrem_mask_epu32_x16(&q, &rem, lmsk, dividend, divisor);
 											q = _mm512_mask_mullo_epi32(q, lmsk, q, ps1);
 
 										}
@@ -382,37 +400,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 #endif
 
-#if !defined( USE_SVML) && defined(AVX512_LASIEVE_SETUP)
-	
-
-	if (barrett_init == 0)
-	{
-		barrett_m = (u64_t*)malloc(fbsz * sizeof(u64_t));
-		barrett_init = 1;
-
-		barrett_dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-		barrett_vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);
-		barrett_vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);
-		barrett_lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	}
-	else
-	{
-		barrett_m = (u64_t*)realloc(barrett_m, fbsz * sizeof(u64_t));
-	}
-
-	{
-		// it's obviously very wastful to recompute these every time.
-		// todo: add the required infrastructure to pass in the 
-		// appropriate pre-computed array barrett m's for this FB.
-		u32_t i;
-		for (i = 0; i < fbsz; i++)
-		{
-			barrett_m[i] = 0x10000000000000ULL / (u64_t)FB[i];
-		}
-	}
-
-#endif
-
 	b0_ul = (u32_t)b0;
 	b1_ul = (u32_t)b1;
 	if (a0 >= 0) {
@@ -456,17 +443,14 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (_mm512_cmpgt_epu32_mask(m32, _mm512_set1_epi32(fbp_bound)) > 0)
 						break;
 
-					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
-					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
-					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32);
-					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32);
+					__m512i vb0 = rem_epu32_x16(_mm512_set1_epi32(b0_ul), m32);
+					__m512i vb1 = rem_epu32_x16(_mm512_set1_epi32(b1_ul), m32);
+					__m512i vabsa0 = rem_epu32_x16(_mm512_set1_epi32(absa0), m32);
+					__m512i vabsa1 = rem_epu32_x16(_mm512_set1_epi32(absa1), m32);
 					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 
 					if (m1 > 0)
@@ -596,9 +580,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (m1 > 0)
 					{
@@ -747,17 +728,14 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (_mm512_cmpgt_epu32_mask(m32, _mm512_set1_epi32(fbp_bound)) > 0)
 						break;
 
-					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
-					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
-					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32);
-					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32); 
+					__m512i vb0 = rem_epu32_x16(_mm512_set1_epi32(b0_ul), m32);
+					__m512i vb1 = rem_epu32_x16(_mm512_set1_epi32(b1_ul), m32);
+					__m512i vabsa0 = rem_epu32_x16(_mm512_set1_epi32(absa0), m32);
+					__m512i vabsa1 = rem_epu32_x16(_mm512_set1_epi32(absa1), m32); 
 					__mmask16 m1 = _mm512_cmpgt_epu32_mask(vabsa1, zero);
 
 					vabsa1 = _mm512_mask_sub_epi32(vabsa1, m1, m32, vabsa1);
@@ -885,9 +863,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (m1 > 0)
 					{
@@ -1042,17 +1017,14 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (_mm512_cmpgt_epu32_mask(m32, _mm512_set1_epi32(fbp_bound)) > 0)
 						break;
 
-					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
-					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
-					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32); 
-					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32);
+					__m512i vb0 = rem_epu32_x16(_mm512_set1_epi32(b0_ul), m32);
+					__m512i vb1 = rem_epu32_x16(_mm512_set1_epi32(b1_ul), m32);
+					__m512i vabsa0 = rem_epu32_x16(_mm512_set1_epi32(absa0), m32); 
+					__m512i vabsa1 = rem_epu32_x16(_mm512_set1_epi32(absa1), m32);
 					__mmask16 m1 = _mm512_cmpgt_epu32_mask(vabsa0, zero);
 
 					vabsa0 = _mm512_mask_sub_epi32(vabsa0, m1, m32, vabsa0);
@@ -1182,9 +1154,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (m1 > 0)
 					{
@@ -1331,17 +1300,14 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (_mm512_cmpgt_epu32_mask(m32, _mm512_set1_epi32(fbp_bound)) > 0)
 						break;
 
-					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
-					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
-					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32);
-					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32);
+					__m512i vb0 = rem_epu32_x16(_mm512_set1_epi32(b0_ul), m32);
+					__m512i vb1 = rem_epu32_x16(_mm512_set1_epi32(b1_ul), m32);
+					__m512i vabsa0 = rem_epu32_x16(_mm512_set1_epi32(absa0), m32);
+					__m512i vabsa1 = rem_epu32_x16(_mm512_set1_epi32(absa1), m32);
 
 					__mmask16 m1 = _mm512_cmpgt_epu32_mask(vabsa0, zero);
 					__mmask16 m2 = _mm512_cmpgt_epu32_mask(vabsa1, zero);
@@ -1476,9 +1442,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
-#ifndef USE_SVML
-					bptr = &barrett_m[fbi];
-#endif
 
 					if (m1 > 0)
 					{
@@ -1595,6 +1558,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 #undef A1MOD1
 		}
 	}
+
 }
 
 /*:4*/

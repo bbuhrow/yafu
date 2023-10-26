@@ -51,7 +51,9 @@ mmx_xmalloc(size_t n)
 {
   u16_t *r;
 #ifndef _WIN64
+
   r=(u16_t *)malloc(n*sizeof(u16_t));
+
   if(r==NULL)
     complain("mmx_malloc(%llu) failed: %m\n",(u64_t)n);
   //SMJSif (((int)r)&(MMX_REGW*sizeof(u16_t)-1))
@@ -99,7 +101,7 @@ MMX_TdInit(int side,u16_t *x,u16_t *x_ub,u32_t *pbound_ptr,
     y=x;
     i=0;
 
-#if defined(AVX512_TD)
+#if defined(AVX512_TD) && defined(INTEL_COMPILER)
 
 #if defined(TD_CONTIGUOUS_SMALLSIEVE)
     while (y + MMX_REGW < x_ub) {
@@ -157,7 +159,7 @@ MMX_TdInit(int side,u16_t *x,u16_t *x_ub,u32_t *pbound_ptr,
     while (y + 4 * MMX_REGW < x_ub) {
         int k;
 
-        __m512i xv = _mm512_load_si512(y);
+        __m512i xv = _mm512_loadu_si512(y);
         __m512i vp = _mm512_and_epi64(xv, _mm512_set1_epi64(0xffff));  // isolate primes
         __m512i vr = _mm512_srli_epi64(xv, 16);	// align roots
         __m128i vp128 = _mm512_cvtepi64_epi16(vp);
@@ -266,7 +268,7 @@ MMX_TdInit(int side,u16_t *x,u16_t *x_ub,u32_t *pbound_ptr,
   u=MMX_TdPr[side][jps-1];
   p_bound=*pbound_ptr;
 
-#if defined(AVX512_TD) // && !defined(TD_CONTIGUOUS_SMALLSIEVE)
+#if defined(AVX512_TD)  && defined(INTEL_COMPILER)
 
 #if defined(TD_CONTIGUOUS_SMALLSIEVE)
   __m512i zero = _mm512_setzero_si512();
@@ -297,7 +299,7 @@ MMX_TdInit(int side,u16_t *x,u16_t *x_ub,u32_t *pbound_ptr,
 
       if (z[MMX_REGW] > p_bound) break;
 
-      __m512i xv = _mm512_load_si512(y);
+      __m512i xv = _mm512_loadu_si512(y);
       __m128i uv = _mm_loadu_si128((__m128i*)u);
       __m512i vr = _mm512_srli_epi64(xv, 48);	// align roots
       __m128i vp128 = _mm512_cvtepi64_epi16(xv);
@@ -359,7 +361,7 @@ u32_t* ASM_ATTR asm_TdUpdate8(u16_t*,u16_t*,u16_t*);
 void
 MMX_TdUpdate(int side,int j_step)
 {
-#if defined(AVX512_TD)
+#if defined(AVX512_TD) && defined(INTEL_COMPILER)
     u16_t* x, * y;
 
     y = MMX_TdPr[side][j_step - 1];
@@ -424,7 +426,7 @@ u64_t MMX_TdNloop=0;
 u32_t *
 MMX_Td(u32_t *pbuf,int side,u16_t strip_i)
 {
-#if !defined(AVX512_TD)
+#if !defined(AVX512_TD) && !defined(INTEL_COMPILER)
 #ifdef MMX_TDBENCH
     MMX_TdNloop += (MMX_TdBound[side] - MMX_TdAux[side]) / MMX_REGW;
 #endif
@@ -438,7 +440,7 @@ MMX_Td(u32_t *pbuf,int side,u16_t strip_i)
 #else
     u16_t* x;
 
-#if defined(AVX512_TD)
+#if defined(AVX512_TD) && defined(INTEL_COMPILER)
 
 #if defined(TD_CONTIGUOUS_SMALLSIEVE)
     __m512i vs = _mm512_set1_epi16(strip_i);

@@ -22,7 +22,7 @@
 
 # linux
 CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
-	-I../../../gmp-install/wsl/6.2.1/include -I../../include -fcommon
+	-I../../../gmp_install/gmp-6.2.0/include -I../../include -fcommon
 
 #clang
 #CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
@@ -32,7 +32,7 @@ CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-point
 #endif
 
 
-GMP_LIB=-L../../../gmp-install/wsl/6.2.1/lib -lgmp
+GMP_LIB=-L../../../gmp_install/gmp-6.2.0/include/lib -lgmp
 #For windows
 #GMP_LIB=-Lc:/Users/steve/progs/local/lib -lgmp -lws2_32
 #Using brew installed gmp
@@ -64,8 +64,10 @@ ifeq ($(AVX512_LASCHED),1)
 endif
 
 ifeq ($(AVX512_TD),1)
-	CFLAGS += -DAVX512_TD
-	ASM_FLAGS += AVX512_TD=1
+	ifeq ($(CC),icc)
+		CFLAGS += -DAVX512_TD
+		ASM_FLAGS += AVX512_TD=1
+	endif
 endif
 
 ifeq ($(AVX512_TDSCHED),1)
@@ -93,9 +95,15 @@ ifeq ($(MPQS),1)
 endif
 
 ifeq ($(AVX512_ALL),1)
-	CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
+	ifeq ($(CC),icc)
+		CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
+		ASM_FLAGS += AVX512_TD=1
+	else
+		CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_ECM -DAVX512_LASCHED -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
+		# -DAVX512_ECM 
+	endif
 	ASM_FLAGS += AVX512_LASCHED=1
-	ASM_FLAGS += AVX512_TD=1
+	
 endif
 
 
@@ -290,12 +298,6 @@ lasieve5.tgz: Makefile paths INSTALL.and.USE COPYING $(SRCFILES) $(ASMFILES)
 
 clean:
 	rm -f *.o *.a asm/*.o asm/*.a asm/*.s asm/*.S
-
-realclean: clean
-	rm -f gmp-aux.c gnfs-lasieve4e.c gnfs-lasieve4f.c gnfs-lasieve4g.c if.c input-poly.c la-cs.c lasieve-prepn.c mpz-ull.c primgen32.c primgen64.c recurrence6.c redu2.c strategy.c
-	rm -f gmp-aux.h gnfs-lasieve4e.h gnfs-lasieve4f.h gnfs-lasieve4g.h if.h input-poly.h la-cs.h lasieve-prepn.h mpz-ull.h primgen32.h primgen64.h recurrence6.h redu2.h strategy.h
-	rm -f asm/lasched.c asm/medsched.c asm/mpz-trialdiv.c asm/siever-config.c
-	rm -f asm/lasched.h asm/medsched.h asm/mpz-trialdiv.h asm/siever-config.h
 
 binclean: realclean
 	rm -f gnfs-lasieve4I1* forumexs/*.out readmeex/*.gz

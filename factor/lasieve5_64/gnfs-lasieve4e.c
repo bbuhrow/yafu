@@ -3299,7 +3299,7 @@ for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) {
         for (x = smallsieve_auxbound[s][2]; x < smallsieve_auxbound[s][1] - 32; x += 32)
         {
             unsigned char* y, l = x[30];	// assume these 8 primes have the same log
-            __m512i xv = _mm512_load_si512(x);
+            __m512i xv = _mm512_loadu_si512(x);
             __m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
             __m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
             vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
@@ -3307,7 +3307,7 @@ for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) {
             __mmask32 m;
             for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 
-                _mm512_store_epi64(xm, xv);
+                _mm512_storeu_epi64(xm, xv);
 
                 *(y + xm[3]) += l;
                 *(y + xm[7]) += l;
@@ -3771,19 +3771,19 @@ for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) {
 #if defined(AVX512_SIEVE_SEARCH) && (CANDIDATE_SEARCH_STEPS == 128)
                         __m512i vidx = _mm512_add_epi16(vincr,
                             _mm512_set1_epi16((j << i_bits) + i));
-                        _mm512_store_si512(&cand[ncand], vidx);
+                        _mm512_storeu_si512(&cand[ncand], vidx);
                         vidx = _mm512_add_epi16(vidx, vincr32);
-                        _mm512_store_si512(&cand[ncand + 32], vidx);
+                        _mm512_storeu_si512(&cand[ncand + 32], vidx);
                         vidx = _mm512_add_epi16(vidx, vincr32);
-                        _mm512_store_si512(&cand[ncand + 64], vidx);
+                        _mm512_storeu_si512(&cand[ncand + 64], vidx);
                         vidx = _mm512_add_epi16(vidx, vincr32);
-                        _mm512_store_si512(&cand[ncand + 96], vidx);
-                        __m512i v_io = _mm512_load_si512(i_o);
-                        _mm512_store_si512(&fss_sv[ncand],
+                        _mm512_storeu_si512(&cand[ncand + 96], vidx);
+                        __m512i v_io = _mm512_loadu_si512(i_o);
+                        _mm512_storeu_si512(&fss_sv[ncand],
                             _mm512_add_epi8(v_io,
                                 _mm512_set1_epi8(horizontal_sievesums[j])));
-                        v_io = _mm512_load_si512(i_o + 64);
-                        _mm512_store_si512(&fss_sv[ncand + 64],
+                        v_io = _mm512_loadu_si512(i_o + 64);
+                        _mm512_storeu_si512(&fss_sv[ncand + 64],
                             _mm512_add_epi8(v_io,
                                 _mm512_set1_epi8(horizontal_sievesums[j])));
                         ncand += 128;
@@ -3860,8 +3860,8 @@ for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) {
                             // max functions when we can directly
                             // compare bytes to st1 (with AVX512_BW)
                             __m512i x;
-                            __m512i vi_o1 = _mm512_load_si512(i_o);
-                            __m512i vi_o2 = _mm512_load_si512(i_o + 64);
+                            __m512i vi_o1 = _mm512_loadu_si512(i_o);
+                            __m512i vi_o2 = _mm512_loadu_si512(i_o + 64);
 
                             x = _mm512_set1_epi8(st1);
 
@@ -5326,7 +5326,7 @@ last_tdclock= newclock;
     for (; x < smallsieve_auxbound[side][0] - 32; x = x + 32) {
         unsigned char* y;
 
-        __m512i vr = _mm512_load_si512(x);
+        __m512i vr = _mm512_loadu_si512(x);
         __m512i vp = _mm512_slli_epi64(vr, 48);			// align these with r
         __m512i vpr = _mm512_slli_epi64(vr, 32);		// align these with r
         vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
@@ -5353,7 +5353,7 @@ last_tdclock= newclock;
             vr = _mm512_mask_sub_epi16(vr, m, vr, vp);
 
         }
-        _mm512_store_si512(x, vr);
+        _mm512_storeu_si512(x, vr);
     }
 
     for (; x < smallsieve_auxbound[side][0]; x = x + 4) {

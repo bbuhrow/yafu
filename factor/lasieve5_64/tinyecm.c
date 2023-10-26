@@ -2713,12 +2713,12 @@ static void tinypm1(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2)
 #define VECLEN 8
 
 #define tecm_and64 _mm512_and_epi64
-#define tecm_storeu64 _mm512_store_epi64
+#define tecm_storeu64 _mm512_storeu_epi64
 #define tecm_add64 _mm512_add_epi64
 #define tecm_sub64 _mm512_sub_epi64
 #define tecm_set64 _mm512_set1_epi64
 #define tecm_srli64 _mm512_srli_epi64
-#define tecm_loadu64 _mm512_load_epi64
+#define tecm_loadu64 _mm512_loadu_epi64
 #define tecm_castpd _mm512_castsi512_pd
 #define tecm_castepu _mm512_castpd_si512
 #define tecm_DIGIT_SIZE 52
@@ -2905,14 +2905,14 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 	__m512i m1;
 	__m512i lomask52 = _mm512_set1_epi64(0x000fffffffffffffULL);
 
-	__m512i x0 = _mm512_load_si512(x->data[0]);
-	__m512i x1 = _mm512_load_si512(x->data[1]);
-	__m512i y0 = _mm512_load_si512(y->data[0]);
-	__m512i y1 = _mm512_load_si512(y->data[1]);
-	__m512i invN0 = _mm512_load_si512(invN->data[0]);
-	__m512i invN1 = _mm512_load_si512(invN->data[1]);
-	__m512i N0 = _mm512_load_si512(N->data[0]);
-	__m512i N1 = _mm512_load_si512(N->data[1]);
+	__m512i x0 = _mm512_loadu_si512(x->data[0]);
+	__m512i x1 = _mm512_loadu_si512(x->data[1]);
+	__m512i y0 = _mm512_loadu_si512(y->data[0]);
+	__m512i y1 = _mm512_loadu_si512(y->data[1]);
+	__m512i invN0 = _mm512_loadu_si512(invN->data[0]);
+	__m512i invN1 = _mm512_loadu_si512(invN->data[1]);
+	__m512i N0 = _mm512_loadu_si512(N->data[0]);
+	__m512i N1 = _mm512_loadu_si512(N->data[1]);
 	__m512i N2;
 	__m512i zero = _mm512_setzero_si512();
 
@@ -3052,8 +3052,8 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 	T2 = tecm_mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
 	T3 = tecm_mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
 
-	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
-	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
+	_mm512_storeu_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
+	_mm512_storeu_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
 	return;
 }
 __inline static void tecm_sqrredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t* N, vec_u104_t* invN)
@@ -3062,12 +3062,12 @@ __inline static void tecm_sqrredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 }
 __inline static void tecm_addmod104_x8(vec_u104_t* z, vec_u104_t* x, vec_u104_t* y, vec_u104_t* N)
 {
-	__m512i x0 = _mm512_load_si512(x->data[0]);
-	__m512i x1 = _mm512_load_si512(x->data[1]);
-	__m512i y0 = _mm512_load_si512(y->data[0]);
-	__m512i y1 = _mm512_load_si512(y->data[1]);
-	__m512i N0 = _mm512_load_si512(N->data[0]);
-	__m512i N1 = _mm512_load_si512(N->data[1]);
+	__m512i x0 = _mm512_loadu_si512(x->data[0]);
+	__m512i x1 = _mm512_loadu_si512(x->data[1]);
+	__m512i y0 = _mm512_loadu_si512(y->data[0]);
+	__m512i y1 = _mm512_loadu_si512(y->data[1]);
+	__m512i N0 = _mm512_loadu_si512(N->data[0]);
+	__m512i N1 = _mm512_loadu_si512(N->data[1]);
 
 	// add
 	__mmask8 bmsk;
@@ -3082,18 +3082,18 @@ __inline static void tecm_addmod104_x8(vec_u104_t* z, vec_u104_t* x, vec_u104_t*
 	x0 = tecm_mm512_mask_subsetc_epi52(x0, msk, x0, N0, &bmsk);
 	x1 = tecm_mm512_mask_sbb_epi52(x1, msk, bmsk, N1, &bmsk);
 
-	_mm512_store_si512(z->data[0], _mm512_and_epi64(x0, lo52mask));
-	_mm512_store_si512(z->data[1], _mm512_and_epi64(x1, lo52mask));
+	_mm512_storeu_si512(z->data[0], _mm512_and_epi64(x0, lo52mask));
+	_mm512_storeu_si512(z->data[1], _mm512_and_epi64(x1, lo52mask));
 	return;
 }
 __inline static void tecm_submod104_x8(vec_u104_t* z, vec_u104_t* x, vec_u104_t* y, vec_u104_t* N)
 {
-	__m512i x0 = _mm512_load_si512(x->data[0]);
-	__m512i x1 = _mm512_load_si512(x->data[1]);
-	__m512i y0 = _mm512_load_si512(y->data[0]);
-	__m512i y1 = _mm512_load_si512(y->data[1]);
-	__m512i N0 = _mm512_load_si512(N->data[0]);
-	__m512i N1 = _mm512_load_si512(N->data[1]);
+	__m512i x0 = _mm512_loadu_si512(x->data[0]);
+	__m512i x1 = _mm512_loadu_si512(x->data[1]);
+	__m512i y0 = _mm512_loadu_si512(y->data[0]);
+	__m512i y1 = _mm512_loadu_si512(y->data[1]);
+	__m512i N0 = _mm512_loadu_si512(N->data[0]);
+	__m512i N1 = _mm512_loadu_si512(N->data[1]);
 
 	// compare
 	__mmask8 msk = _mm512_cmplt_epu64_mask(x1, y1);
@@ -3108,8 +3108,8 @@ __inline static void tecm_submod104_x8(vec_u104_t* z, vec_u104_t* x, vec_u104_t*
 	x0 = tecm_mm512_mask_addsetc_epi52(x0, msk, x0, N0, &bmsk);
 	x1 = tecm_mm512_mask_adc_epi52(x1, msk, bmsk, N1, &bmsk);
 
-	_mm512_store_si512(z->data[0], _mm512_and_epi64(x0, lo52mask));
-	_mm512_store_si512(z->data[1], _mm512_and_epi64(x1, lo52mask));
+	_mm512_storeu_si512(z->data[0], _mm512_and_epi64(x0, lo52mask));
+	_mm512_storeu_si512(z->data[1], _mm512_and_epi64(x1, lo52mask));
 	return;
 }
 __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u104_t* x,
@@ -3129,16 +3129,16 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	__m512i m1;
 	__m512i lomask52 = _mm512_set1_epi64(0x000fffffffffffffULL);
 
-	__m512i x0 = _mm512_load_si512(x->data[0]);
-	__m512i x1 = _mm512_load_si512(x->data[1]);
-	__m512i w0 = _mm512_load_si512(w->data[0]);
-	__m512i w1 = _mm512_load_si512(w->data[1]);
-	__m512i y0 = _mm512_load_si512(y->data[0]);
-	__m512i y1 = _mm512_load_si512(y->data[1]);
-	__m512i invN0 = _mm512_load_si512(invN->data[0]);
-	__m512i invN1 = _mm512_load_si512(invN->data[1]);
-	__m512i N0 = _mm512_load_si512(N->data[0]);
-	__m512i N1 = _mm512_load_si512(N->data[1]);
+	__m512i x0 = _mm512_loadu_si512(x->data[0]);
+	__m512i x1 = _mm512_loadu_si512(x->data[1]);
+	__m512i w0 = _mm512_loadu_si512(w->data[0]);
+	__m512i w1 = _mm512_loadu_si512(w->data[1]);
+	__m512i y0 = _mm512_loadu_si512(y->data[0]);
+	__m512i y1 = _mm512_loadu_si512(y->data[1]);
+	__m512i invN0 = _mm512_loadu_si512(invN->data[0]);
+	__m512i invN1 = _mm512_loadu_si512(invN->data[1]);
+	__m512i N0 = _mm512_loadu_si512(N->data[0]);
+	__m512i N1 = _mm512_loadu_si512(N->data[1]);
 	__m512i N2;
 	__m512i zero = _mm512_setzero_si512();
 
@@ -3293,8 +3293,8 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	T2 = tecm_mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
 	T3 = tecm_mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
 
-	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
-	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
+	_mm512_storeu_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
+	_mm512_storeu_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
 	return;
 }
 __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u104_t* x,
@@ -3314,16 +3314,16 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	__m512i m1;
 	__m512i lomask52 = _mm512_set1_epi64(0x000fffffffffffffULL);
 
-	__m512i x0 = _mm512_load_si512(x->data[0]);
-	__m512i x1 = _mm512_load_si512(x->data[1]);
-	__m512i w0 = _mm512_load_si512(w->data[0]);
-	__m512i w1 = _mm512_load_si512(w->data[1]);
-	__m512i y0 = _mm512_load_si512(y->data[0]);
-	__m512i y1 = _mm512_load_si512(y->data[1]);
-	__m512i invN0 = _mm512_load_si512(invN->data[0]);
-	__m512i invN1 = _mm512_load_si512(invN->data[1]);
-	__m512i N0 = _mm512_load_si512(N->data[0]);
-	__m512i N1 = _mm512_load_si512(N->data[1]);
+	__m512i x0 = _mm512_loadu_si512(x->data[0]);
+	__m512i x1 = _mm512_loadu_si512(x->data[1]);
+	__m512i w0 = _mm512_loadu_si512(w->data[0]);
+	__m512i w1 = _mm512_loadu_si512(w->data[1]);
+	__m512i y0 = _mm512_loadu_si512(y->data[0]);
+	__m512i y1 = _mm512_loadu_si512(y->data[1]);
+	__m512i invN0 = _mm512_loadu_si512(invN->data[0]);
+	__m512i invN1 = _mm512_loadu_si512(invN->data[1]);
+	__m512i N0 = _mm512_loadu_si512(N->data[0]);
+	__m512i N1 = _mm512_loadu_si512(N->data[1]);
 	__m512i N2;
 	__m512i zero = _mm512_setzero_si512();
 
@@ -3478,31 +3478,31 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	T2 = tecm_mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
 	T3 = tecm_mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
 
-	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
-	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
+	_mm512_storeu_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
+	_mm512_storeu_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
 	return;
 }
 
 static __inline void copyvec104(vec_u104_t* dest, vec_u104_t* src)
 {
-	_mm512_store_si512(dest->data[0], _mm512_load_si512(src->data[0]));
-	_mm512_store_si512(dest->data[1], _mm512_load_si512(src->data[1]));
+	_mm512_storeu_si512(dest->data[0], _mm512_loadu_si512(src->data[0]));
+	_mm512_storeu_si512(dest->data[1], _mm512_loadu_si512(src->data[1]));
 	return;
 }
 
 static __inline void maskcopyvec104(__mmask8 mask, vec_u104_t* dest, vec_u104_t* src)
 {
-	_mm512_mask_store_epi64(dest->data[0], mask, _mm512_load_si512(src->data[0]));
-	_mm512_mask_store_epi64(dest->data[1], mask, _mm512_load_si512(src->data[1]));
+	_mm512_mask_storeu_epi64(dest->data[0], mask, _mm512_loadu_si512(src->data[0]));
+	_mm512_mask_storeu_epi64(dest->data[1], mask, _mm512_loadu_si512(src->data[1]));
 	return;
 }
 
 static __inline __mmask8 iszerovec(vec_u104_t* src)
 {
 	return _mm512_cmpeq_epu64_mask(
-		_mm512_and_epi64(_mm512_load_si512(src->data[0]), lo52mask), _mm512_setzero_si512()) &
+		_mm512_and_epi64(_mm512_loadu_si512(src->data[0]), lo52mask), _mm512_setzero_si512()) &
 		_mm512_cmpeq_epu64_mask(
-			_mm512_and_epi64(_mm512_load_si512(src->data[1]), lo52mask), _mm512_setzero_si512());
+			_mm512_and_epi64(_mm512_loadu_si512(src->data[1]), lo52mask), _mm512_setzero_si512());
 }
 
 static void tecm_multiplicative_inverse104(uint64_t* inv, uint64_t a)
@@ -3591,10 +3591,10 @@ __inline static void tecm_udup_x8(vec_u104_t* s, vec_u104_t* rho, vec_u104_t* n,
 
 static __inline void copypt104(tecm_pt_x8* dest, tecm_pt_x8* src)
 {
-	_mm512_store_si512(dest->X.data[0], _mm512_load_si512(src->X.data[0]));
-	_mm512_store_si512(dest->X.data[1], _mm512_load_si512(src->X.data[1]));
-	_mm512_store_si512(dest->Z.data[0], _mm512_load_si512(src->Z.data[0]));
-	_mm512_store_si512(dest->Z.data[1], _mm512_load_si512(src->Z.data[1]));
+	_mm512_storeu_si512(dest->X.data[0], _mm512_loadu_si512(src->X.data[0]));
+	_mm512_storeu_si512(dest->X.data[1], _mm512_loadu_si512(src->X.data[1]));
+	_mm512_storeu_si512(dest->Z.data[0], _mm512_loadu_si512(src->Z.data[0]));
+	_mm512_storeu_si512(dest->Z.data[1], _mm512_loadu_si512(src->Z.data[1]));
 	return;
 }
 
@@ -4554,8 +4554,8 @@ void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 
 	// u holds the denom, t1 holds the numer
 	// accomplish the division by multiplying by the modular inverse
-	_mm512_store_si512(t2.data[0], _mm512_set1_epi64(1));
-	_mm512_store_si512(t2.data[1], _mm512_set1_epi64(0));
+	_mm512_storeu_si512(t2.data[0], _mm512_set1_epi64(1));
+	_mm512_storeu_si512(t2.data[1], _mm512_set1_epi64(0));
 	tecm_mulredc104_x8(&t4, &t2, &t4, n, rho);	// take t4 out of monty rep
 	tecm_mulredc104_x8(&t1, &t2, &t1, n, rho);	// take t1 out of monty rep
 

@@ -23,7 +23,7 @@
 #CFLAGS= -O1 -g -march=native -I/Users/searle/progs/ensc-dependencies/include
 
 #linux
-CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/wsl/6.2.1/include -fcommon
+CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp_install/gmp-6.2.0/include -fcommon
 
 include ../paths
 
