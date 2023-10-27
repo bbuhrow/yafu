@@ -1193,6 +1193,7 @@ done:
 }
 
 #if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
+
 int check_Qval(static_conf_t* sconf, dynamic_conf_t* dconf,
     int polyid, int offset, int parity)
 {
@@ -1496,7 +1497,7 @@ int td_small_p(static_conf_t* sconf, dynamic_conf_t* dconf,
             i++;
         }
 
-#if 1
+#ifdef USE_AVX512F
 
         for (i = 0; i < pbucket->numhits; i++)
         {
@@ -1642,19 +1643,29 @@ void* process_poly(void* vptr)
         // for primes up to this bound, do a normal sieve process
         // into the sieve region for all polys.
         // p is the gray-code enumeration.
+
+#ifdef USE_AVX512F
         uint32_t inc[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
         __m512i vinterval = _mm512_set1_epi32(sieve_sz);
         __m512i vinc = _mm512_loadu_epi32(inc);
-
+#endif
 
         // this does the bulk of the sieving.  All polynomials and
         // all primes > 15-bit
         dconf->num_ss_slices = 0;   // indicator for resieveing
         ss_search_poly_buckets_sorted(sconf, dconf);
+
         gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
+
+#ifdef USE_AVX512F
         printf("subset-sum sieving of %u primes took: %1.4f seconds\n",
             fb->B - fb->x2_large_B, t_time);
+#else
+        printf("subset-sum sieving of %u primes took: %1.4f seconds\n",
+            fb->B - fb->med_B, t_time);
+#endif
+
         gettimeofday(&start, NULL);
 
         // last poly is invalid but subset-sum will still hit it.
@@ -1770,121 +1781,124 @@ void* process_poly(void* vptr)
                 }
             }
 
-            if (1)
+#ifdef USE_AVX512F
+            // if AVX512 is available, use it to do some normal sieving of
+            // this polynomial up to an intermediate bound, much larger than the
+            // sieve interval but still much smaller than the factor-base bound.
+
+            for (i = fb->med_B; i < fb->x2_large_B; i += 16)
             {
-                for (i = fb->med_B; i < fb->x2_large_B; i += 16)
+                int* ptr = &rootupdates[(v - 1) * bound + i];
+
+                __m512i vprime;
+                __m512i vroot1;
+                __m512i vroot2;
+                __m512i vpval;
+                __m512i vnroot1;
+                __m512i vnroot2;
+                __mmask16 mask1;
+                __mmask16 mask2;
+                __m512i vindex = _mm512_set1_epi32(i);
+                uint32_t logp = update_data->logp[i];
+
+                vprime = _mm512_load_epi32((__m512i*)(&update_data->prime[i]));
+                vroot1 = _mm512_load_epi32((__m512i*)(&update_data->firstroots1[i]));
+                vroot2 = _mm512_load_epi32((__m512i*)(&update_data->firstroots2[i]));
+
+                __mmask16 m1 = _mm512_cmplt_epi32_mask(vroot1, vinterval);
+                __mmask16 m2 = _mm512_cmplt_epi32_mask(vroot2, vinterval);
+
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m1, vroot1);
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m1,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m1);
+
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m2, vroot2);
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m2,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m2);
+                vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+                vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+                m1 = _mm512_cmplt_epi32_mask(vnroot1, vinterval);
+                m2 = _mm512_cmplt_epi32_mask(vnroot2, vinterval);
+
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m1, _mm512_add_epi32(vprime, vnroot1));
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m1,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m1);
+
+                _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
+                    polybucket.numhits, m2, _mm512_add_epi32(vprime, vnroot2));
+                _mm512_mask_compressstoreu_epi32(polybucket.prime +
+                    polybucket.numhits, m2,
+                    _mm512_add_epi32(vindex, vinc));
+
+                polybucket.numhits += _mm_popcnt_u32(m2);
+
+                if (polybucket.numhits + 64 > polybucket.hitalloc)
                 {
-                    int* ptr = &rootupdates[(v - 1) * bound + i];
-
-                    __m512i vprime;
-                    __m512i vroot1;
-                    __m512i vroot2;
-                    __m512i vpval;
-                    __m512i vnroot1;
-                    __m512i vnroot2;
-                    __mmask16 mask1;
-                    __mmask16 mask2;
-                    __m512i vindex = _mm512_set1_epi32(i);
-                    uint32_t logp = update_data->logp[i];
-
-                    vprime = _mm512_load_epi32((__m512i*)(&update_data->prime[i]));
-                    vroot1 = _mm512_load_epi32((__m512i*)(&update_data->firstroots1[i]));
-                    vroot2 = _mm512_load_epi32((__m512i*)(&update_data->firstroots2[i]));
-
-                    __mmask16 m1 = _mm512_cmplt_epi32_mask(vroot1, vinterval);
-                    __mmask16 m2 = _mm512_cmplt_epi32_mask(vroot2, vinterval);
-
-                    _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
-                        polybucket.numhits, m1, vroot1);
-                    _mm512_mask_compressstoreu_epi32(polybucket.prime +
-                        polybucket.numhits, m1,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybucket.numhits += _mm_popcnt_u32(m1);
-
-                    _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
-                        polybucket.numhits, m2, vroot2);
-                    _mm512_mask_compressstoreu_epi32(polybucket.prime +
-                        polybucket.numhits, m2,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybucket.numhits += _mm_popcnt_u32(m2);
-                    vnroot1 = _mm512_sub_epi32(vprime, vroot1);
-                    vnroot2 = _mm512_sub_epi32(vprime, vroot2);
-
-                    m1 = _mm512_cmplt_epi32_mask(vnroot1, vinterval);
-                    m2 = _mm512_cmplt_epi32_mask(vnroot2, vinterval);
-
-                    _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
-                        polybucket.numhits, m1, _mm512_add_epi32(vprime, vnroot1));
-                    _mm512_mask_compressstoreu_epi32(polybucket.prime +
-                        polybucket.numhits, m1,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybucket.numhits += _mm_popcnt_u32(m1);
-
-                    _mm512_mask_compressstoreu_epi32(polybucket.hitloc +
-                        polybucket.numhits, m2, _mm512_add_epi32(vprime, vnroot2));
-                    _mm512_mask_compressstoreu_epi32(polybucket.prime +
-                        polybucket.numhits, m2,
-                        _mm512_add_epi32(vindex, vinc));
-
-                    polybucket.numhits += _mm_popcnt_u32(m2);
-
-                    if (polybucket.numhits + 64 > polybucket.hitalloc)
-                    {
-                        printf("polybucket almost full\n");
-                    }
-
-                    if (sign > 0)
-                    {
-                        vpval = _mm512_load_epi32((__m512i*)ptr);
-                        mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
-                        mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
-                        vroot1 = _mm512_sub_epi32(vroot1, vpval);
-                        vroot2 = _mm512_sub_epi32(vroot2, vpval);
-                        vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
-                        vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
-                        _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
-                        _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
-                    }
-                    else
-                    {
-                        vpval = _mm512_load_epi32((__m512i*)ptr);
-                        vroot1 = _mm512_add_epi32(vroot1, vpval);
-                        vroot2 = _mm512_add_epi32(vroot2, vpval);
-                        mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
-                        mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
-                        vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
-                        vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
-                        _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
-                        _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
-                    }
-
+                    printf("polybucket almost full\n");
                 }
 
-
-                for (i = 0; i < polybucket.numhits; i++)
+                if (sign > 0)
                 {
-                    uint32_t prime = update_data->prime[polybucket.prime[i]];
-                    uint32_t logp = update_data->logp[polybucket.prime[i]];
-
-                    if (polybucket.hitloc[i] > sieve_sz)
-                    {
-                        dconf->ss_sieve_n[pidx * sieve_sz +
-                            (polybucket.hitloc[i] - prime)] -= logp;
-                    }
-                    else
-                    {
-                        dconf->ss_sieve_p[pidx * sieve_sz +
-                            polybucket.hitloc[i]] -= logp;
-                    }
+                    vpval = _mm512_load_epi32((__m512i*)ptr);
+                    mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+                    mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+                    vroot1 = _mm512_sub_epi32(vroot1, vpval);
+                    vroot2 = _mm512_sub_epi32(vroot2, vpval);
+                    vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                    vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
+                }
+                else
+                {
+                    vpval = _mm512_load_epi32((__m512i*)ptr);
+                    vroot1 = _mm512_add_epi32(vroot1, vpval);
+                    vroot2 = _mm512_add_epi32(vroot2, vpval);
+                    mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+                    mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+                    vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+                    vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots1[i]), vroot1);
+                    _mm512_store_epi32((__m512i*)(&update_data->firstroots2[i]), vroot2);
                 }
             }
 
+
+            for (i = 0; i < polybucket.numhits; i++)
+            {
+                uint32_t prime = update_data->prime[polybucket.prime[i]];
+                uint32_t logp = update_data->logp[polybucket.prime[i]];
+
+                if (polybucket.hitloc[i] > sieve_sz)
+                {
+                    dconf->ss_sieve_n[pidx * sieve_sz +
+                        (polybucket.hitloc[i] - prime)] -= logp;
+                }
+                else
+                {
+                    dconf->ss_sieve_p[pidx * sieve_sz +
+                        polybucket.hitloc[i]] -= logp;
+                }
+            }
+
+#endif
+
             // search for hits and assign report numbers to hits.
             // initialize Q's for each hit and trial divide up to 
-            // the subset-sum bound.  Hits can be disqualified 
+            // the subset-sum starting bound.  Hits can be disqualified 
             // due to the small-prime variation.
             for (s = 0; s < dconf->ss_sieve_sz; s++)
             {
@@ -1960,8 +1974,13 @@ void* process_poly(void* vptr)
         gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
+#ifdef USE_AVX512F
         printf("sieving and trial division of %d primes took: %1.4f seconds\n",
             fb->x2_large_B - sconf->sieve_small_fb_start, t_time);
+#else
+        printf("sieving and trial division of %d primes took: %1.4f seconds\n",
+            fb->med_B - sconf->sieve_small_fb_start, t_time);
+#endif
 
         gettimeofday(&start, NULL);
 
@@ -4108,7 +4127,11 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         if ((sconf->obj->qs_obj.gbl_override_ssidx_flag) &&
             (sconf->obj->qs_obj.gbl_override_ssidx > 0))
         {
+#ifdef USE_AVX512F
             sconf->factor_base->ss_start_B = sconf->factor_base->x2_large_B;
+#else
+            sconf->factor_base->ss_start_B = sconf->factor_base->med_B;
+#endif
         }
         else
         {
