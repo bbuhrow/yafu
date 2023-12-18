@@ -303,21 +303,10 @@ int ecm_loop(fact_obj_t *fobj)
         (!fobj->HAS_AVX512F))
 #endif
     {
-        int bkupTHREADS;
-
         // initialize the flag to watch for interrupts, and set the
         // pointer to the function to call if we see a user interrupt
         ECM_ABORT = 0;
         signal(SIGINT, ecmexit);
-
-        // only one thread if using a gpu
-        if ((fobj->ecm_obj.use_gpuecm) && (fobj->THREADS > 1))
-        {
-            bkupTHREADS = fobj->THREADS;
-            fobj->THREADS = 1;
-            if (fobj->VFLAG >= 0)
-                printf("ecm: running single-threaded with GPU-ECM\n");
-        }
 
         //init ecm process
         ecm_process_init(fobj);
@@ -351,11 +340,6 @@ int ecm_loop(fact_obj_t *fobj)
 
         if (fobj->VFLAG >= 0)
             printf("\n");
-
-        if (fobj->ecm_obj.use_gpuecm)
-        {
-            fobj->THREADS = bkupTHREADS;
-        }
 
         if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
         {
@@ -936,7 +920,18 @@ void *ecm_do_one_curve(void *ptr)
 
 		// run system command
         //printf("ecm: syscmd is = %s", cmd);
-		retcode = system(cmd);
+
+        if (fobj->ecm_obj.use_gpuecm)
+        {
+            if (thread_data->thread_num == 0)
+            {
+                retcode = system(cmd);
+            }
+        } 
+        else
+        {
+            retcode = system(cmd);
+        }
 
 		free(tmpstr);
 		free(cmd);
@@ -946,6 +941,7 @@ void *ecm_do_one_curve(void *ptr)
 			ECM_ABORT = 1;
 		
 		// parse output file
+        int found_curves_run = 0;
 		fid = fopen(thread_data->tmp_output, "r");
 		while ((fid != NULL) && (!feof(fid)))
 		{
@@ -955,15 +951,16 @@ void *ecm_do_one_curve(void *ptr)
 			if (line == NULL)
 				break;
 
-            if (fobj->ecm_obj.use_gpuecm)
+            if (fobj->ecm_obj.use_gpuecm && (found_curves_run == 0))
             {
-                ptr = strstr(line, "GPU: Block: ");
+                ptr = strstr(line, "Computing ");
                 if (ptr != NULL)
                 {
                     int curves;
-                    ptr = strstr(line, "(");
-                    sscanf(ptr+1, "%d", &curves);
+                    //ptr = strstr(line, "(");
+                    sscanf(ptr+10, "%d", &curves);
                     thread_data->curves_run += (curves - 1);
+                    found_curves_run = 1;
                 }
 
             }
