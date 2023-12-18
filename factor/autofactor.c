@@ -348,6 +348,47 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		break;
 
 	case state_rho:
+
+		if (mpz_perfect_square_p(b))
+		{
+			if (fobj->VFLAG > 0)
+				printf("fac: input is a perfect square\n");
+
+			mpz_sqrt(b, b);
+
+			add_to_factor_list(fobj->factors, b,
+				fobj->VFLAG, fobj->NUM_WITNESSES);
+
+			add_to_factor_list(fobj->factors, b,
+				fobj->VFLAG, fobj->NUM_WITNESSES);
+
+			mpz_set_ui(b, 1);
+
+			// measure time for this completed work
+			gettimeofday(&tstop, NULL);
+			t_time = ytools_difftime(&tstart, &tstop);
+
+			fwork->rho_time = t_time;
+			fwork->total_time += t_time;
+			break;
+		}
+
+		if (mpz_perfect_power_p(b))
+		{
+			if (fobj->VFLAG > 0)
+				printf("fac: input is a perfect power\n");
+
+			factor_perfect_power(fobj, b);
+
+			// measure time for this completed work
+			gettimeofday(&tstop, NULL);
+			t_time = ytools_difftime(&tstart, &tstop);
+
+			fwork->rho_time = t_time;
+			fwork->total_time += t_time;
+			break;
+		}
+
 		// do all of the rho work requested
 		mpz_set(fobj->rho_obj.gmp_n,b);
 		brent_loop(fobj);
