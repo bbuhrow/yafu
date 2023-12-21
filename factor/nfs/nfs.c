@@ -626,8 +626,8 @@ void nfs(fact_obj_t *fobj)
 			FILE *logFile = fopen(buffer, "r");
 			checkFp(logFile, buffer);
 
-			char logLine[16384];
-			while (fgets(logLine, 16384, logFile)) {
+			char logLine[3072];
+			while (fgets(logLine, 3072, logFile)) {
 				// Check if this logLine has relation filename
 				char *match = " relations in '";
 				char *filename = strstr(logLine, match);
@@ -652,10 +652,10 @@ void nfs(fact_obj_t *fobj)
 				FILE *relatFile = fopen("nfs.cado", "r");
 				checkFp(relatFile, "nfs.cado");
 
-				char relatLine[16384];
-				while (fgets(relatLine, 16384, relatFile)) {
+				char relatLine[256];
+				while (fgets(relatLine, 256, relatFile)) {
 					// Is this line a comment?
-					if (strstr(relatLine, "#") != NULL) continue;
+					if (relatLine[0] == "#") continue;
 
 					// fgets include \n already
 					fwrite(relatLine, sizeof(char), strlen(relatLine), dat);
