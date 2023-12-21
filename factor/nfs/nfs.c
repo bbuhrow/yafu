@@ -220,9 +220,14 @@ void nfs(fact_obj_t *fobj)
 	process_done = 0;
 
 	// Used to predict CADO work file names
-	int cadoPower = gmp_base10(fobj->nfs_obj.gmp_n);
-	// Round down to 5 multiple
-	cadoPower -= cadoPower % 5;
+	// https://gitlab.inria.fr/cado-nfs/cado-nfs/-/blob/master/scripts/cadofactor/toplevel.py?ref_type=heads#L169
+	int sizeOfN = gmp_base10(fobj->nfs_obj.gmp_n);
+	int cadoPower;
+	if (sizeOfN < 200) {
+		cadoPower = ((sizeOfN + 2) / 5) * 5;
+	} else {
+		cadoPower = ((sizeOfN + 5) / 10) * 10;
+	}
 
 	while (!process_done)
 	{
