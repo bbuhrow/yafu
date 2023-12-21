@@ -20,6 +20,7 @@ benefit from your work.
 #include <stdlib.h>
 #include "ytools.h"
 #include <math.h>
+#include <unistd.h>
 
 #ifdef USE_NFS
 
@@ -601,8 +602,10 @@ void nfs(fact_obj_t *fobj)
 				*/
 			}
 
-			// Specify work directory
-			sprintf(syscmd + strlen(syscmd), "-w cadoWorkdir");
+			// Specify work directory as an absolute path
+			char cwdBuf[4097];
+			getcwd(cwdBuf, 4097);
+			sprintf(syscmd + strlen(syscmd), "-w %s/cadoWorkdir", cwdBuf);
 
 			printf("nfs: cmdline: %s\n", syscmd);
 			system(syscmd);
