@@ -658,7 +658,7 @@ void nfs(fact_obj_t *fobj)
 				char relatLine[256];
 				while (fgets(relatLine, 256, relatFile)) {
 					// Is this line a comment?
-					if (relatLine[0] == "#") continue;
+					if (relatLine[0] == '#') continue;
 
 					// fgets include \n already
 					fwrite(relatLine, sizeof(char), strlen(relatLine), dat);
