@@ -211,6 +211,8 @@ int main(int argc, char *argv[])
         fobj->HAS_AVX512BW = comp_info.AVX512BW;
     }
 
+    fobj->HAS_AVX512BW = comp_info.AVX512BW = 1;
+
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;
 #else
@@ -223,6 +225,10 @@ int main(int argc, char *argv[])
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);
+
+    //printf("check_expression returned %d, batchfile flag = %d\n", 
+    //    is_cmdline_run, yafu_obj.USEBATCHFILE);
+
     if (is_cmdline_run == 3)
     {
         // a default function applied to text that has no other function.
@@ -247,8 +253,9 @@ int main(int argc, char *argv[])
 	}
 
 	// get the batchfile ready, if requested
-	if (yafu_obj.USEBATCHFILE)
+	if (yafu_obj.USEBATCHFILE > 0)
 	{
+        //printf("preparing batchfile with flag %d\n", yafu_obj.USEBATCHFILE);
 		prepare_batchfile(input_exp);		
 		
 		// batchfile jobs are command line in nature
@@ -316,147 +323,6 @@ int main(int argc, char *argv[])
 	//g_rand.low = 123;
     srand((unsigned int)options->rand_seed);
 
-    //test_dlp_composites();
-
-    if (0)
-    {
-        // analysis of saved residues.
-        FILE* fid = fopen("residues_B_750016_MFBT_2.80_TF_140_LPB_4294967295.txt", "r");
-        FILE* fout = fopen("residues_B_750016_MFBT_2.80_TF_140_LPB_4294967295_analysis.txt", "w");
-        mpz_t n, f, f2;
-        uint64_t lcg = 31751835123;
-        char buf[1024];
-        int k = 0;
-        tiny_qs_params* tqs_params;
-
-        mpz_init(n);
-        mpz_init(f);
-        mpz_init(f2);
-        tqs_params = init_tinyqs();
-
-        while (~feof(fid))
-        {
-            if (fgets(buf, 1024, fid) == NULL)
-                break;
-
-            mpz_set_str(n, buf, 10);
-            printf("processing line %d: %s", k, buf);
-            k++;
-
-            fprintf(fout, "%d:", mpz_sizeinbase(n, 2));
-
-            if (mpz_probab_prime_p(n, 1))
-            {
-                fprintf(fout, "%d,\n", mpz_sizeinbase(n, 2));
-                continue;
-            }
-
-            if (mpz_sizeinbase(n, 2) > 128)
-            {
-                reset_factobj(fobj);
-                mpz_set(fobj->N, n);
-                factor(fobj);
-                yfactor_list_t* flist = fobj->factors;
-                for (i = 0; i < flist->num_factors; i++)
-                {
-                    int j;
-                    for (j = 0; j < flist->factors[i].count; j++)
-                    {
-                        int sz = mpz_sizeinbase(flist->factors[i].factor, 2);
-                        fprintf(fout, "%d,", sz);
-                    }
-                }
-                fprintf(fout, "\n");
-                printf("\n");
-            }
-            else
-            {
-                int szn = mpz_sizeinbase(n, 2);
-                int done = 0;
-                while (szn > 64)
-                {
-                    if (mpz_probab_prime_p(n, 1))
-                    {
-                        fprintf(fout, "%d,\n", mpz_sizeinbase(n, 2));
-                        done = 1;
-                        break;
-                    }
-
-                    getfactor_tecm(n, f, szn / 2, &lcg);
-                    if (mpz_cmp_ui(f, 1) > 0)
-                    {
-                        int szf = mpz_sizeinbase(f, 2);
-                        fprintf(fout, "%d,", szf);
-                        mpz_tdiv_q(n, n, f);
-                        szn = mpz_sizeinbase(n, 2);
-                    }
-                    else
-                    {
-                        int numf = tinyqs(tqs_params, n, f, f2);
-                        if (numf > 0)
-                        {
-                            fprintf(fout, "%d,\n", mpz_sizeinbase(f, 2));
-                            if (mpz_probab_prime_p(f, 1))
-                            {
-                                mpz_tdiv_q(n, n, f);
-                                szn = mpz_sizeinbase(n, 2);
-                            }
-                            else
-                            {
-                                printf("tinyqs found a composite factor!\n");
-                                exit(1);
-                            }
-                            fprintf(fout, "%d,\n", mpz_sizeinbase(f2, 2));
-                            if (mpz_probab_prime_p(f2, 1))
-                            {
-                                mpz_tdiv_q(n, n, f2);
-                                szn = mpz_sizeinbase(n, 2);
-                            }
-                            else
-                            {
-                                printf("tinyqs found a composite factor!\n");
-                                exit(1);
-                            }
-                        }
-                    }
-                }
-
-                if (done)
-                    continue;
-
-                uint64_t q64 = mpz_get_ui(n);
-                while (q64 > 1)
-                {
-                    mpz_set_ui(n, q64);
-
-                    if (mpz_probab_prime_p(n, 1))
-                    {
-                        fprintf(fout, "%d,", mpz_sizeinbase(n, 2));
-                        break;
-                    }
-
-                    uint64_t f64 = getfactor_uecm(q64, 0, &lcg);
-                    if (f64 > 1)
-                    {
-                        int szf = spBits(f64);
-                        fprintf(fout, "%d,", szf);
-                        q64 /= f64;
-                    }
-                }
-                fprintf(fout, "\n");
-            }
-        }
-        printf("\n");
-
-        mpz_clear(n);
-        mpz_clear(f);
-        mpz_clear(f2);
-        fclose(fout);
-        fclose(fid);
-    }
-
-
-
 
 	// command line
 	while (1)
@@ -482,11 +348,16 @@ int main(int argc, char *argv[])
             input_line = process_batchline(&yafu_obj, input_line, indup, &code);
 			if (code == 1)
 			{
+                //printf("finalizing batchline and exiting\n");
 				finalize_batchline(&yafu_obj);
 				break;
 			}
-			else if (code == 2)
-				continue;
+            else if (code == 2)
+            {
+                //printf("finalizing batchline and continuing\n");
+                finalize_batchline(&yafu_obj);
+                continue;
+            }
 		}
         else if (strlen(yafu_obj.scriptname) > 0)
         {
@@ -1328,6 +1199,10 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 	line = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	strcpy(line,"");
 	strcpy(input_exp,"");
+    strcpy(tmpline, "");
+
+    //printf("contents of batchfile prior to processing a line:\n");
+    //system("cat batchfile.txt");
 
 	// read a line - skipping blank lines
 	do
@@ -1336,6 +1211,8 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 		{
 			ptr = fgets(tmpline,GSTR_MAXSIZE,batchfile);
             strcpy(line + strlen(line), tmpline);
+
+            //printf("reading a line... line is now: %s\n", line);
 
 			// stop if we didn't read anything
 			if (feof(batchfile))
@@ -1458,6 +1335,8 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 		free(line);
 		return input_exp;
 	}
+
+    //printf("processing batch line %s using flag %d\n", line, yobj->USEBATCHFILE);
 
 	//substitute the batchfile line into the '@' symbol in the input expression
 	nChars = 0;
