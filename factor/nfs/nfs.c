@@ -20,6 +20,7 @@ benefit from your work.
 #include <stdlib.h>
 #include "ytools.h"
 #include <math.h>
+#include <unistd.h>
 
 #ifdef USE_NFS
 
@@ -220,9 +221,14 @@ void nfs(fact_obj_t *fobj)
 	process_done = 0;
 
 	// Used to predict CADO work file names
-	int cadoPower = gmp_base10(fobj->nfs_obj.gmp_n);
-	// Round down to 5 multiple
-	cadoPower -= cadoPower % 5;
+	// https://gitlab.inria.fr/cado-nfs/cado-nfs/-/blob/master/scripts/cadofactor/toplevel.py?ref_type=heads#L169
+	int sizeOfN = gmp_base10(fobj->nfs_obj.gmp_n);
+	int cadoPower;
+	if (sizeOfN < 200) {
+		cadoPower = ((sizeOfN + 2) / 5) * 5;
+	} else {
+		cadoPower = ((sizeOfN + 5) / 10) * 10;
+	}
 
 	while (!process_done)
 	{
@@ -596,8 +602,10 @@ void nfs(fact_obj_t *fobj)
 				*/
 			}
 
-			// Specify work directory
-			sprintf(syscmd + strlen(syscmd), "-w cadoWorkdir");
+			// Specify work directory as an absolute path
+			char cwdBuf[4097];
+			getcwd(cwdBuf, 4097);
+			sprintf(syscmd + strlen(syscmd), "-w %s/cadoWorkdir", cwdBuf);
 
 			printf("nfs: cmdline: %s\n", syscmd);
 			system(syscmd);
@@ -621,8 +629,8 @@ void nfs(fact_obj_t *fobj)
 			FILE *logFile = fopen(buffer, "r");
 			checkFp(logFile, buffer);
 
-			char logLine[16384];
-			while (fgets(logLine, 16384, logFile)) {
+			char logLine[3072];
+			while (fgets(logLine, 3072, logFile)) {
 				// Check if this logLine has relation filename
 				char *match = " relations in '";
 				char *filename = strstr(logLine, match);
@@ -647,10 +655,10 @@ void nfs(fact_obj_t *fobj)
 				FILE *relatFile = fopen("nfs.cado", "r");
 				checkFp(relatFile, "nfs.cado");
 
-				char relatLine[16384];
-				while (fgets(relatLine, 16384, relatFile)) {
+				char relatLine[256];
+				while (fgets(relatLine, 256, relatFile)) {
 					// Is this line a comment?
-					if (strstr(relatLine, "#") != NULL) continue;
+					if (relatLine[0] == '#') continue;
 
 					// fgets include \n already
 					fwrite(relatLine, sizeof(char), strlen(relatLine), dat);
