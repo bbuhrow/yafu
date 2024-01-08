@@ -39,6 +39,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->do_logging = 1;   // not used...
     fobj->LOGFLAG = 1;
     fobj->NUM_WITNESSES = 1;
+    fobj->OBASE = 10;
     fobj->refactor_depth = 0;
 
     // get space for everything
@@ -378,6 +379,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->do_logging = src->do_logging;   // not used...
     dest->LOGFLAG = src->LOGFLAG;
     dest->NUM_WITNESSES = src->NUM_WITNESSES;
+    dest->OBASE = src->OBASE;
 
     // initialize stuff for rho	
     dest->rho_obj.iterations = src->rho_obj.iterations;
@@ -751,7 +753,26 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 	return retval;
 }
 
-void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
+void print_factor(const char* prefix, mpz_t factor, int OBASE)
+{
+    // print the size in base-10 digits and the factor in the requested base.
+    // could also print the size in base-X digits but that doesn't seem right...
+    if (OBASE == 8)
+    {
+        gmp_printf("%s%d = %Zo\n", prefix, gmp_base10(factor), factor);
+    }
+    else if (OBASE == 10)
+    {
+        gmp_printf("%s%d = %Zd\n", prefix, gmp_base10(factor), factor);
+    }
+    else if (OBASE == 16)
+    {
+        gmp_printf("%s%d = %Zx\n", prefix, gmp_base10(factor), factor);
+    }
+    return;
+}
+
+void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE)
 {
 	uint32_t i;
 	int j, v;
@@ -772,8 +793,9 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 				for (j=0;j< flist->factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, flist->factors[i].factor);
-					gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                        flist->factors[i].factor);
+					//gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                    //    flist->factors[i].factor);
+                    print_factor("P", flist->factors[i].factor, OBASE);
 				}
 			}
 			else if (flist->factors[i].type == PRP)
@@ -782,8 +804,9 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                        flist->factors[i].factor);
+                    //gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                    //    flist->factors[i].factor);
+                    print_factor("PRP", flist->factors[i].factor, OBASE);
                 }
             }
             else if (flist->factors[i].type == COMPOSITE)
@@ -792,8 +815,9 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                        flist->factors[i].factor);
+                    //gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                    //    flist->factors[i].factor);
+                    print_factor("C", flist->factors[i].factor, OBASE);
                 }
             }
             else
@@ -825,9 +849,10 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 						for (j=0;j< flist->factors[i].count;j++)
 						{
 							mpz_mul(tmp, tmp, flist->factors[i].factor);
-							gmp_printf("P%d = %Zd\n", 
-                                gmp_base10(flist->factors[i].factor),
-                                flist->factors[i].factor);
+							//gmp_printf("P%d = %Zd\n", 
+                            //    gmp_base10(flist->factors[i].factor),
+                            //    flist->factors[i].factor);
+                            print_factor("P", flist->factors[i].factor, OBASE);
 						}
 					}
 					else
@@ -843,8 +868,9 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 						for (j=0;j< flist->factors[i].count;j++)
 						{
 							mpz_mul(tmp, tmp, flist->factors[i].factor);
-							gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                                flist->factors[i].factor);
+							//gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                            //    flist->factors[i].factor);
+                            print_factor("C", flist->factors[i].factor, OBASE);
 						}
 					}
 				}
@@ -853,12 +879,18 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 					for (j=0;j< flist->factors[i].count;j++)
 					{
 						mpz_mul(tmp, tmp, flist->factors[i].factor);
-						if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
-							gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                                flist->factors[i].factor);
-						else
-							gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                                flist->factors[i].factor);
+                        if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
+                        {
+                            //gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                            //   flist->factors[i].factor);
+                            print_factor("P", flist->factors[i].factor, OBASE);
+                        }
+                        else
+                        {
+                            //gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                            //    flist->factors[i].factor);
+                            print_factor("PRP", flist->factors[i].factor, OBASE);
+                        }
 					}
 				}
 				else
@@ -866,8 +898,9 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 					for (j=0;j< flist->factors[i].count;j++)
 					{
 						mpz_mul(tmp, tmp, flist->factors[i].factor);
-						gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                            flist->factors[i].factor);
+						//gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                        //    flist->factors[i].factor);
+                        print_factor("C", flist->factors[i].factor, OBASE);
 					}
 				}
 			}
@@ -896,9 +929,24 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 					if (v == APRTCLE_VERBOSE1)
 						printf("\n");
 
-					if (ret == APRTCLE_PRIME)
-						gmp_printf("\n***co-factor***\nP%d = %Zd\n",
-							gmp_base10(tmp2), tmp2);
+                    if (ret == APRTCLE_PRIME)
+                    {
+                        if (OBASE == 8)
+                        {
+                            gmp_printf("\n***co-factor***\nP%d = %Zo\n",
+                                mpz_sizeinbase(tmp2, 8), tmp2);
+                        }
+                        else if (OBASE == 10)
+                        {
+                            gmp_printf("\n***co-factor***\nP%d = %Zd\n",
+                                gmp_base10(tmp2), tmp2);
+                        }
+                        else if (OBASE == 16)
+                        {
+                            gmp_printf("\n***co-factor***\nP%d = %Zx\n",
+                                mpz_sizeinbase(tmp2, 16), tmp2);
+                        }
+                    }
 					else
 					{
 						if (mpz_bpsw_prp(tmp2) != PRP_COMPOSITE)
@@ -909,19 +957,58 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 							printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
 							gmp_printf(" *** ATTENTION: n = %Zd\n", tmp2);
 						}
-						gmp_printf("\n***co-factor***\nC%d = %Zd\n",
-							gmp_base10(tmp2), tmp2);
+                        if (OBASE == 8)
+                        {
+                            gmp_printf("\n***co-factor***\nC%d = %Zo\n",
+                                mpz_sizeinbase(tmp2, 8), tmp2);
+                        }
+                        else if (OBASE == 10)
+                        {
+                            gmp_printf("\n***co-factor***\nC%d = %Zd\n",
+                                gmp_base10(tmp2), tmp2);
+                        }
+                        else if (OBASE == 16)
+                        {
+                            gmp_printf("\n***co-factor***\nC%d = %Zx\n",
+                                mpz_sizeinbase(tmp2, 16), tmp2);
+                        }
 					}
 				}
 				else if (is_mpz_prp(tmp2, NUM_WITNESSES))
 				{
-					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
-						gmp_base10(tmp2), tmp2);
+                    if (OBASE == 8)
+                    {
+                        gmp_printf("\n***co-factor***\nPRP%d = %Zo\n",
+                            mpz_sizeinbase(tmp2, 8), tmp2);
+                    }
+                    else if (OBASE == 10)
+                    {
+                        gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
+                            gmp_base10(tmp2), tmp2);
+                    }
+                    else if (OBASE == 16)
+                    {
+                        gmp_printf("\n***co-factor***\nPRP%d = %Zx\n",
+                            mpz_sizeinbase(tmp2, 16), tmp2);
+                    }
 				}
 				else
 				{
-					gmp_printf("\n***co-factor***\nC%d = %Zd\n",
-						gmp_base10(tmp2), tmp2);
+                    if (OBASE == 8)
+                    {
+                        gmp_printf("\n***co-factor***\nC%d = %Zo\n",
+                            mpz_sizeinbase(tmp2, 8), tmp2);
+                    }
+                    else if (OBASE == 10)
+                    {
+                        gmp_printf("\n***co-factor***\nC%d = %Zd\n",
+                            gmp_base10(tmp2), tmp2);
+                    }
+                    else if (OBASE == 16)
+                    {
+                        gmp_printf("\n***co-factor***\nC%d = %Zx\n",
+                            mpz_sizeinbase(tmp2, 16), tmp2);
+                    }
 				}
 			}			
 		}

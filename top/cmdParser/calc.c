@@ -1545,11 +1545,14 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                 if (OBASE == DEC)
                 {
                     gmp_printf("\n%s = %Zd\n\n", varname, tmp);
-
                 }
                 else if (OBASE == HEX)
                 {
                     gmp_printf("\n%s = %Zx\n\n", varname, tmp);
+                }
+                else if (OBASE == OCT)
+                {
+                    gmp_printf("\n%s = %Zo\n\n", varname, tmp);
                 }
             }
             else if (force_quiet == 1)
@@ -1558,11 +1561,14 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                 if (OBASE == DEC)
                 {
                     gmp_printf("%Zd\n", tmp);
-
                 }
                 else if (OBASE == HEX)
                 {
                     gmp_printf("%Zx\n", tmp);
+                }
+                else if (OBASE == OCT)
+                {
+                    gmp_printf("%Zo\n", tmp);
                 }
             }
         }
@@ -2355,6 +2361,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             gmp_printf("%Zd\n", operands[0]);
         else if (OBASE == HEX)
             gmp_printf("%Zx\n", operands[0]);
+        else if (OBASE == OCT)
+            gmp_printf("%Zo\n", operands[0]);
 
         fflush(stdout);
         break;
@@ -2431,7 +2439,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 
         break;
     case 52:
@@ -2461,7 +2469,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->input_N, fobj->N);
         factor(fobj);
         mpz_set(operands[0], fobj->N);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);        
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 
         // someday will come back and work on the command/scripting interpreter
         if (0)
@@ -2494,7 +2502,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->pm1_obj.gmp_n, operands[0]);
         pollard_loop(fobj);
         mpz_set(operands[0], fobj->pm1_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
     case 55:
         // pp1 - two arguments, one optional
@@ -2518,7 +2526,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("wrong number of arguments in pp1\n");
             break;
         }
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
     case 56:
         // rho - one argument
@@ -2528,7 +2536,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->rho_obj.gmp_n, operands[0]);
         brent_loop(fobj);
         mpz_set(operands[0], fobj->rho_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
     case 57:
         // trial - two arguments
@@ -2556,7 +2564,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
     case 58:
         // shanks - one argument
@@ -2564,7 +2572,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_init(gmpz);
 
         n64 = sp_shanks_loop(operands[0], fobj);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         mpz_set_64(operands[0], n64);
         break;
     case 59:
@@ -2575,7 +2583,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
 
     case 60:
@@ -2643,7 +2651,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(fobj->N, operands[2]);
             factor(fobj);
             mpz_set(operands[0], fobj->N);
-            print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+            print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
             clear_factor_list(fobj->factors);
         }
 
@@ -2672,7 +2680,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
     case 63:
         // lucas lehmer test
@@ -2775,7 +2783,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 fclose(fobj->logfile);
         }
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 
         break;
     case 68:
@@ -2890,7 +2898,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         zFermat(n64, j, fobj);
         mpz_set(operands[0], fobj->div_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
 
     case 71:
@@ -2901,7 +2909,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
 
     case 72:

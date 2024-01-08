@@ -79,8 +79,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path",
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
-    "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
-    };
+    "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
+    "obase"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -195,7 +195,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Use for stopXY options to add constraint that number is prime",
     "(Integer < 32-bit): Factor base index at which to start using subset sum algorithm (default 0: unused)",
     "(Integer < 32-bit): Size of a poly-bucket, in bits.  Smaller is better as long as it's big enough. 12 is default.",
-    "                  : Set this to skip all checks for the existance of SNFS polynomials for the input"
+    "                  : Set this to skip all checks for the existance of SNFS polynomials for the input",
+    "(Integer==8,10,16): Output base in octal (8), decimal (default, 10), or hexadecimal (16)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -225,7 +226,8 @@ int needsArg[NUMOPTIONS] = {
     1,0,0,1,1,  // resume, json-pretty, new cado options
     1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
-    1,0,1,1,0   // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
+    1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
+    1
 };
 
 // command line option aliases, specified by '--'
@@ -253,7 +255,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", ""
+    "", "", "", "", "",
+    ""
 };
 
 
@@ -1096,6 +1099,17 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "skipSNFScheck"
         options->skip_snfscheck = 1;
     }
+    else if (strcmp(opt, OptionArray[110]) == 0)
+    {
+        // argument "OBASE"
+        options->obase = atoi(arg);
+        if ((options->obase != 8) && (options->obase != 10) && (options->obase != 16))
+        {
+            printf("*** argument obase must be either 8,10,or 16 ***\n");
+            options->obase = 10;
+        }
+ 
+    }
     else
     {
         int i;
@@ -1163,6 +1177,7 @@ options_t* initOpt(void)
     options->repeat = 0;
     options->no_clk_test = 1;
     options->json_pretty = 0;
+    options->obase = 10;
 
     // autofact options
     options->no_ecm = 0;

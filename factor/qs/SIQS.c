@@ -947,7 +947,7 @@ void SIQS(fact_obj_t *fobj)
         // the a-polys.  If using a save file we clear our current list
         // so that filtering can do it's thing.  If in-mem, keep them; filtering
         // knows how to deal with that case too.
-        if (!static_conf->in_mem)
+        if ((!static_conf->in_mem) && (static_conf->total_poly_a > 0))
         {
             for (i = 0; (uint32_t)i < static_conf->total_poly_a; i++)
             {
@@ -2461,6 +2461,7 @@ void* process_poly(void* vptr)
         }
         else
         {
+            printf("generic nextRoots\n");
             nextRoots_ptr(sconf, dconf);
         }
 
@@ -4252,6 +4253,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     // could maybe someday change this w.r.t input size... for now
     // just test it out...
     //sconf->poly_batch_size = 1;
+    //printf("choosing scan algorithm based on HAS_AVX512F=%d, HAS_AVX2=%d, dlp_cutoff=%d\n",
+    //    sconf->obj->HAS_AVX512F, sconf->obj->HAS_AVX2, dlp_cutoff);
+
 	if (sconf->digits_n >= tlp_cutoff)
 	{
 		sconf->use_dlp = 2;

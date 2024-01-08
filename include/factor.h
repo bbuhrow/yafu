@@ -101,7 +101,7 @@ typedef struct {
 
 int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
     int VFLAG, int NUM_WITNESSES);
-void print_factors(yfactor_list_t* fobj, mpz_t N, int VFLAG, int NUM_WITNESSES);
+void print_factors(yfactor_list_t* fobj, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE);
 void clear_factor_list(yfactor_list_t* fobj);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 
@@ -468,6 +468,7 @@ typedef struct
     int LATHREADS;
     int NUM_WITNESSES;
     int num_threads;
+    int OBASE;
 
     // computer info
     double MEAS_CPU_FREQUENCY;
