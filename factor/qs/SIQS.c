@@ -634,7 +634,7 @@ void SIQS(fact_obj_t *fobj)
 	}
 
     // test/debug: force a particular random seed
-    // fobj->lcg_state = 10081388431143555077;
+    //fobj->lcg_state = 12789661829260397587;
     // printf("warning: test lcg_state is enabled!\n");
 
 	if (sieve_log != NULL)
@@ -2461,7 +2461,6 @@ void* process_poly(void* vptr)
         }
         else
         {
-            printf("generic nextRoots\n");
             nextRoots_ptr(sconf, dconf);
         }
 
@@ -3736,6 +3735,12 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 #endif
 		
+#if defined( __amd64__ ) && defined(USE_AVX512F)
+    // amd eypc (zen4) didn't like the avx512 variants of these.
+    lp_sieveblock_ptr = &lp_sieveblock;
+    tdiv_LP_ptr = &tdiv_LP_avx2;
+#endif
+
 	sconf->qs_blocksize = 32768;
 	sconf->qs_blockbits = 15;
 

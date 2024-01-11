@@ -157,6 +157,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    // get_computer_info has issues with AMD chips?
+    // processor name string is empty and many flags are not set.
 #if !defined(__APPLE__)
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
@@ -185,21 +187,6 @@ int main(int argc, char *argv[])
     fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
     fobj->LOGFLAG = yafu_obj.LOGFLAG;
     fobj->THREADS = yafu_obj.THREADS;
-
-    // get_computer_info has issues with AMD chips?
-    // these are not parsed, anyway, so we need to set
-    // them appropriately for the chip.
-    //fobj->HAS_AVX2 = comp_info.AVX2 = 1;
-    //fobj->HAS_AVX = comp_info.AVX = 1;
-    //fobj->HAS_SSE41 = comp_info.bSSE41Extensions = 1;
-    //fobj->HAS_BMI2 = comp_info.BMI2 = 1;
-
-    //printf("get_computer_info status: sse4.1=%d, avx2=%d, bmi2=%d, avx512f=%d, avx512bw=%d\n",
-    //    comp_info.bSSE41Extensions,
-    //    comp_info.AVX2,
-    //    comp_info.BMI2,
-    //    comp_info.AVX512F,
-    //    comp_info.AVX512BW);
 
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
@@ -267,20 +254,6 @@ int main(int argc, char *argv[])
     {
         fobj->HAS_AVX512BW = comp_info.AVX512BW = 1;
     }
-
-    //printf("builtin-cpu-supports status: sse4.1=%d, avx2=%d, bmi2=%d, avx512f=%d, avx512bw=%d\n",
-    //    comp_info.bSSE41Extensions,
-    //    comp_info.AVX2,
-    //    comp_info.BMI2,
-    //    comp_info.AVX512F,
-    //    comp_info.AVX512BW);
-
-    //fobj->HAS_AVX2 = comp_info.AVX2 = 1;
-    //fobj->HAS_AVX = comp_info.AVX = 1;
-    //fobj->HAS_SSE41 = comp_info.bSSE41Extensions = 1;
-    //fobj->HAS_BMI2 = comp_info.BMI2 = 1;
-    //fobj->HAS_AVX512F = comp_info.AVX512F = 1;
-    //fobj->HAS_AVX512BW = comp_info.AVX512BW = 1;
 
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;

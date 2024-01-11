@@ -251,7 +251,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             vnroot1 = _mm512_sub_epi32(vprime, vroot1);
             vnroot2 = _mm512_sub_epi32(vprime, vroot2);
 
-#ifdef _MSC_VER
+#if defined( _MSC_VER ) || defined(__amd64__)
             // msvc currently has a bug in the new _mm512_mask_compressstoreu_epi32
             // intrinsic, so we fall back on this almost-as-fast code.
 
@@ -493,7 +493,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             velement2 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));
             velement1 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -620,7 +620,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             velement2 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));
             velement1 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -739,7 +739,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             //        update_data.firstroots1[j], sym1, update_data.firstroots2[j], sym2);
             //}
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -801,7 +801,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             velement2 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));
             velement1 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             // msvc currently has a bug in the new _mm512_mask_compressstoreu_epi32
             // intrinsic, so we fall back on this almost-as-fast code.
@@ -896,7 +896,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             vnroot1 = _mm512_sub_epi32(vprime, vroot1);
             vnroot2 = _mm512_sub_epi32(vprime, vroot2);
 
-#ifdef _MSC_VER
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             while (mask1 > 0)
@@ -1099,7 +1099,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             velement2 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));
             velement1 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -1159,7 +1159,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             velement1 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
             
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
             _mm512_store_epi32((__m512i*)b1, vbnum1);
@@ -1259,7 +1259,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             //        update_data.firstroots1[j], sym1, update_data.firstroots2[j], sym2);
             //}
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
 
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -1317,7 +1317,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             velement1 = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
 
 
-#if defined(_MSC_VER)
+#if defined( _MSC_VER ) || defined(__amd64__)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
             _mm512_store_epi32((__m512i*)b1, vbnum1);
