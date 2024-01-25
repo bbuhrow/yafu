@@ -434,7 +434,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 #ifdef AVX512_LASIEVE_SETUP
 
 				
-				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (fbi = 0; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
 				{
@@ -568,7 +568,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 #ifdef AVX512_LASIEVE_SETUP
 				
-				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
 				{
@@ -719,7 +719,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
-				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (fbi = 0; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
 				{
@@ -853,7 +853,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 #define A1MOD(p) A1MOD1(p)
 
 #ifdef AVX512_LASIEVE_SETUP
-				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
 					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
@@ -1008,7 +1008,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 #ifdef AVX512_LASIEVE_SETUP
 
-				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (fbi = 0; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
 				{
@@ -1144,7 +1144,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 
 #ifdef AVX512_LASIEVE_SETUP
-				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
 					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
@@ -1291,7 +1291,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
-				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (fbi = 0; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
 				{
@@ -1432,7 +1432,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 #ifdef AVX512_LASIEVE_SETUP
 //u32_t count = fbsz;
-				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
+				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
 					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);

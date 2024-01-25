@@ -189,14 +189,14 @@ double sieveStartTime;
 
 static int tdcand_cmp(const void*x,const void*y)
 {
-return(int)(*((u16_t*)x))-(int)(*((u16_t*)y));
+    return(int)(*((u16_t*)x))-(int)(*((u16_t*)y));
 }
 
 /*:8*//*9:*/
 #line 220 "gnfs-lasieve4e.w"
 
 typedef struct xFBstruct{
-u32_t p,pp,q,qq,r,l;
+    u32_t p,pp,q,qq,r,l;
 }*xFBptr;
 static volatile xFBptr xFB[2];
 static volatile u32_t xFBs[2];
@@ -226,7 +226,8 @@ i32_t a0,a1,b0,b1;
 u32_t I_bits;
 #endif
 #line 288 "gnfs-lasieve4e.w"
- u32_t J_bits,i_shift,n_I,n_J;
+
+u32_t J_bits,i_shift,n_I,n_J;
 u32_t root_no;
 float sigma;
 
@@ -284,15 +285,14 @@ static u32_t j_per_strip,jps_bits;
 
 
 static struct schedule_struct{
-u16_t***schedule;
-u32_t*fbi_bounds;
-u32_t n_pieces;
-unsigned char*schedlogs;
-u16_t n_strips,current_strip;
-size_t alloc,alloc1;
-u32_t*ri;
-u32_t d;
-
+    u16_t***schedule;
+    u32_t*fbi_bounds;
+    u32_t n_pieces;
+    unsigned char*schedlogs;
+    u16_t n_strips,current_strip;
+    size_t alloc,alloc1;
+    u32_t*ri;
+    u32_t d;
 }*(schedules[2]);
 u32_t n_schedules[2];
 
@@ -722,6 +722,7 @@ int main(int argc, char** argv)
     /*23:*/
 #line 892 "gnfs-lasieve4e.w"
 
+    // parse options and poly file
     {
         i32_t option;
         FILE* input_data;
@@ -980,7 +981,7 @@ int main(int argc, char** argv)
 #endif
 #line 1102 "gnfs-lasieve4e.w"
 
-
+        // parse poly file
         fclose(input_data);
         {
             FILE* fp;
@@ -1158,6 +1159,7 @@ int main(int argc, char** argv)
     /*25:*/
 #line 1247 "gnfs-lasieve4e.w"
 
+    // open output file
     if (sieve_count != 0) {
 
         if (g_ofile_name == NULL) {
@@ -1234,6 +1236,7 @@ int main(int argc, char** argv)
 /*26:*/
 #line 1316 "gnfs-lasieve4e.w"
 
+    
     {
         size_t FBS_alloc = 4096;
         u32_t prime;
@@ -1426,6 +1429,7 @@ int main(int argc, char** argv)
 /*32:*/
 #line 1478 "gnfs-lasieve4e.w"
 
+    
     {
         i32_t side, d;
         u32_t* fbsz;
@@ -1442,10 +1446,12 @@ int main(int argc, char** argv)
 
                 d = 0;
                 p = FB[side][i];
+
                 do {
                     i++;
                     d++;
                 } while (i < FBsize[side] && FB[side][i] == p);
+
 #ifdef MAX_FB_PER_P
                 while (d > MAX_FB_PER_P) {
                     fbsz[MAX_FB_PER_P]++;
@@ -1454,7 +1460,16 @@ int main(int argc, char** argv)
 #endif
 #line 1505 "gnfs-lasieve4e.w"
                 fbsz[d]++;
+                
             }
+
+            // There is a rare issue when some algebraic polynomials
+            // have a large imbalance between d=1 and d=2 factor base elements
+            // leading to, for example with largeprime^37-1, fbsz[1] = 1 and 
+            // fbsz[2] = rest of the factor base.
+            // this caused problem with scheduling setup.  A fix is in place,
+            // hopefully it doesn't mess anything else up.
+
             logbook(0, "Sorted factor base on side %d:", side);
             for (d = 1, i = fbi1[side]; d <= poldeg[side]; d++) {
                 if (fbsz[d] > 0)
@@ -1692,144 +1707,157 @@ close(fd);
 /*65:*/
 #line 2543 "gnfs-lasieve4e.w"
 
-{
-u32_t s;
+    {
+        u32_t s;
 #define MAX_TINY_2POW 4
 
-if(poldeg[0]<poldeg[1])s= poldeg[1];
-else s= poldeg[0];
-tinysieve_curpos= xmalloc(TINY_SIEVE_MIN*s*sizeof(*tinysieve_curpos));
-horizontal_sievesums= xmalloc(j_per_strip*sizeof(*horizontal_sievesums));
-for(s= 0;s<2;s++){
-u32_t fbi;
-size_t maxent;
+        if (poldeg[0] < poldeg[1])s = poldeg[1];
+        else s = poldeg[0];
+        tinysieve_curpos = xmalloc(TINY_SIEVE_MIN * s * sizeof(*tinysieve_curpos));
+        horizontal_sievesums = xmalloc(j_per_strip * sizeof(*horizontal_sievesums));
+        for (s = 0; s < 2; s++) {
+            u32_t fbi;
+            size_t maxent;
 
-smallsieve_aux[s]= xmalloc(4*fbis[s]*sizeof(*(smallsieve_aux[s])));
+            smallsieve_aux[s] = xmalloc(4 * fbis[s] * sizeof(*(smallsieve_aux[s])));
 #ifndef MMX_TD
 #ifdef PREINVERT
-smalltd_pi[s]= xmalloc(fbis[s]*sizeof(*(smalltd_pi[s])));
+            smalltd_pi[s] = xmalloc(fbis[s] * sizeof(*(smalltd_pi[s])));
 #endif
 #line 2561 "gnfs-lasieve4e.w"
- smalltdsieve_aux[s]= xmalloc(j_per_strip*sizeof(*(smalltdsieve_aux[s])));
-for(fbi= 0;fbi<j_per_strip;fbi++)
-smalltdsieve_aux[s][fbi]= 
-xmalloc(fbis[s]*sizeof(**(smalltdsieve_aux[s])));
+            smalltdsieve_aux[s] = xmalloc(j_per_strip * sizeof(*(smalltdsieve_aux[s])));
+            for (fbi = 0; fbi < j_per_strip; fbi++)
+                smalltdsieve_aux[s][fbi] =
+                xmalloc(fbis[s] * sizeof(**(smalltdsieve_aux[s])));
 #else
 #line 2566 "gnfs-lasieve4e.w"
 
-MMX_TdAllocate(j_per_strip,fbis[0],fbis[1]);
+            MMX_TdAllocate(j_per_strip, fbis[0], fbis[1]);
 #endif
 #line 2569 "gnfs-lasieve4e.w"
- smallsieve_aux1[s]= xmalloc(6*xFBs[s]*sizeof(*(smallsieve_aux1[s])));
+            smallsieve_aux1[s] = xmalloc(6 * xFBs[s] * sizeof(*(smallsieve_aux1[s])));
 
 
-maxent= fbis[s];
-maxent+= xFBs[s];
-smallpsieve_aux[s]= xmalloc(3*maxent*sizeof(*(smallpsieve_aux[s])));
-maxent= 0;
-for(fbi= 0;fbi<xFBs[s];fbi++){
-if(xFB[s][fbi].p==2)
-maxent++;
-}
-smallsieve_aux2[s]= xmalloc(4*maxent*sizeof(*(smallsieve_aux2[s])));
-x2FB[s]= xmalloc(maxent*6*sizeof(*(x2FB[s])));
-}
-}
+            maxent = fbis[s];
+            maxent += xFBs[s];
+            smallpsieve_aux[s] = xmalloc(3 * maxent * sizeof(*(smallpsieve_aux[s])));
+            maxent = 0;
+            for (fbi = 0; fbi < xFBs[s]; fbi++) {
+                if (xFB[s][fbi].p == 2)
+                    maxent++;
+            }
+            smallsieve_aux2[s] = xmalloc(4 * maxent * sizeof(*(smallsieve_aux2[s])));
+            x2FB[s] = xmalloc(maxent * 6 * sizeof(*(x2FB[s])));
+        }
+    }
 
 /*:65*//*66:*/
 #line 2586 "gnfs-lasieve4e.w"
 
 #ifdef GCD_SIEVE_BOUND
-{
-u32_t p,i;
+    {
+        u32_t p, i;
 
-firstprime32(&special_q_ps);
-np_gcd_sieve= 0;
-for(p= nextprime32(&special_q_ps);p<GCD_SIEVE_BOUND;
-p= nextprime32(&special_q_ps))np_gcd_sieve++;
-gcd_sieve_buffer= xmalloc(2*np_gcd_sieve*sizeof(*gcd_sieve_buffer));
+        firstprime32(&special_q_ps);
+        np_gcd_sieve = 0;
+        for (p = nextprime32(&special_q_ps); p < GCD_SIEVE_BOUND;
+            p = nextprime32(&special_q_ps))np_gcd_sieve++;
+        gcd_sieve_buffer = xmalloc(2 * np_gcd_sieve * sizeof(*gcd_sieve_buffer));
 
-firstprime32(&special_q_ps);
-i= 0;
-for(p= nextprime32(&special_q_ps);p<GCD_SIEVE_BOUND;
-p= nextprime32(&special_q_ps))gcd_sieve_buffer[2*i++]= p;
-}
+        firstprime32(&special_q_ps);
+        i = 0;
+        for (p = nextprime32(&special_q_ps); p < GCD_SIEVE_BOUND;
+            p = nextprime32(&special_q_ps))gcd_sieve_buffer[2 * i++] = p;
+    }
 #endif
 #line 2603 "gnfs-lasieve4e.w"
 
 /*:66*/
 #line 1812 "gnfs-lasieve4e.w"
 
-{
-u32_t s;
-for(s= 0;s<2;s++){
-if(sieve_min[s]<TINY_SIEVE_MIN&&sieve_min[s]!=0){
-errprintf("Sieving with all primes on side %u since\n",s);
-errprintf("tiny sieve procedure is being used\n");
-sieve_min[s]= 0;
-}
-current_ij[s]= xmalloc((FBsize[s]+FB_RAS)*sizeof(*current_ij[s]));
-LPri[s]= xmalloc((FBsize[s]+FB_RAS)*sizeof(**LPri)*RI_SIZE);
-}
-}
+    {
+        u32_t s;
+        for (s = 0; s < 2; s++) {
+            if (sieve_min[s] < TINY_SIEVE_MIN && sieve_min[s] != 0) {
+                errprintf("Sieving with all primes on side %u since\n", s);
+                errprintf("tiny sieve procedure is being used\n");
+                sieve_min[s] = 0;
+            }
+            current_ij[s] = xmalloc((FBsize[s] + FB_RAS) * sizeof(*current_ij[s]));
+            LPri[s] = xmalloc((FBsize[s] + FB_RAS) * sizeof(**LPri) * RI_SIZE);
+        }
+    }
 
 /*:42*//*43:*/
 #line 1839 "gnfs-lasieve4e.w"
 
-{
-    u32_t s;
-    size_t total_alloc;
-    u16_t* sched_buf;
-    double pvl_max[2];
+    {
+        u32_t s;
+        size_t total_alloc;
+        u16_t* sched_buf;
+        double pvl_max[2];
 
-    total_alloc = 0;
-    for (s = 0; s < 2; s++) {
-        u32_t i, d, nsched_per_d;
+        total_alloc = 0;
+        for (s = 0; s < 2; s++) {
+            u32_t i, d, nsched_per_d;
 
-        if (sigma >= 1)pvl_max[s] = poldeg[s] * log(last_spq * sqrt(sigma));
-        else pvl_max[s] = poldeg[s] * log(last_spq / sqrt(sigma));
-        pvl_max[s] += log(poly_norm[s]);
-        if (fbi1[s] >= FBsize[s] || i_bits + j_bits <= L1_BITS) {
-            n_schedules[s] = 0;
-            continue;
-        }
-        for (i = 1, d = 0; i <= poldeg[s]; i++)
-            if (deg_fbibounds[s][i - 1] < deg_fbibounds[s][i])
-                d++;
-        for (i = 0; i < N_PRIMEBOUNDS; i++)
-            if (FB_bound[s] <= schedule_primebounds[i] ||
-                i_bits + j_bits <= schedule_sizebits[i]) {
-                break;
+            if (sigma >= 1)pvl_max[s] = poldeg[s] * log(last_spq * sqrt(sigma));
+            else pvl_max[s] = poldeg[s] * log(last_spq / sqrt(sigma));
+            pvl_max[s] += log(poly_norm[s]);
+            if (fbi1[s] >= FBsize[s] || i_bits + j_bits <= L1_BITS) {
+                n_schedules[s] = 0;
+                continue;
             }
-        n_schedules[s] = d * (i + 1);
-        nsched_per_d = i + 1;
-        schedules[s] = xmalloc(n_schedules[s] * sizeof(**schedules));
-        for (i = 0, d = 1; d <= poldeg[s]; d++) {
-            u32_t j, fbi_lb;
-            fbi_lb = deg_fbibounds[s][d - 1];
-            for (j = 0; j < N_PRIMEBOUNDS; j++) {
-                u32_t fbp_lb, fbp_ub;
-                u32_t lb1, fbi_ub;
-                u32_t l;
-                u32_t sp_i;
-                u32_t n, sl_i;
-                u32_t ns;
-                size_t allocate, all1;
 
-                if (fbi_lb >= deg_fbibounds[s][d])
+            for (i = 1, d = 0; i <= poldeg[s]; i++)
+            {
+                if (deg_fbibounds[s][i - 1] < deg_fbibounds[s][i])
+                {
+                    d++;
+                }
+            }
+            for (i = 0; i < N_PRIMEBOUNDS; i++)
+            {
+                if (FB_bound[s] <= schedule_primebounds[i] ||
+                    i_bits + j_bits <= schedule_sizebits[i]) {
                     break;
-                if (j == nsched_per_d - 1)fbp_ub = FB_bound[s];
-                else fbp_ub = schedule_primebounds[j];
-                if (j == 0)fbp_lb = FB[s][fbi_lb];
-                else fbp_lb = schedule_primebounds[j - 1];
-                if (fbp_lb >= FB_bound[s])
-                    continue;
+                }
+            }
 
-                if (i_bits + j_bits < schedule_sizebits[j])ns = 1 << (i_bits + j_bits - L1_BITS);
-                else ns = 1 << (schedule_sizebits[j] - L1_BITS);
-                schedules[s][i].n_strips = ns;
+            n_schedules[s] = d * (i + 1);
 
+            nsched_per_d = i + 1;
+            schedules[s] = xmalloc(n_schedules[s] * sizeof(**schedules));
+            for (i = 0, d = 1; d <= poldeg[s]; d++) {
+                u32_t j, fbi_lb;
+                fbi_lb = deg_fbibounds[s][d - 1];
+                for (j = 0; j < N_PRIMEBOUNDS; j++) {
+                    u32_t fbp_lb, fbp_ub;
+                    u32_t lb1, fbi_ub;
+                    u32_t l;
+                    u32_t sp_i;
+                    u32_t n, sl_i;
+                    u32_t ns;
+                    size_t allocate, all1;
 
+                    if (fbi_lb >= deg_fbibounds[s][d])
+                        break;
+                    if (j == nsched_per_d - 1)fbp_ub = FB_bound[s];
+                    else fbp_ub = schedule_primebounds[j];
+                    if (j == 0)fbp_lb = FB[s][fbi_lb];
+                    else fbp_lb = schedule_primebounds[j - 1];
+                    if (fbp_lb >= FB_bound[s])
+                        continue;
+
+                    if (i_bits + j_bits < schedule_sizebits[j])ns = 1 << (i_bits + j_bits - L1_BITS);
+                    else ns = 1 << (schedule_sizebits[j] - L1_BITS);
+                    schedules[s][i].n_strips = ns;
+
+                    // part of the fix for the rare issue when some algebraic polynomials
+                    // have a large imbalance between d=1 and d=2 factor base elements,
+                    // leading to malformed schedules (in this case lb > ub)
+                    if (fbp_lb > fbp_ub)
+                        continue;
 
 #ifndef SCHED_TOL
 #ifndef NO_SCHEDTOL
@@ -1854,178 +1882,199 @@ LPri[s]= xmalloc((FBsize[s]+FB_RAS)*sizeof(**LPri)*RI_SIZE);
 #line 1912 "gnfs-lasieve4e.w"
 #ifdef SCHED_TOL
 
-                assert(rint(SCHED_PAD + SCHED_TOL * n_i * j_per_strip * log(log(fbp_ub) /
-                    log(fbp_lb)) * SE_SIZE) <= ULONG_MAX);
+                    assert(rint(SCHED_PAD + SCHED_TOL * n_i * j_per_strip * log(log(fbp_ub) /
+                        log(fbp_lb)) * SE_SIZE) <= ULONG_MAX);
 
-                allocate = (size_t)rint(SCHED_PAD + SCHED_TOL * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
+                    allocate = (size_t)rint(SCHED_PAD + SCHED_TOL * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
+
 #else
 #line 1919 "gnfs-lasieve4e.w"
-                allocate = rint(sched_tol[i] * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
+                    allocate = rint(sched_tol[i] * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
 #endif
 #line 1921 "gnfs-lasieve4e.w"
-                allocate *= SE_SIZE;
+                    allocate *= SE_SIZE;
 
 
 
-                all1 = allocate + n_i * ceil(pvl_max[s] / log(fbp_lb)) * SE_SIZE;
-                schedules[s][i].alloc = allocate;
-                schedules[s][i].alloc1 = all1;
+                    all1 = allocate + n_i * ceil(pvl_max[s] / log(fbp_lb)) * SE_SIZE;
+                    schedules[s][i].alloc = allocate;
+                    schedules[s][i].alloc1 = all1;
 
-
-                n = 0;
-                lb1 = fbi_lb;
-                for (l = 0, n = 0; l < 256; l++) {
-                    u32_t ub;
-                    ub = fbi_logbounds[s][d][l + 1];
-                    fbi_ub = ub;
-                    while (ub > lb1 && FB[s][ub - 1] >= fbp_ub)ub--;
-                    if (ub <= lb1)continue;
-                    n += (ub + SCHEDFBI_MAXSTEP - 1 - lb1) / SCHEDFBI_MAXSTEP;
-                    lb1 = ub;
-                    if (ub >= deg_fbibounds[s][d] || FB[s][ub] >= fbp_ub)
-                        break;
-                }
-                fbi_ub = lb1;
-                schedules[s][i].n_pieces = n;
-                schedules[s][i].d = d;
-                n++;
-                schedules[s][i].schedule = xmalloc(n * sizeof(*(schedules[s][i].schedule)));
-                for (sl_i = 0; sl_i < n; sl_i++)
-                    schedules[s][i].schedule[sl_i] =
-                    xmalloc(ns * sizeof(**(schedules[s][i].schedule)));
-                schedules[s][i].schedule[0][0] = (u16_t*)total_alloc;
-                total_alloc += all1;
-                for (sp_i = 1; sp_i < ns; sp_i++) {
-                    schedules[s][i].schedule[0][sp_i] = (u16_t*)total_alloc;
-                    total_alloc += allocate;
-                }
-                schedules[s][i].fbi_bounds =
-                    xmalloc(n * sizeof(*(schedules[s][i].fbi_bounds)));
-                schedules[s][i].schedlogs = xmalloc(n);
-                n = 0;
-                lb1 = fbi_lb;
-                l = fbi_lb;
-                for (l = 0, n = 0; l < 256; l++) {
-                    u32_t ub, ub1;
-                    ub = fbi_logbounds[s][d][l + 1];
-                    while (ub > lb1 && FB[s][ub - 1] >= fbp_ub)ub--;
-                    if (ub <= lb1)continue;
-                    if (ub > fbi_ub)ub = fbi_ub;
-                    for (ub1 = lb1; ub1 < ub; ub1 += SCHEDFBI_MAXSTEP) {
-                        schedules[s][i].fbi_bounds[n] = ub1;
-                        schedules[s][i].schedlogs[n++] = l;
+                    n = 0;
+                    lb1 = fbi_lb;
+                    for (l = 0, n = 0; l < 256; l++) {
+                        u32_t ub;
+                        ub = fbi_logbounds[s][d][l + 1];
+                        fbi_ub = ub;
+                        while (ub > lb1 && FB[s][ub - 1] >= fbp_ub)ub--;
+                        if (ub <= lb1)continue;
+                        n += (ub + SCHEDFBI_MAXSTEP - 1 - lb1) / SCHEDFBI_MAXSTEP;
+                        lb1 = ub;
+                        if (ub >= deg_fbibounds[s][d] || FB[s][ub] >= fbp_ub)
+                            break;
                     }
-                    lb1 = ub;
-                    if (ub >= deg_fbibounds[s][d] || FB[s][ub] >= fbp_ub)
-                        break;
-                }
-                if (fbi_ub != lb1)
-                    Schlendrian("Expected %u as fbi upper bound, have %u\n", fbi_ub, lb1);
-                if (n != schedules[s][i].n_pieces)
-                    Schlendrian("Expected %u schedule pieces on side %u, have %u\n",
-                        schedules[s][i].n_pieces, s, n);
-                schedules[s][i].fbi_bounds[n++] = fbi_ub;
+                    fbi_ub = lb1;
+
+                    // part of the fix for the rare issue when some algebraic polynomials
+                    // have a large imbalance between d=1 and d=2 factor base elements,
+                    // leading to empty schedules.
+                    if ((n == 0) || (fbi_ub == fbi_lb))
+                        continue;
+
+                    schedules[s][i].n_pieces = n;
+                    schedules[s][i].d = d;
+                    n++;
+                    schedules[s][i].schedule = xmalloc(n * sizeof(*(schedules[s][i].schedule)));
+                    for (sl_i = 0; sl_i < n; sl_i++)
+                        schedules[s][i].schedule[sl_i] =
+                        xmalloc(ns * sizeof(**(schedules[s][i].schedule)));
+                    schedules[s][i].schedule[0][0] = (u16_t*)total_alloc;
+                    total_alloc += all1;
+                    for (sp_i = 1; sp_i < ns; sp_i++) {
+                        schedules[s][i].schedule[0][sp_i] = (u16_t*)total_alloc;
+                        total_alloc += allocate;
+                    }
+                    schedules[s][i].fbi_bounds =
+                        xmalloc(n * sizeof(*(schedules[s][i].fbi_bounds)));
+                    schedules[s][i].schedlogs = xmalloc(n);
+                    n = 0;
+                    lb1 = fbi_lb;
+                    l = fbi_lb;
+                    for (l = 0, n = 0; l < 256; l++) {
+                        u32_t ub, ub1;
+                        ub = fbi_logbounds[s][d][l + 1];
+                        while (ub > lb1 && FB[s][ub - 1] >= fbp_ub)ub--;
+                        if (ub <= lb1)continue;
+                        if (ub > fbi_ub)ub = fbi_ub;
+                        for (ub1 = lb1; ub1 < ub; ub1 += SCHEDFBI_MAXSTEP) {
+                            schedules[s][i].fbi_bounds[n] = ub1;
+                            schedules[s][i].schedlogs[n++] = l;
+                        }
+                        lb1 = ub;
+                        if (ub >= deg_fbibounds[s][d] || FB[s][ub] >= fbp_ub)
+                            break;
+                    }
+                    if (fbi_ub != lb1)
+                        Schlendrian("Expected %u as fbi upper bound, have %u\n", fbi_ub, lb1);
+                    if (n != schedules[s][i].n_pieces)
+                        Schlendrian("Expected %u schedule pieces on side %u, have %u\n",
+                            schedules[s][i].n_pieces, s, n);
+                    schedules[s][i].fbi_bounds[n++] = fbi_ub;
+
+
 #ifdef CONTIGUOUS_RI
-                schedules[s][i].ri =
-                    LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]);// *RI_SIZE;
+                    schedules[s][i].ri =
+                        LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]);// *RI_SIZE;
 #else
-                schedules[s][i].ri =
-                    LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]) * RI_SIZE;
+                    schedules[s][i].ri =
+                        LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]) * RI_SIZE;
+
+                    //printf("schedule %d on side %d ptr = %p.  fbis = %u, fbi_lb = %u, fbi_ub = %u\n",
+                    //    i, s, schedules[s][i].ri, fbis[s], fbi_lb, fbi_ub);
 #endif
-                fbi_lb = fbi_ub;
-                i++;
+                    fbi_lb = fbi_ub;
+                    i++;
+                }
             }
+            if (i != n_schedules[s])
+            {
+                //Schlendrian("Expected to create %u  schedules on side %d, have %u\n",
+                //    n_schedules[s], s, i);
+
+                printf("Warning: expected to create %u  schedules on side %d, have %u\n",
+                    n_schedules[s], s, i);
+                n_schedules[s] = i;
+            }
+                
         }
-        if (i != n_schedules[s])
-            Schlendrian("Expected to create %u  schedules on side %d, have %u\n",
-                n_schedules[s], s, i);
-    }
-    /*44:*/
+
+
+        /*44:*/
 #line 2011 "gnfs-lasieve4e.w"
 
-    sched_buf = xmalloc((total_alloc + 65536 * SE_SIZE * j_per_strip) *
-        sizeof(***((**schedules).schedule)));
-    for (s = 0; s < 2; s++) {
-        u32_t i;
-        for (i = 0; i < n_schedules[s]; i++) {
-            u32_t sp_i;
+        sched_buf = xmalloc((total_alloc + 65536 * SE_SIZE * j_per_strip) *
+            sizeof(***((**schedules).schedule)));
+        for (s = 0; s < 2; s++) {
+            u32_t i;
+            for (i = 0; i < n_schedules[s]; i++) {
+                u32_t sp_i;
 
-            for (sp_i = 0; sp_i < schedules[s][i].n_strips; sp_i++)
-                schedules[s][i].schedule[0][sp_i] =
-                sched_buf + (size_t)(schedules[s][i].schedule[0][sp_i]);
+                for (sp_i = 0; sp_i < schedules[s][i].n_strips; sp_i++)
+                    schedules[s][i].schedule[0][sp_i] =
+                    sched_buf + (size_t)(schedules[s][i].schedule[0][sp_i]);
+            }
         }
-    }
 
-    /*:44*/
+        /*:44*/
 #line 1993 "gnfs-lasieve4e.w"
 
 /*46:*/
 #line 2037 "gnfs-lasieve4e.w"
 
 #ifdef USE_MEDSCHED
-    {
-        u32_t s;
+        {
+            u32_t s;
 
-        for (s = 0; s < 2; s++) {
-            if (fbis[s] < fbi1[s]) {
-                u32_t fbi;
-                u32_t n;
-                unsigned char oldlog;
+            for (s = 0; s < 2; s++) {
+                if (fbis[s] < fbi1[s]) {
+                    u32_t fbi;
+                    u32_t n;
+                    unsigned char oldlog;
 
 
-                medsched_alloc[s] = j_per_strip * (fbi1[s] - fbis[s]) * SE_SIZE;
+                    medsched_alloc[s] = j_per_strip * (fbi1[s] - fbis[s]) * SE_SIZE;
 
-                medsched_alloc[s] += n_i * ceil(pvl_max[s] / log(n_i)) * SE_SIZE;
-                n_medsched_pieces[s] = 1 + FB_logs[s][fbi1[s] - 1] - FB_logs[s][fbis[s]];
-                med_sched[s] = xmalloc((1 + n_medsched_pieces[s]) * sizeof(**med_sched));
-                med_sched[s][0] = xmalloc(medsched_alloc[s] * sizeof(***med_sched));
+                    medsched_alloc[s] += n_i * ceil(pvl_max[s] / log(n_i)) * SE_SIZE;
+                    n_medsched_pieces[s] = 1 + FB_logs[s][fbi1[s] - 1] - FB_logs[s][fbis[s]];
+                    med_sched[s] = xmalloc((1 + n_medsched_pieces[s]) * sizeof(**med_sched));
+                    med_sched[s][0] = xmalloc(medsched_alloc[s] * sizeof(***med_sched));
 
-                medsched_fbi_bounds[s] =
-                    xmalloc((1 + n_medsched_pieces[s]) * sizeof(**medsched_fbi_bounds));
-                medsched_logs[s] = xmalloc(n_medsched_pieces[s]);
+                    medsched_fbi_bounds[s] =
+                        xmalloc((1 + n_medsched_pieces[s]) * sizeof(**medsched_fbi_bounds));
+                    medsched_logs[s] = xmalloc(n_medsched_pieces[s]);
 
-                for (n = 0, fbi = fbis[s], oldlog = UCHAR_MAX; fbi < fbi1[s]; fbi++) {
-                    if (FB_logs[s][fbi] != oldlog) {
-                        medsched_fbi_bounds[s][n] = fbi;
-                        oldlog = FB_logs[s][fbi];
-                        medsched_logs[s][n++] = oldlog;
+                    for (n = 0, fbi = fbis[s], oldlog = UCHAR_MAX; fbi < fbi1[s]; fbi++) {
+                        if (FB_logs[s][fbi] != oldlog) {
+                            medsched_fbi_bounds[s][n] = fbi;
+                            oldlog = FB_logs[s][fbi];
+                            medsched_logs[s][n++] = oldlog;
+                        }
                     }
+                    if (n != n_medsched_pieces[s])
+                        Schlendrian("Expected %u medium schedule pieces on side %u, have %u\n",
+                            n_medsched_pieces[s], s, n);
+                    medsched_fbi_bounds[s][n] = fbi;
                 }
-                if (n != n_medsched_pieces[s])
-                    Schlendrian("Expected %u medium schedule pieces on side %u, have %u\n",
-                        n_medsched_pieces[s], s, n);
-                medsched_fbi_bounds[s][n] = fbi;
-            }
-            else {
+                else {
 
-                n_medsched_pieces[s] = 0;
+                    n_medsched_pieces[s] = 0;
+                }
             }
         }
-    }
 #endif
 #line 2078 "gnfs-lasieve4e.w"
 
-    /*:46*/
+        /*:46*/
 #line 1994 "gnfs-lasieve4e.w"
 
-}
+    }
 
 /*:43*//*103:*/
 #line 3549 "gnfs-lasieve4e.w"
 
-{
-    u32_t s;
-    size_t schedbuf_alloc;
+    {
+        u32_t s;
+        size_t schedbuf_alloc;
 
-    for (s = 0, schedbuf_alloc = 0; s < 2; s++) {
-        u32_t i;
+        for (s = 0, schedbuf_alloc = 0; s < 2; s++) {
+            u32_t i;
 
-        for (i = 0; i < n_schedules[s]; i++)
-            if (schedules[s][i].n_pieces > schedbuf_alloc)
-                schedbuf_alloc = schedules[s][i].n_pieces;
+            for (i = 0; i < n_schedules[s]; i++)
+                if (schedules[s][i].n_pieces > schedbuf_alloc)
+                    schedbuf_alloc = schedules[s][i].n_pieces;
+        }
+        schedbuf = xmalloc((1 + schedbuf_alloc) * sizeof(*schedbuf));
     }
-    schedbuf = xmalloc((1 + schedbuf_alloc) * sizeof(*schedbuf));
-}
 
 /*:103*/
 #line 549 "gnfs-lasieve4e.w"
@@ -2033,104 +2082,110 @@ LPri[s]= xmalloc((FBsize[s]+FB_RAS)*sizeof(**LPri)*RI_SIZE);
 /*122:*/
 #line 3943 "gnfs-lasieve4e.w"
 
-td_buf1= xmalloc((1+L1_SIZE)*sizeof(*td_buf1));
-td_buf[0]= xmalloc(td_buf_alloc[0]*sizeof(**td_buf));
-td_buf[1]= xmalloc(td_buf_alloc[1]*sizeof(**td_buf));
+    td_buf1= xmalloc((1+L1_SIZE)*sizeof(*td_buf1));
+    td_buf[0]= xmalloc(td_buf_alloc[0]*sizeof(**td_buf));
+    td_buf[1]= xmalloc(td_buf_alloc[1]*sizeof(**td_buf));
 
 /*:122*//*127:*/
 #line 4129 "gnfs-lasieve4e.w"
 
-{
-    u32_t i;
-    if (tds_fbi == NULL) {
-        tds_fbi = xmalloc(UCHAR_MAX * sizeof(*tds_fbi));
-        tds_fbi_curpos = xmalloc(UCHAR_MAX * sizeof(*tds_fbi));
-        for (i = 0; i < UCHAR_MAX; i++)
-            tds_fbi[i] = xmalloc(tds_fbi_alloc * sizeof(**tds_fbi));
+    {
+        u32_t i;
+        if (tds_fbi == NULL) {
+            tds_fbi = xmalloc(UCHAR_MAX * sizeof(*tds_fbi));
+            tds_fbi_curpos = xmalloc(UCHAR_MAX * sizeof(*tds_fbi));
+            for (i = 0; i < UCHAR_MAX; i++)
+                tds_fbi[i] = xmalloc(tds_fbi_alloc * sizeof(**tds_fbi));
+        }
     }
-}
 
 /*:127*//*147:*/
 #line 4710 "gnfs-lasieve4e.w"
 
-{
-    u32_t s, i;
-    for (i = 0; i < L1_SIZE; i++) {
-        mpz_init(td_rests[i]);
-    }
-    for (s = 0; s < 2; s++) {
-        mpz_init(large_factors[s]);
-        large_primes[s] = xmalloc(max_factorbits[s] * sizeof(*(large_primes[s])));
-        for (i = 0; i < max_factorbits[s]; i++) {
-            mpz_init(large_primes[s][i]);
+    {
+        u32_t s, i;
+        for (i = 0; i < L1_SIZE; i++) {
+            mpz_init(td_rests[i]);
         }
+        for (s = 0; s < 2; s++) {
+            mpz_init(large_factors[s]);
+            large_primes[s] = xmalloc(max_factorbits[s] * sizeof(*(large_primes[s])));
+            for (i = 0; i < max_factorbits[s]; i++) {
+                mpz_init(large_primes[s][i]);
+            }
 #if 0
-        mpz_init_set_d(FBb_sq[s], FB_bound[s]);
-        mpz_mul(FBb_sq[s], FBb_sq[s], FBb_sq[s]);
+            mpz_init_set_d(FBb_sq[s], FB_bound[s]);
+            mpz_mul(FBb_sq[s], FBb_sq[s], FBb_sq[s]);
 #else
 #line 4726 "gnfs-lasieve4e.w"
-        mpz_init_set_d(FBb_cu[s], FB_bound[s]);
-        mpz_init(FBb_sq[s]);
-        mpz_mul(FBb_sq[s], FBb_cu[s], FBb_cu[s]);
-        mpz_mul(FBb_cu[s], FBb_cu[s], FBb_sq[s]);
+            mpz_init_set_d(FBb_cu[s], FB_bound[s]);
+            mpz_init(FBb_sq[s]);
+            mpz_mul(FBb_sq[s], FBb_cu[s], FBb_cu[s]);
+            mpz_mul(FBb_cu[s], FBb_cu[s], FBb_sq[s]);
 #endif
 #line 4731 "gnfs-lasieve4e.w"
+        }
     }
-}
 
 
 /*:147*/
 #line 550 "gnfs-lasieve4e.w"
 
-read_strategy(&strat,max_factorbits,las_basename,max_primebits);
+    read_strategy(&strat,max_factorbits,las_basename,max_primebits);
 
 
 
 
-all_spq_done= 1;
+    all_spq_done= 1;
 /*17:*/
 #line 568 "gnfs-lasieve4e.w"
 
-{
-u64_t*r;
-initprime32(&special_q_ps);
+    {
+        u64_t*r;
+        initprime32(&special_q_ps);
 #ifndef NO_TD_CLOCK
-last_clock= clock();
+        last_clock= clock();
 #endif
 #line 575 "gnfs-lasieve4e.w"
- n_spq= 0;
-n_spq_discard= 0;
-r= xmalloc(poldeg_max*sizeof(*r));
-if(last_spq>>32)
-special_q= nextq64(first_spq1);
-else
-special_q= (u64_t)pr32_seek(&special_q_ps,(u32_t)first_spq1);
-if (catch_signals != 0) {
-    signal(SIGTERM, terminate_sieving);
-    signal(SIGINT, terminate_sieving);
-}
-
-
-tStart= lastReport= sTime();
-for (;
-    special_q < last_spq && special_q != 0;
-    special_q = (last_spq >> 32 ? nextq64(special_q + 1) :
-        nextprime32(&special_q_ps)), first_root = 0) {
-    u32_t nr;
-
-    special_q_log = log(special_q);
-    if (cmdline_first_sieve_side == USHRT_MAX) {
-#if 1
-        double nn[2];
-        u32_t s;
-        for (s = 0; s < 2; s++) {
-            nn[s] = log(poly_norm[s] * (special_q_side == s ? 1 : special_q));
-            nn[s] = nn[s] / (sieve_report_multiplier[s] * log(FB_bound[s]));
+        n_spq= 0;
+        n_spq_discard= 0;
+        r= xmalloc(poldeg_max*sizeof(*r));
+        if(last_spq>>32)
+            special_q= nextq64(first_spq1);
+        else
+            special_q= (u64_t)pr32_seek(&special_q_ps,(u32_t)first_spq1);
+        if (catch_signals != 0) {
+            signal(SIGTERM, terminate_sieving);
+            signal(SIGINT, terminate_sieving);
         }
 
 
-        if (nn[0] < nn[1])first_sieve_side = 1;
-        else first_sieve_side = 0;
+    // begin sieve over all special q
+    tStart= lastReport= sTime();
+    for (;
+        special_q < last_spq && special_q != 0;
+        special_q = (last_spq >> 32 ? nextq64(special_q + 1) :
+        nextprime32(&special_q_ps)), first_root = 0)
+    {
+
+        u32_t nr;
+
+        special_q_log = log(special_q);
+        if (cmdline_first_sieve_side == USHRT_MAX) 
+        {
+#if 1
+            double nn[2];
+            u32_t s;
+            for (s = 0; s < 2; s++) {
+                nn[s] = log(poly_norm[s] * (special_q_side == s ? 1 : special_q));
+                nn[s] = nn[s] / (sieve_report_multiplier[s] * log(FB_bound[s]));
+            }
+
+
+            if (nn[0] < nn[1])first_sieve_side = 1;
+            else first_sieve_side = 0;
+
+
 #else
 #line 605 "gnfs-lasieve4e.w"
         if (poly_norm[0] * (special_q_side == 0 ? 1 : special_q)
@@ -2141,17 +2196,21 @@ for (;
             first_sieve_side = 0;
         }
 #endif
-#line 612 "gnfs-lasieve4e.w"
-}
-else {
-    first_sieve_side = cmdline_first_sieve_side;
-    if (first_sieve_side >= 2)complain("First sieve side must not be %u\n",
-        (u32_t)first_sieve_side);
-}
 
-logbook(1,"First sieve side: %u\n",(u32_t)first_sieve_side);
-if(cmdline_first_td_side!=USHRT_MAX)first_td_side= cmdline_first_td_side;
-else first_td_side= first_sieve_side;
+#line 612 "gnfs-lasieve4e.w"
+
+        }
+        else {
+            first_sieve_side = cmdline_first_sieve_side;
+            if (first_sieve_side >= 2)complain("First sieve side must not be %u\n",
+                (u32_t)first_sieve_side);
+        }
+
+        logbook(1,"First sieve side: %u\n",(u32_t)first_sieve_side);
+        if(cmdline_first_td_side!=USHRT_MAX)first_td_side= cmdline_first_td_side;
+        else first_td_side= first_sieve_side;
+
+
 #if 0
 if(poldeg[special_q_side]> 1){
 nr= root_finder(r,poly[special_q_side],poldeg[special_q_side],special_q);
@@ -2173,118 +2232,127 @@ r[0]= x==0?0:special_q-x;
 nr= 1;
 }
 #endif
+
 #line 641 "gnfs-lasieve4e.w"
- nr= root_finder64(r,poly[special_q_side],poldeg[special_q_side],special_q);
-if(nr==0)continue;
-if (r[nr - 1] == special_q) {
+
+        nr= root_finder64(r,poly[special_q_side],poldeg[special_q_side],special_q);
+        
+        if(nr==0)continue;
+        if (r[nr - 1] == special_q) {
+            nr--;
+        }
+
+        // begin sieve over all roots of the current special q
+        for(root_no= 0;root_no<nr;root_no++)
+        {
 
 
-    nr--;
-}
+            u32_t termination_condition;
 
-for(root_no= 0;root_no<nr;root_no++){
-u32_t termination_condition;
-
-if(r[root_no]<first_root)continue;
+            if(r[root_no]<first_root)continue;
 
 
 
 #ifdef _WIN64
-if ((termination_condition = _setjmp(termination_jb, 0)) != 0) {
+            if ((termination_condition = _setjmp(termination_jb, 0)) != 0) 
+            {
+
 #else
 #line 659 "gnfs-lasieve4e.w"
-if ((termination_condition = setjmp(termination_jb)) != 0) {
+        if ((termination_condition = setjmp(termination_jb)) != 0)
+        {
 #endif
 #line 661 "gnfs-lasieve4e.w"
-    if (termination_condition == USER_INTERRUPT)
-        /*19:*/
+
+                if (termination_condition == USER_INTERRUPT)
+                /*19:*/
 #line 766 "gnfs-lasieve4e.w"
 
-    {
-        char* hn, * ofn;
-        FILE* of;
-        int ret;
+                {
+                    char* hn, * ofn;
+                    FILE* of;
+                    int ret;
 
-        hn = xmalloc(100);
+                    hn = xmalloc(100);
 
 #if defined(WIN32)
 
-        int sysname_sz = 100;
-        GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);
-        ret = 0;
+                    int sysname_sz = 100;
+                    GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);
+                    ret = 0;
 
 #else
 
-        ret = gethostname(hn, 99);
+                    ret = gethostname(hn, 99);
 
 #endif
 
-        if (ret == 0)
-            asprintf(&ofn, "%s.%s.last_spq%d", las_basename, hn, process_no);
-        else asprintf(&ofn, "%s.unknown_host.last_spq%d", las_basename, process_no);
-        free(hn);
+                    if (ret == 0)
+                        asprintf(&ofn, "%s.%s.last_spq%d", las_basename, hn, process_no);
+                    else asprintf(&ofn, "%s.unknown_host.last_spq%d", las_basename, process_no);
+                    free(hn);
 
-        if ((of = fopen(ofn, "wb")) != 0) {
+                    if ((of = fopen(ofn, "wb")) != 0) {
 
-            fprintf(of, UL_FMTSTR"\n", special_q);
-            fclose(of);
-        }
-        free(ofn);
-        all_spq_done = 0;
-        break;
-    }
+                        fprintf(of, UL_FMTSTR"\n", special_q);
+                        fclose(of);
+                    }
+                    free(ofn);
+                    all_spq_done = 0;
+                    break;
+                }
 
     /*:19*/
 #line 662 "gnfs-lasieve4e.w"
 
-    else {
+                else {
+
+                    continue;
+                }
+            }
+
+            if (sysload_cmd != NULL) {
+
+                if (system(sysload_cmd) != 0) {
+                    exitval = LOADTEST_EXITVAL;
+                    longjmp(termination_jb, USER_INTERRUPT);
+                }
+            }
+            if (reduce2(&a0, &b0, &a1, &b1, (i64_t)special_q, 0, (i64_t)r[root_no], 1, (double)(sigma * sigma))) {
+                n_spq_discard++;
+                continue;
+            }
+            n_spq++;
 
 
 
-
-
-        continue;
-    }
-}
-if (sysload_cmd != NULL) {
-
-    if (system(sysload_cmd) != 0) {
-        exitval = LOADTEST_EXITVAL;
-        longjmp(termination_jb, USER_INTERRUPT);
-    }
-}
-if (reduce2(&a0, &b0, &a1, &b1, (i64_t)special_q, 0, (i64_t)r[root_no], 1, (double)(sigma * sigma))) {
-    n_spq_discard++;
-    continue;
-}
-n_spq++;
 /*21:*/
 #line 805 "gnfs-lasieve4e.w"
 
-{
-    if (((i64_t)b0) % ((i64_t)special_q) == 0 && ((i64_t)b1) % ((i64_t)special_q) == 0) {
-        i64_t x;
+    {
+        if (((i64_t)b0) % ((i64_t)special_q) == 0 && ((i64_t)b1) % ((i64_t)special_q) == 0) {
+            i64_t x;
 
-        x = ((i64_t)a0) % ((i64_t)special_q);
-        if (x < 0)x += (i64_t)special_q;
-        spq_i = (u64_t)x;
-        x = ((i64_t)a1) % ((i64_t)special_q);
-        if (x < 0)x += (i64_t)special_q;
-        spq_j = (u64_t)x;
-    }
-    else {
-        i64_t x;
+            x = ((i64_t)a0) % ((i64_t)special_q);
+            if (x < 0)x += (i64_t)special_q;
+            spq_i = (u64_t)x;
+            x = ((i64_t)a1) % ((i64_t)special_q);
+            if (x < 0)x += (i64_t)special_q;
+            spq_j = (u64_t)x;
+        }
+        else {
+            i64_t x;
 
-        x = ((i64_t)b0) % ((i64_t)special_q);
-        if (x < 0)x += (i64_t)special_q;
-        spq_i = (u64_t)x;
-        x = ((i64_t)b1) % ((i64_t)special_q);
-        if (x < 0)x += (i64_t)special_q;
-        spq_j = (u64_t)x;
+            x = ((i64_t)b0) % ((i64_t)special_q);
+            if (x < 0)x += (i64_t)special_q;
+            spq_i = (u64_t)x;
+            x = ((i64_t)b1) % ((i64_t)special_q);
+            if (x < 0)x += (i64_t)special_q;
+            spq_j = (u64_t)x;
+        }
+        modulo64 = special_q;
+        spq_x = modmul64(spq_i, (u64_t)i_shift);
     }
-    modulo64 = special_q;
-    spq_x = modmul64(spq_i, (u64_t)i_shift);
-}
 
 /*:21*/
 #line 684 "gnfs-lasieve4e.w"
@@ -2294,579 +2362,584 @@ n_spq++;
 /*48:*/
 #line 2090 "gnfs-lasieve4e.w"
 
-{
-u32_t subsieve_nr;
+    {
+        u32_t subsieve_nr;
 
 /*49:*/
 #line 2281 "gnfs-lasieve4e.w"
 
-{
-    u32_t absa0, absa1, absb0, absb1;
-    char a0s, a1s;
-    clock_t new_clock;
+        {
+            u32_t absa0, absa1, absb0, absb1;
+            char a0s, a1s;
+            clock_t new_clock;
 
 #define GET_ABSSIG(abs,sig,arg) if(arg> 0) { abs= (u32_t)arg; sig= '+';} \
         else { abs= (u32_t)(-arg); sig= '-'; }
-    GET_ABSSIG(absa0, a0s, a0);
-    GET_ABSSIG(absa1, a1s, a1);
-    absb0 = b0;
-    absb1 = b1;
-    /*67:*/
+
+            GET_ABSSIG(absa0, a0s, a0);
+            GET_ABSSIG(absa1, a1s, a1);
+            absb0 = b0;
+            absb1 = b1;
+            /*67:*/
 #line 2605 "gnfs-lasieve4e.w"
 
-    {
-        u32_t s;
+            {
+                u32_t s;
 
-        for (s = 0; s < 2; s++) {
-            u32_t fbi;
-            u16_t* abuf;
-            u16_t* ibuf;
+                for (s = 0; s < 2; s++) {
+                    u32_t fbi;
+                    u16_t* abuf;
+                    u16_t* ibuf;
 
-            abuf = smallsieve_aux[s];
-            ibuf = smallpsieve_aux[s];
-            for (fbi = 0; fbi < fbis[s]; fbi++) {
-                u32_t aa, bb;
-                modulo32 = FB[s][fbi];
+                    abuf = smallsieve_aux[s];
+                    ibuf = smallpsieve_aux[s];
+                    for (fbi = 0; fbi < fbis[s]; fbi++) {
+                        u32_t aa, bb;
+                        modulo32 = FB[s][fbi];
 
-                aa = absa0 % FB[s][fbi];
-                if (a0s == '-' && aa != 0)aa = FB[s][fbi] - aa;
-                bb = absb0 % FB[s][fbi];
-                if (proots[s][fbi] != FB[s][fbi]) {
-                    u32_t x;
-                    x = modsub32(aa, modmul32(proots[s][fbi], bb));
-                    if (x != 0) {
-                        aa = absa1 % FB[s][fbi];
-                        if (a1s == '-' && aa != 0)aa = FB[s][fbi] - aa;
-                        bb = absb1 % FB[s][fbi];
-                        x = modmul32(asm_modinv32(x), modsub32(modmul32(proots[s][fbi], bb), aa));
-                        abuf[0] = (u16_t)(FB[s][fbi]);
-                        abuf[1] = (u16_t)x;
-                        abuf[2] = (u16_t)(FB_logss[s][fbi]);
-                        abuf += 4;
-                    }
-                    else {
-                        ibuf[0] = (u16_t)(FB[s][fbi]);
-                        ibuf[1] = (u16_t)(FB_logss[s][fbi]);
-                        ibuf += 3;
-                    }
-                }
-                else {
+                        aa = absa0 % FB[s][fbi];
+                        if (a0s == '-' && aa != 0)aa = FB[s][fbi] - aa;
+                        bb = absb0 % FB[s][fbi];
+                        if (proots[s][fbi] != FB[s][fbi]) {
+                            u32_t x;
+                            x = modsub32(aa, modmul32(proots[s][fbi], bb));
+                            if (x != 0) {
+                                aa = absa1 % FB[s][fbi];
+                                if (a1s == '-' && aa != 0)aa = FB[s][fbi] - aa;
+                                bb = absb1 % FB[s][fbi];
+                                x = modmul32(asm_modinv32(x), modsub32(modmul32(proots[s][fbi], bb), aa));
+                                abuf[0] = (u16_t)(FB[s][fbi]);
+                                abuf[1] = (u16_t)x;
+                                abuf[2] = (u16_t)(FB_logss[s][fbi]);
+                                abuf += 4;
+                            }
+                            else {
+                                ibuf[0] = (u16_t)(FB[s][fbi]);
+                                ibuf[1] = (u16_t)(FB_logss[s][fbi]);
+                                ibuf += 3;
+                            }
+                        }
+                        else {
 
-                    if (bb != 0) {
-                        u32_t x;
-                        x = modulo32 - bb;
-                        bb = absb1 % FB[s][fbi];
-                        abuf[0] = (u16_t)(FB[s][fbi]);
-                        abuf[1] = (u16_t)(modmul32(asm_modinv32(x), bb));
-                        abuf[2] = (u16_t)(FB_logss[s][fbi]);
-                        abuf += 4;
+                            if (bb != 0) {
+                                u32_t x;
+                                x = modulo32 - bb;
+                                bb = absb1 % FB[s][fbi];
+                                abuf[0] = (u16_t)(FB[s][fbi]);
+                                abuf[1] = (u16_t)(modmul32(asm_modinv32(x), bb));
+                                abuf[2] = (u16_t)(FB_logss[s][fbi]);
+                                abuf += 4;
+                            }
+                            else {
+                                ibuf[0] = (u16_t)(FB[s][fbi]);
+                                ibuf[1] = (u16_t)(FB_logss[s][fbi]);
+                                ibuf += 3;
+                            }
+                        }
                     }
-                    else {
-                        ibuf[0] = (u16_t)(FB[s][fbi]);
-                        ibuf[1] = (u16_t)(FB_logss[s][fbi]);
-                        ibuf += 3;
-                    }
+                    smallsieve_auxbound[s][0] = abuf;
+                    smallpsieve_aux_ub_pow1[s] = ibuf;
                 }
             }
-            smallsieve_auxbound[s][0] = abuf;
-            smallpsieve_aux_ub_pow1[s] = ibuf;
-        }
-    }
 
-    /*:67*//*68:*/
+            /*:67*//*68:*/
 #line 2663 "gnfs-lasieve4e.w"
 
-    {
-        u32_t s;
+            {
+                u32_t s;
 
-        for (s = 0; s < 2; s++) {
-            u32_t i;
-            u16_t* buf;
-            u16_t* buf2;
-            u16_t* ibuf;
+                for (s = 0; s < 2; s++) {
+                    u32_t i;
+                    u16_t* buf;
+                    u16_t* buf2;
+                    u16_t* ibuf;
 
-            buf = smallsieve_aux1[s];
-            buf2 = x2FB[s];
-            ibuf = smallpsieve_aux_ub_pow1[s];
-            for (i = 0; i < xFBs[s]; i++) {
-                if (xFB[s][i].p == 2) {
-                    xFBtranslate(buf2, xFB[s] + i);
-                    buf2 += 4;
-                }
-                else {
-                    xFBtranslate(buf, xFB[s] + i);
-                    if (buf[0] == 1) {
-                        ibuf[1] = xFB[s][i].l;
-                        ibuf[0] = xFB[s][i].pp;
-                        ibuf += 3;
+                    buf = smallsieve_aux1[s];
+                    buf2 = x2FB[s];
+                    ibuf = smallpsieve_aux_ub_pow1[s];
+                    for (i = 0; i < xFBs[s]; i++) {
+                        if (xFB[s][i].p == 2) {
+                            xFBtranslate(buf2, xFB[s] + i);
+                            buf2 += 4;
+                        }
+                        else {
+                            xFBtranslate(buf, xFB[s] + i);
+                            if (buf[0] == 1) {
+                                ibuf[1] = xFB[s][i].l;
+                                ibuf[0] = xFB[s][i].pp;
+                                ibuf += 3;
+                            }
+                            else buf += 6;
+                        }
                     }
-                    else buf += 6;
+                    x2FBs[s] = (buf2 - x2FB[s]) / 4;
+                    smallpsieve_aux_ub_odd[s] = ibuf;
+                    smallsieve_aux1_ub_odd[s] = buf;
                 }
             }
-            x2FBs[s] = (buf2 - x2FB[s]) / 4;
-            smallpsieve_aux_ub_odd[s] = ibuf;
-            smallsieve_aux1_ub_odd[s] = buf;
-        }
-    }
 
-    /*:68*//*69:*/
+            /*:68*//*69:*/
 #line 2696 "gnfs-lasieve4e.w"
 
-    {
-        u32_t s;
+            {
+                u32_t s;
 
 #ifndef MMX_TD
-        for (s = 0; s < 2; s++) {
-            u32_t i;
-            u16_t* x;
+                for (s = 0; s < 2; s++) {
+                    u32_t i;
+                    u16_t* x;
 
-            for (i = 0, x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; i++, x += 4) {
-                u32_t k, r, pr;
+                    for (i = 0, x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; i++, x += 4) {
+                        u32_t k, r, pr;
 
-                modulo32 = *x;
-                r = x[1];
-                pr = r;
-                for (k = 0; k < j_per_strip; k++) {
-                    smalltdsieve_aux[s][k][i] = r;
-                    r = modadd32(r, pr);
-                }
+                        modulo32 = *x;
+                        r = x[1];
+                        pr = r;
+                        for (k = 0; k < j_per_strip; k++) {
+                            smalltdsieve_aux[s][k][i] = r;
+                            r = modadd32(r, pr);
+                        }
 #ifdef PREINVERT
-                /*70:*/
+                        /*70:*/
 #line 2727 "gnfs-lasieve4e.w"
 
-                {
-                    u32_t pinv;
+                        {
+                            u32_t pinv;
 
-                    pinv = modulo32;
-                    pinv = 2 * pinv - pinv * pinv * modulo32;
-                    pinv = 2 * pinv - pinv * pinv * modulo32;
-                    pinv = 2 * pinv - pinv * pinv * modulo32;
+                            pinv = modulo32;
+                            pinv = 2 * pinv - pinv * pinv * modulo32;
+                            pinv = 2 * pinv - pinv * pinv * modulo32;
+                            pinv = 2 * pinv - pinv * pinv * modulo32;
 #if 0
-                    pinv = 2 * pinv - pinv * pinv * modulo32;
+                            pinv = 2 * pinv - pinv * pinv * modulo32;
 #endif
 #line 2738 "gnfs-lasieve4e.w"
-                    smalltd_pi[s][i] = 2 * pinv - pinv * pinv * modulo32;
-                }
+                            smalltd_pi[s][i] = 2 * pinv - pinv * pinv * modulo32;
+                        }
 
-                /*:70*/
+                        /*:70*/
 #line 2716 "gnfs-lasieve4e.w"
 
 #endif
 #line 2718 "gnfs-lasieve4e.w"
-            }
-        }
+                    }
+                }
 #endif
 #line 2721 "gnfs-lasieve4e.w"
-    }
+            }
 
-    /*:69*//*71:*/
+            /*:69*//*71:*/
 #line 2745 "gnfs-lasieve4e.w"
 
-    {
-        u32_t s;
+            {
+                u32_t s;
 
-        for (s = 0; s < 2; s++) {
-            u16_t* x, * xx, k, pbound, copy_buf[6];
+                for (s = 0; s < 2; s++) {
+                    u16_t* x, * xx, k, pbound, copy_buf[6];
 
-            k = 0;
-            pbound = TINY_SIEVE_MIN;
-            for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
-                if (*x > pbound) {
-                    if (k == 0)smallsieve_tinybound[s] = x;
-                    else smallsieve_auxbound[s][5 - k] = x;
-                    k++;
-                    if (k < 5)pbound = n_i / (5 - k);
-                    else break;
-                }
-            }
-            while (k < 5)smallsieve_auxbound[s][5 - (k++)] = x;
-            for (x = (xx = smallsieve_aux1[s]); x < smallsieve_aux1_ub_odd[s]; x += 6) {
-                if (x[0] < TINY_SIEVE_MIN) {
-                    if (x != xx) {
-                        memcpy(copy_buf, x, 6 * sizeof(*x));
-                        memcpy(x, xx, 6 * sizeof(*x));
-                        memcpy(xx, copy_buf, 6 * sizeof(*x));
+                    k = 0;
+                    pbound = TINY_SIEVE_MIN;
+                    for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+                        if (*x > pbound) {
+                            if (k == 0)smallsieve_tinybound[s] = x;
+                            else smallsieve_auxbound[s][5 - k] = x;
+                            k++;
+                            if (k < 5)pbound = n_i / (5 - k);
+                            else break;
+                        }
                     }
-                    xx += 6;
+                    while (k < 5)smallsieve_auxbound[s][5 - (k++)] = x;
+                    for (x = (xx = smallsieve_aux1[s]); x < smallsieve_aux1_ub_odd[s]; x += 6) {
+                        if (x[0] < TINY_SIEVE_MIN) {
+                            if (x != xx) {
+                                memcpy(copy_buf, x, 6 * sizeof(*x));
+                                memcpy(x, xx, 6 * sizeof(*x));
+                                memcpy(xx, copy_buf, 6 * sizeof(*x));
+                            }
+                            xx += 6;
+                        }
+                    }
+                    smallsieve_tinybound1[s] = xx;
                 }
             }
-            smallsieve_tinybound1[s] = xx;
-        }
-    }
 
-    /*:71*/
+            /*:71*/
 #line 2293 "gnfs-lasieve4e.w"
 
 /*50:*/
 #line 2304 "gnfs-lasieve4e.w"
 
-    {
-        u32_t s;
+            {
+                u32_t s;
 
-        for (s = 0; s < 2; s++) {
-            i32_t d;
+                for (s = 0; s < 2; s++) {
+                    i32_t d;
 
-            lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], fbi1[s] - fbis[s],
-                a0, a1, b0, b1, LPri[s], 1);
+                    lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], fbi1[s] - fbis[s],
+                        a0, a1, b0, b1, LPri[s], 1);
 #ifndef SCHEDULING_FUNCTION_CALCULATES_RI
-            for (d = 1; d <= poldeg[s]; d++) {
-                if (deg_fbibounds[s][d - 1] < deg_fbibounds[s][d])
-                    lasieve_setup(FB[s] + deg_fbibounds[s][d - 1],
-                        proots[s] + deg_fbibounds[s][d - 1],
-                        deg_fbibounds[s][d] - deg_fbibounds[s][d - 1], a0, a1, b0, b1,
-                        LPri[s] + RI_SIZE * (deg_fbibounds[s][d - 1] - fbis[s]), d);
-            }
+                    for (d = 1; d <= poldeg[s]; d++) {
+                        if (deg_fbibounds[s][d - 1] < deg_fbibounds[s][d])
+                        {
+                            lasieve_setup(FB[s] + deg_fbibounds[s][d - 1],
+                                proots[s] + deg_fbibounds[s][d - 1],
+                                deg_fbibounds[s][d] - deg_fbibounds[s][d - 1], a0, a1, b0, b1,
+                                LPri[s] + RI_SIZE * (deg_fbibounds[s][d - 1] - fbis[s]), d);
+                        }
+                    }
 #endif
 #line 2322 "gnfs-lasieve4e.w"
-        }
-    }
+                }
+            }
 
-    /*:50*/
+            /*:50*/
 #line 2294 "gnfs-lasieve4e.w"
 
 /*53:*/
 #line 2375 "gnfs-lasieve4e.w"
 
-    {
-        u32_t i, k;
-        for (i = 0; i < 2; i++) {
-            double large_primes_summand;
-            tpol(tpoly_f[i], poly_f[i], poldeg[i], a0, a1, b0, b1);
-            large_primes_summand = sieve_report_multiplier[i] * FB_maxlog[i];
-            if (i == special_q_side)
-                large_primes_summand += sieve_multiplier[i] * log(special_q);
-            get_sieve_report_bounds(sieve_report_bounds[i], tpoly_f[i], poldeg[i],
-                n_srb_i, n_srb_j, 2 * CANDIDATE_SEARCH_STEPS,
-                sieve_multiplier[i], large_primes_summand);
-        }
-    }
+            {
+                u32_t i, k;
+                for (i = 0; i < 2; i++) {
+                    double large_primes_summand;
+                    tpol(tpoly_f[i], poly_f[i], poldeg[i], a0, a1, b0, b1);
+                    large_primes_summand = sieve_report_multiplier[i] * FB_maxlog[i];
+                    if (i == special_q_side)
+                        large_primes_summand += sieve_multiplier[i] * log(special_q);
+                    get_sieve_report_bounds(sieve_report_bounds[i], tpoly_f[i], poldeg[i],
+                        n_srb_i, n_srb_j, 2 * CANDIDATE_SEARCH_STEPS,
+                        sieve_multiplier[i], large_primes_summand);
+                }
+            }
 
-    /*:53*/
+            /*:53*/
 #line 2295 "gnfs-lasieve4e.w"
 
 #ifndef NO_TD_CLOCK
-    new_clock = clock();
-    sch_clock += new_clock - last_clock;
-    last_clock = new_clock;
+            new_clock = clock();
+            sch_clock += new_clock - last_clock;
+            last_clock = new_clock;
 #endif
 #line 2301 "gnfs-lasieve4e.w"
-}
+        }
 
 /*:49*/
 #line 2094 "gnfs-lasieve4e.w"
 
-
-for(oddness_type= 1;oddness_type<4;oddness_type++)
-{
+        // begin sieve over all oddness types
+        for(oddness_type= 1;oddness_type<4;oddness_type++)
+        {
 /*72:*/
 #line 2779 "gnfs-lasieve4e.w"
 
-{
-u32_t s;
-for(s= 0;s<2;s++){
-switch(oddness_type){
-u16_t*x;
-case 1:
-/*75:*/
+            {
+                u32_t s;
+                for (s = 0; s < 2; s++) {
+                    switch (oddness_type) {
+                        u16_t* x;
+                    case 1:
+                        /*75:*/
 #line 2853 "gnfs-lasieve4e.w"
 
-for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4){
-u32_t p;
+                        for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+                            u32_t p;
 
-p= x[0];
-x[3]= ((i_shift+p)/2)%p;
-}
+                            p = x[0];
+                            x[3] = ((i_shift + p) / 2) % p;
+                        }
 
-/*:75*//*78:*/
+                        /*:75*//*78:*/
 #line 2883 "gnfs-lasieve4e.w"
 
-for(x= smallsieve_aux1[s];x<smallsieve_aux1_ub_odd[s];x+= 6){
-u32_t p;
+                        for (x = smallsieve_aux1[s]; x < smallsieve_aux1_ub_odd[s]; x += 6) {
+                            u32_t p;
 
-p= x[0];
+                            p = x[0];
 
-x[4]= ((i_shift+p)/2)%p;
-x[5]= 0;
-}
+                            x[4] = ((i_shift + p) / 2) % p;
+                            x[5] = 0;
+                        }
 
-/*:78*//*81:*/
+                        /*:78*//*81:*/
 #line 2921 "gnfs-lasieve4e.w"
 
-for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub_odd[s];x+= 3)
-x[2]= 0;
+                        for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub_odd[s]; x += 3)
+                            x[2] = 0;
 
-/*:81*//*85:*/
+                        /*:81*//*85:*/
 #line 2959 "gnfs-lasieve4e.w"
 
-{
-u16_t*x,*y,*z;
-u32_t i;
+                        {
+                            u16_t* x, * y, * z;
+                            u32_t i;
 
-x= smallsieve_aux1_ub_odd[s];
-y= smallpsieve_aux_ub_odd[s];
-z= smallsieve_aux2[s];
-for(i= 0;i<4*x2FBs[s];i+= 4){
-u32_t p,pr,d,l;
-u16_t**a;
+                            x = smallsieve_aux1_ub_odd[s];
+                            y = smallpsieve_aux_ub_odd[s];
+                            z = smallsieve_aux2[s];
+                            for (i = 0; i < 4 * x2FBs[s]; i += 4) {
+                                u32_t p, pr, d, l;
+                                u16_t** a;
 
-d= x2FB[s][i+1];
-if(d==1)continue;
-p= x2FB[s][i];
-pr= x2FB[s][i+2];
-l= x2FB[s][i+3];
-if(p<4){
-if(p==1){
-*y= d/2;
-*(y+2)= 0;
-}else{
-*y= d;
-*(y+2)= d/2;
-}
-*(y+1)= l;
-y+= 3;
-continue;
-}
-p= p/2;
-if(p<=MAX_TINY_2POW)a= &z;
-else a= &x;
-**a= p;
-*(1+*a)= d;
-*(2+*a)= pr%p;
-*(3+*a)= l;
-*(4+*a)= ((i_shift+pr)/2)%p;
-*(5+*a)= d/2;
-*a+= 6;
-}
-smallsieve_aux1_ub[s]= x;
-smallpsieve_aux_ub[s]= y;
-smallsieve_aux2_ub[s]= z;
-}
+                                d = x2FB[s][i + 1];
+                                if (d == 1)continue;
+                                p = x2FB[s][i];
+                                pr = x2FB[s][i + 2];
+                                l = x2FB[s][i + 3];
+                                if (p < 4) {
+                                    if (p == 1) {
+                                        *y = d / 2;
+                                        *(y + 2) = 0;
+                                    }
+                                    else {
+                                        *y = d;
+                                        *(y + 2) = d / 2;
+                                    }
+                                    *(y + 1) = l;
+                                    y += 3;
+                                    continue;
+                                }
+                                p = p / 2;
+                                if (p <= MAX_TINY_2POW)a = &z;
+                                else a = &x;
+                                **a = p;
+                                *(1 + *a) = d;
+                                *(2 + *a) = pr % p;
+                                *(3 + *a) = l;
+                                *(4 + *a) = ((i_shift + pr) / 2) % p;
+                                *(5 + *a) = d / 2;
+                                *a += 6;
+                            }
+                            smallsieve_aux1_ub[s] = x;
+                            smallpsieve_aux_ub[s] = y;
+                            smallsieve_aux2_ub[s] = z;
+                        }
 
-/*:85*/
+                        /*:85*/
 #line 2786 "gnfs-lasieve4e.w"
 
-break;
-case 2:
-/*76:*/
+                        break;
+                    case 2:
+                        /*76:*/
 #line 2862 "gnfs-lasieve4e.w"
 
-for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4){
-u32_t p,pr;
+                        for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+                            u32_t p, pr;
 
-p= x[0];
-pr= x[1];
-x[3]= (pr%2==0?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-}
+                            p = x[0];
+                            pr = x[1];
+                            x[3] = (pr % 2 == 0 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+                        }
 
-/*:76*//*79:*/
+                        /*:76*//*79:*/
 #line 2894 "gnfs-lasieve4e.w"
 
-for(x= smallsieve_aux1[s];x<smallsieve_aux1_ub_odd[s];x+= 6){
-u32_t p,d,pr;
+                        for (x = smallsieve_aux1[s]; x < smallsieve_aux1_ub_odd[s]; x += 6) {
+                            u32_t p, d, pr;
 
-p= x[0];
-d= x[1];
-pr= x[2];
+                            p = x[0];
+                            d = x[1];
+                            pr = x[2];
 
-x[4]= (pr%2==0?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-x[5]= d/2;
-}
+                            x[4] = (pr % 2 == 0 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+                            x[5] = d / 2;
+                        }
 
-/*:79*//*82:*/
+                        /*:79*//*82:*/
 #line 2926 "gnfs-lasieve4e.w"
 
-for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub_odd[s];x+= 3)
-x[2]= (x[0])/2;
+                        for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub_odd[s]; x += 3)
+                            x[2] = (x[0]) / 2;
 
-/*:82*//*86:*/
+                        /*:82*//*86:*/
 #line 3005 "gnfs-lasieve4e.w"
 
-{
-u16_t*x,*y,*z;
-u32_t i;
+                        {
+                            u16_t* x, * y, * z;
+                            u32_t i;
 
-x= smallsieve_aux1_ub_odd[s];
-y= smallpsieve_aux_ub_odd[s];
-z= smallsieve_aux2[s];
-for(i= 0;i<4*x2FBs[s];i+= 4){
-u32_t p,pr,d,l;
-u16_t**a;
+                            x = smallsieve_aux1_ub_odd[s];
+                            y = smallpsieve_aux_ub_odd[s];
+                            z = smallsieve_aux2[s];
+                            for (i = 0; i < 4 * x2FBs[s]; i += 4)
+                            {
+                                u32_t p, pr, d, l;
+                                u16_t** a;
 
-d= x2FB[s][i+1];
-if(d!=1)continue;
-pr= x2FB[s][i+2];
-if(pr%2!=0)continue;
-p= x2FB[s][i];
-l= x2FB[s][i+3];
-if(p<4){
+                                d = x2FB[s][i + 1];
+                                if (d != 1)continue;
+                                pr = x2FB[s][i + 2];
+                                if (pr % 2 != 0)continue;
+                                p = x2FB[s][i];
+                                l = x2FB[s][i + 3];
+                                if (p < 4) {
 
-if(p==1){
-Schlendrian("Use 1=2^0 for sieving?\n");
-}
-*y= d;
-*(y+1)= l;
-*(y+2)= 0;
-y+= 3;
-continue;
-}
-p= p/2;
-if(p<=MAX_TINY_2POW)a= &z;
-else a= &x;
-**a= p;
-*(1+*a)= d;
-*(2+*a)= pr%p;
-*(3+*a)= l;
-*(4+*a)= ((i_shift+pr)/2)%p;
-*(5+*a)= 0;
-*a+= 6;
-}
-smallsieve_aux1_ub[s]= x;
-smallpsieve_aux_ub[s]= y;
-smallsieve_aux2_ub[s]= z;
-}
+                                    if (p == 1) {
+                                        Schlendrian("Use 1=2^0 for sieving?\n");
+                                    }
+                                    *y = d;
+                                    *(y + 1) = l;
+                                    *(y + 2) = 0;
+                                    y += 3;
+                                    continue;
+                                }
+                                p = p / 2;
+                                if (p <= MAX_TINY_2POW)a = &z;
+                                else a = &x;
+                                **a = p;
+                                *(1 + *a) = d;
+                                *(2 + *a) = pr % p;
+                                *(3 + *a) = l;
+                                *(4 + *a) = ((i_shift + pr) / 2) % p;
+                                *(5 + *a) = 0;
+                                *a += 6;
+                            }
+                            smallsieve_aux1_ub[s] = x;
+                            smallpsieve_aux_ub[s] = y;
+                            smallsieve_aux2_ub[s] = z;
+                        }
 
-/*:86*/
+                        /*:86*/
 #line 2789 "gnfs-lasieve4e.w"
 
-break;
-case 3:
-/*77:*/
+                        break;
+                    case 3:
+                        /*77:*/
 #line 2872 "gnfs-lasieve4e.w"
 
-for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4){
-u32_t p,pr;
+                        for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+                            u32_t p, pr;
 
-p= x[0];
-pr= x[1];
-x[3]= (pr%2==1?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-}
+                            p = x[0];
+                            pr = x[1];
+                            x[3] = (pr % 2 == 1 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+                        }
 
-/*:77*//*80:*/
+                        /*:77*//*80:*/
 #line 2907 "gnfs-lasieve4e.w"
 
-for(x= smallsieve_aux1[s];x<smallsieve_aux1_ub_odd[s];x+= 6){
-u32_t p,d,pr;
+                        for (x = smallsieve_aux1[s]; x < smallsieve_aux1_ub_odd[s]; x += 6) {
+                            u32_t p, d, pr;
 
-p= x[0];
-d= x[1];
-pr= x[2];
+                            p = x[0];
+                            d = x[1];
+                            pr = x[2];
 
-x[4]= (pr%2==1?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-x[5]= d/2;
-}
+                            x[4] = (pr % 2 == 1 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+                            x[5] = d / 2;
+                        }
 
-/*:80*//*83:*/
+                        /*:80*//*83:*/
 #line 2931 "gnfs-lasieve4e.w"
 
-for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub_odd[s];x+= 3)
-x[2]= (x[0])/2;
+                        for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub_odd[s]; x += 3)
+                            x[2] = (x[0]) / 2;
 
-/*:83*//*87:*/
+                        /*:83*//*87:*/
 #line 3051 "gnfs-lasieve4e.w"
 
-{
-u16_t*x,*y,*z;
-u32_t i;
+                        {
+                            u16_t* x, * y, * z;
+                            u32_t i;
 
-x= smallsieve_aux1_ub_odd[s];
-y= smallpsieve_aux_ub_odd[s];
-z= smallsieve_aux2[s];
-for(i= 0;i<4*x2FBs[s];i+= 4){
-u32_t p,pr,d,l;
-u16_t**a;
+                            x = smallsieve_aux1_ub_odd[s];
+                            y = smallpsieve_aux_ub_odd[s];
+                            z = smallsieve_aux2[s];
+                            for (i = 0; i < 4 * x2FBs[s]; i += 4) {
+                                u32_t p, pr, d, l;
+                                u16_t** a;
 
-d= x2FB[s][i+1];
-if(d!=1)continue;
-pr= x2FB[s][i+2];
-if(pr%2!=1)continue;
-p= x2FB[s][i];
-l= x2FB[s][i+3];
-if(p<4){
+                                d = x2FB[s][i + 1];
+                                if (d != 1)continue;
+                                pr = x2FB[s][i + 2];
+                                if (pr % 2 != 1)continue;
+                                p = x2FB[s][i];
+                                l = x2FB[s][i + 3];
+                                if (p < 4) {
 
-if(p==1){
-Schlendrian("Use 1=2^0 for sieving?\n");
-}
-*y= d;
-*(y+1)= l;
-*(y+2)= 0;
-y+= 3;
-continue;
-}
-p= p/2;
-if(p<=MAX_TINY_2POW)a= &z;
-else a= &x;
-**a= p;
-*(1+*a)= d;
-*(2+*a)= pr%p;
-*(3+*a)= l;
-*(4+*a)= ((i_shift+pr)/2)%p;
-*(5+*a)= 0;
-*a+= 6;
-}
-smallsieve_aux1_ub[s]= x;
-smallpsieve_aux_ub[s]= y;
-smallsieve_aux2_ub[s]= z;
-}
+                                    if (p == 1) {
+                                        Schlendrian("Use 1=2^0 for sieving?\n");
+                                    }
+                                    *y = d;
+                                    *(y + 1) = l;
+                                    *(y + 2) = 0;
+                                    y += 3;
+                                    continue;
+                                }
+                                p = p / 2;
+                                if (p <= MAX_TINY_2POW)a = &z;
+                                else a = &x;
+                                **a = p;
+                                *(1 + *a) = d;
+                                *(2 + *a) = pr % p;
+                                *(3 + *a) = l;
+                                *(4 + *a) = ((i_shift + pr) / 2) % p;
+                                *(5 + *a) = 0;
+                                *a += 6;
+                            }
+                            smallsieve_aux1_ub[s] = x;
+                            smallpsieve_aux_ub[s] = y;
+                            smallsieve_aux2_ub[s] = z;
+                        }
 
-/*:87*/
+                        /*:87*/
 #line 2792 "gnfs-lasieve4e.w"
 
-break;
-}
-}
-}
+                        break;
+                    }
+                }
+            }
 
 
 /*:72*//*73:*/
 #line 2801 "gnfs-lasieve4e.w"
 
 #ifdef GCD_SIEVE_BOUND
-{
-u32_t i;
+            {
+                u32_t i;
 
-for(i= 0;i<np_gcd_sieve;i++){
-gcd_sieve_buffer[2*i+1]= (oddness_type/2)*(gcd_sieve_buffer[2*i]/2);
-}
-}
+                for (i = 0; i < np_gcd_sieve; i++) {
+                    gcd_sieve_buffer[2 * i + 1] = (oddness_type / 2) * (gcd_sieve_buffer[2 * i] / 2);
+                }
+            }
 #endif
 #line 2811 "gnfs-lasieve4e.w"
 
 /*:73*/
 #line 2097 "gnfs-lasieve4e.w"
 
-j_offset= 0;
+            j_offset= 0;
 /*54:*/
 #line 2391 "gnfs-lasieve4e.w"
 
 #ifndef NOSCHED
-{
-u32_t s;
-clock_t new_clock;
+            {
+                u32_t s;
+                clock_t new_clock;
 
-for (s = 0; s < 2; s++) {
-    u32_t i;
+                for (s = 0; s < 2; s++) {
+                    u32_t i;
 
-    for (i = 0; i < n_schedules[s]; i++) {
-        u32_t ns;
+                    for (i = 0; i < n_schedules[s]; i++) {
+                        u32_t ns;
 
-        ns = schedules[s][i].n_strips;
-        if (ns > n_strips)ns = n_strips;
-        do_scheduling(schedules[s] + i, ns, oddness_type, s);
-        schedules[s][i].current_strip = 0;
-    }
-}
+                        ns = schedules[s][i].n_strips;
+                        if (ns > n_strips)ns = n_strips;
+                        do_scheduling(schedules[s] + i, ns, oddness_type, s);
+                        schedules[s][i].current_strip = 0;
+                    }
+                }
 
 
 #ifdef GATHER_STAT
 #ifndef NO_TD_CLOCK
-new_clock= clock();
-Schedule_clock+= new_clock-last_clock;
-last_clock= new_clock;
+                new_clock = clock();
+                Schedule_clock += new_clock - last_clock;
+                last_clock = new_clock;
 #endif
 #line 2415 "gnfs-lasieve4e.w"
 #endif
 #line 2416 "gnfs-lasieve4e.w"
-}
+            }
 #else 
 #line 2418 "gnfs-lasieve4e.w"
 #define BADSCHED
@@ -2880,178 +2953,182 @@ last_clock= new_clock;
 nss+= n_strips;
 #endif
 #line 2103 "gnfs-lasieve4e.w"
- for(subsieve_nr= 0;subsieve_nr<n_strips;
-subsieve_nr++,j_offset+= j_per_strip){
-u16_t s,stepno;
+            for(subsieve_nr= 0;subsieve_nr<n_strips;
+                subsieve_nr++,j_offset+= j_per_strip)
+            {
+                u16_t s,stepno;
 #ifdef USE_MEDSCHED
 /*101:*/
 #line 3527 "gnfs-lasieve4e.w"
 
 #ifndef NOSCHED
-for (s = 0; s < 2; s++) {
-    u32_t ll, * sched, * ri;
+                for (s = 0; s < 2; s++) {
+                    u32_t ll, * sched, * ri;
 
-    if (n_medsched_pieces[s] == 0)continue;
-    for (ll = 0, sched = (u32_t*)med_sched[s][0], ri = LPri[s];
-        ll < n_medsched_pieces[s]; ll++) {
-        ri = medsched(ri, current_ij[s] + medsched_fbi_bounds[s][ll],
-            current_ij[s] + medsched_fbi_bounds[s][ll + 1], &sched,
-            medsched_fbi_bounds[s][ll], j_offset == 0 ? oddness_type : 0, FBsize[s]);
-        med_sched[s][ll + 1] = (u16_t*)sched;
-    }
-}
+                    if (n_medsched_pieces[s] == 0)continue;
+                    for (ll = 0, sched = (u32_t*)med_sched[s][0], ri = LPri[s];
+                        ll < n_medsched_pieces[s]; ll++) {
+                        ri = medsched(ri, current_ij[s] + medsched_fbi_bounds[s][ll],
+                            current_ij[s] + medsched_fbi_bounds[s][ll + 1], &sched,
+                            medsched_fbi_bounds[s][ll], j_offset == 0 ? oddness_type : 0, FBsize[s]);
+                        med_sched[s][ll + 1] = (u16_t*)sched;
+                    }
+                }
 #endif
+
 #line 3542 "gnfs-lasieve4e.w"
 
 /*:101*/
 #line 2107 "gnfs-lasieve4e.w"
-;
-{
+                ;
+                {
 #ifndef NO_TD_CLOCK
-clock_t new_clock;
-new_clock= clock();
-medsched_clock+= new_clock-last_clock;
-last_clock= new_clock;
+                    clock_t new_clock;
+                    new_clock = clock();
+                    medsched_clock += new_clock - last_clock;
+                    last_clock = new_clock;
 #endif
 #line 2115 "gnfs-lasieve4e.w"
-}
+                }
 #endif
 #line 2117 "gnfs-lasieve4e.w"
-for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) {
-    clock_t new_clock, clock_diff;
+                for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) 
+                {
+                    clock_t new_clock, clock_diff;
 
     /*88:*/
 #line 3097 "gnfs-lasieve4e.w"
 
-    {
-        u32_t j;
-        u16_t* x;
+                    {
+                        u32_t j;
+                        u16_t* x;
 
 
-        for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
-            tinysieve_curpos[j] = x[3];
-        }
-        for (j = 0; j < j_per_strip; j++) {
-            unsigned char* si_ub;
-            bzero(tiny_sieve_buffer, TINY_SIEVEBUFFER_SIZE);
-            si_ub = tiny_sieve_buffer + TINY_SIEVEBUFFER_SIZE;
-            /*89:*/
+                        for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
+                            tinysieve_curpos[j] = x[3];
+                        }
+                        for (j = 0; j < j_per_strip; j++)
+                        {
+                            unsigned char* si_ub;
+                            bzero(tiny_sieve_buffer, TINY_SIEVEBUFFER_SIZE);
+                            si_ub = tiny_sieve_buffer + TINY_SIEVEBUFFER_SIZE;
+                            /*89:*/
 #line 3119 "gnfs-lasieve4e.w"
 
-            {
-                u16_t* x;
+                            {
+                                u16_t* x;
 
-                for (x = smallsieve_aux[s]; x < smallsieve_tinybound[s]; x += 4) {
-                    u32_t p, r, pr;
-                    unsigned char l, * si;
+                                for (x = smallsieve_aux[s]; x < smallsieve_tinybound[s]; x += 4) {
+                                    u32_t p, r, pr;
+                                    unsigned char l, * si;
 
-                    p = x[0];
-                    pr = x[1];
-                    l = x[2];
-                    r = x[3];
-                    si = tiny_sieve_buffer + r;
-                    while (si < si_ub) {
-                        *si += l;
-                        si += p;
-                    }
-                    r = r + pr;
-                    if (r >= p)r = r - p;
-                    x[3] = r;
-                }
-            }
+                                    p = x[0];
+                                    pr = x[1];
+                                    l = x[2];
+                                    r = x[3];
+                                    si = tiny_sieve_buffer + r;
+                                    while (si < si_ub) {
+                                        *si += l;
+                                        si += p;
+                                    }
+                                    r = r + pr;
+                                    if (r >= p)r = r - p;
+                                    x[3] = r;
+                                }
+                            }
 
-            /*:89*//*90:*/
+                            /*:89*//*90:*/
 #line 3143 "gnfs-lasieve4e.w"
 
-            {
-                u16_t* x;
+                            {
+                                u16_t* x;
 
-                for (x = smallsieve_aux2[s]; x < smallsieve_aux2_ub[s]; x += 6) {
-                    u32_t p, r, pr, d, d0;
-                    unsigned char l, * si;
+                                for (x = smallsieve_aux2[s]; x < smallsieve_aux2_ub[s]; x += 6) {
+                                    u32_t p, r, pr, d, d0;
+                                    unsigned char l, * si;
 
-                    p = x[0];
-                    d = x[1];
-                    pr = x[2];
-                    l = x[3];
-                    r = x[4];
+                                    p = x[0];
+                                    d = x[1];
+                                    pr = x[2];
+                                    l = x[3];
+                                    r = x[4];
 
-                    d0 = x[5];
-                    if (d0 > 0) {
-                        x[5]--;
-                        continue;
-                    }
-                    si = tiny_sieve_buffer + r;
-                    while (si < si_ub) {
-                        *si += l;
-                        si += p;
-                    }
-                    r = r + pr;
-                    if (r >= p)r = r - p;
-                    x[4] = r;
-                    x[5] = d - 1;
-                }
-            }
+                                    d0 = x[5];
+                                    if (d0 > 0) {
+                                        x[5]--;
+                                        continue;
+                                    }
+                                    si = tiny_sieve_buffer + r;
+                                    while (si < si_ub) {
+                                        *si += l;
+                                        si += p;
+                                    }
+                                    r = r + pr;
+                                    if (r >= p)r = r - p;
+                                    x[4] = r;
+                                    x[5] = d - 1;
+                                }
+                            }
 
-            /*:90*//*91:*/
+                            /*:90*//*91:*/
 #line 3175 "gnfs-lasieve4e.w"
 
-            {
-                u16_t* x;
+                            {
+                                u16_t* x;
 
-                for (x = smallsieve_aux1[s]; x < smallsieve_tinybound1[s]; x += 6) {
-                    u32_t p, r, pr, d, d0;
-                    unsigned char l, * si;
+                                for (x = smallsieve_aux1[s]; x < smallsieve_tinybound1[s]; x += 6) {
+                                    u32_t p, r, pr, d, d0;
+                                    unsigned char l, * si;
 
-                    p = x[0];
-                    d = x[1];
-                    pr = x[2];
-                    l = x[3];
-                    r = x[4];
+                                    p = x[0];
+                                    d = x[1];
+                                    pr = x[2];
+                                    l = x[3];
+                                    r = x[4];
 
-                    d0 = x[5];
-                    if (d0 > 0) {
-                        x[5]--;
-                        continue;
-                    }
-                    si = tiny_sieve_buffer + r;
-                    while (si < si_ub) {
-                        *si += l;
-                        si += p;
-                    }
-                    r = r + pr;
-                    if (r >= p)r = r - p;
-                    x[4] = r;
-                    x[5] = d - 1;
-                }
-            }
+                                    d0 = x[5];
+                                    if (d0 > 0) {
+                                        x[5]--;
+                                        continue;
+                                    }
+                                    si = tiny_sieve_buffer + r;
+                                    while (si < si_ub) {
+                                        *si += l;
+                                        si += p;
+                                    }
+                                    r = r + pr;
+                                    if (r >= p)r = r - p;
+                                    x[4] = r;
+                                    x[5] = d - 1;
+                                }
+                            }
 
-            /*:91*/
+                            /*:91*/
 #line 3110 "gnfs-lasieve4e.w"
 
 /*92:*/
 #line 3207 "gnfs-lasieve4e.w"
 
-            {
-                unsigned char* si;
+                            {
+                                unsigned char* si;
 
-                si = sieve_interval + (j << i_bits);
-                si_ub = sieve_interval + ((j + 1) << i_bits);
-                while (si + TINY_SIEVEBUFFER_SIZE < si_ub) {
-                    memcpy(si, tiny_sieve_buffer, TINY_SIEVEBUFFER_SIZE);
-                    si += TINY_SIEVEBUFFER_SIZE;
-                }
-                memcpy(si, tiny_sieve_buffer, si_ub - si);
-            }
+                                si = sieve_interval + (j << i_bits);
+                                si_ub = sieve_interval + ((j + 1) << i_bits);
+                                while (si + TINY_SIEVEBUFFER_SIZE < si_ub) {
+                                    memcpy(si, tiny_sieve_buffer, TINY_SIEVEBUFFER_SIZE);
+                                    si += TINY_SIEVEBUFFER_SIZE;
+                                }
+                                memcpy(si, tiny_sieve_buffer, si_ub - si);
+                            }
 
-            /*:92*/
+                            /*:92*/
 #line 3111 "gnfs-lasieve4e.w"
 
-        }
-        for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
-            x[3] = tinysieve_curpos[j];
-        }
-    }
+                        }
+                        for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
+                            x[3] = tinysieve_curpos[j];
+                        }
+                    }
 
     /*:88*/
 #line 2120 "gnfs-lasieve4e.w"
@@ -4105,6 +4182,9 @@ for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s) {
 #line 2224 "gnfs-lasieve4e.w"
     //printf("subsieve_nr = %u, j_offset = %u\n", subsieve_nr, j_offset);
     }
+    
+    
+    // done sieving over all subsieves
     //exit(1);
 
 #if TDS_MPQS == TDS_ODDNESS_CLASS
@@ -4130,6 +4210,7 @@ last_clock= new_clock;
 #endif
 #line 2242 "gnfs-lasieve4e.w"
 }
+// done sieving over all oddness classes
 
 #if TDS_MPQS == TDS_SPECIAL_Q
 output_all_tdsurvivors();
@@ -4163,13 +4244,16 @@ primality_tests_all();
 
 
 if(n_spq>=spq_count)break;
+
 }
+// done sieving over all roots
+
+
 if(root_no<nr){
 
-
-
-break;
+    break;
 }
+
 tNow= sTime();
 if(tNow> lastReport+5.0){
 lastReport= tNow;
@@ -4200,6 +4284,9 @@ fflush(stderr);
 }
 if(n_spq>=spq_count)break;
 }
+// done sieving over special-q (?)
+
+
 #ifdef HAVE_BOINC
 
 pct= ((double)(special_q-first_spq))/((double)sieve_count);
@@ -4289,6 +4376,7 @@ if(n_spq_discard> 0)logbook(0,"%u Special q discarded\n",n_spq_discard);
 #endif
 #line 889 "gnfs-lasieve4e.w"
 }
+
 
 /*:22*/
 #line 561 "gnfs-lasieve4e.w"
@@ -4615,98 +4703,97 @@ add_primepowers2xaFB(size_t* xaFB_alloc_ptr, u32_t pp_bound,
 /*:113*//*118:*/
 #line 3825 "gnfs-lasieve4e.w"
 
-void
-trial_divide()
+void trial_divide()
 {
     u32_t ci;
     u32_t nc1;
     u16_t side,tdstep;
     clock_t last_tdclock,newclock;
 
-#ifdef NO_TDCODE
-return;
-#endif
+//#ifdef NO_TDCODE
+    //return;
+//#endif
 #line 3837 "gnfs-lasieve4e.w"
 
 /*119:*/
 #line 3860 "gnfs-lasieve4e.w"
 
-{
-    for (ci = 0, nc1 = 0; ci < ncand; ci++) {
-        u16_t strip_i, strip_j;
-        u16_t st_i, true_j;
-        u16_t s;
-        double pvl, pvl0;
+    {
+        for (ci = 0, nc1 = 0; ci < ncand; ci++) {
+            u16_t strip_i, strip_j;
+            u16_t st_i, true_j;
+            u16_t s;
+            double pvl, pvl0;
 
-        /*120:*/
+            /*120:*/
 #line 3919 "gnfs-lasieve4e.w"
 
-        {
-            u16_t jj;
+            {
+                u16_t jj;
 
-            strip_j = cand[ci] >> i_bits;
-            jj = j_offset + strip_j;
-            strip_i = cand[ci] & (n_i - 1);
-            st_i = 2 * strip_i + (oddness_type == 2 ? 0 : 1);
-            true_j = 2 * jj + (oddness_type == 1 ? 0 : 1);
-        }
+                strip_j = cand[ci] >> i_bits;
+                jj = j_offset + strip_j;
+                strip_i = cand[ci] & (n_i - 1);
+                st_i = 2 * strip_i + (oddness_type == 2 ? 0 : 1);
+                true_j = 2 * jj + (oddness_type == 1 ? 0 : 1);
+            }
 
-        /*:120*/
+            /*:120*/
 #line 3868 "gnfs-lasieve4e.w"
 
-        n_reports++;
-        s = first_sieve_side;
+            n_reports++;
+            s = first_sieve_side;
 #ifdef STC_DEBUG
-        fprintf(debugfile, "%hu %hu\n", st_i, true_j);
+            fprintf(debugfile, "%hu %hu\n", st_i, true_j);
 #endif
 #line 3874 "gnfs-lasieve4e.w"
-        if (gcd32(st_i < i_shift ? i_shift - st_i : st_i - i_shift, true_j) != 1)continue;
-        n_rep1++;
+            if (gcd32(st_i < i_shift ? i_shift - st_i : st_i - i_shift, true_j) != 1)continue;
+            n_rep1++;
 #if 1
-        pvl = log(fabs(rpol_eval(tpoly_f[s], poldeg[s],
-            (double)st_i - (double)i_shift, (double)true_j)));
+            pvl = log(fabs(rpol_eval(tpoly_f[s], poldeg[s],
+                (double)st_i - (double)i_shift, (double)true_j)));
 #else
 #line 3880 "gnfs-lasieve4e.w"
-        pvl = log(fabs(rpol_eval0(tpoly_f[s], poldeg[s],
-            (i32_t)st_i - (i32_t)i_shift, true_j)));
+            pvl = log(fabs(rpol_eval0(tpoly_f[s], poldeg[s],
+                (i32_t)st_i - (i32_t)i_shift, true_j)));
 #endif
 #line 3883 "gnfs-lasieve4e.w"
-        if (special_q_side == s)pvl -= special_q_log;
-        pvl0 = pvl;
-        pvl *= sieve_multiplier[s];
-        if ((double)fss_sv[ci] + sieve_report_multiplier[s] * FB_maxlog[s] < pvl)continue;
+            if (special_q_side == s)pvl -= special_q_log;
+            pvl0 = pvl;
+            pvl *= sieve_multiplier[s];
+            if ((double)fss_sv[ci] + sieve_report_multiplier[s] * FB_maxlog[s] < pvl)continue;
 #if 1
-        {
-            u32_t n0, n1;
+            {
+                u32_t n0, n1;
 
-            pvl0 -= (double)(fss_sv[ci]) / sieve_multiplier[s];
-            if (pvl0 < 0.)pvl0 = 0.;
-            pvl0 /= M_LN2;
-            if (s == special_q_side) {
-                n0 = (u32_t)pvl0;
-                n1 = (u32_t)(fss_sv2[ci]);
-            }
-            else {
-                n0 = (u32_t)(fss_sv2[ci]);
-                n1 = (u32_t)pvl0;
-            }
-            if (n0 > max_factorbits[0])n0 = max_factorbits[0];
-            if (n1 > max_factorbits[1])n1 = max_factorbits[1];
+                pvl0 -= (double)(fss_sv[ci]) / sieve_multiplier[s];
+                if (pvl0 < 0.)pvl0 = 0.;
+                pvl0 /= M_LN2;
+                if (s == special_q_side) {
+                    n0 = (u32_t)pvl0;
+                    n1 = (u32_t)(fss_sv2[ci]);
+                }
+                else {
+                    n0 = (u32_t)(fss_sv2[ci]);
+                    n1 = (u32_t)pvl0;
+                }
+                if (n0 > max_factorbits[0])n0 = max_factorbits[0];
+                if (n1 > max_factorbits[1])n1 = max_factorbits[1];
 
-            if (strat.bit[n0][n1] == 0) { n_abort1++; continue; }
-        }
+                if (strat.bit[n0][n1] == 0) { n_abort1++; continue; }
+            }
 #endif
 #line 3907 "gnfs-lasieve4e.w"
-        n_rep2++;
+            n_rep2++;
 
 
-        modulo64 = special_q;
-        if (modadd64(modmul64((u64_t)st_i, spq_i), modmul64((u64_t)true_j, spq_j))
-            == spq_x)continue;
-        cand[nc1++] = cand[ci];
+            modulo64 = special_q;
+            if (modadd64(modmul64((u64_t)st_i, spq_i), modmul64((u64_t)true_j, spq_j))
+                == spq_x)continue;
+            cand[nc1++] = cand[ci];
+        }
+        rpol_eval_clear();
     }
-    rpol_eval_clear();
-}
 
 /*:119*/
 #line 3838 "gnfs-lasieve4e.w"
@@ -4715,380 +4802,399 @@ return;
 if(ncand==0)
 nzss[1]++;
 #endif
+
 #line 3843 "gnfs-lasieve4e.w"
+
 #ifndef NO_TD_CLOCK
-last_tdclock= clock();
-tdi_clock+= last_tdclock-last_clock;
+    last_tdclock= clock();
+    tdi_clock+= last_tdclock-last_clock;
 #endif
+
 #line 3847 "gnfs-lasieve4e.w"
- ncand= nc1;
-qsort(cand,ncand,sizeof(*cand),tdcand_cmp);
-td_buf1[0]= td_buf[first_td_side];
-for(side= first_td_side,tdstep= 0;tdstep<2;side= 1-side,tdstep++){
+
+    ncand= nc1;
+    qsort(cand,ncand,sizeof(*cand),tdcand_cmp);
+    td_buf1[0]= td_buf[first_td_side];
+
+    for(side= first_td_side,tdstep= 0;tdstep<2;side= 1-side,tdstep++)
+    {
+
+
 #ifdef ZSS_STAT
 if(tdstep==1&&ncand==0)
 nzss[2]++;
 #endif
+
+
 #line 3855 "gnfs-lasieve4e.w"
 /*123:*/
 #line 3954 "gnfs-lasieve4e.w"
+                
+    {
+        u32_t nfbp;
 
-{
-u32_t nfbp;
+        u32_t p_bound;
 
-u32_t p_bound;
+        u16_t last_j, strip_i, strip_j;
+        u16_t* smalltdsieve_auxbound;
 
-u16_t last_j,strip_i,strip_j;
-u16_t*smalltdsieve_auxbound;
-
-nfbp= 0;
-
-
-
-
+        nfbp = 0;
 
 #ifndef SET_TDS_PBOUND
-if(ncand> 0)p_bound= (2*n_i*j_per_strip)/(5*ncand);
-else p_bound= U32_MAX;
+
+        if (ncand > 0)p_bound = (2 * n_i * j_per_strip) / (5 * ncand);
+        else p_bound = U32_MAX;
+
 #else
 #line 3973 "gnfs-lasieve4e.w"
- p_bound= SET_TDS_PBOUND(n_i,j_per_strip,ncand);
+    p_bound = SET_TDS_PBOUND(n_i, j_per_strip, ncand);
 #endif
+
 #line 3975 "gnfs-lasieve4e.w"
 
-/*124:*/
+    /*124:*/
 #line 4059 "gnfs-lasieve4e.w"
 
- {
-     unsigned char ht, allcoll;
+    {
 
-     bzero(sieve_interval, L1_SIZE);
-     bzero(tds_coll, UCHAR_MAX - 1);
-     for (ci = 0, ht = 1, allcoll = 0; ci < ncand; ci++) {
-         unsigned char cht;
+        unsigned char ht, allcoll;
 
-         cht = sieve_interval[cand[ci]];
-         if (cht == 0) {
-             cht = ht;
-             if (ht < UCHAR_MAX)ht++;
-             else {
-                 ht = 1;
-                 allcoll = 1;
-             }
-             tds_coll[cht - 1] = allcoll;
-             sieve_interval[cand[ci]] = cht;
-         }
-         else {
-             tds_coll[cht - 1] = 1;
-         }
-         fss_sv[ci] = cht - 1;
-     }
- }
+        bzero(sieve_interval, L1_SIZE);
+        bzero(tds_coll, UCHAR_MAX - 1);
+        for (ci = 0, ht = 1, allcoll = 0; ci < ncand; ci++) {
+            unsigned char cht;
 
-/*:124*//*125:*/
+            cht = sieve_interval[cand[ci]];
+            if (cht == 0) {
+                cht = ht;
+                if (ht < UCHAR_MAX)ht++;
+                else {
+                    ht = 1;
+                    allcoll = 1;
+                }
+                tds_coll[cht - 1] = allcoll;
+                sieve_interval[cand[ci]] = cht;
+            }
+            else {
+                tds_coll[cht - 1] = 1;
+            }
+            fss_sv[ci] = cht - 1;
+        }
+    }
+
+    /*:124*//*125:*/
 #line 4093 "gnfs-lasieve4e.w"
 
 #ifdef MMX_TD
-smalltdsieve_auxbound= MMX_TdInit(side,smallsieve_aux[side],
-smallsieve_auxbound[side][0],
-&p_bound,j_offset==0&&oddness_type==1);
+    smalltdsieve_auxbound = MMX_TdInit(side, smallsieve_aux[side],
+        smallsieve_auxbound[side][0],
+        &p_bound, j_offset == 0 && oddness_type == 1);
 #else
 
 #line 4099 "gnfs-lasieve4e.w"
-{
-    u16_t* x, * z;
+    {
+        u16_t* x, * z;
 
-    x = smallsieve_aux[side];
-    z = smallsieve_auxbound[side][0];
-    if (*x > p_bound)smalltdsieve_auxbound = x;
-    else {
-        while (x + 4 < z) {
-            u16_t* y;
+        x = smallsieve_aux[side];
+        z = smallsieve_auxbound[side][0];
+        if (*x > p_bound)smalltdsieve_auxbound = x;
+        else {
+            while (x + 4 < z) {
+                u16_t* y;
 
-            y = x + 4 * ((z - x) / 8);
-            if (y == smallsieve_auxbound[side][0] || *y > p_bound)z = y;
-            else x = y;
+                y = x + 4 * ((z - x) / 8);
+                if (y == smallsieve_auxbound[side][0] || *y > p_bound)z = y;
+                else x = y;
+            }
+            smalltdsieve_auxbound = z;
         }
-        smalltdsieve_auxbound = z;
     }
-}
 
 
 #endif
 #line 4117 "gnfs-lasieve4e.w"
 
-/*:125*/
+    /*:125*/
 #line 3976 "gnfs-lasieve4e.w"
 
 #ifndef NO_TD_CLOCK
-newclock= clock();
-tdsi_clock[side]+= newclock-last_tdclock;
-last_tdclock= newclock;
+    newclock = clock();
+    tdsi_clock[side] += newclock - last_tdclock;
+    last_tdclock = newclock;
 #endif
 #line 3982 "gnfs-lasieve4e.w"
-/*128:*/
+    /*128:*/
 #line 4141 "gnfs-lasieve4e.w"
 
-memcpy(tds_fbi_curpos,tds_fbi,UCHAR_MAX*sizeof(*tds_fbi));
+    memcpy(tds_fbi_curpos, tds_fbi, UCHAR_MAX * sizeof(*tds_fbi));
 
-/*:128*//*129:*/
+    /*:128*//*129:*/
 #line 4145 "gnfs-lasieve4e.w"
 
 #if defined( ASM_SCHEDTDSIEVE) && !defined(AVX512_TDSCHED)
-{
-u32_t x,*(y[2]);
+    {
+        u32_t x, * (y[2]);
 
-x= 0;
-y[0]= med_sched[side][0];
-y[1]= med_sched[side][n_medsched_pieces[side]];
-schedtdsieve(&x,1,y,sieve_interval,tds_fbi_curpos);
-}
+        x = 0;
+        y[0] = med_sched[side][0];
+        y[1] = med_sched[side][n_medsched_pieces[side]];
+        schedtdsieve(&x, 1, y, sieve_interval, tds_fbi_curpos);
+    }
 #else
 #line 4156 "gnfs-lasieve4e.w"
-{
-    u32_t l;
+    {
+        u32_t l;
 
-    for (l = 0; l < n_medsched_pieces[side]; l++) {
-        u16_t* x, * x_ub;
+        for (l = 0; l < n_medsched_pieces[side]; l++) 
+        {
+            u16_t* x, * x_ub;
 
-        x_ub = med_sched[side][l + 1];
-
-#if defined(AVX512_TDSCHED)
-        __m512i zero = _mm512_setzero_si512();
-
-        for (x = med_sched[side][l] + MEDSCHED_SI_OFFS; x + 30 < x_ub; x = x + 32) {
-            // load 16 indices
-            __m512i vx1 = _mm512_mask_loadu_epi16(zero, 0x55555555, x);
-
-            // gather 16 sieve values
-            __m512i vsi1 = _mm512_i32gather_epi32(vx1, sieve_interval, 1);
-
-            // mask only the bytes we are interested in and compare for not-zero
-            __mmask64 m1 = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi1, zero);
-
-            // search the sparse set bits for the hits we found
-            while (m1 > 0)
-            {
-                int id = _tzcnt_u64(m1) / 4;
-                *(tds_fbi_curpos[sieve_interval[x[2 * id]] - 1]++) =
-                    *(x + 2 * id + 1 - 2 * MEDSCHED_SI_OFFS);
-                m1 = _blsr_u64(m1);
-            }
-        }
-#else
-        for (x = med_sched[side][l] + MEDSCHED_SI_OFFS; x + 6 < x_ub; x += 8) {
-            unsigned char z;
-            if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
-                sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0) {
-                continue;
-            }
-            if ((z = sieve_interval[*x]) != 0)
-                *(tds_fbi_curpos[z - 1]++) = *(x + 1 - 2 * MEDSCHED_SI_OFFS);
-            if ((z = sieve_interval[*(x + 2)]) != 0)
-                *(tds_fbi_curpos[z - 1]++) = *(x + 3 - 2 * MEDSCHED_SI_OFFS);
-            if ((z = sieve_interval[*(x + 4)]) != 0)
-                *(tds_fbi_curpos[z - 1]++) = *(x + 5 - 2 * MEDSCHED_SI_OFFS);
-            if ((z = sieve_interval[*(x + 6)]) != 0)
-                *(tds_fbi_curpos[z - 1]++) = *(x + 7 - 2 * MEDSCHED_SI_OFFS);
-        }
-#endif
-        while (x < x_ub) {
-            unsigned char z;
-
-            if ((z = sieve_interval[*x]) != 0)
-                *(tds_fbi_curpos[z - 1]++) = *(x + 1 - 2 * MEDSCHED_SI_OFFS);
-            x += 2;
-        }
-    }
-}
-#endif
-#line 4189 "gnfs-lasieve4e.w"
-#ifndef NO_TD_CLOCK
-newclock= clock();
-tds2_clock[side]+= newclock-last_tdclock;
-last_tdclock= newclock;
-#endif
-#line 4194 "gnfs-lasieve4e.w"
-
-/*:129*//*130:*/
-#line 4196 "gnfs-lasieve4e.w"
-
-{
-    u32_t j;
-
-    for (j = 0; j < n_schedules[side]; j++) {
-#ifdef ASM_SCHEDTDSIEVE
-        u32_t i, k;
-        k = schedules[side][j].current_strip++;
-        for (i = 0; i <= schedules[side][j].n_pieces; i++) {
-            schedbuf[i] = schedules[side][j].schedule[i][k];
-        }
-        schedtdsieve(schedules[side][j].fbi_bounds, schedules[side][j].n_pieces,
-            schedbuf, sieve_interval, tds_fbi_curpos);
-#else
-#line 4210 "gnfs-lasieve4e.w"
-#if 1
-        u32_t k, l, fbi_offset;
-        u16_t* x, * x_ub;
-        k = schedules[side][j].current_strip++;
-        x = schedules[side][j].schedule[0][k] + SCHED_SI_OFFS;
-        x_ub = schedules[side][j].schedule[schedules[side][j].n_pieces][k];
-        l = 0;
-        fbi_offset = schedules[side][j].fbi_bounds[l];
-        while (x < x_ub) {
-            u16_t** b0, ** b1, ** b0_ub;
-#if defined(ASM_SCHEDTDSIEVE2) && !defined(AVX512_TDSCHED)
-            b0 = tdsieve_sched2buf(&x, x_ub, sieve_interval, sched_tds_buffer,
-                sched_tds_buffer + SCHED_TDS_BUFSIZE - 4);
-#else
-#line 4224 "gnfs-lasieve4e.w"
+            x_ub = med_sched[side][l + 1];
 
 #if defined(AVX512_TDSCHED)
-            // gathers are slow, but this looks like a slight speedup.
             __m512i zero = _mm512_setzero_si512();
-            b0 = sched_tds_buffer;
-            b0_ub = b0 + SCHED_TDS_BUFSIZE;
-            for (; x + 30 < x_ub; x = x + 32) {
+
+            for (x = med_sched[side][l] + MEDSCHED_SI_OFFS; x + 30 < x_ub; x = x + 32) {
                 // load 16 indices
                 __m512i vx1 = _mm512_mask_loadu_epi16(zero, 0x55555555, x);
 
-                // gather 16 sieve values.  Note that we added 16 bytes to the
-                // end of the sieve interval so that targetting the last 3 bytes
-                // doesn't fault (reading past the end of allocated memory).
+                // gather 16 sieve values
                 __m512i vsi1 = _mm512_i32gather_epi32(vx1, sieve_interval, 1);
 
                 // mask only the bytes we are interested in and compare for not-zero
-                __mmask64 m = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi1, zero);
+                __mmask64 m1 = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi1, zero);
 
-                //if (m1 == 0) continue;
-
-                // search the sparse set bits for any hits we found
-                //u64_t m = m1;
-                while (m > 0)
+                // search the sparse set bits for the hits we found
+                while (m1 > 0)
                 {
-                    int id = _tzcnt_u64(m) / 4;
-                    *(b0++) = x + 2 * id;
-                    m = _blsr_u64(m);
+                    int id = _tzcnt_u64(m1) / 4;
+                    *(tds_fbi_curpos[sieve_interval[x[2 * id]] - 1]++) =
+                        *(x + 2 * id + 1 - 2 * MEDSCHED_SI_OFFS);
+                    m1 = _blsr_u64(m1);
                 }
-                if (b0 + 16 > b0_ub)goto sched_tds1;
             }
-            for (; x < x_ub; x += 2) {
-                if (sieve_interval[*x] != 0)*(b0++) = x;
-            }
-
 #else
-            b0 = sched_tds_buffer;
-            b0_ub = b0 + SCHED_TDS_BUFSIZE;
-            for (; x + 6 < x_ub; x = x + 8) {
-                if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
-                    sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0)
-                    continue;
-                if (sieve_interval[x[0]] != 0)*(b0++) = x;
-                if (sieve_interval[x[2]] != 0)*(b0++) = x + 2;
-                if (sieve_interval[x[4]] != 0)*(b0++) = x + 4;
-                if (sieve_interval[x[6]] != 0)*(b0++) = x + 6;
-                if (b0 + 4 > b0_ub)goto sched_tds1;
-            }
-            for (; x < x_ub; x += 2) {
-                if (sieve_interval[*x] != 0)*(b0++) = x;
-            }
-#endif
-#endif
-#line 4240 "gnfs-lasieve4e.w"
-            sched_tds1:
-            for (b1 = sched_tds_buffer; b1 < b0; b1++) {
-                u16_t* y;
-                u32_t fbi;
-                y = *(b1);
-                if (schedules[side][j].schedule[l + 1][k] <= y) {
-                    do {
-                        l++;
-                        if (l >= schedules[side][j].n_pieces)Schlendrian("XXX\n");
-                    } while (schedules[side][j].schedule[l + 1][k] <= y);
-                    fbi_offset = schedules[side][j].fbi_bounds[l];
-                }
-                fbi = fbi_offset + *(y + 1 - 2 * SCHED_SI_OFFS);
-                *(tds_fbi_curpos[sieve_interval[*y] - 1]++) = fbi;
-#ifdef TDS_FB_PREFETCH
-                TDS_FB_PREFETCH(FB[side] + fbi);
-#endif
-#line 4257 "gnfs-lasieve4e.w"
-            }
-        }
-#else
-#line 4260 "gnfs-lasieve4e.w"
-        u32_t l, k;
-
-        k = schedules[side][j].current_strip++;
-        for (l = 0; l < schedules[side][j].n_pieces; l++) {
-            u16_t* x, * x_ub;
-            u32_t fbi_offset;
-
-            x_ub = schedules[side][j].schedule[l + 1][k];
-            fbi_offset = schedules[side][j].fbi_bounds[l];
-            for (x = schedules[side][j].schedule[l][k] + SCHED_SI_OFFS; x + 6 < x_ub; x += 8) {
+            for (x = med_sched[side][l] + MEDSCHED_SI_OFFS; x + 6 < x_ub; x += 8) {
                 unsigned char z;
                 if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
                     sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0) {
                     continue;
                 }
                 if ((z = sieve_interval[*x]) != 0)
-                    *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 1 - 2 * SCHED_SI_OFFS);
+                    *(tds_fbi_curpos[z - 1]++) = *(x + 1 - 2 * MEDSCHED_SI_OFFS);
                 if ((z = sieve_interval[*(x + 2)]) != 0)
-                    *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 3 - 2 * SCHED_SI_OFFS);
+                    *(tds_fbi_curpos[z - 1]++) = *(x + 3 - 2 * MEDSCHED_SI_OFFS);
                 if ((z = sieve_interval[*(x + 4)]) != 0)
-                    *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 5 - 2 * SCHED_SI_OFFS);
+                    *(tds_fbi_curpos[z - 1]++) = *(x + 5 - 2 * MEDSCHED_SI_OFFS);
                 if ((z = sieve_interval[*(x + 6)]) != 0)
-                    *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 7 - 2 * SCHED_SI_OFFS);
-            }
+                    *(tds_fbi_curpos[z - 1]++) = *(x + 7 - 2 * MEDSCHED_SI_OFFS);
+        }
+#endif
             while (x < x_ub) {
                 unsigned char z;
 
                 if ((z = sieve_interval[*x]) != 0)
-                    *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 1 - 2 * SCHED_SI_OFFS);
+                    *(tds_fbi_curpos[z - 1]++) = *(x + 1 - 2 * MEDSCHED_SI_OFFS);
                 x += 2;
             }
         }
+    }
+
 #endif
+#line 4189 "gnfs-lasieve4e.w"
+
+#ifndef NO_TD_CLOCK
+    newclock= clock();
+    tds2_clock[side]+= newclock-last_tdclock;
+    last_tdclock= newclock;
+#endif
+
+#line 4194 "gnfs-lasieve4e.w"
+
+/*:129*//*130:*/
+#line 4196 "gnfs-lasieve4e.w"
+
+    {
+        u32_t j;
+
+        for (j = 0; j < n_schedules[side]; j++)
+        {
+#ifdef ASM_SCHEDTDSIEVE
+            u32_t i, k;
+            k = schedules[side][j].current_strip++;
+            for (i = 0; i <= schedules[side][j].n_pieces; i++) {
+                schedbuf[i] = schedules[side][j].schedule[i][k];
+            }
+            schedtdsieve(schedules[side][j].fbi_bounds, schedules[side][j].n_pieces,
+                schedbuf, sieve_interval, tds_fbi_curpos);
+#else
+
+#line 4210 "gnfs-lasieve4e.w"
+#if 1
+            u32_t k, l, fbi_offset;
+            u16_t* x, * x_ub;
+            k = schedules[side][j].current_strip++;
+            x = schedules[side][j].schedule[0][k] + SCHED_SI_OFFS;
+            x_ub = schedules[side][j].schedule[schedules[side][j].n_pieces][k];
+            l = 0;
+            fbi_offset = schedules[side][j].fbi_bounds[l];
+            while (x < x_ub) {
+                u16_t** b0, ** b1, ** b0_ub;
+#if defined(ASM_SCHEDTDSIEVE2) && !defined(AVX512_TDSCHED)
+                b0 = tdsieve_sched2buf(&x, x_ub, sieve_interval, sched_tds_buffer,
+                    sched_tds_buffer + SCHED_TDS_BUFSIZE - 4);
+#else
+#line 4224 "gnfs-lasieve4e.w"
+
+#if defined(AVX512_TDSCHED)
+                // gathers are slow, but this looks like a slight speedup.
+                __m512i zero = _mm512_setzero_si512();
+                b0 = sched_tds_buffer;
+                b0_ub = b0 + SCHED_TDS_BUFSIZE;
+                for (; x + 30 < x_ub; x = x + 32) {
+                    // load 16 indices
+                    __m512i vx1 = _mm512_mask_loadu_epi16(zero, 0x55555555, x);
+
+                    // gather 16 sieve values.  Note that we added 16 bytes to the
+                    // end of the sieve interval so that targetting the last 3 bytes
+                    // doesn't fault (reading past the end of allocated memory).
+                    __m512i vsi1 = _mm512_i32gather_epi32(vx1, sieve_interval, 1);
+
+                    // mask only the bytes we are interested in and compare for not-zero
+                    __mmask64 m = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi1, zero);
+
+                    //if (m1 == 0) continue;
+
+                    // search the sparse set bits for any hits we found
+                    //u64_t m = m1;
+                    while (m > 0)
+                    {
+                        int id = _tzcnt_u64(m) / 4;
+                        *(b0++) = x + 2 * id;
+                        m = _blsr_u64(m);
+                    }
+                    if (b0 + 16 > b0_ub)goto sched_tds1;
+                }
+                for (; x < x_ub; x += 2) {
+                    if (sieve_interval[*x] != 0)*(b0++) = x;
+                }
+
+#else
+                b0 = sched_tds_buffer;
+                b0_ub = b0 + SCHED_TDS_BUFSIZE;
+                for (; x + 6 < x_ub; x = x + 8) {
+                    if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
+                        sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0)
+                        continue;
+                    if (sieve_interval[x[0]] != 0)*(b0++) = x;
+                    if (sieve_interval[x[2]] != 0)*(b0++) = x + 2;
+                    if (sieve_interval[x[4]] != 0)*(b0++) = x + 4;
+                    if (sieve_interval[x[6]] != 0)*(b0++) = x + 6;
+                    if (b0 + 4 > b0_ub)goto sched_tds1;
+                }
+                for (; x < x_ub; x += 2) {
+                    if (sieve_interval[*x] != 0)*(b0++) = x;
+                }
+#endif
+#endif
+#line 4240 "gnfs-lasieve4e.w"
+                sched_tds1:
+                for (b1 = sched_tds_buffer; b1 < b0; b1++) {
+                    u16_t* y;
+                    u32_t fbi;
+                    y = *(b1);
+                    if (schedules[side][j].schedule[l + 1][k] <= y) {
+                        do {
+                            l++;
+                            if (l >= schedules[side][j].n_pieces)Schlendrian("XXX\n");
+                        } while (schedules[side][j].schedule[l + 1][k] <= y);
+                        fbi_offset = schedules[side][j].fbi_bounds[l];
+                    }
+                    fbi = fbi_offset + *(y + 1 - 2 * SCHED_SI_OFFS);
+                    *(tds_fbi_curpos[sieve_interval[*y] - 1]++) = fbi;
+#ifdef TDS_FB_PREFETCH
+                    TDS_FB_PREFETCH(FB[side] + fbi);
+#endif
+#line 4257 "gnfs-lasieve4e.w"
+                }
+            }
+#else
+#line 4260 "gnfs-lasieve4e.w"
+            u32_t l, k;
+
+            k = schedules[side][j].current_strip++;
+            for (l = 0; l < schedules[side][j].n_pieces; l++) {
+                u16_t* x, * x_ub;
+                u32_t fbi_offset;
+
+                x_ub = schedules[side][j].schedule[l + 1][k];
+                fbi_offset = schedules[side][j].fbi_bounds[l];
+                for (x = schedules[side][j].schedule[l][k] + SCHED_SI_OFFS; x + 6 < x_ub; x += 8) {
+                    unsigned char z;
+                    if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
+                        sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0) {
+                        continue;
+                    }
+                    if ((z = sieve_interval[*x]) != 0)
+                        *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 1 - 2 * SCHED_SI_OFFS);
+                    if ((z = sieve_interval[*(x + 2)]) != 0)
+                        *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 3 - 2 * SCHED_SI_OFFS);
+                    if ((z = sieve_interval[*(x + 4)]) != 0)
+                        *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 5 - 2 * SCHED_SI_OFFS);
+                    if ((z = sieve_interval[*(x + 6)]) != 0)
+                        *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 7 - 2 * SCHED_SI_OFFS);
+                }
+                while (x < x_ub) {
+                    unsigned char z;
+
+                    if ((z = sieve_interval[*x]) != 0)
+                        *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 1 - 2 * SCHED_SI_OFFS);
+                    x += 2;
+                }
+            }
+#endif
+
 #line 4293 "gnfs-lasieve4e.w"
 #endif
+
 #line 4294 "gnfs-lasieve4e.w"
+        }
     }
-}
 
 
 #ifndef NO_TD_CLOCK
-newclock= clock();
-tds3_clock[side]+= newclock-last_tdclock;
-last_tdclock= newclock;
+    newclock= clock();
+    tds3_clock[side]+= newclock-last_tdclock;
+    last_tdclock= newclock;
 #endif
 #line 4301 "gnfs-lasieve4e.w"
 
 /*:130*//*132:*/
 #line 4311 "gnfs-lasieve4e.w"
 
-{
-    u32_t i;
+    {
+        u32_t i;
 
-    for (i = 0; i < UCHAR_MAX && i < ncand; i++) {
-        u32_t* p;
+        for (i = 0; i < UCHAR_MAX && i < ncand; i++) {
+            u32_t* p;
 
-        for (p = tds_fbi[i]; p < tds_fbi_curpos[i]; p++)
-            *p = FB[side][*p];
+            for (p = tds_fbi[i]; p < tds_fbi_curpos[i]; p++)
+                *p = FB[side][*p];
+        }
     }
-}
 
 /*:132*//*133:*/
 #line 4324 "gnfs-lasieve4e.w"
 
-{
-    u16_t* x;
+    {
+        u16_t* x;
 #ifdef ASM_TDSLINIE
-    x = smalltdsieve_auxbound;
-    if (x < smallsieve_auxbound[side][4]) {
-        tdslinie(x, smallsieve_auxbound[side][4], sieve_interval, tds_fbi_curpos);
-        x = smallsieve_auxbound[side][4];
-    }
+        x = smalltdsieve_auxbound;
+        if (x < smallsieve_auxbound[side][4]) {
+            tdslinie(x, smallsieve_auxbound[side][4], sieve_interval, tds_fbi_curpos);
+            x = smallsieve_auxbound[side][4];
+        }
+
 #else
 #line 4334 "gnfs-lasieve4e.w"
     for (x = smalltdsieve_auxbound;
@@ -5145,10 +5251,11 @@ last_tdclock= newclock;
 #endif
 #line 4386 "gnfs-lasieve4e.w"
 #ifdef ASM_TDSLINIE3
-    if (x < smallsieve_auxbound[side][3]) {
-        tdslinie3(x, smallsieve_auxbound[side][3], sieve_interval, tds_fbi_curpos);
-        x = smallsieve_auxbound[side][3];
-    }
+        if (x < smallsieve_auxbound[side][3]) {
+            tdslinie3(x, smallsieve_auxbound[side][3], sieve_interval, tds_fbi_curpos);
+            x = smallsieve_auxbound[side][3];
+        }
+
 #else
 #line 4392 "gnfs-lasieve4e.w"
     for (; x < smallsieve_auxbound[side][3]; x = x + 4) {
@@ -5181,10 +5288,11 @@ last_tdclock= newclock;
 #endif
 #line 4420 "gnfs-lasieve4e.w"
 #ifdef ASM_TDSLINIE2
-    if (x < smallsieve_auxbound[side][2]) {
-        tdslinie2(x, smallsieve_auxbound[side][2], sieve_interval, tds_fbi_curpos);
-        x = smallsieve_auxbound[side][2];
-    }
+        if (x < smallsieve_auxbound[side][2]) {
+            tdslinie2(x, smallsieve_auxbound[side][2], sieve_interval, tds_fbi_curpos);
+            x = smallsieve_auxbound[side][2];
+        }
+
 #else
 #line 4426 "gnfs-lasieve4e.w"
     for (; x < smallsieve_auxbound[side][2]; x = x + 4) {
@@ -5216,10 +5324,11 @@ last_tdclock= newclock;
 #endif
 #line 4453 "gnfs-lasieve4e.w"
 #ifdef ASM_TDSLINIE1
-    if (x < smallsieve_auxbound[side][1]) {
-        tdslinie1(x, smallsieve_auxbound[side][1], sieve_interval, tds_fbi_curpos);
-        x = smallsieve_auxbound[side][1];
-    }
+        if (x < smallsieve_auxbound[side][1]) {
+            tdslinie1(x, smallsieve_auxbound[side][1], sieve_interval, tds_fbi_curpos);
+            x = smallsieve_auxbound[side][1];
+        }
+
 #else
 #line 4459 "gnfs-lasieve4e.w"
     for (; x < smallsieve_auxbound[side][1]; x = x + 4) {
@@ -5247,6 +5356,7 @@ last_tdclock= newclock;
     }
 #endif
 #line 4483 "gnfs-lasieve4e.w"
+
 #if defined( ASM_TDSLINIE0) && !defined(AVX512_TDS0)
     if (x < smallsieve_auxbound[side][0]) {
         tdslinie0(x, smallsieve_auxbound[side][0], sieve_interval, tds_fbi_curpos);
@@ -5254,6 +5364,7 @@ last_tdclock= newclock;
     }
 #else
 #line 4489 "gnfs-lasieve4e.w"
+
 #if defined(AVX512_TDS0)
 
 #if defined(CONTIGUOUS_SMALLSIEVE)
@@ -5388,7 +5499,8 @@ last_tdclock= newclock;
 #if defined(CONTIGUOUS_SMALLSIEVE)
     for (; x < smallsieve_auxbound[side][0]; x = x + 1) {
 #else
-    for (; x < smallsieve_auxbound[side][0]; x = x + 4) {
+    for (; x < smallsieve_auxbound[side][0]; x = x + 4)
+    {
 #endif
         u32_t p, r, pr;
         unsigned char* y;
@@ -5431,19 +5543,20 @@ last_tdclock= newclock;
     last_tdclock = newclock;
 #endif
 #line 4516 "gnfs-lasieve4e.w"
-}
+    }
 
 /*:133*/
 #line 3982 "gnfs-lasieve4e.w"
 
-last_j= 0;
-for (ci = 0, nc1 = 0; ci < ncand; ci++) {
-    u32_t* fbp_buf;
-    u32_t* fbp_ptr;
-    u16_t st_i, true_j;
-    i32_t true_i;
+    last_j= 0;
+    for (ci = 0, nc1 = 0; ci < ncand; ci++) 
+    {
+        u32_t* fbp_buf;
+        u32_t* fbp_ptr;
+        u16_t st_i, true_j;
+        i32_t true_i;
 
-    u32_t coll;
+        u32_t coll;
     /*120:*/
 #line 3919 "gnfs-lasieve4e.w"
 
@@ -5639,8 +5752,6 @@ for (ci = 0, nc1 = 0; ci < ncand; ci++) {
                 *(fbp_ptr++) = *x;
             }
         }
-
-       
     }
 
     /*:140*/
@@ -5685,7 +5796,8 @@ for (ci = 0, nc1 = 0; ci < ncand; ci++) {
 /*145:*/
 #line 4669 "gnfs-lasieve4e.w"
 
-    if (mpz_sizeinbase(aux1, 2) <= max_factorbits[side]) {
+    if (mpz_sizeinbase(aux1, 2) <= max_factorbits[side]) 
+    {
         n_tdsurvivors[side]++;
         if (side == first_td_side) {
             if (mpz_sgn(aux1) > 0)
@@ -5702,6 +5814,7 @@ for (ci = 0, nc1 = 0; ci < ncand; ci++) {
         output_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
             td_rests[ci], aux1);
 #else
+
 #line 4687 "gnfs-lasieve4e.w"
 #if TDS_PRIMALITY_TEST == TDS_IMMEDIATELY
         mpz_set(large_factors[first_td_side], td_rests[ci]);
@@ -5720,13 +5833,13 @@ for (ci = 0, nc1 = 0; ci < ncand; ci++) {
 #endif 
 #line 4700 "gnfs-lasieve4e.w"
 
-    }
-    else continue;
+        }
+        else continue;
 
     /*:145*/
 #line 4026 "gnfs-lasieve4e.w"
 
-}
+    }
 
 
 #ifndef MMX_TD
@@ -5768,28 +5881,28 @@ x[2]= modsub32(x[2],(j_step)%modulo32);
 }
 #else
 #line 4036 "gnfs-lasieve4e.w"
-{
-    u16_t* x, j_step;
-    j_step = j_per_strip - last_j;
+    {
+        u16_t* x, j_step;
+        j_step = j_per_strip - last_j;
 
-    for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub[side]; x += 3) {
+        for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub[side]; x += 3) {
 
-        if ((modulo32 = x[0]))
-            x[2] = modsub32(x[2], (j_step) % modulo32);
+            if ((modulo32 = x[0]))
+                x[2] = modsub32(x[2], (j_step) % modulo32);
+        }
     }
-}
 
 #endif
 #line 4050 "gnfs-lasieve4e.w"
 
 #ifndef NO_TD_CLOCK
-newclock= clock();
-tds4_clock[side]+= newclock-last_tdclock;
-last_tdclock= newclock;
+    newclock= clock();
+    tds4_clock[side]+= newclock-last_tdclock;
+    last_tdclock= newclock;
 #endif
 
 #line 4055 "gnfs-lasieve4e.w"
- ncand= nc1;
+    ncand= nc1;
 }
 
 /*:123*/
@@ -5989,6 +6102,7 @@ output_all_tdsurvivors()
 {
     size_t i;
 
+    //printf("starting cofactorization of %u td survivors\n", total_ntds);
 
     for (i = 0; i < total_ntds; i++) {
         mpz_set_sll(sr_a, tds_ab[2 * i]);
@@ -6029,12 +6143,57 @@ mpz_t lf0,lf1;
 #if TDS_PRIMALITY_TEST == TDS_MPQS
     if (primality_tests() == 0)return;
 #endif
+
 #line 4966 "gnfs-lasieve4e.w"
 
     cl = clock();
     n_cof++;
 #if 1
 
+#define OBASE 16
+
+#if 0
+
+    // use this to store the raw large factors for later processing
+    // by GCD or batch factorization methods
+    yield++;
+
+    mpz_out_str(g_ofile, 10, large_factors[0]);
+    fprintf(g_ofile, ",");
+    mpz_out_str(g_ofile, 10, large_factors[1]);
+    fprintf(g_ofile, ";");
+
+    mpz_out_str(g_ofile, 10, sr_a);
+    fprintf(g_ofile, ",");
+    mpz_out_str(g_ofile, 10, sr_b);
+
+    nlp[0] = nlp[1] = 0;
+    for (s = 0; s < 2; s++) {
+        int num = 0;
+        u32_t* x = fbp_buffers_ub[1 - s];
+        fprintf(g_ofile, ":");
+        while (num < nlp[1 - s]) {
+            if (num > 0)
+            {
+                fprintf(g_ofile, ",");
+            }
+            mpz_out_str(g_ofile, OBASE, large_primes[1 - s][num]);
+            num++;
+        }
+        while (x-- != fbp_buffers[1 - s]) {
+            if ((unsigned int)*x < 1000)continue;
+            if (num > 0)
+            {
+                fprintf(g_ofile, ",");
+            }
+            fprintf(g_ofile, "%x", (unsigned int)*x);
+            num++;
+        }
+    }
+    fprintf(g_ofile, "\n");
+
+    return;
+#endif
 
     cferr = cofactorisation(&strat, large_primes, large_factors, max_primebits, nlp, FBb_sq, FBb_cu);
     mpqs_clock += clock() - cl;
@@ -6122,6 +6281,7 @@ mpz_t lf0,lf1;
     mpqs_clock += clock() - cl;
     if (s != 2)return;
 #endif
+
 #line 5050 "gnfs-lasieve4e.w"
 
     yield++;
@@ -6130,25 +6290,31 @@ mpz_t lf0,lf1;
     fprintf(g_ofile, ",");
     mpz_out_str(g_ofile, 10, sr_b);
 
-#define OBASE 16
     for (s = 0; s < 2; s++) {
         int num = 0;
         u32_t* x = fbp_buffers_ub[1 - s];
-
         fprintf(g_ofile, ":");
         while (num < nlp[1 - s]) {
-            if (num > 0)fprintf(g_ofile, ",");
+            if (num > 0)
+            {
+                fprintf(g_ofile, ",");
+            }
             mpz_out_str(g_ofile, OBASE, large_primes[1 - s][num]);
             num++;
         }
         while (x-- != fbp_buffers[1 - s]) {
             if ((unsigned int)*x < 1000)continue;
-            if (num > 0)fprintf(g_ofile, ",");
+            if (num > 0)
+            {
+                fprintf(g_ofile, ",");
+            }
             fprintf(g_ofile, "%x", (unsigned int)*x);
             num++;
         }
     }
     fprintf(g_ofile, "\n");
+
+
 }
 
 
