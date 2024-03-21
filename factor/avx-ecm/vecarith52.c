@@ -2811,6 +2811,39 @@ void veckmul_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_big
     return;
 }
 
+void vecksqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    vecksqr(a->data, mdata->mtmp1->data, mdata->mtmp4->data, mdata->NWORDS);
+
+    veckmul(mdata->mtmp1->data, mdata->vnhat->data, mdata->mtmp2->data, mdata->mtmp4->data, mdata->NWORDS);
+    veckmul(mdata->mtmp2->data, n->data, mdata->mtmp3->data, mdata->mtmp4->data, mdata->NWORDS);
+    mdata->mtmp1->size = mdata->NWORDS * 2;
+    mdata->mtmp3->size = mdata->NWORDS * 2;
+    vec_bignum52_add(mdata->mtmp1, mdata->mtmp3, c);
+    vec_bignum52_mask_rshift_n(c, c, mdata->NWORDS, 0xff);
+    uint32_t m = vec_gte52(c, n);
+
+    vec_bignum_mask_sub(c, n, c, m);
+    return;
+}
+
+void veckmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    veckmul(a->data, b->data, mdata->mtmp1->data, mdata->mtmp4->data, mdata->NWORDS);
+
+    veckmul(mdata->mtmp1->data, mdata->vnhat->data, mdata->mtmp2->data, mdata->mtmp4->data, mdata->NWORDS);
+    veckmul(mdata->mtmp2->data, n->data, mdata->mtmp3->data, mdata->mtmp4->data, mdata->NWORDS);
+    mdata->mtmp1->size = mdata->NWORDS * 2;
+    mdata->mtmp3->size = mdata->NWORDS * 2;
+    vec_bignum52_add(mdata->mtmp1, mdata->mtmp3, c);
+    vec_bignum52_mask_rshift_n(c, c, mdata->NWORDS, 0xff);
+    uint32_t m = vec_gte52(c, n);
+
+    vec_bignum_mask_sub(c, n, c, m);
+
+    return;
+}
+
 
 #define and64 _mm512_and_epi64
 #define storeu64 _mm512_store_epi64

@@ -625,6 +625,16 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                     printf("Using 1040-bit mul/sqr core\n");
                 }
             }
+            else if (0) //tdata[0].MAXBITS > 16000)
+            {
+                vecmulmod_ptr = &veckmul_redc;
+                vecsqrmod_ptr = &vecksqr_redc;
+                vecaddsubmod_ptr = &vec_simul_addsub52;
+                if (verbose > 1)
+                {
+                    printf("Using karatsuba mul/sqr core\n");
+                }
+            }
             else
             {
                 vecmulmod_ptr = &vecmulmod52;
