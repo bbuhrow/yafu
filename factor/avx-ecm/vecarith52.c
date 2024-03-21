@@ -895,125 +895,1920 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
 
 }
 
-void veckmul(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
+
+__mmask8 base_abssub_52(uint64_t* a, uint64_t* b, uint64_t* c, __mmask8 sm, int words)
 {
-    // if (num1 < 10) or (num2 < 10)
-    //     return num1 × num2
-    // 
-    // // Calculates the size of the numbers. 
-    // m = min(size_base10(num1), size_base10(num2))
-    // m2 = floor(m / 2)
-    // // m2 = ceil(m / 2) will also work 
-    // 
-    // // Split the digit sequences in the middle. 
-    // high1, low1 = split_at(num1, m2)
-    // high2, low2 = split_at(num2, m2)
-    // 
-    // // 3 calls made to numbers approximately half the size.
-    // z0 = karatsuba(low1, low2)
-    // z1 = karatsuba((low1 + high1), (low2 + high2))
-    // z2 = karatsuba(high1, high2)
-    // 
-    // return (z2 × 10 ^ (m2 × 2)) + ((z1 - z2 - z0) × 10 ^ m2) + z0
-    //printf("veckmul inputs have size %d, %d\n", a->size, b->size);
+    // if sign-mask 'sm' is set, b > 1, so we sub b-a instead of a-b.
+    int i;
+    __m512i avec, bvec, cvec, tmp;
+    __mmask8 carry = 0;
 
-    if ((a->size <= 4) && (b->size <= 4))
+    for (i = 0; i < words; i++)
     {
-        //printf("base case multiply\n");
-        // base case, just multiply
-        vecmul52(a, b, c, mdata);
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+
+        tmp = avec;
+        tmp = _mm512_mask_mov_epi64(tmp, ~sm, bvec);
+
+        avec = _mm512_mask_mov_epi64(avec, sm, bvec);
+        bvec = _mm512_mask_mov_epi64(bvec, sm, tmp);
+
+        cvec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
     }
-    else
+
+    return carry;
+}
+
+uint32_t vec_gte2_52(uint64_t* u, uint64_t* v, int sz)
+{
+    // decide if each of the vec_bignums in vec 'u' is >=
+    // the corresponding vec_bignum in vec 'v'.
+    // return a mask of results.
+    int i;
+    __mmask8 mdecided = 0x00;
+    __mmask8 mgte = 0;
+
+    for (i = sz - 1; i >= 0; --i)
     {
-        int m = MIN(a->size, b->size);
-        int m2 = ceil((double)m / 2.0);
+        __m512i a = _mm512_load_epi64(u + i * VECLEN);
+        __m512i b = _mm512_load_epi64(v + i * VECLEN);
 
-        printf("min(sza, szb) = %d\n", m);
-        printf("half size = %d\n", m2);
-        
-        //if (!init)
-        vec_bignum_t* tmplo1;
-        vec_bignum_t* tmphi1;
-        vec_bignum_t* tmplo2;
-        vec_bignum_t* tmphi2;
-        vec_bignum_t* tmpz1;
-        vec_bignum_t* tmpz2;
-        vec_bignum_t* tmpz3;
+        mgte |= _mm512_mask_cmp_epu64_mask(~mdecided, a, b, _MM_CMPINT_GT);
+        mdecided |= mgte | _mm512_mask_cmp_epu64_mask(~mdecided, a, b, _MM_CMPINT_LT);
 
-        tmplo1 = vecInit(m2);
-        tmplo2 = vecInit(m2);
-        tmphi1 = vecInit(m2);
-        tmphi2 = vecInit(m2);
-        tmpz1 = vecInit(m);
-        tmpz2 = vecInit(m);
-        tmpz3 = vecInit(m);
+        if (mdecided == 0xff)
+            break;
+    }
 
-        //printf("lo and hi halves have size %d\n", m2);
+    //equal if still undecided
+    mgte |= ~mdecided;
 
-        memcpy(tmplo1->data, a->data, m2 * VECLEN * sizeof(base_t));
-        memcpy(tmplo2->data, b->data, m2 * VECLEN * sizeof(base_t));
-        memcpy(tmphi1->data, a->data + m2 * VECLEN, m2 * VECLEN * sizeof(base_t));
-        memcpy(tmphi2->data, b->data + m2 * VECLEN, m2 * VECLEN * sizeof(base_t));
-        tmplo1->size = m2;
-        tmplo2->size = m2;
-        tmphi1->size = m2;
-        tmphi2->size = m2;
-       
-        print_vechexbignum(tmplo1, "lo1");
-        print_vechexbignum(tmplo2, "lo2");
-        veckmul(tmplo1, tmplo2, tmpz1, mdata);
-        print_vechexbignum(tmpz1, "z1");
+    return (uint32_t)mgte;
+}
 
-        //exit(1);
+void kcombine(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int words)
+{
+    int halfwords = words / 2;
+    int i;
+    // combine all of the last addition steps and utilize the
+    // reduced radix instead of carryflag emulation.
+    // z1 += clo
+    // z1 += chi
+    // c += z1 * base^halfwords
+    // becomes
+    // c = c + clo * base^halfwords + chi * base^halfwords + neg(z1) * base^halfwords
 
-        print_vechexbignum(tmphi1, "hi1");
-        print_vechexbignum(tmphi2, "hi2");
-        veckmul(tmphi1, tmphi2, tmpz3, mdata);
-        print_vechexbignum(tmpz3, "z3");
+    // from halfwords to words, we have to copy 'c'
+    // to a scratch buffer because we need to add those words
+    // back into c later on.
+    __m512i zero = _mm512_set1_epi64(0);
+    __m512i vone = _mm512_set1_epi64(1);
+    __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i v1, v2, v3, v4, vc = zero;
+    __mmask8 carry = 0;
 
-        vec_bignum52_add(tmplo1, tmphi1, tmplo1);
-        vec_bignum52_add(tmplo2, tmphi2, tmplo2);
-        print_vechexbignum(tmplo1, "lo1+hi1");
-        print_vechexbignum(tmplo2, "lo2+hi2");
-        veckmul(tmplo1, tmplo2, tmpz2, mdata);
-        print_vechexbignum(tmpz2, "z2");
+    i = halfwords;
+    v1 = _mm512_load_epi64(c + i * VECLEN);
+    v2 = _mm512_load_epi64(c + (i - halfwords) * VECLEN);
+    v3 = _mm512_load_epi64(c + (i + halfwords) * VECLEN);
+    v4 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
+    _mm512_store_epi64(s1 + (i - halfwords) * VECLEN, v1);
 
-        memcpy(c->data, tmpz1->data, m2 * 2 * VECLEN * sizeof(base_t));
-        memcpy(c->data + m2 * 2 * VECLEN, tmpz3->data, m2 * 2 * VECLEN * sizeof(base_t));
+    v2 = _mm512_add_epi64(v2, v3);
+    v4 = _mm512_mask_xor_epi64(v4, sm, v4, vlmask);
+    v1 = _mm512_mask_add_epi64(v1, sm, v1, vone);
+    v2 = _mm512_add_epi64(v2, v4);
+    v1 = _mm512_add_epi64(v1, v2);
 
-        base_t* cptr = c->data;
-        c->data = c->data + m2 * VECLEN;
-        vec_bignum52_sub(c, tmpz1, c);
-        vec_bignum52_sub(c, tmpz3, c);
-        vec_bignum52_add(c, tmpz2, c);
-        c->data = cptr;
+    // carryprop
+    vc = _mm512_srli_epi64(v1, 52);
+    v1 = _mm512_and_epi64(vlmask, v1);
 
-        c->size = a->size + b->size;
+    _mm512_store_epi64(c + i * VECLEN, v1);
 
-        vecFree(tmplo1);
-        vecFree(tmplo2);
-        vecFree(tmphi1);
-        vecFree(tmphi2);
-        vecFree(tmpz1);
-        vecFree(tmpz2);
-        vecFree(tmpz3);
+    for (i = halfwords + 1; i < words; i++)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        v2 = _mm512_load_epi64(c + (i - halfwords) * VECLEN);
+        v3 = _mm512_load_epi64(c + (i + halfwords) * VECLEN);
+        v4 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
+        _mm512_store_epi64(s1 + (i - halfwords) * VECLEN, v1);
+
+        v2 = _mm512_add_epi64(v2, v3);
+        v4 = _mm512_mask_xor_epi64(v4, sm, v4, vlmask);
+
+        v4 = _mm512_add_epi64(v4, vc);
+        v1 = _mm512_add_epi64(v1, v2);
+
+        v1 = _mm512_add_epi64(v1, v4);
+
+        // carryprop
+        vc = _mm512_srli_epi64(v1, 52);
+        v1 = _mm512_and_epi64(vlmask, v1);
+
+        _mm512_store_epi64(c + i * VECLEN, v1);
+    }
+
+    // stop storing inputs to scratch and instead use
+    // the previously stored scratch words as inputs.
+    for (i = words; i < words + halfwords; i++)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        v2 = _mm512_load_epi64(s1 + (i - words) * VECLEN);
+        v3 = _mm512_load_epi64(c + (i + halfwords) * VECLEN);
+        v4 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
+
+        v2 = _mm512_add_epi64(v2, v3);
+        v4 = _mm512_mask_xor_epi64(v4, sm, v4, vlmask);
+
+        v4 = _mm512_add_epi64(v4, vc);
+        v1 = _mm512_add_epi64(v1, v2);
+
+        v1 = _mm512_add_epi64(v1, v4);
+
+        // carryprop
+        vc = _mm512_srli_epi64(v1, 52);
+        v1 = _mm512_and_epi64(vlmask, v1);
+
+        _mm512_store_epi64(c + i * VECLEN, v1);
+    }
+
+    // add in the final hi-word carry then propagate any
+    // additional carries through the final words of the output.
+    // z1 was negative, so we have to subtract a sign bit from
+    // this word.
+    v1 = _mm512_load_epi64(c + i * VECLEN);
+    v1 = _mm512_addsetc_epi52(v1, vc, &carry);
+    v1 = _mm512_mask_sub_epi64(v1, sm, v1, vone);
+    _mm512_store_epi64(c + i * VECLEN, v1);
+    i++;
+
+    while (carry)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        v1 = _mm512_addcarry_epi52(v1, carry, &carry);
+        _mm512_store_epi64(c + i * VECLEN, v1);
+        i++;
     }
 
     return;
 }
 
+void vecmul52_n(uint64_t* a, uint64_t* b, uint64_t* c, int words)
+{
+    int i, j;
+    uint32_t NBLOCKS;
+    // needed in loops
+    __m512i a0, a1, a2, a3;                                     // 4
+    __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
+    __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
+
+#ifndef IFMA
+    __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+    __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+    __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+    __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+    __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+    __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
+
+    // needed after loops
+    __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i acc_e0, acc_e1, acc_e2;
+    __m512i zero = _mm512_set1_epi64(0);
+    __mmask8 scarry;
+
+    NBLOCKS = words / BLOCKWORDS;
+    if ((words % BLOCKWORDS) > 0)
+        NBLOCKS++;
+
+#ifdef DEBUG_MUL
+    printf("vecmul52 with blocksize %d, nblocks %d, nwords %d\n",
+        BLOCKWORDS, NBLOCKS, BASE_WORDS);
+#endif
+
+    // zero the accumulator
+    acc_e0 = zero;
+    acc_e1 = zero;
+    acc_e2 = zero;
+
+#ifdef DEBUG_VECMUL
+    printf("commencing vecmul52 with NWORDS=%d and NBLOCKS=%d\n", NWORDS, NBLOCKS);
+    print_vechexbignum(a, "input a: ");
+    print_vechexbignum(b, "input b: ");
+    print_vechexbignum(c, "input c: ");
+#endif
+
+    // first half mul
+    for (i = 0; i < NBLOCKS; i++)
+    {
+        te0 = te1 = te2 = te3 = te4 = te5 = te6 = te7 = zero;
+
+        for (j = i; j > 0; j--)
+        {
+            a0 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 3) * VECLEN);
+            a1 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 2) * VECLEN);
+            a2 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 1) * VECLEN);
+            a3 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 0) * VECLEN);
+
+            b0 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 1) * VECLEN);
+            b1 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 2) * VECLEN);
+            b2 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 3) * VECLEN);
+            b3 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 4) * VECLEN);
+            b4 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 5) * VECLEN);
+            b5 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 6) * VECLEN);
+            b6 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 7) * VECLEN);
+
+            VEC_MUL4_ACCUM(a0, b0, b1, b2, b3);
+            VEC_MUL4_ACCUM(a1, b1, b2, b3, b4);
+            VEC_MUL4_ACCUM(a2, b2, b3, b4, b5);
+            VEC_MUL4_ACCUM(a3, b3, b4, b5, b6);
+        }
+
+        // finish each triangluar shaped column sum
+        a0 = _mm512_load_epi64(a + (i * BLOCKWORDS + 0) * VECLEN);
+        a1 = _mm512_load_epi64(a + (i * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi64(a + (i * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi64(a + (i * BLOCKWORDS + 3) * VECLEN);
+
+        b0 = _mm512_load_epi64(b + 3 * VECLEN);
+        b1 = _mm512_load_epi64(b + 2 * VECLEN);
+        b2 = _mm512_load_epi64(b + 1 * VECLEN);
+        b3 = _mm512_load_epi64(b + 0 * VECLEN);
+
+#ifdef IFMA
+        VEC_MUL_ACCUM_LOHI_PD(a0, b3, te0, te1);
+        VEC_MUL_ACCUM_LOHI_PD(a1, b3, te2, te3);
+        VEC_MUL_ACCUM_LOHI_PD(a0, b2, te2, te3);
+        VEC_MUL_ACCUM_LOHI_PD(a2, b3, te4, te5);
+#else
+        // ======
+        //VEC_MUL_ACCUM_LOHI_PD(a0, b3, te0, te1);
+        //VEC_MUL_ACCUM_LOHI_PD(a1, b3, te2, te3);
+        //VEC_MUL_ACCUM_LOHI_PD(a0, b2, te2, te3);
+        //VEC_MUL_ACCUM_LOHI_PD(a2, b3, te4, te5);
+        {
+            prod5_ld = _mm512_cvtepu64_pd(a0);
+            prod1_ld = _mm512_cvtepu64_pd(a1);
+            prod2_ld = _mm512_cvtepu64_pd(a2);
+            prod3_ld = _mm512_cvtepu64_pd(b2);
+            prod4_ld = _mm512_cvtepu64_pd(b3);
+
+            prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_hd = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod4_hd = _mm512_fmadd_round_pd(prod5_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod1_hd));  // a1 * b3 -> to te2/3
+            te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));  // a2 * b3 -> to te4/5 
+            te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));  // a0 * b2 -> to te2/3
+            te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod4_hd));  // a0 * b3 -> to te0/1
+
+            prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+            prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+            prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+            prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+            prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_ld = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod4_ld = _mm512_fmadd_round_pd(prod5_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod1_ld));
+            te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+            te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+            te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod4_ld));
+        }
+#endif
+
+#ifdef IFMA
+        VEC_MUL_ACCUM_LOHI_PD(a1, b2, te4, te5);
+        VEC_MUL_ACCUM_LOHI_PD(a0, b1, te4, te5);
+        VEC_MUL_ACCUM_LOHI_PD(a1, b1, te6, te7);
+        VEC_MUL_ACCUM_LOHI_PD(a0, b0, te6, te7);
+#else
+        // ======
+        //VEC_MUL_ACCUM_LOHI_PD(a1, b2, te4, te5);
+        //VEC_MUL_ACCUM_LOHI_PD(a0, b1, te4, te5);
+        //VEC_MUL_ACCUM_LOHI_PD(a1, b1, te6, te7);
+        //VEC_MUL_ACCUM_LOHI_PD(a0, b0, te6, te7);
+        {
+            prod5_ld = _mm512_cvtepu64_pd(a0);
+            prod1_ld = _mm512_cvtepu64_pd(a1);
+            prod2_ld = _mm512_cvtepu64_pd(b0);
+            prod3_ld = _mm512_cvtepu64_pd(b1);
+            prod4_ld = _mm512_cvtepu64_pd(b2);
+
+            prod4_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_hd = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod2_hd = _mm512_fmadd_round_pd(prod5_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod1_hd));
+            te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod2_hd));
+            te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod3_hd));
+            te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod4_hd));
+
+            prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+            prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+            prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+            prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+            prod4_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_ld = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod2_ld = _mm512_fmadd_round_pd(prod5_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod1_ld));
+            te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod2_ld));
+            te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod3_ld));
+            te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod4_ld));
+        }
+#endif
+
+#ifdef IFMA
+        VEC_MUL_ACCUM_LOHI_PD(a3, b3, te6, te7);
+        VEC_MUL_ACCUM_LOHI_PD(a2, b2, te6, te7);
+#else
+        //VEC_MUL_ACCUM_LOHI_PD(a3, b3, te6, te7);
+        //VEC_MUL_ACCUM_LOHI_PD(a2, b2, te6, te7);
+        {
+            prod1_ld = _mm512_cvtepu64_pd(a2);
+            prod2_ld = _mm512_cvtepu64_pd(a3);
+            prod3_ld = _mm512_cvtepu64_pd(b2);
+            prod4_ld = _mm512_cvtepu64_pd(b3);
+
+            prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod1_hd));
+            te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod2_hd));
+
+            prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+            prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+            prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod1_ld));
+            te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod2_ld));
+        }
+
+        // subtract out all of the bias at once.  these are
+        // counts of how many times we have mul_accumulated into each column
+        // during the block a*b and final triangular a*b.
+        SUB_BIAS_HI(
+            i * 4 + 1,
+            i * 4 + 2,
+            i * 4 + 3,
+            i * 4 + 4);
+        SUB_BIAS_LO(
+            i * 4 + 1,
+            i * 4 + 2,
+            i * 4 + 3,
+            i * 4 + 4);
+#endif
+
+
+
+        // now, do a carry-propagating column summation and store the results.
+        {
+            j = 0;
+            // accumulate this column-sum:
+            // carry propagate low to high.
+            acc_e0 = _mm512_add_epi64(acc_e0, te0);
+            acc_e1 = _mm512_add_epi64(acc_e1, te1);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 1;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te2);
+            acc_e1 = _mm512_add_epi64(acc_e1, te3);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 2;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te4);
+            acc_e1 = _mm512_add_epi64(acc_e1, te5);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 3;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te6);
+            acc_e1 = _mm512_add_epi64(acc_e1, te7);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+        }
+    }
+
+#ifdef DEBUG_VECMUL
+    print_vechexbignum(c, "after lo half:");
+#endif
+
+    // second half mul
+    for (i = NBLOCKS; i < 2 * NBLOCKS; i++)
+    {
+        te0 = te1 = te2 = te3 = te4 = te5 = te6 = te7 = zero;
+
+        for (j = i - NBLOCKS + 1; j < NBLOCKS; j++)
+        {
+            a0 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 3) * VECLEN);
+            a1 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 2) * VECLEN);
+            a2 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 1) * VECLEN);
+            a3 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 0) * VECLEN);
+
+            b0 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 1) * VECLEN);
+            b1 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 2) * VECLEN);
+            b2 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 3) * VECLEN);
+            b3 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 4) * VECLEN);
+            b4 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 5) * VECLEN);
+            b5 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 6) * VECLEN);
+            b6 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 7) * VECLEN);
+
+            VEC_MUL4_ACCUM(a0, b0, b1, b2, b3);
+            VEC_MUL4_ACCUM(a1, b1, b2, b3, b4);
+            VEC_MUL4_ACCUM(a2, b2, b3, b4, b5);
+            VEC_MUL4_ACCUM(a3, b3, b4, b5, b6);
+        }
+
+
+        // finish each triangluar shaped column sum (a * b)
+        a1 = _mm512_load_epi64(a + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi64(a + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi64(a + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
+
+        b0 = _mm512_load_epi64(b + (words - 1) * VECLEN);
+        b1 = _mm512_load_epi64(b + (words - 2) * VECLEN);
+        b2 = _mm512_load_epi64(b + (words - 3) * VECLEN);
+
+#ifdef IFMA
+        VEC_MUL_ACCUM_LOHI_PD(a1, b0, te0, te1);
+        VEC_MUL_ACCUM_LOHI_PD(a2, b1, te0, te1);
+        VEC_MUL_ACCUM_LOHI_PD(a2, b0, te2, te3);
+#else
+        // ======
+        //VEC_MUL_ACCUM_LOHI_PD(a1, b0, te0, te1);
+        //VEC_MUL_ACCUM_LOHI_PD(a2, b1, te0, te1);
+        //VEC_MUL_ACCUM_LOHI_PD(a2, b0, te2, te3);
+        {
+            prod1_ld = _mm512_cvtepu64_pd(a1);
+            prod2_ld = _mm512_cvtepu64_pd(a2);
+            prod3_ld = _mm512_cvtepu64_pd(b0);
+            prod4_ld = _mm512_cvtepu64_pd(b1);
+
+            prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod4_hd = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_hd = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));  // a1*b0 -> t0/1
+            te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod4_hd));  // a2*b1 -> t0/1
+            te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));  // a2*b0 -> t2/3
+
+            prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+            prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+            prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+            prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod4_ld = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_ld = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+            te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod4_ld));
+            te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+        }
+#endif
+
+#ifdef IFMA
+        VEC_MUL_ACCUM_LOHI_PD(a3, b2, te0, te1);
+        VEC_MUL_ACCUM_LOHI_PD(a3, b1, te2, te3);
+        VEC_MUL_ACCUM_LOHI_PD(a3, b0, te4, te5);
+#else
+        //VEC_MUL_ACCUM_LOHI_PD(a3, b2, te0, te1);
+        //VEC_MUL_ACCUM_LOHI_PD(a3, b1, te2, te3);
+        //VEC_MUL_ACCUM_LOHI_PD(a3, b0, te4, te5);
+        {
+            prod1_ld = _mm512_cvtepu64_pd(a3);
+            prod2_ld = _mm512_cvtepu64_pd(b2);
+            prod3_ld = _mm512_cvtepu64_pd(b1);
+            prod4_ld = _mm512_cvtepu64_pd(b0);
+
+            prod2_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod4_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));  // a3*b2 -> t0/1
+            te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));  // a3*b1 -> t2/3
+            te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod4_hd));  // a3*b0 -> t4/5
+
+            prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+            prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+            prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+            prod2_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            prod4_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+            te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+            te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+            te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod4_ld));
+        }
+
+
+        // subtract out all of the bias at once.
+        SUB_BIAS_HI(
+            (2 * NBLOCKS - i - 1) * 4 + 3,
+            (2 * NBLOCKS - i - 1) * 4 + 2,
+            (2 * NBLOCKS - i - 1) * 4 + 1,
+            (2 * NBLOCKS - i - 1) * 4 + 0);
+        SUB_BIAS_LO(
+            (2 * NBLOCKS - i - 1) * 4 + 3,
+            (2 * NBLOCKS - i - 1) * 4 + 2,
+            (2 * NBLOCKS - i - 1) * 4 + 1,
+            (2 * NBLOCKS - i - 1) * 4 + 0);
+#endif
+
+        // final column accumulation
+        {
+            j = 0;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te0);
+            acc_e1 = _mm512_add_epi64(acc_e1, te1);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a3 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN, 
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 1;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te2);
+            acc_e1 = _mm512_add_epi64(acc_e1, te3);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a2 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN,
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 2;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te4);
+            acc_e1 = _mm512_add_epi64(acc_e1, te5);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a1 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN,
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 3;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te6);
+            acc_e1 = _mm512_add_epi64(acc_e1, te7);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a0 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN,
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            a3 = _mm512_and_epi64(vlmask, a3);
+            a2 = _mm512_and_epi64(vlmask, a2);
+            a1 = _mm512_and_epi64(vlmask, a1);
+            a0 = _mm512_and_epi64(vlmask, a0);
+
+            _mm512_store_epi64(c + (i * BLOCKWORDS + 0) * VECLEN, a3);
+            _mm512_store_epi64(c + (i * BLOCKWORDS + 1) * VECLEN, a2);
+            _mm512_store_epi64(c + (i * BLOCKWORDS + 2) * VECLEN, a1);
+            _mm512_store_epi64(c + (i * BLOCKWORDS + 3) * VECLEN, a0);
+
+        }
+    }
+
+#ifdef DEBUG_VECMUL
+    print_vechexbignum(c, "after hi half:");
+#endif
+
+    return;
+}
+
+void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
+{
+    int i, j, k;
+    uint64_t* b = a;
+    uint32_t NBLOCKS;
+    __m512i i0, i1;
+    __m512i a0, a1, a2, a3;                                     // 4
+    __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
+    __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
+
+#ifndef IFMA
+    __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+    __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+    __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+    __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+    __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+    __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
+
+    // needed after loops
+    __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i acc_e0, acc_e1, acc_e2;
+    __m512i zero = _mm512_set1_epi64(0);
+    __mmask8 scarry;
+
+    NBLOCKS = words / BLOCKWORDS;
+    if ((words % BLOCKWORDS) > 0)
+        NBLOCKS++;
+
+#ifdef DEBUG_MUL
+    printf("vecmul52 with blocksize %d, nblocks %d, nwords %d\n",
+        BLOCKWORDS, NBLOCKS, BASE_WORDS);
+#endif
+
+    // zero the accumulator
+    acc_e0 = zero;
+    acc_e1 = zero;
+    acc_e2 = zero;
+
+#ifdef DEBUG_VECMUL
+    printf("commencing vecmul52 with NWORDS=%d and NBLOCKS=%d\n", NWORDS, NBLOCKS);
+    print_vechexbignum(a, "input a: ");
+    print_vechexbignum(b, "input b: ");
+    print_vechexbignum(c, "input c: ");
+#endif
+
+    // first half sqr
+    for (i = 0; i < NBLOCKS; i++)
+    {
+        te0 = te1 = te2 = te3 = te4 = te5 = te6 = te7 = zero;
+
+        for (k = 0, j = i; j > (i + 1) / 2; j--, k++)
+        {
+            // when i = 0, j = 0, j > 0 --> 0 iterations
+            // when i = 1, j = 1, j > 1 --> 0 iterations
+            // when i = 2, j = 2, j > 1 --> 1 iteration @ a[3..0], b[5..11]
+            // when i = 3, j = 3, j > 2 --> 1 iteration @ a[3..0], b[9..15]
+            // when i = 4, j = 4, j > 2 --> 2 iteration @ a[3..0], b[13..19] and a[7..4], b[9..15]
+            // when i = 5, j = 5, j > 3 --> 2 iteration @ a[3..0], b[17..23] and a[7..4], b[13..19]
+            a0 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 3) * VECLEN);
+            a1 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 2) * VECLEN);
+            a2 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 1) * VECLEN);
+            a3 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 0) * VECLEN);
+
+            b0 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 1) * VECLEN);
+            b1 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 2) * VECLEN);
+            b2 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 3) * VECLEN);
+            b3 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 4) * VECLEN);
+            b4 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 5) * VECLEN);
+            b5 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 6) * VECLEN);
+            b6 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 7) * VECLEN);
+
+            VEC_MUL4_ACCUM(a0, b0, b1, b2, b3);
+            VEC_MUL4_ACCUM(a1, b1, b2, b3, b4);
+            VEC_MUL4_ACCUM(a2, b2, b3, b4, b5);
+            VEC_MUL4_ACCUM(a3, b3, b4, b5, b6);
+        }
+
+        if (i & 1)
+        {
+            // i odd
+            // for 384-bit inputs when i == 1, j = 0, a = {3,2,1,0} and b = {2,3,4,5,6,7}
+            // for 512-bit inputs when i == 3, j = 1, a = {7,6,5,4} and b = {6,7,8,9,a,b}
+            // for 512-bit inputs when i == 1, j = 0, a = {3,2,1,0} and b = {2,3,4,5,6,7}
+
+            a0 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 3) * VECLEN);
+            a1 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 2) * VECLEN);
+            a2 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 1) * VECLEN);
+            a3 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 0) * VECLEN);
+
+            b1 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 2) * VECLEN);
+            b2 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 3) * VECLEN);
+            b3 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 4) * VECLEN);
+            b4 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 5) * VECLEN);
+            b5 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 6) * VECLEN);
+            b6 = _mm512_load_epi64(b + ((j - 1) * BLOCKWORDS + 7) * VECLEN);
+
+#ifdef IFMA
+            VEC_MUL_ACCUM_LOHI_PD(a2, b2, te0, te1);
+            VEC_MUL_ACCUM_LOHI_PD(a1, b2, te2, te3);
+            VEC_MUL_ACCUM_LOHI_PD(a1, b3, te4, te5);
+            VEC_MUL_ACCUM_LOHI_PD(a0, b3, te6, te7);
+#else
+            //prod1_e = _mm512_mul_epu32(a2, b2);   // te0
+            //prod2_e = _mm512_mul_epu32(a1, b2);   // te2
+            //prod3_e = _mm512_mul_epu32(a1, b3);   // te4
+            //prod4_e = _mm512_mul_epu32(a0, b3);   // te6
+            //ACCUM_4X_DOUBLED_PROD;
+            {
+                prod5_ld = _mm512_cvtepu64_pd(a0);
+                prod1_ld = _mm512_cvtepu64_pd(a1);
+                prod2_ld = _mm512_cvtepu64_pd(a2);
+                prod3_ld = _mm512_cvtepu64_pd(b2);
+                prod4_ld = _mm512_cvtepu64_pd(b3);
+
+                prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b2 -> to te0/1 
+                prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b2 -> to te2/3
+                prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b3 -> to te4/5
+                prod4_hd = _mm512_fmadd_round_pd(prod5_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b3 -> to te6/7
+
+                te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));
+                te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));
+                te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod1_hd));
+                te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod4_hd));
+
+                prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+                prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+                prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod4_ld = _mm512_fmadd_round_pd(prod5_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+                te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+                te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod1_ld));
+                te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod4_ld));
+            }
+#endif
+
+
+#ifdef IFMA
+            VEC_MUL_ACCUM_LOHI_PD(a3, b3, te0, te1);
+            VEC_MUL_ACCUM_LOHI_PD(a2, b3, te2, te3);
+            VEC_MUL_ACCUM_LOHI_PD(a2, b4, te4, te5);
+            VEC_MUL_ACCUM_LOHI_PD(a1, b4, te6, te7);
+#else
+            //prod1_e = _mm512_mul_epu32(a3, b3);   // te0
+            //prod2_e = _mm512_mul_epu32(a2, b3);   // te2
+            //prod3_e = _mm512_mul_epu32(a2, b4);   // te4
+            //prod4_e = _mm512_mul_epu32(a1, b4);   // te6
+            //ACCUM_4X_DOUBLED_PROD;
+            {
+                prod5_ld = _mm512_cvtepu64_pd(a1);
+                prod1_ld = _mm512_cvtepu64_pd(a2);
+                prod2_ld = _mm512_cvtepu64_pd(a3);
+                prod3_ld = _mm512_cvtepu64_pd(b3);
+                prod4_ld = _mm512_cvtepu64_pd(b4);
+
+                prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * b3 -> to te0/1
+                prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b3 -> to te2/3
+                prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b4 -> to te4/5
+                prod4_hd = _mm512_fmadd_round_pd(prod5_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b4 -> to te6/7
+
+                te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));
+                te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));
+                te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod1_hd));
+                te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod4_hd));
+
+                prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+                prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+                prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod4_ld = _mm512_fmadd_round_pd(prod5_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+                te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+                te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod1_ld));
+                te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod4_ld));
+            }
+
+#endif
+
+#ifdef IFMA
+            VEC_MUL_ACCUM_LOHI_PD(a3, b4, te2, te3);
+            VEC_MUL_ACCUM_LOHI_PD(a3, b5, te4, te5);
+            VEC_MUL_ACCUM_LOHI_PD(a2, b5, te6, te7);
+            VEC_MUL_ACCUM_LOHI_PD(a3, b6, te6, te7);
+#else
+            //prod1_e = _mm512_mul_epu32(a3, b4);  // te2
+            //prod2_e = _mm512_mul_epu32(a3, b5);  // te4
+            //prod3_e = _mm512_mul_epu32(a2, b5);  // te6
+            {
+                prod1_ld = _mm512_cvtepu64_pd(a2);
+                prod2_ld = _mm512_cvtepu64_pd(a3);
+                prod3_ld = _mm512_cvtepu64_pd(b4);
+                prod4_ld = _mm512_cvtepu64_pd(b5);
+                prod5_ld = _mm512_cvtepu64_pd(b6);
+
+                prod3_hd = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * b4 -> to te2/3
+                prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * b5 -> to te4/5
+                prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b5 -> to te6/7
+                prod4_hd = _mm512_fmadd_round_pd(prod2_ld, prod5_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * b6 -> to te6/7
+
+                te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));
+                te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+                te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod1_hd));
+                te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod4_hd));
+
+                prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+                prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+                prod5_ld = _mm512_fmadd_round_pd(prod2_ld, prod5_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod3_ld = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod4_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+                te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+                te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod1_ld));
+                te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod5_ld));
+            }
+
+            //prod1_e = _mm512_mul_epu32(a3, b6);  // te6
+            //{
+            //    prod1_ld = _mm512_cvtepu64_pd(a3);
+            //    prod2_ld = _mm512_cvtepu64_pd(b6);
+            //
+            //    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias,
+            //        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * b6 -> to te6/7
+            //
+            //    te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod1_hd));
+            //    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+            //    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            //    te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod1_ld));
+            //}
+
+            // all terms so far need to be doubled.  
+            // but to do that we first need to remove all bias
+            // that has been accumulated so far.
+            SUB_BIAS_HI(
+                k * 4 + 2,
+                k * 4 + 3,
+                k * 4 + 3,
+                k * 4 + 4);
+            SUB_BIAS_LO(
+                k * 4 + 2,
+                k * 4 + 3,
+                k * 4 + 3,
+                k * 4 + 4);
+#endif
+
+            // now double
+            te1 = _mm512_slli_epi64(te1, 1);
+            te3 = _mm512_slli_epi64(te3, 1);
+            te5 = _mm512_slli_epi64(te5, 1);
+            te7 = _mm512_slli_epi64(te7, 1);
+            te0 = _mm512_slli_epi64(te0, 1);
+            te2 = _mm512_slli_epi64(te2, 1);
+            te4 = _mm512_slli_epi64(te4, 1);
+            te6 = _mm512_slli_epi64(te6, 1);
+
+#ifdef IFMA
+            VEC_MUL_ACCUM_LOHI_PD(a1, a1, te0, te1);
+            VEC_MUL_ACCUM_LOHI_PD(a0, a0, te4, te5);
+#else
+            // finally, accumulate the two non-doubled terms.
+            //prod1_e = _mm512_mul_epu32(a1, a1);    // te0
+            //prod2_e = _mm512_mul_epu32(a0, a0);    // te4
+            {
+                prod1_ld = _mm512_cvtepu64_pd(a0);
+                prod2_ld = _mm512_cvtepu64_pd(a1);
+
+                prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * a1 -> to te0/1
+                prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a0 -> to te4/5
+
+                te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));
+                te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod1_hd));
+
+                prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+                prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+                te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod1_ld));
+            }
+#endif
+        }
+        else
+        {
+            // i even
+            a0 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 0) * VECLEN);
+            a1 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 1) * VECLEN);
+            a2 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 2) * VECLEN);
+            a3 = _mm512_load_epi64(a + ((i - j) * BLOCKWORDS + 3) * VECLEN);
+
+#ifdef IFMA
+            VEC_MUL_ACCUM_LOHI_PD(a0, a1, te2, te3);
+            VEC_MUL_ACCUM_LOHI_PD(a0, a2, te4, te5);
+            VEC_MUL_ACCUM_LOHI_PD(a0, a3, te6, te7);
+            VEC_MUL_ACCUM_LOHI_PD(a1, a2, te6, te7);
+#else
+            //prod1_e = _mm512_mul_epu32(a0, a1);    // te2
+            //prod2_e = _mm512_mul_epu32(a0, a2);    // te4
+            //prod3_e = _mm512_mul_epu32(a0, a3);    // te6
+            {
+                prod1_ld = _mm512_cvtepu64_pd(a0);
+                prod2_ld = _mm512_cvtepu64_pd(a1);
+                prod3_ld = _mm512_cvtepu64_pd(a2);
+                prod4_ld = _mm512_cvtepu64_pd(a3);
+
+                prod2_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a1 -> to te2/3
+                prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a2 -> to te4/5
+                prod4_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a3 -> to te6/7
+                prod1_hd = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * a2 -> to te6/7
+
+                te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod2_hd));
+                te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod3_hd));
+                te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod4_hd));
+                te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod1_hd));
+
+                prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+                prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+                prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+
+                prod5_ld = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod2_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod4_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod2_ld));
+                te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod3_ld));
+                te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod4_ld));
+                te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod5_ld));
+            }
+
+            ////prod1_e = _mm512_mul_epu32(a1, a2);    // te6
+            //{
+            //    prod1_ld = _mm512_cvtepu64_pd(a1);
+            //    prod2_ld = _mm512_cvtepu64_pd(a2);
+            //
+            //    
+            //
+            //    te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod1_hd));
+            //    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+            //    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+            //    te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod1_ld));
+            //}
+
+            // all terms so far need to be doubled.  
+            // but to do that we first need to remove all bias
+            // that has been accumulated so far.
+            SUB_BIAS_HI(
+                k * 4 + 0,
+                k * 4 + 1,
+                k * 4 + 1,
+                k * 4 + 2);
+            SUB_BIAS_LO(
+                k * 4 + 0,
+                k * 4 + 1,
+                k * 4 + 1,
+                k * 4 + 2);
+
+#endif
+
+            // now double
+            te1 = _mm512_slli_epi64(te1, 1);
+            te3 = _mm512_slli_epi64(te3, 1);
+            te5 = _mm512_slli_epi64(te5, 1);
+            te7 = _mm512_slli_epi64(te7, 1);
+            te0 = _mm512_slli_epi64(te0, 1);
+            te2 = _mm512_slli_epi64(te2, 1);
+            te4 = _mm512_slli_epi64(te4, 1);
+            te6 = _mm512_slli_epi64(te6, 1);
+
+#ifdef IFMA
+            VEC_MUL_ACCUM_LOHI_PD(a0, a0, te0, te1);
+            VEC_MUL_ACCUM_LOHI_PD(a1, a1, te4, te5);
+#else
+            // finally, accumulate the two non-doubled terms.
+            //prod1_e = _mm512_mul_epu32(a0, a0);
+            //prod2_e = _mm512_mul_epu32(a1, a1);
+            {
+                prod1_ld = _mm512_cvtepu64_pd(a0);
+                prod2_ld = _mm512_cvtepu64_pd(a1);
+
+                prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a0 -> to te0/1
+                prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, dbias,
+                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * a1 -> to te4/5
+
+                te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));
+                te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+
+                prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+                prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+                te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+            }
+#endif
+        }
+
+#ifndef IFMA
+        // need to remove bias from two non-doubled terms of the a*a loop.
+        SUB_BIAS_HI(
+            1,
+            0,
+            1,
+            0);
+        SUB_BIAS_LO(
+            1,
+            0,
+            1,
+            0);
+#endif
+
+
+        // now, do a carry-propagating column summation and store the results.
+        {
+            j = 0;
+            // accumulate this column-sum:
+            // carry propagate low to high.
+            acc_e0 = _mm512_add_epi64(acc_e0, te0);
+            acc_e1 = _mm512_add_epi64(acc_e1, te1);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 1;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te2);
+            acc_e1 = _mm512_add_epi64(acc_e1, te3);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 2;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te4);
+            acc_e1 = _mm512_add_epi64(acc_e1, te5);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 3;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te6);
+            acc_e1 = _mm512_add_epi64(acc_e1, te7);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+
+            // store the lo word
+            _mm512_store_epi64(c + (i * BLOCKWORDS + j) * VECLEN, acc_e0);
+
+            // now shift.
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+        }
+    }
+
+#ifdef DEBUG_VECMUL
+    print_vechexbignum(c, "after lo half:");
+#endif
+
+    // second half sqr
+    for (i = 0; i < NBLOCKS; i++)
+    {
+        te0 = te1 = te2 = te3 = te4 = te5 = te6 = te7 = zero;
+
+        for (k = 0, j = 0; j < (NBLOCKS - i - 1) / 2; j++, k++)
+        {
+            // Compute a solid block (all matching terms are in the lower
+            // half triangle of the expansion).
+            a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);
+            a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);
+            a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);
+            a3 = _mm512_load_epi64(a + (words - 4 - j * BLOCKWORDS) * VECLEN);
+
+            b0 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 1) * VECLEN);
+            b1 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 2) * VECLEN);
+            b2 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 3) * VECLEN);
+            b3 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 4) * VECLEN);
+            b4 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 5) * VECLEN);
+            b5 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 6) * VECLEN);
+            b6 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 7) * VECLEN);
+
+            VEC_MUL4_ACCUM(a0, b0, b1, b2, b3);
+            VEC_MUL4_ACCUM(a1, b1, b2, b3, b4);
+            VEC_MUL4_ACCUM(a2, b2, b3, b4, b5);
+            VEC_MUL4_ACCUM(a3, b3, b4, b5, b6);
+        }
+
+
+        if (NBLOCKS & 1)		// NBLOCKS is odd
+        {
+            // i odd, block shape 2.
+            if (i & 1)
+            {
+                // always a continuation of the full-block loop, so use the same 
+                // loading pattern.  Only now we don't need as many b-terms.
+                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);
+                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);
+                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);
+                a3 = _mm512_load_epi64(a + (words - 4 - j * BLOCKWORDS) * VECLEN);
+
+                b0 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN);
+                b1 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);
+                b2 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 3) * VECLEN);
+                b3 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 4) * VECLEN);
+                b4 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 5) * VECLEN);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a0, b0, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a1, b2, te2, te3);
+                VEC_MUL_ACCUM_LOHI_PD(a1, b1, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a0, b1, te2, te3);
+#else
+                //prod1_e = _mm512_mul_epu32(a0, b0);        // te0
+                //prod1_e = _mm512_mul_epu32(a1, b1);        // te0
+                //prod1_e = _mm512_mul_epu32(a0, b1);        // te2
+                //prod1_e = _mm512_mul_epu32(a1, b2);        // te2
+                {
+                    prod5_ld = _mm512_cvtepu64_pd(a0);
+                    prod1_ld = _mm512_cvtepu64_pd(a1);
+                    prod2_ld = _mm512_cvtepu64_pd(b0);
+                    prod3_ld = _mm512_cvtepu64_pd(b1);
+                    prod4_ld = _mm512_cvtepu64_pd(b2);
+
+                    prod2_hd = _mm512_fmadd_round_pd(prod5_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b0 -> to te0/1
+                    prod4_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b2 -> to te2/3
+                    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b1 -> to te0/1
+                    prod3_hd = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b1 -> to te2/3
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));
+                    te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod4_hd));
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));
+                    te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));
+
+                    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+                    prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+                    prod2_ld = _mm512_fmadd_round_pd(prod5_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod4_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod3_ld = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+                    te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod4_ld));
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+                    te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+                }
+
+#endif
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a2, b2, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a2, b3, te2, te3);
+#else
+                //prod1_e = _mm512_mul_epu32(a2, b2);        // te0
+                //prod1_e = _mm512_mul_epu32(a2, b3);        // te2
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a2);
+                    prod2_ld = _mm512_cvtepu64_pd(b2);
+                    prod3_ld = _mm512_cvtepu64_pd(b3);
+
+                    prod2_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b2 -> to te0/1
+                    prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b3 -> to te2/3
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));
+                    te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));
+
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+
+                    prod2_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+                    te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+                }
+#endif
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a0, b2, te4, te5);
+                VEC_MUL_ACCUM_LOHI_PD(a1, b4, te6, te7);
+                VEC_MUL_ACCUM_LOHI_PD(a1, b3, te4, te5);
+                VEC_MUL_ACCUM_LOHI_PD(a0, b3, te6, te7);
+#else
+                // prod1_e = _mm512_mul_epu32(a0, b2);       // te4
+                // prod1_e = _mm512_mul_epu32(a1, b3);       // te4
+                // prod1_e = _mm512_mul_epu32(a0, b3);       // te6
+                // prod1_e = _mm512_mul_epu32(a1, b4);       // te6
+                {
+                    prod5_ld = _mm512_cvtepu64_pd(a0);
+                    prod1_ld = _mm512_cvtepu64_pd(a1);
+                    prod2_ld = _mm512_cvtepu64_pd(b2);
+                    prod3_ld = _mm512_cvtepu64_pd(b3);
+                    prod4_ld = _mm512_cvtepu64_pd(b4);
+
+                    prod2_hd = _mm512_fmadd_round_pd(prod5_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b2 -> to te4/5
+                    prod4_hd = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b4 -> to te6/7
+                    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b3 -> to te4/5
+                    prod3_hd = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b3 -> to te6/7
+
+                    te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+                    te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod4_hd));
+                    te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod1_hd));
+                    te7 = _mm512_add_epi64(te7, _mm512_castpd_si512(prod3_hd));
+
+                    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+                    prod4_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod4_hd);
+
+                    prod2_ld = _mm512_fmadd_round_pd(prod5_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod4_ld = _mm512_fmadd_round_pd(prod1_ld, prod4_ld, prod4_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod3_ld = _mm512_fmadd_round_pd(prod5_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+                    te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod4_ld));
+                    te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod1_ld));
+                    te6 = _mm512_add_epi64(te6, _mm512_castpd_si512(prod3_ld));
+                }
+
+
+                // all terms so far need to be doubled.  
+                // but to do that we first need to remove all bias
+                // that has been accumulated so far.
+                SUB_BIAS_HI(
+                    k * 4 + 3,
+                    k * 4 + 3,
+                    k * 4 + 2,
+                    k * 4 + 2);
+                SUB_BIAS_LO(
+                    k * 4 + 3,
+                    k * 4 + 3,
+                    k * 4 + 2,
+                    k * 4 + 2);
+
+#endif
+
+                // now double
+                te1 = _mm512_slli_epi64(te1, 1);
+                te3 = _mm512_slli_epi64(te3, 1);
+                te5 = _mm512_slli_epi64(te5, 1);
+                te7 = _mm512_slli_epi64(te7, 1);
+                te0 = _mm512_slli_epi64(te0, 1);
+                te2 = _mm512_slli_epi64(te2, 1);
+                te4 = _mm512_slli_epi64(te4, 1);
+                te6 = _mm512_slli_epi64(te6, 1);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a3, a3, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a2, a2, te4, te5);
+#else
+                // finally the two non-doubled terms.
+                //prod1_e = _mm512_mul_epu32(a3, a3);    // te0
+                //prod1_e = _mm512_mul_epu32(a2, a2);    // te4
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a3);
+                    prod2_ld = _mm512_cvtepu64_pd(a2);
+
+                    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * a3 -> to te0/1
+                    prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * a2 -> to te4/5
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));
+                    te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+
+                    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+                    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+                    te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+                }
+#endif
+            }
+            else
+            {
+                // i even, block shape 1.
+                // always a continuation of the full-block loop, so use the same 
+                // loading pattern.  Only now we don't need as many b-terms.
+                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);
+                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);
+                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a0, a2, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a0, a1, te2, te3);
+#else
+                //k == 0;
+                //prod1_e = _mm512_mul_epu32(a0, a2);      // te0
+                //prod1_e = _mm512_mul_epu32(a0, a1);      // te2
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a0);
+                    prod2_ld = _mm512_cvtepu64_pd(a1);
+                    prod3_ld = _mm512_cvtepu64_pd(a2);
+
+                    prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a2 -> to te0/1
+                    prod2_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a1 -> to te2/3
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod3_hd));
+                    te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod2_hd));
+
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+
+                    prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod2_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod3_ld));
+                    te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod2_ld));
+                }
+
+                // all terms so far need to be doubled.  
+                // but to do that we first need to remove all bias
+                // that has been accumulated so far.
+                SUB_BIAS_HI(
+                    k * 4 + 1,
+                    k * 4 + 1,
+                    k * 4 + 0,
+                    k * 4 + 0);
+                SUB_BIAS_LO(
+                    k * 4 + 1,
+                    k * 4 + 1,
+                    k * 4 + 0,
+                    k * 4 + 0);
+
+#endif
+
+                // now double
+                te1 = _mm512_slli_epi64(te1, 1);
+                te3 = _mm512_slli_epi64(te3, 1);
+                te5 = _mm512_slli_epi64(te5, 1);
+                te7 = _mm512_slli_epi64(te7, 1);
+                te0 = _mm512_slli_epi64(te0, 1);
+                te2 = _mm512_slli_epi64(te2, 1);
+                te4 = _mm512_slli_epi64(te4, 1);
+                te6 = _mm512_slli_epi64(te6, 1);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a1, a1, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a0, a0, te4, te5);
+#else
+                // finally the two non-doubled terms.
+                //prod1_e = _mm512_mul_epu32(a1, a1);    // te0
+                //prod1_e = _mm512_mul_epu32(a0, a0);    // te4
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a1);
+                    prod2_ld = _mm512_cvtepu64_pd(a0);
+
+                    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b1 -> to te0/1
+                    prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b0 -> to te4/5
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));
+                    te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+
+                    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+                    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+                    te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+                }
+
+
+
+#endif
+            }
+
+        }
+        else				// NBLOCKS is even
+        {
+            // i odd, block shape 1.
+            if (i & 1)
+            {
+                // always a continuation of the full-block loop, so use the same 
+                // loading pattern.  Only now we don't need as many b-terms.
+                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);  // {f, b}
+                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);  // {e, a}
+                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);  // {d, 9}
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a0, a2, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a0, a1, te2, te3);
+#else
+                //k == 0;
+                //prod1_e = _mm512_mul_epu32(a0, a2);   // te0
+                //prod2_e = _mm512_mul_epu32(a0, a1);   // te2
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a0);
+                    prod2_ld = _mm512_cvtepu64_pd(a1);
+                    prod3_ld = _mm512_cvtepu64_pd(a2);
+
+                    prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a2 -> to te0/1
+                    prod2_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * a1 -> to te2/3
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod3_hd));
+                    te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod2_hd));
+
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+
+                    prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod2_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod3_ld));
+                    te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod2_ld));
+                }
+
+                // all terms so far need to be doubled.  
+                // but to do that we first need to remove all bias
+                // that has been accumulated so far.
+                SUB_BIAS_HI(
+                    j * 4 + 1,
+                    j * 4 + 1,
+                    j * 4 + 0,
+                    j * 4 + 0);
+                SUB_BIAS_LO(
+                    j * 4 + 1,
+                    j * 4 + 1,
+                    j * 4 + 0,
+                    j * 4 + 0);
+
+#endif
+
+                // now double
+                te1 = _mm512_slli_epi64(te1, 1);
+                te3 = _mm512_slli_epi64(te3, 1);
+                te5 = _mm512_slli_epi64(te5, 1);
+                te7 = _mm512_slli_epi64(te7, 1);
+                te0 = _mm512_slli_epi64(te0, 1);
+                te2 = _mm512_slli_epi64(te2, 1);
+                te4 = _mm512_slli_epi64(te4, 1);
+                te6 = _mm512_slli_epi64(te6, 1);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a1, a1, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a0, a0, te4, te5);
+#else
+                // finally, accumulate the two non-doubled terms.
+                //prod1_e = _mm512_mul_epu32(a1, a1);       // te0
+                //prod2_e = _mm512_mul_epu32(a0, a0);       // te4
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a1);
+                    prod2_ld = _mm512_cvtepu64_pd(a0);
+
+                    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a1 * b1 -> to te0/1
+                    prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a0 * b0 -> to te4/5
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));
+                    te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+
+                    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+                    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+                    te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+                }
+#endif
+            }
+            else
+            {
+                // i even, block shape 1.
+                // always a continuation of the full-block loop, so use the same 
+                // loading pattern.  Only now we don't need as many b-terms.
+                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);		// {f, b}
+                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);		// {e, a}
+                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);		// {d, 9}
+                a3 = _mm512_load_epi64(a + (words - 4 - j * BLOCKWORDS) * VECLEN);		// {c, 8}
+
+                b0 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN); // {9, 5}
+                b1 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);	// {a, 6}
+                b2 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 3) * VECLEN);	// {b, 7}
+                b3 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 4) * VECLEN);	// {c, 8}
+                b4 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 5) * VECLEN); // {d, 9}
+
+                //prod1_e = _mm512_mul_epu32(a0, b0);    // te0
+                //prod2_e = _mm512_mul_epu32(a0, b1);    // te2
+                //prod3_e = _mm512_mul_epu32(a0, b2);    // te4
+                //prod4_e = _mm512_mul_epu32(a0, b3);    // te6
+                //ACCUM_4X_DOUBLED_PROD;
+                VEC_MUL4_ACCUM(a0, b0, b1, b2, b3);
+
+                //prod1_e = _mm512_mul_epu32(a1, b1);    // te0
+                //prod2_e = _mm512_mul_epu32(a1, b2);    // te2
+                //prod3_e = _mm512_mul_epu32(a1, b3);    // te4
+                //prod4_e = _mm512_mul_epu32(a1, b4);    // te6
+                //ACCUM_4X_DOUBLED_PROD;
+                VEC_MUL4_ACCUM(a1, b1, b2, b3, b4);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a2, b2, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a2, b3, te2, te3);
+#else
+                //prod1_e = _mm512_mul_epu32(a2, b2);    // te0
+                //prod2_e = _mm512_mul_epu32(a2, b3);    // te2
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a2);
+                    prod2_ld = _mm512_cvtepu64_pd(b2);
+                    prod3_ld = _mm512_cvtepu64_pd(b3);
+
+                    prod2_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b2 -> to te0/1
+                    prod3_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * b3 -> to te2/3
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod2_hd));
+                    te3 = _mm512_add_epi64(te3, _mm512_castpd_si512(prod3_hd));
+
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+                    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+
+                    prod2_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod3_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod2_ld));
+                    te2 = _mm512_add_epi64(te2, _mm512_castpd_si512(prod3_ld));
+                }
+
+                // all terms so far need to be doubled.  
+                // but to do that we first need to remove all bias
+                // that has been accumulated so far.
+                SUB_BIAS_HI(
+                    j * 4 + 3,
+                    j * 4 + 3,
+                    j * 4 + 2,
+                    j * 4 + 2);
+                SUB_BIAS_LO(
+                    j * 4 + 3,
+                    j * 4 + 3,
+                    j * 4 + 2,
+                    j * 4 + 2);
+
+#endif
+
+                // now double
+                te1 = _mm512_slli_epi64(te1, 1);
+                te3 = _mm512_slli_epi64(te3, 1);
+                te5 = _mm512_slli_epi64(te5, 1);
+                te7 = _mm512_slli_epi64(te7, 1);
+                te0 = _mm512_slli_epi64(te0, 1);
+                te2 = _mm512_slli_epi64(te2, 1);
+                te4 = _mm512_slli_epi64(te4, 1);
+                te6 = _mm512_slli_epi64(te6, 1);
+
+#ifdef IFMA
+                VEC_MUL_ACCUM_LOHI_PD(a3, a3, te0, te1);
+                VEC_MUL_ACCUM_LOHI_PD(a2, a2, te4, te5);
+#else
+                // finally, accumulate the two non-doubled terms.
+                //prod1_e = _mm512_mul_epu32(a3, a3);   // te0
+                //prod2_e = _mm512_mul_epu32(a2, a2);   // te4
+                {
+                    prod1_ld = _mm512_cvtepu64_pd(a3);
+                    prod2_ld = _mm512_cvtepu64_pd(a2);
+
+                    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a3 * a3 -> to te0/1
+                    prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, dbias,
+                        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); // a2 * a2 -> to te4/5
+
+                    te1 = _mm512_add_epi64(te1, _mm512_castpd_si512(prod1_hd));
+                    te5 = _mm512_add_epi64(te5, _mm512_castpd_si512(prod2_hd));
+
+                    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+                    prod2_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod2_hd);
+
+                    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod1_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod2_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+
+                    te0 = _mm512_add_epi64(te0, _mm512_castpd_si512(prod1_ld));
+                    te4 = _mm512_add_epi64(te4, _mm512_castpd_si512(prod2_ld));
+                }
+#endif
+            }
+
+        }
+
+#ifndef IFMA
+        // need to remove bias from the non-doubled terms.
+        SUB_BIAS_HI(
+            1,
+            0,
+            1,
+            0);
+        SUB_BIAS_LO(
+            1,
+            0,
+            1,
+            0);
+#endif
+
+        // final column accumulation
+        {
+            j = 0;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te0);
+            acc_e1 = _mm512_add_epi64(acc_e1, te1);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a3 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN, 
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 1;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te2);
+            acc_e1 = _mm512_add_epi64(acc_e1, te3);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a2 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN,
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 2;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te4);
+            acc_e1 = _mm512_add_epi64(acc_e1, te5);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a1 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN,
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            j = 3;
+            // accumulate this column-sum
+            acc_e0 = _mm512_add_epi64(acc_e0, te6);
+            acc_e1 = _mm512_add_epi64(acc_e1, te7);
+            VEC_CARRYPROP_LOHI(acc_e0, acc_e1);
+            acc_e2 = _mm512_srli_epi64(acc_e1, 52);
+            acc_e1 = _mm512_and_epi64(acc_e1, vlmask);
+            a0 = acc_e0;
+
+            // store the low-word final result and shift
+            //_mm512_store_pd(s->data + (i * BLOCKWORDS + j) * VECLEN,
+            //    _mm512_cvtepu64_pd(_mm512_and_epi64(vlmask, acc_e0)));
+            acc_e0 = acc_e1;
+            acc_e1 = acc_e2;
+            acc_e2 = zero;
+
+            a3 = _mm512_and_epi64(vlmask, a3);
+            a2 = _mm512_and_epi64(vlmask, a2);
+            a1 = _mm512_and_epi64(vlmask, a1);
+            a0 = _mm512_and_epi64(vlmask, a0);
+
+            _mm512_store_epi64(c + ((NBLOCKS + i) * BLOCKWORDS + 0) * VECLEN, a3);
+            _mm512_store_epi64(c + ((NBLOCKS + i) * BLOCKWORDS + 1) * VECLEN, a2);
+            _mm512_store_epi64(c + ((NBLOCKS + i) * BLOCKWORDS + 2) * VECLEN, a1);
+            _mm512_store_epi64(c + ((NBLOCKS + i) * BLOCKWORDS + 3) * VECLEN, a0);
+
+        }
+    }
+
+#ifdef DEBUG_VECMUL
+    print_vechexbignum(c, "after hi half:");
+#endif
+
+    return;
+}
+
+void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words);
+void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
+
+#define veckmul(a, b, c, s, words)				\
+  do {									\
+    if (words <= 20)						\
+      vecmul52_n(a, b, c, words);      \
+    else								\
+        kmuln(a, b, c, s, words);				\
+  } while (0);
+
+#define vecksqr(a, c, s, words)				\
+  do {									\
+    if (words <= 20)						\
+      vecsqr52_n(a, c, words); \
+    else								\
+        ksqrn(a,c, s, words);				\
+  } while (0);
+
+
+
+void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
+{
+    int halfwords = words / 2;
+    uint64_t* a0 = a;
+    uint64_t* a1 = a + halfwords * VECLEN;
+    uint64_t* b0 = b;
+    uint64_t* b1 = b + halfwords * VECLEN;
+    uint64_t* z1;
+    uint64_t* s1;
+    uint64_t* s2;
+    __mmask8 m1;
+    __mmask8 m2;
+
+    s1 = scratch;
+    s2 = scratch + (halfwords)*VECLEN;
+    z1 = scratch + (words)*VECLEN;
+
+    veckmul(a0, b0, c, scratch, halfwords);
+    veckmul(a1, b1, c + words * VECLEN, scratch, halfwords);
+    m1 = vec_gte2_52(a1, a0, halfwords);
+    m2 = vec_gte2_52(b0, b1, halfwords);
+    base_abssub_52(a0, a1, s1, m1, halfwords);
+    base_abssub_52(b1, b0, s2, m2, halfwords);
+    veckmul(s1, s2, z1, scratch + (2 * words) * VECLEN, halfwords);
+    kcombine(c, z1, s1, m1 ^ m2, words);
+}
+
+void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words)
+{
+    int halfwords = words / 2;
+    uint64_t* a0 = a;
+    uint64_t* a1 = a + halfwords * VECLEN;
+    uint64_t* z1;
+    uint64_t* s1;
+    uint64_t* s2;
+    __mmask8 m1;
+    __mmask8 m2;
+    int i;
+
+    s1 = scratch;
+    s2 = scratch + (halfwords)*VECLEN;
+    z1 = scratch + (words)*VECLEN;
+
+    vecksqr(a0, c, scratch, halfwords);
+    vecksqr(a1, c + words * VECLEN, scratch, halfwords);
+    m1 = vec_gte2_52(a1, a0, halfwords);
+    base_abssub_52(a0, a1, s1, m1, halfwords);
+    vecksqr(s1, z1, scratch + (2 * words) * VECLEN, halfwords);
+    kcombine(c, z1, s1, 0xff, words);
+
+    return;
+}
+
+
 void vecksqr_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
-    veckmul(a, a, s, mdata);
+    vecksqr(a->data, s->data, mdata->mtmp4->data, mdata->NWORDS);
     vecmod_mersenne(s, c, mdata->mtmp2, mdata);
     return;
 }
 
 void veckmul_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
-    veckmul(a, b, s, mdata);
-    vecmod_mersenne(s, c, mdata->mtmp2, mdata);
-    //vecCopy(s, c);
+    veckmul(a->data, b->data, s->data, mdata->mtmp4->data, mdata->NWORDS);
+    vecmod_mersenne(s, c, mdata->mtmp4, mdata);
+    return;
 }
 
 

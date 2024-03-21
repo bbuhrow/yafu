@@ -125,7 +125,7 @@ vec_monty_t* vec_monty_alloc(uint32_t words)
     mdata->mtmp1 = vecInit(words);
     mdata->mtmp2 = vecInit(words);
     mdata->mtmp3 = vecInit(words);
-    mdata->mtmp4 = vecInit(words);
+    mdata->mtmp4 = vecInit(3*words);
 
     mdata->g = (vec_bignum_t **)malloc((1 << MAX_WINSIZE) * sizeof(vec_bignum_t *));
     mdata->g[0] = vecInit(words);

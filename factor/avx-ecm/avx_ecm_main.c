@@ -630,6 +630,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 vecmulmod_ptr = &vecmulmod52;
                 vecsqrmod_ptr = &vecsqrmod52;
                 vecaddsubmod_ptr = &vec_simul_addsub52;
+                if (verbose > 1)
+                {
+                    printf("Using generic base-52 mul/sqr core\n");
+                }
             }
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
