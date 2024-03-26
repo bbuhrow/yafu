@@ -2722,6 +2722,43 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
     return;
 }
 
+void vec_bignum52_mask_sub_n(uint64_t* a, uint64_t* b, uint64_t* c, int words, uint32_t wmask)
+{
+    // assumptions:
+    // a, b, c are of length VECLEN * NWORDS
+    // s1 is of length VECLEN
+    // a, b, c, and s1 are aligned
+    // a and b are both positive
+    // a >= b
+    int i;
+    __mmask8 carry = 0;
+    __m512i avec;
+    __m512i bvec;
+    __m512i cvec;
+
+    if (wmask == 0)
+        return;
+
+    // subtract the selected elements ('1' in the mask)
+    carry = 0;
+    for (i = 0; i < words; i++)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+        cvec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+        _mm512_mask_store_epi64(c + i * VECLEN, (__mmask8)wmask,
+            _mm512_and_epi64(_mm512_set1_epi64(VEC_MAXDIGIT), cvec));
+    }
+
+    if (carry)
+    {
+        // subtract any final borrows that exceed the size of b.
+        _mm512_mask_store_epi64(c + i * VECLEN, (__mmask8)wmask & carry, _mm512_set1_epi64(0));
+    }
+
+    return;
+}
+
 void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words);
 void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
 
@@ -2811,6 +2848,39 @@ void veckmul_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_big
     return;
 }
 
+uint32_t vec_bignum52_special_add(uint64_t* a, uint64_t* b, uint64_t* c, int words)
+{
+    // assumptions:
+    // a, b, c are of length VECLEN * NWORDS
+    // s1 is of length VECLEN
+    // a, b, c, and s1 are aligned
+    // a and b are both positive
+    // a >= b
+    int i;
+    __mmask8 carry = 0xff;  // because the lower half add in karatsuba always carries.
+    __m512i avec;
+    __m512i bvec;
+    __m512i cvec;
+
+    // subtract the selected elements ('1' in the mask)
+    for (i = 0; i < words; i++)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN,
+            _mm512_and_epi64(_mm512_set1_epi64(VEC_MAXDIGIT), cvec));
+    }
+
+    if (carry)
+    {
+        // subtract any final borrows that exceed the size of b.
+        _mm512_mask_store_epi64(c + i * VECLEN, carry, _mm512_set1_epi64(1));
+    }
+
+    return carry;
+}
+
 void vecksqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     vecksqr(a->data, mdata->mtmp1->data, mdata->mtmp4->data, mdata->NWORDS);
@@ -2819,11 +2889,12 @@ void vecksqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_
     veckmul(mdata->mtmp2->data, n->data, mdata->mtmp3->data, mdata->mtmp4->data, mdata->NWORDS);
     mdata->mtmp1->size = mdata->NWORDS * 2;
     mdata->mtmp3->size = mdata->NWORDS * 2;
-    vec_bignum52_add(mdata->mtmp1, mdata->mtmp3, c);
-    vec_bignum52_mask_rshift_n(c, c, mdata->NWORDS, 0xff);
-    uint32_t m = vec_gte52(c, n);
+    uint32_t m = vec_bignum52_special_add(mdata->mtmp1->data + mdata->NWORDS * VECLEN,
+        mdata->mtmp3->data + mdata->NWORDS * VECLEN, c->data, mdata->NWORDS);
+    m |= vec_gte52(c, n);
+    c->WORDS_ALLOC = c->size = mdata->NWORDS;
+    vec_bignum52_mask_sub(c, n, c, m);
 
-    vec_bignum_mask_sub(c, n, c, m);
     return;
 }
 
@@ -2835,11 +2906,11 @@ void veckmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_
     veckmul(mdata->mtmp2->data, n->data, mdata->mtmp3->data, mdata->mtmp4->data, mdata->NWORDS);
     mdata->mtmp1->size = mdata->NWORDS * 2;
     mdata->mtmp3->size = mdata->NWORDS * 2;
-    vec_bignum52_add(mdata->mtmp1, mdata->mtmp3, c);
-    vec_bignum52_mask_rshift_n(c, c, mdata->NWORDS, 0xff);
-    uint32_t m = vec_gte52(c, n);
-
-    vec_bignum_mask_sub(c, n, c, m);
+    uint32_t m = vec_bignum52_special_add(mdata->mtmp1->data + mdata->NWORDS * VECLEN,
+        mdata->mtmp3->data + mdata->NWORDS * VECLEN, c->data, mdata->NWORDS);
+    m |= vec_gte52(c, n);
+    c->WORDS_ALLOC = c->size = mdata->NWORDS;
+    vec_bignum52_mask_sub(c, n, c, m);
 
     return;
 }

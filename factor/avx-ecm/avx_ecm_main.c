@@ -627,6 +627,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             }
             else if (0) //tdata[0].MAXBITS > 16000)
             {
+                // faster starting around 16000 bits on Xeon 6254
                 vecmulmod_ptr = &veckmul_redc;
                 vecsqrmod_ptr = &vecksqr_redc;
                 vecaddsubmod_ptr = &vec_simul_addsub52;
@@ -642,7 +643,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 vecaddsubmod_ptr = &vec_simul_addsub52;
                 if (verbose > 1)
                 {
-                    printf("Using generic base-52 mul/sqr core\n");
+                    printf("Using BFIPS base-52 mul/sqr core\n");
                 }
             }
             vecaddmod_ptr = &vecaddmod52;
