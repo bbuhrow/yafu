@@ -625,7 +625,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                     printf("Using 1040-bit mul/sqr core\n");
                 }
             }
-            else if (0) //tdata[0].MAXBITS > 16000)
+            else if (0) //tdata[0].MAXBITS > 8000)
             {
                 // faster starting around 16000 bits on Xeon 6254
                 vecmulmod_ptr = &veckmul_redc;

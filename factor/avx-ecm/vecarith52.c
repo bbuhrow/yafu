@@ -896,16 +896,45 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
 }
 
 
-__mmask8 base_abssub_52(uint64_t* a, uint64_t* b, uint64_t* c, __mmask8 sm, int words)
+__mmask8 base_abssub_52(uint64_t* a, uint64_t* b, uint64_t* c, __mmask8 sm, int wordsa, int wordsb)
 {
-    // if sign-mask 'sm' is set, b > 1, so we sub b-a instead of a-b.
+    // if sign-mask 'sm' is set, b > a, so we sub b-a instead of a-b.
     int i;
     __m512i avec, bvec, cvec, tmp;
     __mmask8 carry = 0;
 
-    for (i = 0; i < words; i++)
+    for (i = 0; i < MIN(wordsa, wordsb); i++)
     {
         avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+
+        tmp = avec;
+        tmp = _mm512_mask_mov_epi64(tmp, ~sm, bvec);
+
+        avec = _mm512_mask_mov_epi64(avec, sm, bvec);
+        bvec = _mm512_mask_mov_epi64(bvec, sm, tmp);
+
+        cvec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+
+    if (wordsa > wordsb)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_setzero_si512();
+
+        tmp = avec;
+        tmp = _mm512_mask_mov_epi64(tmp, ~sm, bvec);
+
+        avec = _mm512_mask_mov_epi64(avec, sm, bvec);
+        bvec = _mm512_mask_mov_epi64(bvec, sm, tmp);
+
+        cvec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+    else if (wordsb > wordsa)
+    {
+        avec = _mm512_setzero_si512(); 
         bvec = _mm512_load_epi64(b + i * VECLEN);
 
         tmp = avec;
@@ -971,9 +1000,9 @@ void kcombine(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int words)
 
     i = halfwords;
     v1 = _mm512_load_epi64(c + i * VECLEN);
-    v2 = _mm512_load_epi64(c + (i - halfwords) * VECLEN);
-    v3 = _mm512_load_epi64(c + (i + halfwords) * VECLEN);
-    v4 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
+    v2 = _mm512_load_epi64(c + (i - halfwords) * VECLEN);   // lo part
+    v3 = _mm512_load_epi64(c + (i + halfwords) * VECLEN);   // hi part
+    v4 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);  // diff part
     _mm512_store_epi64(s1 + (i - halfwords) * VECLEN, v1);
 
     v2 = _mm512_add_epi64(v2, v3);
@@ -994,7 +1023,8 @@ void kcombine(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int words)
         v2 = _mm512_load_epi64(c + (i - halfwords) * VECLEN);
         v3 = _mm512_load_epi64(c + (i + halfwords) * VECLEN);
         v4 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
-        _mm512_store_epi64(s1 + (i - halfwords) * VECLEN, v1);
+        // store the output word that we will be overwritting this iteration
+        _mm512_store_epi64(s1 + (i - halfwords) * VECLEN, v1);  
 
         v2 = _mm512_add_epi64(v2, v3);
         v4 = _mm512_mask_xor_epi64(v4, sm, v4, vlmask);
@@ -1056,6 +1086,94 @@ void kcombine(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int words)
     return;
 }
 
+void kcombine2(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int words, int hiwords)
+{
+    int halfwords = words / 2;
+    int i;
+    // combine all of the last addition steps and utilize the
+    // reduced radix instead of carryflag emulation.
+    // z1 += clo
+    // z1 += chi
+    // c += z1 * base^halfwords
+    // becomes
+    // c = c + clo * base^halfwords + chi * base^halfwords + neg(z1) * base^halfwords
+    __m512i zero = _mm512_set1_epi64(0);
+    __m512i vone = _mm512_set1_epi64(1);
+    __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i v1, v2, v3, vc = zero;
+    __mmask8 carry = 0;
+
+    for (i = 0; i < 2 * hiwords; i++)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        v2 = _mm512_load_epi64(c + (words + i) * VECLEN);
+        _mm512_store_epi64(s1 + i * VECLEN, _mm512_add_epi64(v1, v2));
+    }
+
+    for ( ; i < words; i++)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        _mm512_store_epi64(s1 + i * VECLEN, v1);
+    }
+
+    i = halfwords;
+    v1 = _mm512_load_epi64(c + i * VECLEN);
+    v2 = _mm512_load_epi64(s1 + (i - halfwords) * VECLEN);
+    v3 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
+
+    v1 = _mm512_add_epi64(v1, v2);
+    v3 = _mm512_mask_xor_epi64(v3, sm, v3, vlmask);
+    v1 = _mm512_mask_add_epi64(v1, sm, v1, vone);
+
+    v3 = _mm512_add_epi64(v3, vc);
+    v1 = _mm512_add_epi64(v1, v3);
+
+    // carryprop
+    vc = _mm512_srli_epi64(v1, 52);
+    v1 = _mm512_and_epi64(vlmask, v1);
+
+    _mm512_store_epi64(c + i * VECLEN, v1);
+
+    for (i = halfwords + 1; i < halfwords + words; i++)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        v2 = _mm512_load_epi64(s1 + (i - halfwords) * VECLEN);
+        v3 = _mm512_load_epi64(z1 + (i - halfwords) * VECLEN);
+
+        v1 = _mm512_add_epi64(v1, v2);
+        v3 = _mm512_mask_xor_epi64(v3, sm, v3, vlmask);
+
+        v3 = _mm512_add_epi64(v3, vc);
+        v1 = _mm512_add_epi64(v1, v3);
+
+        // carryprop
+        vc = _mm512_srli_epi64(v1, 52);
+        v1 = _mm512_and_epi64(vlmask, v1);
+
+        _mm512_store_epi64(c + i * VECLEN, v1);
+    }
+
+    // add in the final hi-word carry then propagate any
+    // additional carries through the final words of the output.
+    // z1 was negative, so we have to subtract a sign bit from
+    // this word.
+    v1 = _mm512_load_epi64(c + i * VECLEN);
+    v1 = _mm512_addsetc_epi52(v1, vc, &carry);
+    v1 = _mm512_mask_sub_epi64(v1, sm, v1, vone);
+    _mm512_store_epi64(c + i * VECLEN, v1);
+    i++;
+
+    while (carry)
+    {
+        v1 = _mm512_load_epi64(c + i * VECLEN);
+        v1 = _mm512_addcarry_epi52(v1, carry, &carry);
+        _mm512_store_epi64(c + i * VECLEN, v1);
+        i++;
+    }
+
+    return;
+}
+
 void vecmul52_n(uint64_t* a, uint64_t* b, uint64_t* c, int words)
 {
     int i, j;
@@ -1080,9 +1198,21 @@ void vecmul52_n(uint64_t* a, uint64_t* b, uint64_t* c, int words)
     __m512i zero = _mm512_set1_epi64(0);
     __mmask8 scarry;
 
+    __m512i arestore[3];
+    __m512i brestore[3];
+
     NBLOCKS = words / BLOCKWORDS;
     if ((words % BLOCKWORDS) > 0)
+    {
         NBLOCKS++;
+        for (i = words, j = 0; i < NBLOCKS * BLOCKWORDS; i++, j++)
+        {
+            arestore[j] = _mm512_load_epi64(a + i * VECLEN);
+            brestore[j] = _mm512_load_epi64(b + i * VECLEN);
+            _mm512_store_epi64(a + i * VECLEN, zero);
+            _mm512_store_epi64(b + i * VECLEN, zero);
+        }
+    }
 
 #ifdef DEBUG_MUL
     printf("vecmul52 with blocksize %d, nblocks %d, nwords %d\n",
@@ -1378,9 +1508,9 @@ void vecmul52_n(uint64_t* a, uint64_t* b, uint64_t* c, int words)
         a2 = _mm512_load_epi64(a + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
         a3 = _mm512_load_epi64(a + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
 
-        b0 = _mm512_load_epi64(b + (words - 1) * VECLEN);
-        b1 = _mm512_load_epi64(b + (words - 2) * VECLEN);
-        b2 = _mm512_load_epi64(b + (words - 3) * VECLEN);
+        b0 = _mm512_load_epi64(b + ((NBLOCKS * BLOCKWORDS) - 1) * VECLEN);
+        b1 = _mm512_load_epi64(b + ((NBLOCKS * BLOCKWORDS) - 2) * VECLEN);
+        b2 = _mm512_load_epi64(b + ((NBLOCKS * BLOCKWORDS) - 3) * VECLEN);
 
 #ifdef IFMA
         VEC_MUL_ACCUM_LOHI_PD(a1, b0, te0, te1);
@@ -1551,6 +1681,12 @@ void vecmul52_n(uint64_t* a, uint64_t* b, uint64_t* c, int words)
     print_vechexbignum(c, "after hi half:");
 #endif
 
+    for (i = words, j = 0; i < NBLOCKS * BLOCKWORDS; i++, j++)
+    {
+        _mm512_store_epi64(a + i * VECLEN, arestore[j]);
+        _mm512_store_epi64(b + i * VECLEN, brestore[j]);
+    }
+
     return;
 }
 
@@ -1579,9 +1715,18 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
     __m512i zero = _mm512_set1_epi64(0);
     __mmask8 scarry;
 
+    __m512i arestore[3];
+
     NBLOCKS = words / BLOCKWORDS;
     if ((words % BLOCKWORDS) > 0)
+    {
         NBLOCKS++;
+        for (i = words, j = 0; i < NBLOCKS * BLOCKWORDS; i++, j++)
+        {
+            arestore[j] = _mm512_load_epi64(a + i * VECLEN);
+            _mm512_store_epi64(a + i * VECLEN, zero);
+        }
+    }
 
 #ifdef DEBUG_MUL
     printf("vecmul52 with blocksize %d, nblocks %d, nwords %d\n",
@@ -2086,10 +2231,10 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
         {
             // Compute a solid block (all matching terms are in the lower
             // half triangle of the expansion).
-            a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);
-            a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);
-            a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);
-            a3 = _mm512_load_epi64(a + (words - 4 - j * BLOCKWORDS) * VECLEN);
+            a0 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 1 - j * BLOCKWORDS) * VECLEN);
+            a1 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 2 - j * BLOCKWORDS) * VECLEN);
+            a2 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 3 - j * BLOCKWORDS) * VECLEN);
+            a3 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 4 - j * BLOCKWORDS) * VECLEN);
 
             b0 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi64(b + ((j + i) * BLOCKWORDS + 2) * VECLEN);
@@ -2113,10 +2258,10 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
             {
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);
-                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);
-                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);
-                a3 = _mm512_load_epi64(a + (words - 4 - j * BLOCKWORDS) * VECLEN);
+                a0 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 1 - j * BLOCKWORDS) * VECLEN);
+                a1 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 2 - j * BLOCKWORDS) * VECLEN);
+                a2 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 3 - j * BLOCKWORDS) * VECLEN);
+                a3 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 4 - j * BLOCKWORDS) * VECLEN);
 
                 b0 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN);
                 b1 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);
@@ -2312,9 +2457,9 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
                 // i even, block shape 1.
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);
-                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);
-                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);
+                a0 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 1 - j * BLOCKWORDS) * VECLEN);
+                a1 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 2 - j * BLOCKWORDS) * VECLEN);
+                a2 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 3 - j * BLOCKWORDS) * VECLEN);
 
 #ifdef IFMA
                 VEC_MUL_ACCUM_LOHI_PD(a0, a2, te0, te1);
@@ -2414,9 +2559,9 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
             {
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);  // {f, b}
-                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);  // {e, a}
-                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);  // {d, 9}
+                a0 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 1 - j * BLOCKWORDS) * VECLEN);  // {f, b}
+                a1 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 2 - j * BLOCKWORDS) * VECLEN);  // {e, a}
+                a2 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 3 - j * BLOCKWORDS) * VECLEN);  // {d, 9}
 
 #ifdef IFMA
                 VEC_MUL_ACCUM_LOHI_PD(a0, a2, te0, te1);
@@ -2509,10 +2654,10 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
                 // i even, block shape 1.
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi64(a + (words - 1 - j * BLOCKWORDS) * VECLEN);		// {f, b}
-                a1 = _mm512_load_epi64(a + (words - 2 - j * BLOCKWORDS) * VECLEN);		// {e, a}
-                a2 = _mm512_load_epi64(a + (words - 3 - j * BLOCKWORDS) * VECLEN);		// {d, 9}
-                a3 = _mm512_load_epi64(a + (words - 4 - j * BLOCKWORDS) * VECLEN);		// {c, 8}
+                a0 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 1 - j * BLOCKWORDS) * VECLEN);		// {f, b}
+                a1 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 2 - j * BLOCKWORDS) * VECLEN);		// {e, a}
+                a2 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 3 - j * BLOCKWORDS) * VECLEN);		// {d, 9}
+                a3 = _mm512_load_epi64(a + ((NBLOCKS * BLOCKWORDS) - 4 - j * BLOCKWORDS) * VECLEN);		// {c, 8}
 
                 b0 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN); // {9, 5}
                 b1 = _mm512_load_epi64(b + (j * BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);	// {a, 6}
@@ -2719,6 +2864,11 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
     print_vechexbignum(c, "after hi half:");
 #endif
 
+    for (i = words, j = 0; i < NBLOCKS * BLOCKWORDS; i++, j++)
+    {
+        _mm512_store_epi64(a + i * VECLEN, arestore[j]);
+    }
+
     return;
 }
 
@@ -2782,11 +2932,22 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
 
 void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
 {
-    int halfwords = words / 2;
+    int lowords, hiwords, i;
+
+    if (words & 1)
+    {
+        hiwords = words / 2;
+        lowords = hiwords + 1;
+    }
+    else
+    {
+        hiwords = lowords = words / 2;
+    }
+
     uint64_t* a0 = a;
-    uint64_t* a1 = a + halfwords * VECLEN;
+    uint64_t* a1 = a + lowords * VECLEN;
     uint64_t* b0 = b;
-    uint64_t* b1 = b + halfwords * VECLEN;
+    uint64_t* b1 = b + lowords * VECLEN;
     uint64_t* z1;
     uint64_t* s1;
     uint64_t* s2;
@@ -2794,24 +2955,50 @@ void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     __mmask8 m2;
 
     s1 = scratch;
-    s2 = scratch + (halfwords)*VECLEN;
-    z1 = scratch + (words)*VECLEN;
+    s2 = scratch + (lowords)*VECLEN;
+    z1 = scratch + (lowords*2)*VECLEN;
 
-    veckmul(a0, b0, c, scratch, halfwords);
-    veckmul(a1, b1, c + words * VECLEN, scratch, halfwords);
-    m1 = vec_gte2_52(a1, a0, halfwords);
-    m2 = vec_gte2_52(b0, b1, halfwords);
-    base_abssub_52(a0, a1, s1, m1, halfwords);
-    base_abssub_52(b1, b0, s2, m2, halfwords);
-    veckmul(s1, s2, z1, scratch + (2 * words) * VECLEN, halfwords);
-    kcombine(c, z1, s1, m1 ^ m2, words);
+    veckmul(a0, b0, c, scratch, lowords);
+    veckmul(a1, b1, c + 2 * lowords * VECLEN, scratch, hiwords);
+    // result is negative if the longer subtractand does not have a leading digit
+    // AND if the rest of the comparison is true.
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN),
+        _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
+    // result is negative if the longer subtractand has a leading digit
+    // OR if the rest of the comparison is true.
+    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + lowords * VECLEN),
+        _mm512_setzero_si512()) | vec_gte2_52(b0, b1, hiwords)) : vec_gte2_52(b0, b1, hiwords);
+    base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
+    base_abssub_52(b1, b0, s2, m2, hiwords, lowords);
+    veckmul(s1, s2, z1, scratch + (4 * lowords) * VECLEN, lowords);
+
+    if (hiwords < lowords)
+    {
+        for (i = hiwords * 2; i < lowords * 2; i++)
+        {
+            _mm512_store_si512(c + (2 * lowords + i) * VECLEN, _mm512_setzero_si512());
+        }
+    }
+
+    kcombine2(c, z1, s1, m1 ^ m2, 2 * lowords, hiwords);
+    return;
 }
 
 void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words)
 {
-    int halfwords = words / 2;
+    int lowords, hiwords;
+
+    if (words & 1)
+    {
+        hiwords = words / 2;
+        lowords = hiwords + 1;
+    }
+    else
+    {
+        hiwords = lowords = words / 2;
+    }
     uint64_t* a0 = a;
-    uint64_t* a1 = a + halfwords * VECLEN;
+    uint64_t* a1 = a + lowords * VECLEN;
     uint64_t* z1;
     uint64_t* s1;
     uint64_t* s2;
@@ -2819,16 +3006,123 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words)
     __mmask8 m2;
     int i;
 
-    s1 = scratch;
-    s2 = scratch + (halfwords)*VECLEN;
-    z1 = scratch + (words)*VECLEN;
+    if (a == c)
+    {
+        printf("error output pointer cannot be the same as input pointer\n");
+        exit(1);
+    }
 
-    vecksqr(a0, c, scratch, halfwords);
-    vecksqr(a1, c + words * VECLEN, scratch, halfwords);
-    m1 = vec_gte2_52(a1, a0, halfwords);
-    base_abssub_52(a0, a1, s1, m1, halfwords);
-    vecksqr(s1, z1, scratch + (2 * words) * VECLEN, halfwords);
-    kcombine(c, z1, s1, 0xff, words);
+    s1 = scratch;
+    s2 = scratch + (lowords)*VECLEN;
+    z1 = scratch + (lowords*2)*VECLEN;
+
+    //printf("ksqr lo len %d words: ", lowords);
+    //for (i = lowords - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", a0[i * VECLEN]);
+    //}
+    //printf("\n");
+
+    vecksqr(a0, c, scratch, lowords);
+
+    //printf("result: ");
+    //for (i = lowords * 2 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", c[i * VECLEN]);
+    //}
+    //printf("\n");
+    //
+    //printf("ksqr hi len %d words: ", hiwords);
+    //for (i = hiwords - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", a1[i * VECLEN]);
+    //}
+    //printf("\n");
+
+    vecksqr(a1, c + 2 * lowords * VECLEN, scratch, hiwords);
+
+    //printf("result: ");
+    //for (i = lowords * 2 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", c[(2 * lowords + i) * VECLEN]);
+    //}
+    //printf("\n");
+    //
+    //printf("a0: ");
+    //for (i = lowords - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", a0[i * VECLEN]);
+    //}
+    //printf("\n");
+    //
+    //printf("a1: ");
+    //for (i = hiwords - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", a1[i * VECLEN]);
+    //}
+    //printf("\n");
+
+    // result is negative if the longer subtractand does not have a leading digit
+    // AND if the rest of the comparison is true.
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN),
+        _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
+    base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
+
+    //printf("ksqr absdiff len %d words: ", lowords);
+    //for (i = lowords - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", s1[i * VECLEN]);
+    //}
+    //printf("\n");
+
+    vecksqr(s1, z1, scratch + (4 * lowords) * VECLEN, lowords);
+
+    if (hiwords < lowords)
+    {
+        for (i = hiwords * 2; i < lowords * 2; i++)
+        {
+            _mm512_store_si512(c + (2 * lowords + i) * VECLEN, _mm512_setzero_si512());
+        }
+    }
+
+    //printf("combine at offset %d words\n", lowords);
+    //
+    //printf("z0=0x");
+    //for (i = lowords * 2 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", c[i * VECLEN]);
+    //}
+    //printf(";\n");
+    //
+    //printf("z1=0x");
+    //for (i = lowords * 2 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", z1[i * VECLEN]);
+    //}
+    //printf(";\n");
+    //
+    //printf("z2=0x");
+    //for (i = lowords * 2 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", c[(2 * lowords + i) * VECLEN]);
+    //}
+    //printf(";\n");
+    //
+    //printf("s1=0x");
+    //for (i = lowords * 2 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", s1[i * VECLEN]);
+    //}
+    //printf(";\n");
+
+    kcombine2(c, z1, s1, 0xff, 2 * lowords, hiwords);
+
+    //printf("result: ");
+    //for (i = lowords * 4 - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", c[i * VECLEN]);
+    //}
+    //printf("\n");
 
     return;
 }
@@ -2883,10 +3177,27 @@ uint32_t vec_bignum52_special_add(uint64_t* a, uint64_t* b, uint64_t* c, int wor
 
 void vecksqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
+    int i;
+    //printf("ksqr len %d words: ", mdata->NWORDS);
+    //for (i = mdata->NWORDS - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", a->data[i * VECLEN]);
+    //}
+    //printf("\n");
+
     vecksqr(a->data, mdata->mtmp1->data, mdata->mtmp4->data, mdata->NWORDS);
 
+    //printf("result: ");
+    //for (i = 2 * mdata->NWORDS - 1; i >= 0; i--)
+    //{
+    //    printf("%013llx", mdata->mtmp1->data[i * VECLEN]);
+    //}
+    //printf("\n");
+    //
+    //exit(1);
     veckmul(mdata->mtmp1->data, mdata->vnhat->data, mdata->mtmp2->data, mdata->mtmp4->data, mdata->NWORDS);
     veckmul(mdata->mtmp2->data, n->data, mdata->mtmp3->data, mdata->mtmp4->data, mdata->NWORDS);
+
     mdata->mtmp1->size = mdata->NWORDS * 2;
     mdata->mtmp3->size = mdata->NWORDS * 2;
     uint32_t m = vec_bignum52_special_add(mdata->mtmp1->data + mdata->NWORDS * VECLEN,
