@@ -55,6 +55,33 @@ This file is a snapshot of a work in progress, originated by Mayo
 
 #define USE_AMM 1
 
+
+#define and64 _mm512_and_epi64
+#define storeu64 _mm512_store_epi64
+#define add64 _mm512_add_epi64
+#define set64 _mm512_set1_epi64
+#define srli64 _mm512_srli_epi64
+#define loadu64 _mm512_load_epi64
+#define DIGIT_SIZE 52
+#define DIGIT_MASK 0x000fffffffffffffULL
+#define MB_WIDTH 8
+#define SIMD_BYTES 64
+
+__inline __m512i fma52lo(__m512i a, __m512i b, __m512i c)
+{
+    //return _mm512_madd52lo_epu64(a, b, c);
+    __m512i t = _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
+    return _mm512_add_epi64(a, t);
+}
+__inline __m512i fma52hi(__m512i a, __m512i b, __m512i c, __m512d dbias, __m512i vbias1)
+{
+    //return _mm512_madd52hi_epu64(a, b, c);
+    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
+    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
+    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    return _mm512_add_epi64(a, _mm512_sub_epi64(castepu(prod1_ld), vbias1)); \
+}
+
 __m512i __inline _mm512_mask_sbb_src_epi52(__m512i src, __m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
 {
     __m512i t = _mm512_mask_sub_epi64(src, m, a, b);
@@ -1169,6 +1196,40 @@ void kcombine2(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int words, 
         v1 = _mm512_addcarry_epi52(v1, carry, &carry);
         _mm512_store_epi64(c + i * VECLEN, v1);
         i++;
+    }
+
+    return;
+}
+
+
+void vecmul52_cios(uint64_t* a, uint64_t* b, uint64_t* c, int n)
+{
+    int i, j, k;
+
+    __m512d dbias = _mm512_castsi512_pd(set64(0x4670000000000000ULL));
+    __m512i vbias1 = set64(0x4670000000000000ULL);
+    __m512i zero = set64(0), B, A, C, plo, carry;
+    __m512i MASK = set64(DIGIT_MASK);
+
+    for (i = 0; i < 2 * n; i++) {
+        _mm512_store_epi64(c + i * VECLEN, _mm512_setzero_si512());
+    }
+
+    for (j = 0; j < n; j++) {
+        B = loadu64(b + j * VECLEN);
+
+        carry = zero;
+        for (i = 0; i < n; i++) {
+            A = loadu64(a + i * VECLEN);
+            C = loadu64(c + (i + j) * VECLEN);
+
+            plo = fma52lo(C, A, B);
+            plo = _mm512_add_epi64(plo, carry);
+            carry = fma52hi(_mm512_srli_epi64(plo, 52), A, B, dbias, vbias1);
+
+            _mm512_store_epi64(c + (i + j) * VECLEN, _mm512_and_si512(plo, MASK));
+        }
+        _mm512_store_epi64(c + (i + j) * VECLEN, _mm512_and_si512(carry, MASK));
     }
 
     return;
@@ -2915,7 +2976,7 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
 #define veckmul(a, b, c, s, words)				\
   do {									\
     if (words <= 20)						\
-      vecmul52_n(a, b, c, words);      \
+      vecmul52_cios(a, b, c, words);      \
     else								\
         kmuln(a, b, c, s, words);				\
   } while (0);
@@ -2923,9 +2984,9 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
 #define vecksqr(a, c, s, words)				\
   do {									\
     if (words <= 20)						\
-      vecsqr52_n(a, c, words); \
+      vecmul52_cios(a, a, c, words); \
     else								\
-        ksqrn(a,c, s, words);				\
+        ksqrn(a, c, s, words);				\
   } while (0);
 
 
@@ -2972,13 +3033,13 @@ void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     base_abssub_52(b1, b0, s2, m2, hiwords, lowords);
     veckmul(s1, s2, z1, scratch + (4 * lowords) * VECLEN, lowords);
 
-    if (hiwords < lowords)
-    {
-        for (i = hiwords * 2; i < lowords * 2; i++)
-        {
-            _mm512_store_si512(c + (2 * lowords + i) * VECLEN, _mm512_setzero_si512());
-        }
-    }
+    //if (hiwords < lowords)
+    //{
+    //    for (i = hiwords * 2; i < lowords * 2; i++)
+    //    {
+    //        _mm512_store_si512(c + (2 * lowords + i) * VECLEN, _mm512_setzero_si512());
+    //    }
+    //}
 
     kcombine2(c, z1, s1, m1 ^ m2, 2 * lowords, hiwords);
     return;
@@ -3077,13 +3138,13 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words)
 
     vecksqr(s1, z1, scratch + (4 * lowords) * VECLEN, lowords);
 
-    if (hiwords < lowords)
-    {
-        for (i = hiwords * 2; i < lowords * 2; i++)
-        {
-            _mm512_store_si512(c + (2 * lowords + i) * VECLEN, _mm512_setzero_si512());
-        }
-    }
+    //if (hiwords < lowords)
+    //{
+    //    for (i = hiwords * 2; i < lowords * 2; i++)
+    //    {
+    //        _mm512_store_si512(c + (2 * lowords + i) * VECLEN, _mm512_setzero_si512());
+    //    }
+    //}
 
     //printf("combine at offset %d words\n", lowords);
     //
@@ -3227,31 +3288,6 @@ void veckmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_
 }
 
 
-#define and64 _mm512_and_epi64
-#define storeu64 _mm512_store_epi64
-#define add64 _mm512_add_epi64
-#define set64 _mm512_set1_epi64
-#define srli64 _mm512_srli_epi64
-#define loadu64 _mm512_load_epi64
-#define DIGIT_SIZE 52
-#define DIGIT_MASK 0x000fffffffffffffULL
-#define MB_WIDTH 8
-#define SIMD_BYTES 64
-
-__inline __m512i fma52lo(__m512i a, __m512i b, __m512i c)
-{
-    //return _mm512_madd52lo_epu64(a, b, c);
-    __m512i t = _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
-    return _mm512_add_epi64(a, t);
-}
-__inline __m512i fma52hi(__m512i a, __m512i b, __m512i c, __m512d dbias, __m512i vbias1)
-{
-    //return _mm512_madd52hi_epu64(a, b, c);
-    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
-    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
-    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    return _mm512_add_epi64(a, _mm512_sub_epi64(castepu(prod1_ld), vbias1)); \
-}
 #define _mm512_madd52lo_epu64_(r, a, b, c, o) \
     { \
         r=fma52lo(a, b, _mm512_loadu_si512((__m512i*)(((char*)c)+o))); \
@@ -3313,6 +3349,8 @@ __inline __m512i fma52hi(__m512i a, __m512i b, __m512i c, __m512d dbias, __m512i
     a3 = _mm512_add_epi64(a4, _mm512_sub_epi64(castepu(cd3), v)); \
     a4 = _mm512_add_epi64(a5, _mm512_sub_epi64(castepu(cd4), v)); \
 }
+
+
 
 void vecmulmod52_fixed624_cios(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
