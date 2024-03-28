@@ -559,6 +559,9 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
 		else if (montyconst->isMersenne > 0)
         {
+            // initial tests show the crossover to karatsuba is at
+            // around 7k bits, but there are issues still with finding
+            // factors.
             vecmulmod_ptr = &vecmulmod52_mersenne;
             vecsqrmod_ptr = &vecsqrmod52_mersenne;
             //vecmulmod_ptr = &veckmul_mersenne;
@@ -625,7 +628,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                     printf("Using 1040-bit mul/sqr core\n");
                 }
             }
-            else if (tdata[0].MAXBITS > 16000)
+            else if (tdata[0].MAXBITS > 16400)
             {
                 // faster starting around 16000 bits on Xeon 6254
                 vecmulmod_ptr = &veckmul_redc;

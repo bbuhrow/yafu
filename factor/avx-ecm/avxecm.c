@@ -1435,7 +1435,7 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	{
 		vecaddsubmod_ptr(x2, z2, s2, d2, mdata);
 		vecaddsubmod_ptr(x1, z1, s1, d1, mdata);
-
+        
 		//if the bit is 1
 		if (c & mask)
 		{
@@ -3887,7 +3887,6 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
         //z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
         //x- = original x
         //z- = original z
-
         // compute Sd from Sd-1 + S1, requiring Sd-1 - S1 = Sd-2
         vecaddsubmod_ptr(P1->X, P1->Z, work->sum1, work->diff1, mdata);
         vecaddsubmod_ptr(P2->X, P2->Z, work->sum2, work->diff2, mdata);
