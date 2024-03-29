@@ -2770,6 +2770,14 @@ void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
     __m512i vbshift, vbpshift;
     int bshift = mdata->nbits % 52;
     int wshift = mdata->nbits / 52;
+#ifdef DEBUG_MERSENNE
+    mpz_t ga, gb;
+    mpz_init(ga);
+    mpz_init(gb);
+    extract_bignum_from_vec_to_mpz(ga, a, 0, NWORDS);
+    extract_bignum_from_vec_to_mpz(gb, b, 0, NWORDS);
+    mpz_mul(ga, ga, gb);
+#endif
 
     if (mdata->use_vnbits)
     {
@@ -3045,8 +3053,37 @@ void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
 
 #ifdef DEBUG_MERSENNE
         print_vechexbignum(c, "after carry add:");
+
+
+        mpz_t gn, gc;
+        mpz_init(gn);
+        mpz_init(gc);
+        mpz_set_ui(gn, 1);
+        mpz_mul_2exp(gn, gn, mdata->nbits);
+        mpz_sub_ui(gn, gn, 1);
+        mpz_mod(gc, ga, gn);
+
+        extract_bignum_from_vec_to_mpz(gb, c, 0, NWORDS);
+
+        if (mpz_cmp(gc, gb) != 0)
+        {
+            gmp_printf("a = %Zd\n", ga);
+            gmp_printf("n = %Zd\n", gn);
+
+            gmp_printf("b = %Zd\n", gb);
+            gmp_printf("c = %Zd\n", gc);
+            exit(1);
+        }
+
+
+        mpz_clear(gc);
+        mpz_clear(gn);
+
+
         exit(1);
 #endif
+        
+
     }
     else
     {
@@ -3115,12 +3152,20 @@ void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
             _mm512_and_epi64(vbshift, a1));
     }
 
+#ifdef DEBUG_MERSENNE
+    mpz_clear(ga);
+    mpz_clear(gb);
+#endif
+
     c->size = NWORDS;
     return;
 }
 
 void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
+    vecmulmod52_mersenne(a, a, c, n, s, mdata);
+    return;
+
     // 8x sqr:
     // input 8 bignums in the even lanes of a.
     // output 8 squaremod bignums in the even lanes of c.
@@ -5124,6 +5169,7 @@ void vec_simul_addsub52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t*
     return;
 }
 
+#define DEBUG_MERSENNE
 void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j;
@@ -5160,9 +5206,14 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
 
 
     // reduce by adding hi to lo.  first right shift hi into output.
+    // for Mersenne's, nbits should be set to the exponent of the number.
     __m512i vbshift, vbpshift;
     int bshift = mdata->nbits % 52;
     int wshift = mdata->nbits / 52;
+
+    mpz_t ga;
+    mpz_init(ga);
+    extract_bignum_from_vec_to_mpz(ga, a, 0, 2 * NWORDS);
 
     if (mdata->use_vnbits)
     {
@@ -5396,8 +5447,33 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
 
 #ifdef DEBUG_MERSENNE
         print_vechexbignum(c, "after carry add:");
-        exit(1);
 #endif
+
+        mpz_t gn, gb, gc;
+        mpz_init(gn);
+        mpz_init(gb);
+        mpz_init(gc);
+        mpz_set_ui(gn, 1);
+        mpz_mul_2exp(gn, gn, mdata->nbits);
+        mpz_mod(gc, ga, gn);
+
+        extract_bignum_from_vec_to_mpz(gb, c, 0, NWORDS);
+
+        if (mpz_cmp(gc, gb) != 0)
+        {
+            gmp_printf("a = %Zd\n", ga);
+            gmp_printf("n = %Zd\n", gn);
+
+            gmp_printf("b = %Zd\n", gb);
+            gmp_printf("c = %Zd\n", gc);
+            exit(1);
+        }
+
+        
+        mpz_clear(gb);
+        mpz_clear(gc);
+        mpz_clear(gn);
+
     }
     else
     {
@@ -5453,6 +5529,7 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
             _mm512_and_epi64(vbshift, a1));
     }
 
+    mpz_clear(ga);
     c->size = NWORDS;
 
 }
@@ -5532,6 +5609,38 @@ __mmask8 base_abssub_52(uint64_t* a, uint64_t* b, uint64_t* c, __mmask8 sm, int 
         bvec = _mm512_mask_mov_epi64(bvec, sm, tmp);
 
         cvec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+
+    return carry;
+}
+
+__mmask8 base_add_52(uint64_t* a, uint64_t* b, uint64_t* c, int wordsa, int wordsb)
+{
+    int i;
+    __m512i avec, bvec, cvec;
+    __mmask8 carry = 0;
+
+    for (i = 0; i < MIN(wordsa, wordsb); i++)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+
+    if (wordsa > wordsb)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_setzero_si512();
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+    else if (wordsb > wordsa)
+    {
+        avec = _mm512_setzero_si512();
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
         _mm512_store_epi64(c + i * VECLEN, cvec);
     }
 
@@ -10528,6 +10637,121 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
         ksqrn(a, c, s, words);				\
   } while (0);
 
+#define vectmul(a, b, c, s, words)				\
+  do {									\
+    if (words <= 20) {						\
+        if ((words & 0x3) == 0) { vecmul52_n(a, b, c, words); } \
+        else { vecmul52_cios(a, b, c, words); } }     \
+    else								\
+        tmuln(a, b, c, s, words);				\
+  } while (0);
+
+void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
+{
+    int w0, w1, w2;
+
+    w0 = w1 = words / 3;
+    w2 = words - w1 - w0;
+    int wmax = MAX(w0, w2);
+    int scratchwords = wmax + 2;
+
+    //printf("Splitting phase\n");
+    uint64_t* a0 = a;
+    uint64_t* a1 = a + w0 * VECLEN;
+    uint64_t* a2 = a + (w0 + w1) * VECLEN;
+    uint64_t* b0 = b;
+    uint64_t* b1 = b + w1 * VECLEN;
+    uint64_t* b2 = b + (w0 + w1) * VECLEN;
+    uint64_t* p1 = scratch + 0 * scratchwords;
+    uint64_t* pm1 = scratch + 1 * scratchwords;
+    uint64_t* pm2 = scratch + 2 * scratchwords;
+    uint64_t* q1 = scratch + 3 * scratchwords;
+    uint64_t* qm1 = scratch + 4 * scratchwords;
+    uint64_t* qm2 = scratch + 5 * scratchwords;
+    __mmask8 m1;
+    __mmask8 m2;
+    __mmask8 m3;
+    __mmask8 m4;
+
+    //printf("Evaluation phase\n");
+    //mpz_set(p0, a0);
+    //mpz_set(pinf, a2);
+    //mpz_add(pm1, a0, a2);
+    //mpz_add(p1, pm1, a1);
+    //mpz_sub(pm1, pm1, a1);
+    //mpz_add(pm2, pm1, a2);
+    //mpz_mul_2exp(pm2, pm2, 1);
+    //mpz_sub(pm2, pm2, a0);
+    base_add_52(a0, a2, pm1, w0, w2);
+    base_add_52(p1, pm1, a1, wmax, w1);
+    m1 = vec_gte2_52(a1, pm1, wmax);
+    base_abssub_52(pm1, a1, pm1, m1, wmax, w1);
+    base_add_52(pm1, a2, pm2, wmax, w2);
+    base_add_52(pm2, pm2, pm2, wmax, wmax);
+    m2 = vec_gte2_52(a0, pm2, wmax);
+    base_abssub_52(pm2, a0, pm2, m2, wmax, w0);
+
+    //mpz_set(q0, b0);
+    //mpz_set(qinf, b2);
+    //mpz_add(qm1, b0, b2);
+    //mpz_add(q1, qm1, b1);
+    //mpz_sub(qm1, qm1, b1);
+    //mpz_add(qm2, qm1, b2);
+    //mpz_mul_2exp(qm2, qm2, 1);
+    //mpz_sub(qm2, qm2, b0);
+    base_add_52(b0, b2, qm1, w0, w2);
+    base_add_52(q1, qm1, b1, wmax, w1);
+    m3 = vec_gte2_52(b1, qm1, wmax);
+    base_abssub_52(qm1, b1, qm1, m3, wmax, w1);
+    base_add_52(qm1, b2, qm2, wmax, w2);
+    base_add_52(qm2, qm2, qm2, wmax, wmax);
+    m4 = vec_gte2_52(b0, qm2, wmax);
+    base_abssub_52(qm2, b0, qm2, m4, wmax, w0);
+
+    //printf("Pointwise multiplication phase\n");
+    //mpz_mul(r0, p0, q0);
+    //mpz_mul(r1, p1, q1);
+    //mpz_mul(rm1, pm1, qm1);
+    //mpz_mul(rm2, pm2, qm2);
+    //mpz_mul(rinf, pinf, qinf);
+
+    //printf("Interpolation phase\n");
+    //mpz_set(i0, r0);
+    //mpz_set(i4, rinf);
+    //mpz_sub(i3, rm2, r1);
+    //mpz_tdiv_q_ui(i3, i3, 3);
+    //mpz_sub(i1, r1, rm1);
+    //mpz_tdiv_q_2exp(i1, i1, 1);
+    //mpz_sub(i2, rm1, r0);
+    //mpz_sub(i3, i2, i3);
+    //mpz_tdiv_q_2exp(i3, i3, 1);
+    //mpz_mul_2exp(rinf, rinf, 1);
+    //mpz_add(i3, i3, rinf);
+    //mpz_add(i2, i2, i1);
+    //mpz_sub(i2, i2, i4);
+    //mpz_sub(i1, i1, i3);
+
+    //printf("Recomposition phase\n");
+    //mpz_set(out, i0);
+    //mpz_mul(i1, i1, B);
+    //mpz_mul(i2, i2, B);
+    //mpz_mul(i2, i2, B);
+    //mpz_mul(i3, i3, B);
+    //mpz_mul(i3, i3, B);
+    //mpz_mul(i3, i3, B);
+    //mpz_mul(i4, i4, B);
+    //mpz_mul(i4, i4, B);
+    //mpz_mul(i4, i4, B);
+    //mpz_mul(i4, i4, B);
+    //mpz_add(out, out, i1);
+    //mpz_add(out, out, i2);
+    //mpz_add(out, out, i3);
+    //mpz_add(out, out, i4);
+
+
+
+    return;
+}
 
 
 void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
@@ -10843,5 +11067,28 @@ void veckmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_
     return;
 }
 
+void vectmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    vectmul(a->data, b->data, mdata->mtmp1->data, mdata->mtmp4->data, mdata->NWORDS);
 
+    vectmul(mdata->mtmp1->data, mdata->vnhat->data, mdata->mtmp2->data, mdata->mtmp4->data, mdata->NWORDS);
+    vectmul(mdata->mtmp2->data, n->data, mdata->mtmp3->data, mdata->mtmp4->data, mdata->NWORDS);
+    mdata->mtmp1->size = mdata->NWORDS * 2;
+    mdata->mtmp3->size = mdata->NWORDS * 2;
+    uint32_t m = vec_bignum52_special_add(mdata->mtmp1->data + mdata->NWORDS * VECLEN,
+        mdata->mtmp3->data + mdata->NWORDS * VECLEN, c->data, mdata->NWORDS);
+
+#ifndef USE_AMM
+    //m |= vec_gte52(c, n);
+    c->WORDS_ALLOC = c->size = mdata->NWORDS;
+    //vec_bignum52_mask_sub(c, n, c, m);
+#endif
+    return;
+}
+
+void vectsqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    vectmul_redc(a, a, c, n, s, mdata);
+    return;
+}
 #endif

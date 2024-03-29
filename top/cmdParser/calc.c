@@ -54,7 +54,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 78
+#define NUM_FUNC 79
 
 // symbols in calc
 #define EOE 1
@@ -158,7 +158,7 @@ static char function_names[NUM_FUNC][11] = {
     "primes", "torture", "ecm", "llt", "siqsbench",
     "sigma", "totient", "smallmpqs", "testrange", "sieverange",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
-    "semiprimes", "fftmul", "vpm1"};
+    "semiprimes", "fftmul", "vpm1", "toom3"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -176,7 +176,7 @@ static int function_nargs[NUM_FUNC] = {
     3, 2, 2, 1, 0, 
     2, 1, 1, 4, 4, 
     3, 1, 0, 1, 1,
-    2, 4, 0};
+    2, 4, 0, 3};
 
 
 // =====================================================================
@@ -2116,6 +2116,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 		// rand - one argument
         if (check_args(funcnum, nargs)) break;
 
+        gmp_printf("finding random %Zd-digit (base-10) number\n", operands[0]);
 		mpz_set_ui(operands[1], 10);
 		mpz_pow_ui(operands[1], operands[1], mpz_get_ui(operands[0]));
 		mpz_urandomm(operands[0], gmp_randstate, operands[1]);
@@ -2208,6 +2209,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	case 18:
 		// randb - one argument
         if (check_args(funcnum, nargs)) break;
+        gmp_printf("finding random %Zd-bit number\n", operands[0]);
 		mpz_urandomb(operands[0], gmp_randstate, mpz_get_ui(operands[0]));
 		break;
 	case 19:
@@ -2351,6 +2353,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 40:
         // nextprime
         if (check_args(funcnum, nargs)) break;
+        gmp_printf("finding next prime from %Zd\n", operands[0]);
         mpz_nextprime(operands[0], operands[0]);
         break;
     case 41:
@@ -3138,6 +3141,189 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         vecPM1(fobj);
         break;
 
+    case 78:
+        // toom-3
+        if (check_args(funcnum, nargs)) break;
+
+        {
+            mpz_t ia, ib, B;
+            mpz_init(ia);
+            mpz_init(ib);
+            mpz_init(B);
+            mpz_set(ia, operands[0]);
+            mpz_set(ib, operands[1]);
+            mpz_set(B, operands[2]);
+
+            mpz_t a0, a1, a2, b0, b1, b2;
+            mpz_init(a0);
+            mpz_init(a1);
+            mpz_init(a2);
+            mpz_init(b0);
+            mpz_init(b1);
+            mpz_init(b2);
+
+#define OD "d"
+            
+            gmp_printf("a = %Z"OD"\n", ia);
+            gmp_printf("b = %Z"OD"\n", ib);
+
+            printf("Splitting phase\n");
+            gmp_printf("base B=%Z"OD"\n", B);
+            mpz_mod(a0, ia, B);
+            mpz_tdiv_q(ia, ia, B);
+            mpz_mod(a1, ia, B);
+            mpz_tdiv_q(a2, ia, B);
+            mpz_mod(b0, ib, B);
+            mpz_tdiv_q(ib, ib, B);
+            mpz_mod(b1, ib, B);
+            mpz_tdiv_q(b2, ib, B);
+            
+            gmp_printf("a2 = %Z"OD"\na1 = %Z"OD"\na0 = %Z"OD"\n", a2, a1, a0);
+            gmp_printf("b2 = %Z"OD"\nb1 = %Z"OD"\nb0 = %Z"OD"\n", b2, b1, b0);
+
+            mpz_t p0, p1, pm1, pm2, pinf;
+            mpz_init(p0);
+            mpz_init(p1);
+            mpz_init(pm1);
+            mpz_init(pm2);
+            mpz_init(pinf);
+            mpz_t q0, q1, qm1, qm2, qinf;
+            mpz_init(q0);
+            mpz_init(q1);
+            mpz_init(qm1);
+            mpz_init(qm2);
+            mpz_init(qinf);
+
+            printf("Evaluation phase\n");
+            mpz_set(p0, a0);
+            mpz_set(pinf, a2);
+            mpz_add(pm1, a0, a2);
+            mpz_add(p1, pm1, a1);           
+            mpz_sub(pm1, pm1, a1);
+            mpz_add(pm2, pm1, a2);
+            mpz_mul_2exp(pm2, pm2, 1);
+            mpz_sub(pm2, pm2, a0);
+            
+            gmp_printf(
+                "p(0) = %Z"OD"\n"
+                "p(1) = %Z"OD"\n"
+                "p(-1) = % Z"OD"\n"
+                "p(-2) = %Z"OD"\n"
+                "p(inf) = %Z"OD"\n", p0, p1, pm1, pm2, pinf);
+
+            printf("Evaluation phase\n");
+            mpz_set(q0, b0);
+            mpz_set(qinf, b2);
+            mpz_add(qm1, b0, b2);
+            mpz_add(q1, qm1, b1);
+            mpz_sub(qm1, qm1, b1);
+            mpz_add(qm2, qm1, b2);
+            mpz_mul_2exp(qm2, qm2, 1);
+            mpz_sub(qm2, qm2, b0);
+
+            gmp_printf("q(0) = %Z"OD"\nq(1) = %Z"OD"\nq(-1) = %Z"OD"\n"
+                "q(-2) = %Z"OD"\nq(inf) = %Z"OD"\n", q0, q1, qm1, qm2, qinf);
+
+            mpz_t r0, r1, rm1, rm2, rinf;
+            mpz_init(r0);
+            mpz_init(r1);
+            mpz_init(rm1);
+            mpz_init(rm2);
+            mpz_init(rinf);
+
+            printf("Pointwise multiplication phase\n");
+            mpz_mul(r0, p0, q0);
+            mpz_mul(r1, p1, q1);
+            mpz_mul(rm1, pm1, qm1);
+            mpz_mul(rm2, pm2, qm2);
+            mpz_mul(rinf, pinf, qinf);
+
+            gmp_printf("r(0) = %Z"OD"\nr(1) = %Z"OD"\nr(-1) = %Z"OD"\n"
+                "r(-2) = %Z"OD"\nr(inf) = %Z"OD"\n", r0, r1, rm1, rm2, rinf);
+
+
+            printf("Interpolation phase\n");
+            mpz_t i0, i1, i2, i3, i4;
+            mpz_init(i0);
+            mpz_init(i1);
+            mpz_init(i2);
+            mpz_init(i3);
+            mpz_init(i4);
+
+            mpz_set(i0, r0);
+            mpz_set(i4, rinf);
+            mpz_sub(i3, rm2, r1);
+            mpz_tdiv_q_ui(i3, i3, 3);
+            mpz_sub(i1, r1, rm1);
+            mpz_tdiv_q_2exp(i1, i1, 1);
+            mpz_sub(i2, rm1, r0);
+            mpz_sub(i3, i2, i3);
+            mpz_tdiv_q_2exp(i3, i3, 1);
+            mpz_mul_2exp(rinf, rinf, 1);
+            mpz_add(i3, i3, rinf);
+            mpz_add(i2, i2, i1);
+            mpz_sub(i2, i2, i4);
+            mpz_sub(i1, i1, i3);
+
+
+            gmp_printf("r0 = %Z"OD"\nr1 = %Z"OD"\nr2 = %Z"OD"\n"
+                "r3 = %Z"OD"\nr4 = %Z"OD"\n", i0, i1, i2, i3, i4);
+
+            printf("Recomposition phase\n");
+            mpz_t out;
+            mpz_init(out);
+            mpz_set(out, i0);
+            mpz_mul(i1, i1, B);
+            mpz_mul(i2, i2, B);
+            mpz_mul(i2, i2, B);
+            mpz_mul(i3, i3, B);
+            mpz_mul(i3, i3, B);
+            mpz_mul(i3, i3, B);
+            mpz_mul(i4, i4, B);
+            mpz_mul(i4, i4, B);
+            mpz_mul(i4, i4, B);
+            mpz_mul(i4, i4, B);
+            mpz_add(out, out, i1);
+            mpz_add(out, out, i2);
+            mpz_add(out, out, i3);
+            mpz_add(out, out, i4);
+
+            gmp_printf("result = %Z"OD"\n", out);
+            mpz_set(operands[0], out);
+
+            mpz_clear(ia);
+            mpz_clear(ib);
+            mpz_clear(a0);
+            mpz_clear(a1);
+            mpz_clear(a2);
+            mpz_clear(b0);
+            mpz_clear(b1);
+            mpz_clear(b2);
+            mpz_clear(B);
+            mpz_clear(p0);
+            mpz_clear(p1);
+            mpz_clear(pm1);
+            mpz_clear(pm2);
+            mpz_clear(pinf);
+            mpz_clear(q0);
+            mpz_clear(q1);
+            mpz_clear(qm1);
+            mpz_clear(qm2);
+            mpz_clear(qinf);
+            mpz_clear(r0);
+            mpz_clear(r1);
+            mpz_clear(rm1);
+            mpz_clear(rm2);
+            mpz_clear(rinf);
+            mpz_clear(i0);
+            mpz_clear(i1);
+            mpz_clear(i2);
+            mpz_clear(i3);
+            mpz_clear(i4);
+            mpz_clear(out);
+        }
+
+        break;
 	default:
 		printf("unrecognized function code\n");
 		mpz_set_ui(operands[0], 0);

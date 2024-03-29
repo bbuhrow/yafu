@@ -301,7 +301,22 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     if (verbose > 1)
     {
-        gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
+        if (mpz_sizeinbase(N, 2) > 1024)
+        {
+            int ndigits = gmp_base10(N);
+            mpz_set_ui(r, 10);
+            mpz_pow_ui(r, r, ndigits - 10);
+            mpz_tdiv_q(g, N, r);
+            mpz_set_ui(r, 10);
+            mpz_pow_ui(r, r, 10);
+            mpz_tdiv_r(r, N, r);
+            gmp_printf("commencing parallel ecm on %Zd...%Zd [%d digits] with %d threads\n", 
+                g, r, ndigits, threads);
+        }
+        else
+        {
+            gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
+        }
     }
 
     if ((isMersenne != 0) && ((double)nwords / ((double)mmaxbits / (double)DIGITBITS) < 0.7))
