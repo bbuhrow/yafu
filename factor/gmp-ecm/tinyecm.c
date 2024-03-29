@@ -2844,6 +2844,8 @@ typedef struct
 
 #ifdef IFMA
 
+#define MICRO_ECM_FORCE_INLINE __inline
+
 MICRO_ECM_FORCE_INLINE static __m512i tecm_mul52hi(__m512i b, __m512i c)
 {
 	return _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
