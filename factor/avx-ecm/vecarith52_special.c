@@ -5717,6 +5717,23 @@ void kcombine2_lo(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int word
     return;
 }
 
+#ifdef IFMA
+#define VEC_MUL4_ACCUMX(x, b0, b1, b2, b3, lo1, lo2, lo3, lo4, hi1, hi2, hi3, hi4) \
+    lo1 = _mm512_madd52lo_epu64(lo1, x, b0); \
+    lo2 = _mm512_madd52lo_epu64(lo2, x, b1); \
+    lo3 = _mm512_madd52lo_epu64(lo3, x, b2); \
+    lo4 = _mm512_madd52lo_epu64(lo4, x, b3); \
+    hi1 = _mm512_madd52hi_epu64(hi1, x, b0); \
+    hi2 = _mm512_madd52hi_epu64(hi2, x, b1); \
+    hi3 = _mm512_madd52hi_epu64(hi3, x, b2); \
+    hi4 = _mm512_madd52hi_epu64(hi4, x, b3);
+
+#define SUB_BIAS_HI4(bias1, bias2, bias3, bias4) {}
+#define SUB_BIAS_LO4(bias1, bias2, bias3, bias4) {}
+#define SUB_BIAS_HI3(bias1, bias2, bias3) {}
+#define SUB_BIAS_LO3(bias1, bias2, bias3) {}
+
+#else
 #define VEC_MUL4_ACCUMX(x, b0, b1, b2, b3, lo1, lo2, lo3, lo4, hi1, hi2, hi3, hi4) \
     prod5_ld = _mm512_cvtepu64_pd(x);                                                                           \
     prod1_ld = _mm512_cvtepu64_pd(b0);                                                                          \
@@ -5743,6 +5760,7 @@ void kcombine2_lo(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int word
     lo2 = _mm512_add_epi64(lo2, _mm512_castpd_si512(prod2_ld));                                                 \
     lo3 = _mm512_add_epi64(lo3, _mm512_castpd_si512(prod3_ld));                                                 \
     lo4 = _mm512_add_epi64(lo4, _mm512_castpd_si512(prod4_ld));
+
 
 #define SUB_BIAS_HI4(bias1, bias2, bias3, bias4) \
     A0 = _mm512_set1_epi64((bias1) * 0x467);         \
@@ -5795,6 +5813,8 @@ void kcombine2_lo(uint64_t* c, uint64_t* z1, uint64_t* s1, __mmask8 sm, int word
     lo4 = _mm512_sub_epi64(lo4, A0); \
     lo5 = _mm512_sub_epi64(lo5, A1); \
     lo6 = _mm512_sub_epi64(lo6, A2);
+#endif
+
 
 //#define DEBUG_VECMUL
 
