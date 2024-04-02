@@ -5615,6 +5615,92 @@ __mmask8 base_abssub_52(uint64_t* a, uint64_t* b, uint64_t* c, __mmask8 sm, int 
     return carry;
 }
 
+__mmask8 base_absaddsub_52(uint64_t* a, uint64_t* b, uint64_t* c, 
+    __mmask8 addmask, __mmask8 abssubmask, int wordsa, int wordsb)
+{
+    // if addmask is set then both a and b are negative so we add them 
+    // and write any carries.
+    // if abssubmask is set then b > a, so we subtract b - a instead of
+    // the normal a - b (if neither mask is set).
+    // calling code should make sure the two masks are mutually exclusive.
+    int i;
+    __m512i avec, bvec, cvec, tmp;
+    __mmask8 scarry = 0, acarry = 0;
+
+    for (i = 0; i < MIN(wordsa, wordsb); i++)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+
+        // swap words in the lanes we are abs-subbing.
+        tmp = avec;
+        tmp = _mm512_mask_mov_epi64(tmp, ~abssubmask, bvec);
+        avec = _mm512_mask_mov_epi64(avec, abssubmask, bvec);
+        bvec = _mm512_mask_mov_epi64(bvec, abssubmask, tmp);
+
+        // sub everything we are not adding.  some of these are swapped
+        // abssubs and some are normal subs.
+        cvec = _mm512_mask_sbb_epi52(avec, ~addmask, scarry, bvec, &scarry);
+
+        // add the indicated lanes then merge them into the output vector.
+        avec = _mm512_mask_adc_epi52(avec, addmask, acarry, bvec, &acarry);
+        cvec = _mm512_mask_mov_epi64(cvec, addmask, avec);
+
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+
+    if (wordsa > wordsb)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_setzero_si512();
+
+        // swap words in the lanes we are abs-subbing.
+        tmp = avec;
+        tmp = _mm512_mask_mov_epi64(tmp, ~abssubmask, bvec);
+        avec = _mm512_mask_mov_epi64(avec, abssubmask, bvec);
+        bvec = _mm512_mask_mov_epi64(bvec, abssubmask, tmp);
+
+        // sub everything we are not adding.  some of these are swapped
+        // abssubs and some are normal subs.
+        cvec = _mm512_mask_sbb_epi52(avec, ~addmask, scarry, bvec, &scarry);
+
+        // add the indicated lanes then merge them into the output vector.
+        avec = _mm512_mask_adc_epi52(avec, addmask, acarry, bvec, &acarry);
+        cvec = _mm512_mask_mov_epi64(cvec, addmask, avec);
+
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+        i++;
+    }
+    else if (wordsb > wordsa)
+    {
+        avec = _mm512_setzero_si512();
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+
+        // swap words in the lanes we are abs-subbing.
+        tmp = avec;
+        tmp = _mm512_mask_mov_epi64(tmp, ~abssubmask, bvec);
+        avec = _mm512_mask_mov_epi64(avec, abssubmask, bvec);
+        bvec = _mm512_mask_mov_epi64(bvec, abssubmask, tmp);
+
+        // sub everything we are not adding.  some of these are swapped
+        // abssubs and some are normal subs.
+        cvec = _mm512_mask_sbb_epi52(avec, ~addmask, scarry, bvec, &scarry);
+
+        // add the indicated lanes then merge them into the output vector.
+        avec = _mm512_mask_adc_epi52(avec, addmask, acarry, bvec, &acarry);
+        cvec = _mm512_mask_mov_epi64(cvec, addmask, avec);
+
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+        i++;
+    }
+
+    // write any final addition carries.
+    _mm512_store_epi64(c + i * VECLEN, _mm512_mask_mov_epi64(
+        _mm512_setzero_si512(), acarry, _mm512_set1_epi64(1)));
+
+    return acarry;
+}
+
 __mmask8 base_add_52(uint64_t* a, uint64_t* b, uint64_t* c, int wordsa, int wordsb)
 {
     int i;
@@ -5643,6 +5729,44 @@ __mmask8 base_add_52(uint64_t* a, uint64_t* b, uint64_t* c, int wordsa, int word
         cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
         _mm512_store_epi64(c + i * VECLEN, cvec);
     }
+
+    return carry;
+}
+
+__mmask8 base_add_52_wc(uint64_t* a, uint64_t* b, uint64_t* c, int wordsa, int wordsb)
+{
+    // add and write the carry.
+    int i;
+    __m512i avec, bvec, cvec;
+    __mmask8 carry = 0;
+
+    for (i = 0; i < MIN(wordsa, wordsb); i++)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+    }
+
+    if (wordsa > wordsb)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN);
+        bvec = _mm512_setzero_si512();
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+        i++;
+    }
+    else if (wordsb > wordsa)
+    {
+        avec = _mm512_setzero_si512();
+        bvec = _mm512_load_epi64(b + i * VECLEN);
+        cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c + i * VECLEN, cvec);
+        i++;
+    }
+
+    _mm512_store_epi64(c + i * VECLEN, _mm512_mask_mov_epi64(
+        _mm512_setzero_si512(), carry, _mm512_set1_epi64(1)));
 
     return carry;
 }
@@ -10652,7 +10776,7 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
 
     w0 = w1 = words / 3;
     w2 = words - w1 - w0;
-    int wmax = MAX(w0, w2);
+    int wmax = MAX(w0, w2) + 1;
     int scratchwords = wmax + 2;
 
     //printf("Splitting phase\n");
@@ -10668,10 +10792,19 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     uint64_t* q1 = scratch + 3 * scratchwords;
     uint64_t* qm1 = scratch + 4 * scratchwords;
     uint64_t* qm2 = scratch + 5 * scratchwords;
+    uint64_t* rtmp = scratch + 6 * scratchwords;
+    uint64_t* r1 = scratch + 8 * scratchwords;
+    uint64_t* rm1 = scratch + 10 * scratchwords;
+    uint64_t* rm2 = scratch + 12 * scratchwords;
+    uint64_t* rinf = scratch + 14 * scratchwords;
     __mmask8 m1;
     __mmask8 m2;
     __mmask8 m3;
     __mmask8 m4;
+    __mmask8 m5;
+    __mmask8 carry;
+
+    memset(scratch, 0, 16 * scratchwords * sizeof(uint64_t));
 
     //printf("Evaluation phase\n");
     //mpz_set(p0, a0);
@@ -10682,12 +10815,12 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     //mpz_add(pm2, pm1, a2);
     //mpz_mul_2exp(pm2, pm2, 1);
     //mpz_sub(pm2, pm2, a0);
-    base_add_52(a0, a2, pm1, w0, w2);
-    base_add_52(p1, pm1, a1, wmax, w1);
+    base_add_52_wc(a0, a2, pm1, w0, w2);
+    base_add_52_wc(p1, pm1, a1, wmax, wmax);
     m1 = vec_gte2_52(a1, pm1, wmax);
     base_abssub_52(pm1, a1, pm1, m1, wmax, w1);
-    base_add_52(pm1, a2, pm2, wmax, w2);
-    base_add_52(pm2, pm2, pm2, wmax, wmax);
+    base_add_52_wc(pm1, a2, pm2, wmax, w2);
+    base_add_52_wc(pm2, pm2, pm2, wmax, wmax);
     m2 = vec_gte2_52(a0, pm2, wmax);
     base_abssub_52(pm2, a0, pm2, m2, wmax, w0);
 
@@ -10699,12 +10832,12 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     //mpz_add(qm2, qm1, b2);
     //mpz_mul_2exp(qm2, qm2, 1);
     //mpz_sub(qm2, qm2, b0);
-    base_add_52(b0, b2, qm1, w0, w2);
-    base_add_52(q1, qm1, b1, wmax, w1);
+    base_add_52_wc(b0, b2, qm1, w0, w2);
+    base_add_52_wc(q1, qm1, b1, wmax, w1);
     m3 = vec_gte2_52(b1, qm1, wmax);
     base_abssub_52(qm1, b1, qm1, m3, wmax, w1);
-    base_add_52(qm1, b2, qm2, wmax, w2);
-    base_add_52(qm2, qm2, qm2, wmax, wmax);
+    base_add_52_wc(qm1, b2, qm2, wmax, w2);
+    base_add_52_wc(qm2, qm2, qm2, wmax, wmax);
     m4 = vec_gte2_52(b0, qm2, wmax);
     base_abssub_52(qm2, b0, qm2, m4, wmax, w0);
 
@@ -10714,22 +10847,67 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     //mpz_mul(rm1, pm1, qm1);
     //mpz_mul(rm2, pm2, qm2);
     //mpz_mul(rinf, pinf, qinf);
+    vectmul(a0, b0, c, scratch, w0);
+    vectmul(p1, q1, r1, scratch, wmax);
+    vectmul(pm1, qm1, rm1, scratch, wmax);
+    vectmul(pm2, qm2, rm2, scratch, wmax);
+    vectmul(a2, b2, c + (2 * w0) * VECLEN, scratch, w2);
 
     //printf("Interpolation phase\n");
     //mpz_set(i0, r0);
     //mpz_set(i4, rinf);
     //mpz_sub(i3, rm2, r1);
+    // rm2 is negative for bits m2 ^ m4.  So for those we add
+    // and the results remains negative.  If rm2 is positive then
+    // we do a normal abssub.  The only positive results are where
+    // r1 !>= rm2 and rm2 is positive.
+    m5 = vec_gte2_52(r1, rm2, 2 * wmax + 2);
+    base_absaddsub_52(rm2, r1, rm2, (m2 ^ m4), 
+       (~(m2 ^ m4)) & m5, 2 * wmax + 2, 2 * wmax + 2);
+    m2 = ~m5;
+    
     //mpz_tdiv_q_ui(i3, i3, 3);
+    // todo.
+
+
     //mpz_sub(i1, r1, rm1);
+    // rm1 is negative for bits m1 ^ m3. So for those we add
+    // and the results are positive.  If rm1 is positive then
+    // we do a normal abssub.
+    m5 = vec_gte2_52(rm1, r1, 2 * wmax + 2);
+    base_absaddsub_52(r1, rm1, rtmp, (m1 ^ m3),
+        (~(m1 ^ m3)) & m5, 2 * wmax + 2, 2 * wmax + 2);
+    m4 = m5;
+    
     //mpz_tdiv_q_2exp(i1, i1, 1);
+    // todo.
+
+    
     //mpz_sub(i2, rm1, r0);
+    // rm1 is negative for bits m1 ^ m3. So for those we add
+    // and the results remains negative.  If rm1 is positive then
+    // we do a normal abssub.  The only positive results are where
+    // r0 !>= rm1 and rm1 is positive.
+    m5 = vec_gte2_52(c, rm1, 2 * w0);       // <-- problem b/c c has 2 * w0 words and has
+                                            // no extra scratch space while rm1 can be larger.
+                                            // need to check if rm1 has more words than 2 * w0
+                                            // and factor that into the determination of >=
+    base_absaddsub_52(rm1, c, rm1, (m1 ^ m3),
+        (~(m1 ^ m3)) & m5, 2 * wmax + 2, 2 * w0);
+    m1 = ~m5;
+    
     //mpz_sub(i3, i2, i3);
+    // i2 is stored in rm1 and its sign is in m1
+    // i3 is stored in rm2 and its sign is in m2
+     
+    
     //mpz_tdiv_q_2exp(i3, i3, 1);
     //mpz_mul_2exp(rinf, rinf, 1);
     //mpz_add(i3, i3, rinf);
     //mpz_add(i2, i2, i1);
     //mpz_sub(i2, i2, i4);
     //mpz_sub(i1, i1, i3);
+
 
     //printf("Recomposition phase\n");
     //mpz_set(out, i0);
