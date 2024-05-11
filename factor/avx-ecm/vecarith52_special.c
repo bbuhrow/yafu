@@ -11269,4 +11269,19 @@ void vectsqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_
     vectmul_redc(a, a, c, n, s, mdata);
     return;
 }
+
+
+
+#else
+
+void veckmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    return;
+}
+
+void vecksqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    return;
+}
+
 #endif
