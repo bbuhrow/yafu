@@ -11219,9 +11219,20 @@ void vecksqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_
         mdata->mtmp3->data + mdata->NWORDS * VECLEN, c->data, mdata->NWORDS);
 
 #ifndef USE_AMM
-    //m |= vec_gte52(c, n);
     c->WORDS_ALLOC = c->size = mdata->NWORDS;
-    //vec_bignum52_mask_sub(c, n, c, m);
+    
+    // Need to handle an overflow (result > R = 2^MAXBITS)
+    // subtract n from result
+    __mmask8 scarry = 0;
+    __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    int i;
+    for (i = 0; i < mdata->NWORDS; i++)
+    {
+        __m512i a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        __m512i b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        __m512i a0 = _mm512_mask_sbb_epi52(a1, m, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
 #endif
     return;
 }
@@ -11238,9 +11249,22 @@ void veckmul_redc(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_
         mdata->mtmp3->data + mdata->NWORDS * VECLEN, c->data, mdata->NWORDS);
     
 #ifndef USE_AMM
-    //m |= vec_gte52(c, n);
+    
     c->WORDS_ALLOC = c->size = mdata->NWORDS;
-    //vec_bignum52_mask_sub(c, n, c, m);
+    
+    // Need to handle an overflow (result > R = 2^MAXBITS)
+    // subtract n from result
+    __mmask8 scarry = 0;
+    __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    int i;
+    for (i = 0; i < mdata->NWORDS; i++)
+    {
+        __m512i a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        __m512i b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        __m512i a0 = _mm512_mask_sbb_epi52(a1, m, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
 #endif
     return;
 }
@@ -11269,7 +11293,6 @@ void vectsqr_redc(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_
     vectmul_redc(a, a, c, n, s, mdata);
     return;
 }
-
 
 
 #else

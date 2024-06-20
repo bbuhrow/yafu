@@ -584,6 +584,21 @@ void reset_factobj(fact_obj_t *fobj)
 	return;
 }
 
+int find_in_factor_list(yfactor_list_t* flist, mpz_t n)
+{
+    int i;
+
+    // look to see if this factor is already in the list
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        if (mpz_cmp(n, flist->factors[i].factor) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES)
 {
 	// stick the number n into the provided factor list.
@@ -651,15 +666,25 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
             flist->factors[fid].type = COMPOSITE;
 		}
 	}
-	else if (is_mpz_prp(n, NUM_WITNESSES))
-	{
-		if (mpz_cmp_ui(n, 100000000) < 0)
-            flist->factors[fid].type = PRIME;
-		else
-            flist->factors[fid].type = PRP;
-	}
-	else
-        flist->factors[fid].type = COMPOSITE;
+    else if (NUM_WITNESSES > 0)
+    {
+
+        if (is_mpz_prp(n, NUM_WITNESSES))
+        {
+            if (mpz_cmp_ui(n, 100000000) < 0)
+                flist->factors[fid].type = PRIME;
+            else
+                flist->factors[fid].type = PRP;
+        }
+        else
+        {
+            flist->factors[fid].type = COMPOSITE;
+        }
+    }
+    else
+    {
+        flist->factors[fid].type = UNKNOWN;
+    }
 
     flist->num_factors++;
 	return fid;
@@ -793,8 +818,6 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
 				for (j=0;j< flist->factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, flist->factors[i].factor);
-					//gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                    //    flist->factors[i].factor);
                     print_factor("P", flist->factors[i].factor, OBASE);
 				}
 			}
@@ -804,8 +827,6 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    //gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                    //    flist->factors[i].factor);
                     print_factor("PRP", flist->factors[i].factor, OBASE);
                 }
             }
@@ -815,8 +836,6 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    //gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                    //    flist->factors[i].factor);
                     print_factor("C", flist->factors[i].factor, OBASE);
                 }
             }
@@ -874,35 +893,40 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
 						}
 					}
 				}
-				else if (is_mpz_prp(flist->factors[i].factor, NUM_WITNESSES))
-				{
-					for (j=0;j< flist->factors[i].count;j++)
-					{
-						mpz_mul(tmp, tmp, flist->factors[i].factor);
-                        if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
+                else if (NUM_WITNESSES > 0)
+                {
+                    if (is_mpz_prp(flist->factors[i].factor, NUM_WITNESSES))
+                    {
+                        for (j = 0; j < flist->factors[i].count; j++)
                         {
-                            //gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                            //   flist->factors[i].factor);
-                            print_factor("P", flist->factors[i].factor, OBASE);
+                            mpz_mul(tmp, tmp, flist->factors[i].factor);
+                            if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
+                            {
+                                print_factor("P", flist->factors[i].factor, OBASE);
+                            }
+                            else
+                            {
+                                print_factor("PRP", flist->factors[i].factor, OBASE);
+                            }
                         }
-                        else
+                    }
+                    else
+                    {
+                        for (j = 0; j < flist->factors[i].count; j++)
                         {
-                            //gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                            //    flist->factors[i].factor);
-                            print_factor("PRP", flist->factors[i].factor, OBASE);
+                            mpz_mul(tmp, tmp, flist->factors[i].factor);
+                            print_factor("C", flist->factors[i].factor, OBASE);
                         }
-					}
-				}
-				else
-				{
-					for (j=0;j< flist->factors[i].count;j++)
-					{
-						mpz_mul(tmp, tmp, flist->factors[i].factor);
-						//gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                        //    flist->factors[i].factor);
-                        print_factor("C", flist->factors[i].factor, OBASE);
-					}
-				}
+                    }
+                }
+                else
+                {
+                    for (j = 0; j < flist->factors[i].count; j++)
+                    {
+                        mpz_mul(tmp, tmp, flist->factors[i].factor);
+                        print_factor("U", flist->factors[i].factor, OBASE);
+                    }
+                }
 			}
 		}
 
@@ -974,42 +998,63 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                         }
 					}
 				}
-				else if (is_mpz_prp(tmp2, NUM_WITNESSES))
-				{
+                else if (NUM_WITNESSES > 0)
+                {
+                    if (is_mpz_prp(tmp2, NUM_WITNESSES))
+                    {
+                        if (OBASE == 8)
+                        {
+                            gmp_printf("\n***co-factor***\nPRP%d = %Zo\n",
+                                mpz_sizeinbase(tmp2, 8), tmp2);
+                        }
+                        else if (OBASE == 10)
+                        {
+                            gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
+                                gmp_base10(tmp2), tmp2);
+                        }
+                        else if (OBASE == 16)
+                        {
+                            gmp_printf("\n***co-factor***\nPRP%d = %Zx\n",
+                                mpz_sizeinbase(tmp2, 16), tmp2);
+                        }
+                    }
+                    else
+                    {
+                        if (OBASE == 8)
+                        {
+                            gmp_printf("\n***co-factor***\nC%d = %Zo\n",
+                                mpz_sizeinbase(tmp2, 8), tmp2);
+                        }
+                        else if (OBASE == 10)
+                        {
+                            gmp_printf("\n***co-factor***\nC%d = %Zd\n",
+                                gmp_base10(tmp2), tmp2);
+                        }
+                        else if (OBASE == 16)
+                        {
+                            gmp_printf("\n***co-factor***\nC%d = %Zx\n",
+                                mpz_sizeinbase(tmp2, 16), tmp2);
+                        }
+                    }
+                }
+                else
+                {
                     if (OBASE == 8)
                     {
-                        gmp_printf("\n***co-factor***\nPRP%d = %Zo\n",
+                        gmp_printf("\n***co-factor***\nU%d = %Zo\n",
                             mpz_sizeinbase(tmp2, 8), tmp2);
                     }
                     else if (OBASE == 10)
                     {
-                        gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
+                        gmp_printf("\n***co-factor***\nU%d = %Zd\n",
                             gmp_base10(tmp2), tmp2);
                     }
                     else if (OBASE == 16)
                     {
-                        gmp_printf("\n***co-factor***\nPRP%d = %Zx\n",
+                        gmp_printf("\n***co-factor***\nU%d = %Zx\n",
                             mpz_sizeinbase(tmp2, 16), tmp2);
                     }
-				}
-				else
-				{
-                    if (OBASE == 8)
-                    {
-                        gmp_printf("\n***co-factor***\nC%d = %Zo\n",
-                            mpz_sizeinbase(tmp2, 8), tmp2);
-                    }
-                    else if (OBASE == 10)
-                    {
-                        gmp_printf("\n***co-factor***\nC%d = %Zd\n",
-                            gmp_base10(tmp2), tmp2);
-                    }
-                    else if (OBASE == 16)
-                    {
-                        gmp_printf("\n***co-factor***\nC%d = %Zx\n",
-                            mpz_sizeinbase(tmp2, 16), tmp2);
-                    }
-				}
+                }
 			}			
 		}
 		mpz_clear(tmp);

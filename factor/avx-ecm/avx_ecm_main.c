@@ -45,6 +45,7 @@ either expressed or implied, of the FreeBSD Project.
 
 static int debugctr = 0;
 void thread_init(thread_data_t* tdata, vec_monty_t* mdata, uint64_t B1, uint64_t B2);
+void test_vecarith(int numbits, int iterations);
 
 void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, int sz)
 {
@@ -149,6 +150,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	double t_time;
 
 	gettimeofday(&startt, NULL);
+
+    
 
     if (pid <= 0)
     {
@@ -694,6 +697,23 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
 	gettimeofday(&stopt, NULL);
 
+    if (0)
+    {
+        gettimeofday(&startt, NULL);
+
+        size_n = mpz_sizeinbase(fobj->N, 2);
+
+        test_vecarith(nwords * DIGITBITS, numcurves);
+
+        gettimeofday(&stopt, NULL);
+
+        t_time = ytools_difftime(&startt, &stopt);
+
+        printf("Test took %1.4f seconds.\n", t_time);
+
+        exit(0);
+    }
+
     uint32_t seed1, seed2;
     get_random_seeds(&seed1, &seed2);
     for (i = 0; i < threads; i++)
@@ -1149,3 +1169,149 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
 
     return;
 }
+
+
+void test_vecarith(int numbits, int iterations)
+{
+    int numwords = numbits / 52 + (((numbits % 52) > 0) ? 1 : 0);
+    vec_monty_t* mdata;
+    mpz_t n, p, r, a, e;
+    int i, j, numsuccess = 0;
+    gmp_randstate_t state;
+    vec_bignum_t* vec_a;
+    vec_bignum_t* vec_p;
+    vec_bignum_t* vec_n;
+    vec_bignum_t* vec_e;
+    vec_bignum_t* vec_s;
+    vec_bignum_t* vec_b;
+    vec_bignum_t* vec_one;
+    vec_bignum_t* vec_am;
+
+    printf("commencing test with %d bits (%d words)\n", numbits, numwords);
+    mdata = vec_monty_alloc(numwords);
+
+    mdata->MAXBITS = numbits;
+    mdata->NBLOCKS = numwords / BLOCKWORDS;
+    mdata->NWORDS = numwords;
+
+    mpz_init(n);
+    mpz_init(r);
+    mpz_init(a);
+    mpz_init(e);
+    mpz_init(p);
+    vec_n = vecInit(numwords);
+    vec_p = vecInit(numwords);
+    vec_a = vecInit(numwords);
+    vec_e = vecInit(numwords);
+    vec_s = vecInit(numwords);
+    vec_b = vecInit(numwords);
+    vec_am = vecInit(numwords);
+    vec_one = vecInit(numwords);
+    gmp_randinit_default(state);
+
+    vecClear(vec_one);
+    for (j = 0; j < 8; j++)
+    {
+        vec_one->data[j] = 1;
+    }
+
+    for (i = 0; i < iterations; i++)
+    {
+        // get a random odd modulus
+        mpz_urandomb(n, state, numbits);
+        if (mpz_even_p(n))
+        {
+            mpz_add_ui(n, n, 1);
+        }
+
+        //gmp_printf("n = %Zd\n", n);
+        broadcast_mpz_to_vec(vec_n, n);
+
+        // get a random exponent
+        mpz_urandomb(e, state, numbits);
+        broadcast_mpz_to_vec(vec_e, e);
+
+        printf("test %d of %d\r", i, iterations);
+
+        // initialize monty arithmetic
+        mdata->isMersenne = 0;
+        mdata->nbits = mpz_sizeinbase(n, 2);
+        mdata->use_vnbits = 0;             // all lanes use the same N.
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, numwords * DIGITBITS);
+        mpz_invert(mdata->nhat, n, r);
+        mpz_sub(mdata->nhat, r, mdata->nhat);
+        //mpz_invert(mdata->rhat, r, n);
+        mpz_mul(mdata->rhat, r, r);
+        mpz_tdiv_r(mdata->rhat, mdata->rhat, n);
+        broadcast_mpz_to_vec(mdata->n, n);
+        broadcast_mpz_to_vec(mdata->r, r);
+        broadcast_mpz_to_vec(mdata->vrhat, mdata->rhat);
+        broadcast_mpz_to_vec(mdata->vnhat, mdata->nhat);
+        mpz_tdiv_r(r, r, n);
+        broadcast_mpz_to_vec(mdata->one, r);
+
+        for (j = 0; j < 8; j++)
+        {
+            mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
+        }
+
+        // get 8 random numbers and load them into a vector
+        for (j = 0; j < 8; j++)
+        {
+            mpz_urandomb(a, state, numbits);
+            insert_mpz_to_vec(vec_a, a, j);
+        }
+
+        // back up input base
+        vecCopy(vec_a, vec_b);
+
+        // monty rep
+        vecmulmod_ptr(vec_a, mdata->vrhat, vec_am, vec_n, vec_s, mdata);        
+
+        // vec powm: tests mul and sqr
+        vecslidingmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
+        //vecmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
+
+        // un-monty rep
+        vecmulmod_ptr(vec_p, vec_one, vec_a, vec_n, vec_s, mdata);              
+
+        // compute reference powm and compare
+        for (j = 0; j < 8; j++)
+        {
+            extract_bignum_from_vec_to_mpz(a, vec_b, j, numwords);
+            mpz_powm(p, a, e, n);
+            extract_bignum_from_vec_to_mpz(a, vec_a, j, numwords);
+            if (mpz_cmp(p, a) == 0)
+            {
+                numsuccess++;
+            }
+            else
+            {
+                extract_bignum_from_vec_to_mpz(a, vec_b, j, numwords);
+                gmp_printf("test failed in lane %d!\na = %Zd\ne = %Zd\nn = %Zd\n", j, a, e, n);
+                extract_bignum_from_vec_to_mpz(a, vec_a, j, numwords);
+                gmp_printf("gmp = %Zd\nvec = %Zd\n", p, a);
+            }
+        }
+    }
+
+    printf("successes: %d of %d\n", numsuccess, iterations * VECLEN);
+
+    mpz_clear(n);
+    mpz_clear(r);
+    mpz_clear(a);
+    mpz_clear(e);
+    mpz_clear(p);
+    vecFree(vec_n);
+    vecFree(vec_p);
+    vecFree(vec_a);
+    vecFree(vec_e);
+    vecFree(vec_s);
+    vecFree(vec_b);
+    vec_monty_free(mdata);
+
+    return;
+}
+
+

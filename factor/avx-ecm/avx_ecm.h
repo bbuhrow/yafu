@@ -1077,6 +1077,12 @@ void vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
 void vec_bignum52_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
 void vec_bignum52_mask_rshift_n(vec_bignum_t* u, vec_bignum_t* v, int n, uint32_t wmask);
 void vec_bignum52_mask_rshift_vn(vec_bignum_t* u, vec_bignum_t* v, int* n, uint32_t wmask);
+int get_winsize(int bits);
+int get_bitwin(vec_bignum_t* e, int bitloc, int winsize, int lane, int winmask);
+void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
+    vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata);
+void vecmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
+    vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata);
 
 #ifdef USE_AVX512F
 void vecmul52_1(vec_bignum_t* a, __m512i b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);

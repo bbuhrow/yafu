@@ -349,29 +349,6 @@ unsigned int compute_s(mpz_t s, uint64_t * primes, uint64_t nump, uint64_t B1)
     return it;
 }
 
-int get_winsize(uint32_t bits)
-{
-    // the window size is based on minimizing the total number of multiplications
-    // in the windowed exponentiation.  experiments show that this is best;
-    // the growing size of the table doesn't change the calculus, at least
-    // on the KNL.
-    int size;
-    int muls;
-    int minmuls = 99999999;
-    int minsize = 4;
-
-    for (size = 2; size <= MAX_WINSIZE; size++)
-    {
-        muls = (bits / size) + (1 << size);
-        if (muls < minmuls)
-        {
-            minmuls = muls;
-            minsize = size;
-        }
-    }
-
-    return minsize;
-}
 
 void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
     vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata)
@@ -448,7 +425,7 @@ void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m
         }
     }
 
-    printf("pm1: modexp performed %d muls and %d sqrs\n", nmul, nsqr);
+    //printf("modexp performed %d muls and %d sqrs\n", nmul, nsqr);
 
     return;
 }
@@ -489,35 +466,38 @@ void vecmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
     vecCopy(b, g[1]);
     vecsqrmod_ptr(g[1], g[2], m, s, mdata);
     vecsqrmod_ptr(g[2], g[4], m, s, mdata);
-    vecmulmod_ptr(g[2], b, g[3], m, s, mdata);
+    vecmulmod_ptr(g[2], g[1], g[3], m, s, mdata);
     vecsqrmod_ptr(g[3], g[6], m, s, mdata);
-    vecmulmod_ptr(g[6], b, g[7], m, s, mdata);
+    vecmulmod_ptr(g[6], g[1], g[7], m, s, mdata);
     vecsqrmod_ptr(g[6], g[12], m, s, mdata);
-    vecmulmod_ptr(g[4], b, g[5], m, s, mdata);
+    vecmulmod_ptr(g[4], g[1], g[5], m, s, mdata);
     vecsqrmod_ptr(g[4], g[8], m, s, mdata);
     vecsqrmod_ptr(g[5], g[10], m, s, mdata);
     vecsqrmod_ptr(g[7], g[14], m, s, mdata);
-    vecmulmod_ptr(g[8], b, g[9], m, s, mdata);
-    vecmulmod_ptr(g[10], b, g[11], m, s, mdata);
-    vecmulmod_ptr(g[12], b, g[13], m, s, mdata);
-    vecmulmod_ptr(g[14], b, g[15], m, s, mdata);
+    vecmulmod_ptr(g[8], g[1], g[9], m, s, mdata);
+    vecmulmod_ptr(g[10], g[1], g[11], m, s, mdata);
+    vecmulmod_ptr(g[12], g[1], g[13], m, s, mdata);
+    vecmulmod_ptr(g[14], g[1], g[15], m, s, mdata);
 
-#ifdef DEBUGLANE
+#if 0 //def DEBUGLANE
+    int DEBUGLANE = 0;
 
-    print_vechex(g[2]->data, DEBUGLANE, NWORDS, "g[2]: ");
-    print_vechex(g[4]->data, DEBUGLANE, NWORDS, "g[4]: ");
-    print_vechex(g[3]->data, DEBUGLANE, NWORDS, "g[3]: ");
-    print_vechex(g[6]->data, DEBUGLANE, NWORDS, "g[6]: ");
-    print_vechex(g[7]->data, DEBUGLANE, NWORDS, "g[7]: ");
-    print_vechex(g[12]->data, DEBUGLANE, NWORDS, "g[12]: ");
-    print_vechex(g[5]->data, DEBUGLANE, NWORDS, "g[5]: ");
-    print_vechex(g[8]->data, DEBUGLANE, NWORDS, "g[8]: ");
-    print_vechex(g[10]->data, DEBUGLANE, NWORDS, "g[10]: ");
-    print_vechex(g[14]->data, DEBUGLANE, NWORDS, "g[14]: ");
-    print_vechex(g[9]->data, DEBUGLANE, NWORDS, "g[9]: ");
-    print_vechex(g[11]->data, DEBUGLANE, NWORDS, "g[11]: ");
-    print_vechex(g[13]->data, DEBUGLANE, NWORDS, "g[13]: ");
-    print_vechex(g[15]->data, DEBUGLANE, NWORDS, "g[15]: ");
+    print_vechex(m->data, DEBUGLANE, mdata->NWORDS, "n: ");
+    print_vechex(g[1]->data, DEBUGLANE, mdata->NWORDS, "g[1]: ");
+    print_vechex(g[2]->data, DEBUGLANE, mdata->NWORDS, "g[2]: ");
+    print_vechex(g[4]->data, DEBUGLANE, mdata->NWORDS, "g[4]: ");
+    print_vechex(g[3]->data, DEBUGLANE, mdata->NWORDS, "g[3]: ");
+    print_vechex(g[6]->data, DEBUGLANE, mdata->NWORDS, "g[6]: ");
+    print_vechex(g[7]->data, DEBUGLANE, mdata->NWORDS, "g[7]: ");
+    print_vechex(g[12]->data, DEBUGLANE, mdata->NWORDS, "g[12]: ");
+    print_vechex(g[5]->data, DEBUGLANE, mdata->NWORDS, "g[5]: ");
+    print_vechex(g[8]->data, DEBUGLANE, mdata->NWORDS, "g[8]: ");
+    print_vechex(g[10]->data, DEBUGLANE, mdata->NWORDS, "g[10]: ");
+    print_vechex(g[14]->data, DEBUGLANE, mdata->NWORDS, "g[14]: ");
+    print_vechex(g[9]->data, DEBUGLANE, mdata->NWORDS, "g[9]: ");
+    print_vechex(g[11]->data, DEBUGLANE, mdata->NWORDS, "g[11]: ");
+    print_vechex(g[13]->data, DEBUGLANE, mdata->NWORDS, "g[13]: ");
+    print_vechex(g[15]->data, DEBUGLANE, mdata->NWORDS, "g[15]: ");
 
 #endif
 
@@ -546,6 +526,12 @@ void vecmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
         }
     }
 
+    //for (i = 2; i < (1 << k); i++)
+    //{
+    //    uint32_t msk = vec_gte52(g[i], m);
+    //    vec_bignum52_mask_sub(g[i], m, g[i], msk);
+    //}
+    
     //printf("init performed %d sqrs and %d muls for window size %d\n", nsqr, nmul, k);
 
     vecCopyn(one, d, mdata->NWORDS);
@@ -583,13 +569,23 @@ void vecmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
         if (bstr > 0)
         {
             nmul++;
+            //printf("g[%d]: ", bstr);
+            //
+            //for (i = mdata->NWORDS - 1; i >= 0; i--)
+            //{
+            //    printf("%013"PRIx64"", g[bstr]->data[0 + i * VECLEN]);
+            //}
+            //printf("\n");
+
             vecmulmod_ptr(d, g[bstr], d, m, s, mdata);
         }
+
+        //print_vechex(d->data, 0, mdata->NWORDS, "d: ");
 
         bit -= k;
     }
 
-    printf("pm1: modexp performed %d muls and %d sqrs\n", nmul, nsqr);
+    //printf("modexp performed %d muls and %d sqrs\n", nmul, nsqr);
     return;
 }
 

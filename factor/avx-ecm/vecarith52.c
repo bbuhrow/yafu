@@ -1259,6 +1259,52 @@ void vecmulmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t*
     }
     _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
+#ifdef USE_AMM
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+#else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
+
+    // subtract n from tmp
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(s->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_sbb_epi52(a1, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+    // negate any final borrows if there was also a final carry.
+    scarry &= scarry2;
+
+    // if there was a final borrow, we didn't need to do the subtraction after all.
+    // replace with original results based on final borrow mask.
+    for (i = NWORDS - 1; i >= 0; i--)
+    {
+        b0 = _mm512_load_epi64(s->data + i * VECLEN);
+        _mm512_mask_store_epi64(c->data + i * VECLEN, scarry, b0);
+    }
+
+#endif
+
+
     c->size = NWORDS;
     return;
 }
@@ -2097,6 +2143,51 @@ void vecmulmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
 
     _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
+
+#ifdef USE_AMM
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+#else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
+
+    // subtract n from tmp
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(s->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_sbb_epi52(a1, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+    // negate any final borrows if there was also a final carry.
+    scarry &= scarry2;
+
+    // if there was a final borrow, we didn't need to do the subtraction after all.
+    // replace with original results based on final borrow mask.
+    for (i = NWORDS - 1; i >= 0; i--)
+    {
+        b0 = _mm512_load_epi64(s->data + i * VECLEN);
+        _mm512_mask_store_epi64(c->data + i * VECLEN, scarry, b0);
+    }
+
+#endif
     c->size = NWORDS;
     return;
 }
@@ -2657,6 +2748,52 @@ void vecmulmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
 
     _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
+
+#ifdef USE_AMM
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+#else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
+
+    // subtract n from tmp
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(s->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_sbb_epi52(a1, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+    // negate any final borrows if there was also a final carry.
+    scarry &= scarry2;
+
+    // if there was a final borrow, we didn't need to do the subtraction after all.
+    // replace with original results based on final borrow mask.
+    for (i = NWORDS - 1; i >= 0; i--)
+    {
+        b0 = _mm512_load_epi64(s->data + i * VECLEN);
+        _mm512_mask_store_epi64(c->data + i * VECLEN, scarry, b0);
+    }
+
+#endif
+
     c->size = NWORDS;
     return;
 }
@@ -3015,6 +3152,21 @@ void vecmulmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
     _mm512_store_epi64(c->data + 6 * VECLEN, c06);
     _mm512_store_epi64(c->data + 7 * VECLEN, c07);
     _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
 #else
 
     __m512i cvec;
@@ -7038,12 +7190,33 @@ void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t
     }
 
 
+
 #ifdef USE_AMM
 
     if ((a == c) || (b == c))
         vecCopy(s, c);
 
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
 #else
+
+    if ((a == c) || (b == c))
+        vecCopy(s, c);
+
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
     a0 = acc_e0;
     scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
 
@@ -8477,6 +8650,51 @@ void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t*
 
     }
     c->size = NWORDS;
+
+#ifdef USE_AMM
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+#else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
+
+    // subtract n from tmp
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(s->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_sbb_epi52(a1, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+    // negate any final borrows if there was also a final carry.
+    scarry &= scarry2;
+
+    // if there was a final borrow, we didn't need to do the subtraction after all.
+    // replace with original results based on final borrow mask.
+    for (i = NWORDS - 1; i >= 0; i--)
+    {
+        b0 = _mm512_load_epi64(s->data + i * VECLEN);
+        _mm512_mask_store_epi64(c->data + i * VECLEN, scarry, b0);
+    }
+
+#endif
     return;
 }
 
@@ -9650,6 +9868,51 @@ void vecsqrmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     //}
     //printf("\n");
 
+#ifdef USE_AMM
+
+// Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+#else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
+
+    // subtract n from tmp
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(s->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_sbb_epi52(a1, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+    // negate any final borrows if there was also a final carry.
+    scarry &= scarry2;
+
+    // if there was a final borrow, we didn't need to do the subtraction after all.
+    // replace with original results based on final borrow mask.
+    for (i = NWORDS - 1; i >= 0; i--)
+    {
+        b0 = _mm512_load_epi64(s->data + i * VECLEN);
+        _mm512_mask_store_epi64(c->data + i * VECLEN, scarry, b0);
+    }
+
+#endif
+
     c->size = NWORDS;
     return;
 }
@@ -10347,6 +10610,50 @@ void vecsqrmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
 
     }
 
+#ifdef USE_AMM
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+#else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
+
+    // subtract n from tmp
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(s->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_sbb_epi52(a1, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+    // negate any final borrows if there was also a final carry.
+    scarry &= scarry2;
+
+    // if there was a final borrow, we didn't need to do the subtraction after all.
+    // replace with original results based on final borrow mask.
+    for (i = NWORDS - 1; i >= 0; i--)
+    {
+        b0 = _mm512_load_epi64(s->data + i * VECLEN);
+        _mm512_mask_store_epi64(c->data + i * VECLEN, scarry, b0);
+    }
+
+#endif
     c->size = NWORDS;
     return;
 }
@@ -10918,6 +11225,21 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     _mm512_store_epi64(c->data + 6 * VECLEN, c06);
     _mm512_store_epi64(c->data + 7 * VECLEN, c07);
     _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
+
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
 #else
 
     __m512i cvec;
@@ -12421,7 +12743,24 @@ void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t
     if (a == c)
         vecCopy(s, c);
 
+    // Need to check for an overflow (result > R = 2^MAXBITS)
+    a0 = acc_e0;
+    scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
+
+    // subtract n from result
+    scarry = 0;
+    for (i = 0; i < NWORDS; i++)
+    {
+        a1 = _mm512_load_epi64(c->data + i * VECLEN);
+        b0 = _mm512_load_epi64(n->data + i * VECLEN);
+        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+    }
+
+
 #else
+    // Need to check for an overflow (result > R = 2^MAXBITS) and
+    // need to check if result > modulus
     a0 = acc_e0;
     scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
 
@@ -13075,6 +13414,150 @@ void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b,
 
 
 
+
+void vecmodexp52(vec_bignum_t* d, vec_bignum_t* b, vec_bignum_t* e, vec_bignum_t* m,
+    vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata)
+{
+    // d = b^e mod m
+    // all b and e vector elements can be different.
+    // all m elements can be different
+    // proceed in a left to right fashion.
+    uint32_t NWORDS = mdata->NWORDS;
+    int i, bit = NWORDS * DIGITBITS - 1;
+    int j;
+    // the bit string length.  needs to divide the word size (e.g., 32);
+    int k = get_winsize(NWORDS * DIGITBITS);
+    int mask;
+    int nsqr, nmul;
+    int bstr[VECLEN];
+    uint8_t done[256];
+
+    vec_bignum_t* t = mdata->mtmp3;
+    vec_bignum_t** g = mdata->g;
+    vec_bignum_t* w = mdata->mtmp4;
+
+    mask = 0;
+    for (j = 0; j < k; j++)
+    {
+        mask = (mask << 1) | 1;
+    }
+
+    for (j = 16; j < (1 << k); j++)
+    {
+        done[j] = 0;
+    }
+
+    // precomputation.  smallest window is 4 bits, so these
+    // computations can be pulled out of the loop
+    vecCopy(b, g[1]);
+    vecsqrmod_ptr(g[1], g[2], m, s, mdata);
+    vecsqrmod_ptr(g[2], g[4], m, s, mdata);
+    vecmulmod_ptr(g[2], b, g[3], m, s, mdata);
+    vecsqrmod_ptr(g[3], g[6], m, s, mdata);
+    vecmulmod_ptr(g[6], b, g[7], m, s, mdata);
+    vecsqrmod_ptr(g[6], g[12], m, s, mdata);
+    vecmulmod_ptr(g[4], b, g[5], m, s, mdata);
+    vecsqrmod_ptr(g[4], g[8], m, s, mdata);
+    vecsqrmod_ptr(g[5], g[10], m, s, mdata);
+    vecsqrmod_ptr(g[7], g[14], m, s, mdata);
+    vecmulmod_ptr(g[8], b, g[9], m, s, mdata);
+    vecmulmod_ptr(g[10], b, g[11], m, s, mdata);
+    vecmulmod_ptr(g[12], b, g[13], m, s, mdata);
+    vecmulmod_ptr(g[14], b, g[15], m, s, mdata);
+
+#ifdef DEBUGLANE
+
+    print_vechex(g[2]->data, DEBUGLANE, NWORDS, "g[2]: ");
+    print_vechex(g[4]->data, DEBUGLANE, NWORDS, "g[4]: ");
+    print_vechex(g[3]->data, DEBUGLANE, NWORDS, "g[3]: ");
+    print_vechex(g[6]->data, DEBUGLANE, NWORDS, "g[6]: ");
+    print_vechex(g[7]->data, DEBUGLANE, NWORDS, "g[7]: ");
+    print_vechex(g[12]->data, DEBUGLANE, NWORDS, "g[12]: ");
+    print_vechex(g[5]->data, DEBUGLANE, NWORDS, "g[5]: ");
+    print_vechex(g[8]->data, DEBUGLANE, NWORDS, "g[8]: ");
+    print_vechex(g[10]->data, DEBUGLANE, NWORDS, "g[10]: ");
+    print_vechex(g[14]->data, DEBUGLANE, NWORDS, "g[14]: ");
+    print_vechex(g[9]->data, DEBUGLANE, NWORDS, "g[9]: ");
+    print_vechex(g[11]->data, DEBUGLANE, NWORDS, "g[11]: ");
+    print_vechex(g[13]->data, DEBUGLANE, NWORDS, "g[13]: ");
+    print_vechex(g[15]->data, DEBUGLANE, NWORDS, "g[15]: ");
+
+#endif
+
+    //nsqr = 7;
+    //nmul = 7;
+
+    for (i = 16; i < (1 << k); i++)
+    {
+        int q = i;
+
+        if (done[i])
+            continue;
+
+        vecmulmod_ptr(g[i - 1], b, g[i], m, s, mdata);
+        //nmul++;
+
+        while ((q * 2) < (1 << k))
+        {
+            if (!done[2 * q])
+            {
+                vecsqrmod_ptr(g[q], g[2 * q], m, s, mdata);
+                //nsqr++;
+                done[2 * q] = 1;
+            }
+            q *= 2;
+        }
+    }
+
+    //printf("init performed %d sqrs and %d muls\n", nsqr, nmul);
+
+    vecCopyn(one, d, NWORDS);
+
+    while (bit >= 0)
+    {
+        if (bit < k)
+        {
+            mask = 0x0;
+            for (j = 0; j < (bit + 1); j++)
+            {
+                vecsqrmod_ptr(d, d, m, s, mdata);
+                mask = (mask << 1) | 1;
+            }
+
+            for (j = 0; j < VECLEN; j++)
+            {
+                bstr[j] = (e->data[j + 0 * VECLEN]) & mask;
+            }
+        }
+        else
+        {
+            for (j = 0; j < VECLEN; j++)
+            {
+                bstr[j] = get_bitwin(e, bit, k, j, mask);
+            }
+
+            if (bit < (DIGITBITS * NWORDS - 1))
+            {
+                for (j = 0; j < k; j++)
+                {
+                    vecsqrmod_ptr(d, d, m, s, mdata);
+                }
+            }
+        }
+
+        for (j = 0; j < VECLEN; j++)
+        {
+            copy_vec_lane(g[bstr[j]], w, j, NWORDS);
+        }
+
+        vecmulmod_ptr(d, w, d, m, s, mdata);
+
+        bit -= k;
+    }
+
+    return;
+}
+
 #else
 
 void vecsqrmod52(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
@@ -13172,5 +13655,13 @@ void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t
 {
     return;
 }
+
+void vecmodexp52(vec_bignum_t* d, vec_bignum_t* b, vec_bignum_t* e, vec_bignum_t* m,
+    vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata)
+{
+
+    return;
+}
+
 
 #endif
