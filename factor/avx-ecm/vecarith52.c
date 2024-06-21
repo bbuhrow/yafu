@@ -1257,23 +1257,27 @@ void vecmulmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t*
 
         }
     }
-    _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
-
+    
 #ifdef USE_AMM
 
     // Need to check for an overflow (result > R = 2^MAXBITS)
     a0 = acc_e0;
     scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_GT);
 
-    // subtract n from result
-    scarry = 0;
-    for (i = 0; i < NWORDS; i++)
+    if (scarry2)
     {
-        a1 = _mm512_load_epi64(c->data + i * VECLEN);
-        b0 = _mm512_load_epi64(n->data + i * VECLEN);
-        a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
-        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+        printf("mul > R, reducing\n");
+        // subtract n from result
+        scarry = 0;
+        for (i = 0; i < NWORDS; i++)
+        {
+            a1 = _mm512_load_epi64(c->data + i * VECLEN);
+            b0 = _mm512_load_epi64(n->data + i * VECLEN);
+            a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
+            _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
+        }
     }
+    //_mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
 #else
     // Need to check for an overflow (result > R = 2^MAXBITS) and
@@ -2141,7 +2145,7 @@ void vecmulmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
         }
     }
 
-    _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
+    //_mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
 
 #ifdef USE_AMM
@@ -2746,7 +2750,7 @@ void vecmulmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
         }
     }
 
-    _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
+    //_mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
 
 #ifdef USE_AMM
@@ -7286,6 +7290,9 @@ void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t
 
 void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
+    vecmulmod52_fixed1040_bfips(a, a, c, n, s, mdata);
+    return;
+
     // 8x sqr:
     // input 8 bignums in the even lanes of a.
     // output 8 squaremod bignums in the even lanes of c.
@@ -8649,7 +8656,6 @@ void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t*
         _mm512_store_epi64(c->data + (i * BLOCKWORDS + 3) * VECLEN, a0);
 
     }
-    c->size = NWORDS;
 
 #ifdef USE_AMM
 
@@ -8666,6 +8672,8 @@ void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t*
         a0 = _mm512_mask_sbb_epi52(a1, scarry2, scarry, b0, &scarry);
         _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(vlmask, a0));
     }
+
+    //_mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
 
 #else
     // Need to check for an overflow (result > R = 2^MAXBITS) and
@@ -8695,6 +8703,8 @@ void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t*
     }
 
 #endif
+
+    c->size = NWORDS;
     return;
 }
 

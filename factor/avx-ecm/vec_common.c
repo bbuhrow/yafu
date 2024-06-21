@@ -172,7 +172,6 @@ void vec_monty_free(vec_monty_t *mdata)
     return;
 }
 
-
 int get_winsize(int bits)
 {
     // the window size is based on minimizing the total number of multiplications

@@ -45,7 +45,145 @@ either expressed or implied, of the FreeBSD Project.
 
 static int debugctr = 0;
 void thread_init(thread_data_t* tdata, vec_monty_t* mdata, uint64_t B1, uint64_t B2);
-void test_vecarith(int numbits, int iterations);
+void test_vecarith(int numbits, int iterations, int validate);
+
+void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
+{
+    if (DIGITBITS == 52)
+    {
+        if (montyconst->isMersenne > 1)
+        {
+            vecmulmod_ptr = &vecmulmod52_mersenne;
+            vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            vecaddmod_ptr = &vecaddmod52_mersenne;
+            vecsubmod_ptr = &vecsubmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+            if (verbose > 1)
+            {
+                printf("Using special pseudo-Mersenne mod for factor of: 2^%d-%d\n",
+                    montyconst->nbits, montyconst->isMersenne);
+            }
+        }
+        else if (montyconst->isMersenne > 0)
+        {
+            // initial tests show the crossover to karatsuba is at
+            // around 7k bits, but there are issues still with finding
+            // factors.
+            vecmulmod_ptr = &vecmulmod52_mersenne;
+            vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            //vecmulmod_ptr = &veckmul_mersenne;
+            //vecsqrmod_ptr = &vecksqr_mersenne;
+            vecaddmod_ptr = &vecaddmod52_mersenne;
+            vecsubmod_ptr = &vecsubmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+            if (verbose > 1)
+            {
+                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+            }
+        }
+        else if (montyconst->isMersenne < 0)
+        {
+            vecmulmod_ptr = &vecmulmod52_mersenne;
+            vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            vecaddmod_ptr = &vecaddmod52_mersenne;
+            vecsubmod_ptr = &vecsubmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+            if (verbose > 1)
+            {
+                printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
+            }
+        }
+        else
+        {
+            if (maxbits == 416)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed416_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed416_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                if (verbose > 1)
+                {
+                    printf("Using 416-bit mul/sqr core\n");
+                }
+            }
+            else if (maxbits == 624)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed624_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed624_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                if (verbose > 1)
+                {
+                    printf("Using 624-bit mul/sqr core\n");
+                }
+            }
+            else if (maxbits == 832)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed832_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed832_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                if (verbose > 1)
+                {
+                    printf("Using 832-bit mul/sqr core\n");
+                }
+            }
+            else if (maxbits == 1040)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed1040_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed1040_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                if (verbose > 1)
+                {
+                    printf("Using 1040-bit mul/sqr core\n");
+                }
+            }
+            else if (maxbits > 16400)
+            {
+                // faster starting around 16000 bits on Xeon 6254
+                vecmulmod_ptr = &veckmul_redc;
+                vecsqrmod_ptr = &vecksqr_redc;
+                vecaddsubmod_ptr = &vec_simul_addsub52;
+                if (verbose > 1)
+                {
+                    printf("Using karatsuba mul/sqr core\n");
+                }
+            }
+            else
+            {
+                vecmulmod_ptr = &vecmulmod52;
+                vecsqrmod_ptr = &vecsqrmod52;
+                vecaddsubmod_ptr = &vec_simul_addsub52;
+                if (verbose > 1)
+                {
+                    printf("Using BFIPS base-52 mul/sqr core\n");
+                }
+            }
+            vecaddmod_ptr = &vecaddmod52;
+            vecsubmod_ptr = &vecsubmod52;
+        }
+    }
+    else
+    {
+        if (montyconst->isMersenne)
+        {
+            vecmulmod_ptr = &vecmulmod_mersenne;
+            vecsqrmod_ptr = &vecsqrmod_mersenne;
+            vecaddmod_ptr = &vecaddmod_mersenne;
+            vecsubmod_ptr = &vecsubmod_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub_mersenne;
+            if (verbose > 1)
+            {
+                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+            }
+        }
+        else
+        {
+            vecmulmod_ptr = &vecmulmod;
+            vecsqrmod_ptr = &vecsqrmod;
+            vecaddmod_ptr = &vecaddmod;
+            vecsubmod_ptr = &vecsubmod;
+            vecaddsubmod_ptr = &vec_simul_addsub;
+        }
+    }
+}
 
 void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, int sz)
 {
@@ -557,159 +695,59 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         exit(1);
     }
 
-
-
-    
-    if (DIGITBITS == 52)
-    {
-        if (montyconst->isMersenne > 1)
-        {
-            vecmulmod_ptr = &vecmulmod52_mersenne;
-            vecsqrmod_ptr = &vecsqrmod52_mersenne;
-            vecaddmod_ptr = &vecaddmod52_mersenne;
-            vecsubmod_ptr = &vecsubmod52_mersenne;
-            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            if (verbose > 1)
-            {
-                printf("Using special pseudo-Mersenne mod for factor of: 2^%d-%d\n",
-                    montyconst->nbits, montyconst->isMersenne);
-            }
-        }
-		else if (montyconst->isMersenne > 0)
-        {
-            // initial tests show the crossover to karatsuba is at
-            // around 7k bits, but there are issues still with finding
-            // factors.
-            vecmulmod_ptr = &vecmulmod52_mersenne;
-            vecsqrmod_ptr = &vecsqrmod52_mersenne;
-            //vecmulmod_ptr = &veckmul_mersenne;
-            //vecsqrmod_ptr = &vecksqr_mersenne;
-            vecaddmod_ptr = &vecaddmod52_mersenne;
-            vecsubmod_ptr = &vecsubmod52_mersenne;
-            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            if (verbose > 1)
-            {
-                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
-            }
-        }
-        else if (montyconst->isMersenne < 0)
-        {
-            vecmulmod_ptr = &vecmulmod52_mersenne;
-            vecsqrmod_ptr = &vecsqrmod52_mersenne;
-            vecaddmod_ptr = &vecaddmod52_mersenne;
-            vecsubmod_ptr = &vecsubmod52_mersenne;
-            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            if (verbose > 1)
-            {
-                printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
-            }
-        }
-        else
-        {
-            if (tdata[0].MAXBITS == 416)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed416_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed416_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 416-bit mul/sqr core\n");
-                }
-            }
-            else if (tdata[0].MAXBITS == 624)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed624_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed624_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 624-bit mul/sqr core\n");
-                }
-            }
-            else if (tdata[0].MAXBITS == 832)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed832_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed832_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 832-bit mul/sqr core\n");
-                }
-            }
-            else if (tdata[0].MAXBITS == 1040)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed1040_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed1040_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 1040-bit mul/sqr core\n");
-                }
-            }
-            else if (tdata[0].MAXBITS > 16400)
-            {
-                // faster starting around 16000 bits on Xeon 6254
-                vecmulmod_ptr = &veckmul_redc;
-                vecsqrmod_ptr = &vecksqr_redc;
-                vecaddsubmod_ptr = &vec_simul_addsub52;
-                if (verbose > 1)
-                {
-                    printf("Using karatsuba mul/sqr core\n");
-                }
-            }
-            else
-            {
-                vecmulmod_ptr = &vecmulmod52;
-                vecsqrmod_ptr = &vecsqrmod52;
-                vecaddsubmod_ptr = &vec_simul_addsub52;
-                if (verbose > 1)
-                {
-                    printf("Using BFIPS base-52 mul/sqr core\n");
-                }
-            }
-            vecaddmod_ptr = &vecaddmod52;
-            vecsubmod_ptr = &vecsubmod52;
-        }
-    }
-    else
-    {
-        if (montyconst->isMersenne)
-        {
-            vecmulmod_ptr = &vecmulmod_mersenne;
-            vecsqrmod_ptr = &vecsqrmod_mersenne;
-            vecaddmod_ptr = &vecaddmod_mersenne;
-            vecsubmod_ptr = &vecsubmod_mersenne;
-            vecaddsubmod_ptr = &vec_simul_addsub_mersenne;
-            if (verbose > 1)
-            {
-                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
-            }
-        }
-        else
-        {
-            vecmulmod_ptr = &vecmulmod;
-            vecsqrmod_ptr = &vecsqrmod;
-            vecaddmod_ptr = &vecaddmod;
-            vecsubmod_ptr = &vecsubmod;
-            vecaddsubmod_ptr = &vec_simul_addsub;
-        }
-    }
+    assign_mul_ptrs(montyconst, tdata[0].MAXBITS, verbose);
 
 	gettimeofday(&stopt, NULL);
 
-    if (0)
+    if (1)
     {
-        gettimeofday(&startt, NULL);
-
         size_n = mpz_sizeinbase(fobj->N, 2);
+        test_vecarith(size_n, numcurves, 1);
+        exit(0);
 
-        test_vecarith(nwords * DIGITBITS, numcurves);
+        for (size_n = 200, maxbits = 208, numcurves = 8000; size_n <= 2000; 
+            size_n += 200, maxbits += 208, numcurves /= 2)
+        {
+            gettimeofday(&startt, NULL);
+            assign_mul_ptrs(montyconst, maxbits, verbose);
+            test_vecarith(size_n, numcurves, 1);
+            gettimeofday(&stopt, NULL);
+            t_time = ytools_difftime(&startt, &stopt);
+            printf("Test took %1.4f seconds.\n", t_time);
+        }
 
-        gettimeofday(&stopt, NULL);
+        numcurves = 1;
+        for (size_n = 10000; size_n <= 100000; size_n += 4000)
+        {
+            gettimeofday(&startt, NULL);
+            assign_mul_ptrs(montyconst, maxbits, verbose);
+            test_vecarith(size_n, numcurves, 1);
+            gettimeofday(&stopt, NULL);
+            t_time = ytools_difftime(&startt, &stopt);
+            printf("Test took %1.4f seconds.\n", t_time);
+        }
 
-        t_time = ytools_difftime(&startt, &stopt);
+        for (size_n = 200, maxbits = 208, numcurves = 8000; size_n <= 2000;
+            size_n += 200, maxbits += 208, numcurves /= 2)
+        {
+            gettimeofday(&startt, NULL);
+            assign_mul_ptrs(montyconst, maxbits, verbose);
+            test_vecarith(size_n, numcurves, 0);
+            gettimeofday(&stopt, NULL);
+            t_time = ytools_difftime(&startt, &stopt);
+            printf("Test took %1.4f seconds.\n", t_time);
+        }
 
-        printf("Test took %1.4f seconds.\n", t_time);
+        numcurves = 1;
+        for (size_n = 10000; size_n <= 100000; size_n += 4000)
+        {
+            gettimeofday(&startt, NULL);
+            assign_mul_ptrs(montyconst, maxbits, verbose);
+            test_vecarith(size_n, numcurves, 0);
+            gettimeofday(&stopt, NULL);
+            t_time = ytools_difftime(&startt, &stopt);
+            printf("Test took %1.4f seconds.\n", t_time);
+        }
 
         exit(0);
     }
@@ -1171,9 +1209,9 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
 }
 
 
-void test_vecarith(int numbits, int iterations)
+void test_vecarith(int numbits, int iterations, int validate)
 {
-    int numwords = numbits / 52 + (((numbits % 52) > 0) ? 1 : 0);
+    int numwords;
     vec_monty_t* mdata;
     mpz_t n, p, r, a, e;
     int i, j, numsuccess = 0;
@@ -1187,11 +1225,15 @@ void test_vecarith(int numbits, int iterations)
     vec_bignum_t* vec_one;
     vec_bignum_t* vec_am;
 
+    numwords = 0;
+    while (numwords * DIGITBITS < numbits)
+        numwords += 4;
+
     printf("commencing test with %d bits (%d words)\n", numbits, numwords);
     mdata = vec_monty_alloc(numwords);
 
-    mdata->MAXBITS = numbits;
     mdata->NBLOCKS = numwords / BLOCKWORDS;
+    mdata->MAXBITS = numwords * DIGITBITS;
     mdata->NWORDS = numwords;
 
     mpz_init(n);
@@ -1248,8 +1290,8 @@ void test_vecarith(int numbits, int iterations)
         broadcast_mpz_to_vec(mdata->r, r);
         broadcast_mpz_to_vec(mdata->vrhat, mdata->rhat);
         broadcast_mpz_to_vec(mdata->vnhat, mdata->nhat);
-        mpz_tdiv_r(r, r, n);
-        broadcast_mpz_to_vec(mdata->one, r);
+        mpz_tdiv_r(mdata->rhat, r, n);
+        broadcast_mpz_to_vec(mdata->one, mdata->rhat);
 
         for (j = 0; j < 8; j++)
         {
@@ -1260,6 +1302,7 @@ void test_vecarith(int numbits, int iterations)
         for (j = 0; j < 8; j++)
         {
             mpz_urandomb(a, state, numbits);
+            mpz_tdiv_r(a, a, n);
             insert_mpz_to_vec(vec_a, a, j);
         }
 
@@ -1277,26 +1320,39 @@ void test_vecarith(int numbits, int iterations)
         vecmulmod_ptr(vec_p, vec_one, vec_a, vec_n, vec_s, mdata);              
 
         // compute reference powm and compare
-        for (j = 0; j < 8; j++)
+        if (validate)
         {
-            extract_bignum_from_vec_to_mpz(a, vec_b, j, numwords);
-            mpz_powm(p, a, e, n);
-            extract_bignum_from_vec_to_mpz(a, vec_a, j, numwords);
-            if (mpz_cmp(p, a) == 0)
-            {
-                numsuccess++;
-            }
-            else
+            int failed = 0;
+            for (j = 0; j < 8; j++)
             {
                 extract_bignum_from_vec_to_mpz(a, vec_b, j, numwords);
-                gmp_printf("test failed in lane %d!\na = %Zd\ne = %Zd\nn = %Zd\n", j, a, e, n);
+                mpz_powm(p, a, e, n);
                 extract_bignum_from_vec_to_mpz(a, vec_a, j, numwords);
-                gmp_printf("gmp = %Zd\nvec = %Zd\n", p, a);
+                if (mpz_cmp(p, a) == 0)
+                {
+                    numsuccess++;
+                }
+                else
+                {
+                    extract_bignum_from_vec_to_mpz(a, vec_b, j, numwords);
+                    gmp_printf("test failed in lane %d!\na = %Zd\ne = %Zd\nn = %Zd\nr = %Zd\n", 
+                        j, a, e, n, r);
+                    extract_bignum_from_vec_to_mpz(a, vec_a, j, numwords);
+                    gmp_printf("gmp = %Zd\nvec = %Zd\n", p, a);
+                    failed = 1;
+                }
+            }
+            if (failed)
+            {
+                exit(1);
             }
         }
     }
 
-    printf("successes: %d of %d\n", numsuccess, iterations * VECLEN);
+    if (validate)
+    {
+        printf("successes: %d of %d\n", numsuccess, iterations * VECLEN);
+    }
 
     mpz_clear(n);
     mpz_clear(r);
@@ -1309,6 +1365,8 @@ void test_vecarith(int numbits, int iterations)
     vecFree(vec_e);
     vecFree(vec_s);
     vecFree(vec_b);
+    vecFree(vec_am);
+    vecFree(vec_one);
     vec_monty_free(mdata);
 
     return;
