@@ -349,6 +349,63 @@ unsigned int compute_s(mpz_t s, uint64_t * primes, uint64_t nump, uint64_t B1)
     return it;
 }
 
+int validate_op(vec_bignum_t* in1, vec_bignum_t* in2, vec_bignum_t* nvec, 
+    vec_bignum_t* ref, int numwords)
+{
+    mpz_t t1, t2, t3, t4, n;
+    mpz_init(t1);
+    mpz_init(t2);
+    mpz_init(t3);
+    mpz_init(t4);
+    mpz_init(n);
+    extract_bignum_from_vec_to_mpz(t1, in1, 0, numwords);
+    extract_bignum_from_vec_to_mpz(t2, in2, 0, numwords);
+    extract_bignum_from_vec_to_mpz(n, nvec, 0, numwords);
+    {
+
+        // arguments are:
+        // 1: T - input to reduce
+        // 2: n - reduction modulus
+        // 3: r - bits in R
+        mpz_mul(t4, t1, t2);
+
+        mpz_set_ui(t1, 1);
+        mpz_mul_2exp(t1, t1, numwords * DIGITBITS);
+        mpz_invert(t2, n, t1);
+        mpz_sub(t2, t1, t2);
+
+        mpz_mul(t3, t4, t2);
+        mpz_tdiv_r_2exp(t3, t3, numwords * DIGITBITS);
+        mpz_mul(t3, t3, n);
+        mpz_add(t3, t3, t4);
+        mpz_tdiv_q_2exp(t4, t3, numwords * DIGITBITS);
+        if (mpz_cmp(t4, t1) >= 0)
+        {
+            mpz_sub(t4, t4, n);
+        }
+    }
+    extract_bignum_from_vec_to_mpz(t3, ref, 0, numwords);
+    int res = 0; // = mpz_cmp(t3, t4);
+    if (mpz_cmp(t3, t4) != 0)
+    {
+        extract_bignum_from_vec_to_mpz(t1, in1, 0, numwords);
+        extract_bignum_from_vec_to_mpz(t2, in2, 0, numwords);
+        gmp_printf("in1 : %Zd\n", t1);
+        gmp_printf("in2 : %Zd\n", t2);
+        gmp_printf("n   : %Zd\n", n);
+        gmp_printf("out1: %Zd\n", t3);
+        gmp_printf("out2: %Zd\n", t4);
+        res = 1;
+    }
+
+    mpz_clear(t1);
+    mpz_clear(t2);
+    mpz_clear(t3);
+    mpz_clear(t4);
+    mpz_clear(n);
+
+    return res;
+}
 
 void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m,
     vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata)
@@ -365,6 +422,7 @@ void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m
     int nsqr = 0, nmul = 0;
     int bstr;
     uint8_t done[1 << MAX_WINSIZE];
+    int validate_math = 0;
 
     vec_bignum_t* t = mdata->mtmp3;
     vec_bignum_t** g = mdata->g;
@@ -376,12 +434,26 @@ void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m
         mask = (mask << 1) | 1;
     }
 
-    vecCopy(b, g[1]);
+    vecCopyn(b, g[1], mdata->NWORDS);
     vecsqrmod_ptr(b, g[2], m, s, mdata);
+
+    //if (validate_math)
+    //{
+    //    int res = validate_op(b, b, m, g[2], mdata->NWORDS);
+    //    if (res != 0)
+    //        printf("error computing g[2] <- b^2\n");
+    //}
+
     nsqr++;
     for (i = 1; i < (1 << (k - 1)); i++)
     {
         vecmulmod_ptr(g[2 * i - 1], g[2], g[2 * i + 1], m, s, mdata);
+        //if (validate_math)
+        //{
+        //    int res = validate_op(g[2 * i - 1], g[2], m, g[2 * i + 1], mdata->NWORDS);
+        //    if (res != 0)
+        //        printf("error computing g[%d] <- g[%d] * g[%d]\n", 2 * i + 1, 2 * i - 1, 2);
+        //}
         nmul++;
     }
 
@@ -392,6 +464,16 @@ void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m
         if (mpz_tstbit(e, bit) == 0)
         {
             vecsqrmod_ptr(d, d, m, s, mdata);
+
+            //if (validate_math)
+            //{
+            //    int res = validate_op(d, d, m, t, mdata->NWORDS);
+            //    if (res != 0)
+            //        printf("error computing d <- d^2 at bit %d\n", bit);
+            //}
+
+            //vecCopy(t, d);
+            
             nsqr++;
             bit--;
         }
@@ -416,10 +498,30 @@ void vecslidingmodexp(vec_bignum_t* d, vec_bignum_t* b, mpz_t e, vec_bignum_t* m
             for (j = 0; j < thisk; j++)
             {
                 vecsqrmod_ptr(d, d, m, s, mdata);
+
+                //if (validate_math)
+                //{
+                //    int res = validate_op(d, d, m, t, mdata->NWORDS);
+                //    if (res != 0)
+                //        printf("error computing d <- d^2 at bit %d, iteration %d\n", bit, k);
+                //}
+                //
+                //vecCopy(t, d);
+
                 nsqr++;
             }
 
             vecmulmod_ptr(d, g[bstr], d, m, s, mdata);
+
+            //if (validate_math)
+            //{
+            //    int res = validate_op(d, g[bstr], m, t, mdata->NWORDS);
+            //    if (res != 0)
+            //        printf("error computing d <- d * g[%d] at bit %d\n", bstr, bit);
+            //}
+            //
+            //vecCopy(t, d);
+
             nmul++;
             bit -= thisk;
         }

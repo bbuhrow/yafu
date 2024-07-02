@@ -699,7 +699,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
 	gettimeofday(&stopt, NULL);
 
-    if (1)
+    if (0)
     {
         size_n = mpz_sizeinbase(fobj->N, 2);
         test_vecarith(size_n, numcurves, 1);
@@ -1213,7 +1213,7 @@ void test_vecarith(int numbits, int iterations, int validate)
 {
     int numwords;
     vec_monty_t* mdata;
-    mpz_t n, p, r, a, e;
+    mpz_t n, p, r, a, e, t1, t2, t3, t4;
     int i, j, numsuccess = 0;
     gmp_randstate_t state;
     vec_bignum_t* vec_a;
@@ -1226,7 +1226,7 @@ void test_vecarith(int numbits, int iterations, int validate)
     vec_bignum_t* vec_am;
 
     numwords = 0;
-    while (numwords * DIGITBITS < numbits)
+    while (numwords * DIGITBITS <= numbits)
         numwords += 4;
 
     printf("commencing test with %d bits (%d words)\n", numbits, numwords);
@@ -1241,6 +1241,10 @@ void test_vecarith(int numbits, int iterations, int validate)
     mpz_init(a);
     mpz_init(e);
     mpz_init(p);
+    mpz_init(t1);
+    mpz_init(t2);
+    mpz_init(t3);
+    mpz_init(t4);
     vec_n = vecInit(numwords);
     vec_p = vecInit(numwords);
     vec_a = vecInit(numwords);
@@ -1267,10 +1271,12 @@ void test_vecarith(int numbits, int iterations, int validate)
         }
 
         //gmp_printf("n = %Zd\n", n);
+        vecClear(vec_n);
         broadcast_mpz_to_vec(vec_n, n);
 
         // get a random exponent
         mpz_urandomb(e, state, numbits);
+        vecClear(vec_e);
         broadcast_mpz_to_vec(vec_e, e);
 
         printf("test %d of %d\r", i, iterations);
@@ -1286,6 +1292,11 @@ void test_vecarith(int numbits, int iterations, int validate)
         //mpz_invert(mdata->rhat, r, n);
         mpz_mul(mdata->rhat, r, r);
         mpz_tdiv_r(mdata->rhat, mdata->rhat, n);
+        vecClear(mdata->n);
+        vecClear(mdata->r);
+        vecClear(mdata->vrhat);
+        vecClear(mdata->vnhat);
+        vecClear(mdata->one);
         broadcast_mpz_to_vec(mdata->n, n);
         broadcast_mpz_to_vec(mdata->r, r);
         broadcast_mpz_to_vec(mdata->vrhat, mdata->rhat);
@@ -1298,26 +1309,107 @@ void test_vecarith(int numbits, int iterations, int validate)
             mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
         }
 
+        vecClear(vec_a);
+        vecClear(vec_b);
+        vecClear(vec_am);
+        vecClear(vec_p);
+
         // get 8 random numbers and load them into a vector
         for (j = 0; j < 8; j++)
         {
             mpz_urandomb(a, state, numbits);
             mpz_tdiv_r(a, a, n);
+            //if (j == 0) gmp_printf("a = %Zd\ne = %Zd\nn = %Zd\n", a, e, n);
             insert_mpz_to_vec(vec_a, a, j);
         }
 
         // back up input base
-        vecCopy(vec_a, vec_b);
+        vecCopyn(vec_a, vec_b, numwords);
 
         // monty rep
         vecmulmod_ptr(vec_a, mdata->vrhat, vec_am, vec_n, vec_s, mdata);        
+
+        extract_bignum_from_vec_to_mpz(t1, vec_a, 0, numwords);
+        extract_bignum_from_vec_to_mpz(t2, mdata->vrhat, 0, numwords);
+        {
+
+            // arguments are:
+            // 1: T - input to reduce
+            // 2: n - reduction modulus
+            // 3: r - bits in R
+            mpz_mul(t4, t1, t2);
+
+            mpz_set_ui(t1, 1);
+            mpz_mul_2exp(t1, t1, numwords * DIGITBITS);
+            mpz_invert(t2, n, t1);
+            mpz_sub(t2, t1, t2);
+            mpz_mul(t3, t4, t2);
+            mpz_tdiv_r_2exp(t3, t3, numwords * DIGITBITS);
+            mpz_mul(t3, t3, n);
+            mpz_add(t3, t3, t4);
+            mpz_tdiv_q_2exp(t4, t3, numwords * DIGITBITS);
+            if (mpz_cmp(t4, n) >= 0)
+            {
+                mpz_sub(t4, t4, n);
+            }
+        }
+        extract_bignum_from_vec_to_mpz(t3, vec_am, 0, numwords);
+        if (mpz_cmp(t3, t4) != 0)
+        {
+            printf("error during monty convert\n");
+            extract_bignum_from_vec_to_mpz(t1, vec_a, 0, numwords);
+            extract_bignum_from_vec_to_mpz(t2, mdata->vrhat, 0, numwords);
+            gmp_printf("in1 : %Zd\n", t1);
+            gmp_printf("in2 : %Zd\n", t2);
+            gmp_printf("n   : %Zd\n", n);
+            gmp_printf("out1: %Zd\n", t3);
+            gmp_printf("out2: %Zd\n", t4);
+        }
 
         // vec powm: tests mul and sqr
         vecslidingmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
         //vecmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
 
         // un-monty rep
-        vecmulmod_ptr(vec_p, vec_one, vec_a, vec_n, vec_s, mdata);              
+        vecmulmod_ptr(vec_p, vec_one, vec_a, vec_n, vec_s, mdata);      
+
+        // final reduction mod N
+        uint32_t msk = vec_gte52(vec_p, vec_n);
+        vec_bignum52_mask_sub(vec_p, vec_n, vec_p, msk);
+
+        extract_bignum_from_vec_to_mpz(t1, vec_p, 0, numwords);
+        extract_bignum_from_vec_to_mpz(t2, vec_one, 0, numwords);
+        {
+
+            // arguments are:
+            // 1: T - input to reduce
+            // 2: n - reduction modulus
+            // 3: r - bits in R
+            mpz_mul(t4, t1, t2);
+
+            mpz_set_ui(t1, 1);
+            mpz_mul_2exp(t1, t1, numwords * DIGITBITS);
+            mpz_invert(t2, n, t1);
+            mpz_sub(t2, t1, t2);
+            mpz_mul(t3, t4, t2);
+            mpz_tdiv_r_2exp(t3, t3, numwords * DIGITBITS);
+            mpz_mul(t3, t3, n);
+            mpz_add(t3, t3, t4);
+            mpz_tdiv_q_2exp(t4, t3, numwords * DIGITBITS);
+            if (mpz_cmp(t4, n) >= 0)
+            {
+                mpz_sub(t4, t4, n);
+            }
+        }
+        extract_bignum_from_vec_to_mpz(t3, vec_a, 0, numwords);
+        if (mpz_cmp(t3, t4) != 0)
+        {
+            printf("error during un-monty convert\n");
+            gmp_printf("in1 : %Zd\n", t1);
+            gmp_printf("in2 : %Zd\n", t2);
+            gmp_printf("out1: %Zd\n", t3);
+            gmp_printf("out2: %Zd\n", t4);
+        }
 
         // compute reference powm and compare
         if (validate)
@@ -1347,6 +1439,7 @@ void test_vecarith(int numbits, int iterations, int validate)
                 exit(1);
             }
         }
+
     }
 
     if (validate)
@@ -1359,6 +1452,10 @@ void test_vecarith(int numbits, int iterations, int validate)
     mpz_clear(a);
     mpz_clear(e);
     mpz_clear(p);
+    mpz_clear(t1);
+    mpz_clear(t2);
+    mpz_clear(t3);
+    mpz_clear(t4);
     vecFree(vec_n);
     vecFree(vec_p);
     vecFree(vec_a);
