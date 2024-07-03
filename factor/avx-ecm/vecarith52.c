@@ -12936,15 +12936,9 @@ void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
         _mm512_store_epi64(c->data + i * VECLEN, cvec);
     }
 
-    //printf("vecsub:\n");
-    //for (i = NWORDS - 1; i >=0; i--)
-    //    printf("%lx", c->data[i * VECLEN]);
-    //printf("\n");
-
     // if we did not have a final carry, then we still are not in
-    // positive territory.  add n again.
+    // positive territory.  add n again.  Necessary with AMM.
     mask = (~carry) & mask;
-    //if (mask & 1) printf("vecsub still negative, adding n again\n");
     carry = 0;
     for (i = 0; (i < NWORDS) && (mask > 0); i++)
     {
@@ -13040,6 +13034,8 @@ void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b,
     vec_bignum_t* sum, vec_bignum_t* diff,
     vec_monty_t* mdata)
 {
+    // awkward to implement the 2*n modsub addition 
+    // that is sometimes necessary in AMM.  Just do individual add/sub.
     vecaddmod52(a, b, sum, mdata);
     vecsubmod52(a, b, diff, mdata);
     return;
@@ -13259,11 +13255,6 @@ addsubnormalize:
     _mm512_store_epi64(sum->data + i * VECLEN, avec);
     _mm512_store_epi64(diff->data + i * VECLEN, bvec);
 
-    //printf("vecaddsub diff:\n");
-    //for (i = 7; i >= 0; i--)
-    //    printf("%lx", diff->data[i * VECLEN]);
-    //printf("\n");
-
     if (NWORDS == 8) goto addsubdone;
 
     i = 8;
@@ -13375,6 +13366,13 @@ void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b,
     vec_bignum_t *sum, vec_bignum_t *diff, 
     vec_monty_t* mdata)
 {
+    // awkward to implement the 2*n modsub addition 
+    // that is sometimes necessary in AMM.  Just do individual add/sub.
+    vecaddmod52(a, b, sum, mdata);
+    vecsubmod52(a, b, diff, mdata);
+    return;
+
+
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
     // a, b, c, and n are aligned
