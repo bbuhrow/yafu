@@ -12935,6 +12935,30 @@ void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
 
         _mm512_store_epi64(c->data + i * VECLEN, cvec);
     }
+
+    //printf("vecsub:\n");
+    //for (i = NWORDS - 1; i >=0; i--)
+    //    printf("%lx", c->data[i * VECLEN]);
+    //printf("\n");
+
+    // if we did not have a final carry, then we still are not in
+    // positive territory.  add n again.
+    mask = (~carry) & mask;
+    //if (mask & 1) printf("vecsub still negative, adding n again\n");
+    carry = 0;
+    for (i = 0; (i < NWORDS) && (mask > 0); i++)
+    {
+        avec = _mm512_load_epi64(c->data + i * VECLEN);
+        nvec = _mm512_load_epi64(mdata->n->data + i * VECLEN);
+        //cvec = _mm512_mask_adc_epi52(avec, mask, carry, nvec, &carry);
+    
+        __m512i t = _mm512_mask_add_epi64(avec, mask, avec, nvec);
+        t = _mm512_mask_add_epi64(avec, mask, t, _mm512_maskz_set1_epi64(carry, 1));
+        carry = _mm512_mask_cmpgt_epu64_mask(mask, t, lomask);
+        cvec = _mm512_and_epi64(t, lomask);
+    
+        _mm512_store_epi64(c->data + i * VECLEN, cvec);
+    }
     return;
 }
 
@@ -13016,6 +13040,10 @@ void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b,
     vec_bignum_t* sum, vec_bignum_t* diff,
     vec_monty_t* mdata)
 {
+    vecaddmod52(a, b, sum, mdata);
+    vecsubmod52(a, b, diff, mdata);
+    return;
+
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
     // a, b, c, and n are aligned
@@ -13231,6 +13259,11 @@ addsubnormalize:
     _mm512_store_epi64(sum->data + i * VECLEN, avec);
     _mm512_store_epi64(diff->data + i * VECLEN, bvec);
 
+    //printf("vecaddsub diff:\n");
+    //for (i = 7; i >= 0; i--)
+    //    printf("%lx", diff->data[i * VECLEN]);
+    //printf("\n");
+
     if (NWORDS == 8) goto addsubdone;
 
     i = 8;
@@ -13417,152 +13450,6 @@ void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b,
 
         _mm512_store_epi64(sum->data + i * VECLEN, avec);
         _mm512_store_epi64(diff->data + i * VECLEN, bvec);
-    }
-
-    return;
-}
-
-
-
-
-void vecmodexp52(vec_bignum_t* d, vec_bignum_t* b, vec_bignum_t* e, vec_bignum_t* m,
-    vec_bignum_t* s, vec_bignum_t* one, vec_monty_t* mdata)
-{
-    // d = b^e mod m
-    // all b and e vector elements can be different.
-    // all m elements can be different
-    // proceed in a left to right fashion.
-    uint32_t NWORDS = mdata->NWORDS;
-    int i, bit = NWORDS * DIGITBITS - 1;
-    int j;
-    // the bit string length.  needs to divide the word size (e.g., 32);
-    int k = get_winsize(NWORDS * DIGITBITS);
-    int mask;
-    int nsqr, nmul;
-    int bstr[VECLEN];
-    uint8_t done[256];
-
-    vec_bignum_t* t = mdata->mtmp3;
-    vec_bignum_t** g = mdata->g;
-    vec_bignum_t* w = mdata->mtmp4;
-
-    mask = 0;
-    for (j = 0; j < k; j++)
-    {
-        mask = (mask << 1) | 1;
-    }
-
-    for (j = 16; j < (1 << k); j++)
-    {
-        done[j] = 0;
-    }
-
-    // precomputation.  smallest window is 4 bits, so these
-    // computations can be pulled out of the loop
-    vecCopy(b, g[1]);
-    vecsqrmod_ptr(g[1], g[2], m, s, mdata);
-    vecsqrmod_ptr(g[2], g[4], m, s, mdata);
-    vecmulmod_ptr(g[2], b, g[3], m, s, mdata);
-    vecsqrmod_ptr(g[3], g[6], m, s, mdata);
-    vecmulmod_ptr(g[6], b, g[7], m, s, mdata);
-    vecsqrmod_ptr(g[6], g[12], m, s, mdata);
-    vecmulmod_ptr(g[4], b, g[5], m, s, mdata);
-    vecsqrmod_ptr(g[4], g[8], m, s, mdata);
-    vecsqrmod_ptr(g[5], g[10], m, s, mdata);
-    vecsqrmod_ptr(g[7], g[14], m, s, mdata);
-    vecmulmod_ptr(g[8], b, g[9], m, s, mdata);
-    vecmulmod_ptr(g[10], b, g[11], m, s, mdata);
-    vecmulmod_ptr(g[12], b, g[13], m, s, mdata);
-    vecmulmod_ptr(g[14], b, g[15], m, s, mdata);
-
-#ifdef DEBUGLANE
-
-    print_vechex(g[2]->data, DEBUGLANE, NWORDS, "g[2]: ");
-    print_vechex(g[4]->data, DEBUGLANE, NWORDS, "g[4]: ");
-    print_vechex(g[3]->data, DEBUGLANE, NWORDS, "g[3]: ");
-    print_vechex(g[6]->data, DEBUGLANE, NWORDS, "g[6]: ");
-    print_vechex(g[7]->data, DEBUGLANE, NWORDS, "g[7]: ");
-    print_vechex(g[12]->data, DEBUGLANE, NWORDS, "g[12]: ");
-    print_vechex(g[5]->data, DEBUGLANE, NWORDS, "g[5]: ");
-    print_vechex(g[8]->data, DEBUGLANE, NWORDS, "g[8]: ");
-    print_vechex(g[10]->data, DEBUGLANE, NWORDS, "g[10]: ");
-    print_vechex(g[14]->data, DEBUGLANE, NWORDS, "g[14]: ");
-    print_vechex(g[9]->data, DEBUGLANE, NWORDS, "g[9]: ");
-    print_vechex(g[11]->data, DEBUGLANE, NWORDS, "g[11]: ");
-    print_vechex(g[13]->data, DEBUGLANE, NWORDS, "g[13]: ");
-    print_vechex(g[15]->data, DEBUGLANE, NWORDS, "g[15]: ");
-
-#endif
-
-    //nsqr = 7;
-    //nmul = 7;
-
-    for (i = 16; i < (1 << k); i++)
-    {
-        int q = i;
-
-        if (done[i])
-            continue;
-
-        vecmulmod_ptr(g[i - 1], b, g[i], m, s, mdata);
-        //nmul++;
-
-        while ((q * 2) < (1 << k))
-        {
-            if (!done[2 * q])
-            {
-                vecsqrmod_ptr(g[q], g[2 * q], m, s, mdata);
-                //nsqr++;
-                done[2 * q] = 1;
-            }
-            q *= 2;
-        }
-    }
-
-    //printf("init performed %d sqrs and %d muls\n", nsqr, nmul);
-
-    vecCopyn(one, d, NWORDS);
-
-    while (bit >= 0)
-    {
-        if (bit < k)
-        {
-            mask = 0x0;
-            for (j = 0; j < (bit + 1); j++)
-            {
-                vecsqrmod_ptr(d, d, m, s, mdata);
-                mask = (mask << 1) | 1;
-            }
-
-            for (j = 0; j < VECLEN; j++)
-            {
-                bstr[j] = (e->data[j + 0 * VECLEN]) & mask;
-            }
-        }
-        else
-        {
-            for (j = 0; j < VECLEN; j++)
-            {
-                bstr[j] = get_bitwin(e, bit, k, j, mask);
-            }
-
-            if (bit < (DIGITBITS * NWORDS - 1))
-            {
-                for (j = 0; j < k; j++)
-                {
-                    vecsqrmod_ptr(d, d, m, s, mdata);
-                }
-            }
-        }
-
-        for (j = 0; j < VECLEN; j++)
-        {
-            copy_vec_lane(g[bstr[j]], w, j, NWORDS);
-        }
-
-        vecmulmod_ptr(d, w, d, m, s, mdata);
-
-        bit -= k;
     }
 
     return;

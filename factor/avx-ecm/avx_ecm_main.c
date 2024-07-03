@@ -1208,7 +1208,6 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
     return;
 }
 
-
 void test_vecarith(int numbits, int iterations, int validate)
 {
     int numwords;

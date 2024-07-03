@@ -321,6 +321,10 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
     mpz_init(Z2);
 #endif
 
+    vecClear(tdata[tid].P->X);
+    vecClear(tdata[tid].P->Z);
+    vecClear(tdata[tid].work->s);
+
 	for (i = 0; i < VECLEN; i++)
     {
         int j;
@@ -531,6 +535,77 @@ void vec_ecm_pt_free(ecm_pt *pt)
 	vecFree(pt->Z);
 }
 
+void mpz_mulmod(mpz_t out, mpz_t in1, mpz_t in2, mpz_t n, mpz_t nhat, mpz_t s, int bits)
+{
+    mpz_mul(out, in1, in2);
+
+    mpz_mul(s, out, nhat);
+    mpz_tdiv_r_2exp(s, s, bits);
+
+    mpz_mul(s, s, n);
+    mpz_add(out, s, out);
+    mpz_tdiv_q_2exp(out, out, bits);
+    mpz_tdiv_q_2exp(s, out, bits);
+
+    if (mpz_cmp_ui(s, 0) > 0)
+    {
+        //gmp_printf("mulmod carry: %Zx\n", s);
+        //gmp_printf("mulmod out: %Zx\n", out);
+        mpz_sub(out, out, n);
+        //gmp_printf("mulmod out: %Zx\n", out);
+    }
+    return;
+}
+
+void mpz_sqrmod(mpz_t out, mpz_t in, mpz_t n, mpz_t nhat, mpz_t s, int bits)
+{
+    mpz_mulmod(out, in, in, n, nhat, s, bits);
+    return;
+}
+
+void mpz_submod(mpz_t out, mpz_t a, mpz_t b, mpz_t n)
+{
+    mpz_sub(out, a, b);
+
+    if (mpz_cmp_ui(out, 0) < 0)
+    {
+        //gmp_printf("submod a: %Zx\n", a);
+        //gmp_printf("submod b: %Zx\n", b);
+        //gmp_printf("submod c: %Zx\n", out);
+        //gmp_printf("submod n: %Zx\n", n);
+        mpz_add(out, out, n);
+        //gmp_printf("submod  : %Zx\n", out);
+    }
+
+    if (mpz_cmp_ui(out, 0) < 0)
+    {
+        //printf("still negative...\n");
+        //gmp_printf("submod a: %Zx\n", a);
+        //gmp_printf("submod b: %Zx\n", b);
+        //gmp_printf("submod c: %Zx\n", out);
+        //gmp_printf("submod n: %Zx\n", n);
+        mpz_add(out, out, n);
+        //gmp_printf("submod  : %Zx\n", out);
+    }
+
+    return;
+}
+
+void mpz_addmod(mpz_t out, mpz_t a, mpz_t b, mpz_t n, mpz_t s, int bits)
+{
+    mpz_add(out, a, b);
+    mpz_tdiv_q_2exp(s, out, bits);
+    if (mpz_cmp_ui(s, 0) > 0)
+    {
+        //gmp_printf("addmod: %Zx\n", out);
+        //gmp_printf("carry : %Zx\n", s);
+        //gmp_printf("n     : %Zx\n", n);
+        mpz_sub(out, out, n);
+        //gmp_printf("addmod: %Zx\n", out);
+    }
+    return;
+}
+
 void vec_add(vec_monty_t *mdata, ecm_work *work, ecm_pt *Pin, ecm_pt *Pout)
 {
     // compute:
@@ -540,13 +615,41 @@ void vec_add(vec_monty_t *mdata, ecm_work *work, ecm_pt *Pin, ecm_pt *Pout)
     //x- = original x
     //z- = original z
     // given the sums and differences of the original points (stored in work structure).
+    
+    //printf("vec_add\n");
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, work->diff1, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, work->diff2, 0, mdata->NWORDS);
+    //gmp_printf("diff1 = %Zx\n", mdata->gmp_t1);
+    //gmp_printf("diff2 = %Zx\n", mdata->gmp_t2);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, work->sum1, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, work->sum2, 0, mdata->NWORDS);
+    //gmp_printf("sum1 = %Zx\n", mdata->gmp_t1);
+    //gmp_printf("sum2 = %Zx\n", mdata->gmp_t2);
 
     vecmulmod_ptr(work->diff1, work->sum2, work->tt1, work->n, work->tt4, mdata);	//U
     vecmulmod_ptr(work->sum1, work->diff2, work->tt2, work->n, work->tt4, mdata);	//V
 
-    vecaddsubmod_ptr(work->tt1, work->tt2, work->tt3, work->tt4, mdata);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, work->tt1, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, work->tt2, 0, mdata->NWORDS);
+    //gmp_printf("U = %Zx\n", mdata->gmp_t1);
+    //gmp_printf("V = %Zx\n", mdata->gmp_t2);
+
+    vecsubmod_ptr(work->tt1, work->tt2, work->tt4, mdata);
+    vecaddmod_ptr(work->tt1, work->tt2, work->tt3, mdata);
+    //vecaddsubmod_ptr(work->tt1, work->tt2, work->tt3, work->tt4, mdata);
+
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, work->tt3, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, work->tt4, 0, mdata->NWORDS);
+    //gmp_printf("(U + V) = %Zx\n", mdata->gmp_t1);
+    //gmp_printf("(U - V) = %Zx\n", mdata->gmp_t2);
+
     vecsqrmod_ptr(work->tt3, work->tt1, work->n, work->tt5, mdata);					//(U + V)^2
     vecsqrmod_ptr(work->tt4, work->tt2, work->n, work->tt5, mdata);					//(U - V)^2
+
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, work->tt1, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, work->tt2, 0, mdata->NWORDS);
+    //gmp_printf("(U + V)^2 = %Zx\n", mdata->gmp_t1);
+    //gmp_printf("(U - V)^2 = %Zx\n", mdata->gmp_t2);
 
     // choosing the initial point Pz0 = 1 means that z_p-q = 1 and this mul isn't necessary...
     // but that involves a different way to initialize curves, so for now
@@ -566,6 +669,12 @@ void vec_add(vec_monty_t *mdata, ecm_work *work, ecm_pt *Pin, ecm_pt *Pout)
 		vecmulmod_ptr(work->tt1, Pin->Z, Pout->X, work->n, work->tt4, mdata);		//Z * (U + V)^2
 		vecmulmod_ptr(work->tt2, Pin->X, Pout->Z, work->n, work->tt4, mdata);		//x * (U - V)^2
 	}
+
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, Pout->X, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, Pout->Z, 0, mdata->NWORDS);
+    //gmp_printf("Pout_X = %Zx\n", mdata->gmp_t1);
+    //gmp_printf("Pout_Z = %Zx\n", mdata->gmp_t2);
+
 	work->stg1Add++;
     return;
 }
@@ -581,6 +690,61 @@ void vec_duplicate(vec_monty_t *mdata, ecm_work *work, vec_bignum_t *insum, vec_
     vecaddmod_ptr(work->tt2, work->tt1, work->tt2, mdata);                    // t = t + V
     vecmulmod_ptr(work->tt2, work->tt3, P->Z, work->n, work->tt4, mdata);       // Z = t*w
 	work->stg1Doub++;
+    return;
+}
+
+void mpz_elladd(mpz_t Px_out, mpz_t Pz_out, 
+    mpz_t Px1, mpz_t Pz1, mpz_t Px2, mpz_t Pz2, mpz_t Px3, mpz_t Pz3, 
+    mpz_t n, mpz_t nhat, mpz_t sum, mpz_t diff,
+    mpz_t tmp, mpz_t tmp2, int bits)
+{
+   // printf("mpz_add\n");
+    mpz_submod(diff, Px1, Pz1, n);
+    mpz_addmod(sum, Px2, Pz2, n, tmp, bits);
+    //gmp_printf("diff1 = %Zx\n", diff);
+    //gmp_printf("sum2 = %Zx\n", sum);
+    mpz_mulmod(tmp2, diff, sum, n, nhat, tmp, bits);    // U
+    //gmp_printf("U = %Zx\n", tmp2);
+
+    mpz_submod(diff, Px2, Pz2, n);
+    mpz_addmod(sum, Px1, Pz1, n, tmp, bits);
+    //gmp_printf("diff2 = %Zx\n", diff);
+    //gmp_printf("sum1 = %Zx\n", sum);
+    mpz_mulmod(sum, diff, sum, n, nhat, tmp, bits);     // V
+    //gmp_printf("V = %Zx\n", sum);
+
+    mpz_submod(diff, tmp2, sum, n);                     // U - V
+    mpz_addmod(sum, tmp2, sum, n, tmp, bits);                // U + V
+    //gmp_printf("U - V = %Zx\n", diff);
+    //gmp_printf("U + V = %Zx\n", sum);
+
+    mpz_sqrmod(diff, diff, n, nhat, tmp, bits);
+    mpz_sqrmod(sum, sum, n, nhat, tmp, bits);
+
+    //gmp_printf("(U - V)^2 = %Zx\n", diff);
+    //gmp_printf("(U + V)^2 = %Zx\n", sum);
+
+    mpz_mulmod(Px_out, Pz3, sum, n, nhat, tmp, bits);
+    mpz_mulmod(Pz_out, Px3, diff, n, nhat, tmp, bits);
+
+    //gmp_printf("X = %Zx\n", Px_out);
+    //gmp_printf("Z = %Zx\n", Pz_out);
+
+    return;
+}
+
+void mpz_elldup(mpz_t Px, mpz_t Pz, mpz_t n, mpz_t nhat, mpz_t sum, mpz_t diff, 
+    mpz_t s, mpz_t tmp, mpz_t tmp2, int bits)
+{
+    mpz_submod(diff, Px, Pz, n);
+    mpz_sqrmod(diff, diff, n, nhat, tmp, bits);     // V=(x1 - z1)^2
+    mpz_addmod(sum, Px, Pz, n, tmp, bits);
+    mpz_sqrmod(sum, sum, n, nhat, tmp, bits);       // U=(x1 + z1)^2
+    mpz_mulmod(Px, sum, diff, n, nhat, tmp, bits);  // x=U*V
+    mpz_submod(tmp2, sum, diff, n);                 // w = U-V
+    mpz_mulmod(Pz, tmp2, s, n, nhat, tmp, bits);    // t = (A+2)/4 * w
+    mpz_addmod(Pz, Pz, diff, n, tmp, bits);         // t = t + V
+    mpz_mulmod(Pz, Pz, tmp2, n, nhat, tmp, bits);   // Z = t*w
     return;
 }
 
@@ -788,6 +952,8 @@ lucas_cost(uint64_t n, double v)
 	return c;
 }
 
+//#define MPZ_VERIFY
+
 void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 {
 	uint64_t d, e, r;
@@ -795,6 +961,11 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	int i;
 	vec_bignum_t *s1, *s2, *d1, *d2;
 	base_t *sw_x, *sw_z;
+
+#ifdef MPZ_VERIFY
+    mpz_t px1, px2, px3, px4, gtmp, gtmp2, gn, gnhat;
+    mpz_t pz1, pz2, pz3, pz4, gs, gsum, gdiff;
+#endif
 
 #define NV 10  
 	/* 1/val[0] = the golden ratio (1+sqrt(5))/2, and 1/val[i] for i>0
@@ -817,6 +988,24 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			i = d;
 		}
 	}
+
+#ifdef MPZ_VERIFY
+    mpz_init(px1);
+    mpz_init(px2);
+    mpz_init(px3);
+    mpz_init(px4);
+    mpz_init(pz1);
+    mpz_init(pz2);
+    mpz_init(pz3);
+    mpz_init(pz4);
+    mpz_init(gn);
+    mpz_init(gnhat);
+    mpz_init(gtmp);
+    mpz_init(gtmp2);
+    mpz_init(gs);
+    mpz_init(gsum);
+    mpz_init(gdiff);
+#endif
 
 	d = c;
 	r = (uint64_t)((double)d * val[i] + 0.5);
@@ -850,8 +1039,45 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	vecsubmod_ptr(work->pt1.X, work->pt1.Z, d1, mdata);
 	vecaddmod_ptr(work->pt1.X, work->pt1.Z, s1, mdata);
 
+#ifdef MPZ_VERIFY
+    //extract_bignum_from_vec_to_mpz(px1, P->X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(pz1, P->Z, 0, mdata->NWORDS);
+
+    mpz_set(px1, mdata->gmp_t1);
+    mpz_set(pz1, mdata->gmp_t2);
+    mpz_set(px2, px1);
+    mpz_set(px3, px1);
+    mpz_set(pz2, pz1);
+    mpz_set(pz3, pz1);
+    extract_bignum_from_vec_to_mpz(gs, work->s, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(gn, work->n, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(gnhat, mdata->vnhat, 0, mdata->NWORDS);
+
+    //gmp_printf("starting X(mpz): %Zx\n", px1);
+    //gmp_printf("starting Z(mpz): %Zx\n", pz1);
+
+    extract_bignum_from_vec_to_mpz(gtmp, P->X, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(gtmp2, P->Z, 0, mdata->NWORDS);
+
+    //gmp_printf("starting X(vec): %Zx\n", gtmp);
+    //gmp_printf("starting Z(vec): %Zx\n", gtmp2);
+
+    int bits = mdata->NWORDS * 52;
+    mpz_elldup(px1, pz1, gn, gnhat, gsum, gdiff, gs, gtmp, gtmp2, bits);
+#endif
+
 	// point2 is [2]P
 	vec_duplicate(mdata, work, s1, d1, &work->pt1);
+
+#ifdef MPZ_VERIFY
+    //extract_bignum_from_vec_to_mpz(gtmp, work->pt1.X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, work->pt1.Z, 0, mdata->NWORDS);
+
+    //gmp_printf("2X(mpz): %Zx\n", px1);
+    //gmp_printf("2Z(mpz): %Zx\n", pz1);
+    //gmp_printf("2X(vec): %Zx\n", gtmp);
+    //gmp_printf("2Z(vec): %Zx\n", gtmp2);
+#endif
 
 	while (d != e)
 	{
@@ -868,6 +1094,23 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			work->pt1.Z->data = work->pt2.Z->data;
 			work->pt2.X->data = sw_x;
 			work->pt2.Z->data = sw_z;
+
+#ifdef MPZ_VERIFY
+            mpz_set(gtmp, px1);
+            mpz_set(gtmp2, pz1);
+            mpz_set(px1, px2);
+            mpz_set(pz1, pz2);
+            mpz_set(px2, gtmp);
+            mpz_set(pz2, gtmp2);
+
+            //printf("swap: p1 is now...\n");
+            //extract_bignum_from_vec_to_mpz(gtmp, work->pt1.X, 0, mdata->NWORDS);
+            //extract_bignum_from_vec_to_mpz(gtmp2, work->pt1.Z, 0, mdata->NWORDS);
+            //gmp_printf("X1(mpz): %Zx\n", px1);
+            //gmp_printf("Z1(mpz): %Zx\n", pz1);
+            //gmp_printf("X1(vec): %Zx\n", gtmp);
+            //gmp_printf("Z1(vec): %Zx\n", gtmp2);
+#endif
 		}
 		/* do the first line of Table 4 whose condition qualifies */
 #ifdef ORIG_PRAC
@@ -926,8 +1169,12 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 3 */
 			d -= e;
 			
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
+            //vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
+            //vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
+            vecsubmod_ptr(work->pt1.X, work->pt1.Z, d2, mdata);
+            vecaddmod_ptr(work->pt1.X, work->pt1.Z, s2, mdata);
+            vecsubmod_ptr(work->pt2.X, work->pt2.Z, d1, mdata);
+            vecaddmod_ptr(work->pt2.X, work->pt2.Z, s1, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt4);		// T = B + A (C)
 			//add3(xT, zT, xB, zB, xA, zA, xC, zC, n, u, v, w); /* T = f(B,A,C) */
@@ -951,17 +1198,48 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			work->pt3.X->data = sw_x;
 			work->pt3.Z->data = sw_z;
 
+#ifdef MPZ_VERIFY
+            mpz_elladd(px4, pz4, px2, pz2, px1, pz1, px3, pz3,
+                gn, gnhat, gsum, gdiff, gtmp, gtmp2, bits);
+
+            mpz_set(gtmp, px2);
+            mpz_set(gtmp2, pz2);
+            mpz_set(px2, px4);
+            mpz_set(pz2, pz4);
+            mpz_set(px4, px3);
+            mpz_set(pz4, pz3);
+            mpz_set(px3, gtmp);
+            mpz_set(pz3, gtmp2);
+#endif
+
 		}
 		else if ((d + e) % 2 == 0)
 		{ /* condition 4 */
 			d = (d - e) / 2;
 
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
+            //vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
+            //vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
+            vecsubmod_ptr(work->pt1.X, work->pt1.Z, d2, mdata);
+            vecaddmod_ptr(work->pt1.X, work->pt1.Z, s2, mdata);
+            vecsubmod_ptr(work->pt2.X, work->pt2.Z, d1, mdata);
+            vecaddmod_ptr(work->pt2.X, work->pt2.Z, s1, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt2);		// B = B + A (C)
 			vec_duplicate(mdata, work, s2, d2, &work->pt1);		// A = 2A
 			
+#ifdef MPZ_VERIFY
+            mpz_elladd(px2, pz2, px2, pz2, px1, pz1, px3, pz3,
+                gn, gnhat, gsum, gdiff, gtmp, gtmp2, bits);
+            mpz_elldup(px1, pz1, gn, gnhat, gsum, gdiff, gs, gtmp, gtmp2, bits);
+
+            //printf("cond4 (dup A): p1 is now...\n");
+            //extract_bignum_from_vec_to_mpz(gtmp, work->pt1.X, 0, mdata->NWORDS);
+            //extract_bignum_from_vec_to_mpz(gtmp2, work->pt1.Z, 0, mdata->NWORDS);
+            //gmp_printf("X1(mpz): %Zx\n", px1);
+            //gmp_printf("Z1(mpz): %Zx\n", pz1);
+            //gmp_printf("X1(vec): %Zx\n", gtmp);
+            //gmp_printf("Z1(vec): %Zx\n", gtmp2);
+#endif
 			//add3(xB, zB, xB, zB, xA, zA, xC, zC, n, u, v, w); /* B = f(B,A,C) */
 			//duplicate(xA, zA, xA, zA, n, b, u, v, w); /* A = 2*A */
 		}
@@ -970,12 +1248,29 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 5 */
 			d /= 2;
 			
-            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
+            //vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
+            //vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
+            vecsubmod_ptr(work->pt3.X, work->pt3.Z, d1, mdata);
+            vecaddmod_ptr(work->pt3.X, work->pt3.Z, s1, mdata);
+            vecsubmod_ptr(work->pt1.X, work->pt1.Z, d2, mdata);
+            vecaddmod_ptr(work->pt1.X, work->pt1.Z, s2, mdata);
 
 			vec_add(mdata, work, &work->pt2, &work->pt3);		// C = C + A (B)
 			vec_duplicate(mdata, work, s2, d2, &work->pt1);		// A = 2A
 
+#ifdef MPZ_VERIFY
+            mpz_elladd(px3, pz3, px3, pz3, px1, pz1, px2, pz2,
+                gn, gnhat, gsum, gdiff, gtmp, gtmp2, bits);
+            mpz_elldup(px1, pz1, gn, gnhat, gsum, gdiff, gs, gtmp, gtmp2, bits);
+
+            //printf("cond5 (dup A): p1 is now...\n");
+            //extract_bignum_from_vec_to_mpz(gtmp, work->pt1.X, 0, mdata->NWORDS);
+            //extract_bignum_from_vec_to_mpz(gtmp2, work->pt1.Z, 0, mdata->NWORDS);
+            //gmp_printf("X1(mpz): %Zx\n", px1);
+            //gmp_printf("Z1(mpz): %Zx\n", pz1);
+            //gmp_printf("X1(vec): %Zx\n", gtmp);
+            //gmp_printf("Z1(vec): %Zx\n", gtmp2);
+#endif
 			//add3(xC, zC, xC, zC, xA, zA, xB, zB, n, u, v, w); /* C = f(C,A,B) */
 			//duplicate(xA, zA, xA, zA, n, b, u, v, w); /* A = 2*A */
 		}
@@ -1097,23 +1392,54 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			e /= 2;
             // in a run with B1=100M, this condition never executed.
 
-            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
+            //vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
+            //vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
+            vecsubmod_ptr(work->pt2.X, work->pt2.Z, d2, mdata);
+            vecaddmod_ptr(work->pt2.X, work->pt2.Z, s2, mdata);
+            vecsubmod_ptr(work->pt3.X, work->pt3.Z, d1, mdata);
+            vecaddmod_ptr(work->pt3.X, work->pt3.Z, s1, mdata);
 
 			vec_add(mdata, work, &work->pt1, &work->pt3);		// C = C + B (A)
 			vec_duplicate(mdata, work, s2, d2, &work->pt2);		// B = 2B
 
+#ifdef MPZ_VERIFY
+            mpz_elladd(px3, pz3, px3, pz3, px2, pz2, px1, pz1,
+                gn, gnhat, gsum, gdiff, gtmp, gtmp2, bits);
+            mpz_elldup(px2, pz2, gn, gnhat, gsum, gdiff, gs, gtmp, gtmp2, bits);
+#endif
 			//add3(xC, zC, xC, zC, xB, zB, xA, zA, n, u, v, w); /* C = f(C,B,A) */
 			//duplicate(xB, zB, xB, zB, n, b, u, v, w); /* B = 2*B */
 		}
 	}
+
+    //extract_bignum_from_vec_to_mpz(gtmp, work->pt2.X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, work->pt2.Z, 0, mdata->NWORDS);
+    //gmp_printf("X2(mpz): %Zx\n", px2);
+    //gmp_printf("Z2(mpz): %Zx\n", pz2);
+    //gmp_printf("X2(vec): %Zx\n", gtmp);
+    //gmp_printf("Z2(vec): %Zx\n", gtmp2);
 
 	vecsubmod_ptr(work->pt1.X, work->pt1.Z, d1, mdata);
 	vecaddmod_ptr(work->pt1.X, work->pt1.Z, s1, mdata);
 	vecsubmod_ptr(work->pt2.X, work->pt2.Z, d2, mdata);
 	vecaddmod_ptr(work->pt2.X, work->pt2.Z, s2, mdata);
 
+    //printf("final add:\n");
+
 	vec_add(mdata, work, &work->pt3, P);		// A = A + B (C)
+
+#ifdef MPZ_VERIFY
+    mpz_elladd(px1, pz1, px1, pz1, px2, pz2, px3, pz3,
+        gn, gnhat, gsum, gdiff, gtmp, gtmp2, bits);
+
+    //printf("p1 is now:\n");
+    //extract_bignum_from_vec_to_mpz(gtmp, P->X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, P->Z, 0, mdata->NWORDS);
+    //gmp_printf("X1(mpz): %Zx\n", px1);
+    //gmp_printf("Z1(mpz): %Zx\n", pz1);
+    //gmp_printf("X1(vec): %Zx\n", gtmp);
+    //gmp_printf("Z1(vec): %Zx\n", gtmp2);
+#endif
 
 	//add3(xA, zA, xA, zA, xB, zB, xC, zC, n, u, v, w);
 
@@ -1122,6 +1448,82 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		printf("problem: d != 1\n");
         exit(1);
 	}
+
+#ifdef MPZ_VERIFY
+
+    mpz_set(mdata->gmp_t1, px1);
+    mpz_set(mdata->gmp_t2, pz1);
+
+    extract_bignum_from_vec_to_mpz(px1, P->X, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(pz1, P->Z, 0, mdata->NWORDS);
+    
+    int result = 0;
+    
+    //extract_bignum_from_vec_to_mpz(gtmp, work->pt1.X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, work->pt1.Z, 0, mdata->NWORDS);
+    //gmp_printf("X1(mpz): %Zx\n", mdata->gmp_t1);
+    //gmp_printf("Z1(mpz): %Zx\n", mdata->gmp_t2);
+    //gmp_printf("X1(vec): %Zx\n", gtmp);
+    //gmp_printf("Z1(vec): %Zx\n", gtmp2);
+    //
+    //extract_bignum_from_vec_to_mpz(gtmp, work->pt2.X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, work->pt2.Z, 0, mdata->NWORDS);
+    //gmp_printf("X2(mpz): %Zx\n", px2);
+    //gmp_printf("Z2(mpz): %Zx\n", pz2);
+    //gmp_printf("X2(vec): %Zx\n", gtmp);
+    //gmp_printf("Z2(vec): %Zx\n", gtmp2);
+    //
+    //extract_bignum_from_vec_to_mpz(gtmp, work->pt3.X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, work->pt3.Z, 0, mdata->NWORDS);
+    //gmp_printf("X3(mpz): %Zx\n", px3);
+    //gmp_printf("Z3(mpz): %Zx\n", pz3);
+    //gmp_printf("X3(vec): %Zx\n", gtmp);
+    //gmp_printf("Z3(vec): %Zx\n", gtmp2);
+    //
+    //extract_bignum_from_vec_to_mpz(gtmp, work->pt4.X, 0, mdata->NWORDS);
+    //extract_bignum_from_vec_to_mpz(gtmp2, work->pt4.Z, 0, mdata->NWORDS);
+    //gmp_printf("X4(mpz): %Zx\n", px4);
+    //gmp_printf("Z4(mpz): %Zx\n", pz4);
+    //gmp_printf("X4(vec): %Zx\n", gtmp);
+    //gmp_printf("Z4(vec): %Zx\n", gtmp2);
+
+    if (mpz_cmp(px1, mdata->gmp_t1) != 0)
+    {
+        mpz_set_ui(gtmp, 1);
+        mpz_mul_2exp(gtmp, gtmp, bits);
+        gmp_printf("X coords don't match!\n%Zx\n%Zx\n%Zx\n", px1, mdata->gmp_t1, gtmp);
+        result = 1;
+    }
+    
+    if (mpz_cmp(pz1, mdata->gmp_t2) != 0)
+    {
+        mpz_set_ui(gtmp, 1);
+        mpz_mul_2exp(gtmp, gtmp, bits);
+        gmp_printf("Z coords don't match!\n%Zx\n%Zx\n%Zx\n", pz1, mdata->gmp_t2, gtmp);
+        result = 1;
+    }
+
+    mpz_clear(px1);
+    mpz_clear(px2);
+    mpz_clear(px3);
+    mpz_clear(px4);
+    mpz_clear(pz1);
+    mpz_clear(pz2);
+    mpz_clear(pz3);
+    mpz_clear(pz4);
+    mpz_clear(gn);
+    mpz_clear(gnhat);
+    mpz_clear(gtmp);
+    mpz_clear(gtmp2);
+    mpz_clear(gs);
+    mpz_clear(gsum);
+    mpz_clear(gdiff);
+
+    if (result)
+        exit(0);
+
+
+#endif
 
 	return;
 
@@ -2090,8 +2492,8 @@ void vececm_old(thread_data_t *tdata)
 
 void vececm(thread_data_t* tdata)
 {
-    //attempt to factor n with the elliptic curve method
-    //following brent and montgomery's papers, and CP's book
+    // attempt to factor n with the elliptic curve method
+    // following brent and montgomery's papers, and CP's book
     tpool_t* tpool_data;
     uint32_t threads = tdata[0].total_threads;
     base_t i, j;
@@ -2144,6 +2546,7 @@ void vececm(thread_data_t* tdata)
     }
     else
     {
+        // for Mersenne's, the original input is stored here.
         extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->vnhat, 0, NWORDS);
     }
 
@@ -2462,17 +2865,24 @@ void vececm(thread_data_t* tdata)
 
             vecmulmod_ptr(tdata[j].P->Z, one, tdata[j].work->tt3, tdata[j].work->n,
                 tdata[j].work->tt2, tdata[j].mdata);
-
             //print_vechexbignum(tdata[j].P->Z, "Z point\n");
 
             for (i = 0; i < VECLEN; i++)
             {
-                extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
+                uint32_t msk = vec_gte52(tdata[j].work->tt3, tdata[j].work->n);
+                vec_bignum52_mask_sub(tdata[j].work->tt3, tdata[j].work->n, tdata[j].work->tt2, msk);
+                extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt2, i, NWORDS);
 
                 if (mpz_cmp_ui(gmpt, 0) == 0)
                 {
                     printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
                 }
+
+#ifdef MPZ_VERIFY
+                gmp_printf("final Z coord is %Zx\n", tdata[j].mdata->gmp_t2);
+                mpz_gcd(gmpt, tdata[j].mdata->gmp_t2, gmpn);
+                gmp_printf("gcd is %Zd\n", gmpt);
+#endif
 
                 result = vec_check_factor(gmpt, gmpn, tmp_factor);
                 if (result == 1)
@@ -2636,7 +3046,7 @@ void vececm(thread_data_t* tdata)
 
                 tdata[0].pairmap_steps = pair(tdata[0].pairmap_v, tdata[0].pairmap_u,
                     tdata[0].work, tdata[0].Q, tdata[0].Qrmap, tdata[0].Qmap,
-                    ecm_primes, ecm_nump, p, MIN(p + (uint64_t)PRIME_RANGE, STAGE2_MAX), 1);
+                    ecm_primes, ecm_nump, p, MIN(p + (uint64_t)PRIME_RANGE, STAGE2_MAX), verbose);
 
                 for (i = 0; i < threads; i++)
                 {
@@ -2795,12 +3205,6 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         work->sigma = sigma;
     }
 
-    //sigma = work->sigma = 1632562926;
-    //sigma = 269820583;
-    //sigma = 50873471;
-    //sigma = 444711979;		// both good
-    //work->sigma = sigma;
-    //printf("thread %d running curve on sigma = %"PRIu64"\n", tid, work->sigma);
 
 #ifdef PRINT_DEBUG
     printf("sigma = %lu\n", work->sigma);
@@ -2994,6 +3398,8 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         }
         else
         {
+            // Mersenne's use the special properties of the 
+            // representation for reduction, no Monty needed.
             mpz_tdiv_r(X, X, n);
             mpz_tdiv_r(Z, Z, n);
             mpz_tdiv_r(A, A, n);
@@ -3201,13 +3607,61 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
     }
 #endif
 
+    vecClear(work->diff1);
+    vecClear(work->sum1);
+    vecClear(work->diff2);
+    vecClear(work->sum2);
+    vecClear(work->tt1);
+    vecClear(work->tt2);
+    vecClear(work->tt3);
+    vecClear(work->tt4);
+
+    //print_vechexbignum(P->X, "POINT x: ");
+    //print_vechexbignum(P->Z, "POINT z: ");
+
+#ifdef MPZ_VERIFY
+    mpz_t gtmp, gtmp2, gn, gnhat;
+    mpz_t gs, gsum, gdiff;
+
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t1, P->X, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(mdata->gmp_t2, P->Z, 0, mdata->NWORDS);
+
+    mpz_init(gn);
+    mpz_init(gnhat);
+    mpz_init(gtmp);
+    mpz_init(gtmp2);
+    mpz_init(gs);
+    mpz_init(gsum);
+    mpz_init(gdiff);
+
+    extract_bignum_from_vec_to_mpz(gn, work->n, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(gs, work->s, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(gnhat, mdata->vnhat, 0, mdata->NWORDS);
+
+#endif
+
 	// handle the only even case 
-	q = 2;
+    q = 2;
 	while (q < b1)
 	{
 		vecsubmod_ptr(P->X, P->Z, work->diff1, mdata);
 		vecaddmod_ptr(P->X, P->Z, work->sum1, mdata);
 		vec_duplicate(mdata, work, work->sum1, work->diff1, P);
+
+#ifdef MPZ_VERIFY
+        //printf("duplicate\n");
+        mpz_elldup(mdata->gmp_t1, mdata->gmp_t2, gn, gnhat,
+            gsum, gdiff, gs, gtmp, gtmp2, mdata->NWORDS * 52);
+
+        //extract_bignum_from_vec_to_mpz(gtmp, P->X, 0, mdata->NWORDS);
+        //extract_bignum_from_vec_to_mpz(gtmp2, P->Z, 0, mdata->NWORDS);
+        //
+        //gmp_printf("vec X: %Zx\n", gtmp);
+        //gmp_printf("mpz X: %Zx\n", mdata->gmp_t1);
+        //gmp_printf("vec Z: %Zx\n", gtmp2);
+        //gmp_printf("mpz Z: %Zx\n", mdata->gmp_t2);
+
+#endif
 		q *= 2;
 	}
 
@@ -3216,8 +3670,29 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 		uint64_t c = 1;
 	
 		q = primes[i];
+
 		do {
+            vecClear(work->diff1);
+            vecClear(work->sum1);
+            vecClear(work->diff2);
+            vecClear(work->sum2);
+            vecClear(work->tt1);
+            vecClear(work->tt2);
+            vecClear(work->tt3);
+            vecClear(work->tt4);
+            vecClear(work->pt1.X);
+            vecClear(work->pt1.Z);
+            vecClear(work->pt2.X);
+            vecClear(work->pt2.Z);
+            vecClear(work->pt3.X);
+            vecClear(work->pt3.Z);
+
+            //printf("\n\n***prac(%d)\n", q);
 			vec_prac(mdata, work, P, q);
+
+            //print_vechexbignum(P->X, "POINT x: ");
+            //print_vechexbignum(P->Z, "POINT z: ");
+
 			c *= q;
 		} while ((c * q) < b1);
 	
@@ -3240,6 +3715,17 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 			primes[i-1], work->stg1Add, work->stg1Doub);
 		fflush(stdout);
 	}
+
+#ifdef MPZ_VERIFY
+    mpz_clear(gn);
+    mpz_clear(gnhat);
+    mpz_clear(gtmp);
+    mpz_clear(gtmp2);
+    mpz_clear(gs);
+    mpz_clear(gsum);
+    mpz_clear(gdiff);
+#endif
+
 	return;
 }
 
@@ -3803,11 +4289,17 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
 //416265588
 
 
-void addflag(uint8_t* flags, int loc)
+void addflag(uint8_t* flags, uint64_t loc, uint64_t lobound, uint64_t hibound)
 {
     //printf("adding flag to %u\n", loc); fflush(stdout);
     //if (flags[loc] == 1)
     //    printf("duplicate location %u\n", loc);
+    if ((loc < lobound) || (loc >= hibound))
+    {
+        //printf("attempted to add a flag to location %lu outside of bounds %lu:%lu\n",
+        //    loc, lobound, hibound);
+        return;
+    }
     flags[loc] = 1;
     return;
 }
@@ -4173,7 +4665,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
     if (testcoverage)
     {
-        flags = (uint8_t*)xcalloc((10000 + B2), sizeof(uint8_t));
+        flags = (uint8_t*)xcalloc((10000 + B2 - B1), sizeof(uint8_t));
     }
 
     if (verbose > 1)
@@ -4222,8 +4714,8 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                             if (testcoverage)
                             {
-                                addflag(flags, (2 * ap) * w + q);
-                                addflag(flags, (2 * ap) * w - q);
+                                addflag(flags, (2 * ap) * w + q - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * w - q - B1, 0, B2 - B1);
                             }
                             if (printpairs)
                             {
@@ -4253,8 +4745,8 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                             if (testcoverage)
                             {
-                                addflag(flags, (2 * ap) * w + Qrmap[i]);
-                                addflag(flags, (2 * ap) * w - Qrmap[i]);
+                                addflag(flags, (2 * ap) * w + Qrmap[i] - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * w - Qrmap[i] - B1, 0, B2 - B1);
                             }
                             if (printpairs)
                             {
@@ -4307,9 +4799,9 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                         if (testcoverage)
                         {
-                            addflag(flags, (2 * ap) * w + qq);
-                            addflag(flags, (2 * ap) * w - qq);
-    }
+                            addflag(flags, (2 * ap) * w + qq - B1, 0, B2 - B1);
+                            addflag(flags, (2 * ap) * w - qq - B1, 0, B2 - B1);
+                        }
                         if (printpairs)
                         {
                             printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
@@ -4317,7 +4809,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                                 2 * ap * w - qq,
                                 2 * ap * w + qq);
                         }
-}
+                    }
                     else
                     {
                         int qq = q;
@@ -4331,8 +4823,8 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                         if (testcoverage)
                         {
-                            addflag(flags, (2 * ap) * w + qq);
-                            addflag(flags, (2 * ap) * w - qq);
+                            addflag(flags, (2 * ap) * w + qq - B1, 0, B2 - B1);
+                            addflag(flags, (2 * ap) * w - qq - B1, 0, B2 - B1);
                         }
                         if (printpairs)
                         {
@@ -4352,8 +4844,8 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                     if (testcoverage)
                     {
-                        addflag(flags, (a + ap) * w + u);
-                        addflag(flags, (a + ap) * w - u);
+                        addflag(flags, (a + ap) * w + u - B1, 0, B2 - B1);
+                        addflag(flags, (a + ap) * w - u - B1, 0, B2 - B1);
                     }
                     if (printpairs)
                     {
@@ -4411,8 +4903,8 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                 }
                 if (testcoverage)
                 {
-                    addflag(flags, (2 * ap) * w + q);
-                    addflag(flags, (2 * ap) * w - q);
+                    addflag(flags, (2 * ap) * w + q - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * w - q - B1, 0, B2 - B1);
                 }
             }
             else
@@ -4430,8 +4922,8 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                 }
                 if (testcoverage)
                 {
-                    addflag(flags, (2 * ap) * w + Qrmap[i]);
-                    addflag(flags, (2 * ap) * w - Qrmap[i]);
+                    addflag(flags, (2 * ap) * w + Qrmap[i] - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * w - Qrmap[i] - B1, 0, B2 - B1);
                 }
             }
             pairs++;
@@ -4477,14 +4969,18 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         int notcovered = 0;
         while ((pid < ecm_nump) && (primes[pid] < B2))
         {
-            if (flags[primes[pid]] != 1)
+            if (flags[primes[pid] - B1] != 1)
             {
                 printf("prime %lu not covered!\n", primes[pid]);
                 notcovered++;
             }
             pid++;
         }
-        printf("%d primes not covered during pairing!\n", notcovered);
+        if (notcovered > 0)
+        {
+            printf("**** %d primes not covered during pairing!\n", notcovered);
+            exit(1);
+        }
         free(flags);
     }
 
