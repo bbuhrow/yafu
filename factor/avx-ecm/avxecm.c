@@ -2713,9 +2713,10 @@ void vececm(thread_data_t* tdata)
 
             for (i = 0; i < VECLEN; i++)
             {
-                uint32_t msk = vec_gte52(tdata[j].work->tt3, tdata[j].work->n);
-                vec_bignum52_mask_sub(tdata[j].work->tt3, tdata[j].work->n, tdata[j].work->tt2, msk);
-                extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt2, i, NWORDS);
+                //uint32_t msk = vec_gte52(tdata[j].work->tt3, tdata[j].work->n);
+                //vec_bignum52_mask_sub(tdata[j].work->tt3, tdata[j].work->n, tdata[j].work->tt2, msk);
+                //extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt2, i, NWORDS);
+                extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
 
                 if (mpz_cmp_ui(gmpt, 0) == 0)
                 {

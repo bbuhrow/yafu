@@ -71,6 +71,18 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
             // factors.
             vecmulmod_ptr = &vecmulmod52_mersenne;
             vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            
+            //if (maxbits > 1000)
+            //{
+            //    // faster starting around 16000 bits on Xeon 6254
+            //    vecmulmod_ptr = &veckmul_mersenne;
+            //    vecsqrmod_ptr = &vecksqr_mersenne;
+            //    if (verbose > 1)
+            //    {
+            //        printf("Using karatsuba mul/sqr core\n");
+            //    }
+            //}
+
             //vecmulmod_ptr = &veckmul_mersenne;
             //vecsqrmod_ptr = &vecksqr_mersenne;
             vecaddmod_ptr = &vecaddmod52_mersenne;

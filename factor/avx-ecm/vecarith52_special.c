@@ -55,16 +55,6 @@ This file is a snapshot of a work in progress, originated by Mayo
 //#define PRINT_DEBUG 2
 //#define NPRINT_DEBUG 0
 
-// test cases:
-// is stage 2 broken for mersennes? - yes looks that way
-
-// ./yafu "ecm(2^823-1,8)" -v -v -B1ecm 3000000 -sigma 4248094344 finds factor 1460915248436556406607
-// ./yafu "ecm(2^823-1,8)" -v -v -B1ecm 3000000 -sigma 2102985689 finds both factors 1460915248436556406607 and 1534086200463688788034864584049
-// ./yafu "ecm((2^1063+1)/3,8)" -v -v -B1ecm 3000000 -sigma 3299028348 finds both factors 114584129081 and 26210488518118323164267329859
-// ./yafu "ecm((2^827+1)/3,8)" -v -v -B1ecm 28000000 -B2ecm 760000000 -sigma 4029008539 fails to find factor!
-// ./yafu "ecm((2^773-1)/6864241/9461521,8)" -v -v -B1ecm 2500000 -B2ecm 1800000000 -sigma 8170945836124664 fails to find factor!
-
-
 void vecmulmod52_mersenne_416(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j;
@@ -4750,18 +4740,24 @@ void vecaddmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
     }
 
     // add
-    for (i = 0; i < NWORDS; i++)
+    carry = 0;
+    for (i = 0; i < wshift; i++)
     {
-        avec = _mm512_load_epi64(a->data + i * VECLEN);
-        bvec = _mm512_load_epi64(b->data + i * VECLEN);
+        avec = _mm512_load_epi64(b->data + i * VECLEN);
+        bvec = _mm512_load_epi64(a->data + i * VECLEN);
+        avec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(lomask, avec));
+    }
 
-        //cvec = _mm512_adc_epi52(avec, carry, bvec, &carry);
-        __m512i t = _mm512_add_epi64(avec, bvec);
-        t = _mm512_add_epi64(t, _mm512_maskz_set1_epi64(carry, 1));
-        carry = _mm512_cmpgt_epu64_mask(t, lomask);
-        cvec = _mm512_and_epi64(t, lomask);
+    avec = _mm512_load_epi64(b->data + i * VECLEN);
+    bvec = _mm512_load_epi64(a->data + i * VECLEN);
+    bvec = _mm512_and_epi64(vbshift, bvec);
+    avec = _mm512_adc_epi52(avec, carry, bvec, &carry);
+    _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(lomask, avec));
 
-        _mm512_store_epi64(c->data + i * VECLEN, cvec);
+    for (i++; i < NWORDS; i++)
+    {
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_set1_epi64(0));
     }
 
     // check for a carry.
@@ -4886,7 +4882,7 @@ void vecsubmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
     {
         avec = _mm512_load_epi64(a->data + i * VECLEN);
         bvec = _mm512_load_epi64(b->data + i * VECLEN);
-        
+
         //cvec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
         __m512i t = _mm512_sub_epi64(avec, bvec);
         carryout = _mm512_cmpgt_epu64_mask(bvec, avec);
@@ -4896,6 +4892,150 @@ void vecsubmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
 
         _mm512_store_epi64(c->data + i * VECLEN, cvec);
     }
+
+    if (mdata->isMersenne > 0)
+    {
+        // if we had a final carry, then b was bigger than a so we need to re-add n.
+        nvec = _mm512_set1_epi64(0x10000000000000ULL);
+        nvec = _mm512_sub_epi64(nvec, _mm512_set1_epi64(mdata->isMersenne));
+        cvec = _mm512_load_epi64(c->data + 0 * VECLEN);
+        bvec = _mm512_mask_adc_epi52(cvec, carry, 0, nvec, &carry);
+        _mm512_store_epi64(c->data + 0 * VECLEN, bvec);
+        nvec = lomask;
+        for (i = 1; i <= wshift; i++)
+        {
+            cvec = _mm512_load_epi64(c->data + i * VECLEN);
+
+            //bvec = _mm512_mask_adc_epi52(cvec, mask, carry, nvec, &carry);
+            __m512i t = _mm512_add_epi64(cvec, nvec);
+            t = _mm512_mask_add_epi64(cvec, mask, t, _mm512_maskz_set1_epi64(carry, 1));
+            carry = _mm512_cmpgt_epu64_mask(t, lomask);
+            bvec = _mm512_and_epi64(t, lomask);
+
+            _mm512_store_epi64(c->data + i * VECLEN, bvec);
+        }
+    }
+    else
+    {
+        // if we had a final carry, then b was bigger than a so we need to re-add n.
+        mask = carry;
+        carry = 0;
+        nvec = _mm512_set1_epi64(1);
+        cvec = _mm512_load_epi64(c->data + 0 * VECLEN);
+        bvec = _mm512_mask_adc_epi52(cvec, mask, carry, nvec, &carry);
+        _mm512_store_epi64(c->data + 0 * VECLEN, bvec);
+        for (i = 1; (i <= wshift) && (carry > 0); i++)
+        {
+            cvec = _mm512_load_epi64(c->data + i * VECLEN);
+
+            //bvec = _mm512_addcarry_epi52(cvec, carry, &carry);
+            __m512i t = _mm512_add_epi64(cvec, _mm512_maskz_set1_epi64(carry, 1));
+            carry = _mm512_cmpeq_epu64_mask(cvec, lomask);
+            bvec = _mm512_and_epi64(t, lomask);
+
+            _mm512_store_epi64(c->data + i * VECLEN, bvec);
+        }
+    }
+
+    //for (; i < NWORDS; i++)
+    //{
+    //    _mm512_store_epi64(c->data + i * VECLEN, _mm512_set1_epi64(0));
+    //}
+
+    // clear the potential hi-bit
+    avec = _mm512_load_epi64(c->data + wshift * VECLEN);
+    _mm512_store_epi64(c->data + wshift * VECLEN,
+        _mm512_and_epi64(vbshift, avec));
+
+    return;
+}
+
+void vecsubmod52_mersenne2(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
+{
+    // assumptions:
+    // a, b, c are of length VECLEN * NWORDS
+    // s1 is of length VECLEN
+    // a, b, c, n, and s1 are aligned
+    // a and b are both positive
+    // a >= b
+    // n is the montgomery base
+    int i;
+    uint32_t NWORDS = a->WORDS_ALLOC;
+    __mmask8 carry = 0;
+    __mmask8 carryout = 0;
+    __mmask8 mask = 0;
+    __mmask8 mask2 = 0;
+    __m512i avec;
+    __m512i bvec;
+    __m512i cvec;
+    __m512i nvec;
+    __m512i lomask = _mm512_set1_epi64(0xfffffffffffffULL);
+    __m512i zero = _mm512_set1_epi64(0);
+
+    __m512i vbshift;
+    __m512i vbpshift;
+    int bshift = mdata->nbits % 52;
+    int wshift = mdata->nbits / 52;
+
+    if (mdata->use_vnbits)
+    {
+        int bshift_a[VECLEN];
+        for (i = 0; i < VECLEN; i++)
+        {
+            bshift_a[i] = mdata->vnbits[i] % 52;
+        }
+
+        //vbshift = _mm512_set_epi64(
+        //    (1ULL << (uint64_t)(bshift_a[7])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[6])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[5])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[4])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[3])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[2])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[1])) - 1ULL,
+        //    (1ULL << (uint64_t)(bshift_a[0])) - 1ULL);
+        //
+
+        vbshift = _mm512_set_epi64(
+            (1ULL << (uint64_t)(bshift_a[0])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[1])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[2])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[3])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[4])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[5])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[6])) - 1ULL,
+            (1ULL << (uint64_t)(bshift_a[7])) - 1ULL);
+    }
+    else
+    {
+        vbshift = _mm512_set1_epi64((1ULL << (uint64_t)(bshift)) - 1ULL);
+        vbpshift = _mm512_set1_epi64((1ULL << (uint64_t)(bshift)));
+    }
+
+    // subtract
+    carry = 0;
+    for (i = 0; i < wshift; i++)
+    {
+        avec = _mm512_load_epi64(b->data + i * VECLEN);
+        bvec = _mm512_load_epi64(a->data + i * VECLEN);
+        avec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(lomask, avec));
+    }
+
+    avec = _mm512_load_epi64(b->data + i * VECLEN);
+    bvec = _mm512_load_epi64(a->data + i * VECLEN);
+    bvec = _mm512_and_epi64(vbshift, bvec);
+    avec = _mm512_sbb_epi52(avec, carry, bvec, &carry);
+    _mm512_store_epi64(c->data + i * VECLEN, _mm512_and_epi64(lomask, avec));
+
+    for (i++; i < NWORDS; i++)
+    {
+        _mm512_store_epi64(c->data + i * VECLEN, _mm512_set1_epi64(0));
+    }
+
+    // check for a carry.
+    avec = _mm512_load_epi64(c->data + wshift * VECLEN);
+    carry = _mm512_test_epi64_mask(avec, vbpshift);
 
     if (mdata->isMersenne > 0)
     {
@@ -4957,6 +5097,10 @@ void vecsubmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
 void vec_simul_addsub52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* sum, vec_bignum_t* diff,
     vec_monty_t* mdata)
 {
+    //vecaddmod52_mersenne(a, b, sum, mdata);
+    //vecsubmod52_mersenne(a, b, diff, mdata);
+    //return;
+
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
     // a, b, c, and n are aligned
@@ -5169,7 +5313,7 @@ void vec_simul_addsub52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t*
     return;
 }
 
-#define DEBUG_MERSENNE
+//#define DEBUG_MERSENNE
 void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j;
@@ -5211,9 +5355,11 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
     int bshift = mdata->nbits % 52;
     int wshift = mdata->nbits / 52;
 
+#ifdef DEBUG_MERSENNE
     mpz_t ga;
     mpz_init(ga);
     extract_bignum_from_vec_to_mpz(ga, a, 0, 2 * NWORDS);
+#endif
 
     if (mdata->use_vnbits)
     {
@@ -5253,8 +5399,8 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
     }
 
 #ifdef DEBUG_MERSENNE
-    print_vechexbignum(c, "hi part:");
-    print_vechexbignum(a, "lo part:");
+    //print_vechexbignum(c, "hi part:");
+    //print_vechexbignum(a, "lo part:");
 #endif
 
     if (mdata->isMersenne > 1)
@@ -5420,7 +5566,7 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
         }
 
 #ifdef DEBUG_MERSENNE
-        print_vechexbignum(c, "after add:");
+        //print_vechexbignum(c, "after add:");
 #endif
 
         // if there was a carry, add it back in.
@@ -5446,33 +5592,36 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
         }
 
 #ifdef DEBUG_MERSENNE
-        print_vechexbignum(c, "after carry add:");
+        //print_vechexbignum(c, "after carry add:");
 #endif
 
+#ifdef DEBUG_MERSENNE
         mpz_t gn, gb, gc;
         mpz_init(gn);
         mpz_init(gb);
         mpz_init(gc);
         mpz_set_ui(gn, 1);
         mpz_mul_2exp(gn, gn, mdata->nbits);
+        mpz_sub_ui(gn, gn, 1);
         mpz_mod(gc, ga, gn);
-
+        
         extract_bignum_from_vec_to_mpz(gb, c, 0, NWORDS);
-
+        
         if (mpz_cmp(gc, gb) != 0)
         {
-            gmp_printf("a = %Zd\n", ga);
-            gmp_printf("n = %Zd\n", gn);
-
-            gmp_printf("b = %Zd\n", gb);
-            gmp_printf("c = %Zd\n", gc);
+            //gmp_printf("a = %Zd\n", ga);
+            //gmp_printf("n = %Zd\n", gn);
+            //
+            //gmp_printf("b = %Zd\n", gb);
+            //gmp_printf("c = %Zd\n", gc);
             exit(1);
         }
-
+        
         
         mpz_clear(gb);
         mpz_clear(gc);
         mpz_clear(gn);
+#endif
 
     }
     else
@@ -5529,7 +5678,9 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
             _mm512_and_epi64(vbshift, a1));
     }
 
+#ifdef DEBUG_MERSENNE
     mpz_clear(ga);
+#endif
     c->size = NWORDS;
 
 }
