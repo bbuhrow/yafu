@@ -124,6 +124,7 @@ void ecm_sync_fcn(void *ptr)
         fflush(stdout);
     }
 
+    // deal with a factor found
     if (thread_data->factor_found == 1)
     {
         // since we could be doing many curves in parallel,
@@ -432,6 +433,75 @@ int ecm_loop(fact_obj_t *fobj)
             ecm_process_init(fobj);
 
             thread_data = (ecm_thread_data_t*)malloc(fobj->THREADS * sizeof(ecm_thread_data_t));
+            
+            // prefer-gmpecm-stg2 works by calling the external gmp-ecm
+            // with -resume.  With multiple threads we need to split this
+            // file into multiple files so that each thread can work
+            // with a subset of the curves.
+            int curves_per_thread = curves_run / fobj->THREADS;
+            if ((curves_run % fobj->THREADS) > 0)
+            {
+                curves_per_thread++;
+            }
+            FILE *fid = fopen("avx_ecm_resume.txt", "r");
+            fid = fopen("avx_ecm_resume.txt", "r");
+            if (fid != NULL)
+            {
+                char fname[80];
+                
+                for (i = 0; i < fobj->THREADS - 1; i++)
+                {
+                    sprintf(fname, "avx_ecm_resume_%d.txt", i);
+                    FILE* fid_out = fopen(fname, "w");
+                    for (j = 0; j < curves_per_thread; j++)
+                    {
+                        // need the ability to parse an arbitrary length line
+                        char line[8192];
+                        if ((fgets(line, 8192, fid) == NULL) || feof(fid))
+                        {
+                            printf("expected more lines in avx_ecm_resume.txt\n");
+                            break;
+                        }
+                        fputs(line, fid_out);
+                    }
+                    fclose(fid_out);
+                }
+                sprintf(fname, "avx_ecm_resume_%d.txt", i);
+                FILE* fid_out = fopen(fname, "w");
+                while (!feof(fid))
+                {
+                    char line[8192];
+                    if ((fgets(line, 8192, fid) == NULL) || feof(fid))
+                    {
+                        break;
+                    }
+                    fputs(line, fid_out);
+                }
+                fclose(fid_out);
+                fclose(fid);
+            }
+            else
+            {
+                printf("could not open avx_ecm_resume.txt to resume with gmp-ecm stage 2\n");
+                curves_per_thread = 0;
+            }
+
+            // now archive the resume file
+            {
+                time_t rawtime;
+                struct tm* info;
+                time(&rawtime);
+                info = localtime(&rawtime);
+
+                char destfile[80];
+
+                sprintf(destfile, "avx_ecm_resume_%d_%d_%d_%d.txt",
+                    info->tm_mon, info->tm_mday, info->tm_year + 1900,
+                    info->tm_hour * 3600 + info->tm_min * 60 + info->tm_sec);
+                // archive the resume file
+                rename("avx_ecm_resume.txt", destfile);
+            }
+
             for (i = 0; i < fobj->THREADS; i++)
             {
                 // several things in the thread structure need to be tied
@@ -566,7 +636,7 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	if (fobj->ecm_obj.sigma != 0)
 	{
 		//if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
-	//		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
+	    //		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
 		thread_data->sigma = fobj->ecm_obj.sigma;
 	}
 	else //if (get_uvar("sigma",tmp))
@@ -829,7 +899,9 @@ void *ecm_do_one_curve(void *ptr)
 		// build system command
         if (thread_data->resume_avx_ecm)
         {
-            fid = fopen("avx_ecm_resume.txt", "r");
+            char fname[80];
+            sprintf(fname, "avx_ecm_resume_%d.txt", thread_data->thread_num);
+            fid = fopen(fname, "r");
             if (fid != NULL)
             {
                 fclose(fid);
@@ -837,10 +909,9 @@ void *ecm_do_one_curve(void *ptr)
                 //char exename[1024];
                 //GetModuleFileName(NULL, exename, 1024);
 
-
-                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume.txt %u | tee %s\n",
-                    tmpstr, fobj->ecm_obj.ecm_path, fobj->ecm_obj.B1,
-                    thread_data->tmp_output);
+                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume_%d.txt %u | tee %s\n",
+                    tmpstr, fobj->ecm_obj.ecm_path, thread_data->thread_num, 
+                    fobj->ecm_obj.B1, thread_data->tmp_output);
             }
             else
             {
@@ -962,7 +1033,6 @@ void *ecm_do_one_curve(void *ptr)
                     thread_data->curves_run += (curves - 1);
                     found_curves_run = 1;
                 }
-
             }
 
 			ptr = strstr(line, "**********");
@@ -989,17 +1059,9 @@ void *ecm_do_one_curve(void *ptr)
 
         if (thread_data->resume_avx_ecm)
         {
-            time_t rawtime;
-            struct tm* info;
-            time(&rawtime);
-            info = localtime(&rawtime);
-
-            char destfile[80];
-
-            sprintf(destfile, "avx_ecm_resume_%d_%d_%d.txt", 
-                info->tm_mon, info->tm_mday, info->tm_year + 1900);
-            // archive the resume file
-            rename("avx_ecm_resume.txt", destfile);
+            char fname[80];
+            sprintf(fname, "avx_ecm_resume_%d.txt", thread_data->thread_num);
+            remove(fname);
         }
 	}
 
