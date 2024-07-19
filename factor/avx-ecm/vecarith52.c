@@ -54,6 +54,8 @@ This file is a snapshot of a work in progress, originated by Mayo
 #include <immintrin.h>
 
 #define USE_AMM 1
+//#define DEBUG_MUL
+//#define DO_INTERMEDIATE_CARRYPROP
 
 
 __m512i __inline _mm512_mask_sbb_src_epi52(__m512i src, __m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
@@ -120,12 +122,14 @@ void vecmulmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t*
     __m512i c00, c01, c02, c03, c04, c05, c06, c07,
         c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19;
 
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
@@ -1327,12 +1331,14 @@ void vecmulmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
     __m512i c00, c01, c02, c03, c04, c05, c06, c07, 
         c08, c09, c10, c11, c12, c13, c14, c15;
 
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
@@ -2209,12 +2215,14 @@ void vecmulmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
     __m512i c00, c01, c02, c03, c04, c05, c06, c07, c08, c09, c10, c11;
 
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
@@ -2815,12 +2823,14 @@ void vecmulmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
     __m512i c00, c01, c02, c03, c04, c05, c06, c07;
 
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
@@ -3305,7 +3315,7 @@ done:
     return;
 }
 
-#ifdef IFMA
+#if 0 //def 0 //IFMA
 void vecmulmod52_fixed624_bfips_ifma(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j, k;
@@ -6376,7 +6386,6 @@ void vecsqrmod52_fixed624_bfips_ifma(vec_bignum_t* a, vec_bignum_t* c, vec_bignu
 
 #endif
 
-//#define DO_INTERMEDIATE_CARRYPROP
 void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j, k;
@@ -6418,11 +6427,13 @@ void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t
     uint64_t* outdata = s->data;
 #endif
 
-    //mpz_t ga, gb;
-    //mpz_init(ga);
-    //mpz_init(gb);
-    //extract_bignum_from_vec_to_mpz(ga, a, 4, NWORDS);
-    //extract_bignum_from_vec_to_mpz(gb, b, 4, NWORDS);
+#ifdef DEBUG_MUL
+    mpz_t ga, gb;
+    mpz_init(ga);
+    mpz_init(gb);
+    extract_bignum_from_vec_to_mpz(ga, a, 4, NWORDS);
+    extract_bignum_from_vec_to_mpz(gb, b, 4, NWORDS);
+#endif
 
     // deal with the sign
     c->size = NWORDS;
@@ -7247,42 +7258,45 @@ void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t
 
 #endif
 
-    //mpz_t gt, gm, gn, gtmp1;
-    //mpz_init(gt);
-    //mpz_init(gm);
-    //mpz_init(gn);
-    //mpz_init(gtmp1);
-    //
-    //extract_bignum_from_vec_to_mpz(gn, n, 4, NWORDS);
-    //mpz_mul(gt, ga, gb);
-    //mpz_mod_2exp(gtmp1, gt, NWORDS * 52);
-    //mpz_mul(gm, gtmp1, mdata->nhat);
-    //mpz_mod_2exp(gm, gm, NWORDS * 52);
-    //mpz_mul(gtmp1, gm, gn);
-    //mpz_add(gt, gt, gtmp1);
-    //mpz_tdiv_q_2exp(gt, gt, NWORDS * 52);
-    //
-    //extract_bignum_from_vec_to_mpz(gtmp1, c, 4, NWORDS);
-    //if (mpz_cmp(gtmp1, gt) != 0)
-    //{
-    //    printf("modmul check failed, rho = %016llx\n", mdata->vrho[4]);
-    //    gmp_printf("a = %Zd\n", ga);
-    //    gmp_printf("b = %Zd\n", gb);
-    //    gmp_printf("n = %Zd\n", gn);
-    //    gmp_printf("c = %Zd\n", gtmp1);
-    //    gmp_printf("g = %Zd\n", gt);
-    //    exit(1);
-    //}
-    //else
-    //{
-    //    printf("modmul check success\n");
-    //}
-    //mpz_clear(ga);
-    //mpz_clear(gb);
-    //mpz_clear(gt);
-    //mpz_clear(gn);
-    //mpz_clear(gm);
-    //mpz_clear(gtmp1);
+#ifdef DEBUG_MUL
+    mpz_t gt, gm, gn, gtmp1;
+    mpz_init(gt);
+    mpz_init(gm);
+    mpz_init(gn);
+    mpz_init(gtmp1);
+    
+    extract_bignum_from_vec_to_mpz(gn, n, 4, NWORDS);
+    mpz_mul(gt, ga, gb);
+    mpz_mod_2exp(gtmp1, gt, NWORDS * 52);
+    mpz_mul(gm, gtmp1, mdata->nhat);
+    mpz_mod_2exp(gm, gm, NWORDS * 52);
+    mpz_mul(gtmp1, gm, gn);
+    mpz_add(gt, gt, gtmp1);
+    mpz_tdiv_q_2exp(gt, gt, NWORDS * 52);
+    
+    extract_bignum_from_vec_to_mpz(gtmp1, c, 4, NWORDS);
+    if (mpz_cmp(gtmp1, gt) != 0)
+    {
+        printf("modmul check failed, rho = %016llx\n", mdata->vrho[4]);
+        gmp_printf("a = %Zd\n", ga);
+        gmp_printf("b = %Zd\n", gb);
+        gmp_printf("n = %Zd\n", gn);
+        gmp_printf("c = %Zd\n", gtmp1);
+        gmp_printf("g = %Zd\n", gt);
+        exit(1);
+    }
+    else
+    {
+        printf("modmul check success\n");
+    }
+    mpz_clear(ga);
+    mpz_clear(gb);
+    mpz_clear(gt);
+    mpz_clear(gn);
+    mpz_clear(gm);
+    mpz_clear(gtmp1);
+
+#endif
 
     c->size = NWORDS;
     return;
@@ -7302,29 +7316,29 @@ void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t*
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    __m512i i0, i1;
+    //__m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
     __m512i c00, c01, c02, c03, c04, c05, c06, c07, c08, c09, c10, c11,
         c12, c13, c14, c15, c16, c17, c18, c19;
 
-
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
     __m512i acc_e0, acc_e1, acc_e2;
     __m512i nhatvec_e = _mm512_load_epi64(mdata->vrho);
-    __m512i hiword = _mm512_set1_epi64(0x000000000000001);
+    //__m512i hiword = _mm512_set1_epi64(0x000000000000001);
     __m512i zero = _mm512_set1_epi64(0);
-    __mmask8 scarry_e = 0;
+    //__mmask8 scarry_e = 0;
     __mmask8 scarry2;
     __mmask8 scarry;
 
@@ -8719,27 +8733,29 @@ void vecsqrmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    __m512i i0, i1;
+    //__m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
     __m512i c00, c01, c02, c03, c04, c05, c06, c07,
         c08, c09, c10, c11, c12, c13, c14, c15;
 
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
     __m512i acc_e0, acc_e1, acc_e2;
     __m512i nhatvec_e = _mm512_load_epi64(mdata->vrho);
-    __m512i hiword = _mm512_set1_epi64(0x000000000000001);
+    //__m512i hiword = _mm512_set1_epi64(0x000000000000001);
     __m512i zero = _mm512_set1_epi64(0);
-    __mmask8 scarry_e = 0;
+    //__mmask8 scarry_e = 0;
     __mmask8 scarry2;
     __mmask8 scarry;
 
@@ -9938,28 +9954,28 @@ void vecsqrmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    __m512i i0, i1;
+    //__m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
     __m512i c00, c01, c02, c03, c04, c05, c06, c07, c08, c09, c10, c11;
 
-
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
     __m512i acc_e0, acc_e1, acc_e2;
     __m512i nhatvec_e = _mm512_load_epi64(mdata->vrho);
-    __m512i hiword = _mm512_set1_epi64(0x000000000000001);
+    //__m512i hiword = _mm512_set1_epi64(0x000000000000001);
     __m512i zero = _mm512_set1_epi64(0);
-    __mmask8 scarry_e = 0;
+    //__mmask8 scarry_e = 0;
     __mmask8 scarry2;
     __mmask8 scarry;
 
@@ -10679,26 +10695,28 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    __m512i i0, i1;
+    //__m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
     __m512i c00, c01, c02, c03, c04, c05, c06, c07;
 
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
     __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+#endif
 
     // needed after loops
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
     __m512i acc_e0, acc_e1, acc_e2;
     __m512i nhatvec_e = _mm512_load_epi64(mdata->vrho);
-    __m512i hiword = _mm512_set1_epi64(0x000000000000001);
+    //__m512i hiword = _mm512_set1_epi64(0x000000000000001);
     __m512i zero = _mm512_set1_epi64(0);
-    __mmask8 scarry_e = 0;
+    //__mmask8 scarry_e = 0;
     __mmask8 scarry2;
     __mmask8 scarry;
 
@@ -11400,7 +11418,7 @@ void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    __m512i i0, i1;
+    //__m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
@@ -11418,9 +11436,9 @@ void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t
     __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
     __m512i acc_e0, acc_e1, acc_e2;
     __m512i nhatvec_e = _mm512_load_epi64(mdata->vrho);
-    __m512i hiword = _mm512_set1_epi64(0x000000000000001);
+    //__m512i hiword = _mm512_set1_epi64(0x000000000000001);
     __m512i zero = _mm512_set1_epi64(0);
-    __mmask8 scarry_e = 0;
+    //__mmask8 scarry_e = 0;
     __mmask8 scarry2;
     __mmask8 scarry;
 
@@ -12895,7 +12913,7 @@ void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
     __mmask8 carry = 0;
     __mmask8 carryout = 0;
     __mmask8 mask = 0;
-    __mmask8 mask2 = 0;
+    //__mmask8 mask2 = 0;
     __m512i nvec;
     __m512i avec;
     __m512i bvec;
@@ -13055,7 +13073,7 @@ void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b,
     __mmask8 bmask = 0;
     __m512i avec;
     __m512i bvec;
-    __m512i cvec;
+    //__m512i cvec;
     __m512i nvec;
     __m512i lomask = _mm512_set1_epi64(0xfffffffffffff);
     __m512i
@@ -13387,10 +13405,10 @@ void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b,
     __mmask8 cmask = 0;
     __mmask8 cmask2 = 0;
     __mmask8 bmask = 0;
-    __mmask8 bmask2 = 0;
+    //__mmask8 bmask2 = 0;
     __m512i avec;
     __m512i bvec;
-    __m512i cvec;
+    //__m512i cvec;
     __m512i nvec;
     __m512i lomask = _mm512_set1_epi64(0xfffffffffffff);
 
