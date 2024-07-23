@@ -519,6 +519,9 @@ int ecm_loop(fact_obj_t *fobj)
         uint32_t curves_run;
         int save_b1 = fobj->ecm_obj.save_b1;
         uint64_t ecm_ext_xover;
+        
+        mpz_init(F);
+        mpz_set(F, fobj->ecm_obj.gmp_n);
 
         if (fobj->ecm_obj.stg2_is_default)
         {
@@ -539,7 +542,8 @@ int ecm_loop(fact_obj_t *fobj)
             // i.e., develop the ability to convert into avx-ecm's parameterization.
         }
 
-        if (fobj->ecm_obj.prefer_gmpecm_stg2)
+        if ((fobj->ecm_obj.prefer_gmpecm_stg2) &&
+            (fobj->ecm_obj.B1 >= fobj->ecm_obj.ecm_ext_xover))
         {
             if (fobj->VFLAG >= 0)
             {
@@ -556,8 +560,14 @@ int ecm_loop(fact_obj_t *fobj)
             B2, fobj->THREADS, &numfactors, fobj->VFLAG, save_b1,
             &curves_run);
 
-        if (fobj->ecm_obj.prefer_gmpecm_stg2)
+        if ((fobj->ecm_obj.prefer_gmpecm_stg2) && 
+            (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) > 0) &&
+            (fobj->ecm_obj.B1 >= fobj->ecm_obj.ecm_ext_xover))
         {
+            if ((bail_on_factor == 1) && (mpz_cmp(F, fobj->ecm_obj.gmp_n) != 0))
+            {
+                printf("ecm: stop after one factor specified... skipping gmp-ecm stage 2\n");
+            }
             // this is similar to the gpu-ecm use case, where we've
             // just done stage 1 with avx-ecm that created a residue file.
             // the residue file is split for a multi-threaded stage 2 using
@@ -674,6 +684,8 @@ int ecm_loop(fact_obj_t *fobj)
         {
             total_curves_run = curves_run;
         }
+
+        mpz_clear(F);
 
     }
 
