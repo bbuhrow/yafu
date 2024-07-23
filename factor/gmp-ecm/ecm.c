@@ -81,6 +81,7 @@ void split_residue_file(int curves_run, int nthreads, char *base_filename)
             // with a subset of the curves.
     int i, j;
     int curves_per_thread = curves_run / nthreads;
+    
     if ((curves_run % nthreads) > 0)
     {
         curves_per_thread++;
@@ -92,6 +93,10 @@ void split_residue_file(int curves_run, int nthreads, char *base_filename)
     if (fid != NULL)
     {
         char fname[80];
+
+        printf("ecm: Found %d curves in %s.txt\n"
+            "ecm: assigning %d curves per gmp-ecm thread for stage 2\n",
+            curves_run, base_filename, curves_per_thread);
 
         for (i = 0; i < nthreads - 1; i++)
         {
@@ -404,7 +409,9 @@ int ecm_loop(fact_obj_t *fobj)
 
         free(tpool_data);
 
-
+        // In the instance where we run gpu-ecm, only stage 1 is performed and a
+        // residue file is created.  In this case we run a threaded stage 2 by
+        // splitting up the residue file and resuming with the subsequent files.
         if ((fobj->ecm_obj.use_gpuecm) && (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover))
         {
             // do stage 2 after the gpu stage 1 run
@@ -504,6 +511,8 @@ int ecm_loop(fact_obj_t *fobj)
     //
     //if (run_avxecm || fobj->ecm_obj.prefer_avxecm_stg2)
     {
+        // if we are not running gmp-ecm (either internal or external),
+        // then we are running avx-ecm.  At least for stage 1.
         mpz_t F;
         int numfactors = 0;
         uint64_t B2;
@@ -532,6 +541,11 @@ int ecm_loop(fact_obj_t *fobj)
 
         if (fobj->ecm_obj.prefer_gmpecm_stg2)
         {
+            if (fobj->VFLAG >= 0)
+            {
+                printf("ecm: prefer_gmpecm_stg2 specified... stage 2 curves will run "
+                    "after all stage 1 curves have completed\n");
+            }
             save_b1 = 2;
             B2 = fobj->ecm_obj.B1;
             ecm_ext_xover = fobj->ecm_obj.ecm_ext_xover;
@@ -544,8 +558,16 @@ int ecm_loop(fact_obj_t *fobj)
 
         if (fobj->ecm_obj.prefer_gmpecm_stg2)
         {
-            // now resume each curve with gmp-ecm
+            // this is similar to the gpu-ecm use case, where we've
+            // just done stage 1 with avx-ecm that created a residue file.
+            // the residue file is split for a multi-threaded stage 2 using
+            // gmp-ecm.
+            // timing variables
+            struct timeval stg2start;	// stop time of this job
+            struct timeval stg2stop;	// start time of this job
+            double stg2time;
 
+            gettimeofday(&stg2start, NULL);
 
             // initialize the flag to watch for interrupts, and set the
             // pointer to the function to call if we see a user interrupt
@@ -631,6 +653,15 @@ int ecm_loop(fact_obj_t *fobj)
             ecm_process_free(fobj);
 
             fobj->ecm_obj.ecm_ext_xover = ecm_ext_xover;
+
+            gettimeofday(&stg2stop, NULL);
+            stg2time = ytools_difftime(&stg2start, &stg2stop);
+            
+            if (fobj->VFLAG >= 0)
+            {
+                printf("ecm: total stage2 elasped time = %1.2f\n", stg2time);
+            }
+
         }
 
         // this is how we tell factor() to stop running curves at this level
@@ -833,7 +864,8 @@ void ecm_process_init(fact_obj_t *fobj)
             {
                 if (fobj->VFLAG >= 2)
                 {
-                    printf("GMP-ECM does not support multiple threads... running single threaded\n");
+                    printf("internal version of GMP-ECM (%f) does not support "
+                        "multiple threads... running single threaded\n", ver);
                 }
                 fobj->THREADS = 1;
             }

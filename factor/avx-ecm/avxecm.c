@@ -2429,6 +2429,21 @@ void vececm(thread_data_t* tdata)
         sigma_in[j] = tdata[0].sigma[j];
     }
 
+    // set up recording results for this batch of primes if requested.
+    if (tdata[0].save_b1) // && (save_intermediate)
+    {
+        if (tdata[0].save_b1 == 2)
+        {
+            remove("avx_ecm_resume.txt");
+            sprintf(fname, "avx_ecm_resume.txt");
+        }
+        else
+        {
+            sprintf(fname, "save_b1.txt");
+        }
+        save = fopen(fname, "a");
+    }
+
     for (curve = 0; curve < curves_to_run; curve += VECLEN)
     {
         uint64_t p;
@@ -2564,7 +2579,7 @@ void vececm(thread_data_t* tdata)
                 // this is a large B1:
                 // record intermediate results for this batch of primes
                 sprintf(fname, "save_b1_intermediate.txt");
-                save = fopen(fname, "a");
+                FILE *intsave = fopen(fname, "a");
 
                 gettimeofday(&stopt, NULL);
                 t_time = ytools_difftime(&startt, &stopt);
@@ -2649,9 +2664,9 @@ void vececm(thread_data_t* tdata)
                             mpz_init(tmp2);
                             mpz_init(tmp1);
 
-                            fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
+                            fprintf(intsave, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
                                 tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
-                            gmp_fprintf(save, "N=0x%Zx; ", gmpn);
+                            gmp_fprintf(intsave, "N=0x%Zx; ", gmpn);
 
                             extract_bignum_from_vec_to_mpz(tmp1, tdata[j].work->tt4, i, NWORDS);
                             extract_bignum_from_vec_to_mpz(tmp2, tdata[j].work->tt3, i, NWORDS);
@@ -2660,7 +2675,7 @@ void vececm(thread_data_t* tdata)
                             mpz_mul(gmpt, tmp2, tmp1);
                             mpz_mod(gmpt, gmpt, gmpn);
 
-                            gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                            gmp_fprintf(intsave, "X=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
 
                             mpz_clear(tmp1);
                             mpz_clear(tmp2);
@@ -2669,7 +2684,7 @@ void vececm(thread_data_t* tdata)
 
                 }
 
-                fclose(save);
+                fclose(intsave);
 
             }
 #endif
@@ -2683,21 +2698,7 @@ void vececm(thread_data_t* tdata)
             printf("Stage 1 took %1.4f seconds\n", t_time);
         }
 
-        // check the stage 1 residue and record 
-        // results for this batch of primes
-        if (tdata[0].save_b1) // && (save_intermediate)
-        {
-            if (tdata[0].save_b1 == 2)
-            {
-                remove("avx_ecm_resume.txt");
-                sprintf(fname, "avx_ecm_resume.txt");
-            }
-            else
-            {
-                sprintf(fname, "save_b1.txt");
-            }
-            save = fopen(fname, "a");
-        }
+        
 
         for (j = 0; j < threads; j++)
         {
@@ -2803,11 +2804,6 @@ void vececm(thread_data_t* tdata)
                 }
             }
 
-        }
-
-        if (tdata[0].save_b1)
-        {
-            fclose(save);
         }
 
         // always stop when a factor is found
@@ -3000,6 +2996,11 @@ void vececm(thread_data_t* tdata)
         if (found)
             break;
 
+    }
+
+    if (tdata[0].save_b1)
+    {
+        fclose(save);
     }
 
     tdata[0].curves = curve * threads;
