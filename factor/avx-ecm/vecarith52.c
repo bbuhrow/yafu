@@ -7316,7 +7316,7 @@ void vecsqrmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t*
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    //__m512i i0, i1;
+    __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
@@ -8733,7 +8733,7 @@ void vecsqrmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    //__m512i i0, i1;
+    __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
@@ -9954,7 +9954,7 @@ void vecsqrmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    //__m512i i0, i1;
+    __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
@@ -10695,7 +10695,7 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    //__m512i i0, i1;
+    __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
@@ -11418,7 +11418,7 @@ void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
     // needed in loops
-    //__m512i i0, i1;
+    __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19

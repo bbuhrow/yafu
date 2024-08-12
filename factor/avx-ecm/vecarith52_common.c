@@ -589,7 +589,18 @@ void vec_bignum52_add_1(vec_bignum_t* a, base_t* b, vec_bignum_t* c)
 
 
 
+#else
 
+uint32_t vec_gte52(vec_bignum_t* u, vec_bignum_t* v)
+{
 
+    return;
+}
+
+void vec_bignum52_mask_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, uint32_t wmask)
+{
+
+    return;
+}
 
 #endif
