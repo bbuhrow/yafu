@@ -40,6 +40,25 @@ typedef struct {
     uint32_t seconds;
 } poly_deadline_t;
 
+typedef struct
+{
+    uint32_t qrange_start;
+    uint32_t qrange_end;
+} qrange_t;
+
+typedef struct
+{
+    qrange_t* qranges_a;
+    qrange_t* qranges_r;
+    int num_r;
+    int num_a;
+    int alloc_r;
+    int alloc_a;
+    uint32_t minq;
+    uint32_t maxq;
+    uint32_t default_thread_qrange;
+} qrange_data_t;
+
 enum nfs_thread_command {
     NFS_COMMAND_INIT,
     NFS_COMMAND_WAIT,
@@ -132,6 +151,7 @@ typedef struct {
 
     int tindex;
     int is_poly_select;
+    int inflight;
 
     /* fields for thread pool synchronization */
     volatile enum nfs_thread_command command;
@@ -168,6 +188,11 @@ void print_poly(mpz_polys_t* poly, FILE* out);
 void print_job(nfs_job_t* job, FILE* out);
 uint32_t parse_job_file(fact_obj_t* fobj, nfs_job_t* job);
 void fill_job_file(fact_obj_t* fobj, nfs_job_t* job, uint32_t missing_params);
+
+// for managing sieve ranges
+void print_ranges(qrange_data_t* qrange_data);
+qrange_data_t* sort_completed_ranges(fact_obj_t* fobj);
+
 
 enum nfs_state_e check_existing_files(fact_obj_t* fobj, uint32_t* last_spq, nfs_job_t* job);
 void extract_factors(factor_list_t* factor_list, fact_obj_t* fobj);

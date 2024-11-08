@@ -20,7 +20,10 @@ benefit from your work.
 #include <stdlib.h>
 #include "ytools.h"
 #include <math.h>
+
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #ifdef USE_NFS
 
@@ -919,6 +922,7 @@ void nfs(fact_obj_t *fobj)
 			sprintf(tmpstr, "%s.mat",fobj->nfs_obj.outputfile);	remove(tmpstr);	
 			sprintf(tmpstr, "%s.lp",fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.d",fobj->nfs_obj.outputfile);	remove(tmpstr);
+			sprintf(tmpstr, "%s.ranges", fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.mat.chk",fobj->nfs_obj.outputfile);	remove(tmpstr);
 
 			if (fobj->nfs_obj.cadoMsieve) {
@@ -1072,11 +1076,11 @@ void nfs(fact_obj_t *fobj)
 			// last_specialq == 0 if:
 			// 1) user specifies -R and -ns with params
 			// 2) user specifies post processing steps only
-			// 3) user wants to resume sieving (either with a solo -ns or no arguements)
+			// 3) user wants to resume sieving (either with a solo -ns or no arguments)
 			//		but no data file or special-q was found
 			// 4) -R was not specified (but then we won't be in this state, we'll be in DONE)
 			// last_specialq > 1 if:
-			// 5) user wants to resume sieving (either with a solo -ns or no arguements)
+			// 5) user wants to resume sieving (either with a solo -ns or no arguments)
 			//		and a data file and special-q was found
 			// 6) it contains poly->time info (in which case we'll be in NFS_STATE_RESUMEPOLY)
             printf("nfs: resumesieve; last_spq = %u, nfs_phases = %u\n",

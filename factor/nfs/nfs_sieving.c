@@ -36,6 +36,229 @@ benefit from your work.
 // this defeats ctrl-c'ing out of more than one test sieve.  while test
 // sieving, on windows, we need to allow more than two ctrl-c's
 
+
+int qcomp_qrange(const void* x, const void* y)
+{
+	qrange_t* xx = (qrange_t*)x;
+	qrange_t* yy = (qrange_t*)y;
+
+	if ((*xx).qrange_start > (*yy).qrange_start)
+		return 1;
+	else if ((*xx).qrange_start == (*yy).qrange_start)
+		return 0;
+	else
+		return -1;
+}
+
+void print_ranges(qrange_data_t* qrange_data)
+{
+	int i;
+	printf("rational side completed ranges:\n");
+	for (i = 0; i < qrange_data->num_r; i++)
+	{
+		printf("\t%u -> %u\n", qrange_data->qranges_r[i].qrange_start,
+			qrange_data->qranges_r[i].qrange_end);
+	}
+	printf("algebraic side completed ranges:\n");
+	for (i = 0; i < qrange_data->num_a; i++)
+	{
+		printf("\t%u -> %u\n", qrange_data->qranges_a[i].qrange_start,
+			qrange_data->qranges_a[i].qrange_end);
+	}
+	return;
+}
+
+qrange_data_t* sort_completed_ranges(fact_obj_t* fobj)
+{
+	qrange_data_t* qrange_data;
+	char buf[1024];
+	FILE* fid;
+
+	qrange_data = (qrange_data_t*)xmalloc(sizeof(qrange_data_t));
+	qrange_data->qranges_r = (qrange_t*)xmalloc(16 * sizeof(qrange_t));
+	qrange_data->qranges_a = (qrange_t*)xmalloc(16 * sizeof(qrange_t));
+	qrange_data->alloc_r = 16;
+	qrange_data->alloc_a = 16;
+	qrange_data->num_r = 0;
+	qrange_data->num_a = 0;
+
+	// make a sorted list of completed q-ranges
+	sprintf(buf, "%s.ranges", fobj->nfs_obj.outputfile);
+	fid = fopen(buf, "r");
+	if (fid != NULL)
+	{
+		char side;
+		uint32_t startq;
+		uint32_t rangeq;
+		uint32_t rels;
+
+		while (~feof(fid))
+		{
+			fgets(buf, 1024, fid);
+
+			if (feof(fid))
+			{
+				break;
+			}
+
+			if (strlen(buf) < 10)
+				continue;
+
+			sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
+
+			//printf("parsed: %c,%u,%u,%u\n", side, startq, rangeq, rels);
+
+			if (side == 'r')
+			{
+				if (qrange_data->num_r == qrange_data->alloc_r)
+				{
+					qrange_data->alloc_r *= 2;
+					qrange_data->qranges_r = (qrange_t*)xrealloc(qrange_data->qranges_r,
+						qrange_data->alloc_r * sizeof(qrange_t));
+				}
+
+				qrange_data->qranges_r[qrange_data->num_r].qrange_start = startq;
+				qrange_data->qranges_r[qrange_data->num_r].qrange_end = startq + rangeq;
+				qrange_data->num_r++;
+			}
+			else if (side == 'a')
+			{
+				if (qrange_data->num_a == qrange_data->alloc_a)
+				{
+					qrange_data->alloc_a *= 2;
+					qrange_data->qranges_a = (qrange_t*)xrealloc(qrange_data->qranges_a,
+						qrange_data->alloc_a * sizeof(qrange_t));
+				}
+
+				qrange_data->qranges_a[qrange_data->num_a].qrange_start = startq;
+				qrange_data->qranges_a[qrange_data->num_a].qrange_end = startq + rangeq;
+				qrange_data->num_a++;
+			}
+			else
+			{
+				printf("unrecognized side '%c' in completed range data\n", side);
+			}
+
+			
+		}
+		fclose(fid);
+	}
+
+	qsort(qrange_data->qranges_a, qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
+	qsort(qrange_data->qranges_r, qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
+
+	if (fobj->VFLAG > 0)
+	{
+		print_ranges(qrange_data);
+	}
+
+	return qrange_data;
+}
+
+void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_t range)
+{
+	int i;
+	if (side == 'a')
+	{
+		if (qrange_data->num_a == qrange_data->alloc_a)
+		{
+			qrange_data->alloc_a *= 2;
+			qrange_data->qranges_a = (qrange_t*)xrealloc(qrange_data->qranges_a,
+				qrange_data->alloc_a * sizeof(qrange_t));
+		}
+
+		qrange_data->qranges_a[qrange_data->num_a].qrange_start = start;
+		qrange_data->qranges_a[qrange_data->num_a].qrange_end = start + range;
+		qrange_data->num_a++;
+
+		qsort(qrange_data->qranges_a, qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
+	}
+	else
+	{
+		if (qrange_data->num_r == qrange_data->alloc_r)
+		{
+			qrange_data->alloc_r *= 2;
+			qrange_data->qranges_r = (qrange_t*)xrealloc(qrange_data->qranges_r,
+				qrange_data->alloc_r * sizeof(qrange_t));
+		}
+
+		qrange_data->qranges_r[qrange_data->num_r].qrange_start = start;
+		qrange_data->qranges_r[qrange_data->num_r].qrange_end = start + range;
+		qrange_data->num_r++;
+
+		qsort(qrange_data->qranges_r, qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
+	}
+	return;
+}
+
+qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
+{
+	qrange_t* qrange = (qrange_t *)xmalloc(sizeof(qrange_t));
+	int i;
+
+	qrange->qrange_start = 0;
+	qrange->qrange_end = 0;
+
+	if (side == 'a')
+	{
+		for (i = 0; i < qrange_data->num_a - 1; i++)
+		{
+			if (qrange_data->qranges_a[i + 1].qrange_start > 
+				(qrange_data->qranges_a[i].qrange_end + 10))
+			{
+				// an unfinished range... work towards finishing it.
+				qrange->qrange_start = qrange_data->qranges_a[i].qrange_end;
+				qrange->qrange_end = qrange->qrange_start + qrange_data->default_thread_qrange;
+				if (qrange->qrange_end > qrange_data->qranges_a[i + 1].qrange_start)
+					qrange->qrange_end = qrange_data->qranges_a[i + 1].qrange_start;
+				return qrange;
+			}
+		}
+
+		if (qrange_data->num_a > 0)
+		{
+			qrange->qrange_start = qrange_data->qranges_a[i].qrange_end;
+			qrange->qrange_end = qrange_data->qranges_a[i].qrange_end +
+				qrange_data->default_thread_qrange;
+		}
+	}
+	else
+	{
+		for (i = 0; i < qrange_data->num_r - 1; i++)
+		{
+			if (qrange_data->qranges_r[i + 1].qrange_start >
+				(qrange_data->qranges_r[i].qrange_end + 10))
+			{
+				// an unfinished range... work towards finishing it.
+				qrange->qrange_start = qrange_data->qranges_r[i].qrange_end;
+				qrange->qrange_end = qrange->qrange_start + qrange_data->default_thread_qrange;
+				if (qrange->qrange_end > qrange_data->qranges_r[i + 1].qrange_start)
+					qrange->qrange_end = qrange_data->qranges_r[i + 1].qrange_start;
+				return qrange;
+			}
+		}
+
+		if (qrange_data->num_r > 0)
+		{
+			qrange->qrange_start = qrange_data->qranges_r[i].qrange_end;
+			qrange->qrange_end = qrange_data->qranges_r[i].qrange_end +
+				qrange_data->default_thread_qrange;
+		}
+	}
+
+	if (qrange->qrange_start < qrange_data->minq)
+	{
+		qrange->qrange_start = qrange_data->minq;
+		if (qrange->qrange_end < qrange->qrange_start)
+			qrange->qrange_end = qrange->qrange_start;
+	}
+
+	if (qrange->qrange_end > qrange_data->maxq)
+		qrange->qrange_end = qrange_data->maxq;
+
+	return qrange;
+}
+
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 /* if(are_files), then treat args as a char** list of (external) polys
  * else args is a nfs_job_t* array of job structs
@@ -471,12 +694,35 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 {
-	nfs_threaddata_t *thread_data;		//an array of thread data objects
+	nfs_threaddata_t *thread_data;
 	int i;
 	FILE *fid;
 	FILE *logfile;
+	char side;
+
+	side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
 
 	thread_data = (nfs_threaddata_t *)malloc(fobj->THREADS * sizeof(nfs_threaddata_t));
+
+	qrange_data_t* qrange_data = sort_completed_ranges(fobj);	
+
+	if (fobj->nfs_obj.rangeq > 0)
+	{
+		// user specified range: split threads over the entire range
+		// and put bounds on new assignments.
+		qrange_data->default_thread_qrange = 
+			ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
+		qrange_data->minq = job->startq;
+		qrange_data->maxq = job->startq + fobj->nfs_obj.rangeq;
+	}
+	else
+	{
+		qrange_data->default_thread_qrange = 
+			MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
+		qrange_data->maxq = 0xffffffff;
+		qrange_data->minq = 0;
+	}
+
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		sprintf(thread_data[i].outfilename, "rels%d.dat", i);
@@ -489,47 +735,53 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		thread_data[i].job.lpba = job->lpba;
 		thread_data[i].job.mfbr = job->mfbr;
 		thread_data[i].job.mfba = job->mfba;
-        // if the user specified a range of q to sieve, then divvy up that
-        // range over the threads.  otherwise divvy up the qrange that was
-        // determined to be good for this input.
-        // todo: in the user-specified case the range may be large which
-        // can cause problems with abort-restarts because only a small fraction
-        // of each range actually gets done.  better would be to use the qrange
-        // that was determined to be good for this input and run multiple 
-        // such ranges until the user-range is met.
-		if (fobj->nfs_obj.rangeq > 0)
-			thread_data[i].job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
-        else
-        {
-            // the minimum range may need to scale a bit with input size, but the goal is
-            // to stop doing very tiny ranges if the number of threads is large.
-            thread_data[i].job.qrange = MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
-        }
+		thread_data[i].inflight = 0;
+
+		qrange_t* qrange = get_next_range(qrange_data, side);
+		if ((qrange_data->num_a == 0) && (qrange_data->num_r == 0))
+		{
+			thread_data[i].job.startq = job->startq;
+			thread_data[i].job.qrange = qrange_data->default_thread_qrange;
+		}
+		else
+		{
+			thread_data[i].job.startq = qrange->qrange_start;
+			thread_data[i].job.qrange = qrange->qrange_end - qrange->qrange_start;
+		}
+
+		// make this range unavailable to other threads
+		insert_range(qrange_data, side, thread_data[i].job.startq, thread_data[i].job.qrange);
+		free(qrange);
+
 		thread_data[i].job.min_rels = job->min_rels;
 		thread_data[i].job.current_rels = job->current_rels;
 		thread_data[i].siever = fobj->nfs_obj.siever;
-		thread_data[i].job.startq = job->startq;
+		
 		strcpy(thread_data[i].job.sievername, job->sievername);
 
 		thread_data[i].tindex = i;
 		thread_data[i].is_poly_select = 0;
 		thread_data[i].fobj = fobj;
+
+		// have all data assigned, thread is now in-flight
+		if (thread_data[i].job.qrange > 0)
+		{
+			if (i == (fobj->THREADS - 1))
+			{
+				nfs_start_worker_thread(thread_data + i, 1);
+			}
+			else
+			{
+				nfs_start_worker_thread(thread_data + i, 0);
+			}
+		}
+		else
+		{
+			printf("could not get a valid assignment for sieving, "
+				"thread %d is inactive\n", i);
+		}
 	}
 
-	/* activate the threads one at a time. The last is the
-			master thread (i.e. not a thread at all). */		
-	for (i = 0; i < fobj->THREADS - 1; i++)
-		nfs_start_worker_thread(thread_data + i, 0);
-
-	nfs_start_worker_thread(thread_data + i, 1);			
-
-	// load threads with work
-	for (i = 0; i < fobj->THREADS; i++)
-	{
-		nfs_threaddata_t *t = thread_data + i;
-		t->job.startq = job->startq;
-		job->startq += t->job.qrange;
-	}
 
     if (fobj->LOGFLAG)
     {
@@ -551,6 +803,9 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	{
 		nfs_threaddata_t *t = thread_data + i;
 
+		if (!t->inflight)
+			continue;
+
 		if (i == fobj->THREADS - 1) {
 			lasieve_launcher(t);
 		}
@@ -566,9 +821,11 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	}
 
 	/* wait for each thread to finish */
-
 	for (i = 0; i < fobj->THREADS; i++) {
 		nfs_threaddata_t *t = thread_data + i;
+
+		if (!t->inflight)
+			continue;
 
 		if (i < fobj->THREADS - 1) {
 #if defined(WIN32) || defined(_WIN64)
@@ -585,16 +842,18 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		nfs_threaddata_t *t = thread_data + i;
-		savefile_concat(t->outfilename,fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 
-		char side[1024];
-		sprintf(side, (t->job.poly->side == ALGEBRAIC_SPQ) ?
-			"algebraic" : "rational"); // gotta love ?:
+		if (!t->inflight)
+			continue;
+
+		savefile_concat(t->outfilename,fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 
 		uint32_t last_spq = t->job.qrange;
 		if (NFS_ABORT > 0)
 		{
-			// try reading the lasieve5 ".last_spqX" file
+			// try reading the lasieve5 ".last_spqX" file.  The 
+			// following is copied from gnfs-lasieve4e to duplicate
+			// the file naming convention.
 			char* ofn = xmalloc(256);
 			FILE* of;
 			char *hn = xmalloc(128);
@@ -619,17 +878,26 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 			if ((of = fopen(ofn, "r")) != 0) {
 				fscanf(of, "%u", &last_spq);
 
-				printf("parsed last_spq = %u in thread %d\n", last_spq, i);
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: parsed last_spq = %u in thread %d\n", last_spq, i);
+				}
 				if (last_spq < t->job.startq)
 				{
-					printf("last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n", 
-						t->job.startq, t->job.startq + t->job.qrange);
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n",
+							t->job.startq, t->job.startq + t->job.qrange);
+					}
 					last_spq = t->job.qrange;
 				}
 				else if (last_spq > (t->job.startq + t->job.qrange))
 				{
-					printf("last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
-						t->job.startq, t->job.startq + t->job.qrange);
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
+							t->job.startq, t->job.startq + t->job.qrange);
+					}
 					last_spq = t->job.qrange;
 				}
 				else
@@ -640,8 +908,11 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 			}
 			else
 			{
-				printf("could not find file %s to parse last_spq for thread %d\n", ofn, i);
-				printf("commencing search of data file\n");
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: could not find file %s to parse last_spq for thread %d\n", ofn, i);
+					printf("nfs: commencing search of data file\n");
+				}
 				if (1)
 				{
 					// file didn't exist.  Try parsing the special-q from
@@ -680,21 +951,35 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 						// throw away the last one, which may be malformed, and extract
 						// the special q from the other 3.
 						for (line = 0; line < 4; line++)
-							printf("line %d = %s\n", line, lines[line]);
+						{
+							if (fobj->VFLAG > 0)
+							{
+								printf("nfs: parsed line %d = %s", line, lines[line]);
+							}
+						}
 
 						last_spq = get_spq(lines, line, fobj);
 
-						printf("parsed last_spq = %u in thread %d\n", last_spq, i);
+						if (fobj->VFLAG > 0)
+						{
+							printf("nfs: parsed last_spq = %u in thread %d\n", last_spq, i);
+						}
 						if (last_spq < t->job.startq)
 						{
-							printf("last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n",
-								t->job.startq, t->job.startq + t->job.qrange);
+							if (fobj->VFLAG > 0)
+							{
+								printf("nfs: last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n",
+									t->job.startq, t->job.startq + t->job.qrange);
+							}
 							last_spq = t->job.qrange;
 						}
 						else if (last_spq > (t->job.startq + t->job.qrange))
 						{
-							printf("last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
-								t->job.startq, t->job.startq + t->job.qrange);
+							if (fobj->VFLAG > 0)
+							{
+								printf("nfs: last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
+									t->job.startq, t->job.startq + t->job.qrange);
+							}
 							last_spq = t->job.qrange;
 						}
 						else
@@ -719,7 +1004,7 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		fid = fopen(fname, "a");
 		if (fid != NULL)
 		{
-			fprintf(fid, "%c,%u,%u,%u\n", *side, t->job.startq, 
+			fprintf(fid, "%c,%u,%u,%u\n", side, t->job.startq, 
 				last_spq, t->job.current_rels);
 			fclose(fid);
 		}
@@ -770,12 +1055,18 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	//stop worker threads
 	for (i = 0; i < fobj->THREADS - 1; i++)
 	{
+		if (!thread_data[i].inflight)
+			continue;
+
 		nfs_stop_worker_thread(thread_data + i, 0);
 	}
 	nfs_stop_worker_thread(thread_data + i, 1);
 
 	//free the thread structure
 	free(thread_data);
+	free(qrange_data->qranges_a);
+	free(qrange_data->qranges_r);
+	free(qrange_data);
 
 	return;
 }

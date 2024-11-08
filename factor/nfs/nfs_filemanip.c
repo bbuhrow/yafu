@@ -417,78 +417,14 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
                 }
             }
 
-			//tail isn't good enough, because prior filtering steps could have inserted
-			//free relations, which don't have a special q to read.
-			//our task is to find the last valid line of the file and parse it.
-			//furthermore, the last valid line could be incomplete if a job is interrupted.  so
-			//we must be able to check the next to last valid line as well.
-			//finally, we must be able to parse the special q from the line, which could have
-			//been from a rational side or algebraic side sieve.  unfortunately, there is
-			//no way to tell what previous jobs may have done 
-			//the procedure is as follows:  parse a line and grab both the alg and rat hex values
-			//if the number we picked is actually a special-q, then it will have numbers of similar
-			//size (or the same) in identical positions in other lines.  it should also be above
-			//a certain bound, and be prime.  if it meets all of these criteria, then we probably
-			//used the right interpretation.
-			if (1)
+			*last_spq = 0;
+			qrange_data_t* qrange_data = sort_completed_ranges(fobj);
+
+			if (fobj->VFLAG > 1)
 			{
-				char **lines, tmp[GSTR_MAXSIZE];
-				int line;
-				int i;
-
-				lines = (char **)malloc(4 * sizeof(char *));
-				for (i=0; i < 4; i++)
-					lines[i] = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
-
-				savefile_open(&mobj->savefile, SAVEFILE_READ);
-				savefile_read_line(lines[0], GSTR_MAXSIZE, &mobj->savefile);
-				if (savefile_eof(&mobj->savefile))
-				{
-					savefile_close(&mobj->savefile);
-					*last_spq = 0;
-					for (i=0; i < 4; i++)
-						free(lines[i]);
-					free(lines);
-					return NFS_STATE_RESUMESIEVE;
-				}
-
-				// crawl through the entire data file to find the next to last line
-				// TODO: can't we start from the end of the file somehow?
-				// partial answer: `man fseek`
-				line = 0;
-				//while (!feof(in))
-				while (1)
-				{
-					// read a line into the next position of the circular buffer
-					savefile_read_line(tmp, GSTR_MAXSIZE, &mobj->savefile);
-					if (savefile_eof(&mobj->savefile))
-						break;
-
-					// quick check that it might be a valid line
-					if (strlen(tmp) > 30)
-					{
-						// wrap
-						if (++line > 3) line = 0;
-						// then copy
-						strcpy(lines[line], tmp);
-					}
-
-					// while we are at it, count the lines
-					job->current_rels++;
-				}
-				savefile_close(&mobj->savefile);
-
-				// now we are done and we have a buffer with the last 4 valid lines
-				// throw away the last one, which may be malformed, and extract
-				// the special q from the other 3.
-				for (i=0; i<4; i++)
-					printf("line %d = %s\n",i, lines[i]);
-				*last_spq = get_spq(lines, line, fobj);
-
-				for (i=0; i < 4; i++)
-					free(lines[i]);
-				free(lines);
+				print_ranges(qrange_data);
 			}
+
 		}
 		else
 		{
