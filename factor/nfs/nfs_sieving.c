@@ -587,6 +587,68 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		nfs_threaddata_t *t = thread_data + i;
 		savefile_concat(t->outfilename,fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 
+		char side[1024];
+		sprintf(side, (t->job.poly->side == ALGEBRAIC_SPQ) ?
+			"algebraic" : "rational"); // gotta love ?:
+
+		if (0) //NFS_ABORT > 0)
+		{
+			// try reading the lasieve5 ".last_spqX" file
+			char* ofn;
+			FILE* of;
+			char *hn = xmalloc(100);
+			int ret;
+
+#if defined(WIN32)
+
+			int sysname_sz = 100;
+			GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);
+			ret = 0;
+
+#else
+
+			ret = gethostname(hn, 99);
+
+#endif
+
+			if (ret == 0)
+				sprintf(ofn, "%s.%s.last_spq%d", fobj->nfs_obj.outputfile, hn, i);
+			else sprintf(ofn, "%s.unknown_host.last_spq%d", fobj->nfs_obj.outputfile, i);
+			free(hn);
+
+			if ((of = fopen(ofn, "r")) != 0) {
+				uint32_t last_spq;
+
+				fscanf(of, "%u", &last_spq);
+				t->job.qrange = last_spq - t->job.startq;
+				fclose(of);
+			}
+			else
+			{
+				// file didn't exist.  Try parsing the special-q from
+				// the data file, the lasieve4 way.
+
+
+			}
+			free(ofn);
+
+		}
+
+		char fname[1024];
+		sprintf(fname, "%s.ranges", fobj->nfs_obj.outputfile);
+		fid = fopen(fname, "a");
+		if (fid != NULL)
+		{
+			fprintf(fid, "%c,%u,%u,%u\n", *side, t->job.startq,
+				t->job.qrange, t->job.current_rels);
+			fclose(fid);
+		}
+		else
+		{
+			printf("nfs: could not open %s for modifying, "
+				"progress may not be tracked correctly\n", fname);
+		}
+
 		// accumulate relation counts
 		job->current_rels += thread_data[i].job.current_rels;
 
@@ -699,6 +761,21 @@ void *lasieve_launcher(void *ptr)
 		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
 			thread_data->job.current_rels++;
 		fclose(fid);
+
+		//char fname[1024];
+		//sprintf(fname, "%s.%d.ranges", thread_data->outfilename, thread_data->tindex);
+		//fid = fopen(fname, "a");
+		//if (fid != NULL)
+		//{
+		//	fprintf(fid, "%c,%u,%u,%u\n", *side, thread_data->job.startq,
+		//		thread_data->job.qrange, thread_data->job.current_rels);
+		//	fclose(fid);
+		//}
+		//else
+		//{
+		//	printf("nfs: could not open %s for modifying, "
+		//		"progress may not be tracked correctly\n", fname);
+		//}
 	}
 	else
 	{
