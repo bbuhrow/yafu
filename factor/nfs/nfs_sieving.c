@@ -581,7 +581,7 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		}
 	}
 		
-	//combine output
+	// combine output and log the range
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		nfs_threaddata_t *t = thread_data + i;
@@ -591,45 +591,125 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		sprintf(side, (t->job.poly->side == ALGEBRAIC_SPQ) ?
 			"algebraic" : "rational"); // gotta love ?:
 
-		if (0) //NFS_ABORT > 0)
+		uint32_t last_spq = t->job.qrange;
+		if (NFS_ABORT > 0)
 		{
 			// try reading the lasieve5 ".last_spqX" file
-			char* ofn;
+			char* ofn = xmalloc(256);
 			FILE* of;
-			char *hn = xmalloc(100);
+			char *hn = xmalloc(128);
 			int ret;
 
 #if defined(WIN32)
 
-			int sysname_sz = 100;
+			int sysname_sz = 128;
 			GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);
 			ret = 0;
 
 #else
 
-			ret = gethostname(hn, 99);
+			ret = gethostname(hn, 127);
 
 #endif
 
-			if (ret == 0)
-				sprintf(ofn, "%s.%s.last_spq%d", fobj->nfs_obj.outputfile, hn, i);
-			else sprintf(ofn, "%s.unknown_host.last_spq%d", fobj->nfs_obj.outputfile, i);
+			if (ret == 0) sprintf(ofn, "%s.%s.last_spq%d", fobj->nfs_obj.job_infile, hn, i);
+			else sprintf(ofn, "%s.unknown_host.last_spq%d", fobj->nfs_obj.job_infile, i);
 			free(hn);
 
 			if ((of = fopen(ofn, "r")) != 0) {
-				uint32_t last_spq;
-
 				fscanf(of, "%u", &last_spq);
-				t->job.qrange = last_spq - t->job.startq;
+
+				printf("parsed last_spq = %u in thread %d\n", last_spq, i);
+				if (last_spq < t->job.startq)
+				{
+					printf("last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n", 
+						t->job.startq, t->job.startq + t->job.qrange);
+					last_spq = t->job.qrange;
+				}
+				else if (last_spq > (t->job.startq + t->job.qrange))
+				{
+					printf("last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
+						t->job.startq, t->job.startq + t->job.qrange);
+					last_spq = t->job.qrange;
+				}
+				else
+				{
+					last_spq = last_spq - t->job.startq;
+				}
 				fclose(of);
 			}
 			else
 			{
-				// file didn't exist.  Try parsing the special-q from
-				// the data file, the lasieve4 way.
+				printf("could not find file %s to parse last_spq for thread %d\n", ofn, i);
+				printf("commencing search of data file\n");
+				if (1)
+				{
+					// file didn't exist.  Try parsing the special-q from
+					// the data file, the lasieve4 way.
+					char** lines = (char**)malloc(4 * sizeof(char*));
+					char tmp[GSTR_MAXSIZE];
+					int line = 0;
 
+					for (line = 0; line < 4; line++)
+						lines[line] = (char*)malloc(GSTR_MAXSIZE * sizeof(char));
 
+					sprintf(ofn, "rels%d.dat", i);
+
+					if ((of = fopen(ofn, "r")) != 0) {
+						
+						while (1)
+						{
+							// read a line into the next position of the circular buffer
+							fgets(tmp, GSTR_MAXSIZE, of);	
+
+							// quick check that it might be a valid line
+							if (strlen(tmp) > 30)
+							{
+								// wrap
+								if (++line > 3) line = 0;
+								// then copy
+								strcpy(lines[line], tmp);
+							}
+
+							if (feof(of))
+								break;
+						}
+						fclose(of);
+
+						// now we are done and we have a buffer with the last 4 valid lines
+						// throw away the last one, which may be malformed, and extract
+						// the special q from the other 3.
+						for (line = 0; line < 4; line++)
+							printf("line %d = %s\n", line, lines[line]);
+
+						last_spq = get_spq(lines, line, fobj);
+
+						printf("parsed last_spq = %u in thread %d\n", last_spq, i);
+						if (last_spq < t->job.startq)
+						{
+							printf("last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n",
+								t->job.startq, t->job.startq + t->job.qrange);
+							last_spq = t->job.qrange;
+						}
+						else if (last_spq > (t->job.startq + t->job.qrange))
+						{
+							printf("last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
+								t->job.startq, t->job.startq + t->job.qrange);
+							last_spq = t->job.qrange;
+						}
+						else
+						{
+							last_spq = last_spq - t->job.startq;
+						}
+					}
+
+					for (line = 0; line < 4; line++)
+						free(lines[line]);
+					free(lines);
+
+				}
 			}
+			
 			free(ofn);
 
 		}
@@ -639,8 +719,8 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		fid = fopen(fname, "a");
 		if (fid != NULL)
 		{
-			fprintf(fid, "%c,%u,%u,%u\n", *side, t->job.startq,
-				t->job.qrange, t->job.current_rels);
+			fprintf(fid, "%c,%u,%u,%u\n", *side, t->job.startq, 
+				last_spq, t->job.current_rels);
 			fclose(fid);
 		}
 		else
@@ -761,21 +841,6 @@ void *lasieve_launcher(void *ptr)
 		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
 			thread_data->job.current_rels++;
 		fclose(fid);
-
-		//char fname[1024];
-		//sprintf(fname, "%s.%d.ranges", thread_data->outfilename, thread_data->tindex);
-		//fid = fopen(fname, "a");
-		//if (fid != NULL)
-		//{
-		//	fprintf(fid, "%c,%u,%u,%u\n", *side, thread_data->job.startq,
-		//		thread_data->job.qrange, thread_data->job.current_rels);
-		//	fclose(fid);
-		//}
-		//else
-		//{
-		//	printf("nfs: could not open %s for modifying, "
-		//		"progress may not be tracked correctly\n", fname);
-		//}
 	}
 	else
 	{
