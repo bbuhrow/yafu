@@ -24,6 +24,7 @@ void nfs_start_worker_thread(nfs_threaddata_t *t,
 
 	/* create a thread that will process a polynomial. The last poly does 
 	   not get its own thread (the current thread handles it) */
+	t->inflight = 1;
 
 	if (is_master_thread == 1) {
 		return;
@@ -74,6 +75,8 @@ void nfs_start_worker_thread(nfs_threaddata_t *t,
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
 				uint32_t is_master_thread)
 {
+	t->inflight = 0;
+
 	if (is_master_thread == 1) {
 		return;
 	}
