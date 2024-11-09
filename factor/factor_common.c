@@ -57,6 +57,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->pm1_obj.pm1_multiplier = 0;
     fobj->pm1_obj.pm1_tune_freq = 0;
     fobj->pm1_obj.vecnum = 0;
+    fobj->pm1_obj.ttime = 0.0;
 
     // initialize stuff for pp1	
     fobj->pp1_obj.B1 = 20000;
@@ -66,6 +67,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->pp1_obj.pp1_multiplier = 0;
     fobj->pp1_obj.pp1_tune_freq = 0;
     fobj->pp1_obj.vecnum = 0;
+    fobj->pp1_obj.ttime = 0.0;
 
     // initialize stuff for ecm	
     fobj->ecm_obj.B1 = 11000;
@@ -83,6 +85,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.gpucurves = 0;
     fobj->ecm_obj.use_gpuecm = 0;
     fobj->ecm_obj.use_gpudev = 0;
+    fobj->ecm_obj.ttime = 0.0;
 
 
     // unlike ggnfs, ecm does not *require* external binaries.  
