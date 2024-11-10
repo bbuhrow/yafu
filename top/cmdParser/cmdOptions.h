@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 111
+#define NUMOPTIONS 114
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -147,6 +147,7 @@ typedef struct
     char cado_dir[MAXARGLEN];
     char convert_poly_path[MAXARGLEN];
     int skip_snfscheck;
+    uint32_t minrels;
 
     // ecm/pp1/pm1/rho/tdiv options
     uint64_t B1pm1;
@@ -193,6 +194,8 @@ typedef struct
     int stopbase;
     int stopeq;
     int stopprime;
+    int stopk;
+    int strict;
     int check_stop_conditions;
 
     // prime finding options

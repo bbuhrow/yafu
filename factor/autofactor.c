@@ -573,6 +573,14 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 		return done;
 	}
 
+	if ((fobj->autofact_obj.stopk > 0) &&
+		(fobj->factors->total_factors >= fobj->autofact_obj.stopk))
+	{
+		done = 1;
+		mpz_clear(tmp);
+		return done;
+	}
+
 	// check if the number is completely factorized
 	for (i=0; i<fobj->factors->num_factors; i++)
 	{		

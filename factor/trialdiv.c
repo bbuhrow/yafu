@@ -90,6 +90,13 @@ void zTrial(fact_obj_t *fobj)
 #else
 				printf("div: found prime factor = %u\n",q);
 #endif
+			if (fobj->autofact_obj.autofact_active && fobj->autofact_obj.stop_strict)
+			{
+				if (fobj->autofact_obj.want_only_1_factor ||
+					((fobj->autofact_obj.stopk > 0) &&
+						(fobj->factors->total_factors >= fobj->autofact_obj.stopk)))
+					break;
+			}
 		}
 	}
 
@@ -501,6 +508,8 @@ found:
 				gmp_base10(tmp), s);
 		}
         free(s);
+
+
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 		mpz_sqrt(tmp, b2);

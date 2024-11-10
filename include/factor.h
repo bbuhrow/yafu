@@ -71,8 +71,9 @@ typedef struct
 typedef struct
 {
     yfactor_t* factors;
-    int num_factors;
-    int alloc_factors;
+    int num_factors;        // unique factors
+    int alloc_factors;      // allocated unique factors
+    int total_factors;      // all factors
 
     // the primitude of factors can be proven by aprcl: these
     // determine when and what is displayed while proving.
@@ -334,6 +335,7 @@ typedef struct
 	uint32_t nfs_phases;
 	uint32_t snfs_testsieve_threshold;
     int skip_snfs_check;
+    uint32_t minrels;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;
@@ -405,6 +407,8 @@ typedef struct
     int stopbase;
     int stopeq;
     int stopprime;
+    int stopk;
+    int stop_strict;
     int check_stop_conditions;
 
     enum pretest_plan yafu_pretest_plan;

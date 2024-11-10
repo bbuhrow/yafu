@@ -80,7 +80,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
-    "obase"};
+    "obase", "minrels", "stopk", "stop_strict"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -196,7 +196,10 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): Factor base index at which to start using subset sum algorithm (default 0: unused)",
     "(Integer < 32-bit): Size of a poly-bucket, in bits.  Smaller is better as long as it's big enough. 12 is default.",
     "                  : Set this to skip all checks for the existance of SNFS polynomials for the input",
-    "(Integer==8,10,16): Output base in octal (8), decimal (default, 10), or hexadecimal (16)"
+    "(Integer==8,10,16): Output base in octal (8), decimal (default, 10), or hexadecimal (16)",
+    "(Integer < 32-bit): Minimum relations to find in NFS before trying to filter",
+    "(Integer < 32-bit): Stop factor() after finding k factors",
+    "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -227,7 +230,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
-    1
+    1,1,1,0
 };
 
 // command line option aliases, specified by '--'
@@ -256,7 +259,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    ""
+    "", "", "", ""
 };
 
 
@@ -1110,6 +1113,21 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
  
     }
+    else if (strcmp(opt, OptionArray[111]) == 0)
+    {
+        // argument "minrels"
+        options->minrels = strtoul(arg, ptr, 10);
+    }
+    else if (strcmp(opt, OptionArray[112]) == 0)
+    {
+        // argument "stopk"
+        options->stopk = atoi(arg);
+    }
+    else if (strcmp(opt, OptionArray[113]) == 0)
+    {
+        // argument "stop_strict"
+        options->strict = 1;
+    }
     else
     {
         int i;
@@ -1197,6 +1215,8 @@ options_t* initOpt(void)
     options->stoplt = -1;
     options->stopge = -1;
     options->stopgt = -1;
+    options->stopk = -1;
+    options->strict = 0;
     options->stopprime = 0;
     options->check_stop_conditions = 0;
     
@@ -1233,6 +1253,7 @@ options_t* initOpt(void)
     strcpy(options->ggnfs_dir, "./");
 #endif
     options->skip_snfscheck = 0;
+    options->minrels = 0;
     
     // prime finding options
     options->soe_blocksize = 32768;

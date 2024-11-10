@@ -175,6 +175,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
     fobj->nfs_obj.snfs_testsieve_threshold = 160;
     *fobj->nfs_obj.filearg = '\0';
+    fobj->nfs_obj.minrels = 0;                      // 0 = default stopping point (heuristic)
 
     fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
@@ -234,6 +235,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->factors->aprcl_prove_cutoff = 500;
     // if a number is >= aprcl_display_cutoff, we will show the APRCL progress
     fobj->factors->aprcl_display_cutoff = 200;
+    fobj->factors->total_factors = 0;
 
     return;
 }
@@ -355,6 +357,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	fobj->div_obj.num_factors = 0;	
 	fobj->nfs_obj.num_factors = 0;	
 	fobj->factors->num_factors = 0;
+    fobj->factors->total_factors = 0;
 
     soe_staticdata_t* sdata;
     // put a list of primes in the fobj; many algorithms use it
@@ -610,6 +613,8 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
     int fid;
 	int found = 0, v = 0;
 
+    flist->total_factors++;
+
 	// look to see if this factor is already in the list
     for (i = 0; i < flist->num_factors && !found; i++)
     {
@@ -703,6 +708,8 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
     {
         if (mpz_cmp(n, flist->factors[i].factor) == 0)
         {
+            flist->total_factors -= flist->factors[i].count;
+
             int j;
             // copy everything above this in the list back one position
             for (j = i; j < flist->num_factors - 1; j++)
@@ -735,6 +742,7 @@ void clear_factor_list(yfactor_list_t * flist)
     }
     free(flist->factors);
     flist->num_factors = 0;
+    flist->total_factors = 0;
 
 	return;
 }

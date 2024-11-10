@@ -1759,6 +1759,19 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	job->test_score = 9999999.0;		// haven't tested it yet.
 	nfs_set_min_rels(job);
 
+	if (fobj->nfs_obj.minrels > 0)
+	{
+		if (fobj->VFLAG > 0)
+		{
+			logprint_oc(fobj->flogname, "a",
+				"nfs: overriding default min_rels = %u with user supplied min_rels = %u\n",
+				job->min_rels, fobj->nfs_obj.minrels);
+			printf("nfs: overriding default min_rels = %u with user supplied min_rels = %u\n",
+				job->min_rels, fobj->nfs_obj.minrels);
+		}
+		job->min_rels = fobj->nfs_obj.minrels;
+	}
+
 	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);

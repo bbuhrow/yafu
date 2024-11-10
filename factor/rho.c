@@ -50,8 +50,8 @@ void brent_loop(fact_obj_t *fobj)
         if (flog == NULL)
         {
             printf("fopen error: %s\n", strerror(errno));
-            printf("could not open %s for writing\n", fobj->flogname);
-            return;
+			printf("could not open %s for writing, results will not be logged\n", fobj->flogname);
+            //return;
         }
     }
 
@@ -62,13 +62,18 @@ void brent_loop(fact_obj_t *fobj)
 	fobj->rho_obj.curr_poly = 0;
 	while(fobj->rho_obj.curr_poly < 3)
 	{
-		//for each different constant, first check primalty because each
-		//time around the number may be different
+		// for each different constant, first check primalty because each
+		// time around the number may be different
 		start = clock();
 		if (is_mpz_prp(fobj->rho_obj.gmp_n, fobj->NUM_WITNESSES))
 		{
             char* s = mpz_get_str(NULL, 10, fobj->rho_obj.gmp_n);
-			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->rho_obj.gmp_n), s);
+
+			if (flog != NULL)
+			{
+				logprint(flog, "prp%d = %s\n", gmp_base10(fobj->rho_obj.gmp_n), s);
+				fflush(flog);
+			}
 
 			add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_n, 
                 fobj->VFLAG, fobj->NUM_WITNESSES);
@@ -118,8 +123,12 @@ void brent_loop(fact_obj_t *fobj)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
 					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
-				logprint(flog,"prp%d = %s\n",
-					gmp_base10(fobj->rho_obj.gmp_f), s);
+				if (flog != NULL)
+				{
+					logprint(flog, "prp%d = %s\n",
+						gmp_base10(fobj->rho_obj.gmp_f), s);
+					fflush(flog);
+				}
 			}
 			else
 			{
@@ -130,14 +139,26 @@ void brent_loop(fact_obj_t *fobj)
 					gmp_printf("rho: found c%d factor = %Zd\n",
 					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
-				logprint(flog,"c%d = %s\n",
-					gmp_base10(fobj->rho_obj.gmp_f), s);
+				if (flog != NULL)
+				{
+					logprint(flog, "c%d = %s\n",
+						gmp_base10(fobj->rho_obj.gmp_f), s);
+					fflush(flog);
+				}
 			}
             free(s);
 			start = clock();
 
 			//reduce input
 			mpz_tdiv_q(fobj->rho_obj.gmp_n, fobj->rho_obj.gmp_n, fobj->rho_obj.gmp_f);
+
+			if (fobj->autofact_obj.autofact_active && fobj->autofact_obj.stop_strict)
+			{
+				if (fobj->autofact_obj.want_only_1_factor ||
+					((fobj->autofact_obj.stopk > 0) &&
+					 (fobj->factors->total_factors >= fobj->autofact_obj.stopk)))
+					break;
+			}
 			
 		}
 		else

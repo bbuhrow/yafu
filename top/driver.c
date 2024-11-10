@@ -2138,6 +2138,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.gnfs_multiplier = 0;
     fobj->nfs_obj.gnfs_tune_freq = 0;
     fobj->nfs_obj.min_digits = 85;
+    fobj->nfs_obj.minrels = options->minrels;
     // raise min_rels bounds by a percentage
     // on unsuccessful filtering
     fobj->nfs_obj.filter_min_rels_nudge = 1.0 + options->filt_bump / 100.0;
@@ -2317,6 +2318,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.stopgt = options->stopgt;
     fobj->autofact_obj.stople = options->stople;
     fobj->autofact_obj.stoplt = options->stoplt;
+    fobj->autofact_obj.stopk = options->stopk;
+    fobj->autofact_obj.stop_strict = options->strict;
     fobj->autofact_obj.stopprime = options->stopprime;
     fobj->autofact_obj.check_stop_conditions = options->check_stop_conditions;
 
