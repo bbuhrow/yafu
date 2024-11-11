@@ -55,19 +55,19 @@
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\gmp_ecm_config.props" />
+    <Import Project="..\libs_and_extensions.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\gmp_ecm_config.props" />
+    <Import Project="..\libs_and_extensions.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\gmp_ecm_config.props" />
+    <Import Project="..\libs_and_extensions.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\gmp_ecm_config.props" />
+    <Import Project="..\libs_and_extensions.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
@@ -105,7 +105,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;..\..\..\pthreads;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;$(msieve_dir)..\..\..\zlib;..\..\..\pthreads;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -117,7 +117,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(msieve_dir)gnfs.lib;$(msieve_dir)common.lib;$(msieve_dir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -142,7 +142,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top;..\..\top\aprcl;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top;..\..\top\aprcl;$(msieve_dir)..\..\..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -162,7 +162,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(msieve_dir)gnfs.lib;$(msieve_dir)common.lib;$(msieve_dir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
@@ -170,7 +170,7 @@
       </EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>..\..\..\msieve\lib\$(Platform)\Release\</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(msieve_dir)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
@@ -188,8 +188,8 @@
     </Midl>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\ytools.git\trunk;..\..\..\ysieve.git\trunk\;..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\top;..\..\include;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\top\cmdParser;..\..\top;..\..\include;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>
       </BasicRuntimeChecks>
@@ -205,7 +205,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;$(msieve_dir)gnfs.lib;$(msieve_dir)common.lib;$(msieve_dir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -237,14 +237,14 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\factor\gmp-ecm;..\..\..\ytools;..\..\..\ysieve;..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\top\cmdParser;..\..\..\mpir\lib\$(IntDir);..\..\..\gmp-ecm\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\factor\gmp-ecm;$(ytools_dir)..\..\..\;$(ysieve_dir);$(msieve_dir)..\..\..\zlib;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\top\cmdParser;$(mp_dir);$(ecm_dir)include\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <StructMemberAlignment>Default</StructMemberAlignment>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
       <FloatingPointModel>Precise</FloatingPointModel>
       <BrowseInformation>
       </BrowseInformation>
@@ -253,13 +253,15 @@
       <CompileAs>CompileAsC</CompileAs>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <UndefinePreprocessorDefinitions>
+      </UndefinePreprocessorDefinitions>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\ysieve\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\ytools\ytools\$(IntDir)ytools.lib;..\..\..\mpir\lib\$(IntDir)mpir.lib;..\..\..\gmp-ecm\lib\$(IntDir)libecm.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;$(msieve_dir)gnfs.lib;$(msieve_dir)common.lib;$(msieve_dir)zlib.lib;$(ysieve_dir)ysieve_lib.lib;$(ytools_dir)ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\libecm.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>

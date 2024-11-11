@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="UserMacros">
+    <mp_dir>..\..\..\mpir-install\msvc-skylake-avx\</mp_dir>
+    <mp_lib>mpir.lib</mp_lib>
+	<ecm_dir>..\..\..\ecm-install\7.0.6-msvc-skylake-avx\</ecm_dir>
+    <ecm_lib>libecm.lib</ecm_lib>
+	<msieve_dir>..\..\..\msieve-msvc\lib\x64\Release\</msieve_dir>
+	<ysieve_dir>..\..\..\ysieve-install\msvc-avx2\</ysieve_dir>
+    <ysieve_lib>ysieve_lib.lib</ysieve_lib>
+	<ytools_dir>..\..\..\ytools-msvc\ytools\x64\Release\</ytools_dir>
+    <ytools_lib>ytools.lib</ytools_lib>
+  </PropertyGroup>
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30128.1</_ProjectFileVersion>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>USE_SSE41;USE_AVX2;USE_BMI2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+	  <!-- <PreprocessorDefinitions>USE_SSE41;USE_AVX2;USE_BMI2;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
+	  <!-- <PreprocessorDefinitions>USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
+	  <!-- <PreprocessorDefinitions>USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;IFMA;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <BuildMacro Include="mp_dir">
+      <Value>$(mp_dir)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="mp_lib">
+      <Value>$(mp_lib)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+	<BuildMacro Include="ecm_dir">
+      <Value>$(ecm_dir)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="ecm_lib">
+      <Value>$(ecm_lib)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+	<BuildMacro Include="msieve_dir">
+      <Value>$(msieve_dir)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+	<BuildMacro Include="ysieve_dir">
+      <Value>$(ysieve_dir)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="ysieve_lib">
+      <Value>$(ysieve_lib)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+	<BuildMacro Include="ytools_dir">
+      <Value>$(ytools_dir)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="ytools_lib">
+      <Value>$(ytools_lib)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+  </ItemGroup>
+</Project>

@@ -1055,7 +1055,7 @@ uint32_t vec_bignum52_mask_lshift_n(vec_bignum_t * u, int n, uint32_t wmask);
 uint32_t vec_eq52(base_t * u, base_t * v, int sz);
 uint32_t vec_gte52(vec_bignum_t * u, vec_bignum_t * v);
 void vec_bignum52_add_1(vec_bignum_t *a, base_t *b, vec_bignum_t *c);
-void vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
+uint32_t vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
 void vec_bignum52_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
 void vec_bignum52_mask_rshift_n(vec_bignum_t* u, vec_bignum_t* v, int n, uint32_t wmask);
 void vec_bignum52_mask_rshift_vn(vec_bignum_t* u, vec_bignum_t* v, int* n, uint32_t wmask);

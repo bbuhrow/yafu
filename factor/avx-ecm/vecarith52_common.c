@@ -478,7 +478,7 @@ void vec_bignum52_mask_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, ui
     return;
 }
 
-void vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
+uint32_t vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
 {
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
@@ -511,7 +511,7 @@ void vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
         _mm512_mask_store_epi64(c->data + i * VECLEN, carry, _mm512_set1_epi64(1));
     }
 
-    return;
+    return carry;
 }
 
 void vec_bignum52_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
