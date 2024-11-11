@@ -9,8 +9,8 @@ completely automated way.  The automation within YAFU is state-of-the-art,
 combining factorization algorithms in an intelligent and adaptive methodology 
 that minimizes the time to find the factors of arbitrary input integers.  
 
-YAFU has been used in many refereed papers.  If you have academic work that
-requires factorization, YAFU might be able to help.  
+YAFU has been used several times in the academic literature.  If you have 
+academic work that requires integer factorization, YAFU might be able to help.  
 
 YAFU is most optimized for general inputs up to 160 digits in size, although 
 there is support for inputs much larger than that, if they have a special 
@@ -40,8 +40,36 @@ and run it.  Files that YAFU generates are placed alonside the binary, and
 directories/files that YAFU needs are with respect to the binary location 
 (such as the ggnfs sievers, see below)
 
+Which precompiled version should I use?
+
+As of version 2.12, the following precompiled versions are available:
+yafu-x64-sse41.exe
+yafu-x64-avx2.exe
+yafu-x64-avx512.exe
+yafu-x64-avx512-ifma.exe
+
+SSE41, AVX2, AVX512, and AVX512-IFMA refer to instruction set extensions that
+the versions respectively support.  SIQS, ECM, and yafu's prime sieve
+all get progressively faster with more modern extensions.  
+See here for more information:
+https://en.wikipedia.org/wiki/Advanced_Vector_Extensions
+https://en.wikipedia.org/wiki/AVX-512#CPUs_with_AVX-512
+
+Pick the best one that your cpu supports.
+
+Roughly speaking:
+If you have an Intel Haswell CPU or newer (newer than 2013), use avx2.
+If you have an Intel SkylakeX or certain Cannon Lake or Cascade Lake cpus, use avx512.
+If you have an Ice Lake, Tiger Lake, Rocket Lake, or Sapphire Rapids cpu, use avx512-ifma.
+If you have a Zen4 or Zen5 AMD cpu, use avx512-ifma.
+If you have another AMD cpu newer than 2015, use avx2.
+Otherwise use sse41.
+
+If you have something other than Intel or AMD, (e.g., powerPC, Arm), 
+then yafu may not work for you.
+
 Support and an active user community can be found here:
-http://www.mersenneforum.org/forumdisplay.php?f=96
+https://www.mersenneforum.org/node/58
 
 -------------------------------------------------------------------------------
 INSTALLATION WITH NUMBER FIELD SIEVE (NFS) SUPPORT
@@ -70,7 +98,6 @@ or msieve:
 http://mathworld.wolfram.com/NumberFieldSieve.html
 http://en.wikipedia.org/wiki/General_number_field_sieve
 http://sourceforge.net/projects/msieve/
-http://www.boo.net/~jasonp/qs.html
 
 -------------------------------------------------------------------------------
 BUILD INFORMATION
@@ -125,6 +152,8 @@ before attempting to build yafu.
 As of yafu version 2.12 (Nov. 2024) I get these from these locations:
 mpir: https://github.com/BrianGladman/mpir
 ecm: https://gitlab.inria.fr/zimmerma/ecm/-/releases
+or https://github.com/sethtroisi/gmp-ecm
+pthreads: https://github.com/BrianGladman/pthreads (needed for msieve)
 msieve: https://sourceforge.net/projects/msieve/
 ytools: https://github.com/bbuhrow/ytools
 ysieve: https://github.com/bbuhrow/ysieve
