@@ -1,17 +1,3 @@
--------------------------------------------------------------------------------
-INTRODUCTION
--------------------------------------------------------------------------------
-
-YAFU is the result of an ongoing hobby project to understand how to factor 
-large integers, and how to factor them fast.  Various motivations exist for 
-doing this, but mostly it boils down to the facts that A) I like to do it, and
-B) for some reason factoring integers is cool.  The fact that integer 
-factorization is used real world public-key encryption schemes, and lots of 
-people owning black helicopters therefore have a vested interest in it, might 
-have something to do with that.  This is not to say that YAFU is useful for
-factoring public keys, but there are plenty of other numbers out there and
-it is still fun to do.  A community of factorization enthusiasts can be 
-found at mersenneforum.org.
 
 -------------------------------------------------------------------------------
 OVERVIEW
@@ -22,9 +8,13 @@ algorithms (and implementations of them) to factor input integers in a
 completely automated way.  The automation within YAFU is state-of-the-art, 
 combining factorization algorithms in an intelligent and adaptive methodology 
 that minimizes the time to find the factors of arbitrary input integers.  
-It is most optimized for general inputs up to 160 digits in size, although 
+
+YAFU has been used in many refereed papers.  If you have academic work that
+requires factorization, YAFU might be able to help.  
+
+YAFU is most optimized for general inputs up to 160 digits in size, although 
 there is support for inputs much larger than that, if they have a special 
-form.  There are also specialized functions for handling  lists of inputs and 
+form.  There are also specialized functions for handling lists of inputs and 
 ranges of contiguous smaller inputs.
 
 YAFU is primarily a command-line driven tool.  You provide the number to factor
@@ -37,7 +27,9 @@ options and a very capable expression interpreter.  If you know what you are
 doing, or if you read the documentation enough, you can customize the operation
 of YAFU a great deal.  You should have received a copy of docfile.txt, which
 explains in some detail all of the available functions, how to use them,
-and how to influence their behavior.
+and how to influence their behavior.  A community of factorization enthusiasts 
+can be found at mersenneforum.org, many of whom are willing and able to 
+answer questions.
 
 -------------------------------------------------------------------------------
 INSTALLATION
@@ -124,94 +116,37 @@ https://github.com/bbuhrow/avx-ecm
 WINDOWS MS Visual Studio
 =============
 
-Build files are available for several versions of MSVC.  The directory structure is 
-important for these builds, especially if GMP-ECM or NFS support is desired.  
-The build files expect to see an mpir, msieve, gmp-ecm, ytools, and ysieve folder at 
-the same  level as the YAFU folder in the directory tree, with the following structure:
+Build files are available for several versions of MSVC, but really only
+build.vc22 should be used.
 
-msieve
-	build.vc10
-		common
-			Win32
-				Release					
-					common.lib
-			x64
-				Release					
-					common.lib
-		gnfs
-			Win32
-				Release
-					gnfs.lib
-			x64
-				Release
-					gnfs.lib
+You will need several other visual studio projects installed and built 
+before attempting to build yafu.
 
-gmp-ecm
-	ecm.h
-	config.h
-	build.vc9
-		Win32
-			Release
-				ecm.lib
-		x64
-			Release
-				ecm.lib
-	build.vc10
-		Win32
-			Release
-				libecm.lib
-		x64
-			Release
-				libecm.lib
-mpir
-	gmp.h
-	config.h
-	gmp-mparam.h
-	mpir.h
-	build.vc9
-		Win32
-			Release
-				mpir.lib
-		x64
-			Release
-				mpir.lib
-	build.vc10
-		Win32
-			Release
-				mpir.lib
-		x64
-			Release
-				mpir.lib
-				
-yafu
-    trunk
-        build.vc9
-            ...
-        build.vc10
-            ...
-            
-ytools
-    ytools
-        x64
-            Release
-                ytools.lib
-ysieve
-    ysieve_lib
-        x64
-            Release
-                ysieve_lib.lib
-                    
-		
-The mpir and gmp-ecm libraries will need to be built separately, for either 
-Win32 or x64 targets.  To change the target for a yafu build, within MSVC 
-select Build -> Configuration Manger then in the Active Solution Platform 
-pulldown choose x64 or Win32.
+As of yafu version 2.12 (Nov. 2024) I get these from these locations:
+mpir: https://github.com/BrianGladman/mpir
+ecm: https://gitlab.inria.fr/zimmerma/ecm/-/releases
+msieve: https://sourceforge.net/projects/msieve/
+ytools: https://github.com/bbuhrow/ytools
+ysieve: https://github.com/bbuhrow/ysieve
+
+These all come with MSVC build files that should work.
+
+To configure yafu once its dependencies are built, use the 
+libs_and_extensions.props file in the build.vc22 directory.
+Here you can supply directories to the builds, relative to yafu's
+project directories (e.g., build.vc22\ecm)
+
+A little farther down in the libs_and_extensions.props file, edit
+the PreprocessorDefinitions line with any instruction set extensions you
+want to enable for yafu's build.
+
+I have also had success installing and using the free Intel compiler inside
+visual studio 2022.
 
 MINGW-64
 =============
-YAFU should build in mingw-64 environment.  The  src zip file should 
-include a Makefile.mingw for this purpose.  The build should be similar to
-a linux build.  This option is less-well tested.
+YAFU might build in mingw-64 environment.  I haven't tried in a long time,
+good luck.  If you get this to work, please let me know.
 
 OTHER
 =============
