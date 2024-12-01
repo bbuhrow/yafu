@@ -651,7 +651,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 
 	// this checks x^n +- p, p small, up to a larger exponent value
 	maxb = 1000;
-	for (i = maxb; i>1; i--)
+	for (i = maxb; i>2; i--)
 	{
 		// now that we've reduced the exponent considerably, check for 
 		// large bases by looking at the remaining possible exponents.
