@@ -68,11 +68,13 @@ void print_ranges(qrange_data_t* qrange_data)
 	return;
 }
 
-qrange_data_t* sort_completed_ranges(fact_obj_t* fobj)
+qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 {
 	qrange_data_t* qrange_data;
 	char buf[1024];
 	FILE* fid;
+	uint32_t numranges = 0;
+	uint32_t totalrels = 0;
 
 	qrange_data = (qrange_data_t*)xmalloc(sizeof(qrange_data_t));
 	qrange_data->qranges_r = (qrange_t*)xmalloc(16 * sizeof(qrange_t));
@@ -91,6 +93,14 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj)
 		uint32_t startq;
 		uint32_t rangeq;
 		uint32_t rels;
+		int start = 1;
+
+		if (fobj->VFLAG > 0)
+		{
+			printf("nfs: parsing %s.ranges for previously completed special-q\n", 
+				fobj->nfs_obj.outputfile);
+		}
+
 
 		while (~feof(fid))
 		{
@@ -104,8 +114,44 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj)
 			if (strlen(buf) < 10)
 				continue;
 
-			sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
+			if (start)
+			{
+				mpz_t gmpn;
+				mpz_init(gmpn);
+				gmp_sscanf(buf, "%Zd", gmpn);
+				
+				if (mpz_cmp(gmpn, fobj->nfs_obj.gmp_n) != 0)
+				{
+					printf("nfs: number in ranges file does not match input\n");
+					gmp_printf("nfs: read:  %Zd\n", gmpn);
+					gmp_printf("nfs: input: %Zd\n", fobj->nfs_obj.gmp_n);
+					printf("nfs: resetting ranges file with current input\n");
+					fclose(fid);
 
+					char newbuf[1024];
+					sprintf(newbuf, "%s.ranges.bkup", fobj->nfs_obj.outputfile);
+					rename(buf, newbuf);
+
+					fid = fopen(buf, "w");
+					gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
+					fclose(fid);
+
+					fid = fopen(buf, "r");
+					mpz_clear(gmpn);
+					continue;
+				}
+
+				mpz_clear(gmpn);
+				start = 0;
+				continue;
+			}
+			else
+			{
+				sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
+			}
+
+			totalrels += rels;
+			numranges++;
 			//printf("parsed: %c,%u,%u,%u\n", side, startq, rangeq, rels);
 
 			if (side == 'r')
@@ -147,9 +193,31 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj)
 	qsort(qrange_data->qranges_a, qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
 	qsort(qrange_data->qranges_r, qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
 
+	job->current_rels = totalrels;
+	if (fobj->nfs_obj.rangeq > 0)
+	{
+		// user specified range: split threads over the entire range
+		// and put bounds on new assignments.
+		printf("nfs: configuring custom q-range %u-%u, splitting over %u threads\n",
+			job->startq, job->startq + fobj->nfs_obj.rangeq, fobj->THREADS);
+		qrange_data->default_thread_qrange =
+			ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
+		qrange_data->minq = job->startq;
+		qrange_data->maxq = job->startq + fobj->nfs_obj.rangeq;
+	}
+	else
+	{
+		qrange_data->default_thread_qrange =
+			MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
+		qrange_data->maxq = 0xffffffff;
+		qrange_data->minq = 0;
+	}
+
 	if (fobj->VFLAG > 0)
 	{
 		print_ranges(qrange_data);
+		printf("nfs: found %d previously completed ranges\n", numranges);
+		printf("nfs: ranges file indicated %u previously found relations\n", totalrels);
 	}
 
 	return qrange_data;
@@ -203,7 +271,7 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 	{
 		for (i = 0; i < qrange_data->num_a - 1; i++)
 		{
-			if (qrange_data->qranges_a[i + 1].qrange_start > 
+			if (qrange_data->qranges_a[i + 1].qrange_start >
 				(qrange_data->qranges_a[i].qrange_end + 10))
 			{
 				// an unfinished range... work towards finishing it.
@@ -699,28 +767,20 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	FILE *fid;
 	FILE *logfile;
 	char side;
+	uint32_t totalrels;
+	uint32_t custom_qstart = 0;
+	uint32_t custom_qrange = 0;
 
 	side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
 
 	thread_data = (nfs_threaddata_t *)malloc(fobj->THREADS * sizeof(nfs_threaddata_t));
 
-	qrange_data_t* qrange_data = sort_completed_ranges(fobj);	
+	qrange_data_t* qrange_data = sort_completed_ranges(fobj, job);	
 
 	if (fobj->nfs_obj.rangeq > 0)
 	{
-		// user specified range: split threads over the entire range
-		// and put bounds on new assignments.
-		qrange_data->default_thread_qrange = 
-			ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
-		qrange_data->minq = job->startq;
-		qrange_data->maxq = job->startq + fobj->nfs_obj.rangeq;
-	}
-	else
-	{
-		qrange_data->default_thread_qrange = 
-			MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
-		qrange_data->maxq = 0xffffffff;
-		qrange_data->minq = 0;
+		custom_qstart = fobj->nfs_obj.startq;
+		custom_qrange = qrange_data->default_thread_qrange;
 	}
 
 	for (i = 0; i < fobj->THREADS; i++)
@@ -738,15 +798,25 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		thread_data[i].inflight = 0;
 
 		qrange_t* qrange = get_next_range(qrange_data, side);
-		if ((qrange_data->num_a == 0) && (qrange_data->num_r == 0))
+
+		if (custom_qstart > 0)
 		{
-			thread_data[i].job.startq = job->startq;
-			thread_data[i].job.qrange = qrange_data->default_thread_qrange;
+			thread_data[i].job.startq = custom_qstart;
+			thread_data[i].job.qrange = custom_qrange;
+			custom_qstart += custom_qrange;
 		}
 		else
 		{
-			thread_data[i].job.startq = qrange->qrange_start;
-			thread_data[i].job.qrange = qrange->qrange_end - qrange->qrange_start;
+			if ((qrange_data->num_a == 0) && (qrange_data->num_r == 0))
+			{
+				thread_data[i].job.startq = job->startq;
+				thread_data[i].job.qrange = qrange_data->default_thread_qrange;
+			}
+			else
+			{
+				thread_data[i].job.startq = qrange->qrange_start;
+				thread_data[i].job.qrange = qrange->qrange_end - qrange->qrange_start;
+			}
 		}
 
 		// make this range unavailable to other threads

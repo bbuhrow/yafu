@@ -377,9 +377,9 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 				if (fobj->VFLAG > 0)
 					printf("nfs: user specified special-q range of %u-%u, "
 					"skipping search for last special-q\n", 
-					fobj->nfs_obj.startq, fobj->nfs_obj.rangeq);
+					fobj->nfs_obj.startq, fobj->nfs_obj.startq + fobj->nfs_obj.rangeq);
 
-				*last_spq = 0;
+				*last_spq = fobj->nfs_obj.startq;
 				return NFS_STATE_RESUMESIEVE;
 			}
 
@@ -398,8 +398,8 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 				return NFS_STATE_RESUMESIEVE;
 			}
 
-			if (fobj->VFLAG > 0)
-				printf("nfs: commencing search for last special-q\n");
+			//if (fobj->VFLAG > 0)
+			//	printf("nfs: commencing search for last special-q\n");
 
             if (fobj->LOGFLAG)
             {
@@ -417,14 +417,9 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
                 }
             }
 
-			*last_spq = 0;
-			qrange_data_t* qrange_data = sort_completed_ranges(fobj);
-
-			if (fobj->VFLAG > 1)
-			{
-				print_ranges(qrange_data);
-			}
-
+			// *last_spq = 0;
+			// uint32_t totalrels;
+			// qrange_data_t* qrange_data = sort_completed_ranges(fobj, &totalrels);
 		}
 		else
 		{

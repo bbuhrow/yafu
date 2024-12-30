@@ -1029,6 +1029,15 @@ void nfs(fact_obj_t *fobj)
 
 			nfs_state = NFS_STATE_POLY;		
 
+			char fname[1024];
+			sprintf(fname, "%s.ranges", fobj->nfs_obj.outputfile);
+			FILE *fid = fopen(fname, "w");
+			if (fid != NULL)
+			{
+				gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
+				fclose(fid);
+			}
+
 			// create a new directory for this job 
 //#ifdef _WIN32
 //			sprintf(tmpstr, "%s\%s", fobj->nfs_obj.ggnfs_dir, 
@@ -1143,7 +1152,22 @@ void nfs(fact_obj_t *fobj)
 				// but let YAFU choose the other params
 				// this won't override any params in the file.
 
-				if (fobj->nfs_obj.startq > 0)
+				char side = (job.poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
+				qrange_data_t* qrange_data = sort_completed_ranges(fobj, &job);
+				qrange_t* next_range = get_next_range(qrange_data, side);
+
+				if (job.current_rels >= job.min_rels)
+				{
+					nfs_state = NFS_STATE_FILTCHECK;
+					continue;
+				}
+				
+				if (next_range->qrange_start > 0)
+				{
+					sprintf(tmpstr, "nfs: resuming with sieving using ranges file.  "
+						"Next range starts at special-q %u\n", next_range->qrange_start);
+				}
+				else if (fobj->nfs_obj.startq > 0)
 				{
 					job.startq = fobj->nfs_obj.startq;
 
@@ -1227,10 +1251,10 @@ void nfs(fact_obj_t *fobj)
 				if (fobj->nfs_obj.startq > 0)
 				{
 					// user wants to resume sieving.
-					// i don't believe this case is ever executed... 
-					// because if startq is > 0, then last_specialq will be 0...
 					job.startq = fobj->nfs_obj.startq;
 					nfs_state = NFS_STATE_SIEVE;
+					sprintf(tmpstr, "nfs: resuming with sieving at special-q = %u\n",
+						last_specialq);
 				}
 				else
 				{

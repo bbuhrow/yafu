@@ -536,6 +536,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
     // specified, then allow early abort of poly search when
     // a polynomial of corresponding quality is found, according
     // to this heuristic:
+	
+#if 0
+	// from:
     // http://www.mersenneforum.org/showthread.php?t=16994
     { /* SB: tried L[1/3,c] fit; it is no better than this */
         int digits = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
@@ -548,6 +551,24 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
         e0 = exp(-log(10) * e0);
 #ifdef HAVE_CUDA
         e0 *= 1.15;
+#endif
+
+#else
+	{ /* SB: tried L[1/3,c] fit; it is no better than this */
+		// from msieve source...
+		int digits = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+		int degree = fobj->nfs_obj.pref_degree;
+
+		e0 = 0.0625 * digits + 1.69;
+		if (degree > 4)
+			e0 = (digits >= 121) ?
+			(0.0635 * digits + 1.608) :
+			(0.0526 * digits + 3.23);
+		e0 = exp(-log(10) * e0);
+	#ifdef HAVE_CUDA
+		e0 *= 1.15;
+	#endif
+
 #endif
         /* seen exceptional polys with +40% but that's */
         /* rare. The fit is good for 88..232 digits */
@@ -890,13 +911,22 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                         threads_working++;
                     }
                 }
+				else
+				{
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: range will not finish before deadline, "
+							"thread stopping with bestscore = %1.4e\n", bestscore);
+					}
+				}
             }
             else
             {
                 // announce we are finishing and don't restart the thread.
                 if (fobj->VFLAG > 0)
                 {
-                    printf("nfs: found poly better than %s quality\n", quality);
+                    printf("nfs: found poly better than %s quality (e = %1.4e > %1.4e)\n", 
+						quality, bestscore, e0 * quality_mult);
                 }
             }
 
