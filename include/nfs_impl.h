@@ -191,8 +191,9 @@ void fill_job_file(fact_obj_t* fobj, nfs_job_t* job, uint32_t missing_params);
 
 // for managing sieve ranges
 void print_ranges(qrange_data_t* qrange_data);
-qrange_data_t* sort_completed_ranges(fact_obj_t* fobj);
-
+qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job);
+qrange_t* get_next_range(qrange_data_t* qrange_data, char side);
+void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_t range);
 
 enum nfs_state_e check_existing_files(fact_obj_t* fobj, uint32_t* last_spq, nfs_job_t* job);
 void extract_factors(factor_list_t* factor_list, fact_obj_t* fobj);

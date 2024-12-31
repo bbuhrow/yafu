@@ -604,8 +604,8 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	}
 
 	// read and count polys of the file
-	if (fobj->VFLAG > 0)
-		printf("searching for best poly...\n");
+	// if (fobj->VFLAG > 0)
+	// 	printf("searching for best poly...\n");
 
 	count = 0;
 	while (!feof(in))
@@ -645,8 +645,6 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 				{
 					bestscore = score;
 					bestline = count;
-					if (fobj->VFLAG > 0)
-						printf("new best score = %e, new best line = %d\n",bestscore, bestline);
 				}
 			}
 		}
@@ -685,6 +683,9 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 		}		
 	}
 	fclose(in);
+
+	if (fobj->VFLAG > 0)
+		printf("nfs: new best score = %0.4e, new best poly = %d of %d\n", bestscore, bestline, count);
 
 	if (highest_c5 > 0)
 		job->last_leading_coeff = highest_c5;
