@@ -886,10 +886,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 bestscore = find_best_msieve_poly(fobj, job, 0);
             }
 
-            if (fobj->VFLAG > 0)
-            {
-                printf("nfs: best score is currently %1.3le\n", bestscore);
-            }
+            // if (fobj->VFLAG > 0)
+            // {
+            //     printf("nfs: best score is currently %1.3le\n", bestscore);
+            // }
 
             if (bestscore < (e0 * quality_mult))
             {
