@@ -36,7 +36,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -209,13 +209,13 @@
     <ClInclude Include="..\..\common\lanczos\lanczos.h" />
     <ClInclude Include="..\..\common\lanczos\cpu\lanczos_cpu.h" />
     <ClInclude Include="..\..\include\mp.h" />
-    <ClInclude Include="..\..\include\ms_batch_factor.h" />
-    <ClInclude Include="..\..\include\ms_common.h" />
-    <ClInclude Include="..\..\include\ms_gmp_xface.h" />
-    <ClInclude Include="..\..\include\ms_msieve.h" />
     <ClInclude Include="..\..\include\polyroot.h" />
     <ClInclude Include="..\..\include\thread.h" />
     <ClInclude Include="..\..\include\util.h" />
+    <ClInclude Include="..\..\ms_include\ms_batch_factor.h" />
+    <ClInclude Include="..\..\ms_include\ms_common.h" />
+    <ClInclude Include="..\..\ms_include\ms_gmp_xface.h" />
+    <ClInclude Include="..\..\ms_include\ms_msieve.h" />
     <ClInclude Include="..\..\zlib\zconf.h" />
     <ClInclude Include="..\..\zlib\zlib.h" />
   </ItemGroup>

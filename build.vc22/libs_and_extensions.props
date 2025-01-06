@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="UserMacros">
-    <mp_dir>..\..\..\mpir-install\icc19-skylake-avx\</mp_dir>
-    <mp_lib>mpir.lib</mp_lib>
-	<ecm_dir>..\..\..\ecm-install\7.0.6-win-intel-skylake-avx\</ecm_dir>
-    <ecm_lib>libecm.lib</ecm_lib>
+	  <mp_dir>..\..\..\mpir\lib\x64\Release\</mp_dir>
+	  <mp_lib>mpir.lib</mp_lib>
+	  <ecm_dir>..\..\..\ecm_install\</ecm_dir>
+	  <ecm_lib>libecm.lib</ecm_lib>
 	<!-- <msieve_dir>..\..\..\msieve-intel\lib\x64\Release\</msieve_dir> -->
   </PropertyGroup>
   <PropertyGroup>
@@ -12,9 +12,9 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>VBITS=128;USE_SSE41;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
 	  <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
-	  <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
+	  <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
 	  <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;IFMA;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -34,10 +34,6 @@
     </BuildMacro>
     <BuildMacro Include="ecm_lib">
       <Value>$(ecm_lib)</Value>
-      <EnvironmentVariable>true</EnvironmentVariable>
-    </BuildMacro>
-	<BuildMacro Include="msieve_dir">
-      <Value>$(msieve_dir)</Value>
       <EnvironmentVariable>true</EnvironmentVariable>
     </BuildMacro>
   </ItemGroup>

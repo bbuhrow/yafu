@@ -621,7 +621,33 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
     med_B = full_fb->med_B;
 
-    for (i = start_prime; i < bound; i += 32)
+    //printf("start: %d, stop: %d\n", start_prime, bound);
+
+    for (i = start_prime; i < bound; i++)
+    {
+        uint8_t* s2;
+
+        if ((i & 31) == 0)
+            break;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    //printf("start: %d, stop: %d\n", i, bound);
+
+    for ( ; i < bound; i += 32)
     {
         __m512i vprime, vroot1, vroot2;
         __mmask32 valid_mask_1, valid_mask_2, initial_mask;
@@ -631,7 +657,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         vprime = _mm512_load_si512(fb->prime + i);
         vroot1 = _mm512_load_si512(fb->root1 + i);
         vroot2 = _mm512_load_si512(fb->root2 + i);
-        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+        logp = fb->logp[i+16]; // approximate the next 32 logp's as equal to the midpoint
 
         // we don't sieve primes that are part of the poly
         valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
@@ -772,6 +798,8 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         bound = med_B;
     }
 
+    //printf("start: %d, stop: %d\n", i, bound);
+
     for (; i < bound; i++)
     {
         uint8_t* s2;
@@ -799,6 +827,8 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     __mmask32 result1;
     uint32_t res2;
     uint32_t res1;
+
+    //printf("start: %d, stop: %d\n", i, full_fb->fb_15bit_B - 32);
 
     for (; i < full_fb->fb_15bit_B - 32; i += 32)
     {
@@ -858,6 +888,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         _mm512_store_si512(fb->root2 + i, _mm512_max_epu16(vroot1, vroot2));
     }
 
+    //printf("start: %d, stop: %d\n", i, med_B - 32);
     // sieve primes 32 at a time, 2^15 < p < med_B
     logp = 15;
     for (; i < med_B - 32; i += 32) {
@@ -895,6 +926,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         _mm512_store_si512(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
     }
 
+    //printf("start: %d, stop: %d\n", i, med_B);
     for (; i < med_B; i++)
     {
         prime = fb->prime[i];
@@ -910,6 +942,8 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
         UPDATE_ROOTS;
     }
+
+    //exit(1);
 
 #ifdef USE_SS_SEARCH
     // restore sieve locations associated with roots we didn't sieve

@@ -113,6 +113,9 @@ uint32_t process_poly_a(static_conf_t *sconf)
 	// compute how many 'b' values we can get from this 'a'
 	maxB = 1 << (dconf->curr_poly->s - 1);
 
+	//printf("current have %d b-polys allocated\n", sconf->bpoly_alloc);
+	//printf("expecting %d new b-polys from A with %d factors\n", maxB, dconf->curr_poly->s);
+
 	// now we copy all the b coefficients over to sconf where they are
 	// needed by the rest of the filtering routine.
 	// clear out b-poly info from the last a-poly, if any exists.
@@ -139,6 +142,7 @@ uint32_t process_poly_a(static_conf_t *sconf)
 	sconf->bpoly_alloc = maxB;
 
 	//generate all the b polys
+	//printf("generating %d b polys\n", maxB);
 	generate_bpolys(sconf, dconf, maxB);
 
 	// we'll need to remember some things about the current poly,
@@ -178,29 +182,21 @@ int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 	uint64_t r;
 
 	mpz_set(tmp, poly->mpz_poly_a);
-	k=0;
+	k=1;
 	poly->s = 0;
-	while ((mpz_cmp_ui(tmp, 1) != 0) && (siqs_primes[k] < 65536))
+	while ((mpz_cmp_ui(tmp, 1) != 0) && (fb->list->prime[k] < 65536))
 	{
-		r = mpz_tdiv_ui(tmp,(uint64_t)siqs_primes[k]);
-		
+		r = mpz_tdiv_ui(tmp, fb->list->prime[k]);
+
 		if (r != 0)
+		{
 			k++;
+		}
 		else
 		{
-			for (j=1;(uint32_t)j < fb->B;j++)
-				if (fb->list->prime[j] == siqs_primes[k])
-					break;
-			if ((uint32_t)j >= fb->B)
-			{
-				//then we didn't find this factor in the fb, thus the 
-				//read in A is probably bad.
-				printf("bad poly A encountered in savefile\n");
-				return 1;
-			}
-			poly->qlisort[poly->s] = j;
+			poly->qlisort[poly->s] = k;
 			poly->s++;
-			mpz_tdiv_q_ui(tmp, tmp, (uint64_t)siqs_primes[k]);
+			mpz_tdiv_q_ui(tmp, tmp, fb->list->prime[k]);
 		}
 	}
 
@@ -463,7 +459,6 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 
     // trial divide to find divisible primes less than med_B.
     // this will include small primes and primes dividing poly_a.
-
     if (sconf->knmod8 == 1)
     {
         // this one is close enough, compute 

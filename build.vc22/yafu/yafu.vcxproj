@@ -261,7 +261,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\libecm.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
@@ -271,6 +271,7 @@
       <TargetMachine>MachineX64</TargetMachine>
       <AdditionalLibraryDirectories>..\..\lib\$(IntDir);C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>libcmt.lib; libcmtd.lib; msvcrtd.lib</IgnoreSpecificDefaultLibraries>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>

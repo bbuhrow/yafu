@@ -181,16 +181,16 @@
     <ClInclude Include="..\..\common\lanczos\cpu\lanczos_cpu.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_batch_factor.h">
+    <ClInclude Include="..\..\ms_include\ms_batch_factor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_common.h">
+    <ClInclude Include="..\..\ms_include\ms_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_msieve.h">
+    <ClInclude Include="..\..\ms_include\ms_gmp_xface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_gmp_xface.h">
+    <ClInclude Include="..\..\ms_include\ms_msieve.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
