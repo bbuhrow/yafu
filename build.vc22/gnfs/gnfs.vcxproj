@@ -1,0 +1,205 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{AC786FD6-B405-40FB-BA5A-3AB68B33C81D}</ProjectGuid>
+    <RootNamespace>gnfs</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+    <!-- <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.props" /> -->
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\libs_and_extensions.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\libs_and_extensions.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\libs_and_extensions.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\libs_and_extensions.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30128.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+    </Midl>
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\ms_include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\gnfs\fb.c" />
+    <ClCompile Include="..\..\gnfs\ffpoly.c" />
+    <ClCompile Include="..\..\gnfs\gf2.c" />
+    <ClCompile Include="..\..\gnfs\gnfs.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\optimize_deg6.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg45_x.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg5_xy.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_x.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xy.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xyz.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_line.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_util.c" />
+    <ClCompile Include="..\..\gnfs\relation.c" />
+    <ClCompile Include="..\..\gnfs\filter\duplicate.c" />
+    <ClCompile Include="..\..\gnfs\filter\filter.c" />
+    <ClCompile Include="..\..\gnfs\filter\singleton.c" />
+    <ClCompile Include="..\..\gnfs\poly\poly.c" />
+    <ClCompile Include="..\..\gnfs\poly\poly_param.c" />
+    <ClCompile Include="..\..\gnfs\poly\poly_skew.c" />
+    <ClCompile Include="..\..\gnfs\poly\polyutil.c" />
+    <ClCompile Include="..\..\gnfs\poly\root_score.c" />
+    <ClCompile Include="..\..\gnfs\poly\size_score.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_roots.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\optimize.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage2\stage2.c" />
+    <ClCompile Include="..\..\gnfs\sieve\sieve_line.c" />
+    <ClCompile Include="..\..\gnfs\sieve\sieve_util.c" />
+    <ClCompile Include="..\..\gnfs\sqrt\sqrt.c" />
+    <ClCompile Include="..\..\gnfs\sqrt\sqrt_a.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\pthreads\config.h" />
+    <ClInclude Include="..\..\gnfs\filter\filter.h" />
+    <ClInclude Include="..\..\gnfs\sieve\sieve.h" />
+    <ClInclude Include="..\..\include\dd.h" />
+    <ClInclude Include="..\..\common\filter\filter.h" />
+    <ClInclude Include="..\..\gnfs\gnfs.h" />
+    <ClInclude Include="..\..\common\lanczos\lanczos.h" />
+    <ClInclude Include="..\..\gnfs\poly\poly.h" />
+    <ClInclude Include="..\..\gnfs\poly\poly_skew.h" />
+    <ClInclude Include="..\..\gnfs\sqrt\sqrt.h" />
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1.h" />
+    <ClInclude Include="..\..\gnfs\poly\stage2\stage2.h" />
+    <ClInclude Include="..\..\include\ms_msieve.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\x64_support_masm.asm" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+    <!-- <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.targets" /> -->
+  </ImportGroup>
+</Project>

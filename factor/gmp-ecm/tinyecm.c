@@ -5154,6 +5154,39 @@ int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1)
 
 #ifdef USE_AVX512F
 
+/*
+int u104_euler_list(uint64_t *n, uint32_t num)
+{
+	uint64_t rho = (uint64_t)0 - uecm_multiplicative_inverse(n);
+	uint64_t unityval = ((uint64_t)0 - n) % n;   // unityval == R  (mod n)
+	uint64_t result = unityval;
+	uint64_t e = (n - 1) / 2;
+	uint64_t m = 1ULL << 62;
+
+	if (e & m) result = uecm_addmod(result, result, n);
+	m >>= 1;
+	while (m > 0)
+	{
+		result = uecm_mulredc(result, result, n, rho);
+		if (e & m) result = uecm_addmod(result, result, n);
+		m >>= 1;
+	}
+
+	// - Euler's criterion 2^(n>>1) == legendre_symbol(2,n) (https://en.wikipedia.org/wiki/Euler%27s_criterion)
+	// - Fermat primality check:
+	//   (2^(n-1) == 1) mod n
+	// return result == unityval;
+	// 
+	// - Euler primality check:
+	//   (2^(n>>1) == 1) mod n
+	//   (2^(n>>1) == n-1) mod n
+	uint64_t legendre = ((n >> 1) ^ (n >> 2)) & 1;	// shortcut calculation of legendre symbol
+	uint64_t m1 = uecm_submod(n, unityval, n);
+	return ((result == (legendre ? m1 : unityval)));
+}
+
+*/
+
 void tecm_testmath()
 {
 	int num = 1000000;
@@ -5547,7 +5580,7 @@ void getfactor_tecm_x8_list(uint64_t* q64, uint64_t* f64, int target_bits,
 	//return;
 
 	tecm_dispatch_x8_list(q64, f64, target_bits, num_in, pran);
-	printf("total curves run: %u\n", total_curves_run);
+	//printf("total curves run: %u\n", total_curves_run);
 	return;
 }
 

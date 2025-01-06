@@ -18,7 +18,7 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
-CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2 -fno-common
+CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2 -fno-common -fPIE
 #CFLAGS += -march=core2 -mtune=core2
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
@@ -26,28 +26,27 @@ OPT_FLAGS = -O2
 BINNAME = yafu
 OBJ_EXT = .o
 
+# export LD_LIBRARY_PATH=/home/buhrow/intel/oneapi/compiler/2023.1.0/linux/compiler/lib/intel64_lin/
+
 # ===================== path options =============================
 
 # standard search directories for headers/libraries within yafu.
 # These should normally not be modified.
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm  
-LIBS = -L. 
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm -Iysieve -Iytools
+LIBS = -L. -Lysieve/ -Lytools/
 
 # we require additional search directories for msieve, zlib, gmp, gmp-ecm, 
 # ytools, and ysieve for libraries and headers.  By default, we look
 # adjacent to the yafu folder (i.e., ../ysieve, ../ytools, etc.).  Change
 # these if your installation locations differ.
-INC += -I../ysieve -I../ytools
-LIBS += -L../ysieve/ -L../ytools/
-
 INC += -I../gmp-install/6.2.1/include
 LIBS += -L../gmp-install/6.2.1/lib
 
-INC += -I../ecm-install/7.0.6/include/
-LIBS += -L../ecm-install/7.0.6/lib/
+INC += -I../ecm-install/7.0.6-wsl/include/
+LIBS += -L../ecm-install/7.0.6-wsl/lib/
 
-INC += -I../msieve/zlib 
-LIBS += -L../msieve/
+INC += -I../msieve-intel/zlib 
+LIBS += -L../msieve-intel/
 
 # ===================== compiler options =========================
 ifeq ($(COMPILER),icc)
@@ -413,4 +412,3 @@ clean:
 %$(OBJ_EXT): %.c $(SIQS_BIN_HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
 	
-

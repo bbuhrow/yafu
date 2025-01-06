@@ -73,7 +73,9 @@
     <Import Project="..\libs_and_extensions.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -82,7 +84,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;$(ytools_dir)..\..\..\;$(ysieve_dir);$(msieve_dir)..\..\..\zlib;$(mp_dir);$(ecm_dir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);$(ecm_dir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
