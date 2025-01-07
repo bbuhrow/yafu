@@ -12,7 +12,7 @@ benefit from your work.
 $Id: sieve_core.c 963 2014-05-03 02:04:54Z jasonp_sf $
 --------------------------------------------------------------------*/
 
-#include <common.h>
+#include <ms_common.h>
 #include "mpqs.h"
 
 #if BLOCK_KB == 32

@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: lanczos_matmul1.c 1012 2017-06-11 17:42:14Z jasonp_sf $
+$Id$
 --------------------------------------------------------------------*/
 
 #include "lanczos_cpu.h"
@@ -19,7 +19,7 @@ $Id: lanczos_matmul1.c 1012 2017-06-11 17:42:14Z jasonp_sf $
 
 /*-------------------------------------------------------------------*/
 
-static void mul_one_med_block(packed_block_t *curr_block,
+void mul_one_med_block(packed_block_t *curr_block,
 			v_t *curr_col, v_t *curr_b) {
 
 	uint16 *entries = curr_block->d.med_entries;
@@ -88,7 +88,10 @@ static void mul_one_med_block(packed_block_t *curr_block,
 		:"%eax", "%ecx", "%edx", "%mm0", "memory", "cc");
 
 	#undef _txor
-
+	
+		for (; i < count; i++)
+			accum = v_xor(accum, curr_col[entries[i+2]]);
+		
 #elif defined(GCC_ASM64X) && VWORDS == 1
 
 	#define _txor(k)				\
@@ -127,7 +130,9 @@ static void mul_one_med_block(packed_block_t *curr_block,
 		:"%rax", "%rcx", "%rdx", "%rsi", "memory", "cc");
 
 	#undef _txor
-
+	
+		for (; i < count; i++)
+			accum = v_xor(accum, curr_col[entries[i+2]]);
 #elif defined(MSC_ASM32A) && defined(HAS_MMX) && defined(NDEBUG) && VWORDS == 1
 
 	#define _txor(k)				\
@@ -169,39 +174,23 @@ static void mul_one_med_block(packed_block_t *curr_block,
 	}
 
 	#undef _txor
-
-#else
-	accum = v_zero;
-	for (i = 0; i < (count & (uint32)(~15)); i += 16) {
-		accum = v_xor(accum, curr_col[entries[i+2+0]]);
-		accum = v_xor(accum, curr_col[entries[i+2+1]]);
-		accum = v_xor(accum, curr_col[entries[i+2+2]]);
-		accum = v_xor(accum, curr_col[entries[i+2+3]]);
-		accum = v_xor(accum, curr_col[entries[i+2+4]]);
-		accum = v_xor(accum, curr_col[entries[i+2+5]]);
-		accum = v_xor(accum, curr_col[entries[i+2+6]]);
-		accum = v_xor(accum, curr_col[entries[i+2+7]]);
-		accum = v_xor(accum, curr_col[entries[i+2+8]]);
-		accum = v_xor(accum, curr_col[entries[i+2+9]]);
-		accum = v_xor(accum, curr_col[entries[i+2+10]]);
-		accum = v_xor(accum, curr_col[entries[i+2+11]]);
-		accum = v_xor(accum, curr_col[entries[i+2+12]]);
-		accum = v_xor(accum, curr_col[entries[i+2+13]]);
-		accum = v_xor(accum, curr_col[entries[i+2+14]]);
-		accum = v_xor(accum, curr_col[entries[i+2+15]]);
-	}
-
-#endif
+	
 		for (; i < count; i++)
 			accum = v_xor(accum, curr_col[entries[i+2]]);
+#else
+		accum = v_zero;
+		for (i = 0; i < count; i++)
+			accum = v_xor(accum, curr_col[entries[i+2]]);
+
+#endif
 		curr_b[row] = v_xor(curr_b[row], accum);
 		entries += count + 2;
 	}
 }
 
 /*-------------------------------------------------------------------*/
-static void mul_one_block(packed_block_t *curr_block,
-			v_t *curr_col, v_t *curr_b) {
+void mul_one_block(const packed_block_t *curr_block,
+			const v_t *curr_col, v_t * __restrict__ curr_b) {
 
 	uint32 i = 0; 
 	uint32 num_entries = curr_block->num_entries;
@@ -248,6 +237,12 @@ static void mul_one_block(packed_block_t *curr_block,
 		 "g"(num_entries & (uint32)(~15))
 		:"%eax", "%ecx", "%mm0", "memory", "cc");
 
+	#undef _txor
+
+	for (; i < num_entries; i++) {
+		curr_b[entries[i].row_off] = v_xor(curr_b[entries[i].row_off],
+						curr_col[entries[i].col_off]);
+	}
 #elif defined(MSC_ASM32A) && defined(HAS_MMX) && VWORDS == 1
 
 	#define _txor(x)				\
@@ -282,107 +277,34 @@ static void mul_one_block(packed_block_t *curr_block,
 		pop ebx
 	}
 
-#else
-	#define _txor(x) curr_b[entries[i+x].row_off] = v_xor( \
-			      	curr_b[entries[i+x].row_off], \
-				curr_col[entries[i+x].col_off])
-
-	for (i = 0; i < (num_entries & (uint32)(~15)); i += 16) {
-		#ifdef MANUAL_PREFETCH
-		PREFETCH(entries + i + 48 / VWORDS);
-		#endif
-
-		_txor( 0); _txor( 1); _txor( 2); _txor( 3);
-		_txor( 4); _txor( 5); _txor( 6); _txor( 7);
-		_txor( 8); _txor( 9); _txor(10); _txor(11);
-		_txor(12); _txor(13); _txor(14); _txor(15);
-	}
-#endif
 	#undef _txor
 
 	for (; i < num_entries; i++) {
 		curr_b[entries[i].row_off] = v_xor(curr_b[entries[i].row_off],
 						curr_col[entries[i].col_off]);
 	}
-}
-
-/*-------------------------------------------------------------------*/
-void mul_packed_core(void *data, int thread_num)
-{
-	/* we skip the first matrix row, since it is handled 
-	   in the dense function below */
-
-	la_task_t *task = (la_task_t *)data;
-	packed_matrix_t *p = task->matrix;
-	cpudata_t *c = (cpudata_t *)p->extra;
-
-	uint32 start_block_c = task->block_num * c->superblock_size;
-	uint32 num_blocks_c = MIN(c->superblock_size, 
-				c->num_block_cols - start_block_c);
-
-	packed_block_t *start_block = c->blocks + start_block_c +
-					c->num_block_cols;
-	v_t *x = c->x + start_block_c * c->block_size;
-	uint32 i, j;
-
-	for (i = task->task_num; i < c->num_block_rows - 1; 
-					i += p->num_threads) {
-
-		packed_block_t *curr_block = start_block + 
-					i * c->num_block_cols;
-		v_t *curr_x = x;
-		uint32 b_off = i * c->block_size + c->first_block_size;
-		v_t *b = c->b + b_off;
-
-		if (start_block_c == 0)
-			vv_clear(b, MIN(c->block_size, p->nrows - b_off));
-
-		for (j = 0; j < num_blocks_c; j++) {
-			mul_one_block(curr_block, curr_x, b);
-			curr_block++;
-			curr_x += c->block_size;
-		}
+#elif defined(A64FX) && VWORDS == 8
+	svbool_t __attribute__((arm_sve_vector_bits(512))) everything=svptrue_b64();
+	for (i = 0; i < num_entries; i++) {
+		#ifdef MANUAL_PREFETCH
+		PREFETCH(entries + i + 48 / VWORDS);
+		#endif
+		uint64* b = (uint64*)(curr_b  + entries[i].row_off);
+		const uint64* c = (const uint64*)(curr_col + entries[i].col_off);
+		svstnt1_u64(everything,
+			b,
+			sveor_u64_x(everything,
+				svld1_u64(everything, b),
+				svldnt1_u64(everything, c)));
+  	}
+#else
+	for (i = 0; i < num_entries; i++) {
+		#ifdef MANUAL_PREFETCH
+		PREFETCH(entries + i + 48 / VWORDS);
+		#endif
+		curr_b[entries[i].row_off] = v_xor(curr_b[entries[i].row_off],
+						curr_col[entries[i].col_off]);
 	}
-}
+#endif
 
-/*-------------------------------------------------------------------*/
-void mul_packed_small_core(void *data, int thread_num)
-{
-	la_task_t *task = (la_task_t *)data;
-	packed_matrix_t *p = task->matrix;
-	cpudata_t *c = (cpudata_t *)p->extra;
-	thread_data_t *t = c->thread_data + task->task_num;
-
-	uint32 last_task = (task->task_num == p->num_threads - 1);
-	uint32 num_blocks = c->num_block_cols / p->num_threads;
-	uint32 block_off = num_blocks * task->task_num;
-	uint32 off = c->block_size * block_off;
-	uint32 vsize = num_blocks * c->block_size;
-	v_t *x = c->x + off;
-	v_t *b = t->tmp_b;
-	packed_block_t *curr_block = c->blocks + block_off;
-	uint32 i;
-
-	vv_clear(b, MAX(c->first_block_size, VBITS * 
-			(1 + (p->num_dense_rows + VBITS - 1) / VBITS)));
-
-	if (p->num_threads == 1) {
-		vsize = p->ncols;
-	}
-	else if (last_task) {
-		num_blocks = c->num_block_cols - block_off;
-		vsize = p->ncols - off;
-	}
-
-	for (i = 0; i < num_blocks; i++) {
-		mul_one_med_block(curr_block, x, b);
-		curr_block++;
-		x += c->block_size;
-	}
-
-	/* multiply the densest few rows by x (in batches of VBITS rows) */
-
-	for (i = 0; i < (p->num_dense_rows + VBITS - 1) / VBITS; i++)
-		mul_BxN_NxB(c->dense_blocks[i] + off, 
-				c->x + off, b + VBITS * i, vsize);
 }

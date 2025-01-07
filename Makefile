@@ -17,51 +17,115 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc
-CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2 -fno-common -fPIE
-#CFLAGS += -march=core2 -mtune=core2
-WARN_FLAGS = -Wall # -Wconversion
-OPT_FLAGS = -O2
+# override from command line
+WIN = 0
+WIN64 = 0
+VBITS = 64
 
-BINNAME = yafu
+CC = gcc
+CFLAGS = -fno-common -g -m64 -std=gnu99 -DUSE_SSE2 -fPIE -DNFS
+WARN_FLAGS = -Wall -Wconversion
+OPT_FLAGS = -O2 -D_FILE_OFFSET_BITS=64 -DNDEBUG -D_LARGEFILE64_SOURCE -DVBITS=$(VBITS)
 OBJ_EXT = .o
 
-# export LD_LIBRARY_PATH=/home/buhrow/intel/oneapi/compiler/2023.1.0/linux/compiler/lib/intel64_lin/
 
 # ===================== path options =============================
 
 # standard search directories for headers/libraries within yafu.
 # These should normally not be modified.
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm -Iysieve -Iytools
-LIBS = -L. -Lysieve/ -Lytools/
+INC = -I. -Iinclude -Ims_include -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm \
+	-Iytools -Iysieve -Iaprcl -Ignfs -Ignfs/poly -Ignfs/poly/stage1
+LIBS = -L. 
 
-# we require additional search directories for msieve, zlib, gmp, gmp-ecm, 
-# ytools, and ysieve for libraries and headers.  By default, we look
-# adjacent to the yafu folder (i.e., ../ysieve, ../ytools, etc.).  Change
+# we require additional search directories for gmp and gmp-ecm, 
+# for libraries and headers.  Change
 # these if your installation locations differ.
-INC += -I../gmp-install/6.2.1/include
-LIBS += -L../gmp-install/6.2.1/lib
+INC += -I../gmp_install/gmp_6.2.0/include
+LIBS += -L../gmp_install/gmp_6.2.0/lib
 
-INC += -I../ecm-install/7.0.6-wsl/include/
-LIBS += -L../ecm-install/7.0.6-wsl/lib/
-
-INC += -I../msieve-intel/zlib 
-LIBS += -L../msieve-intel/
+INC += -I../ecm_install/7.0.5-gcc/include/
+LIBS += -L../ecm_install/7.0.5-gcc/lib/
 
 # ===================== compiler options =========================
+
 ifeq ($(COMPILER),icc)
 	CC = icc
 	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
 	CFLAGS += -qopt-report=5
 endif
 
-# ===================== architecture options =========================
-# if this option is specified then compile *both* the sse2 and sse4.1 versions of the
-# appropriate files.  The executable will then choose between them based on the runtime
-# capability of the user's cpu.  In other words, sse4.1 capability is required on the
-# host cpu in order to compile the fat binary, but once it is compiled it should run
-# to the capability of the target user cpu.
 
+# ===================== msieve feature options =======================
+MSIEVE_LIBS = -L. -L../gmp_install/gmp_6.2.0/lib
+
+ifeq ($(OMP),1)
+	CFLAGS += -fopenmp -DHAVE_OMP
+endif
+ifeq ($(ECM),1)
+	CFLAGS += -DHAVE_GMP_ECM
+	MSIEVE_LIBS += -lecm
+endif
+ifeq ($(WIN),1)
+
+else
+	MSIEVE_LIBS += -ldl
+endif
+ifdef CUDA
+ifeq ($(CUDA),1)
+	SM = 80
+else
+	SM = $(CUDA)
+endif
+
+ifeq ($(WIN),1)
+	CUDA_ROOT = $(shell echo $$CUDA_PATH)
+	NVCC = "$(CUDA_ROOT)/bin/nvcc"
+
+ifeq ($(WIN64),1)
+	CUDA_LIBS = "$(CUDA_ROOT)/lib/x64/cuda.lib"
+else
+	CUDA_LIBS = "$(CUDA_ROOT)/lib/win32/cuda.lib"
+endif
+
+else
+	NVCC = "$(shell which nvcc)"
+	CUDA_ROOT = $(shell dirname $(NVCC))/../
+	CUDA_LIBS = -lcuda
+endif
+	CFLAGS += -I"$(CUDA_ROOT)/include" -Icub -DHAVE_CUDA
+	MSIEVE_LIBS += $(CUDA_LIBS)
+
+ifeq ($(CUDAAWARE),1)
+	CFLAGS += -DHAVE_CUDAAWARE_MPI
+endif
+endif
+ifeq ($(MPI),1)
+	CC = mpicc
+	CFLAGS += -DHAVE_MPI
+endif
+ifeq ($(BOINC),1)
+	# fill in as appropriate
+	BOINC_INC_DIR = .
+	BOINC_LIB_DIR = .
+	CFLAGS += -I$(BOINC_INC_DIR) -DHAVE_BOINC
+	MSIEVE_LIBS += -L$(BOINC_LIB_DIR) -lboinc_api -lboinc
+endif
+ifeq ($(NO_ZLIB),1)
+	CFLAGS += -DNO_ZLIB
+else
+	MSIEVE_LIBS += -lz
+endif
+
+# Note to MinGW users: the library does not use pthreads calls in
+# win32 or win64, so it's safe to pull libpthread into the link line.
+# Of course this does mean you have to install the minGW pthreads bundle...
+
+MSIEVE_LIBS += -lgmp -lm -lpthread
+
+# ===================== architecture features =========================
+# several functions in yafu can take advantage of advanced processor
+# features (instruction sets).  Specify on the command line, e.g., 
+# USE_AVX2=1
 
 ifeq ($(USE_SSE41),1)
 	CFLAGS += -DUSE_SSE41 -msse4.1
@@ -112,10 +176,6 @@ endif
 endif
 
 # ===================== feature options =========================
-ifeq ($(NO_ZLIB),1)
-  CFLAGS += -DNO_ZLIB
-endif
-
 ifeq ($(SMALLINT),1)
 	CFLAGS += -DSMALL_SIQS_INTERVALS
 endif
@@ -136,18 +196,12 @@ ifeq ($(TIMING),1)
 	CFLAGS += -DQS_TIMING
 endif
 
-ifeq ($(NFS),1)
-	CFLAGS += -DUSE_NFS
-	LIBS += -lmsieve
-endif
-
 ifeq ($(FORCE_GENERIC),1)
 	CFLAGS += -DFORCE_GENERIC
 endif
 
 # make sure we get the correct libgmp linked by using an absolute path
-#LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
-LIBS += -lecm -lgmp -lytools -lysieve
+LIBS += -lecm -lgmp
 
 ifeq ($(SKYLAKEX),1)
     # define KNL now for skylakex, after handling an actual command line KNL
@@ -178,8 +232,8 @@ CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 
 x86: CFLAGS += -m32
 
-#---------------------------Msieve file lists -------------------------
-MSIEVE_SRCS = \
+#---------------------------Msieve/yafu file lists --------------------
+MSIEVE_YAFU_SRCS = \
 	factor/qs/msieve/lanczos.c \
 	factor/qs/msieve/lanczos_matmul0.c \
 	factor/qs/msieve/lanczos_matmul1.c \
@@ -189,7 +243,7 @@ MSIEVE_SRCS = \
 	factor/qs/msieve/savefile.c \
 	factor/qs/msieve/gf2.c
 
-MSIEVE_OBJS = $(MSIEVE_SRCS:.c=$(OBJ_EXT))
+MSIEVE_YAFU_OBJS = $(MSIEVE_YAFU_SRCS:.c=$(OBJ_EXT))
 
 
 #---------------------------YAFU file lists -------------------------
@@ -202,7 +256,6 @@ YAFU_SRCS = \
 	top/cmdParser/calc.c
 	
 COMMON_SRCS = \
-	top/aprcl/mpz_aprcl.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -212,8 +265,22 @@ COMMON_SRCS = \
 	arith/fftmul.c \
 	factor/gmp-ecm/tinyecm.c \
 	factor/gmp-ecm/micropm1.c \
-    factor/gmp-ecm/microecm.c
-	
+    factor/gmp-ecm/microecm.c \
+	ytools/threadpool.c \
+	ytools/util.c \
+	ysieve/presieve.c \
+	ysieve/count.c \
+	ysieve/offsets.c \
+	ysieve/primes.c \
+	ysieve/roots.c \
+	ysieve/linesieve.c \
+	ysieve/soe.c \
+	ysieve/tiny.c \
+	ysieve/worker.c \
+	ysieve/soe_util.c \
+	ysieve/wrapper.c \
+	top/aprcl/mpz_aprcl.c \
+
 ECM_SRCS = \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
@@ -288,7 +355,6 @@ YAFU_COMMON_OBJS = $(COMMON_SRCS:.c=$(OBJ_EXT))
 SIQS_BIN_OBJS = $(SIQS_BIN_SRCS:.c=$(OBJ_EXT))
 
 #---------------------------YAFU NFS file lists -----------------------
-ifeq ($(NFS),1)
 
 YAFU_NFS_SRCS = \
 	factor/nfs/nfs_sieving.c \
@@ -301,11 +367,6 @@ YAFU_NFS_SRCS = \
 
 YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=$(OBJ_EXT))
 
-else
-
-YAFU_NFS_OBJS =
-
-endif
 
 #---------------------------Header file lists -------------------------
 COMMON_HEAD = include/gmp_xface.h \
@@ -313,8 +374,12 @@ COMMON_HEAD = include/gmp_xface.h \
 	include/arith.h  \
 	include/common.h  \
 	top/aprcl/jacobi_sum.h \
+	include/factor.h \
+	ytools/ytools.h \
+	ytools/threadpool.h \
+	ysieve/soe.h  \
+    ysieve/soe_impl.h \
 	top/aprcl/mpz_aprcl.h \
-	include/factor.h
 	
 ECM_HEAD = include/yafu_ecm.h \
 	factor/avx-ecm/avx_ecm.h \
@@ -341,7 +406,8 @@ YAFU_HEAD = include/yafu.h \
 	
 NFS_HEAD = include/nfs.h \
 	include/nfs_impl.h \
-	include/msieve_common.h
+	include/msieve_common.h \
+	include/gnfs-yafu.h
 	
 
 ifeq ($(USE_AVX2),1)
@@ -358,11 +424,240 @@ else
 	endif
 endif
 
+
+#--------------------------- msieve file lists -----------------------
+
+
+COMMON_HDR = \
+	common/lanczos/lanczos.h \
+	common/filter/filter.h \
+	common/filter/filter_priv.h \
+	common/filter/merge_util.h \
+	ms_include/ms_batch_factor.h \
+	ms_include/ms_common.h \
+	ms_include/cuda_xface.h \
+	ms_include/dd.h \
+	ms_include/ddcomplex.h \
+	ms_include/ms_gmp_xface.h \
+	ms_include/integrate.h \
+	ms_include/ms_msieve.h \
+	ms_include/mp.h \
+	ms_include/polyroot.h \
+	ms_include/thread.h \
+	ms_include/util.h \
+	aprcl/mpz_aprcl32.h \
+
+COMMON_GPU_HDR = \
+	common/lanczos/gpu/lanczos_kernel.cu \
+	common/lanczos/gpu/lanczos_gpu.h \
+	common/lanczos/gpu/lanczos_gpu_core.h
+
+COMMON_NOGPU_HDR = \
+	common/lanczos/cpu/lanczos_cpu.h
+
+MSIEVE_COMMON_SRCS = \
+	common/filter/clique.c \
+	common/filter/filter.c \
+	common/filter/merge.c \
+	common/filter/merge_post.c \
+	common/filter/merge_pre.c \
+	common/filter/merge_util.c \
+	common/filter/singleton.c \
+	common/lanczos/lanczos.c \
+	common/lanczos/lanczos_io.c \
+	common/lanczos/lanczos_matmul.c \
+	common/lanczos/lanczos_pre.c \
+	common/lanczos/matmul_util.c \
+	common/smallfact/gmp_ecm.c \
+	common/smallfact/smallfact.c \
+	common/smallfact/squfof.c \
+	common/smallfact/tinyqs.c \
+	common/batch_factor.c \
+	common/cuda_xface.c \
+	common/dickman.c \
+	common/driver.c \
+	common/expr_eval.c \
+	common/hashtable.c \
+	common/integrate.c \
+	common/minimize.c \
+	common/minimize_global.c \
+	common/mp.c \
+	common/polyroot.c \
+	common/prime_delta.c \
+	common/prime_sieve.c \
+	common/savefile.c \
+	common/strtoll.c \
+	common/thread.c \
+	common/util.c \
+	aprcl/mpz_aprcl32.c \
+
+COMMON_GPU_SRCS = \
+		common/lanczos/gpu/lanczos_matmul_gpu.c \
+		common/lanczos/gpu/lanczos_vv.c
+
+COMMON_NOGPU_SRCS = \
+		common/lanczos/cpu/lanczos_matmul0.c \
+		common/lanczos/cpu/lanczos_matmul1.c \
+		common/lanczos/cpu/lanczos_matmul2.c \
+		common/lanczos/cpu/lanczos_vv.c
+
+ifdef CUDA
+	MSIEVE_COMMON_SRCS += $(COMMON_GPU_SRCS)
+	COMMON_HDR += $(COMMON_GPU_HDR)
+	GPU_OBJS += \
+		lanczos_kernel.ptx
+else
+	MSIEVE_COMMON_SRCS += $(COMMON_NOGPU_SRCS)
+	COMMON_HDR += $(COMMON_NOGPU_HDR)
+endif
+
+MSIEVE_COMMON_OBJS = $(MSIEVE_COMMON_SRCS:.c=.o)
+COMMON_GPU_OBJS = $(COMMON_GPU_SRCS:.c=.o)
+COMMON_NOGPU_OBJS = $(COMMON_NOGPU_SRCS:.c=.o)
+
+#---------------------------------- QS file lists -------------------------
+
+QS_HDR = mpqs/mpqs.h
+
+QS_SRCS = \
+	mpqs/gf2.c \
+	mpqs/mpqs.c \
+	mpqs/poly.c \
+	mpqs/relation.c \
+	mpqs/sieve.c \
+	mpqs/sieve_core.c \
+	mpqs/sqrt.c
+
+QS_OBJS = \
+	mpqs/gf2.qo \
+	mpqs/mpqs.qo \
+	mpqs/poly.qo \
+	mpqs/relation.qo \
+	mpqs/sieve.qo \
+	mpqs/sqrt.qo \
+	mpqs/sieve_core_generic_32k.qo \
+	mpqs/sieve_core_generic_64k.qo
+
+#---------------------------------- GPU file lists -------------------------
+
+GPU_OBJS += \
+	stage1_core.ptx \
+	cub/built
+
+#---------------------------------- NFS file lists -------------------------
+
+NFS_HDR = \
+	gnfs/filter/filter.h \
+	gnfs/poly/poly.h \
+	gnfs/poly/poly_skew.h \
+	gnfs/poly/stage1/stage1.h \
+	gnfs/poly/stage2/stage2.h \
+	gnfs/sieve/sieve.h \
+	gnfs/sqrt/sqrt.h \
+	gnfs/gnfs.h
+
+NFS_GPU_HDR = \
+	gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu \
+	gnfs/poly/stage1/stage1_core_gpu/cuda_intrinsics.h \
+	gnfs/poly/stage1/stage1_core_gpu/stage1_core.h
+
+NFS_NOGPU_HDR = \
+	gnfs/poly/stage1/cpu_intrinsics.h
+
+NFS_SRCS = \
+	gnfs/poly/poly.c \
+	gnfs/poly/poly_param.c \
+	gnfs/poly/poly_skew.c \
+	gnfs/poly/polyutil.c \
+	gnfs/poly/root_score.c \
+	gnfs/poly/size_score.c \
+	gnfs/poly/stage1/stage1.c \
+	gnfs/poly/stage1/stage1_roots.c \
+	gnfs/poly/stage2/optimize.c \
+	gnfs/poly/stage2/optimize_deg6.c \
+	gnfs/poly/stage2/root_sieve.c \
+	gnfs/poly/stage2/root_sieve_deg45_x.c \
+	gnfs/poly/stage2/root_sieve_deg5_xy.c \
+	gnfs/poly/stage2/root_sieve_deg6_x.c \
+	gnfs/poly/stage2/root_sieve_deg6_xy.c \
+	gnfs/poly/stage2/root_sieve_deg6_xyz.c \
+	gnfs/poly/stage2/root_sieve_line.c \
+	gnfs/poly/stage2/root_sieve_util.c \
+	gnfs/poly/stage2/stage2.c \
+	gnfs/filter/duplicate.c \
+	gnfs/filter/filter.c \
+	gnfs/filter/singleton.c \
+	gnfs/sieve/sieve_line.c \
+	gnfs/sieve/sieve_util.c \
+	gnfs/sqrt/sqrt.c \
+	gnfs/sqrt/sqrt_a.c \
+	gnfs/fb.c \
+	gnfs/ffpoly.c \
+	gnfs/gf2.c \
+	gnfs/gnfs.c \
+	gnfs/relation.c
+
+NFS_OBJS = $(NFS_SRCS:.c=.no)
+
+NFS_GPU_SRCS = \
+	gnfs/poly/stage1/stage1_sieve_gpu.c
+
+NFS_GPU_OBJS = $(NFS_GPU_SRCS:.c=.no)
+
+NFS_NOGPU_SRCS = \
+	gnfs/poly/stage1/stage1_sieve_cpu.c
+
+NFS_NOGPU_OBJS = $(NFS_NOGPU_SRCS:.c=.no)
+
+ifeq ($(CUDA),1)
+	NFS_HDR += $(NFS_GPU_HDR)
+	NFS_SRCS += $(NFS_GPU_SRCS)
+	NFS_OBJS += $(NFS_GPU_OBJS)
+else
+	NFS_HDR += $(NFS_NOGPU_HDR)
+	NFS_SRCS += $(NFS_NOGPU_SRCS)
+	NFS_OBJS += $(NFS_NOGPU_OBJS)
+	GPU_OBJS =
+endif
+
 #---------------------------Make Targets -------------------------
 
-yafu: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+help:
+	@echo "to build msieve:"
+	@echo "make msieve"
+	@echo "add 'WIN=1 if building on windows"
+	@echo "add 'WIN64=1 if building on 64-bit windows"
+	@echo "add 'ECM=1' if GMP-ECM is available (enables ECM)"
+	@echo "add 'CUDA=1' for Nvidia graphics card support"
+	@echo "add 'MPI=1' for parallel processing using MPI"
+	@echo "add 'BOINC=1' to add BOINC wrapper"
+	@echo "add 'NO_ZLIB=1' if you don't have zlib"
+	@echo "add 'VBITS=X' for linear algebra with X-bit vectors (64, 128, 256)"
+	@echo "to build yafu:"
+	@echo "make yafu"
+	@echo "add 'USE_SSE41=1' to include sse4.1 vectorization instruction support"
+	@echo "add 'USE_AVX2=1' to include AVX2 vectorization instruction support"
+	@echo "add 'USE_BMI2=1' to include BMI2 instruction support"
+	@echo "add 'SKYLAKEX=1' to include AVX512F,VL,DQ,BW vectorization instruction support"
+	@echo "add 'ICELAKE=1' to include SKYLAKEX + AVX512IFMA vectorization instruction support"
+	@echo ""
+	@echo "For either build, add COMPILER=icc to build with the icc compiler (if installed)"
+
+
+msieve: $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
+	rm -f libmsieve.a
+	ar r libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib libmsieve.a
+	$(CC) $(CFLAGS) demo.c -o msieve $(LDFLAGS) \
+			libmsieve.a $(MSIEVE_LIBS)
+
+yafu: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
+	$(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	rm -f libmsieve.a
+	ar r libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib libmsieve.a
 	rm -f libysiqs.a
-	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_OBJS) 
+	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS) 
 	ranlib libysiqs.a
 	rm -f libyecm.a
 	ar r libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
@@ -370,11 +665,11 @@ yafu: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_
 	rm -f libynfs.a
 	ar r libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS)
 	ranlib libynfs.a
-	$(CC) $(CFLAGS) $(YAFU_OBJS) -o $(BINNAME) -lysiqs  -lyecm  -lynfs $(LIBS) 
+	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu -lysiqs  -lyecm  -lynfs -lmsieve $(LIBS)
 
-siqs: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
+siqs: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
 	rm -f libysiqs.a
-	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_OBJS) 
+	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS) 
 	ranlib libysiqs.a
 	$(CC) $(CFLAGS) $(SIQS_BIN_OBJS) -o siqs_demo -lysiqs  $(LIBS)
 	
@@ -385,7 +680,9 @@ ecm: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
 	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo -libyecm.a  $(LIBS)
 
 clean:
-	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	rm -f $(MSIEVE_YAFU_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
+	msieve msieve.exe libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) \
+		$(NFS_OBJS) $(NFS_GPU_OBJS) $(NFS_NOGPU_OBJS) *.ptx
 
 #---------------------------Build Rules -------------------------
 
@@ -394,6 +691,9 @@ clean:
 #
 #
 
+%.o: %.c $(COMMON_HDR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+	
 %$(OBJ_EXT): %.c $(COMMON_HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
 	
@@ -412,3 +712,33 @@ clean:
 %$(OBJ_EXT): %.c $(SIQS_BIN_HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
 	
+# QS build rules
+
+mpqs/sieve_core_generic_32k.qo: mpqs/sieve_core.c $(COMMON_HDR) $(QS_HDR)
+	$(CC) $(CFLAGS) -DBLOCK_KB=32 -DHAS_SSE2 \
+		-DROUTINE_NAME=qs_core_sieve_generic_32k \
+		-c -o $@ mpqs/sieve_core.c
+
+mpqs/sieve_core_generic_64k.qo: mpqs/sieve_core.c $(COMMON_HDR) $(QS_HDR)
+	$(CC) $(CFLAGS) -DBLOCK_KB=64 -DHAS_SSE2 \
+		-DROUTINE_NAME=qs_core_sieve_generic_64k \
+		-c -o $@ mpqs/sieve_core.c
+
+%.qo: %.c $(COMMON_HDR) $(QS_HDR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# NFS build rules
+
+%.no: %.c $(COMMON_HDR) $(NFS_HDR)
+	$(CC) $(CFLAGS) -Ignfs -c -o $@ $<
+
+# GPU build rules
+
+stage1_core.ptx: $(NFS_GPU_HDR)
+	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
+
+lanczos_kernel.ptx: $(COMMON_GPU_HDR)
+	$(NVCC) -arch sm_$(SM) -ptx -DVBITS=$(VBITS) -o $@ $<
+
+cub/built:
+	cd cub && make WIN=$(WIN) WIN64=$(WIN64) VBITS=$(VBITS) sm=$(SM)0 && cd ..

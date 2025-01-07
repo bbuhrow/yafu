@@ -465,7 +465,7 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 	uint32 num_sizeopt = 0;
 	uint32 last_num_sizeopt = 0;
 
-	msieve_gettimeofday(&tstart, NULL);
+	//msieve_gettimeofday(&tstart, NULL);
 	p_packed_init(&specialq_array);
 	p_packed_init(&hash_array);
 	mpz_init(qprod);
@@ -611,9 +611,9 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 					goto finished;
 			}
 
-			msieve_gettimeofday(&tstop, NULL);
-			//if (get_cpu_time() - cpu_start_time > deadline) {
-			if (msieve_difftime(&tstart, &tstop) > deadline) {
+			//msieve_gettimeofday(&tstop, NULL);
+			if (get_cpu_time() - cpu_start_time > deadline) {
+			//if (msieve_difftime(&tstart, &tstop) > deadline) {
 				quit = 1;
 				goto finished;
 			}
@@ -627,10 +627,10 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 			last_num_sizeopt = num_sizeopt;
 			poly_sizeopt_t* data = (poly_sizeopt_t*)poly->callback_data;
 
-			msieve_gettimeofday(&tstop, NULL);
+			//msieve_gettimeofday(&tstop, NULL);
 
 			double best_e = data->best_saved_combined_e;
-			double time_elapsed = msieve_difftime(&tstart, &tstop);
+			double time_elapsed = get_cpu_time() - cpu_start_time; //msieve_difftime(&tstart, &tstop);
 
 			gmp_printf("coeff: %Zd, entries: %u, sizeopt: %u, "
 				"rootopt: %u, saved: %d, best_e: %1.4e, time: %1.2f sec\r",

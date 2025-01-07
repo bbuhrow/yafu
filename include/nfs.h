@@ -23,7 +23,7 @@ code to the public domain.
 
 
 #include "factor.h"
-#include "gnfs.h"
+#include "gnfs-yafu.h"
 
 // gnfs.h has an mpz_poly_t struct:
 /* typedef struct {

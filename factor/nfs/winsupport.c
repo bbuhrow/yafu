@@ -12,7 +12,7 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
-#include "gnfs.h"
+#include "gnfs-yafu.h"
 #include "arith.h"
 #include "factor.h"
 

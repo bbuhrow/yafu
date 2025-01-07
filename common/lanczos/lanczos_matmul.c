@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: lanczos_matmul.c 1025 2018-08-19 02:20:28Z jasonp_sf $
+$Id$
 --------------------------------------------------------------------*/
 
 #include "lanczos.h"
@@ -113,8 +113,10 @@ void packed_matrix_init(msieve_obj *obj,
 	p->mpi_ncols = obj->mpi_ncols;
 	p->mpi_la_row_rank = obj->mpi_la_row_rank;
 	p->mpi_la_col_rank = obj->mpi_la_col_rank;
+	p->mpi_la_grid = obj->mpi_la_grid;
 	p->mpi_la_row_grid = obj->mpi_la_row_grid;
 	p->mpi_la_col_grid = obj->mpi_la_col_grid;
+	p->mpi_word = obj->mpi_word;
 #endif
 
 	matrix_extra_init(obj, p, first_block_size);
@@ -128,7 +130,7 @@ void packed_matrix_free(packed_matrix_t *p) {
 
 /*-------------------------------------------------------------------*/
 void mul_MxN_NxB(packed_matrix_t *A, void *x, 
-			void *scratch) {
+			void *scratch, void *scratch2) {
     
 	/* Multiply the vector x[] by the matrix A and put the 
 	   result in scratch[]. The MPI version needs an extra
@@ -136,8 +138,6 @@ void mul_MxN_NxB(packed_matrix_t *A, void *x,
 	   want to be out-of-place */
 
 #ifdef HAVE_MPI
-	v_t *scratch2 = (v_t *)scratch + MAX(A->ncols, A->nrows);
-
 	if (A->mpi_size <= 1) {
 #endif
 		mul_core(A, x, scratch);
@@ -148,7 +148,7 @@ void mul_MxN_NxB(packed_matrix_t *A, void *x,
 	/* make each MPI column gather its own part of x */
 	
 	global_allgather(x, scratch, A->ncols, A->mpi_nrows, 
-			A->mpi_la_row_rank, A->mpi_la_col_grid);
+			A->mpi_la_row_rank, A->mpi_word, A->mpi_la_col_grid);
 		
 	mul_core(A, scratch, scratch2);
 	
@@ -158,14 +158,14 @@ void mul_MxN_NxB(packed_matrix_t *A, void *x,
 	   so it's not worth removing the redundancy */
 	
 	global_xor(scratch2, scratch, A->nrows, A->mpi_ncols,
-			   A->mpi_la_col_rank, A->mpi_la_row_grid);
+			   A->mpi_la_col_rank, A->mpi_word, A->mpi_la_row_grid);
 
 #endif
 }
 
 /*-------------------------------------------------------------------*/
 void mul_sym_NxN_NxB(packed_matrix_t *A, void *x, 
-			void *b, void *scratch) {
+			void *b, void *scratch, void *scratch2) {
 
 	/* Multiply x by A and write to scratch, then
 	   multiply scratch by the transpose of A and
@@ -173,8 +173,6 @@ void mul_sym_NxN_NxB(packed_matrix_t *A, void *x,
 	   be distinct from scratch */
 
 #ifdef HAVE_MPI
-	v_t *scratch2 = (v_t *)scratch + MAX(A->ncols, A->nrows);
-        
 	if (A->mpi_size <= 1) {
 #endif
 		mul_core(A, x, scratch);
@@ -186,20 +184,20 @@ void mul_sym_NxN_NxB(packed_matrix_t *A, void *x,
 	/* make each MPI column gather its own part of x */
 	 
 	global_allgather(x, scratch, A->ncols, A->mpi_nrows, 
-			A->mpi_la_row_rank, A->mpi_la_col_grid);
+			A->mpi_la_row_rank, A->mpi_word, A->mpi_la_col_grid);
 	
 	mul_core(A, scratch, scratch2);
 		
 	/* make each MPI row combine its own part of A*x */
 	
 	global_xor(scratch2, scratch, A->nrows, A->mpi_ncols,
-			   A->mpi_la_col_rank, A->mpi_la_row_grid);
+			   A->mpi_la_col_rank, A->mpi_word, A->mpi_la_row_grid);
 		
 	mul_trans_core(A, scratch, scratch2);
 		
 	/* make each MPI row combine and scatter its own part of A^T * A*x */
 		
 	global_xor_scatter(scratch2, b, scratch,  A->ncols, A->mpi_nrows, 
-			A->mpi_la_row_rank, A->mpi_la_col_grid);
+			A->mpi_la_row_rank, A->mpi_word, A->mpi_la_col_grid);
 #endif
 }

@@ -9,12 +9,12 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: lanczos.c 1051 2024-05-07 14:42:24Z vegamink $
+$Id$
 --------------------------------------------------------------------*/
 
 #include "lanczos.h"
 
-#define DEFAULT_DUMP_INTERVAL 2000
+#define DEFAULT_DUMP_INTERVAL 300*VBITS
 
 #ifdef HAVE_MPI
 	#define MPI_NODE_0_START if (obj->mpi_la_row_rank + \
@@ -30,6 +30,10 @@ $Id: lanczos.c 1051 2024-05-07 14:42:24Z vegamink $
 #define BIT1(x) {{(uint64)0, (uint64)(1) << (x)}}
 #define BIT2(x) {{(uint64)0, (uint64)0, (uint64)(1) << (x)}}
 #define BIT3(x) {{(uint64)0, (uint64)0, (uint64)0, (uint64)(1) << (x)}}
+#define BIT4(x) {{(uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)(1) << (x)}}
+#define BIT5(x) {{(uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)(1) << (x)}}
+#define BIT6(x) {{(uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)(1) << (x)}}
+#define BIT7(x) {{(uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)0, (uint64)(1) << (x)}}
 
 static const v_t bitmask[VBITS] = {
 
@@ -68,6 +72,46 @@ BIT3(32), BIT3(33), BIT3(34), BIT3(35), BIT3(36), BIT3(37), BIT3(38), BIT3(39),
 BIT3(40), BIT3(41), BIT3(42), BIT3(43), BIT3(44), BIT3(45), BIT3(46), BIT3(47),
 BIT3(48), BIT3(49), BIT3(50), BIT3(51), BIT3(52), BIT3(53), BIT3(54), BIT3(55),
 BIT3(56), BIT3(57), BIT3(58), BIT3(59), BIT3(60), BIT3(61), BIT3(62), BIT3(63),
+#if VBITS > 256
+BIT4( 0), BIT4( 1), BIT4( 2), BIT4( 3), BIT4( 4), BIT4( 5), BIT4( 6), BIT4( 7),
+BIT4( 8), BIT4( 9), BIT4(10), BIT4(11), BIT4(12), BIT4(13), BIT4(14), BIT4(15),
+BIT4(16), BIT4(17), BIT4(18), BIT4(19), BIT4(20), BIT4(21), BIT4(22), BIT4(23),
+BIT4(24), BIT4(25), BIT4(26), BIT4(27), BIT4(28), BIT4(29), BIT4(30), BIT4(31),
+BIT4(32), BIT4(33), BIT4(34), BIT4(35), BIT4(36), BIT4(37), BIT4(38), BIT4(39),
+BIT4(40), BIT4(41), BIT4(42), BIT4(43), BIT4(44), BIT4(45), BIT4(46), BIT4(47),
+BIT4(48), BIT4(49), BIT4(50), BIT4(51), BIT4(52), BIT4(53), BIT4(54), BIT4(55),
+BIT4(56), BIT4(57), BIT4(58), BIT4(59), BIT4(60), BIT4(61), BIT4(62), BIT4(63),
+#if VBITS > 320
+BIT5( 0), BIT5( 1), BIT5( 2), BIT5( 3), BIT5( 4), BIT5( 5), BIT5( 6), BIT5( 7),
+BIT5( 8), BIT5( 9), BIT5(10), BIT5(11), BIT5(12), BIT5(13), BIT5(14), BIT5(15),
+BIT5(16), BIT5(17), BIT5(18), BIT5(19), BIT5(20), BIT5(21), BIT5(22), BIT5(23),
+BIT5(24), BIT5(25), BIT5(26), BIT5(27), BIT5(28), BIT5(29), BIT5(30), BIT5(31),
+BIT5(32), BIT5(33), BIT5(34), BIT5(35), BIT5(36), BIT5(37), BIT5(38), BIT5(39),
+BIT5(40), BIT5(41), BIT5(42), BIT5(43), BIT5(44), BIT5(45), BIT5(46), BIT5(47),
+BIT5(48), BIT5(49), BIT5(50), BIT5(51), BIT5(52), BIT5(53), BIT5(54), BIT5(55),
+BIT5(56), BIT5(57), BIT5(58), BIT5(59), BIT5(60), BIT5(61), BIT5(62), BIT5(63),
+#if VBITS > 384
+BIT6( 0), BIT6( 1), BIT6( 2), BIT6( 3), BIT6( 4), BIT6( 5), BIT6( 6), BIT6( 7),
+BIT6( 8), BIT6( 9), BIT6(10), BIT6(11), BIT6(12), BIT6(13), BIT6(14), BIT6(15),
+BIT6(16), BIT6(17), BIT6(18), BIT6(19), BIT6(20), BIT6(21), BIT6(22), BIT6(23),
+BIT6(24), BIT6(25), BIT6(26), BIT6(27), BIT6(28), BIT6(29), BIT6(30), BIT6(31),
+BIT6(32), BIT6(33), BIT6(34), BIT6(35), BIT6(36), BIT6(37), BIT6(38), BIT6(39),
+BIT6(40), BIT6(41), BIT6(42), BIT6(43), BIT6(44), BIT6(45), BIT6(46), BIT6(47),
+BIT6(48), BIT6(49), BIT6(50), BIT6(51), BIT6(52), BIT6(53), BIT6(54), BIT6(55),
+BIT6(56), BIT6(57), BIT6(58), BIT6(59), BIT6(60), BIT6(61), BIT6(62), BIT6(63),
+#if VBITS > 448
+BIT7( 0), BIT7( 1), BIT7( 2), BIT7( 3), BIT7( 4), BIT7( 5), BIT7( 6), BIT7( 7),
+BIT7( 8), BIT7( 9), BIT7(10), BIT7(11), BIT7(12), BIT7(13), BIT7(14), BIT7(15),
+BIT7(16), BIT7(17), BIT7(18), BIT7(19), BIT7(20), BIT7(21), BIT7(22), BIT7(23),
+BIT7(24), BIT7(25), BIT7(26), BIT7(27), BIT7(28), BIT7(29), BIT7(30), BIT7(31),
+BIT7(32), BIT7(33), BIT7(34), BIT7(35), BIT7(36), BIT7(37), BIT7(38), BIT7(39),
+BIT7(40), BIT7(41), BIT7(42), BIT7(43), BIT7(44), BIT7(45), BIT7(46), BIT7(47),
+BIT7(48), BIT7(49), BIT7(50), BIT7(51), BIT7(52), BIT7(53), BIT7(54), BIT7(55),
+BIT7(56), BIT7(57), BIT7(58), BIT7(59), BIT7(60), BIT7(61), BIT7(62), BIT7(63),
+#endif
+#endif
+#endif
+#endif
 #endif
 #endif
 #endif
@@ -529,102 +573,11 @@ static uint32 combine_cols(uint32 ncols,
 }
 
 /*-----------------------------------------------------------------------*/
-#ifdef HAVE_MPI
-static v_t * gather_ncols(msieve_obj *obj,
-			packed_matrix_t *packed_matrix,
-			void *v, void *scratch, 
-			v_t *out) {
-
-	MPI_NODE_0_START
-	if (out == NULL)
-		out = (v_t *)aligned_malloc(packed_matrix->max_ncols * 
-						sizeof(v_t), 64);
-	MPI_NODE_0_END
-
-	/* gather v into MPI row 0 */
-
-	MPI_TRY(MPI_Gatherv(v,
-			VWORDS * packed_matrix->nsubcols, 
-			MPI_LONG_LONG, scratch,
-			packed_matrix->subcol_counts,
-			packed_matrix->subcol_offsets,
-			MPI_LONG_LONG, 0, 
-			obj->mpi_la_col_grid))
-
-	/* gather row 0 into the root node */
-
-	if (obj->mpi_la_row_rank == 0) {
-		MPI_TRY(MPI_Gatherv(scratch,
-				VWORDS * packed_matrix->ncols, 
-				MPI_LONG_LONG, out,
-				packed_matrix->col_counts,
-				packed_matrix->col_offsets,
-				MPI_LONG_LONG, 0, 
-				obj->mpi_la_row_grid))
-	}
-	
-	return out;
-}
-
-/*-----------------------------------------------------------------------*/
-static v_t * gather_nrows(msieve_obj *obj,
-			packed_matrix_t *packed_matrix,
-			void *scratch, v_t *out) {
-
-	MPI_NODE_0_START
-	if (out == NULL)
-		out = (v_t *)aligned_malloc(packed_matrix->max_ncols * 
-						sizeof(v_t), 64);
-	MPI_NODE_0_END
-
-	/* gather column 0 into the root node */
-
-	if (obj->mpi_la_col_rank == 0) {
-		MPI_TRY(MPI_Gatherv(scratch,
-				VWORDS * packed_matrix->nrows, 
-				MPI_LONG_LONG, out,
-				packed_matrix->row_counts,
-				packed_matrix->row_offsets,
-				MPI_LONG_LONG, 0, 
-				obj->mpi_la_col_grid))
-	}
-	
-	return out;
-}
-
-/*-----------------------------------------------------------------------*/
-static void scatter_ncols(msieve_obj *obj,
-			packed_matrix_t *packed_matrix,
-			void *out, void *scratch, 
-			v_t *in) {
-
-	/* push out to the top MPI row */
-
-	if (obj->mpi_la_row_rank == 0)
-		MPI_TRY(MPI_Scatterv(in, packed_matrix->col_counts,
-				packed_matrix->col_offsets, 
-				MPI_LONG_LONG, scratch,
-				VWORDS * packed_matrix->ncols,
-				MPI_LONG_LONG, 0, 
-				obj->mpi_la_row_grid))
-
-	/* push down each column */
-
-	MPI_TRY(MPI_Scatterv(scratch, packed_matrix->subcol_counts,
-	       			packed_matrix->subcol_offsets, 
-	      			MPI_LONG_LONG, out,
-				VWORDS * packed_matrix->ncols,
-	   			MPI_LONG_LONG, 0, 
-       				obj->mpi_la_col_grid))
-}
-#endif
-
-/*-----------------------------------------------------------------------*/
 static void dump_lanczos_state(msieve_obj *obj, 
 			packed_matrix_t *packed_matrix,
 			void *x, v_t **vt_v0, void **v, void *v0,
 			v_t **vt_a_v, v_t **vt_a2_v, v_t **winv,
-			uint32 n, uint32 max_n, uint32 dim_solved, uint32 iter,
+			uint32 max_n, uint32 dim_solved, uint32 iter,
 			uint32 s[2][VBITS], uint32 dim1, void *scratch) {
 
 	uint32 vbits = VBITS;
@@ -660,6 +613,7 @@ static void dump_lanczos_state(msieve_obj *obj,
 	status &= (fwrite(vt_v0[2], sizeof(v_t), (size_t)VBITS, fp) == VBITS);
 	status &= (fwrite(s[1], sizeof(uint32), (size_t)VBITS, fp) == VBITS);
 	status &= (fwrite(&dim1, sizeof(uint32), (size_t)1, fp) == 1);
+
 	tmp = (v_t *)aligned_malloc(max_n * sizeof(v_t), 64);
 	MPI_NODE_0_END
 
@@ -734,7 +688,7 @@ static void read_lanczos_state(msieve_obj *obj,
 			packed_matrix_t *packed_matrix,
 			void *x, v_t **vt_v0, void **v, void *v0,
 			v_t **vt_a_v, v_t **vt_a2_v, v_t **winv,
-			uint32 n, uint32 max_n, uint32 *dim_solved, 
+			uint32 max_n, uint32 *dim_solved, 
 			uint32 *iter, uint32 s[2][VBITS], uint32 *dim1,
 			void *scratch) {
 
@@ -831,7 +785,7 @@ static void read_lanczos_state(msieve_obj *obj,
 
 /*-----------------------------------------------------------------------*/
 static void init_lanczos_state(msieve_obj *obj, 
-			packed_matrix_t *packed_matrix, void *scratch,
+			packed_matrix_t *packed_matrix, void *scratch, void *scratch2,
 			void *x, void *v0, v_t **vt_v0, void **v, 
 			v_t **vt_a_v, v_t **vt_a2_v, v_t **winv,
 			uint32 n, uint32 s[2][VBITS], uint32 *dim1) {
@@ -854,7 +808,7 @@ static void init_lanczos_state(msieve_obj *obj,
 	vv_copyin(x, tmp, n);
 	free(tmp);
 
-	mul_sym_NxN_NxB(packed_matrix, x, v[0], scratch);
+	mul_sym_NxN_NxB(packed_matrix, x, v[0], scratch, scratch2);
 	vv_copy(v0, v[0], n);
 
 	/* Subscripts larger than zero represent past versions of 
@@ -891,6 +845,7 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	uint32 n = packed_matrix->ncols;
 	uint32 max_n = packed_matrix->max_ncols;
 	void *vnext, *v[3], *x, *v0, *scratch, *tmp;
+	void *scratch2 = NULL;
 	v_t *out0, *out1, *out2, *out3;
 	v_t *winv[3], *vt_v0_next;
 	v_t *vt_a_v[2], *vt_a2_v[2], *vt_v0[3];
@@ -925,7 +880,10 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	/* we'll need 2 scratch vectors for the matrix multiply
 	   and for scatter-gather operations */
 
-	scratch = vv_alloc(2 * MAX(packed_matrix->nrows, 
+	scratch = vv_alloc(MAX(packed_matrix->nrows, 
+				packed_matrix->ncols),
+			  packed_matrix->extra);
+	scratch2 = vv_alloc(MAX(packed_matrix->nrows, 
 				packed_matrix->ncols),
 			  packed_matrix->extra);
 #else	
@@ -957,8 +915,6 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	logprintf(obj, "memory use: %.1f MB\n", (double)
 			(packed_matrix_sizeof(packed_matrix)) / 1048576);
 
-	logprintf(obj, "VBITS = %d\n", VBITS);
-
 	/* initialize */
 
 	*num_deps_found = 0;
@@ -968,13 +924,13 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	if (obj->flags & MSIEVE_FLAG_NFS_LA_RESTART) {
 		read_lanczos_state(obj, packed_matrix, 
 				x, vt_v0, v, v0, vt_a_v, vt_a2_v,
-				winv, packed_matrix->ncols, max_n, 
+				winv, max_n, 
 				&dim_solved, &iter, s, &dim1, scratch);
 		logprintf(obj, "restarting at iteration %u (dim = %u)\n",
 				iter, dim_solved);
 	}
 	else {
-		init_lanczos_state(obj, packed_matrix, scratch, x, 
+		init_lanczos_state(obj, packed_matrix, scratch, scratch2, x, 
 				v0, vt_v0, v, vt_a_v, vt_a2_v, 
 				winv, packed_matrix->ncols, s, &dim1);
 	}
@@ -991,13 +947,13 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	    obj->flags & (MSIEVE_FLAG_USE_LOGFILE |
 	    		  MSIEVE_FLAG_LOG_TO_STDOUT)) {
 		if (max_n > 1000000)
-			report_interval = 200;
+			report_interval = 1000;
 		else if (max_n > 500000)
-			report_interval = 500;
+			report_interval = 2500;
 		else if (max_n > 100000)
-			report_interval = 2000;
+			report_interval = 10000;
 		else
-			report_interval = 8000;
+			report_interval = 30000;
 		first_dim_solved = dim_solved;
 		next_report = dim_solved + report_interval;
 	}
@@ -1020,7 +976,7 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 		/* multiply the current v[0] by the matrix and write
 		   to vnext */
               
-		mul_sym_NxN_NxB(packed_matrix, v[0], vnext, scratch);
+		mul_sym_NxN_NxB(packed_matrix, v[0], vnext, scratch, scratch2);
                 
 		/* compute v0'*A*v0 and (A*v0)'(A*v0) */
 
@@ -1246,9 +1202,9 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 					max_n, eta / 3600, (eta % 3600) / 60);
 
 				/* report the ETA to the logfile once 
-				   (wait 6 intervals for a better ETA) */
+				   (wait 30 intervals for a better ETA) */
 
-				if (++log_eta_once == 6) {
+				if (++log_eta_once == 30) {
 					logprintf(obj, "linear algebra at "
 						   "%1.1f%%, ETA %dh%2dm\n",
 						100.0 * dim_solved / max_n,
@@ -1293,6 +1249,12 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 				dump_interval = MAX(dump_interval,
 						   DEFAULT_DUMP_INTERVAL + 1);
 
+				/* adjust check interval to check about
+				   every minute or 10000 dimensions */
+
+				check_interval = 10000 * (dump_interval / 600000);
+				check_interval = MAX(check_interval, 10000);
+
 				/* make the dump interval a multiple of
 				   the check interval. If this is not done,
 				   eventually we will perform a check and
@@ -1308,13 +1270,17 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 						dump_interval %
 						check_interval;
 
-				logprintf(obj, "checkpointing every %u "
-					   "dimensions\n", dump_interval);
+				logprintf(obj, "checking every %u dimensions, checkpointing every %u "
+					   "dimensions\n", check_interval, dump_interval);
 				MPI_NODE_0_END
 #ifdef HAVE_MPI
+				MPI_TRY(MPI_Bcast(&check_interval, 1, 
+						MPI_INT, 0, obj->mpi_la_grid))
 				MPI_TRY(MPI_Bcast(&dump_interval, 1, 
 						MPI_INT, 0, obj->mpi_la_grid))
 #endif
+				next_check = ((dim_solved + 6 * VBITS) / 
+						check_interval + 1) * check_interval;
 				next_dump = ((dim_solved + 6 * VBITS) / 
 						dump_interval + 1) * dump_interval;
 				continue;
@@ -1329,7 +1295,7 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 				dump_lanczos_state(obj, packed_matrix, 
 						   x, vt_v0, v, v0, 
 						   vt_a_v, vt_a2_v, winv, 
-						   n, max_n, dim_solved, 
+						   max_n, dim_solved, 
 						   iter, s, dim1, scratch);
 				next_dump = ((dim_solved + 6 * VBITS) / dump_interval + 1) * 
 							dump_interval;
@@ -1370,6 +1336,9 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	if (dim0 == 0 || (obj->flags & MSIEVE_FLAG_STOP_SIEVING)) {
 		vv_free(x);
 		vv_free(scratch);
+#ifdef HAVE_MPI
+		vv_free(scratch2);
+#endif
 		vv_free(v[0]);
 		vv_free(v[1]);
 		vv_free(v[2]);
@@ -1395,22 +1364,23 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	vv_free(v[1]);
 	vv_free(v[2]);
 
-	mul_MxN_NxB(packed_matrix, x, scratch);
+	mul_MxN_NxB(packed_matrix, x, scratch, scratch2);
 
 	out2 = gather_nrows(obj, packed_matrix, scratch, NULL);
 	out0 = gather_ncols(obj, packed_matrix, x, scratch, NULL);
 	vv_free(x);
     
-	mul_MxN_NxB(packed_matrix, v[0], scratch);
+	mul_MxN_NxB(packed_matrix, v[0], scratch, scratch2);
 
 	out3 = gather_nrows(obj, packed_matrix, scratch, NULL);
 	out1 = gather_ncols(obj, packed_matrix, v[0], scratch, NULL);
 	vv_free(v[0]);
     
 	vv_free(scratch);
+	vv_free(scratch2);
 #else
-	mul_MxN_NxB(packed_matrix, x, v[1]);
-	mul_MxN_NxB(packed_matrix, v[0], v[2]);
+	mul_MxN_NxB(packed_matrix, x, v[1], NULL);
+	mul_MxN_NxB(packed_matrix, v[0], v[2], NULL);
 	vv_free(scratch);
 
 	out0 = (v_t *)aligned_malloc(max_n * sizeof(v_t), 64);
@@ -1464,18 +1434,19 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 
 	*num_deps_found = combine_cols(max_n, out0, out1, out2, out3);
 
-	MPI_NODE_0_END
-
-	aligned_free(out1);
-	aligned_free(out2);
-	aligned_free(out3);
-
 	if (*num_deps_found == 0)
 		logprintf(obj, "lanczos error: only trivial "
 				"dependencies found\n");
 	else
 		logprintf(obj, "recovered %u nontrivial dependencies\n", 
 				*num_deps_found);
+
+	MPI_NODE_0_END
+
+	aligned_free(out1);
+	aligned_free(out2);
+	aligned_free(out3);
+
 	return out0;
 }
 
@@ -1522,6 +1493,11 @@ uint64 * block_lanczos(msieve_obj *obj,
 		max_nrows -= POST_LANCZOS_ROWS;
 
 #else
+	/* Construct necessary MPI datatype */
+
+        MPI_TRY(MPI_Type_contiguous(VWORDS, MPI_LONG_LONG, (MPI_Datatype *)&obj->mpi_word));
+        MPI_TRY(MPI_Type_commit((MPI_Datatype *)&obj->mpi_word));
+
 	/* tell all the MPI processes whether a post lanczos matrix
 	   was constructed */
 
@@ -1574,24 +1550,6 @@ uint64 * block_lanczos(msieve_obj *obj,
 			packed_matrix.subcol_offsets, 
 			1, MPI_INT, obj->mpi_la_col_grid))
 
-#if VWORDS > 1
-	/* scatter-gather operations count 64-bit words and not 
-	   VBITS-bit vectors, so scale the counts */
-	{
-		uint32 i;
-		for (i = 0; i < obj->mpi_nrows; i++) {
-			packed_matrix.row_counts[i] *= VWORDS;
-			packed_matrix.row_offsets[i] *= VWORDS;
-			packed_matrix.subcol_counts[i] *= VWORDS;
-			packed_matrix.subcol_offsets[i] *= VWORDS;
-		}
-		for (i = 0; i < obj->mpi_ncols; i++) {
-			packed_matrix.col_counts[i] *= VWORDS;
-			packed_matrix.col_offsets[i] *= VWORDS;
-		}
-	}
-#endif
-
 	/* if using a post-lanczos matrix, gather the matrix elements
 	   at the root node since all of them will be necessary at once */
 
@@ -1603,11 +1561,11 @@ uint64 * block_lanczos(msieve_obj *obj,
 
 		MPI_TRY(MPI_Gatherv((obj->mpi_la_col_rank == 0) ?
 					MPI_IN_PLACE : post_lanczos_matrix, 
-				VWORDS * ncols, MPI_LONG_LONG, 
+				ncols, obj->mpi_word, 
 				post_lanczos_matrix,
 				packed_matrix.col_counts,
 				packed_matrix.col_offsets,
-				MPI_LONG_LONG, 0, obj->mpi_la_row_grid))
+				obj->mpi_word, 0, obj->mpi_la_row_grid))
 
 		if (obj->mpi_la_col_rank != 0) {
 			free(post_lanczos_matrix);
@@ -1665,6 +1623,9 @@ uint64 * block_lanczos(msieve_obj *obj,
 	   matrix structures, and also frees the column entries from
 	   the input matrix (whether packed or not) */
 
+#ifdef HAVE_MPI
+        MPI_Type_free((MPI_Datatype *)&obj->mpi_word);
+#endif
 	packed_matrix_free(&packed_matrix);
 	aligned_free(lanczos_output);
 	return dependencies;
