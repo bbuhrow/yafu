@@ -15,7 +15,7 @@ $Id$
 #ifndef _COMMON_LANCZOS_GPU_LANCZOS_GPU_H_
 #define _COMMON_LANCZOS_GPU_LANCZOS_GPU_H_
 
-#include <cuda_xface.h>
+#include <cuda_xface_la.h>
 #include <spmv_engine.h>
 #include "../lanczos.h"
 
@@ -36,12 +36,12 @@ typedef struct {
 
 typedef struct {
 
-	gpu_info_t *gpu_info;
+	gpu_info_la_t *gpu_info;
 
 	CUcontext gpu_context;
 	CUmodule gpu_module;
 
-	gpu_launch_t *launch;
+	gpu_launch_la_t *launch;
 
 	/* gpu product data */
 

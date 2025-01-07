@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: size_score.c 1025 2018-08-19 02:20:28Z jasonp_sf $
+$Id: size_score.c 987 2015-07-11 16:13:18Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "poly.h"

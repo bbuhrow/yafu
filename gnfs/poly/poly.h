@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: poly.h 1025 2018-08-19 02:20:28Z jasonp_sf $
+$Id: poly.h 897 2013-06-22 13:16:18Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #ifndef _GNFS_POLY_POLY_H_

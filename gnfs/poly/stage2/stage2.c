@@ -198,7 +198,7 @@ poly_sizeopt_init(poly_sizeopt_t *data,
 {
 	memset(data, 0, sizeof(poly_sizeopt_t));
 	mpz_init(data->gmp_N);
-	data->num_rootopt = 0;
+
 	data->internal = xmalloc(sizeof(curr_poly_t));
 	curr_poly_init((curr_poly_t *)data->internal);
 
@@ -242,15 +242,9 @@ poly_sizeopt_run(poly_sizeopt_t *data, mpz_t ad, mpz_t p, mpz_t d)
 	stage2_root_score(data->degree, c->gmp_a, 100, &alpha_proj, 1);
 
 	if (pol_norm * exp(alpha_proj) <= data->max_sizeopt_norm) {
-		data->num_rootopt++;
 		data->callback(data->degree, c->gmp_a, c->gmp_lina, 
 				pol_norm, alpha_proj, 
 				data->callback_data);
-
-		sizeopt_callback_data_t* callback = (sizeopt_callback_data_t*)data->callback_data;
-		poly_rootopt_t* rootopt = callback->rootopt;
-		data->num_saved = rootopt->num_saved;
-		data->best_saved_combined_e = rootopt->best_saved_combined_e;
 	}
 }
 

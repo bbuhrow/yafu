@@ -80,7 +80,7 @@ void vv_xor(void *dest_in, void *src_in, uint32 n) {
 	gpuvec_t *src = (gpuvec_t *)src_in;
 	gpuvec_t *dest = (gpuvec_t *)dest_in;
 	gpudata_t *d = src->gpudata;
-	gpu_launch_t *launch = d->launch + GPU_K_XOR;
+	gpu_launch_la_t *launch = d->launch + GPU_K_XOR;
 
 	uint32 num_blocks = (n + launch->threads_per_block - 1) / 
 				launch->threads_per_block;
@@ -96,7 +96,7 @@ void vv_xor_gpu(void *dest_in, void *src_in, uint32 n, gpudata_t *d) {
 
 	CUdeviceptr dest = (CUdeviceptr) dest_in;
 	CUdeviceptr src = (CUdeviceptr) src_in;
-	gpu_launch_t *launch = d->launch + GPU_K_XOR;
+	gpu_launch_la_t *launch = d->launch + GPU_K_XOR;
 
 	uint32 num_blocks = (n + launch->threads_per_block - 1) / 
 				launch->threads_per_block;
@@ -112,7 +112,7 @@ void vv_mask(void *v_in, v_t mask, uint32 n) {
 
 	gpuvec_t *v = (gpuvec_t *)v_in;
 	gpudata_t *d = v->gpudata;
-	gpu_launch_t *launch = d->launch + GPU_K_MASK;
+	gpu_launch_la_t *launch = d->launch + GPU_K_MASK;
 
 	uint32 num_blocks = (n + launch->threads_per_block - 1) / 
 				launch->threads_per_block;
@@ -312,7 +312,7 @@ void mul_NxB_BxB_acc_gpu(packed_matrix_t *matrix,
 			CUdeviceptr y, uint32 n) {
 
 	gpudata_t *d = (gpudata_t *)matrix->extra;
-	gpu_launch_t *launch = d->launch + GPU_K_INNER_PROD;
+	gpu_launch_la_t *launch = d->launch + GPU_K_INNER_PROD;
 	uint32 num_blocks = (n + launch->threads_per_block - 1) / 
 				launch->threads_per_block;
 
@@ -537,7 +537,7 @@ void mul_BxN_NxB_gpu(packed_matrix_t *matrix,
 
 
 	gpudata_t *d = (gpudata_t *)matrix->extra;
-	gpu_launch_t *launch = d->launch + GPU_K_OUTER_PROD;
+	gpu_launch_la_t *launch = d->launch + GPU_K_OUTER_PROD;
 	uint32 num_threads, num_blocks;
 	
 	num_threads = MIN(256, launch->threads_per_block);	

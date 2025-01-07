@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: stage1.c 1023 2018-08-19 00:30:42Z jasonp_sf $
+$Id: stage1.c 817 2012-11-11 14:58:29Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <stage1.h>
@@ -230,8 +230,6 @@ typedef struct {
 	uint32 num_primes;
 	uint32 num_primes_alloc;
 	uint32 curr_offset;
-	uint32 high_coeff_multiplier; /* divides all a_d */
-	uint32 high_coeff_power_limit;
 } sieve_t;
 
 /*------------------------------------------------------------------------*/
@@ -243,7 +241,7 @@ sieve_ad_block(sieve_t *sieve, poly_search_t *poly)
 	double target;
 
 	target = mpz_get_d(poly->gmp_high_coeff_begin) /
-				sieve->high_coeff_multiplier;
+				HIGH_COEFF_MULTIPLIER;
 	target = MIN(target, HIGH_COEFF_SIEVE_LIMIT);
 
 	log_target = floor(log(target) / M_LN2 + 0.5);
@@ -279,10 +277,10 @@ find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 				continue;
 
 			mpz_divexact_ui(poly->tmp1, poly->gmp_high_coeff_begin,
-					sieve->high_coeff_multiplier);
+					HIGH_COEFF_MULTIPLIER);
 			mpz_add_ui(poly->tmp1, poly->tmp1, i);
 			mpz_mul_ui(next_coeff, poly->tmp1,
-					sieve->high_coeff_multiplier);
+					HIGH_COEFF_MULTIPLIER);
 
 			if (mpz_cmp(next_coeff, poly->gmp_high_coeff_end) > 0)
 				break;
@@ -299,7 +297,7 @@ find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 				if (p > HIGH_COEFF_PRIME_LIMIT)
 					break;
 
-				for (k = 0; k < sieve->high_coeff_power_limit; k++) {
+				for (k = 0; k < HIGH_COEFF_POWER_LIMIT; k++) {
 					if (mpz_divisible_ui_p(poly->tmp1, p))
 						mpz_divexact_ui(poly->tmp1, 
 							poly->tmp1, p);
@@ -319,7 +317,7 @@ find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 		/* update lower bound for next sieve block */
 
 		mpz_set_ui(poly->tmp1, SIEVE_ARRAY_SIZE);
-		mpz_mul_ui(poly->tmp1, poly->tmp1, sieve->high_coeff_multiplier);
+		mpz_mul_ui(poly->tmp1, poly->tmp1, HIGH_COEFF_MULTIPLIER);
 		mpz_add(poly->gmp_high_coeff_begin,
 				poly->gmp_high_coeff_begin, poly->tmp1);
 
@@ -339,24 +337,6 @@ static void
 init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 {
 	uint32 i, j, p;
-	uint32 digits = mpz_sizeinbase(poly->N, 10);
-
-	if (poly->degree == 4) {
-		sieve->high_coeff_multiplier = 420;
-		sieve->high_coeff_power_limit = 4;
-	}
-	else if (digits > 200) {
-		sieve->high_coeff_multiplier = 120120;
-		sieve->high_coeff_power_limit = 4;
-	}
-	else if (digits > 120) {
-		sieve->high_coeff_multiplier = 60;
-		sieve->high_coeff_power_limit = 2;
-	}
-	else {
-		sieve->high_coeff_multiplier = 12;
-		sieve->high_coeff_power_limit = 2;
-	}
 
 	sieve->num_primes = 0;
 	sieve->num_primes_alloc = 100;
@@ -366,7 +346,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 						SIEVE_ARRAY_SIZE);
 
 	mpz_divexact_ui(poly->tmp1, poly->gmp_high_coeff_begin,
-			(mp_limb_t)sieve->high_coeff_multiplier);
+			(mp_limb_t)HIGH_COEFF_MULTIPLIER);
 	for (i = p = 0; i < PRECOMPUTED_NUM_PRIMES; i++) {
 		uint32 power;
 		uint8 log_val;
@@ -377,7 +357,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 
 		log_val = floor(log(p) / M_LN2 + 0.5);
 		power = p;
-		for (j = 0; j < sieve->high_coeff_power_limit; j++) {
+		for (j = 0; j < HIGH_COEFF_POWER_LIMIT; j++) {
 			uint32 r = mpz_cdiv_ui(poly->tmp1, (mp_limb_t)power);
 
 			if (sieve->num_primes >= sieve->num_primes_alloc) {
@@ -416,6 +396,7 @@ free_ad_sieve(sieve_t *sieve)
 static void
 search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 {
+	uint32 digits = mpz_sizeinbase(poly->N, 10);
 	double deadline_per_coeff;
 	double cumulative_time = 0;
 	sieve_t ad_sieve;
@@ -423,24 +404,43 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 #ifdef HAVE_CUDA
 	void *gpu_data = gpu_data_init(obj, poly);
 #endif
+	/* determine the CPU time limit; I have no idea if
+	   the following is appropriate */
 
-	deadline_per_coeff = deadline; // 8640000;
+	if (digits <= 100)
+		deadline_per_coeff = 5;
+	else if (digits <= 105)
+		deadline_per_coeff = 20;
+	else if (digits <= 110)
+		deadline_per_coeff = 30;
+	else if (digits <= 120)
+		deadline_per_coeff = 50;
+	else if (digits <= 130)
+		deadline_per_coeff = 100;
+	else if (digits <= 140)
+		deadline_per_coeff = 200;
+	else if (digits <= 150)
+		deadline_per_coeff = 400;
+	else if (digits <= 175)
+		deadline_per_coeff = 800;
+	else if (digits <= 200)
+		deadline_per_coeff = 1600;
+	else
+		deadline_per_coeff = 3200;
 
-#if 0
 	printf("deadline: %.0lf CPU-seconds per coefficient\n",
 					deadline_per_coeff);
-#endif
 
 	/* set up lower limit on a_d */
 
-	init_ad_sieve(&ad_sieve, poly);
-
 	mpz_sub_ui(poly->tmp1, poly->gmp_high_coeff_begin, 1);
 	mpz_fdiv_q_ui(poly->tmp1, poly->tmp1, 
-			ad_sieve.high_coeff_multiplier);
+			HIGH_COEFF_MULTIPLIER);
 	mpz_add_ui(poly->tmp1, poly->tmp1, 1);
 	mpz_mul_ui(poly->gmp_high_coeff_begin, poly->tmp1, 
-			ad_sieve.high_coeff_multiplier);
+			HIGH_COEFF_MULTIPLIER);
+
+	init_ad_sieve(&ad_sieve, poly);
 
 	while (1) {
 		double elapsed;

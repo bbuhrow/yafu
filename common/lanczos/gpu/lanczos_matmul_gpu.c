@@ -673,12 +673,12 @@ void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 	uint32 i;
 	int check_vbits;
 	gpudata_t *d;
-	gpu_config_t gpu_config;
-	gpu_info_t *gpu_info;
+	gpu_config_la_t gpu_config;
+	gpu_info_la_t *gpu_info;
 
 	/* select card, save info struct */
 
-	gpu_init(&gpu_config);
+	gpu_init_la(&gpu_config);
 	if (gpu_config.num_gpu == 0) {
 		printf("error: no CUDA-enabled GPUs found\n");
 		exit(-1);
@@ -691,9 +691,9 @@ void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 
 	p->extra = d = (gpudata_t *)xcalloc(1, sizeof(gpudata_t));
 
-	d->gpu_info = gpu_info = (gpu_info_t *)xmalloc(sizeof(gpu_info_t));
+	d->gpu_info = gpu_info = (gpu_info_la_t *)xmalloc(sizeof(gpu_info_la_t));
 	memcpy(gpu_info, gpu_config.info + obj->which_gpu,
-			sizeof(gpu_info_t)); 
+			sizeof(gpu_info_la_t)); 
 
 	logprintf(obj, "using GPU %u (%s)\n", obj->which_gpu, gpu_info->name);
 	logprintf(obj, "selected card has CUDA arch %d.%d\n",
@@ -723,13 +723,13 @@ void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 
 	CUDA_TRY(cuModuleLoad(&d->gpu_module, "lanczos_kernel.ptx"))
 
-	d->launch = (gpu_launch_t *)xmalloc(NUM_GPU_FUNCTIONS *
-				sizeof(gpu_launch_t));
+	d->launch = (gpu_launch_la_t *)xmalloc(NUM_GPU_FUNCTIONS *
+				sizeof(gpu_launch_la_t));
 
 	for (i = 0; i < NUM_GPU_FUNCTIONS; i++) {
-		gpu_launch_t *launch = d->launch + i;
+		gpu_launch_la_t *launch = d->launch + i;
 
-		gpu_launch_init(d->gpu_module, gpu_kernel_names[i],
+		gpu_launch_init_la(d->gpu_module, gpu_kernel_names[i],
 				launch);
 
 		launch->threads_per_block = MIN(256, 

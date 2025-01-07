@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: stage1_sieve_gpu.c 1003 2016-10-19 13:11:43Z brgladman $
 --------------------------------------------------------------------*/
 
 #include <sort_engine.h> /* interface to GPU sorting library */
@@ -56,6 +56,38 @@ static const char * gpu_kernel_names[] =
 	"sieve_kernel_trans_pp64_r64",
 	"sieve_kernel_final_32",
 	"sieve_kernel_final_64",
+};
+
+static const gpu_arg_type_list_t gpu_kernel_args[] = 
+{
+	/* sieve_kernel_trans_pp{32|64}_r{32|64} */
+	{ 12,
+		{
+		  GPU_ARG_PTR,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_PTR,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_PTR,
+		  GPU_ARG_PTR,
+		  GPU_ARG_PTR,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_UINT32,
+		}
+	},
+	/* sieve_kernel_final_{32|64} */
+	{ 6,
+		{
+		  GPU_ARG_PTR,
+		  GPU_ARG_PTR,
+		  GPU_ARG_UINT32,
+		  GPU_ARG_PTR,
+		  GPU_ARG_PTR,
+		  GPU_ARG_UINT32,
+		}
+	},
 };
 
 /*------------------------------------------------------------------------*/
@@ -567,6 +599,7 @@ handle_special_q_batch(msieve_obj *obj, device_data_t *d,
 	p_soa_array_t *p_array = t->p_array;
 	specialq_array_t *q_array = t->q_array;
 	uint32 num_blocks;
+	gpu_arg_t gpu_args[GPU_MAX_KERNEL_ARGS];
 	sort_data_t sort_data;
 	gpu_launch_t *launch;
 	uint32 num_q, curr_q;
@@ -634,18 +667,28 @@ handle_special_q_batch(msieve_obj *obj, device_data_t *d,
 
 			size_x -= d->gpu_info->warp_size;
 		}
-		{
-			CUdeviceptr p_blk = t->gpu_p_array + j * sizeof(uint32);
-			CUdeviceptr root_blk = t->gpu_root_array + j * root_bytes;
- 
-			void *args[12] = {&soa->dev_p, &num_p, &soa->dev_start_roots,
-				&soa->num_roots, &p_blk, &root_blk, &q_array->dev_q,
-				&num_specialq, &size_y, &t->num_entries, &shift, &num_aprog_vals};
 
-			CUDA_TRY(cuLaunchKernel(launch->kernel_func,
-				blocks_x, blocks_y, 1, size_x, 1, 1,
-				0, t->stream, args, NULL))
-		}
+		gpu_args[0].ptr_arg = (void *)(size_t)soa->dev_p;
+		gpu_args[1].uint32_arg = num_p;
+		gpu_args[2].ptr_arg = (void *)(size_t)soa->dev_start_roots;
+		gpu_args[3].uint32_arg = soa->num_roots;
+		gpu_args[4].ptr_arg = (void *)(size_t)(
+				t->gpu_p_array + j * sizeof(uint32));
+		gpu_args[5].ptr_arg = (void *)(size_t)(
+				t->gpu_root_array + j * root_bytes);
+		gpu_args[6].ptr_arg = (void *)(size_t)q_array->dev_q;
+		gpu_args[7].uint32_arg = num_specialq;
+		gpu_args[8].uint32_arg = size_y;
+		gpu_args[9].uint32_arg = t->num_entries;
+		gpu_args[10].uint32_arg = shift;
+		gpu_args[11].uint32_arg = num_aprog_vals;
+		gpu_launch_set(launch, gpu_args);
+
+		CUDA_TRY(cuFuncSetBlockShape(launch->kernel_func, 
+				size_x, 1, 1))
+
+		CUDA_TRY(cuLaunchGridAsync(launch->kernel_func,
+				blocks_x, blocks_y, t->stream))
 
 		j += num_p * soa->num_roots;
 	}
@@ -671,21 +714,21 @@ handle_special_q_batch(msieve_obj *obj, device_data_t *d,
 	else
 		launch = t->launch + GPU_FINAL_32;
 
+	gpu_args[0].ptr_arg = (void *)(size_t)(t->gpu_p_array);
+	gpu_args[1].ptr_arg = (void *)(size_t)(t->gpu_root_array);
+	gpu_args[2].uint32_arg = num_specialq * t->num_entries * num_aprog_vals;
+	gpu_args[3].ptr_arg = (void *)(size_t)q_array->dev_q;
+	gpu_args[4].ptr_arg = (void *)(size_t)(t->gpu_found_array);
+	gpu_args[5].uint32_arg = shift;
+	gpu_launch_set(launch, gpu_args);
+
 	num_blocks = 1 + (num_specialq * t->num_entries * 
 			num_aprog_vals - 1) /
 			launch->threads_per_block;
 	num_blocks = MIN(num_blocks, 1000);
 
-	{
-			uint32 ne = num_specialq * t->num_entries * num_aprog_vals;
-			void *args[6] = {&t->gpu_p_array, &t->gpu_root_array, 
-				&ne, &q_array->dev_q, &t->gpu_found_array, 
-				&shift};
-
-			CUDA_TRY(cuLaunchKernel(launch->kernel_func, 
-				num_blocks, 1, 1, launch->threads_per_block, 1, 1,
-				0, t->stream, args, NULL))
-	}
+	CUDA_TRY(cuLaunchGridAsync(launch->kernel_func, 
+				num_blocks, 1, t->stream))
 
 	CUDA_TRY(cuEventRecord(t->end_event, t->stream))
 	CUDA_TRY(cuEventSynchronize(t->end_event))
@@ -918,7 +961,7 @@ sieve_lattice_gpu_core(msieve_obj *obj,
 				/ log(special_q_max) / log(p_max)
 				/ 3e10);
 
-	if (num_pieces > 51) { /* randomize the special_q range */
+	if (num_pieces > 1) { /* randomize the special_q range */
 		uint32 piece_length = (special_q_max - special_q_min)
 				/ num_pieces;
 		uint32 piece = get_rand(&obj->seed1, &obj->seed2)
@@ -1055,11 +1098,31 @@ gpu_thread_data_init(void *data, int threadid)
 	   changes the GPU cache size on the fly */
 
 	CUDA_TRY(cuCtxCreate(&t->gpu_context, 
-			CU_CTX_SCHED_BLOCKING_SYNC,
+			CU_CTX_BLOCKING_SYNC,
 			d->gpu_info->device_handle))
 
 	/* load GPU kernels */
-	CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core.ptx"))
+
+	if (d->gpu_info->compute_version_major == 2) {
+		CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm20.ptx"))
+	}
+	else if (d->gpu_info->compute_version_major == 3) {
+		if (d->gpu_info->compute_version_minor < 5)
+			CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm30.ptx"))
+		else
+			CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm35.ptx"))
+	}
+	else if (d->gpu_info->compute_version_major >= 8) {
+		CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm80.ptx"))
+	}
+	else if (d->gpu_info->compute_version_major >= 5) {
+		CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm50.ptx"))
+	}
+	else 
+	{
+	    printf("sorry, Nvidia doesn't want to support your card\n");
+		exit(-1);
+	}
 
 	t->launch = (gpu_launch_t *)xmalloc(NUM_GPU_FUNCTIONS *
 				sizeof(gpu_launch_t));
@@ -1068,7 +1131,7 @@ gpu_thread_data_init(void *data, int threadid)
 		gpu_launch_t *launch = t->launch + i;
 
 		gpu_launch_init(t->gpu_module, gpu_kernel_names[i],
-				launch);
+				gpu_kernel_args + (i / 3), launch);
 
 		if (i == GPU_FINAL_32 || i == GPU_FINAL_64) {
 			/* performance of the cleanup functions is not 
@@ -1077,6 +1140,8 @@ gpu_thread_data_init(void *data, int threadid)
 
 			launch->threads_per_block = 
 					MIN(256, launch->threads_per_block);
+			CUDA_TRY(cuFuncSetBlockShape(launch->kernel_func,
+					launch->threads_per_block, 1, 1))
 		}
 	}
 

@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: root_sieve.c 1023 2018-08-19 00:30:42Z jasonp_sf $
+$Id: root_sieve.c 817 2012-11-11 14:58:29Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "stage2.h"
@@ -189,11 +189,7 @@ root_sieve_run_core(poly_rootopt_t *data, double initial_norm,
 	mpz_set_ui(rs->xdata.mp_lattice_size, 1);
 	line_min = -10;
 	line_max = 10;
-
-	/* polynomial size is allowed to grow a little larger than 
-	   the overall search bound on the size */
-	max_norm = MIN(5.0 * data->max_sizeopt_norm * alpha_bias, 
-			100 * initial_norm);
+	max_norm = MIN(data->max_sizeopt_norm * alpha_bias, 100 * initial_norm);
 
 	num_bounds = 0;
 	for (curr_norm = 0; curr_norm < max_norm;
