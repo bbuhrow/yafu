@@ -189,8 +189,14 @@ void mul_one_med_block(packed_block_t *curr_block,
 }
 
 /*-------------------------------------------------------------------*/
-void mul_one_block(const packed_block_t *curr_block,
-			const v_t *curr_col, v_t * __restrict__ curr_b) {
+#ifdef _MSC_VER
+void mul_one_block(const packed_block_t* curr_block,
+	const v_t* curr_col, v_t* __restrict curr_b) {
+#else
+void mul_one_block(const packed_block_t* curr_block,
+	const v_t* curr_col, v_t* __restrict__ curr_b) {
+#endif
+
 
 	uint32 i = 0; 
 	uint32 num_entries = curr_block->num_entries;

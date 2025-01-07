@@ -45,7 +45,11 @@ void vv_clear(void *v, uint32 n) {
 	memset(v, 0, n * sizeof(v_t));
 }
 
-void vv_xor(void * __restrict__ dest_in, void * __restrict__ src_in, uint32 n) {
+#ifdef _MSC_VER
+void vv_xor(void* __restrict dest_in, void* __restrict src_in, uint32 n) {
+#else
+void vv_xor(void* __restrict__ dest_in, void* __restrict__ src_in, uint32 n) {
+#endif
 
 	v_t *src = (v_t *)src_in;
 	v_t *dest = (v_t *)dest_in;
@@ -67,7 +71,12 @@ void vv_mask(void *v_in, v_t mask, uint32 n) {
 }
 
 /*-------------------------------------------------------------------*/
-static void core_NxB_BxB_acc(const v_t *v, const v_t *c, v_t * __restrict__ y, uint32 n) {
+#ifdef _MSC_VER
+static void core_NxB_BxB_acc(const v_t* v, const v_t* c, v_t* __restrict y, uint32 n) {
+#else
+static void core_NxB_BxB_acc(const v_t* v, const v_t* c, v_t* __restrict__ y, uint32 n) {
+#endif
+
 
 	uint32 i;
 

@@ -40,9 +40,6 @@
     <ClInclude Include="..\..\mpqs\mpqs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\util.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\pthreads\config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -52,13 +49,16 @@
     <ClInclude Include="..\..\zlib\zlib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_common.h">
+    <ClInclude Include="..\..\ms_include\ms_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_gmp_xface.h">
+    <ClInclude Include="..\..\ms_include\ms_gmp_xface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\ms_msieve.h">
+    <ClInclude Include="..\..\ms_include\ms_msieve.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ms_include\util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

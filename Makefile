@@ -436,6 +436,7 @@ COMMON_HDR = \
 	ms_include/ms_batch_factor.h \
 	ms_include/ms_common.h \
 	ms_include/cuda_xface.h \
+	ms_include/cuda_xface_la.h \
 	ms_include/dd.h \
 	ms_include/ddcomplex.h \
 	ms_include/ms_gmp_xface.h \
@@ -474,6 +475,7 @@ MSIEVE_COMMON_SRCS = \
 	common/smallfact/tinyqs.c \
 	common/batch_factor.c \
 	common/cuda_xface.c \
+	common/cuda_xface_la.c \
 	common/dickman.c \
 	common/driver.c \
 	common/expr_eval.c \

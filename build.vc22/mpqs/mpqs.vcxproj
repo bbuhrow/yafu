@@ -155,11 +155,11 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\pthreads\config.h" />
     <ClInclude Include="..\..\include\mp.h" />
-    <ClInclude Include="..\..\include\ms_common.h" />
-    <ClInclude Include="..\..\include\ms_gmp_xface.h" />
-    <ClInclude Include="..\..\include\ms_msieve.h" />
     <ClInclude Include="..\..\mpqs\mpqs.h" />
-    <ClInclude Include="..\..\include\util.h" />
+    <ClInclude Include="..\..\ms_include\ms_common.h" />
+    <ClInclude Include="..\..\ms_include\ms_gmp_xface.h" />
+    <ClInclude Include="..\..\ms_include\ms_msieve.h" />
+    <ClInclude Include="..\..\ms_include\util.h" />
     <ClInclude Include="..\..\zlib\zconf.h" />
     <ClInclude Include="..\..\zlib\zlib.h" />
   </ItemGroup>
