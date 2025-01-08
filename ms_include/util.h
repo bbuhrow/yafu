@@ -115,10 +115,15 @@ int msieve_gettimeofday(struct timeval* tv, struct timezone* tz);
 	typedef unsigned __int64 uint64_t;
 
 	/* portable 64-bit formatting */
+#ifndef PRId64
 	#define PRId64 "I64d"
+#endif
+#ifndef PRIu64
 	#define PRIu64 "I64u"
+#endif
+#ifndef PRIx64
 	#define PRIx64 "I64x"
-
+#endif
 #else
 	typedef unsigned char uint8;
 	typedef unsigned short uint16;
