@@ -3717,7 +3717,42 @@ uint64_t prp_uecm(uint64_t n)
     // do a base-2 fermat prp test using LR binexp.
     uint64_t rho = uecm_multiplicative_inverse(n);
     uint64_t unityval = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
+
+#if defined(USE_AVX2) || defined(USE_AVX512F)
+    // technically need to check the ABM flag, but I don't
+    // have that in place anywhere yet.  AVX2 is generally equivalent.
+
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
     uint64_t m = 1ULL << (62 - __lzcnt64(n));   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#else
+    // these builtin functions will have an efficient implementation
+    // for the current processor architecture.
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint32_t pos;
+    if (_BitScanReverse64(&pos, n))
+        return pos;
+    else
+        return 64;
+
+    uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#endif
+
     uint64_t r = unityval;
     uint64_t e = n - 1;
 
