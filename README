@@ -9,7 +9,7 @@ completely automated way.  The automation within YAFU is state-of-the-art,
 combining factorization algorithms in an intelligent and adaptive methodology 
 that minimizes the time to find the factors of arbitrary input integers.  
 
-YAFU has been used several times in the academic literature.  If you have 
+YAFU has been referenced several times in the academic literature.  If you have 
 academic work that requires integer factorization, YAFU might be able to help.  
 
 YAFU is most optimized for general inputs up to 160 digits in size, although 
@@ -58,9 +58,9 @@ https://en.wikipedia.org/wiki/AVX-512#CPUs_with_AVX-512
 Pick the best one that your cpu supports.
 
 Roughly speaking:
-If you have an Intel Haswell CPU or newer (newer than 2013), use avx2.
+If you have an Intel Ice Lake, Tiger Lake, Rocket Lake, or Sapphire Rapids cpu, use avx512-ifma.
 If you have an Intel SkylakeX or certain Cannon Lake or Cascade Lake cpus, use avx512.
-If you have an Ice Lake, Tiger Lake, Rocket Lake, or Sapphire Rapids cpu, use avx512-ifma.
+If you have an Intel Haswell CPU or newer (newer than 2013), use avx2.
 If you have a Zen4 or Zen5 AMD cpu, use avx512-ifma.
 If you have another AMD cpu newer than 2015, use avx2.
 Otherwise use sse41.
@@ -122,8 +122,45 @@ default, it is assumed to be located at ../msieve/ relative to the Makefile.
 YAFU now requires several other projects to be built before yafu.  These are:
 gmp (https://gmplib.org/)
 gmp-ecm (http://ecm.gforge.inria.fr/)
+msieve (https://sourceforge.net/projects/msieve/)
 ytools (https://github.com/bbuhrow/ytools)
 ysieve (https://github.com/bbuhrow/ysieve)
+
+Here are some terse notes on how to build these dependencies prior to yafu.  Specific
+arguments to "make" in some cases could change depending on your system.
+
+GMP
+./configure --prefix="/path/to/a/gmp/install/location/"
+make
+make install
+
+GMP-ECM
+autoreconf -i
+./configure --prefix="/path/to/a/ecm/install/location/" --with-gmp="/path/to/a/gmp/install/location/"
+make
+make install
+
+MSIEVE
+edit makefile to add the following to CFLAGS:
+-I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
+make all NO_ZLIB=1 VBITS=128
+
+YTOOLS
+make
+
+YSIEVE
+edit makefile to add the following to CFLAGS:
+-I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
+make USE_AVX2=1 USE_BMI2=1
+
+YAFU
+edit makefile to add the following to CFLAGS:
+-I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
+-I/path/to/a/ecm/install/location/include/ -L/path/to/a/ecm/install/location/lib
+-I/path/to/ytools/base/dir -L/path/to/ytools/base/dir
+-I/path/to/ysieve/base/dir -L/path/to/ysieve/base/dir
+-I/path/to/msieve/base/dir -L/path/to/msieve/base/dir
+make yafu [NFS=1] [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1]
 
 Some support can be had here:
 http://www.mersenneforum.org/forumdisplay.php?f=96
@@ -174,7 +211,7 @@ visual studio 2022.
 
 MINGW-64
 =============
-YAFU might build in mingw-64 environment.  I haven't tried in a long time,
+YAFU might build in mingw-64 environment.  I haven't tried in a long time;
 good luck.  If you get this to work, please let me know.
 
 OTHER

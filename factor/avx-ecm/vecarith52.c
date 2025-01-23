@@ -63,7 +63,7 @@ __m512i __inline _mm512_mask_sbb_src_epi52(__m512i src, __m512i a, __mmask8 m, _
     __m512i t = _mm512_mask_sub_epi64(src, m, a, b);
     *cout = _mm512_mask_cmpgt_epu64_mask(m, b, a);
     __m512i t2 = _mm512_mask_sub_epi64(src, m, t, _mm512_maskz_set1_epi64(c, 1));
-    *cout = _mm512_kor(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
+    *cout = _kor_mask8(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
     t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
     return t2;
 }
@@ -10694,6 +10694,8 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     uint32_t NWORDS = mdata->NWORDS;
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
+
+
     // needed in loops
     __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
@@ -12891,7 +12893,7 @@ void vecaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
         __m512i t = _mm512_mask_sub_epi64(cvec, mask, cvec, nvec);
         carryout = _mm512_mask_cmpgt_epu64_mask(mask, nvec, cvec);
         __m512i t2 = _mm512_mask_sub_epi64(cvec, mask, t, _mm512_maskz_set1_epi64(carry, 1));
-        carry = _mm512_kor(carryout, _mm512_cmpgt_epu64_mask(t2, t));
+        carry = _kor_mask8(carryout, _mm512_cmpgt_epu64_mask(t2, t));
         bvec = _mm512_and_epi64(t2, lomask);
 
         _mm512_store_epi64(c->data + i * VECLEN, bvec);
@@ -12931,7 +12933,7 @@ void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
         __m512i t = _mm512_sub_epi64(avec, bvec);
         carryout = _mm512_cmpgt_epu64_mask(bvec, avec);
         __m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(carry, 1));
-        carry = _mm512_kor(carryout, _mm512_cmpgt_epu64_mask(t2, t));
+        carry = _kor_mask8(carryout, _mm512_cmpgt_epu64_mask(t2, t));
         cvec = _mm512_and_epi64(t2, lomask);
 
         _mm512_store_epi64(c->data + i * VECLEN, cvec);

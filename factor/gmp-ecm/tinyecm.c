@@ -5124,7 +5124,7 @@ static int tecm_get_bits(mpz_t n)
 // holds the current value of a pseudo random sequence.  Your first assigment
 // to *pran seeds the sequence, and after seeding it you don't want to
 // change *pran, since that would restart the sequence.
-int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran)
+int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
 {
 	if (mpz_even_p(n))
 	{
@@ -5132,7 +5132,20 @@ int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran)
 		return 1;
 	}
 
-	int bits = tecm_get_bits(n) / 3 * 2;
+	int bits;
+	int is_arbitrary;
+
+	if (target_bits == 0)
+	{
+		bits = tecm_get_bits(n);
+		is_arbitrary = 1;
+	}
+	else
+	{
+		bits = target_bits * 2;
+		is_arbitrary = 0;
+	}
+	
 	return tecm_dispatch(n, f, bits, is_arbitrary, pran);
 }
 

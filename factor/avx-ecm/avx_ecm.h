@@ -40,11 +40,6 @@ either expressed or implied, of the FreeBSD Project.
 #define BLOCKWORDS 4
 #define strto_uint64_t strtoull
 
-//#ifndef MAXBITS
-//#define MAXBITS 1040
-//#endif
-//#define DIGITBITS 32
-
 #ifndef DIGITBITS
 #define DIGITBITS 52
 #endif
@@ -189,7 +184,7 @@ __m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mm
 //__m512i t = _mm512_sub_epi64(a, b);                                            \
 //(*(cout)) = _mm512_cmpgt_epu64_mask(b, a);                                         \
 //__m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));               \
-//(*(cout)) = _mm512_kor((*(cout)), _mm512_cmpgt_epu64_mask(t2, t));                     \
+//(*(cout)) = _kor_mask8((*(cout)), _mm512_cmpgt_epu64_mask(t2, t));                     \
 //t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));              \
 //t2; }
 //
@@ -197,7 +192,7 @@ __m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mm
 //__m512i t = _mm512_mask_sub_epi64(a, m, a, b);                                 \
 //(*(cout)) = _mm512_mask_cmpgt_epu64_mask(m, b, a);                                 \
 //__m512i t2 = _mm512_mask_sub_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));    \
-//(*(cout)) = _mm512_kor((*(cout)), _mm512_mask_cmpgt_epu64_mask(m, t2, t));             \
+//(*(cout)) = _kor_mask8((*(cout)), _mm512_mask_cmpgt_epu64_mask(m, t2, t));             \
 //t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));              \
 //t2; }
 //
@@ -210,7 +205,7 @@ __m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mm
     b = _mm512_cmpgt_epu64_mask(y, x);                                \
     __m512i t2 = _mm512_sub_epi64(td, borrow_512i);                                  \
     c = _mm512_cmpgt_epu64_mask(ts, lomask);                         \
-    b = _mm512_kor(b, _mm512_cmpgt_epu64_mask(t2, td));           \
+    b = _kor_mask8(b, _mm512_cmpgt_epu64_mask(t2, td));           \
     sum = _mm512_and_epi64(ts, lomask);                                 \
     diff = _mm512_and_epi64(t2, lomask);                               \
 }
@@ -224,7 +219,7 @@ __m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mm
     b = _mm512_mask_cmpgt_epu64_mask(bm, y, z);                               \
     __m512i t2 = _mm512_mask_sub_epi64(y, bm, td, borrow_512i);               \
     c = _mm512_mask_cmpgt_epu64_mask(cm, ts, lomask);                         \
-    b = _mm512_kor(b, _mm512_mask_cmpgt_epu64_mask(bm, t2, td));           \
+    b = _kor_mask8(b, _mm512_mask_cmpgt_epu64_mask(bm, t2, td));           \
     sum = _mm512_and_epi64(ts, lomask);                                 \
     diff = _mm512_and_epi64(t2, lomask);                               \
 }

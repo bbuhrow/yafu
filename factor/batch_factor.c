@@ -740,11 +740,6 @@ void check_batch_relation(relation_batch_t *rb,
                 {
                     rb->num_abort[4]++;
                     return;
-
-                    if (mpz_probab_prime_p(f2r, 1) == 1)
-                    {
-                        
-                    }
                 }
 
                 // similar to the above, there is a region between max_prime^3 and 
@@ -787,7 +782,6 @@ void check_batch_relation(relation_batch_t *rb,
         // is either composite or prime and already part of a 
         // potential relation.
         uint64_t e = mpz_get_ui(f2r);
-        //if (pow2m(e - 1, e) == 1)
         if (prp_uecm(e) == 1)
         {
             rb->num_abort[5]++;
@@ -882,7 +876,7 @@ void check_batch_relation(relation_batch_t *rb,
 #ifdef USE_AVX512F
         int success = getfactor_tecm_x8(f1r, _small, mpz_sizeinbase(f1r, 2) / 3, lcg_state);
 #else
-        int success = getfactor_tecm(f1r, _small, 0, lcg_state);
+        int success = getfactor_tecm(f1r, _small, mpz_sizeinbase(f1r, 2) / 3, lcg_state);
 #endif
         rb->num_tecm++;
 

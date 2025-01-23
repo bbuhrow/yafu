@@ -1075,9 +1075,9 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
 {    
     int i, j;
 
-    tdata->work = (ecm_work *)malloc(sizeof(ecm_work));
-    tdata->P = (ecm_pt *)malloc(sizeof(ecm_pt));
-    tdata->sigma = (uint64_t *)malloc(VECLEN * sizeof(uint64_t));
+    tdata->work = (ecm_work *)xmalloc(sizeof(ecm_work));
+    tdata->P = (ecm_pt *)xmalloc(sizeof(ecm_pt));
+    tdata->sigma = (uint64_t *)xmalloc(VECLEN * sizeof(uint64_t));
     uint32_t D = tdata->work->D = 2310;
     tdata->work->STAGE1_MAX = B1;
     tdata->work->STAGE2_MAX = B2;

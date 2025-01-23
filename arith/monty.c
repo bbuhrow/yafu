@@ -23,11 +23,44 @@ I gratefully acknowledge Tom St. Denis's TomsFastMath library, on which
 many of the arithmetic routines here are based
 */
 
+/*
+
+license for the ciosModMul128 code which is slightly faster than my version:
+
+
+MIT License
+
+Copyright(c) 2024 Pierre
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this softwareand associated documentation files(the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and /or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions :
+
+The above copyright noticeand this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #include "common.h"
-#include "ytools.h"
+//#include "ytools.h"
 #include "monty.h"
 #include "arith.h"
 #include "gmp.h"
+#include <stdint.h>
+#include <immintrin.h>
+
+
+
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
 	
@@ -45,10 +78,6 @@ __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
 }
 
 #endif
-
-
-
-
 
 /********************* arbitrary-precision Montgomery arith **********************/
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t rhat, mpz_t b);
@@ -384,8 +413,234 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 	return;
 }
 
+
+/********************* start of Perig's 128-bit code **********************/
+// Note: slightly modified modular subtract at the end
+
+#ifdef USE_PERIG_128BIT
+typedef __uint128_t uint128_t;
+
+// borrow::diff = a - b - borrow_in
+#define INLINE_ASM 1
+static inline uint8_t my_sbb64(uint8_t borrow_in, uint64_t a, uint64_t b, uint64_t* diff)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+	return _subborrow_u64(borrow_in, a, b, (unsigned long long*)diff);
+#elif defined(__GNUC__)
+	bool c;
+	c = __builtin_usubll_overflow(a, b, (unsigned long long*)diff);
+	c |= __builtin_usubll_overflow(*diff, borrow_in, (unsigned long long*)diff);
+	return c;
+#else
+	if (__builtin_constant_p(borrow_in) && borrow_in == 0) {
+		if (__builtin_constant_p(a) && a == 0) {
+			*diff = -b;
+			return 1;
+		}
+		else if (__builtin_constant_p(b) && b == 0) {
+			*diff = a;
+			return 0;
+		}
+		else {
+			uint64_t tmp = a - b;
+			uint8_t borrow = (tmp > a);
+			*diff = tmp;
+			return borrow;
+		}
+	}
+	else {
+		uint64_t tmp1 = a - borrow_in;
+		uint8_t borrow = (tmp1 > a);
+		if (__builtin_constant_p(b) && b == 0) {
+			*diff = tmp1;
+			return borrow;
+		}
+		else {
+			uint64_t tmp2 = tmp1 - b;
+			borrow |= (tmp2 > tmp1);
+			*diff = tmp2;
+			return borrow;
+		}
+	}
+#endif
+}
+
+// subtract until the result is less than the modulus
+static void ciosSubtract128(uint64_t* res_lo, uint64_t* res_hi, uint64_t carries, uint64_t mod_lo, uint64_t mod_hi)
+{
+	uint64_t n_lo, n_hi;
+	uint64_t t_lo, t_hi;
+	uint8_t b;
+	n_lo = *res_lo;
+	n_hi = *res_hi;
+	// save, subtract the modulus until a borrows occurs
+	do {
+		t_lo = n_lo;
+		t_hi = n_hi;
+		b = my_sbb64(0, n_lo, mod_lo, &n_lo);
+		b = my_sbb64(b, n_hi, mod_hi, &n_hi);
+		if (__builtin_constant_p(carries) && carries == 0) {
+		}
+		else {
+			b = my_sbb64(b, carries, 0, &carries);
+		}
+	} while (b == 0);
+	// get the saved values when a borrow occurs
+	*res_lo = t_lo;
+	*res_hi = t_hi;
+}
+
+static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
+	uint64_t mmagic)
+{
+	uint64_t a_lo = *res_lo, a_hi = *res_hi;
+	uint128_t cs, cc;
+	uint64_t t0, t1, t2, t3, m, ignore;
+
+	cc = (uint128_t)a_lo * b_lo;	// #1
+	t0 = (uint64_t)cc;
+	cc = cc >> 64;
+	cc += (uint128_t)a_lo * b_hi;	// #2
+	t1 = (uint64_t)cc;
+	cc = cc >> 64;
+	t2 = (uint64_t)cc;
+#if PARANOID
+	assert(cc >> 64 == 0);
+#endif
+
+	m = t0 * mmagic;	// #3
+	cs = (uint128_t)m * mod_lo;	// #4
+	cs += t0;
+	cs = cs >> 64;
+	cs += (uint128_t)m * mod_hi;	// #5
+	cs += t1;
+	t0 = (uint64_t)cs;
+	cs = cs >> 64;
+	cs += t2;
+	t1 = (uint64_t)cs;
+	cs = cs >> 64;
+	t2 = (uint64_t)cs;
+#if PARANOID
+	assert(cs >> 64 == 0);
+#endif
+
+	cc = (uint128_t)a_hi * b_lo;	// #6
+	cc += t0;
+	t0 = (uint64_t)cc;
+	cc = cc >> 64;
+	cc += (uint128_t)a_hi * b_hi;	// #7
+	cc += t1;
+	t1 = (uint64_t)cc;
+	cc = cc >> 64;
+	cc += t2;
+	t2 = (uint64_t)cc;
+	cc = cc >> 64;
+	t3 = (uint64_t)cc;
+#if PARANOID
+	assert(cc >> 64 == 0);
+#endif
+
+	m = t0 * mmagic;	// #8
+	cs = (uint128_t)m * mod_lo;	// #9
+	cs += t0;
+	cs = cs >> 64;
+	cs += (uint128_t)m * mod_hi;	// #10
+	cs += t1;
+	t0 = (uint64_t)cs;
+	cs = cs >> 64;
+	cs += t2;
+	t1 = (uint64_t)cs;
+	cs = cs >> 64;
+	cs += t3;
+	t2 = (uint64_t)cs;
+	if (t2) {
+		unsigned char carry = _subborrow_u64(0, t0, mod_lo, &t0);
+		_subborrow_u64(carry, t1, mod_hi, &t1);
+		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
+	}
+
+	*res_lo = t0;
+	*res_hi = t1;
+}
+
+/********************* end of Perig's 128-bit code **********************/
+
+// modSqr version I wrote based on the modMul
+static void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
+	uint64_t mmagic)
+{
+	uint128_t cs, cc, b_lohi;
+	uint64_t t0, t1, t2, t3, m, ignore;
+
+	cc = (uint128_t)b_lo * b_lo;	// #1
+	t0 = (uint64_t)cc;
+	cc = cc >> 64;
+	b_lohi = (uint128_t)b_lo * b_hi;	// #2
+	cc += b_lohi;
+	t1 = (uint64_t)cc;
+	cc = cc >> 64;
+	t2 = (uint64_t)cc;
+#if PARANOID
+	assert(cc >> 64 == 0);
+#endif
+
+	m = t0 * mmagic;	// #3
+	cs = (uint128_t)m * mod_lo;	// #4
+	cs += t0;
+	cs = cs >> 64;
+	cs += (uint128_t)m * mod_hi;	// #5
+	cs += t1;
+	t0 = (uint64_t)cs;
+	cs = cs >> 64;
+	cs += t2;
+	t1 = (uint64_t)cs;
+	cs = cs >> 64;
+	t2 = (uint64_t)cs;
+#if PARANOID
+	assert(cs >> 64 == 0);
+#endif
+
+	cc = b_lohi + t0;
+	t0 = (uint64_t)cc;
+	cc = cc >> 64;
+	cc += (uint128_t)b_hi * b_hi;	// #6
+	cc += t1;
+	t1 = (uint64_t)cc;
+	cc = cc >> 64;
+	cc += t2;
+	t2 = (uint64_t)cc;
+	cc = cc >> 64;
+	t3 = (uint64_t)cc;
+#if PARANOID
+	assert(cc >> 64 == 0);
+#endif
+
+	m = t0 * mmagic;	// #8
+	cs = (uint128_t)m * mod_lo;	// #9
+	cs += t0;
+	cs = cs >> 64;
+	cs += (uint128_t)m * mod_hi;	// #10
+	cs += t1;
+	t0 = (uint64_t)cs;
+	cs = cs >> 64;
+	cs += t2;
+	t1 = (uint64_t)cs;
+	cs = cs >> 64;
+	cs += t3;
+	t2 = (uint64_t)cs;
+	if (t2) {
+		unsigned char carry = _subborrow_u64(0, t0, mod_lo, &t0);
+		_subborrow_u64(carry, t1, mod_hi, &t1);
+		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
+	}
+
+	*res_lo = t0;
+	*res_hi = t1;
+}
+#endif
+
 // already defined within mingw64/msys2
-#if defined( GCC_ASM64X ) && !defined(__MINGW32__)
+#if 0 //defined( GCC_ASM64X ) && !defined(__MINGW32__)
 
 __inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t *sum)
 {
@@ -410,6 +665,16 @@ __inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t *sum)
 
 void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 {
+#ifdef USE_PERIG_128BIT
+	uint64_t t[2];
+	t[0] = v[0];
+	t[1] = v[1];
+	ciosModMul128(&t[0], &t[1], u[0], u[1], mdata->n[0], mdata->n[1], mdata->rho);
+	w[0] = t[0];
+	w[1] = t[1];
+	return;
+#endif
+
 	// integrate multiply and reduction steps, alternating
 	// between iterations of the outer loops.
 	uint64_t s[3];
@@ -521,6 +786,11 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 
 void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 {
+#ifdef USE_PERIG_128BIT
+	ciosModSqr128(&w[0], &w[1], u[0], u[1], mdata->n[0], mdata->n[1], mdata->rho);
+	return;
+#endif
+
 	// integrate multiply and reduction steps, alternating
 	// between iterations of the outer loops.
 	uint64_t s[3];
