@@ -3,12 +3,14 @@
 #include "qs.h"
 #include "gnfs.h"
 #include "gmp_xface.h"
+#include "yafu_ecm.h"
 #include <stdint.h>
 #include <math.h>
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
 #define NUM_SIQS_PTS 9
 #define NUM_GNFS_PTS 6
+#define NUM_ECM_PTS 5
 #define BASE_e 2.718281828459045
 
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
@@ -34,8 +36,8 @@ void factor_tune(fact_obj_t *inobj)
 	// recomputed).  Likewise if the system specifications (other than cpu frequency, which
 	// is assumed to scale linearly) are modified (new memory, MOBO, CPU), this test
 	// should be repeated.
-	char siqslist[9][200];
-	char nfslist[6][200];
+	char siqslist[NUM_SIQS_PTS][200];
+	char nfslist[NUM_GNFS_PTS][200];
     char sievername[1024];
 	int i, tmpT;
     mpz_t n;
@@ -58,6 +60,10 @@ void factor_tune(fact_obj_t *inobj)
 	double gnfs_extraptime[NUM_GNFS_PTS];
 	double gnfs_sizes[NUM_GNFS_PTS] = {85, 90, 95, 100, 105, 110};
 	double gnfs_max_poly_time[NUM_GNFS_PTS] = {0.09, 0.12, 0.21, 0.34, 0.5, 1.0};	//HRS
+
+	double ecm_extraptime1[3][NUM_ECM_PTS];
+	double ecm_extraptime2[3];
+	double ecm_sizes[NUM_ECM_PTS];
 
 	double a, b, a2, b2, fit, xover;
 	uint32_t count;
@@ -88,9 +94,9 @@ void factor_tune(fact_obj_t *inobj)
     siqs_actualrels[4] = 418664;
 #endif
 
-	//siqs: start with c60, increment by 5 digits, up to a c100
-	//this will allow determination of NFS/QS crossover as well as provide enough
-	//info to generate an equation for QS time estimation
+	// siqs: start with c60, increment by 5 digits, up to a c100
+	// this will allow determination of NFS/QS crossover as well as provide enough
+	// info to generate an equation for QS time estimation
 	strcpy(siqslist[0],"349594255864176572614071853194924838158088864370890996447417");
 	strcpy(siqslist[1],"34053408309992030649212497354061832056920539397279047809781589871");
 	strcpy(siqslist[2],"6470287906463336878241474855987746904297564226439499503918586590778209");
@@ -101,9 +107,9 @@ void factor_tune(fact_obj_t *inobj)
 	strcpy(siqslist[7],"48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021");
 	strcpy(siqslist[8],"1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
 
-	//nfs: start with c85, increment by 5 digits, up to C110
-	//this will allow determination of NFS/QS crossover
-	//to do NFS time estimation, probably need to go much higher - say c155.
+	// nfs: start with c85, increment by 5 digits, up to C110
+	// this will allow determination of NFS/QS crossover
+	// to do NFS time estimation, probably need to go much higher - say c155.
 	strcpy(nfslist[0],"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
 	strcpy(nfslist[1],"427351849650748515507228344120452096326780093349980867041485502247153375067354165128307841");
 	strcpy(nfslist[2],"48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021");
@@ -124,6 +130,8 @@ void factor_tune(fact_obj_t *inobj)
 
 	init_factobj(&fobj);
 	copy_factobj(&fobj, inobj);
+
+	goto tune_ecm;
 
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)
@@ -258,6 +266,107 @@ void factor_tune(fact_obj_t *inobj)
 	update_INI(pow(BASE_e,b),a,pow(BASE_e,b2),a2,xover,
         inobj->MEAS_CPU_FREQUENCY, inobj->CPU_ID_STR);
 
+tune_ecm:
+
+	{
+		// for each of the ecm inputs
+		gmp_randstate_t gmp_randstate;
+		gmp_randinit_default(gmp_randstate);
+		mpz_t base_100b;
+		int ecm_size = 200;
+		int curves_run;
+
+		mpz_init(base_100b);
+		mpz_urandomb(base_100b, gmp_randstate, 100);
+		mpz_nextprime(base_100b, base_100b);
+		
+		for (i = 0; i < NUM_ECM_PTS; i++, ecm_size += 208)
+		{
+			reset_factobj(&fobj);
+
+			mpz_urandomb(n, gmp_randstate, ecm_size - 100);
+			mpz_nextprime(n, n);
+			mpz_mul(n, n, base_100b);
+			ecm_sizes[i] = mpz_sizeinbase(n, 2);
+
+			// measure how long the total process takes for B1=10000, 100000, 1000000
+			fobj.ecm_obj.B1 = 100000;
+			fobj.ecm_obj.num_curves = 1;
+			
+			gettimeofday(&start, NULL);
+			mpz_set(fobj.ecm_obj.gmp_n, n);
+			mpz_set(fobj.N, n);
+			ecm_loop(&fobj);
+			gettimeofday(&stop, NULL);
+			t_time = ytools_difftime(&start, &stop);
+			
+			printf("elapsed time for B1=%dk on c%d = %6.4f seconds.\n",
+				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time);
+			
+			ecm_extraptime1[0][i] = t_time / curves_run;
+			
+			fobj.ecm_obj.B1 = 1000000;
+			fobj.ecm_obj.num_curves = 1;
+			
+			gettimeofday(&start, NULL);
+			mpz_set(fobj.ecm_obj.gmp_n, n);
+			mpz_set(fobj.N, n);
+			ecm_loop(&fobj);
+			gettimeofday(&stop, NULL);
+			t_time = ytools_difftime(&start, &stop);
+			
+			printf("elapsed time for B1=%dk on c%d = %6.4f seconds.\n",
+				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time);
+			
+			ecm_extraptime1[1][i] = t_time / curves_run;
+
+			fobj.ecm_obj.B1 = 10000000;
+			fobj.ecm_obj.num_curves = 1;
+
+			gettimeofday(&start, NULL);
+			mpz_set(fobj.ecm_obj.gmp_n, n);
+			mpz_set(fobj.N, n);
+			curves_run = ecm_loop(&fobj);
+			gettimeofday(&stop, NULL);
+			t_time = ytools_difftime(&start, &stop);
+
+			printf("elapsed time for B1=%dk on c%d = %6.4f seconds.\n",
+				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time);
+
+			ecm_extraptime1[2][i] = t_time / curves_run;
+		}
+
+		mpz_clear(base_100b);
+		gmp_randclear(gmp_randstate);
+		int j;
+
+		for (j = 0; j < 3; j++)
+		{
+
+			for (i = 0; i < NUM_ECM_PTS; i++)
+			{
+				printf("%1.0f, %1.4f\n", ecm_sizes[i], ecm_extraptime1[j][i]);
+			}
+
+			fit = best_linear_fit(ecm_sizes, ecm_extraptime1[j], NUM_ECM_PTS, &a, &b);
+			printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n", a, b, fit);
+			printf("best exponential fit is y = %g * exp(%g * x)\n", pow(BASE_e, b), a);
+		}
+
+		//double b1_sizes[3] = { 100000.0, 1000000.0, 10000000.0 };
+		//
+		//for (i = 0; i < 3; i++)
+		//{
+		//	printf("%1.0f, %1.4f\n", b1_sizes[i], ecm_extraptime1[i][NUM_ECM_PTS - 1]);
+		//	ecm_extraptime2[i] = ecm_extraptime1[i][NUM_ECM_PTS - 1];
+		//}
+		//
+		//fit = best_linear_fit(b1_sizes, ecm_extraptime2, 3, &a, &b);
+		//printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n", a, b, fit);
+		//printf("best exponential fit is y = %g * exp(%g * x)\n", pow(BASE_e, b), a);
+	}
+
+	free_factobj(&fobj);
 	mpz_clear(n);
 	return;
 }

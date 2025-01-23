@@ -997,7 +997,7 @@ void *ecm_do_one_curve(void *ptr)
 		char *cmd;
 		FILE *fid;
 		char line[1024];
-		char *ptr;
+		char *ptr = NULL;
 		char *tmpstr = NULL;
 		int retcode;
 
@@ -1034,7 +1034,7 @@ void *ecm_do_one_curve(void *ptr)
                 thread_data->curves_run++;
                 free(tmpstr);
                 free(cmd);
-                return;
+                return ptr;
             }
         }
         else if (thread_data->resume_avx_ecm == 2)
@@ -1059,7 +1059,7 @@ void *ecm_do_one_curve(void *ptr)
                 thread_data->curves_run++;
                 free(tmpstr);
                 free(cmd);
-                return;
+                return ptr;
             }
         }
         else
@@ -1232,7 +1232,7 @@ void *ecm_do_one_curve(void *ptr)
 
     thread_data->curves_run++;
 
-	return;
+	return ptr;
 }
 
 // function definitions

@@ -2338,6 +2338,7 @@ void factor(fact_obj_t *fobj)
 	return;
 }
 
+#if 1
 int factor_tiny(mpz_t in, mpz_t* out,
 	uint64_t* primes, uint64_t nump, uint64_t* prng)
 {
@@ -2815,6 +2816,8 @@ int factor_tiny(mpz_t in, mpz_t* out,
 	mpz_clear(gmpf);
 	return numout;
 }
+
+#endif
 
 void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 	struct timeval *start, struct timeval *stop)
