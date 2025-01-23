@@ -79,6 +79,7 @@ extern "C" {
 uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran);
 void getfactor_uecm_x8_list(uint64_t* q64, uint64_t* f64, uint32_t num_in, uint64_t* pran);
 uint64_t getfactor_upm1(uint64_t q64, uint32_t b1);
+
 int prp_uecm(uint64_t n);
 
 #ifdef __cplusplus

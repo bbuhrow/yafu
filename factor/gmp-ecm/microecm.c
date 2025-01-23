@@ -62,6 +62,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #  endif
 #  include <immintrin.h>
 #  include <intrin.h>
+
 #endif
 
 
@@ -509,13 +510,80 @@ static uint64_t uecm_bingcd64(uint64_t u, uint64_t v)
 
 
 // full strength mul/sqr redc
-MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
 {
-    return uecm_mulredc_alt(x, y, n, 0 - nhat);
+#if defined(__unix__) && defined(__x86_64__)
+    // On Intel Skylake: 9 cycles latency, 7 fused uops.
+    __uint128_t prod = (__uint128_t)x * y;
+    uint64_t Thi = (uint64_t)(prod >> 64);
+    uint64_t rrax = (uint64_t)(prod);
+    __asm__(
+        "imulq %[inv], %%rax \n\t"        /* m = T_lo * invN */
+        "mulq %[n] \n\t"                  /* mN = m * N */
+        "leaq (%[Thi], %[n]), %%rax \n\t" /* rax = T_hi + N */
+        "subq %%rdx, %%rax \n\t"          /* rax = rax - mN_hi */
+        "subq %%rdx, %[Thi] \n\t"         /* t_hi = T_hi - mN_hi */
+        "cmovbq %%rax, %[Thi] \n\t"       /* t_hi = (T_hi<mN_hi) ? rax : t_hi */
+        : [Thi] "+&bcSD"(Thi), "+&a"(rrax)
+        : [n] "r"(n), [inv]"r"(inv)
+        : "rdx", "cc");
+    uint64_t result = Thi;
+    return result;
+
+#else
+    return uecm_mulredc_alt(x, y, n, inv);
+#endif
 }
-MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc(uint64_t x, uint64_t n, uint64_t inv)
 {
-    return uecm_mulredc_alt(x, x, n, 0 - nhat);
+#if defined(__unix__) && defined(__x86_64__)
+    // On Intel Skylake: 9 cycles latency, 7 fused uops.
+    __uint128_t prod = (__uint128_t)x * x;
+    uint64_t Thi = (uint64_t)(prod >> 64);
+    uint64_t rrax = (uint64_t)(prod);
+    __asm__(
+        "imulq %[inv], %%rax \n\t"        /* m = T_lo * invN */
+        "mulq %[n] \n\t"                  /* mN = m * N */
+        "leaq (%[Thi], %[n]), %%rax \n\t" /* rax = T_hi + N */
+        "subq %%rdx, %%rax \n\t"          /* rax = rax - mN_hi */
+        "subq %%rdx, %[Thi] \n\t"         /* t_hi = T_hi - mN_hi */
+        "cmovbq %%rax, %[Thi] \n\t"       /* t_hi = (T_hi<mN_hi) ? rax : t_hi */
+        : [Thi] "+&bcSD"(Thi), "+&a"(rrax)
+        : [n] "r"(n), [inv]"r"(inv)
+        : "rdx", "cc");
+    uint64_t result = Thi;
+    return result;
+
+#else
+    return uecm_mulredc_alt(x, x, n, inv);
+#endif
+}
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_mfma(uint64_t x, uint64_t y, uint64_t c, uint64_t N, uint64_t invN)
+{
+#if defined(_MSC_VER)
+    uint64_t T_hi;
+    uint64_t T_lo = _umul128(x, y, &T_hi);
+    uint64_t m = T_lo * invN;
+    uint64_t mN_hi = __umulh(m, N);
+#else
+    __uint128_t z = (__uint128_t)x * y;
+    uint64_t u = (uint64_t)(z >> 64);
+    uint64_t v = (uint64_t)z;
+    uint64_t w = (u < N - c) ? u + c : u + c - N;  // modular add
+    uint64_t T_hi = w;
+    uint64_t T_lo = v;
+    
+    uint64_t m = T_lo * invN;
+    __uint128_t mN = (__uint128_t)m * N;
+    uint64_t mN_hi = (uint64_t)(mN >> 64);
+    uint64_t tmp = T_hi + N;
+    tmp = tmp - mN_hi;
+    uint64_t result = T_hi - mN_hi;
+    result = (T_hi < mN_hi) ? tmp : result;
+    return result;
+
+#endif
+
 }
 
 MICRO_ECM_FORCE_INLINE static void uecm_uadd(uint64_t rho, uint64_t n, const uecm_pt P1, const uecm_pt P2,
@@ -562,7 +630,9 @@ MICRO_ECM_FORCE_INLINE static void uecm_udup(uint64_t s, uint64_t rho, uint64_t 
     uint64_t tt3 = uecm_submod(tt2, tt1, n);          // w = V-U
     tt2 = uecm_mulredc(tt3, s, n, rho);      // w = (A+2)/4 * w
     tt2 = uecm_addmod(tt2, tt1, n);          // w = w + U
+
     P->Z = uecm_mulredc(tt2, tt3, n, rho);         // Z = w*(V-U)
+
 #ifdef MICRO_ECM_VERBOSE_PRINTF
     stg1Doub++;
 #endif
@@ -3181,8 +3251,7 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     uecm_pt P;
     uint64_t tmp1;
 
-    uint64_t rho = (uint64_t)0 - uecm_multiplicative_inverse(n);
-
+    uint64_t rho = uecm_multiplicative_inverse(n);
     uint32_t stg1_max = B1;
 //    uint32_t stg2_max = B2;
 
@@ -3556,8 +3625,6 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
     }
     else if (targetBits <= 48)
     {
-        // multi-thread issue here...
-        //f64 = LehmanFactor(n, 0, 0, 0);
         B1 = 70;
         curves = 32;
         microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
@@ -3576,7 +3643,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
     else if (targetBits <= 58)
     {
 #ifdef DO_UPM1
-        f64 = getfactor_upm1(n, 333);
+        f64 = getfactor_upm1(n, 100);
         if (f64 > 1)
             return f64;
 #endif
@@ -3667,13 +3734,7 @@ static void uecm_dispatch_x8_list(uint64_t* n, uint64_t* f,
 
 static int uecm_get_bits(uint64_t n)
 {
-    int i = 0;
-    while (n != 0)
-    {
-        n >>= 1;
-        i++;
-    }
-    return i;
+    return 64 - _lead_zcnt64(n);
 }
 
 int prp_uecm(uint64_t n)
@@ -3762,6 +3823,65 @@ uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran)
     int bits = uecm_get_bits(q64);
     return uecm_dispatch(q64, bits, is_arbitrary, pran);
 }
+
+uint64_t prp_uecm(uint64_t n)
+{
+    // assumes has no small factors.
+    // do a base-2 fermat prp test using LR binexp.
+    uint64_t rho = uecm_multiplicative_inverse(n);
+    uint64_t unityval = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
+
+#if defined(USE_AVX2) || defined(USE_AVX512F)
+    // technically need to check the ABM flag, but I don't
+    // have that in place anywhere yet.  AVX2 is generally equivalent.
+
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint64_t m = 1ULL << (62 - __lzcnt64(n));   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#else
+    // these builtin functions will have an efficient implementation
+    // for the current processor architecture.
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint32_t pos;
+    if (_BitScanReverse64(&pos, n))
+        return pos;
+    else
+        return 64;
+
+    uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#endif
+
+    uint64_t r = unityval;
+    uint64_t e = n - 1;
+
+    // we know the first bit is set and the first squaring is of unity,
+    // so we can do the first iteration manually with no squaring.
+    r = uecm_addmod(r, r, n);
+
+    while (m > 0)
+    {
+        r = uecm_mulredc(r, r, n, rho);
+        if (e & m) r = uecm_addmod(r, r, n);
+        m >>= 1;
+    }
+    return (r == unityval);
+}
+
 
 #ifdef USE_AVX512F
 
