@@ -29,6 +29,7 @@ code to the public domain.
 #include <ecm.h>
 #include <math.h>
 
+
 void test_dlp_composites()
 {
 	FILE *in;
@@ -243,9 +244,9 @@ tinyecm_start:
 	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 
-    goto tinyecm_marker;
-    //goto spfermat_marker;
     //goto tinyqs_marker;
+    //goto spfermat_marker;
+    goto tinyecm_marker;
 	//goto brent_marker;
 	
 
@@ -503,17 +504,21 @@ brent_marker:
 tinyqs_marker:
 
     i = 0;
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_52bit.dat");
+	strcpy(filenames[i++], "semiprimes_54bit.dat");
     strcpy(filenames[i++], "semiprimes_56bit.dat");
+	strcpy(filenames[i++], "semiprimes_58bit.dat");
     strcpy(filenames[i++], "semiprimes_60bit.dat");
-    strcpy(filenames[i++], "semiprimes_64bit.dat");
-    strcpy(filenames[i++], "semiprimes_70bit.dat");
-    strcpy(filenames[i++], "semiprimes_80bit.dat");
-    strcpy(filenames[i++], "semiprimes_90bit.dat");
-    strcpy(filenames[i++], "semiprimes_100bit.dat");
+    //strcpy(filenames[i++], "semiprimes_64bit.dat");
+    //strcpy(filenames[i++], "semiprimes_70bit.dat");
+    //strcpy(filenames[i++], "semiprimes_80bit.dat");
+    //strcpy(filenames[i++], "semiprimes_90bit.dat");
+    //strcpy(filenames[i++], "semiprimes_100bit.dat");
     //strcpy(filenames[i++], "pseudoprimes_110bit.dat");
     //strcpy(filenames[i++], "pseudoprimes_120bit.dat");
     //strcpy(filenames[i++], "pseudoprimes_125bit.dat");
-    num_files = 7;
+    num_files = i;
     num = 10000;
 
     // tinyqs test
@@ -526,7 +531,7 @@ tinyqs_marker:
         mpz_init(gmp_comp);
         params = init_tinyqs();
 
-        for (nf = 0; nf < 7; nf++)
+        for (nf = 0; nf < num_files; nf++)
         {
             uint64_t known1, known2;
             char buf[1024];
@@ -572,7 +577,9 @@ tinyqs_marker:
         mpz_clear(gmp_comp);
         mpz_clear(fact1);
         mpz_clear(fact2);
-    }       
+    }   
+
+	goto tinyecm_marker;
 
     i = 0;
     strcpy(filenames[i++], "pseudoprimes_48bit.dat");
@@ -865,30 +872,32 @@ spfermat_marker:
 
 tinyecm_marker:
 	i = 0;
-    strcpy(filenames[i++], "semiprimes_32bit.dat");
-    strcpy(filenames[i++], "semiprimes_34bit.dat");
-    strcpy(filenames[i++], "semiprimes_36bit.dat");
-    strcpy(filenames[i++], "semiprimes_38bit.dat");
-    strcpy(filenames[i++], "semiprimes_40bit.dat");
-	strcpy(filenames[i++], "semiprimes_42bit.dat");		// 70
-	strcpy(filenames[i++], "semiprimes_44bit.dat");		// 70
-	strcpy(filenames[i++], "semiprimes_46bit.dat");		// 70
-	strcpy(filenames[i++], "semiprimes_48bit.dat");		// 70
-	strcpy(filenames[i++], "semiprimes_50bit.dat");		// 70
-	strcpy(filenames[i++], "semiprimes_52bit.dat");		// 85
-	strcpy(filenames[i++], "semiprimes_54bit.dat");       // 85
-	strcpy(filenames[i++], "semiprimes_56bit.dat");		// 125
-	strcpy(filenames[i++], "semiprimes_58bit.dat");		// 125
-	strcpy(filenames[i++], "semiprimes_60bit.dat");		// 165
-	strcpy(filenames[i++], "semiprimes_62bit.dat");		// 165
-	strcpy(filenames[i++], "semiprimes_64bit.dat");		// 205
+    //strcpy(filenames[i++], "semiprimes_32bit.dat");
+    //strcpy(filenames[i++], "semiprimes_34bit.dat");
+    //strcpy(filenames[i++], "semiprimes_36bit.dat");
+    //strcpy(filenames[i++], "semiprimes_38bit.dat");
+
+    //strcpy(filenames[i++], "semiprimes_40bit.dat");
+	//strcpy(filenames[i++], "semiprimes_42bit.dat");		// 70
+	//strcpy(filenames[i++], "semiprimes_44bit.dat");		// 70
+	//strcpy(filenames[i++], "semiprimes_46bit.dat");		// 70
+	//strcpy(filenames[i++], "semiprimes_48bit.dat");		// 70
+	//strcpy(filenames[i++], "semiprimes_50bit.dat");		// 70
+	//strcpy(filenames[i++], "semiprimes_52bit.dat");		// 85
+	//strcpy(filenames[i++], "semiprimes_54bit.dat");       // 85
+	//strcpy(filenames[i++], "semiprimes_56bit.dat");		// 125
+	//strcpy(filenames[i++], "semiprimes_58bit.dat");		// 125
+	//strcpy(filenames[i++], "semiprimes_60bit.dat");		// 165
+	//strcpy(filenames[i++], "semiprimes_62bit.dat");		// 165
+
+	//strcpy(filenames[i++], "semiprimes_64bit.dat");		// 205
 	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
     //strcpy(filenames[i++], "semiprimes_70bit.dat");
 	//strcpy(filenames[i++], "semiprimes_80bit.dat");
 	//strcpy(filenames[i++], "semiprimes_90bit.dat");
-	//strcpy(filenames[i++], "semiprimes_100bit.dat");
+	strcpy(filenames[i++], "semiprimes_100bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_110bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_120bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_125bit.dat");
@@ -897,11 +906,8 @@ tinyecm_marker:
 
 	uint64_t lcg = 42;
 
-	
-
 	// tinyecm test
 	for (nf = 0; nf < num_files; nf++)
-	//for (nf = 5; nf < 16; nf++)
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
@@ -928,14 +934,14 @@ tinyecm_marker:
 			i = 0;
             while (!feof(in))
             {
-                fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-                mpz_set_ui(gmptmp, comp[i]);
+                //fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+                //mpz_set_ui(gmptmp, comp[i]);
 
 				// to scan in for 52-bit processing:
-				//fscanf(in, "%" PRIu64 ",%u,%u", comp + 2 * i, f1 + i, f2 + i);
-				//mpz_set_ui(gmptmp, comp[2*i]);
-				//comp[2 * i + 1] = comp[2 * i + 0] >> 52;
-				//comp[2 * i + 0] &= 0x000fffffffffffffull;
+				fscanf(in, "%" PRIu64 ",%u,%u", comp + 2 * i, f1 + i, f2 + i);
+				mpz_set_ui(gmptmp, comp[2*i]);
+				comp[2 * i + 1] = comp[2 * i + 0] >> 52;
+				comp[2 * i + 0] &= 0x000fffffffffffffull;
 
                 j = mpz_sizeinbase(gmptmp, 2);
                 totBits += j;
@@ -951,9 +957,9 @@ tinyecm_marker:
 
             fclose(in);
 
-			num = 100000;
+			num = 10000000;
 
-			if (1)
+			if (0)
 			{
 				for (i = 0; i < num; i++)
 				{
@@ -973,9 +979,16 @@ tinyecm_marker:
 					//}
 					//else
 					{
-						outf = getfactor_uecm(comp[i], 0, &lcg);
-						if ((outf == f1[i]) ||
-							(outf == f2[i]))
+
+						uint64_t n64 = lcg_rand_64(&lcg);
+						n64 = (n64 & 1) ? n64 : n64 + 1;
+
+						outf = getfactor_uecm(n64, 0, &lcg);
+						//outf = getfactor_uecm(comp[i], 0, &lcg);
+						//if ((outf == f1[i]) ||
+						//	(outf == f2[i]))
+
+						if (outf == 1)
 						{
 							correct++;
 						}
@@ -1045,7 +1058,7 @@ tinyecm_marker:
 			{
                 num = 10000;
 
-				if (0)
+				if (1)
 				{
 					for (i = 0; i < num; i++)
 					{

@@ -34,7 +34,7 @@ code to the public domain.
 
 
 #define MOD_CMP_8X_vec(xtra_bits)																		\
-		__asm__ (																				\
+		ASM_G (																				\
 			"vmovdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
 			"vpsubw	%%xmm1, %%xmm0, %%xmm4 \n\t"	/* BLOCKSIZE - block_loc */						\
 			"vpaddw	(%2), %%xmm4, %%xmm4 \n\t"		/* apply corrections */							\
@@ -80,7 +80,7 @@ code to the public domain.
 // so we workaround it by extract/inserting the high parts and doing
 // 2x the operations with xmm regs (which don't impact the speed elsewhere).
 #define MOD_CMP_16X_vec(xtra_bits)																		\
-		__asm__ (																				\
+		ASM_G (																				\
 			"vmovdqa (%1), %%ymm3 \n\t"		/* move in primes */							\
 			"vpsubw	%%ymm1, %%ymm0, %%ymm4 \n\t"	/* BLOCKSIZE - block_loc */						\
 			"vpaddw	(%2), %%ymm4, %%ymm4 \n\t"		/* apply corrections */							\
@@ -128,7 +128,7 @@ code to the public domain.
 
 
 #define MOD_INIT_16X												\
-		__asm__ (														\
+		ASM_G (														\
 			"vmovdqa (%0), %%ymm0 \n\t"		/* move in BLOCKSIZE */ \
             "vmovdqa (%1), %%ymm1 \n\t"		/* move in block_loc */ \
 			:														\

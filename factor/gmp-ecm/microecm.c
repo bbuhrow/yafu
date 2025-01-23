@@ -52,7 +52,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 #include "microecm.h"
-#include "arith.h"      // _trail_zcnt64
+//#include "arith.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -80,8 +80,56 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // We rarely will ever want to use debugging printfs
 //#define MICRO_ECM_VERBOSE_PRINTF
 
+#ifndef _trail_zcnt64
 
-
+#if defined( __INTEL_COMPILER)
+#if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
+#define _trail_zcnt64 _tzcnt_u64
+#else
+__inline uint64_t _trail_zcnt64(uint64_t x)
+{
+    uint64_t pos;
+    if (_BitScanForward64(&pos, x))
+        return pos;
+    else
+        return 64;
+}
+#endif
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+#define _trail_zcnt64 __builtin_ctzll
+#elif defined(_MSC_VER)
+__inline uint64_t _trail_zcnt64(uint64_t x)
+{
+    uint32_t pos;
+    if (_BitScanForward64(&pos, x))
+        return pos;
+    else
+        return 64;
+}
+#else
+__inline uint64_t _trail_zcnt64(uint64_t x)
+{
+    uint64_t pos;
+    if (x)
+    {
+        x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
+        for (pos = 0; x; pos++)
+        {
+            x >>= 1;
+        }
+    }
+    else
+    {
+#ifdef CHAR_BIT
+        pos = CHAR_BIT * sizeof(x);
+#else
+        pos = 8 * sizeof(x);
+#endif
+    }
+    return pos;
+}
+#endif
+#endif
 
 #ifdef _MSC_VER
 #  define MICRO_ECM_FORCE_INLINE __forceinline
@@ -3513,7 +3561,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
 
 // a comparitively tiny amount of p-1 work can find
 // ~15 - 30% of factors before any ecm is performed.
-#define DO_UPM1 1
+//#define DO_UPM1 1
 
 static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_t *ploc_lcg)
 {
@@ -3689,6 +3737,70 @@ static int uecm_get_bits(uint64_t n)
     return 64 - _lead_zcnt64(n);
 }
 
+int prp_uecm(uint64_t n)
+{
+    uint64_t rho = (uint64_t)0 - uecm_multiplicative_inverse(n);
+    uint64_t unityval = ((uint64_t)0 - n) % n;   // unityval == R  (mod n)
+    uint64_t result = unityval;
+    uint64_t e = (n - 1); // / 2;
+
+#if defined(USE_AVX2) || defined(USE_AVX512F)
+    // technically need to check the ABM flag, but I don't
+    // have that in place anywhere yet.  AVX2 is generally equivalent.
+
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint64_t m = 1ULL << (62 - __lzcnt64(n));   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#else
+    // these builtin functions will have an efficient implementation
+    // for the current processor architecture.
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint32_t pos;
+    if (_BitScanReverse64(&pos, n))
+        return pos;
+    else
+        return 64;
+
+    uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#endif
+
+    result = uecm_addmod(result, result, n);
+
+    while (m > 0)
+    {
+        result = uecm_mulredc(result, result, n, rho);
+        if (e & m) result = uecm_addmod(result, result, n);
+        m >>= 1;
+    }
+
+    // - Euler's criterion 2^(n>>1) == legendre_symbol(2,n) (https://en.wikipedia.org/wiki/Euler%27s_criterion)
+    // - Fermat primality check:
+    //   (2^(n-1) == 1) mod n
+    return result == unityval;
+    // 
+    // - Euler primality check:
+    //   (2^(n>>1) == 1) mod n
+    //   (2^(n>>1) == n-1) mod n
+    uint64_t legendre = ((n >> 1) ^ (n >> 2)) & 1;	// shortcut calculation of legendre symbol
+    uint64_t m1 = uecm_submod(n, unityval, n);
+    return ((result == (legendre ? m1 : unityval)));
+}
+
 
 // getfactor_uecm() returns 1 if unable to find a factor of q64,
 // Otherwise it returns a factor of q64.
@@ -3707,6 +3819,7 @@ uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran)
 {
     if (q64 % 2 == 0)
         return 2;
+    
     int bits = uecm_get_bits(q64);
     return uecm_dispatch(q64, bits, is_arbitrary, pran);
 }

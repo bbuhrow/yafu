@@ -62,7 +62,7 @@ __inline uint32_t _trail_zcnt(uint32_t x)
 }
 __inline uint64_t _trail_zcnt64(uint64_t x)
 {
-    uint64_t pos;
+    uint32_t pos;
     if (_BitScanForward64(&pos, x))
         return pos;
     else
@@ -70,7 +70,7 @@ __inline uint64_t _trail_zcnt64(uint64_t x)
 }
 __inline uint64_t _lead_zcnt64(uint64_t x)
 {
-    uint64_t pos;
+    uint32_t pos;
     if (_BitScanReverse64(&pos, x))
         return pos;
     else

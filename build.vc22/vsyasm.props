@@ -10,7 +10,7 @@
       Condition="'$(ConfigurationType)' != 'Makefile'">_SelectedFiles;$(YASMDependsOn)</YASMDependsOn>
   </PropertyGroup>
   <PropertyGroup>
-    <YasmPath Condition= "'$(YASMPATH)' == ''">H:\src\c\vyasm\</YasmPath>
+    <YasmPath Condition= "'$(YASMPATH)' == ''">C:\Users\bbuhr\projects\factoring\vsyasm\</YasmPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <YASM>

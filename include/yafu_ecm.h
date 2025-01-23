@@ -24,7 +24,7 @@ code to the public domain.
 #include "ytools.h"
 #include "arith.h"
 #include <stdio.h>
-#include <gmp_xface.h>
+#include <gmp_u64_xface.h>
 
 
 /* ============================ interface to gmpecm/pm1/pp1 ============================ */
