@@ -51,7 +51,7 @@ typedef struct {
 
 } ecm_thread_data_t;
 
-void* ecm_do_one_curve(void* ptr);
+void ecm_do_one_curve(void* ptr);
 void ecmexit(int sig);
 void ecm_process_init(fact_obj_t* fobj);
 void ecm_process_free(fact_obj_t* fobj);
@@ -952,7 +952,7 @@ void ecm_thread_free(ecm_thread_data_t *tdata)
     return;
 }
 
-void *ecm_do_one_curve(void *ptr)
+void ecm_do_one_curve(void *ptr)
 {
 	// unpack the data structure and stuff inside it
     tpool_t *tpool = (tpool_t *)ptr;

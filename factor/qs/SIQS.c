@@ -3423,10 +3423,11 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->do_batch = 0;
     if (sconf->do_batch)
     {       
+        uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv;
+        // sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         dconf->do_batch = 1;
         relation_batch_init(NULL, &dconf->rb, sconf->pmax, 
-            sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv,
-            sconf->large_prime_max, sconf->large_prime_max,
+            pmax, sconf->large_prime_max, sconf->large_prime_max,
             NULL, 0);
 
         dconf->batch_run_override = 0;
@@ -4383,8 +4384,20 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // compute the product of primes only with one thread.
         gettimeofday(&locstart, NULL);
 
-        relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, 
-            sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv,
+        uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
+        sconf->rb[0].num_uecm[0] = 0;
+        sconf->rb[0].num_uecm[1] = 0;
+        sconf->rb[0].num_uecm[2] = 0;
+        sconf->rb[0].num_tecm = 0;
+        sconf->rb[0].num_qs = 0;
+        sconf->rb[0].num_attempt = 0;
+        sconf->rb[0].num_success = 0;
+        for (i = 0; i < 8; i++)
+        {
+            sconf->rb[0].num_abort[i] = 0;
+        }
+
+        relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, pmax,
             sconf->large_prime_max, sconf->large_prime_max, NULL, 1);
         memuse += sconf->rb[0].num_relations_alloc * sizeof(cofactor_t);
         memuse += sconf->rb[0].num_factors_alloc * sizeof(uint32_t);
@@ -4401,8 +4414,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         for (i = 1; i < sconf->num_alloc_rb; i++)
         {
             // allocate space for each thread to buffer relations.
-            relation_batch_init(stdout, &sconf->rb[i], sconf->pmax, 
-                sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv,
+            relation_batch_init(stdout, &sconf->rb[i], sconf->pmax, pmax,
                 sconf->large_prime_max, sconf->large_prime_max, NULL, 0);
             memuse += sconf->rb[i].num_relations_alloc * sizeof(cofactor_t);
             memuse += sconf->rb[i].num_factors_alloc * sizeof(uint32_t);
@@ -4444,11 +4456,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     {
         sconf->dlp_exp = 1.8;
     }
+    else if (sconf->bits < 330)
+    {
+        sconf->dlp_exp = 1.9;
+    }
     else
     {
-        sconf->dlp_exp = 1.85;
+        sconf->dlp_exp = 1.95;
     }
-	sconf->tlp_exp = 2.8;
+	sconf->tlp_exp = 2.7;
 
 	// check for user overrides
 	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt - 2.8) > 1e-9)
@@ -4623,9 +4639,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // data will emerge from the filtering runs that might hone in
         // cycle formation predictions.
         if (sconf->digits_n > 120)
-            sconf->check_inc = 1000; 
-        //if (sconf->digits_n > 120)
-            //sconf->check_inc = 0.05 * sconf->factor_base->B;
+           sconf->check_inc = 0.08 * sconf->factor_base->B;
+        ////if (sconf->digits_n > 120)
+        //    //sconf->check_inc = 0.05 * sconf->factor_base->B;
         else //if (sconf->digits_n >= 100)
             sconf->check_inc = 0.10 * sconf->factor_base->B;
         //else
@@ -4833,7 +4849,7 @@ int update_check(static_conf_t *sconf)
                     }
 
                     printf("%u full + %u partial from %u slp, "
-                        "%u dlp, %u tlp (%1.1f%c batched), filt in %u (%1.2f r/sec)\n",
+                        "%u dlp, %u tlp (%1.1f%c batched), filt in %u (%1.2f r/sec)\r",
                         sconf->num_full, sconf->last_numpartial, sconf->num_slp,
                         sconf->dlp_useful, sconf->tlp_useful, (float)batched, suffix,
                         rels_left,

@@ -264,7 +264,7 @@ void savefile_read_line(char *buf, size_t max_len, savefile_t *s) {
 #else
 
 #if NO_ZLIB
-	fgets(s->fp, buf, (int)max_len);
+	fgets(buf, (int)max_len, s->fp);
 #else
 	gzgets(s->fp, buf, (int)max_len);
 #endif

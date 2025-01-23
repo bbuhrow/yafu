@@ -564,6 +564,10 @@ int main(int argc, char **argv)
   exit(exitval);
 }
 
+
+// Note: GOT TO HERE transferring comments/etc into the .c file.
+
+
 @
 @<Do the lattice sieving between |first_spq| and |last_spq|@>=
 {

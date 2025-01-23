@@ -5132,7 +5132,7 @@ int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran)
 		return 1;
 	}
 
-	int bits = tecm_get_bits(n);
+	int bits = tecm_get_bits(n) / 3 * 2;
 	return tecm_dispatch(n, f, bits, is_arbitrary, pran);
 }
 
