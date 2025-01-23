@@ -1,7 +1,7 @@
 #include "arith.h"
 #include "factor.h"
 #include "qs.h"
-#include "gnfs.h"
+#include "gnfs-yafu.h"
 #include "gmp_xface.h"
 #include "yafu_ecm.h"
 #include <stdint.h>

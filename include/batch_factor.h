@@ -83,14 +83,25 @@ typedef struct {
 typedef struct {
 	mpz_t prime_product;  /* product of primes used in the gcd */
 
+	tiny_qs_params *params;
+	uint32_t num_uecm[3];		/* calls to uecm to split 2LP on the f1r and f2r sides */
+	uint32_t num_tecm;			/* calls to tecm to split 3LP on the f1r side */
+	uint32_t num_qs;			/* tecm failures (in the future, handled by qs) */
+	uint32_t num_attempt;		/* number of calls to check_relation (possibly involving ecm) */
 	uint32_t num_success;       /* number of surviving relations */
+	uint32_t num_abort[8];		/* stop because 1) to large f1r, 2) too-large single-word f2r, 
+								   3) too-large double-word f2r, 4) too-large triple-word f2r,
+								   5) prime triple word f2r, 6) prime double-word f2r,
+								   7) unsuitable 2LP uecm split, 8) unsuitable 3LP tecm split */
 	uint32_t target_relations;  /* number of relations to batch up */
 	uint32_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
+	mpz_t lp_cutoff_r3;        /* cube of lp_cutoff_r */
 	uint32_t lp_cutoff_a;       /* maximum size of algebraic factors */
     mpz_t lp_cutoff_a2         /* square of lp_cutoff_a */;
-    mpz_t max_prime2;          /* the square of the largest prime that
-				     occurs in prime_product */
+	mpz_t min_prime2;          /* the square of the smallest prime that occurs in prime_product */
+    mpz_t max_prime2;          /* the square of the largest prime that occurs in prime_product */
+	mpz_t max_prime3;          /* the cube of the largest prime that occurs in prime_product */
 
 	uint32_t num_relations;     /* number relations currently batched */
 	uint32_t num_relations_alloc;     /* relations allocated */

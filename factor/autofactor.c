@@ -1273,7 +1273,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 		// and test the best one, compared to gnfs or qs, depending on 
         // which one will run.
-		gnfs_size = est_gnfs_size_via_poly(&polys[0]);
+		if (npoly > 0)
+			gnfs_size = est_gnfs_size_via_poly(&polys[0]);
+		else
+			gnfs_size = 999999;
 
 		if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
 		{

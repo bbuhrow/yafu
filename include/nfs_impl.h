@@ -25,7 +25,7 @@ code to the public domain.
 
 #include "nfs.h"
 #include "factor.h"
-#include "gnfs.h"
+#include "gnfs-yafu.h"
 #include "arith.h"
 #include "qs.h"
 #include <stdint.h>
