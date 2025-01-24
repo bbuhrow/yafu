@@ -4892,9 +4892,9 @@ int update_check(static_conf_t *sconf)
                 float fractFullNeeded = 165.0 * pow(sconf->digits_n, -1.4);
                 float fractFullHave = (float)sconf->num_relations / (float)sconf->factor_base->B;
                 float percentDone = fractFullHave / fractFullNeeded;
-                uint32_t eta = (uint32_t)(t_time / percentDone - t_time);
+                int eta = MAX(0, (int)(t_time / percentDone - t_time));
 				printf("%d rels found: %d full + "
-					"%d from %d partial, (%6.2f rels/sec, ETA %u sec)\r",
+					"%d from %d partial, (%6.2f rels/sec, ETA %d sec)\r",
 					sconf->num_r, sconf->num_relations,
 					sconf->num_cycles +
 					sconf->components - sconf->vertices,

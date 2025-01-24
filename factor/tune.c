@@ -8,16 +8,18 @@
 #include <math.h>
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
-#define NUM_SIQS_PTS 9
+#define NUM_SIQS_PTS 10
 #define NUM_GNFS_PTS 6
 #define NUM_ECM_PTS 5
 #define BASE_e 2.718281828459045
 
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
-double best_linear_fit(double *x, double *y, int numpts, 
-	double *slope, double *intercept);
+double best_fit(double *x, double *y, int numpts, 
+	double *slope, double *intercept, int type);
 void update_INI(double mult, double exponent, double mult2, 
-    double exponent2, double xover, double cpu_freq, char *cpu_str);
+    double exponent2, double xover,
+	double b1slope, double b1intercept, double size_exp, 
+	double cpu_freq, char *cpu_str);
 void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
 void check_siever(fact_obj_t* fobj, char* sname, int siever);
 
@@ -48,12 +50,14 @@ void factor_tune(fact_obj_t *inobj)
 	//uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
 	uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
-		63709, 143984, 242825, 589192, 847299, 1272852, 1709598}; // 2397232, 3293925
+		63709, 143984, 242825, 589192, 1178529, 1716902, 2457335, 3511771 }; // 2397232, 3293925
     uint32_t siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
-        15, 13, 16, 20, 18, 19, 20 }; // 20, 20
+        15, 13, 16, 20, 18, 19, 20, 21 }; // 20, 20
+	uint32_t siqs_testrels[NUM_SIQS_PTS] = { 10000, 10000, 10000 , 10000 , 10000,
+		10000, 10000 , 20000 , 40000 , 80000 };
 
 	double siqs_extraptime[NUM_SIQS_PTS];
-	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100};
+	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100, 105};
 
 	uint32_t gnfs_actualrels[NUM_GNFS_PTS] = {1929527, 4074867, 4783410, 
 		4969315, 5522597, 5783845};
@@ -65,7 +69,8 @@ void factor_tune(fact_obj_t *inobj)
 	double ecm_extraptime2[3];
 	double ecm_sizes[NUM_ECM_PTS];
 
-	double a, b, a2, b2, fit, xover;
+	double a, b, a2, b2, a3, b3, fit, xover;
+	double avg_exp = 0.0;
 	uint32_t count;
 	char tmpbuf[GSTR_MAXSIZE];
 
@@ -97,25 +102,26 @@ void factor_tune(fact_obj_t *inobj)
 	// siqs: start with c60, increment by 5 digits, up to a c100
 	// this will allow determination of NFS/QS crossover as well as provide enough
 	// info to generate an equation for QS time estimation
-	strcpy(siqslist[0],"349594255864176572614071853194924838158088864370890996447417");
-	strcpy(siqslist[1],"34053408309992030649212497354061832056920539397279047809781589871");
-	strcpy(siqslist[2],"6470287906463336878241474855987746904297564226439499503918586590778209");
-	strcpy(siqslist[3],"281396163585532137380297959872159569353696836686080935550459706878100362721");
-	strcpy(siqslist[4],"33727095233132290409342213138708322681737322487170896778164145844669592994743377");
-	strcpy(siqslist[5],"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
-	strcpy(siqslist[6],"427351849650748515507228344120452096326780093349980867041485502247153375067354165128307841");
-	strcpy(siqslist[7],"48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021");
-	strcpy(siqslist[8],"1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
+	strcpy(siqslist[0], "349594255864176572614071853194924838158088864370890996447417");
+	strcpy(siqslist[1], "34053408309992030649212497354061832056920539397279047809781589871");
+	strcpy(siqslist[2], "6470287906463336878241474855987746904297564226439499503918586590778209");
+	strcpy(siqslist[3], "281396163585532137380297959872159569353696836686080935550459706878100362721");
+	strcpy(siqslist[4], "33727095233132290409342213138708322681737322487170896778164145844669592994743377");
+	strcpy(siqslist[5], "1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
+	strcpy(siqslist[6], "427351849650748515507228344120452096326780093349980867041485502247153375067354165128307841");
+	strcpy(siqslist[7], "48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021");
+	strcpy(siqslist[8], "1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
+	strcpy(siqslist[9], "466734409955806375058988820327650664396976790744285564594552020197119774272189758795312820988691316775181");
 
 	// nfs: start with c85, increment by 5 digits, up to C110
 	// this will allow determination of NFS/QS crossover
 	// to do NFS time estimation, probably need to go much higher - say c155.
-	strcpy(nfslist[0],"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
-	strcpy(nfslist[1],"427351849650748515507228344120452096326780093349980867041485502247153375067354165128307841");
-	strcpy(nfslist[2],"48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021");
-	strcpy(nfslist[3],"1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
-	strcpy(nfslist[4],"466734409955806375058988820327650664396976790744285564594552020197119774272189758795312820988691316775181");
-	strcpy(nfslist[5],"48178889479314834847826896738914354061668125063983964035428538278448985505047157633738779051249185304620494013");
+	strcpy(nfslist[0], "1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
+	strcpy(nfslist[1], "427351849650748515507228344120452096326780093349980867041485502247153375067354165128307841");
+	strcpy(nfslist[2], "48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021");
+	strcpy(nfslist[3], "1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
+	strcpy(nfslist[4], "466734409955806375058988820327650664396976790744285564594552020197119774272189758795312820988691316775181");
+	strcpy(nfslist[5], "48178889479314834847826896738914354061668125063983964035428538278448985505047157633738779051249185304620494013");
 
 	// c135 from TMPQS
 	// 116915434112329921568236283928181979297762987646390347857868153872054154807376462439621333455331738807075404918922573575454310187518221
@@ -141,7 +147,7 @@ void factor_tune(fact_obj_t *inobj)
 		// measure how long it takes to gather a fixed number of relations 		
         mpz_set_str(n, siqslist[i], 10);
 		fobj.qs_obj.gbl_override_rel_flag = 1;
-		fobj.qs_obj.gbl_override_rel = 10000;	
+		fobj.qs_obj.gbl_override_rel = siqs_testrels[i];	
 
         // also set the tf_small_cutoff to its known best value so we
         // don't pollute the measurement with the optimization process.
@@ -161,14 +167,12 @@ void factor_tune(fact_obj_t *inobj)
 		// 2% of the total sieve time
 		siqs_extraptime[i] += 0.02 * siqs_extraptime[i];
 
-		printf("elapsed time for ~10k relations of c%d = %6.4f seconds.\n",
-            mpz_sizeinbase(n, 10), t_time);
+		printf("elapsed time for ~%dk relations of c%d = %6.4f seconds.\n",
+			siqs_testrels[i] / 1000, mpz_sizeinbase(n, 10), t_time);
 		printf("extrapolated time for complete factorization = %6.4f seconds\n",siqs_extraptime[i]);
 	}
 
-	free_factobj(&fobj);
-
-	fit = best_linear_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b);
+	fit = best_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b, 2);
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a,b,fit);
 	printf("best exponential fit is y = %g * exp(%g * x)\n",pow(BASE_e,b),a);
 
@@ -255,16 +259,12 @@ void factor_tune(fact_obj_t *inobj)
 	// set THREADS back the way it was
     inobj->THREADS = tmpT;
 
-	fit = best_linear_fit(gnfs_sizes, gnfs_extraptime, NUM_GNFS_PTS, &a2, &b2);
+	fit = best_fit(gnfs_sizes, gnfs_extraptime, NUM_GNFS_PTS, &a2, &b2, 2);
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a2,b2,fit);
 	printf("best exponential fit is y = %g * exp(%g * x)\n",pow(BASE_e,b2),a2);
 
 	xover = (b2 - b) / (a - a2);
 	printf("QS/NFS crossover occurs at %2.1f digits\n",xover);
-
-	//write the coefficients to the .ini file
-	update_INI(pow(BASE_e,b),a,pow(BASE_e,b2),a2,xover,
-        inobj->MEAS_CPU_FREQUENCY, inobj->CPU_ID_STR);
 
 tune_ecm:
 
@@ -296,12 +296,12 @@ tune_ecm:
 			gettimeofday(&start, NULL);
 			mpz_set(fobj.ecm_obj.gmp_n, n);
 			mpz_set(fobj.N, n);
-			ecm_loop(&fobj);
+			curves_run = ecm_loop(&fobj);
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 			
-			printf("elapsed time for B1=%dk on c%d = %6.4f seconds.\n",
-				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time);
+			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
+				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 			
 			ecm_extraptime1[0][i] = t_time / curves_run;
 			
@@ -311,12 +311,12 @@ tune_ecm:
 			gettimeofday(&start, NULL);
 			mpz_set(fobj.ecm_obj.gmp_n, n);
 			mpz_set(fobj.N, n);
-			ecm_loop(&fobj);
+			curves_run = ecm_loop(&fobj);
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 			
-			printf("elapsed time for B1=%dk on c%d = %6.4f seconds.\n",
-				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time);
+			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
+				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 			
 			ecm_extraptime1[1][i] = t_time / curves_run;
 
@@ -330,8 +330,8 @@ tune_ecm:
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 
-			printf("elapsed time for B1=%dk on c%d = %6.4f seconds.\n",
-				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time);
+			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
+				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 
 			ecm_extraptime1[2][i] = t_time / curves_run;
 		}
@@ -340,31 +340,39 @@ tune_ecm:
 		gmp_randclear(gmp_randstate);
 		int j;
 
+		double exp_consts[3];
+		double exp_exps[3];
 		for (j = 0; j < 3; j++)
 		{
-
+			double etime[NUM_ECM_PTS];
 			for (i = 0; i < NUM_ECM_PTS; i++)
 			{
 				printf("%1.0f, %1.4f\n", ecm_sizes[i], ecm_extraptime1[j][i]);
+				etime[i] = ecm_extraptime1[j][i];
 			}
 
-			fit = best_linear_fit(ecm_sizes, ecm_extraptime1[j], NUM_ECM_PTS, &a, &b);
-			printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n", a, b, fit);
-			printf("best exponential fit is y = %g * exp(%g * x)\n", pow(BASE_e, b), a);
+			fit = best_fit(ecm_sizes, etime, NUM_ECM_PTS, &a3, &b3, 2);
+			exp_consts[j] = pow(BASE_e, b3);
+			exp_exps[j] = a3;
+			avg_exp += a3;
+			printf("best linear fit over size is ln(y) = %g * x + %g\nR^2 = %g\n", a3, b3, fit);
+			printf("best exponential fit over size is y = %g * exp(%g * x)\n", 
+				exp_consts[j], exp_exps[j]);
 		}
 
-		//double b1_sizes[3] = { 100000.0, 1000000.0, 10000000.0 };
-		//
-		//for (i = 0; i < 3; i++)
-		//{
-		//	printf("%1.0f, %1.4f\n", b1_sizes[i], ecm_extraptime1[i][NUM_ECM_PTS - 1]);
-		//	ecm_extraptime2[i] = ecm_extraptime1[i][NUM_ECM_PTS - 1];
-		//}
-		//
-		//fit = best_linear_fit(b1_sizes, ecm_extraptime2, 3, &a, &b);
-		//printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n", a, b, fit);
-		//printf("best exponential fit is y = %g * exp(%g * x)\n", pow(BASE_e, b), a);
+		// now do an average of the exponent and a linear fit to the constant and that's
+		// the extrapolation as a function of size and B1.
+		double b1vals[3] = {1e+5, 1e+6, 1e+7};
+		fit = best_fit(b1vals, exp_consts, 3, &a3, &b3, 1);
+		avg_exp /= 3.0;
+		printf("best linear fit over B1 is y = %g * x + %g\nR^2 = %g\n", a3, b3, fit);
+		printf("average size exponent over B1 is %g\n", avg_exp);
+
 	}
+
+	//write the coefficients to the .ini file
+	update_INI(pow(BASE_e, b), a, pow(BASE_e, b2), a2, xover,
+		a3, b3, avg_exp, inobj->MEAS_CPU_FREQUENCY, inobj->CPU_ID_STR);
 
 	free_factobj(&fobj);
 	mpz_clear(n);
@@ -409,14 +417,6 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		exit(1);
 	}
 
-	//fast test
-	//*qrange = 1000;
-
-	//more accurate test
-	// *qrange = 5000;
-
-	*qrange = 2000;
-
 	printf("nfs: commencing job file construction for c%d\n",(int)strlen(inputstr));
 
 	fprintf(out, "n: %s\n",inputstr);
@@ -443,7 +443,7 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		fprintf(out, "alambda: 2.5\n");
 		siever = 11;
 		*startq = 450000;
-
+		*qrange = 2000;
 		break;
 	case 1:
 		//90 digit info:
@@ -466,7 +466,7 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		fprintf(out, "alambda: 2.5\n");
 		siever = 11;
 		*startq = 600000;
-	
+		*qrange = 2000;
 		break;
 	case 2:
 		//95 digit info:
@@ -489,7 +489,7 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		fprintf(out, "alambda: 2.5\n");
 		siever = 12;
 		*startq = 750000;
-		
+		*qrange = 2000;
 		break;
 	case 3:
 		//100 digit info:
@@ -512,7 +512,7 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		fprintf(out, "alambda: 2.5\n");
 		siever = 12;
 		*startq = 900000;
-
+		*qrange = 5000;
 		break;
 	case 4:
 		//105 digit info:
@@ -536,7 +536,7 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		fprintf(out, "alambda: 2.5\n");
 		siever = 12;
 		*startq = 1250000;
-
+		*qrange = 5000;
 		break;
 	case 5:
 		//110 digit info:
@@ -560,7 +560,7 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 		fprintf(out, "alambda: 2.5\n");
 		siever = 13;
 		*startq = 1600000;
-		
+		*qrange = 5000;
 		break;
 	default:
 		printf("unknown input in gnfs tuning\n");
@@ -616,7 +616,9 @@ void check_siever(fact_obj_t *fobj, char* sname, int siever)
 }
 
 void update_INI(double mult, double exponent, double mult2, 
-    double exponent2, double xover, double cpu_freq, char* cpu_str)
+    double exponent2, double xover, 
+	double b1slope, double b1intercept, double size_exp,
+	double cpu_freq, char* cpu_str)
 {
 	FILE *in, *out;
 	int i,j;
@@ -731,8 +733,9 @@ void update_INI(double mult, double exponent, double mult2,
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
-				sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
+				sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+                    cpu_str,mult,exponent,mult2,exponent2,xover,
+					b1slope, b1intercept, size_exp, cpu_freq);
 				fputs(newline, out);
 			}
 #elif defined(WIN32)
@@ -740,8 +743,9 @@ void update_INI(double mult, double exponent, double mult2,
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
-				sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg\n",
-                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
+				sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+					cpu_str, mult, exponent, mult2, exponent2, xover,
+					b1slope, b1intercept, size_exp, cpu_freq);
 				fputs(newline, out);
 			}
 #else 
@@ -749,8 +753,9 @@ void update_INI(double mult, double exponent, double mult2,
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
-				sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
+				sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+					cpu_str, mult, exponent, mult2, exponent2, xover,
+					b1slope, b1intercept, size_exp, cpu_freq);
 				fputs(newline, out);
 			}
 #endif
@@ -771,18 +776,21 @@ void update_INI(double mult, double exponent, double mult2,
 	{
 #if defined(_WIN64)
 		printf("Adding tune_info entry for WIN64 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
+		sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+			cpu_str, mult, exponent, mult2, exponent2, xover,
+			b1slope, b1intercept, size_exp, cpu_freq);
 		fputs(newline, out);
 #elif defined(WIN32)
 		printf("Adding tune_info entry for WIN32 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg\n",
-            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
+		sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+			cpu_str, mult, exponent, mult2, exponent2, xover,
+			b1slope, b1intercept, size_exp, cpu_freq);
 		fputs(newline, out);
 #else 
 		printf("Adding tune_info entry for LINUX64 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
+		sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+			cpu_str, mult, exponent, mult2, exponent2, xover,
+			b1slope, b1intercept, size_exp, cpu_freq);
 		fputs(newline, out);
 #endif
 	}
@@ -797,21 +805,32 @@ void update_INI(double mult, double exponent, double mult2,
 	return;
 }
 
-double best_linear_fit(double *x, double *y, int numpts, 
-	double *slope, double *intercept)
+double best_fit(double *x, double *y, int numpts, 
+	double *slope, double *intercept, int type)
 {
-	// given vectors of x and y values, compute the best linear fit
+	// given vectors of x and y values, compute the best fit
 	// to the data and return the slope and y-intercept of the line
 	// return the R^2 value.
+	// if type == 1, does a linear fit.
+	// if type == 2, does an exponential fit (by taking the ln of the y-data)
 	// follows: http://mathworld.wolfram.com/LeastSquaresFitting.html
 	double avgX, avgY, varX, varY, cov, *yy;
 	int i;
 
 	yy = (double *)malloc(numpts * sizeof(double));
 
-	// linearize the y-axis
-	for (i=0; i<numpts; i++)
-		yy[i] = log(y[i]);
+	for (i = 0; i < numpts; i++)
+	{
+		if (type == 1)
+		{
+			yy[i] = y[i];
+		}
+		else
+		{
+			yy[i] = log(y[i]);
+		}
+	}
+		
 
 	avgX = 0;
 	for (i=0; i<numpts; i++)

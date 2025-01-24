@@ -116,13 +116,15 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 
 			if (start)
 			{
-				mpz_t gmpn;
+				mpz_t gmpn, gmpd;
 				mpz_init(gmpn);
+				mpz_init(gmpd);
 				gmp_sscanf(buf, "%Zd", gmpn);
 				
-				if (mpz_cmp(gmpn, fobj->nfs_obj.gmp_n) != 0)
+				mpz_tdiv_r(gmpd, gmpn, fobj->nfs_obj.gmp_n);
+				if (mpz_cmp_ui(gmpd, 0) != 0)
 				{
-					printf("nfs: number in ranges file does not match input\n");
+					printf("nfs: number in ranges file is not a divisor of the input\n");
 					gmp_printf("nfs: read:  %Zd\n", gmpn);
 					gmp_printf("nfs: input: %Zd\n", fobj->nfs_obj.gmp_n);
 					printf("nfs: resetting ranges file with current input\n");
@@ -142,6 +144,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 				}
 
 				mpz_clear(gmpn);
+				mpz_clear(gmpd);
 				start = 0;
 				continue;
 			}

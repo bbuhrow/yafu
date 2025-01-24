@@ -2994,7 +2994,10 @@ void vececm(thread_data_t* tdata)
         }
 
         if (found)
+        {
+            curve += VECLEN;
             break;
+        }
 
     }
 
