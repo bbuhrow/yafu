@@ -2327,7 +2327,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
 
     case 41:
@@ -2338,7 +2338,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         break;
 
     case 42:
@@ -2366,7 +2366,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 fclose(fobj->logfile);
         }
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 
         break;
 

@@ -100,11 +100,6 @@ typedef struct {
 
 /*--------------DECLARATIONS FOR MANAGING FACTORS FOUND  and factor I/O -----------------*/
 
-int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
-    int VFLAG, int NUM_WITNESSES);
-void print_factors(yfactor_list_t* fobj, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE);
-void clear_factor_list(yfactor_list_t* fobj);
-void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 
 typedef struct
 {
@@ -506,6 +501,13 @@ void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src);
 void alloc_factobj(fact_obj_t *fobj);
+
+
+int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
+    int VFLAG, int NUM_WITNESSES);
+void print_factors(fact_obj_t* fobj, yfactor_list_t* factorlist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE);
+void clear_factor_list(yfactor_list_t* fobj);
+void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 
 /* ============================ interface to tinyecm ============================ */
 extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,

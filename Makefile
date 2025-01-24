@@ -40,11 +40,11 @@ LIBS = -L.
 # we require additional search directories for gmp and gmp-ecm, 
 # for libraries and headers.  Change
 # these if your installation locations differ.
-INC += -I../gmp_install/gmp_6.2.0/include
-LIBS += -L../gmp_install/gmp_6.2.0/lib
+INC += -I../gmp-install/6.2.1/include
+LIBS += -L../gmp-install/6.2.1/lib
 
-INC += -I../ecm_install/7.0.5-gcc/include/
-LIBS += -L../ecm_install/7.0.5-gcc/lib/
+INC += -I../ecm-install/7.0.6-wsl/include/
+LIBS += -L../ecm-install/7.0.6-wsl/lib/
 
 # libs for building msieve 
 MSIEVE_LIBS = -L. -L../gmp_install/gmp_6.2.0/lib
@@ -685,7 +685,7 @@ ecm: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
 
 clean:
 	rm -f $(MSIEVE_YAFU_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
-	msieve msieve.exe libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) \
+	msieve msieve.exe libmsieve.a libysiqs.a libyecm.a libynfs.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) \
 		$(NFS_OBJS) $(NFS_GPU_OBJS) $(NFS_NOGPU_OBJS) *.ptx
 
 #---------------------------Build Rules -------------------------

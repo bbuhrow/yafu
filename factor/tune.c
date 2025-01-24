@@ -131,7 +131,7 @@ void factor_tune(fact_obj_t *inobj)
 	init_factobj(&fobj);
 	copy_factobj(&fobj, inobj);
 
-	goto tune_ecm;
+	//goto tune_ecm;
 
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)

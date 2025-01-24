@@ -11,6 +11,18 @@ extern "C" {
 #endif
 
 
+#include <stdint.h>
+#include <stdio.h>
+
+#define NO_ZLIB
+
+#if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
+#include <windows.h>
+#include <sys/types.h> 
+#include <sys/stat.h>
+#endif
+
+
 #ifdef NO_ZLIB
 #define gzFile   FILE
 #define gzopen   fopen
@@ -23,16 +35,6 @@ extern "C" {
 #define gzflush(f,b)  fflush(f)
 #else
 #include <zlib.h>
-#endif
-
-#include <stdint.h>
-
-#define NO_ZLIB
-
-#if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
-#include <windows.h>
-#include <sys/types.h> 
-#include <sys/stat.h>
 #endif
 
 /* structure encapsulating the savefile used in a factorization */

@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 114
+#define NUMOPTIONS 115
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option

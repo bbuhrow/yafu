@@ -1340,7 +1340,7 @@ void nfs(fact_obj_t *fobj)
 
 		if (NFS_ABORT)
 		{
-			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+			print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 			exit(1);
 		}
 	}

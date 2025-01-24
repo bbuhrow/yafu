@@ -3867,7 +3867,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			//and remove the multiplier we may have added, so that
 			//we can try again to build a factor base.
 			mpz_tdiv_q_ui(sconf->n, sconf->n, sconf->multiplier);
-			free(sconf->modsqrt_array);
+            align_free(sconf->modsqrt_array);
 			align_free(sconf->factor_base->list->prime);
             align_free(sconf->factor_base->list->binv);
 			align_free(sconf->factor_base->list->small_inv);
@@ -4882,13 +4882,24 @@ int update_check(static_conf_t *sconf)
 			}
 			else
 			{
+                // https://www.mersenneforum.org/node/11822?p=1067569#post1067569
+                // James Heinrich has determined that the following formula 
+                // pretty closely predicts the number of full relations
+                // needed to complete a factorization, as a function of input size,
+                // as a percentage of the total number of relations needed.
+                // from the info we are printing here and the total elasped time
+                // so far, we can compute an ETA.
+                float fractFullNeeded = 165.0 * pow(sconf->digits_n, -1.4);
+                float fractFullHave = (float)sconf->num_relations / (float)sconf->factor_base->B;
+                float percentDone = fractFullHave / fractFullNeeded;
+                uint32_t eta = (uint32_t)(t_time / percentDone - t_time);
 				printf("%d rels found: %d full + "
-					"%d from %d partial, (%6.2f rels/sec)\r",
+					"%d from %d partial, (%6.2f rels/sec, ETA %u sec)\r",
 					sconf->num_r, sconf->num_relations,
 					sconf->num_cycles +
 					sconf->components - sconf->vertices,
 					sconf->num_cycles,
-					(double)(sconf->num_relations + sconf->num_cycles) / t_time);
+					(double)(sconf->num_relations + sconf->num_cycles) / t_time, eta);
 			}
             
 			fflush(stdout);

@@ -80,7 +80,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
-    "obase", "minrels", "stopk", "stop_strict"};
+    "obase", "minrels", "stopk", "stop_strict", "terse"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -199,7 +199,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer==8,10,16): Output base in octal (8), decimal (default, 10), or hexadecimal (16)",
     "(Integer < 32-bit): Minimum relations to find in NFS before trying to filter",
     "(Integer < 32-bit): Stop factor() after finding k factors",
-    "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)"
+    "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)",
+    "                  : Set verbosity to suppress all output except the results of a factorization",
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -453,6 +454,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[21]) == 0)
     {
+        // silent
         options->verbosity = -1;
     }
     else if (strcmp(opt, OptionArray[22]) == 0)
@@ -1127,6 +1129,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "stop_strict"
         options->strict = 1;
+    }
+    else if (strcmp(opt, OptionArray[114]) == 0)
+    {
+        // terse
+        options->verbosity = -2;
     }
     else
     {
