@@ -49,12 +49,13 @@ SOFTWARE.
 #include "yafu_ecm.h"
 #include "nfs.h"
 #include "arith.h"
+#include "microecm.h"
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 79
+#define NUM_FUNC 80
 
 // symbols in calc
 #define EOE 1
@@ -158,7 +159,7 @@ static char function_names[NUM_FUNC][11] = {
     "primes", "torture", "ecm", "llt", "siqsbench",
     "sigma", "totient", "smallmpqs", "testrange", "sieverange",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
-    "semiprimes", "fftmul", "vpm1", "toom3"};
+    "semiprimes", "fftmul", "vpm1", "toom3", "special"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -176,7 +177,7 @@ static int function_nargs[NUM_FUNC] = {
     3, 2, 2, 1, 0, 
     2, 1, 1, 4, 4, 
     3, 1, 0, 1, 1,
-    2, 4, 0, 3};
+    2, 4, 0, 3, 2};
 
 
 // =====================================================================
@@ -1554,6 +1555,17 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                 {
                     gmp_printf("\n%s = %Zo\n\n", varname, tmp);
                 }
+                else if (OBASE == BIN)
+                {
+                    gmp_printf("\n%s = ", varname);
+                    
+                    int i;
+                    for (i = mpz_sizeinbase(tmp, 2) - 1; i >= 0; i--)
+                    {
+                        printf("%d", mpz_tstbit(tmp, i));
+                    }
+                    printf("\n\n");
+                }
             }
             else if (force_quiet == 1)
             {
@@ -2830,6 +2842,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
                 &num_found, metadata->pscreen, metadata->pfile);
 
+            if (metadata->pscreen)
+            {
+                for (i = 0; i < num_found; i++)
+                {
+                    mpz_add_ui(mp1, lowz, primes[i]);
+                    gmp_printf("%Zd\n", mp1);
+                }
+            }
+
             if (!NULL)
                 free(primes);
 
@@ -3324,6 +3345,582 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         }
 
         break;
+
+    case 79:
+        // run special tests.  previously had just dropped these
+        // into driver.c 
+        
+        //test_dlp_composites();
+
+#if 0
+        if (0)
+        {
+            // analysis of saved residues.
+            FILE* fid = fopen("residues_B_750016_MFBT_2.80_TF_140_LPB_4294967295.txt", "r");
+            FILE* fout = fopen("residues_B_750016_MFBT_2.80_TF_140_LPB_4294967295_analysis.txt", "w");
+            mpz_t n, f, f2;
+            uint64_t lcg = 31751835123;
+            char buf[1024];
+            int k = 0;
+            tiny_qs_params* tqs_params;
+
+            mpz_init(n);
+            mpz_init(f);
+            mpz_init(f2);
+            tqs_params = init_tinyqs();
+
+            while (~feof(fid))
+            {
+                if (fgets(buf, 1024, fid) == NULL)
+                    break;
+
+                mpz_set_str(n, buf, 10);
+                printf("processing line %d: %s", k, buf);
+                k++;
+
+                fprintf(fout, "%d:", mpz_sizeinbase(n, 2));
+
+                if (mpz_probab_prime_p(n, 1))
+                {
+                    fprintf(fout, "%d,\n", mpz_sizeinbase(n, 2));
+                    continue;
+                }
+
+                if (mpz_sizeinbase(n, 2) > 128)
+                {
+                    reset_factobj(fobj);
+                    mpz_set(fobj->N, n);
+                    factor(fobj);
+                    yfactor_list_t* flist = fobj->factors;
+                    for (i = 0; i < flist->num_factors; i++)
+                    {
+                        int j;
+                        for (j = 0; j < flist->factors[i].count; j++)
+                        {
+                            int sz = mpz_sizeinbase(flist->factors[i].factor, 2);
+                            fprintf(fout, "%d,", sz);
+                        }
+                    }
+                    fprintf(fout, "\n");
+                    printf("\n");
+                }
+                else
+                {
+                    int szn = mpz_sizeinbase(n, 2);
+                    int done = 0;
+                    while (szn > 64)
+                    {
+                        if (mpz_probab_prime_p(n, 1))
+                        {
+                            fprintf(fout, "%d,\n", mpz_sizeinbase(n, 2));
+                            done = 1;
+                            break;
+                        }
+
+                        getfactor_tecm(n, f, szn / 2, &lcg);
+                        if (mpz_cmp_ui(f, 1) > 0)
+                        {
+                            int szf = mpz_sizeinbase(f, 2);
+                            fprintf(fout, "%d,", szf);
+                            mpz_tdiv_q(n, n, f);
+                            szn = mpz_sizeinbase(n, 2);
+                        }
+                        else
+                        {
+                            int numf = tinyqs(tqs_params, n, f, f2);
+                            if (numf > 0)
+                            {
+                                fprintf(fout, "%d,\n", mpz_sizeinbase(f, 2));
+                                if (mpz_probab_prime_p(f, 1))
+                                {
+                                    mpz_tdiv_q(n, n, f);
+                                    szn = mpz_sizeinbase(n, 2);
+                                }
+                                else
+                                {
+                                    printf("tinyqs found a composite factor!\n");
+                                    exit(1);
+                                }
+                                fprintf(fout, "%d,\n", mpz_sizeinbase(f2, 2));
+                                if (mpz_probab_prime_p(f2, 1))
+                                {
+                                    mpz_tdiv_q(n, n, f2);
+                                    szn = mpz_sizeinbase(n, 2);
+                                }
+                                else
+                                {
+                                    printf("tinyqs found a composite factor!\n");
+                                    exit(1);
+                                }
+                            }
+                        }
+                    }
+
+                    if (done)
+                        continue;
+
+                    uint64_t q64 = mpz_get_ui(n);
+                    while (q64 > 1)
+                    {
+                        mpz_set_ui(n, q64);
+
+                        if (mpz_probab_prime_p(n, 1))
+                        {
+                            fprintf(fout, "%d,", mpz_sizeinbase(n, 2));
+                            break;
+                        }
+
+                        uint64_t f64 = getfactor_uecm(q64, 0, &lcg);
+                        if (f64 > 1)
+                        {
+                            int szf = spBits(f64);
+                            fprintf(fout, "%d,", szf);
+                            q64 /= f64;
+                        }
+                    }
+                    fprintf(fout, "\n");
+                }
+            }
+            printf("\n");
+
+            mpz_clear(n);
+            mpz_clear(f);
+            mpz_clear(f2);
+            fclose(fout);
+            fclose(fid);
+        }
+
+        if (0)
+        {
+            // test and benchmark generic 64-bit integer division
+            __m512i q2, q, r, n, d, ref, sum = _mm512_setzero_epi32(), vone = _mm512_set1_epi64(1);
+            __m512 ns, ds, two32;
+            __m512i smallnum = _mm512_set1_epi32(1024);
+            __m512i m;
+            uint64_t ni[16], di[16], mi[16];
+            uint64_t state = 42;
+            int it = 100000000;
+            int num_1 = 0;
+            int num_2 = 0;
+            int j;
+            struct timeval start, stop;
+            double t_time;
+
+            two32 = _mm512_set1_ps(4294967296.0);
+
+            gettimeofday(&start, NULL);
+
+            for (j = 0; j < it; j++)
+            {
+                for (i = 0; i < 8; i++)
+                {
+                    ni[i] = lcg_rand_64_range(1, 0ULL - 1, &state);
+                    di[i] = lcg_rand_64_range(1, 0ULL - 1, &state);
+                }
+
+                n = _mm512_load_epi64(ni);
+                d = _mm512_load_epi64(di);
+
+                // build a chain of inputs and outputs so the optimizer 
+                // doesn't do away with anything.
+                sum = _mm512_add_epi64(n, sum);
+                sum = _mm512_add_epi64(d, sum);
+
+                if (0)
+                {
+                    __m512d d1pd = _mm512_cvtepu64_pd(d);
+                    __m512d n1pd = _mm512_cvtepu64_pd(n);
+
+                    n1pd = _mm512_div_pd(n1pd, d1pd);
+
+                    q = _mm512_cvt_roundpd_epu64(n1pd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    __m512i qd = _mm512_mullox_epi64(q, d);
+                    r = _mm512_sub_epi64(n, qd);
+
+                    // fix q too big by a little
+                    __mmask8 err = _mm512_cmpgt_epu64_mask(r, n);
+                    if (err)
+                    {
+                        n1pd = _mm512_cvtepu64_pd(_mm512_sub_epi64(_mm512_set1_epi64(0), r));
+                        n1pd = _mm512_div_pd(n1pd, d1pd);
+
+                        q2 = _mm512_add_epi64(vone, _mm512_cvt_roundpd_epu64(n1pd,
+                            (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)));
+                        q = _mm512_mask_sub_epi64(q, err, q, q2);
+                        r = _mm512_mask_add_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+                    }
+
+                    // fix q too small by a little bit
+                    err = _mm512_cmpge_epu64_mask(r, d);
+                    if (err)
+                    {
+                        n1pd = _mm512_cvtepu64_pd(r);
+                        n1pd = _mm512_div_pd(n1pd, d1pd);
+                        q2 = _mm512_cvt_roundpd_epu64(n1pd,
+                            (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                        q = _mm512_mask_add_epi64(q, err, q, q2);
+                        r = _mm512_mask_sub_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+                    }
+
+                    //__m512i refq = _mm512_div_epu64(n, d);
+                    //__m512i refr = _mm512_rem_epu64(n, d);
+                    //
+                    //__mmask8 cmp = _mm512_cmpeq_epi64_mask(q, refq) & 
+                    //    _mm512_cmpeq_epi64_mask(r, refr);
+                    //
+                    //num_1 += _mm_popcnt_u32(cmp);
+                    //
+                    //if (cmp != 0xff)
+                    //{
+                    //    printf("error mask: %02x\n", cmp);
+                    //    uint64_t refqi[8], refri[8], qi[8], ri[8];
+                    //    _mm512_storeu_epi64(refqi, refq);
+                    //    _mm512_storeu_epi64(refri, refr);
+                    //    _mm512_storeu_epi64(qi, q);
+                    //    _mm512_storeu_epi64(ri, r);
+                    //    for (i = 0; i < 8; i++)
+                    //    {
+                    //        //if ((cmp & (1 << i)) == 0)
+                    //        {
+                    //            printf("%lu / %lu = %lu rem %lu (got %lu, rem %lu)\n",
+                    //                ni[i], di[i], refqi[i], refri[i], qi[i], ri[i]);
+                    //        }
+                    //    }
+                    //    break;
+                    //}
+
+                }
+
+                if (0)
+                {
+                    q = _mm512_div_epu64(n, d);
+                    r = _mm512_rem_epu64(n, d);
+                }
+
+                //sum = _mm512_add_epi64(q, sum);
+                //sum = _mm512_add_epi64(r, sum);
+            }
+
+            gettimeofday(&stop, NULL);
+            t_time = ytools_difftime(&start, &stop);
+
+            printf("Elasped time = %1.4f sec\n", t_time);
+            //printf("%d correct out of %d\n", num_1, it * 8);
+
+            uint64_t s = 0;
+            _mm512_storeu_epi64(ni, sum);
+            for (i = 0; i < 8; i++)
+            {
+                s += ni[i];
+            }
+            printf("final sum = %lu\n", s);
+        }
+
+        if (0)
+        {
+            // test and benchmark generic 32-bit integer division
+            __m512i q2, q, r, n, d, ref, sum = _mm512_setzero_epi32(), vone = _mm512_set1_epi32(1);
+            __m512 ns, ds;
+            uint32_t ni[16], di[16], mi[16];
+            uint64_t state = 42;
+            int it = 10000000;
+            int num_1 = 0;
+            int num_2 = 0;
+            int j;
+            struct timeval start, stop;
+            double t_time;
+
+
+            gettimeofday(&start, NULL);
+
+            for (j = 0; j < it; j++)
+            {
+                for (i = 0; i < 16; i++)
+                {
+                    ni[i] = lcg_rand_32_range(1, 4294967295, &state);
+                    di[i] = lcg_rand_32_range(1, 1024, &state);
+                }
+
+                n = _mm512_load_epi32(ni);
+                d = _mm512_load_epi32(di);
+
+                // build a chain of inputs and outputs so the optimizer 
+                // doesn't do away with anything.
+                sum = _mm512_add_epi32(n, sum);
+                sum = _mm512_add_epi32(d, sum);
+
+                if (1)
+                {
+                    __m512 d1ps = _mm512_cvtepu32_ps(d);
+                    __m512 n1ps = _mm512_cvtepu32_ps(n);
+
+                    n1ps = _mm512_div_ps(n1ps, d1ps);
+
+                    q = _mm512_cvt_roundps_epu32(n1ps, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                    __m512i qd = _mm512_mullo_epi32(q, d);
+                    r = _mm512_sub_epi32(n, qd);
+
+                    // fix q too big by a little
+                    __mmask16 err = _mm512_cmpgt_epu32_mask(r, n) |
+                        (_mm512_cmpgt_epu32_mask(r, d) & _mm512_cmplt_epu32_mask(
+                            _mm512_sub_epi32(_mm512_set1_epi32(0), r), _mm512_set1_epi32(1024)));
+                    if (err)
+                    {
+                        //uint32_t refqi[16], q2i[16], qi[16], ri[16];
+                        //_mm512_storeu_epi32(qi, q);
+                        //_mm512_storeu_epi32(ri, r);
+                        //printf("fix big q\n");
+                        //for (i = 0; i < 16; i++)
+                        //{
+                        //    if ((err & (1 << i)))
+                        //    {
+                        //        printf("%u / %u = %u rem %u\n",
+                        //            ni[i], di[i], qi[i], ri[i]);
+                        //    }
+                        //}
+
+
+                        n1ps = _mm512_cvtepu32_ps(_mm512_sub_epi32(_mm512_set1_epi32(0), r));
+                        n1ps = _mm512_div_ps(n1ps, d1ps);
+
+                        q2 = _mm512_add_epi32(vone, _mm512_cvt_roundps_epu32(n1ps,
+                            (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)));
+                        q = _mm512_mask_sub_epi32(q, err, q, q2);
+                        r = _mm512_mask_add_epi32(r, err, r, _mm512_mullo_epi32(q2, d));
+
+                        //_mm512_storeu_epi32(q2i, q2);
+                        //_mm512_storeu_epi32(qi, q);
+                        //_mm512_storeu_epi32(ri, r);
+                        //for (i = 0; i < 16; i++)
+                        //{
+                        //    if ((err & (1 << i)))
+                        //    {
+                        //        printf("q2 = %u, q = %u, r = %u\n",
+                        //            q2i[i], qi[i], ri[i]);
+                        //    }
+                        //}
+                    }
+
+                    // fix q too small by a little bit
+                    err = _mm512_cmpge_epu32_mask(r, d);
+                    if (err)
+                    {
+                        //uint32_t refqi[16], q2i[16], qi[16], ri[16];
+                        //_mm512_storeu_epi32(qi, q);
+                        //_mm512_storeu_epi32(ri, r);
+                        //printf("fix small q\n");
+                        //for (i = 0; i < 16; i++)
+                        //{
+                        //    if ((err & (1 << i)))
+                        //    {
+                        //        printf("%u / %u = %u rem %u\n",
+                        //            ni[i], di[i], qi[i], ri[i]);
+                        //    }
+                        //}
+
+                        // if n is really close to 2^32, then the incorrect remainder
+                        // can underflow around to near 2^32 and the normal correction
+                        // doesn't work.
+                        //__mmask16 specialerr = _mm512_cmplt_epu32_mask(
+                        //    _mm512_sub_epi32(_mm512_set1_epi32(0), r), _mm512_set1_epi32(1024));
+                        //
+                        //n1ps = _mm512_cvtepu32_ps(_mm512_sub_epi32(_mm512_set1_epi32(0), r));
+                        //n1ps = _mm512_div_ps(n1ps, d1ps);
+                        //q2 = _mm512_cvt_roundps_epu32(n1ps,
+                        //    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                        //q = _mm512_mask_add_epi32(q, specialerr, q, q2);
+                        //r = _mm512_mask_sub_epi32(r, specialerr, n, _mm512_mullo_epi32(q, d));
+                        //
+                        //_mm512_storeu_epi32(q2i, q2);
+                        //_mm512_storeu_epi32(qi, q);
+                        //_mm512_storeu_epi32(ri, r);
+                        //for (i = 0; i < 16; i++)
+                        //{
+                        //    if ((specialerr & (1 << i)))
+                        //    {
+                        //        printf("q2 = %u, q = %u, r = %u\n",
+                        //            q2i[i], qi[i], ri[i]);
+                        //    }
+                        //}
+                        //err ^= specialerr;
+
+
+                        n1ps = _mm512_cvtepu32_ps(r);
+                        n1ps = _mm512_div_ps(n1ps, d1ps);
+                        q2 = _mm512_cvt_roundps_epu32(n1ps,
+                            (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+                        q = _mm512_mask_add_epi32(q, err, q, q2);
+                        r = _mm512_mask_sub_epi32(r, err, r, _mm512_mullo_epi32(q2, d));
+
+                        //_mm512_storeu_epi32(q2i, q2);
+                        //_mm512_storeu_epi32(qi, q);
+                        //_mm512_storeu_epi32(ri, r);
+                        //for (i = 0; i < 16; i++)
+                        //{
+                        //    if ((err & (1 << i)))
+                        //    {
+                        //        printf("q2 = %u, q = %u, r = %u\n",
+                        //            q2i[i], qi[i], ri[i]);
+                        //    }
+                        //}
+                    }
+
+                    __m512i refq = _mm512_div_epu32(n, d);
+                    __m512i refr = _mm512_rem_epu32(n, d);
+
+                    __mmask16 cmp = _mm512_cmpeq_epu32_mask(q, refq) &
+                        _mm512_cmpeq_epu32_mask(r, refr);
+
+                    num_1 += _mm_popcnt_u32(cmp);
+
+                    if (cmp != 0xffff)
+                    {
+                        printf("error mask: %04x\n", cmp);
+                        uint32_t refqi[16], refri[16], qi[16], ri[16];
+                        _mm512_storeu_epi32(refqi, refq);
+                        _mm512_storeu_epi32(refri, refr);
+                        _mm512_storeu_epi32(qi, q);
+                        _mm512_storeu_epi32(ri, r);
+                        for (i = 0; i < 16; i++)
+                        {
+                            if ((cmp & (1 << i)) == 0)
+                            {
+                                printf("%u / %u = %u rem %u (got %u, rem %u)\n",
+                                    ni[i], di[i], refqi[i], refri[i], qi[i], ri[i]);
+                            }
+                        }
+                        break;
+                    }
+
+                }
+
+                if (0)
+                {
+                    q = _mm512_div_epu32(n, d);
+                    r = _mm512_rem_epu32(n, d);
+                }
+
+                sum = _mm512_add_epi32(q, sum);
+                sum = _mm512_add_epi32(r, sum);
+            }
+
+            gettimeofday(&stop, NULL);
+            t_time = ytools_difftime(&start, &stop);
+
+            printf("Elasped time = %1.4f sec\n", t_time);
+            printf("%d correct out of %d\n", num_1, it * 16);
+
+            uint64_t s = 0;
+            _mm512_storeu_epi32(ni, sum);
+            for (i = 0; i < 16; i++)
+            {
+                s += ni[i];
+            }
+            printf("final sum = %lu\n", s);
+        }
+
+#endif
+
+#if 0
+        if (check_args(funcnum, nargs)) break;
+        // TJAOI-like test:
+        // 1) sieve a range of integers to get prime 'n'
+        // 2) for each prime 'n', factor n-1
+        // 3) for each prime factor npi, check if 'n' divides 2^npi-1
+        // using modexp (2, npi, n) == 1
+        {
+            mpz_t* flist;
+            int numf;
+            mpz_t g2;
+            uint64_t prng = 0xbad0decaf;
+            mpz_init(g2);
+            int expbits[100];
+
+            for (i = 0; i < 100; i++)
+                expbits[i] = 0;
+
+            mpz_set_ui(g2, 2);
+            flist = (mpz_t*)xmalloc(128 * sizeof(mpz_t));
+
+            mpz_set(tmp1, operands[0]);
+            int range = mpz_get_ui(operands[1]);
+            int success = 0;
+
+            uint64_t* primes, nump, pmax, pmin;
+            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+            primes = soe_wrapper(sdata, (uint64_t)mpz_get_ui(tmp1), 
+                (uint64_t)mpz_get_ui(tmp1)+(uint64_t)range, 0, &nump, 0, 0);
+
+            for (i = 0; i < nump; i++)
+            {
+                mpz_set_ui(tmp2, primes[i]);
+                mpz_set_ui(mp1, primes[i] - 1);
+                
+                numf = factor_tiny(mp1, flist, fobj->primes, fobj->num_p, &prng);
+
+                int j;
+                for (j = 0; j < numf; j++)
+                {
+                    if (mpz_cmp_ui(flist[j], 2) > 0)
+                    {
+                        mpz_powm(mp2, g2, flist[j], tmp2);
+
+                        if (mpz_cmp_ui(mp2, 1) == 0)
+                        {
+                            //gmp_printf("The smallest Mersenne number that %Zd divides has exponent %Zd\n",
+                            //    tmp2, flist[j]);
+                            int ebits = mpz_sizeinbase(flist[j], 2);
+                            if (ebits >= 99)
+                                expbits[99]++;
+                            else
+                                expbits[ebits]++;
+                            success++;
+                            break;
+                        }
+                    }
+                }
+
+                for (j = 0; j < numf; j++)
+                {
+                    mpz_clear(flist[j]);
+                }
+            }
+
+            printf("found %d factors from %u primes\n", success, nump);
+            printf("exponent bits:\n");
+            for (i = 20; i < 63; i++)
+                printf("\t%02d : %d\n", i, expbits[i]);
+            for (i = 63; i < 99; i++)
+                expbits[99] += expbits[i];
+            printf("\t63+: %d\n", expbits[99]);
+
+            mpz_clear(g2);
+            free(flist);
+            free(primes);
+        }
+
+        // fast approach using custom sieve:
+        // 1) sieve a range of integers to mark prime locations in a bitmap
+        // 2) shift marks to marks-1 in the bitmap
+        // 3) resieve the bitmap and on hit of a mark:
+        //      3a) check if 2^sieve_p mod markloc == 1
+        //      3b) if so, set markloc = 0
+        // for ranges above 2^64, the sieve is a partial sieve thus:
+        // 1a) sieve a range of integers to mark candidate prime locations in a bitmap
+        // 1b) tiny-prp tests of candidates to resolve primes in the bitmap 
+        // 2) shift marks to marks-1 in the bitmap
+        // 3) resieve the bitmap and on hit of a mark:
+        //      3a) check if 2^sieve_p mod markloc == 1
+        //      3b) if so, set markloc = 0
+        // 4) ecm/pm1/mpqs factor remaining marked locations
+        //      4a) check if 2^factor_p mod markloc == 1
+        //      4b) if so, set markloc = 0
+
+#endif
+
+        break;
+
+
 	default:
 		printf("unrecognized function code\n");
 		mpz_set_ui(operands[0], 0);

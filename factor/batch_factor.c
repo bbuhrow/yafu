@@ -1064,8 +1064,6 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 			print_relation_t print_relation,
             int do_prime_product) {
 
-    // qs_savefile_t *savefile,
-
     mpz_init(rb->prime_product);
 
     if (do_prime_product)
@@ -1099,7 +1097,6 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
         			(uint32_t)mpz_sizeinbase(rb->prime_product, 2));
     }
 					
-	//rb->savefile = savefile;
 	rb->print_relation = print_relation;
     rb->conversion_ratio = 0.0;
 

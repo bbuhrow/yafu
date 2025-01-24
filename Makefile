@@ -23,7 +23,7 @@ WIN64 = 0
 VBITS = 64
 
 CC = gcc
-CFLAGS = -fno-common -g -m64 -std=gnu99 -DUSE_SSE2 -fPIE -DNFS
+CFLAGS = -fno-common -g -m64 -std=gnu99 -DUSE_SSE2 -fPIE -DUSE_NFS
 WARN_FLAGS = -Wall -Wconversion
 OPT_FLAGS = -O2 -D_FILE_OFFSET_BITS=64 -DNDEBUG -D_LARGEFILE64_SOURCE -DVBITS=$(VBITS)
 OBJ_EXT = .o
@@ -46,6 +46,9 @@ LIBS += -L../gmp_install/gmp_6.2.0/lib
 INC += -I../ecm_install/7.0.5-gcc/include/
 LIBS += -L../ecm_install/7.0.5-gcc/lib/
 
+# libs for building msieve 
+MSIEVE_LIBS = -L. -L../gmp_install/gmp_6.2.0/lib
+
 # ===================== compiler options =========================
 
 ifeq ($(COMPILER),icc)
@@ -56,7 +59,6 @@ endif
 
 
 # ===================== msieve feature options =======================
-MSIEVE_LIBS = -L. -L../gmp_install/gmp_6.2.0/lib
 
 ifeq ($(OMP),1)
 	CFLAGS += -fopenmp -DHAVE_OMP

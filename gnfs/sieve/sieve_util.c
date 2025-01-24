@@ -13,6 +13,7 @@ $Id: sieve_util.c 638 2011-09-11 15:31:19Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "sieve.h"
+#include "savefile.h"
 
 /*------------------------------------------------------------------*/
 void print_relation(savefile_t *savefile, int64 a, uint32 b, 

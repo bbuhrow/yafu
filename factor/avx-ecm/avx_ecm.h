@@ -39,6 +39,7 @@ either expressed or implied, of the FreeBSD Project.
 #define MAX_WINSIZE 10
 #define BLOCKWORDS 4
 #define strto_uint64_t strtoull
+#define DIGITBITS 52
 
 #ifndef DIGITBITS
 #define DIGITBITS 52

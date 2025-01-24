@@ -907,8 +907,8 @@ void SIQS(fact_obj_t *fobj)
         if (!static_conf->in_mem)
         {
             // finalize savefile
-            qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
-            qs_savefile_close(&static_conf->obj->qs_obj.savefile);
+            savefile_flush(&static_conf->obj->qs_obj.savefile);
+            savefile_close(&static_conf->obj->qs_obj.savefile);
         }
 
         update_final(static_conf);
@@ -1003,7 +1003,7 @@ void SIQS(fact_obj_t *fobj)
                 if (!static_conf->in_mem)
                 {
                     restart_siqs(static_conf, thread_data[0].dconf);
-                    qs_savefile_open(&static_conf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+                    savefile_open(&static_conf->obj->qs_obj.savefile, SAVEFILE_APPEND);
                 }
                 else
                 {
@@ -1088,7 +1088,7 @@ void SIQS(fact_obj_t *fobj)
                 if (!static_conf->in_mem)
                 {
                     restart_siqs(static_conf, thread_data[0].dconf);
-                    qs_savefile_open(&static_conf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+                    savefile_open(&static_conf->obj->qs_obj.savefile, SAVEFILE_APPEND);
                 }
                 else
                 {
@@ -2525,7 +2525,7 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	{
         curr_poly_idx = dconf->curr_poly->index;
 		gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
-		qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
+		savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 	}
 
 	// save the data and merge into master cycle structure
@@ -2546,7 +2546,7 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
             {
                 curr_poly_idx = rel->apoly_idx;
                 gmp_sprintf(buf, "A 0x%Zx\n", sconf->poly_a_list[rel->apoly_idx]);
-                qs_savefile_write_line(&sconf->obj->qs_obj.savefile, buf);
+                savefile_write_line(&sconf->obj->qs_obj.savefile, buf);
             }
         }
 
@@ -2673,7 +2673,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	if ((uint32_t)sconf->num_r >= (sconf->factor_base->B + sconf->num_extra_relations)) 
 	{
 		// we've got enough total relations to stop		
-		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);	
+		savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);	
 		dconf->buckets->list = NULL;
 		// signal that we should proceed to post-processing
 		state = 1;
@@ -2683,7 +2683,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		// we've got some relations, but not enough to finish.
 		// whether or not this is a big job, it needed to be resumed
 		// once so treat it as if it will need to be again.  use the savefile.
-		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
+		savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 
         // don't try to do optimization of the small cutoff... it is not 
         // designed to cope with starting with a bunch of relations and poly_a's
@@ -2694,13 +2694,13 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	{
 		// no relations found, get ready for new factorization
 		// we'll be writing to the savefile as we go, so get it ready
-		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
+		savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
 		gmp_sprintf(buf,"N 0x%Zx\n", sconf->obj->qs_obj.gmp_n);
-		qs_savefile_write_line(&obj->qs_obj.savefile,buf);
-		qs_savefile_flush(&obj->qs_obj.savefile);
-		qs_savefile_close(&obj->qs_obj.savefile);
+		savefile_write_line(&obj->qs_obj.savefile,buf);
+		savefile_flush(&obj->qs_obj.savefile);
+		savefile_close(&obj->qs_obj.savefile);
 		// and get ready for collecting relations
-		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
+		savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 	}
 
 	return state;
@@ -4445,7 +4445,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
 #endif
 
-	qs_savefile_init(&obj->qs_obj.savefile, sconf->obj->qs_obj.siqs_savefile);
+	savefile_init(&obj->qs_obj.savefile, sconf->obj->qs_obj.siqs_savefile);
 
 	// default values
     if (sconf->bits < 270)
@@ -5000,11 +5000,11 @@ int update_check(static_conf_t *sconf)
                 else
                 {
                     /* skip over the first line */
-                    qs_savefile_flush(&sconf->obj->qs_obj.savefile);
-                    qs_savefile_close(&sconf->obj->qs_obj.savefile);
+                    savefile_flush(&sconf->obj->qs_obj.savefile);
+                    savefile_close(&sconf->obj->qs_obj.savefile);
 
-                    qs_savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_READ);
-                    qs_savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
+                    savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_READ);
+                    savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
 
                     // we don't know beforehand how many rels to expect, so start
                     // with some amount and allow it to increase as we read them
@@ -5014,7 +5014,7 @@ int update_check(static_conf_t *sconf)
                     plist2 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
                     curr_rel = 10000;
 
-                    while (!qs_savefile_eof(&sconf->obj->qs_obj.savefile)) {
+                    while (!savefile_eof(&sconf->obj->qs_obj.savefile)) {
                         char* start;
 
                         switch (buf[0]) {
@@ -5055,13 +5055,13 @@ int update_check(static_conf_t *sconf)
                             break;
                         }
 
-                        qs_savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
+                        savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
                     }
 
-                    qs_savefile_flush(&sconf->obj->qs_obj.savefile);
-                    qs_savefile_close(&sconf->obj->qs_obj.savefile);
+                    savefile_flush(&sconf->obj->qs_obj.savefile);
+                    savefile_close(&sconf->obj->qs_obj.savefile);
                     // get ready to collect more relations
-                    qs_savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+                    savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_APPEND);
 
                     all_relations = i;
                     num_relations = i;
@@ -5909,7 +5909,7 @@ int free_siqs(static_conf_t *sconf)
 	mpz_clear(sconf->target_a);
 
 	//free(sconf->obj->savefile.name);
-	qs_savefile_free(&sconf->obj->qs_obj.savefile);
+	savefile_free(&sconf->obj->qs_obj.savefile);
     
 
 	return 0;

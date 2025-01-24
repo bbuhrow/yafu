@@ -955,7 +955,12 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 
     if (sconf->use_dlp == 2)
     {
-
+		// In the triple large prime variation we allow
+		// the cutoff value to exceed 127, so that we can 
+		// no longer use the hi-bit mask trick to detect 
+		// likely smooth locations.  With AVX512BW it doesn't 
+		// matter since we can do a direct byte compare on 64
+		// simultaneous locations.
 #ifdef USE_AVX512BW
         if (sconf->obj->HAS_AVX512BW)
         {

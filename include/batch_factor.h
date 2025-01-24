@@ -140,8 +140,6 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     print_relation_t print_relation,
     int do_prime_product);
 
-// qs_savefile_t *savefile,
-
 void relation_batch_free(relation_batch_t *rb);
 
 /* add one relation to the batch. Note that the relation may

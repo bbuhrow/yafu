@@ -14,6 +14,7 @@ $Id: poly.c 23 2009-07-20 02:59:07Z jasonp_sf $
 
 #include <ms_common.h>
 #include "mpqs.h"
+#include "savefile.h"
 
 int sort_ascending(const void *x, const void *y);
 

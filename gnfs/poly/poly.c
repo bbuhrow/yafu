@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: poly.c 937 2013-08-08 00:19:28Z jasonp_sf $
+$Id: poly.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "poly.h"

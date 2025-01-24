@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: stage1_sieve_cpu.c 897 2013-06-22 13:16:18Z jasonp_sf $
+$Id: stage1_sieve_cpu.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <stage1.h>
@@ -200,7 +200,7 @@ static uint32
 handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 		hash_entry_t *hashtable, uint32 hashtable_size_log2,
 		p_packed_var_t *hash_array, uint32 special_q,
-		uint64 special_q_root, uint64 block_size, uint64 *inv_array)
+		uint64 special_q_root, uint64 block_size, uint64 *inv_array, uint32 *num_sizeopt)
 {
 	/* perform the hashtable search for a single special-q
 
@@ -350,6 +350,7 @@ handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 						if (handle_collision(c, p, special_q,
 							special_q_root, offset) != 0) {
 
+							(*num_sizeopt)++;
 							poly->callback(c->high_coeff,
 								c->p, c->m,
 								poly->callback_data);
@@ -458,15 +459,20 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 	uint64 *invtable = NULL;
 	double calc_hashtable_size;
 	double cpu_start_time = get_cpu_time();
+	struct timeval tstop;	// stop time of this job
+	struct timeval tstart;	// start time of this job
 	mpz_t qprod;
+	uint32 num_sizeopt = 0;
+	uint32 last_num_sizeopt = 0;
 
+	//msieve_gettimeofday(&tstart, NULL);
 	p_packed_init(&specialq_array);
 	p_packed_init(&hash_array);
 	mpz_init(qprod);
 	hash_array.sieve_size = sieve_size;
 
 	/* build all the arithmetic progressions */
-    printf("sieve_fb_reset: p_min = %u, p_max = %u\n", p_min, p_max);
+
 	sieve_fb_reset(sieve_p, p_min, p_max, 1, MAX_ROOTS);
 	while (sieve_fb_next(sieve_p, c, store_p_packed,
 			&hash_array) != P_SEARCH_DONE) {
@@ -475,6 +481,7 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 
 	num_p = hash_array.num_p;
 	num_roots = hash_array.num_roots;
+
 #if 1
 	printf("aprogs: %u entries, %u roots\n", num_p, num_roots);
 #endif
@@ -503,7 +510,7 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 	if (special_q_min == 1) {
 		quit = handle_special_q(obj, poly, c, hashtable,
 				hashtable_size_log2, &hash_array,
-				1, 0, block_size, NULL);
+				1, 0, block_size, NULL, &num_sizeopt);
 		if (quit || special_q_max == 1)
 			goto finished;
 	}
@@ -516,6 +523,10 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 
 	sieve_fb_reset(sieve_special_q, special_q_min, special_q_max, 
 			1, MAX_ROOTS);
+
+	uint32 total_q = 0;
+	uint32 total_r = 0;
+
 	while (1) {
 		p_packed_t *qptr = specialq_array.packed_array;
 		uint32 num_q;
@@ -536,6 +547,10 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 		num_q = specialq_array.num_p;
 		if (num_q == 0)
 			break;
+
+		total_q += num_q;
+		total_r += specialq_array.num_roots;
+
 #if 0
 		printf("special q: %u entries, %u roots\n", num_q, 
 					specialq_array.num_roots);
@@ -591,12 +606,14 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 						hashtable, hashtable_size_log2,
 						&hash_array, qptr->p, 
 						qptr->roots[j].start_offset,
-						block_size, invtmp);
+						block_size, invtmp, &num_sizeopt);
 				if (quit)
 					goto finished;
 			}
 
+			//msieve_gettimeofday(&tstop, NULL);
 			if (get_cpu_time() - cpu_start_time > deadline) {
+			//if (msieve_difftime(&tstart, &tstop) > deadline) {
 				quit = 1;
 				goto finished;
 			}
@@ -604,10 +621,28 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 			qptr = p_packed_next(qptr);
 			invtmp += num_p;
 		}
+
+		if (((num_sizeopt & ((1 << 10) - 1)) == 0) && (num_sizeopt != last_num_sizeopt))
+		{
+			last_num_sizeopt = num_sizeopt;
+			poly_sizeopt_t* data = (poly_sizeopt_t*)poly->callback_data;
+
+			//msieve_gettimeofday(&tstop, NULL);
+
+			double best_e = data->best_saved_combined_e;
+			double time_elapsed = get_cpu_time() - cpu_start_time; //msieve_difftime(&tstart, &tstop);
+
+			gmp_printf("coeff: %Zd, entries: %u, sizeopt: %u, "
+				"rootopt: %u, saved: %d, best_e: %1.4e, time: %1.2f sec\r",
+				c->high_coeff, total_q, num_sizeopt, data->num_rootopt, data->num_saved,
+				best_e, time_elapsed);
+		}
 	}
 
 finished:
-#if 1
+
+	printf("\n");
+#if 0
 	printf("hashtable: %u entries, %5.2lf MB\n", 
 			(uint32)1 << hashtable_size_log2,
 			(double)sizeof(hash_entry_t) *
@@ -705,7 +740,7 @@ sieve_lattice_cpu(msieve_obj *obj, poly_search_t *poly,
 		if (sieve_size == SIEVE_MAX && i > 0)
 			break;
 
-		if (num_pieces > 1) { /* randomize the special_q range */
+		if (num_pieces > 451) { /* randomize the special_q range */
 			uint32 piece_length = (special_q_max - special_q_min)
 					/ num_pieces;
 			uint32 piece = get_rand(&obj->seed1, &obj->seed2)
@@ -723,10 +758,12 @@ sieve_lattice_cpu(msieve_obj *obj, poly_search_t *poly,
 			special_q_max2 = special_q_max;
 		}
 
+#if 1
 		gmp_printf("coeff %Zd specialq %u - %u other %u - %u\n",
 				c->high_coeff,
 				special_q_min2, special_q_max2,
 				p_min, p_max);
+#endif
 
 		quit = sieve_specialq_64(obj, poly, c, sieve_size,
 				sieve_special_q, sieve_p,

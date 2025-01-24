@@ -43,6 +43,10 @@ extern "C" {
    The Intel compiler on Windows appears to have some
    bugs in its processing of GCC inline assembler code.
    These are escaped with the _ICL_WIN_ define
+
+   to print compiler predefined macros try:
+   gcc -dM -E dummy.h
+
    */
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)

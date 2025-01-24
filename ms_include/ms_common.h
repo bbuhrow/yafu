@@ -39,24 +39,6 @@ extern "C" {
 	#endif
 #endif
 
-/*---------------- SAVEFILE RELATED DECLARATIONS ---------------------*/
-
-#define BIGNUM_BUF_SIZE 500
-#define LINE_BUF_SIZE 300
-#define SAVEFILE_READ 0x01
-#define SAVEFILE_WRITE 0x02
-#define SAVEFILE_APPEND 0x04
-
-void savefile_init(savefile_t *s, char *filename);
-void savefile_free(savefile_t *s);
-void savefile_open(savefile_t *s, uint32 flags);
-void savefile_close(savefile_t *s);
-uint32 savefile_eof(savefile_t *s);
-uint32 savefile_exists(savefile_t *s);
-void savefile_rewind(savefile_t *s);
-void savefile_read_line(char *buf, size_t max_len, savefile_t *s);
-void savefile_write_line(savefile_t *s, char *buf);
-void savefile_flush(savefile_t *s);
 
 /*--------------PRIME SIEVE RELATED DECLARATIONS ---------------------*/
 

@@ -84,7 +84,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\factor\gmp-ecm;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\ms_include;..\..\factor\gmp-ecm;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_SSE41;_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
@@ -161,7 +161,6 @@
     <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul1.c" />
     <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul2.c" />
     <ClCompile Include="..\..\factor\qs\msieve\lanczos_pre.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\savefile.c" />
     <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
     <ClCompile Include="..\..\factor\qs\new_poly.c" />
     <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
@@ -203,6 +202,7 @@
     <ClInclude Include="..\..\include\prime_sieve.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\qs_impl.h" />
+    <ClInclude Include="..\..\ms_include\savefile.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

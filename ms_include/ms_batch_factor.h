@@ -16,6 +16,7 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 #define _BATCH_FACTOR_H_
 
 #include <ms_common.h>
+#include "savefile.h"
 
 #ifdef __cplusplus
 extern "C" {

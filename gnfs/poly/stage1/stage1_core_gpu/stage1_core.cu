@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: stage1_core.cu 817 2012-11-11 14:58:29Z jasonp_sf $
+$Id$
 --------------------------------------------------------------------*/
 
 #include "stage1_core.h"

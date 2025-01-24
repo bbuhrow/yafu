@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: poly_skew.h 897 2013-06-22 13:16:18Z jasonp_sf $
+$Id: poly_skew.h 1025 2018-08-19 02:20:28Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #ifndef _GNFS_POLY_POLY_SKEW_H_
@@ -53,6 +53,12 @@ typedef void (*sizeopt_callback_t)(uint32 deg, mpz_t *alg_coeffs,
 typedef struct {
 	mpz_t gmp_N;
 	uint32 degree;
+
+	// statistics on rootopt called from sizeopt
+	uint32 num_rootopt;
+	uint32_t num_saved;
+	double best_saved_combined_e;
+
 	double max_stage1_norm;
 	double max_sizeopt_norm;
 
@@ -88,9 +94,25 @@ typedef struct {
 
 	void *internal;
 
+	uint32_t num_saved;
+	double best_saved_combined_e;
+
 	rootopt_callback_t callback;
 	void *callback_data;
 } poly_rootopt_t;
+
+
+
+typedef struct {
+	FILE* all_poly_file;
+	poly_config_t* config;
+} rootopt_callback_data_t;
+
+typedef struct {
+	poly_rootopt_t* rootopt;
+	rootopt_callback_data_t* rootopt_callback;
+} sizeopt_callback_data_t;
+
 
 void poly_rootopt_init(poly_rootopt_t *data, msieve_obj *obj,
 		      rootopt_callback_t callback,

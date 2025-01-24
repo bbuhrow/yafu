@@ -13,6 +13,7 @@ $Id: sieve_line.c 982 2015-03-19 16:51:42Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "sieve.h"
+#include "savefile.h"
 
 /* sieving takes place in L1-cache-size blocks */
 #define BLOCK_SIZE 65536

@@ -14,6 +14,7 @@ $Id: gnfs.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 
 #include <ms_common.h>
 #include "gnfs.h"
+#include "savefile.h"
 
 /* The first few parameter sets (except the sieve length) are
    from GGNFS. That doesn't mean they're right for this

@@ -507,24 +507,6 @@ void reset_factobj(fact_obj_t *fobj);
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src);
 void alloc_factobj(fact_obj_t *fobj);
 
-
-//#if defined(WIN32)
-// windows machines also need these declarations for functions located
-// within common.lib or gnfs.lib, for NFS factorizations using msieve.
-void savefile_init(savefile_t *s, char *filename);
-void savefile_free(savefile_t *s);
-void savefile_open(savefile_t *s, uint32_t flags);
-void savefile_close(savefile_t *s);
-uint32_t savefile_eof(savefile_t *s);
-uint32_t savefile_exists(savefile_t *s);
-void savefile_read_line(char *buf, size_t max_len, savefile_t *s);
-void savefile_write_line(savefile_t *s, char *buf);
-void savefile_flush(savefile_t *s);
-void savefile_rewind(savefile_t *s);
-
-//#endif
-
-
 /* ============================ interface to tinyecm ============================ */
 extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
     uint64_t* lcg_state, int verbose);

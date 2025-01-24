@@ -34,6 +34,7 @@ void savefile_concat(char *filein, char *fileout, msieve_obj *mobj)
 
 	savefile_open(&mobj->savefile, SAVEFILE_APPEND);
 
+	uint32_t count = 0;
 	while (!feof(in))
 	{
 		char tmpline[GSTR_MAXSIZE], *tmpptr;
@@ -41,7 +42,10 @@ void savefile_concat(char *filein, char *fileout, msieve_obj *mobj)
 		if (tmpptr == NULL)
 			break;
 		else
+		{
 			savefile_write_line(&mobj->savefile, tmpline);
+			count++;
+		}
 	}
 	fclose(in);
 
@@ -87,7 +91,6 @@ void win_file_concat(char *filein, char *fileout)
 
 	return;
 }
-
 
 enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_job_t *job)
 {

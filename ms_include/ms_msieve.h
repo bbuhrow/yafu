@@ -22,13 +22,11 @@ extern "C" {
 	/* Lightweight factoring API */
 
 #include <util.h>
+#include "savefile.h"
 
 #ifdef HAVE_MPI
 #include <mpi.h>
 #endif
-
-#define NO_ZLIB 1
-
 
 /* version info */
 
@@ -94,29 +92,7 @@ enum msieve_flags {
 	MSIEVE_FLAG_DEEP_ECM = 0x4000,   /* perform nontrivial-size ECM */
 	MSIEVE_FLAG_NFS_ONLY = 0x8000    /* go straight to NFS */
 };
-	
-/* structure encapsulating the savefile used in a factorization */
 
-typedef struct {
-
-#if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
-	HANDLE file_handle;
-	uint32 read_size;
-	uint32 eof;
-#else
-
-#ifdef NO_ZLIB
-	FILE* fp;
-#else
-	gzFile *fp;
-#endif
-	char isCompressed;
-	char is_a_FILE;
-#endif
-	char *name;
-	char *buf;
-	uint32 buf_off;
-} savefile_t;
 
 /* One factorization is represented by a msieve_obj
    structure. This contains all the static information

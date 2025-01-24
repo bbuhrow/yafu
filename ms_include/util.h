@@ -32,20 +32,6 @@ $Id: util.h 1005 2016-11-11 15:43:21Z jasonp_sf $
 	#include <dlfcn.h>
 #endif
 
-#ifdef NO_ZLIB
-	#define gzFile   FILE
-	#define gzopen   fopen
-	#define gzclose  fclose
-	#define gzeof    feof
-	#define gzrewind rewind
-	#define gzprintf fprintf
-	#define gzputs(f,b)   fprintf(f, "%s", b)
-	#define gzgets(f,b,l) fgets(b,l,f)
-	#define gzflush(f,b)  fflush(f)
-#else
-	#include <zlib.h>
-#endif
-
 /* system-independent header files ------------------------------------*/
 
 #include <stdio.h>

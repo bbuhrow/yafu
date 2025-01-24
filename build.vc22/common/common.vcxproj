@@ -147,7 +147,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <CompileAs>Default</CompileAs>
-      <PreprocessorDefinitions>WIN32;VBITS=64;_WIN64;PTW32_STATIC_LIB;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;VBITS=64;_WIN64;PTW32_STATIC_LIB;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
     </ClCompile>
     <Lib />
@@ -211,11 +211,12 @@
     <ClInclude Include="..\..\include\mp.h" />
     <ClInclude Include="..\..\include\polyroot.h" />
     <ClInclude Include="..\..\include\thread.h" />
-    <ClInclude Include="..\..\include\util.h" />
     <ClInclude Include="..\..\ms_include\ms_batch_factor.h" />
     <ClInclude Include="..\..\ms_include\ms_common.h" />
     <ClInclude Include="..\..\ms_include\ms_gmp_xface.h" />
     <ClInclude Include="..\..\ms_include\ms_msieve.h" />
+    <ClInclude Include="..\..\ms_include\savefile.h" />
+    <ClInclude Include="..\..\ms_include\util.h" />
     <ClInclude Include="..\..\zlib\zconf.h" />
     <ClInclude Include="..\..\zlib\zlib.h" />
   </ItemGroup>

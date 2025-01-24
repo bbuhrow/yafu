@@ -237,7 +237,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\factor\gmp-ecm;..\..\ytools;..\..\ysieve;..\..\zlib;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\top\cmdParser;$(mp_dir);$(ecm_dir)include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\factor\gmp-ecm;..\..\ytools;..\..\ysieve;..\..\zlib;..\..\top\cmdParser;..\..\include;..\..\ms_include;..\..\top\aprcl;..\..\top;..\top\cmdParser;$(mp_dir);$(ecm_dir)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -261,7 +261,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\$(IntDir)libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>

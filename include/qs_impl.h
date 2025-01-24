@@ -22,6 +22,7 @@
 #include "gmp.h"
 #include "factor.h"
 #include "msieve_common.h"
+#include "savefile.h"
 
 // I've been unable to get this to run any faster, for
 // either generic or knc codebases...
@@ -60,9 +61,6 @@
 #define SS_MAX_ROOT (1 << (SS_SIGN_BIT))
 #define SS_ROOT_MASK (SS_MAX_ROOT - 1)
 #endif
-
-// this doesn't currently work
-//#define SS_POLY_BUCKET_SMALL_GROUPS
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
@@ -915,22 +913,6 @@ void reduce_qs_matrix(fact_obj_t* obj, uint32_t* nrows,
     qs_la_col_t* cols, uint32_t num_excess);
 
 void qs_free_cycle_list(qs_la_col_t* cycle_list, uint32_t num_cycles);
-
-
-/* ---------------- DECLARATIONS FOR SAVEFILE MANIPULATION -------------- */
-// copied from msieve source code
-void qs_savefile_init(qs_savefile_t* s, char* filename);
-void qs_savefile_free(qs_savefile_t* s);
-void qs_savefile_open(qs_savefile_t* s, uint32_t flags);
-void qs_savefile_close(qs_savefile_t* s);
-uint32_t qs_savefile_eof(qs_savefile_t* s);
-uint32_t qs_savefile_exists(qs_savefile_t* s);
-void qs_savefile_rewind(qs_savefile_t* s);
-void qs_savefile_read_line(char* buf, size_t max_len, qs_savefile_t* s);
-void qs_savefile_write_line(qs_savefile_t* s, char* buf);
-void qs_savefile_flush(qs_savefile_t* s);
-
-
 
 /*-------------- MPQS SQUARE ROOT RELATED DECLARATIONS ---------------------*/
 

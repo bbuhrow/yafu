@@ -9,18 +9,13 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: poly_skew.c 925 2013-07-20 17:01:02Z brgladman $
+$Id: poly_skew.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "poly_skew.h"
 
 /*------------------------------------------------------------------*/
 /* callback for root optimization */
-
-typedef struct {
-	FILE *all_poly_file;
-	poly_config_t *config;
-} rootopt_callback_data_t;
 
 static void
 rootopt_callback(void *extra, uint32 degree, 
@@ -55,9 +50,11 @@ rootopt_callback(void *extra, uint32 degree,
 	poly.combined_score = combined_score;
 	poly.skewness = skewness;
 
+#if 0
 	printf("save %le %.4lf %.2lf %le rroots %u\n", size_score,
 			root_score, skewness, combined_score,
 			num_real_roots);
+#endif
 
 	fprintf(data->all_poly_file, 
 		"# norm %le alpha %lf e %.3le rroots %u\nskew: %.2lf\n", 
@@ -76,11 +73,6 @@ rootopt_callback(void *extra, uint32 degree,
 
 /*------------------------------------------------------------------*/
 /* callbacks for size optimization */
-
-typedef struct {
-	poly_rootopt_t *rootopt;
-	rootopt_callback_data_t *rootopt_callback;
-} sizeopt_callback_data_t;
 
 static void sizeopt_callback(uint32 deg, mpz_t *alg_coeffs, mpz_t *rat_coeffs, 
 				double sizeopt_norm, double projective_alpha, 
@@ -114,17 +106,16 @@ static void sizeopt_callback_log(uint32 deg, mpz_t *alg_coeffs, mpz_t *rat_coeff
 static void stage1_callback(mpz_t ad, mpz_t p, mpz_t m, void *extra) {
 	
 	poly_sizeopt_t *data = (poly_sizeopt_t *)extra;
-
-	//gmp_printf("%Zd %Zd %Zd\n", ad, p, m);
+	
 	poly_sizeopt_run(data, ad, p, m);
 }
 
 static void stage1_callback_log(mpz_t ad, mpz_t p, mpz_t m, void *extra) {
 	
 	FILE *mfile = (FILE *)extra;
-	gmp_printf("%Zd %Zd %Zd\n", ad, p, m);
-	gmp_fprintf(mfile, "%Zd %Zd %Zd\n", ad, p, m);
-	fflush(mfile);
+	// gmp_printf("%Zd %Zd %Zd\n", ad, p, m);
+	// gmp_fprintf(mfile, "%Zd %Zd %Zd\n", ad, p, m);
+	// fflush(mfile);
 }
 
 /*------------------------------------------------------------------*/
@@ -204,6 +195,10 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 		   to file first */
 
 		if (obj->flags & MSIEVE_FLAG_NFS_POLYSIZE) {
+			sizeopt_data.best_saved_combined_e = 0.0;
+			sizeopt_data.num_rootopt = 0;
+			sizeopt_data.num_saved = 0;
+
 			poly_stage1_init(&stage1_data, 
 					stage1_callback, &sizeopt_data);
 		}
@@ -246,11 +241,11 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 				stage1_data.deadline / 3600.0);
 
 		{ /* SB: tried L[1/3,c] fit; it is no better than this */
-			double e0 = (params->digits >= 121) ? 
-						(0.0607 * params->digits + 2.25):
-				                (0.0526 * params->digits + 3.23);
-			if (degree == 4)
-				e0 = 0.0625 * params->digits + 1.69;
+			double e0 = 0.0625 * params->digits + 1.69;
+			if (degree > 4)
+				e0 = (params->digits >= 121) ?
+					(0.0635 * params->digits + 1.608) :
+					(0.0526 * params->digits + 3.23);
 			e0 = exp(-log(10) * e0); 
 #ifdef HAVE_CUDA
 			e0 *= 1.15;
@@ -277,6 +272,9 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 		   to file first */
 
 		if (obj->flags & MSIEVE_FLAG_NFS_POLYROOT) {
+			rootopt_data.best_saved_combined_e = 0.0;
+			rootopt_data.num_saved = 0;
+
 			sizeopt_callback_data.rootopt = &rootopt_data;
 			sizeopt_callback_data.rootopt_callback = &rootopt_callback_data;
 
@@ -377,7 +375,6 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 			if (gmp_sscanf(buf, "%Zd %Zd %Zd", ad, p, m) != 3)
 				continue;
 
-			//gmp_printf("poly %Zd %Zd %Zd\n", ad, p, m);
 			poly_sizeopt_run(&sizeopt_data, ad, p, m);
 			if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
 				break;
@@ -426,6 +423,8 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 						break;
 				tmp += c;
 			}
+
+			fputs(tmp, stdout);
 
 			if (gmp_sscanf(tmp, "%Zd %Zd", 
 					rat_coeffs[1], rat_coeffs[0]) != 2)

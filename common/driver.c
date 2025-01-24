@@ -13,6 +13,7 @@ $Id: driver.c 984 2015-03-28 16:26:48Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <ms_common.h>
+#include "savefile.h"
 
 /*--------------------------------------------------------------------*/
 msieve_obj * msieve_obj_new(char *input_integer, uint32 flags,

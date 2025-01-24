@@ -14,6 +14,7 @@ $Id: sieve.c 820 2012-11-17 03:26:17Z jasonp_sf $
 
 #include <ms_common.h>
 #include "mpqs.h"
+#include "savefile.h"
 
 static void collect_relations(sieve_conf_t *conf,
 			      uint32 target_relations,

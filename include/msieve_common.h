@@ -1,13 +1,7 @@
 #pragma once
 
-#define NO_ZLIB
-
-#if !defined(NO_ZLIB) && !defined(__MINGW32__) 
-#include "zlib.h"
-#else
-#define NO_ZLIB
-#endif
 #include <stdint.h>
+#include "savefile.h"
 
 #ifdef __MINGW32__
 #include <Windows.h>
@@ -85,31 +79,6 @@ enum msieve_flags {
 	MSIEVE_FLAG_DEEP_ECM = 0x4000,   /* perform nontrivial-size ECM */
 	MSIEVE_FLAG_NFS_ONLY = 0x8000    /* go straight to NFS */
 };
-
-/* structure encapsulating the savefile used in a factorization */
-
-typedef struct {
-
-#if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
-	HANDLE file_handle;
-	uint32_t read_size;
-	uint32_t eof;
-#else
-
-#ifdef NO_ZLIB
-	FILE* fp;
-#else
-	gzFile* fp;
-#endif
-	char isCompressed;
-	char is_a_FILE;
-#endif
-	char* name;
-	char* buf;
-	uint32_t buf_off;
-} savefile_t;
-
-
 
 enum msieve_factor_type {
     MSIEVE_COMPOSITE,
@@ -204,13 +173,5 @@ msieve_obj* msieve_obj_new(char* input_integer,
 	const char* nfs_args);
 
 msieve_obj* msieve_obj_free(msieve_obj* obj);
-
-
-/*---------------- SAVEFILE RELATED DECLARATIONS ---------------------*/
-
-#define LINE_BUF_SIZE 300
-#define SAVEFILE_READ 0x01
-#define SAVEFILE_WRITE 0x02
-#define SAVEFILE_APPEND 0x04
 
 

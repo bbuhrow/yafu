@@ -1064,7 +1064,7 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 				i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
 		}
 
-		qs_savefile_write_line(&obj->qs_obj.savefile, buf);		
+		savefile_write_line(&obj->qs_obj.savefile, buf);		
 	}
 
 	/* for partial relations, also update the bookeeping for

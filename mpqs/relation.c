@@ -14,6 +14,7 @@ $Id: relation.c 23 2009-07-20 02:59:07Z jasonp_sf $
 
 #include <ms_common.h>
 #include "mpqs.h"
+#include "savefile.h"
 
 #define HASH_MULT ((uint32)(2654435761UL))
 #define HASH(a) (((a) * HASH_MULT) >> (32 - LOG2_CYCLE_HASH))

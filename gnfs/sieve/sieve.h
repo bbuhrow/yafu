@@ -17,6 +17,7 @@ $Id: sieve.h 638 2011-09-11 15:31:19Z jasonp_sf $
 
 #include <ms_batch_factor.h>
 #include "gnfs.h"
+#include "savefile.h"
 
 #ifdef __cplusplus
 extern "C" {

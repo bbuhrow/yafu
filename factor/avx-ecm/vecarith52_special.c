@@ -45,10 +45,6 @@ This file is a snapshot of a work in progress, originated by Mayo
 
 #include "avx_ecm.h"
 
-#ifdef _MSC_VER
-//#define USE_AVX512F
-#endif
-
 #ifdef USE_AVX512F
 #include <immintrin.h>
 

@@ -14,6 +14,7 @@ $Id: relation.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 
 #include <ms_common.h>
 #include "gnfs.h"
+#include "savefile.h"
 
 /*--------------------------------------------------------------------*/
 static

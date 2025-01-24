@@ -13,6 +13,7 @@ $Id: duplicate.c 967 2014-06-26 02:48:22Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "filter.h"
+#include "savefile.h"
 
 /* produce <savefile_name>.d, a binary file containing the
    line numbers of relations in the savefile that should *not*

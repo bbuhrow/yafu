@@ -13,6 +13,7 @@ $Id: singleton.c 967 2014-06-26 02:48:22Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "filter.h"
+#include "savefile.h"
 
 /*--------------------------------------------------------------------*/
 void nfs_write_lp_file(msieve_obj *obj, factor_base_t *fb,

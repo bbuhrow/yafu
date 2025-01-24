@@ -2253,14 +2253,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (!sconf->in_mem)
 	{
 		/* skip over the first line */
-		qs_savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
-		qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
+		savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
+		savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 
 		//we don't know beforehand how many rels to expect, so start
 		//with some amount and allow it to increase as we read them
 		relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
 		curr_rel = 10000;
-		while (!qs_savefile_eof(&fobj->qs_obj.savefile)) {
+		while (!savefile_eof(&fobj->qs_obj.savefile)) {
 			char *start;
 
 			switch (buf[0]) {
@@ -2305,7 +2305,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				break;
 			}
 
-			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
+			savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		num_relations = i;
 	}
@@ -2412,7 +2412,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   at the same time. */
 
 	if (!sconf->in_mem)
-		qs_savefile_rewind(&fobj->qs_obj.savefile);
+		savefile_rewind(&fobj->qs_obj.savefile);
 	else
 		this_rel = 0;
 
@@ -2436,9 +2436,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		/* read in the next entity */
 		if (!sconf->in_mem)
 		{
-			if (qs_savefile_eof(&fobj->qs_obj.savefile))
+			if (savefile_eof(&fobj->qs_obj.savefile))
 				break;
-			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
+			savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		else
 		{
@@ -2646,7 +2646,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 
 	if (!sconf->in_mem)
-		qs_savefile_close(&fobj->qs_obj.savefile);
+		savefile_close(&fobj->qs_obj.savefile);
 
 	free(final_poly_index);
 	sconf->poly_list = (poly_t *)xrealloc(sconf->poly_list,

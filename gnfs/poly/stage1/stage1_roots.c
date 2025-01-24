@@ -262,9 +262,6 @@ sieve_fb_init(void *s_in, poly_coeff_t *c,
 	aprog_list_t *aprog = &s->aprog_data;
 	prime_sieve_t prime_sieve;
 
-    //printf("sieve_fb_init: f_min = %u, f_max = %u, fb_roots_min = %u, fb_roots_max = %u\n",
-    //    factor_min, factor_max, fb_roots_min, fb_roots_max);
-
 	s->degree = c->degree;
 	s->fb_only = fb_only;
 
@@ -591,12 +588,11 @@ sieve_fb_next(void *s_in, poly_coeff_t *c,
 	sieve_fb_t *s = (sieve_fb_t *)s_in;
 
 	while (1) {
-        //printf("sieve_fb_next: ");
 		if (s->avail_algos & ALGO_ENUM) {
 
 			/* first attempt to find a p by 
 			   combining smaller suitable aprogs p_i */
-            //printf("method = enum, ");
+
 			p = get_next_enum(s);
 
 			if (p == P_SEARCH_DONE) {
@@ -611,7 +607,6 @@ sieve_fb_next(void *s_in, poly_coeff_t *c,
 			/* then try to find a large prime p */
 
 			uint32 roots[MAX_POLYSELECT_DEGREE];
-            //printf("method = prime, ");
 
 			p = get_next_prime(&s->p_prime);
 
@@ -639,10 +634,7 @@ sieve_fb_next(void *s_in, poly_coeff_t *c,
 		   progressions it allows and postprocess the
 		   whole batch */
 
-        //printf("p=%u, num_roots=%u\n", p, num_roots);
-        //printf("lifting roots\n");
 		lift_roots(s, c, p, num_roots);
-        //printf("callback\n");
 		callback(p, num_roots, s->roots, extra);
 
 		return p;

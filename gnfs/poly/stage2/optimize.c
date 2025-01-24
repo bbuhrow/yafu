@@ -564,6 +564,9 @@ optimize_final(mpz_t x, mpz_t y, int64 z, poly_rootopt_t *data)
 				&num_real_roots);
 
 		if (combined_score > data->min_e) {
+			data->num_saved++;
+			if (combined_score > data->best_saved_combined_e)
+				data->best_saved_combined_e = combined_score;
 			data->callback(data->callback_data, deg, c->gmp_b, 
 					c->gmp_linb, skewness, bscore,
 					alpha_a, combined_score, 

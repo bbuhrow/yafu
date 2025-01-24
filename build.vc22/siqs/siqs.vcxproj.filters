@@ -51,9 +51,6 @@
     <ClCompile Include="..\..\factor\qs\msieve\lanczos_pre.c">
       <Filter>Source Files\msieve</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\qs\msieve\savefile.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\msieve\sqrt.c">
       <Filter>Source Files\msieve</Filter>
     </ClCompile>
@@ -174,6 +171,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\qs_impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ms_include\savefile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
