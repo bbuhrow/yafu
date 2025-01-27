@@ -167,11 +167,11 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 
     gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
-    printf("nfs: snfs form detection took %lf seconds\n", t_time);
+	if (fobj->VFLAG >= 0) printf("nfs: snfs form detection took %lf seconds\n", t_time);
 
 	if (poly->form_type == SNFS_NONE)
 	{
-		printf("nfs: couldn't find special form\n");
+		if (fobj->VFLAG >= 0) printf("nfs: couldn't find special form\n");
 		
 		snfs_clear(poly);
 		free(poly);

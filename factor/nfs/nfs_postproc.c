@@ -100,7 +100,8 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 		mpz_clear(num);
 	}
 
-	printf("%s\n",obj->input); //mp_print(mpN, 10, NULL, gstr1.s));
+	gmp_sprintf(obj->input, "%Zd", fobj->nfs_obj.gmp_n);
+	gmp_printf("%s\n", obj->input); //mp_print(mpN, 10, NULL, gstr1.s));
 	relations_needed = nfs_filter_relations(obj, fobj->nfs_obj.gmp_n);
 
 	// reset the args list

@@ -808,16 +808,24 @@ void print_factor(const char* prefix, mpz_t factor, int OBASE)
     return;
 }
 
-void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE)
+void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE)
 {
 	uint32_t i;
 	int j, v;
 	mpz_t tmp, tmp2;
+    char* tersebuf = NULL;
+    int print_terse = fobj->autofact_obj.autofact_active && (VFLAG == -2);
+
+    if (print_terse)
+    {    
+        tersebuf = (char*)xmalloc(gmp_base10(fobj->input_N) * 4);
+        strcpy(tersebuf, "");
+    }
 
 	//always print factors unless complete silence is requested
-	if (VFLAG >= 0)
+	if ((VFLAG >= 0) || print_terse)
 	{
-		printf("\n\n***factors found***\n\n");
+		if (VFLAG >= 0) printf("\n\n***factors found***\n\n");
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 1);
 
@@ -829,7 +837,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
 				for (j=0;j< flist->factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    print_factor("P", flist->factors[i].factor, OBASE);
+                    if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                    else print_factor("P", flist->factors[i].factor, OBASE);
 				}
 			}
 			else if (flist->factors[i].type == PRP)
@@ -838,7 +847,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    print_factor("PRP", flist->factors[i].factor, OBASE);
+                    if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                    else print_factor("PRP", flist->factors[i].factor, OBASE);
                 }
             }
             else if (flist->factors[i].type == COMPOSITE)
@@ -847,7 +857,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    print_factor("C", flist->factors[i].factor, OBASE);
+                    if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                    else print_factor("C", flist->factors[i].factor, OBASE);
                 }
             }
             else
@@ -882,7 +893,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
 							//gmp_printf("P%d = %Zd\n", 
                             //    gmp_base10(flist->factors[i].factor),
                             //    flist->factors[i].factor);
-                            print_factor("P", flist->factors[i].factor, OBASE);
+                            if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                            else print_factor("P", flist->factors[i].factor, OBASE);
 						}
 					}
 					else
@@ -900,7 +912,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
 							mpz_mul(tmp, tmp, flist->factors[i].factor);
 							//gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
                             //    flist->factors[i].factor);
-                            print_factor("C", flist->factors[i].factor, OBASE);
+                            if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                            else print_factor("C", flist->factors[i].factor, OBASE);
 						}
 					}
 				}
@@ -913,11 +926,13 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                             mpz_mul(tmp, tmp, flist->factors[i].factor);
                             if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
                             {
-                                print_factor("P", flist->factors[i].factor, OBASE);
+                                if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                                else print_factor("P", flist->factors[i].factor, OBASE);
                             }
                             else
                             {
-                                print_factor("PRP", flist->factors[i].factor, OBASE);
+                                if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                                else print_factor("PRP", flist->factors[i].factor, OBASE);
                             }
                         }
                     }
@@ -926,7 +941,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                         for (j = 0; j < flist->factors[i].count; j++)
                         {
                             mpz_mul(tmp, tmp, flist->factors[i].factor);
-                            print_factor("C", flist->factors[i].factor, OBASE);
+                            if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                            else print_factor("C", flist->factors[i].factor, OBASE);
                         }
                     }
                 }
@@ -935,11 +951,27 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
                     for (j = 0; j < flist->factors[i].count; j++)
                     {
                         mpz_mul(tmp, tmp, flist->factors[i].factor);
-                        print_factor("U", flist->factors[i].factor, OBASE);
+                        if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
+                        else print_factor("U", flist->factors[i].factor, OBASE);
                     }
                 }
 			}
 		}
+
+        if (print_terse)
+        {
+            if (mpz_cmp_ui(N, 1) > 0)
+            {
+                gmp_sprintf(tersebuf, "%s%Zd\n", tersebuf, N);
+            }
+            else
+            {
+                tersebuf[strlen(tersebuf) - 1] = ' ';
+            }
+            
+            gmp_printf("%Zd=%s\n", tmp, tersebuf);
+            free(tersebuf);
+        }
 
 		mpz_init(tmp2);
 		mpz_set(tmp2, N);
@@ -1070,6 +1102,8 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES,
 		}
 		mpz_clear(tmp);
 		mpz_clear(tmp2);
+
+        
 	}
 
 	return;

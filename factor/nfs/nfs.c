@@ -871,6 +871,7 @@ void nfs(fact_obj_t *fobj)
 
 				// try this hack - store a pointer to the msieve obj so that
 				// we can change a flag on abort in order to interrupt the sqrt.
+				gmp_sprintf(obj->input, "%Zd", fobj->nfs_obj.gmp_n);
 				obj_ptr = obj;
 
 				gettimeofday(&ustart, NULL);
@@ -1340,7 +1341,7 @@ void nfs(fact_obj_t *fobj)
 
 		if (NFS_ABORT)
 		{
-			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+			print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 			exit(1);
 		}
 	}

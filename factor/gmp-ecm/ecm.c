@@ -215,7 +215,7 @@ void ecm_sync_fcn(void *ptr)
     // watch for an abort
     if (ECM_ABORT)
     {
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         fobj->ecm_obj.exit_cond = ECM_EXIT_ABORT;
         //exit(1);
     }
