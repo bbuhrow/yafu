@@ -1,0 +1,172 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\filter">
+      <UniqueIdentifier>{609e7aec-aa00-4fd9-adaf-cd6e5ca1ca51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\poly">
+      <UniqueIdentifier>{630f39d0-08a5-48a3-859e-92839b74ca89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\poly\Stage1">
+      <UniqueIdentifier>{21d6d386-a3d1-450e-8bf5-6931f7d7390e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\poly\Stage2">
+      <UniqueIdentifier>{376b570d-dfed-41ed-9b4c-e93916bfb0e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sieve">
+      <UniqueIdentifier>{7fc9941c-d00f-4265-b607-29674ac3887c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sqrt">
+      <UniqueIdentifier>{12d176fe-2e98-49d6-8dcc-3bad9ab566c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\gnfs\fb.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\ffpoly.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\gf2.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\gnfs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\relation.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\filter\duplicate.c">
+      <Filter>Source Files\filter</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\filter\filter.c">
+      <Filter>Source Files\filter</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\filter\singleton.c">
+      <Filter>Source Files\filter</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\poly.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\poly_skew.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\polyutil.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\root_score.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\size_score.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\optimize.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\stage2.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\sieve\sieve_line.c">
+      <Filter>Source Files\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\sieve\sieve_util.c">
+      <Filter>Source Files\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\sqrt\sqrt.c">
+      <Filter>Source Files\sqrt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\sqrt\sqrt_a.c">
+      <Filter>Source Files\sqrt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_x.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xy.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xyz.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1.c">
+      <Filter>Source Files\poly\Stage1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_roots.c">
+      <Filter>Source Files\poly\Stage1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg45_x.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_line.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_util.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\optimize_deg6.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg5_xy.c">
+      <Filter>Source Files\poly\Stage2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_gpu.c">
+      <Filter>Source Files\poly\Stage1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\poly_param.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\common\filter\filter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\gnfs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\poly_skew.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\sqrt\sqrt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\stage2\stage2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\poly.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\sieve\sieve.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1_core_gpu\cuda_intrinsics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1_core_gpu\stage1_core.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\filter\filter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\stage1\cpu_intrinsics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\x64_support_masm.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+  </ItemGroup>
+</Project>

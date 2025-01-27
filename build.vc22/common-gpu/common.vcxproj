@@ -1,0 +1,202 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0A0DE0B6-9A9A-4B77-9F83-AEF871CDAE66}</ProjectGuid>
+    <RootNamespace>common</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30128.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;PTW32_STATIC_LIB;VBITS=64;_DEBUG;_LIB;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;PTW32_STATIC_LIB;VBITS=64;_WIN64;_DEBUG;_LIB;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;PTW32_STATIC_LIB;VBITS=64;NDEBUG;_LIB;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+    </Midl>
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;PTW32_STATIC_LIB;VBITS=64;_WIN64;NDEBUG;_LIB;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <CompileAs>Default</CompileAs>
+    </ClCompile>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\aprcl\mpz_aprcl32.c" />
+    <ClCompile Include="..\..\common\batch_factor.c" />
+    <ClCompile Include="..\..\common\driver.c" />
+    <ClCompile Include="..\..\common\filter\clique.c" />
+    <ClCompile Include="..\..\common\cuda_xface.c" />
+    <ClCompile Include="..\..\common\dickman.c" />
+    <ClCompile Include="..\..\common\expr_eval.c" />
+    <ClCompile Include="..\..\common\filter\filter.c" />
+    <ClCompile Include="..\..\common\lanczos\matmul_util.c" />
+    <ClCompile Include="..\..\common\minimize_global.c" />
+    <ClCompile Include="..\..\common\smallfact\gmp_ecm.c" />
+    <ClCompile Include="..\..\common\hashtable.c" />
+    <ClCompile Include="..\..\common\integrate.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos_io.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos_matmul.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos_pre.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_matmul0.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_matmul1.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_matmul2.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_vv.c" />
+    <ClCompile Include="..\..\common\filter\merge.c" />
+    <ClCompile Include="..\..\common\filter\merge_post.c" />
+    <ClCompile Include="..\..\common\filter\merge_pre.c" />
+    <ClCompile Include="..\..\common\filter\merge_util.c" />
+    <ClCompile Include="..\..\common\minimize.c" />
+    <ClCompile Include="..\..\common\mp.c" />
+    <ClCompile Include="..\..\common\polyroot.c" />
+    <ClCompile Include="..\..\common\prime_delta.c" />
+    <ClCompile Include="..\..\common\prime_sieve.c" />
+    <ClCompile Include="..\..\common\savefile.c" />
+    <ClCompile Include="..\..\common\filter\singleton.c" />
+    <ClCompile Include="..\..\common\smallfact\smallfact.c" />
+    <ClCompile Include="..\..\common\smallfact\squfof.c" />
+    <ClCompile Include="..\..\common\smallfact\tinyqs.c" />
+    <ClCompile Include="..\..\common\thread.c" />
+    <ClCompile Include="..\..\common\util.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\aprcl\jacobi_sum32.h" />
+    <ClInclude Include="..\..\aprcl\mpz_aprcl32.h" />
+    <ClInclude Include="..\..\common\filter\merge_util.h" />
+    <ClInclude Include="..\..\include\batch_factor.h" />
+    <ClInclude Include="..\..\include\common.h" />
+    <ClInclude Include="..\..\include\cuda_xface.h" />
+    <ClInclude Include="..\..\include\dd.h" />
+    <ClInclude Include="..\..\include\ddcomplex.h" />
+    <ClInclude Include="..\..\common\filter\filter.h" />
+    <ClInclude Include="..\..\common\filter\filter_priv.h" />
+    <ClInclude Include="..\..\common\lanczos\lanczos.h" />
+    <ClInclude Include="..\..\common\lanczos\cpu\lanczos_cpu.h" />
+    <ClInclude Include="..\..\include\gmp_xface.h" />
+    <ClInclude Include="..\..\include\integrate.h" />
+    <ClInclude Include="..\..\include\mp.h" />
+    <ClInclude Include="..\..\include\msieve.h" />
+    <ClInclude Include="..\..\include\polyroot.h" />
+    <ClInclude Include="..\..\include\thread.h" />
+    <ClInclude Include="..\..\include\util.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.targets" />
+  </ImportGroup>
+</Project>
