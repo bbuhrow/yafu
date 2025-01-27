@@ -40,64 +40,18 @@ and run it.  Files that YAFU generates are placed alonside the binary, and
 directories/files that YAFU needs are with respect to the binary location 
 (such as the ggnfs sievers, see below)
 
-Which precompiled version should I use?
+Please note that the windows executable provided here contains the most
+basic implementation of many of the factorization algorithms, in order to 
+run on the largest number of processors.  If you want to enhance yafu's 
+performance for your processor, you will have to build your own copy from 
+source.  This can be done with free tools for Windows or Linux operating 
+systems.  See below for build information.  More detailed guides can be 
+found online at mersenneforum.org.
 
-As of version 2.12, the following precompiled versions are available:
-yafu-x64-sse41.exe
-yafu-x64-avx2.exe
-yafu-x64-avx512.exe
-yafu-x64-avx512-ifma.exe
-
-SSE41, AVX2, AVX512, and AVX512-IFMA refer to instruction set extensions that
-the versions respectively support.  SIQS, ECM, and yafu's prime sieve
-all get progressively faster with more modern extensions.  
-See here for more information:
-https://en.wikipedia.org/wiki/Advanced_Vector_Extensions
-https://en.wikipedia.org/wiki/AVX-512#CPUs_with_AVX-512
-
-Pick the best one that your cpu supports.
-
-Roughly speaking:
-If you have an Intel Ice Lake, Tiger Lake, Rocket Lake, or Sapphire Rapids cpu, use avx512-ifma.
-If you have an Intel SkylakeX or certain Cannon Lake or Cascade Lake cpus, use avx512.
-If you have an Intel Haswell CPU or newer (newer than 2013), use avx2.
-If you have a Zen4 or Zen5 AMD cpu, use avx512-ifma.
-If you have another AMD cpu newer than 2015, use avx2.
-Otherwise use sse41.
-
-If you have something other than Intel or AMD, (e.g., powerPC, Arm), 
-then yafu may not work for you.
 
 Support and an active user community can be found here:
 https://www.mersenneforum.org/node/58
 
--------------------------------------------------------------------------------
-INSTALLATION WITH NUMBER FIELD SIEVE (NFS) SUPPORT
--------------------------------------------------------------------------------
-
-To run the general or special number field sieve using YAFU, you will need to 
-provide ggnfs executable files and make the location of these files known to 
-YAFU at runtime.  The easiest way to obtain the files is through Jeff 
-Gilchrist's website: http://gilchrist.ca/jeff/factoring/index.html
-
-Download the .zip file for your OS and unzip it to a directory  on your 
-computer.  The easiest way to let yafu know where these are is to create/modify  
-a yafu.ini file (which should appear in the same directory as your YAFU 
-executable) to contain a line specifying ggnfs_dir in the following way:
-ggnfs_dir=<location relative to yafu executable>
-
-For instance, if your ggnfs executables were located adjacent to
-the yafu folder in the directory tree, in a folder called ggnfs-bin, then the 
-line would be:
-ggnfs_dir=..\ggnfs-bin\
-
-The ggnfs executables accomplish the sieving portion of NFS.  The other phases
-are all handled internally to YAFU via a supporting library, msieve.  Here are
-some quick references on for more information about the number field sieve 
-or msieve:
-http://mathworld.wolfram.com/NumberFieldSieve.html
-http://en.wikipedia.org/wiki/General_number_field_sieve
-http://sourceforge.net/projects/msieve/
 
 -------------------------------------------------------------------------------
 BUILD INFORMATION
@@ -140,27 +94,11 @@ autoreconf -i
 make
 make install
 
-MSIEVE
-edit makefile to add the following to CFLAGS:
--I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
-make all NO_ZLIB=1 VBITS=128
-
-YTOOLS
-make
-
-YSIEVE
-edit makefile to add the following to CFLAGS:
--I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
-make USE_AVX2=1 USE_BMI2=1
-
 YAFU
 edit makefile to add the following to CFLAGS:
 -I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
 -I/path/to/a/ecm/install/location/include/ -L/path/to/a/ecm/install/location/lib
--I/path/to/ytools/base/dir -L/path/to/ytools/base/dir
--I/path/to/ysieve/base/dir -L/path/to/ysieve/base/dir
--I/path/to/msieve/base/dir -L/path/to/msieve/base/dir
-make yafu [NFS=1] [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1]
+make yafu [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1]
 
 Some support can be had here:
 http://www.mersenneforum.org/forumdisplay.php?f=96
@@ -175,25 +113,20 @@ version of AVX-ECM, please refer to:
 https://github.com/bbuhrow/avx-ecm
 
 
-
-
 WINDOWS MS Visual Studio
 =============
 
-Build files are available for several versions of MSVC, but really only
-build.vc22 should be used.
+Build files are available for Microsoft visual studio, available for free
+online.
 
 You will need several other visual studio projects installed and built 
 before attempting to build yafu.
 
-As of yafu version 2.12 (Nov. 2024) I get these from these locations:
+As of yafu version 3.0 (Jan 2025) I get these from these locations:
 mpir: https://github.com/BrianGladman/mpir
 ecm: https://gitlab.inria.fr/zimmerma/ecm/-/releases
 or https://github.com/sethtroisi/gmp-ecm
-pthreads: https://github.com/BrianGladman/pthreads (needed for msieve)
-msieve: https://sourceforge.net/projects/msieve/
-ytools: https://github.com/bbuhrow/ytools
-ysieve: https://github.com/bbuhrow/ysieve
+pthreads: https://github.com/BrianGladman/pthreads
 
 These all come with MSVC build files that should work.
 
