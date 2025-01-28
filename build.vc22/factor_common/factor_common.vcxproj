@@ -160,6 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\gmp-ecm\microecm.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />

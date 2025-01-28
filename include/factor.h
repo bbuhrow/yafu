@@ -509,27 +509,7 @@ void print_factors(fact_obj_t* fobj, yfactor_list_t* factorlist, mpz_t N, int VF
 void clear_factor_list(yfactor_list_t* fobj);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 
-/* ============================ interface to tinyecm ============================ */
-extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
-    uint64_t* lcg_state, int verbose);
 
-// getfactor_tecm() returns 0 if unable to find a factor of n,
-// Otherwise it returns 1 and a factor of n in argument f.
-// 
-// if the input is known to have no small factors, set is_arbitrary=0, 
-// otherwise, set is_arbitrary=1 and a few curves targetting small factors
-// will be run prior to the standard sequence of curves for the input size.
-//  
-// Prior to your first call of getfactor_tecm(), set *pran = 0  (or set it to
-// some other arbitrary value); after that, don't change *pran.
-// FYI: *pran is used within this file by a random number generator, and it
-// holds the current value of a pseudo random sequence.  Your first assigment
-// to *pran seeds the sequence, and after seeding it you don't want to
-// change *pran, since that would restart the sequence.
-int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran);
-void getfactor_tecm_x8_list(uint64_t* n, uint64_t* f, int target_bits, uint32_t num_in, uint64_t* pran);
-int getfactor_tecm_x8(mpz_t n, mpz_t f, int target_bits, uint64_t* pran);
-int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1);
 
 /* =============== interface to various small-factor-finding routines =========== */
 uint64_t spbrent(uint64_t N, uint64_t c, int imax);

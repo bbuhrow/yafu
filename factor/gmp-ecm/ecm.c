@@ -89,7 +89,6 @@ void split_residue_file(int curves_run, int nthreads, char *base_filename)
     char fname_in[80];
     sprintf(fname_in, "%s.txt", base_filename);
     FILE* fid = fopen(fname_in, "r");
-    fid = fopen(fname_in, "r");
     if (fid != NULL)
     {
         char fname[80];
@@ -108,31 +107,46 @@ void split_residue_file(int curves_run, int nthreads, char *base_filename)
             // load balancing.
             sprintf(fname, "%s_%d.txt", base_filename, i);
             FILE* fid_out = fopen(fname, "w");
-            for (j = 0; j < curves_per_thread; j++)
+            if (fid_out != NULL)
             {
-                // need the ability to parse an arbitrary length line
+                for (j = 0; j < curves_per_thread; j++)
+                {
+                    // need the ability to parse an arbitrary length line
+                    char line[8192];
+                    if ((fgets(line, 8192, fid) == NULL) || feof(fid))
+                    {
+                        printf("expected more lines in %s.txt\n", base_filename);
+                        break;
+                    }
+                    fputs(line, fid_out);
+                }
+                fclose(fid_out);
+            }
+            else
+            {
+                printf("could not open %s_%d.txt to write\n", base_filename, i);
+            }
+
+        }
+        sprintf(fname, "%s_%d.txt", base_filename, i);
+        FILE* fid_out = fopen(fname, "w");
+        if (fid_out != NULL)
+        {
+            while (!feof(fid))
+            {
                 char line[8192];
                 if ((fgets(line, 8192, fid) == NULL) || feof(fid))
                 {
-                    printf("expected more lines in %s.txt\n", base_filename);
                     break;
                 }
                 fputs(line, fid_out);
             }
             fclose(fid_out);
         }
-        sprintf(fname, "%s_%d.txt", base_filename, i);
-        FILE* fid_out = fopen(fname, "w");
-        while (!feof(fid))
+        else
         {
-            char line[8192];
-            if ((fgets(line, 8192, fid) == NULL) || feof(fid))
-            {
-                break;
-            }
-            fputs(line, fid_out);
+            printf("could not open %s_%d.txt to write\n", base_filename, i);
         }
-        fclose(fid_out);
         fclose(fid);
     }
     else
@@ -838,7 +852,8 @@ void ecm_process_init(fact_obj_t *fobj)
     {
         // check that the file actually exists... print a warning if not and
         // resort to internal ecm.
-        if (NULL == fopen(fobj->ecm_obj.ecm_path, "rb"))
+        FILE* fid = fopen(fobj->ecm_obj.ecm_path, "rb");
+        if (NULL == fid)
         {
             printf("ecm: ECM executable does not exist at %s\n"
                 "ecm: using internal single threaded ECM...\n",
@@ -847,6 +862,7 @@ void ecm_process_init(fact_obj_t *fobj)
         }
         else
         {
+            fclose(fid);
             fobj->ecm_obj.use_external = 1;
         }
     }

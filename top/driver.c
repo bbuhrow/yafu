@@ -29,6 +29,7 @@ code to the public domain.
 #include "cofactorize.h"
 #include <ecm.h>
 #include <immintrin.h>
+#include <stdio.h>
 
 #if defined(__unix__)
 #include <termios.h>
@@ -52,7 +53,7 @@ void helpfunc(char* s);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
 void prepare_batchfile(char *input_exp);
-char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *code);
+char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *code, int num);
 void finalize_batchline(yafu_obj_t* yobj);
 int exp_is_open(char *line, int firstline);
 
@@ -86,6 +87,7 @@ int main(int argc, char *argv[])
     info_t comp_info;
     int i;
     int ini_success;
+    int batchnum;
 
 #if defined(__unix__)
 
@@ -132,6 +134,7 @@ int main(int argc, char *argv[])
     {
         yafu_obj.USEBATCHFILE = 1;
         strcpy(yafu_obj.batchfilename, options->batchfile);
+        batchnum = 1;
     }
     if (options->rand_seed == 0)
     {
@@ -399,7 +402,8 @@ int main(int argc, char *argv[])
 		if (yafu_obj.USEBATCHFILE)
 		{
 			int code;
-            input_line = process_batchline(&yafu_obj, input_line, indup, &code);
+            input_line = process_batchline(&yafu_obj, input_line, indup, &code, batchnum);
+            batchnum++;
 			if (code == 1)
 			{
                 //printf("finalizing batchline and exiting\n");
@@ -592,6 +596,7 @@ int main(int argc, char *argv[])
     free(options);
     //soe_finalize(sdata);
     //free(sdata);
+
 
 #if defined(__unix__)
     for (i = 0; i < CMDHIST_SIZE; i++)
@@ -1225,20 +1230,17 @@ void finalize_batchline(yafu_obj_t* yobj)
 
         int code;
 
-        if (code = remove("_bkup"))
+        code = remove("_bkup");
+        if (code)
         {
             printf("!! unable to remove _bkup file: code %d\n", code);
-        }
-        if (code = remove("__tmpbatchfile"))
-        {
-            printf("!! unable to remove __tmpbatchfile: code %d\n", code);
         }
 	}
 
 	return;
 }
 
-char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *code)
+char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *code, int num)
 {
 	int nChars, j, i;
 	char *line, tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
@@ -1273,16 +1275,16 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 		while (1)
 		{
 			ptr = fgets(tmpline,GSTR_MAXSIZE,batchfile);
-            strcpy(line + strlen(line), tmpline);
+            strncpy(line + strlen(line), tmpline, GSTR_MAXSIZE);
 
-            //printf("reading a line... line is now: %s\n", line);
+            //printf("line = %s, length = %d\n", tmpline, strlen(tmpline));
 
 			// stop if we didn't read anything
 			if (feof(batchfile))
 			{
                 if (strlen(line) > 0)
                 {
-                    //printf("last line: %s\n", line);
+                    printf("last line: %s\n", line);
                     break;
                 }
 				printf("eof; done processing batchfile\n");
@@ -1301,8 +1303,11 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 				return input_exp;
 			}
 
-            //printf("line = %s\n", line);
+            //printf("line = %s, length = %d\n", line, strlen(line));
             //printf("last character is %02x\n", line[strlen(line) - 1]);
+
+            if (strlen(line) == 0)
+                break;
 
 			// if we got the end of the line, stop reading
 			if ((line[strlen(line)-1] == 0xa) ||
@@ -1313,19 +1318,13 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE) * sizeof(char));
 		} 
 
+        //printf("got end-of-line.  full line = %s\n", line);
+        //printf("last character is %02x\n", line[strlen(line) - 1]);
+
 		// remove LF and CRs and other unprintable characters from line
 		nChars = 0;
 		for (j=0; j<strlen(line); j++)
 		{
-			//switch (line[j])
-			//{
-			//case 13:
-			//case 10:
-			//	break;
-			//default:
-			//	line[nChars++] = line[j];
-			//	break;
-			//}
             if (line[j] > 31)
                 line[nChars++] = line[j];
 		}
@@ -1333,7 +1332,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 
 	} while ((strlen(line) == 0) && !(feof(batchfile)));
 
-    //printf("loop exit with line length %d. characters: ", strlen(line));
+    //printf("loop exit with line length %d characters: ", strlen(line));
     //for (i = 0; i < strlen(line); i++)
     //{
     //    printf("%02x ", line[i]);
@@ -1380,7 +1379,6 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 
 		// close the batchfile
 		fclose(batchfile);		
-
 	}
 
 	//ignore blank lines
@@ -1420,7 +1418,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 
 	if (yobj->VFLAG >= 0)
 	{
-		printf("=== Starting work on batchfile expression ===\n");
+		printf("=== Starting work on batchfile expression #%d ===\n", num);
 		printf("%s\n",input_exp);
 		printf("=============================================\n");
 		fflush(stdout);

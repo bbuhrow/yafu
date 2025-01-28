@@ -21,6 +21,7 @@ code to the public domain.
 #include "qs.h"
 #include "qs_impl.h"
 #include "ytools.h"
+#include "tinyecm.h"
 
 int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG, int knmod8)
 {
@@ -192,7 +193,6 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
         //     }
         // }
 
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC)
         if (fobj->qs_obj.flags != 12345)
         {
             if (fobj->logfile != NULL)
@@ -276,10 +276,6 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
             }
         }
 
-        
-#else
-        i = 0;
-#endif
 
         if (i == 0)
         {
@@ -290,11 +286,62 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
                 {
                     char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
                     logprint(fobj->logfile,
-                        "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+                        "tiny_qs failed to find factors; starting tiny-ecm on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
                     free(s);
                 }
             }
-            smallmpqs(fobj);
+
+			int found = 0;
+			do
+			{
+				uint64_t lcg = 42;
+				found = getfactor_tecm(fobj->qs_obj.gmp_n, f1, 0, &lcg);
+				mpz_tdiv_r(f2, fobj->qs_obj.gmp_n, f1);
+				if (mpz_cmp_ui(f2, 0) == 0)
+				{
+					found = 1;
+
+					add_to_factor_list(fobj->factors, f1,
+						fobj->VFLAG, fobj->NUM_WITNESSES);
+
+					if (fobj->qs_obj.flags != 12345)
+					{
+						if (fobj->logfile != NULL)
+						{
+							char* s = mpz_get_str(NULL, 10, f1);
+							logprint(fobj->logfile,
+								"prp%d = %s\n", gmp_base10(f1), s);
+							free(s);
+						}
+					}
+
+					mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
+
+					if (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0)
+					{
+						if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
+						{
+							add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
+								fobj->VFLAG, fobj->NUM_WITNESSES);
+
+							if (fobj->qs_obj.flags != 12345)
+							{
+								if (fobj->logfile != NULL)
+								{
+									char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
+									logprint(fobj->logfile,
+										"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+									free(s);
+								}
+							}
+
+							mpz_set_ui(fobj->qs_obj.gmp_n, 1);
+						}
+					}
+				}
+			} while (!found);
+
+
         }
 
         mpz_clear(f1);

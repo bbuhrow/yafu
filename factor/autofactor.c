@@ -1526,10 +1526,13 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	{
 		FILE *flog;
 		flog = fopen(fobj->flogname,"a");
-		logprint(flog,"current ECM pretesting depth: %1.6f\n", work_done);
-		logprint(flog,"scheduled %u curves at B1=%u toward target "
-			"pretesting depth of %1.6f\n", fwork->curves, fwork->B1, target_digits);
-        if (flog != NULL) fclose(flog);
+		if (flog != NULL)
+		{
+			logprint(flog, "current ECM pretesting depth: %1.6f\n", work_done);
+			logprint(flog, "scheduled %u curves at B1=%u toward target "
+				"pretesting depth of %1.6f\n", fwork->curves, fwork->B1, target_digits);
+			fclose(flog);
+		}
 	}
 
 	return;
