@@ -86,7 +86,6 @@ int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat);
 
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t r2modn, mpz_t n)
 {
-    int x, bits;
     int nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS + 
         ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0);
 
@@ -416,9 +415,21 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 
 /********************* start of Perig's 128-bit code **********************/
 // Note: slightly modified modular subtract at the end
+#ifdef _MSC_VER
+
+#else
+#define USE_PERIG_128BIT
+#endif
 
 #ifdef USE_PERIG_128BIT
+
+
+#ifdef _MSC_VER
+
+#else
 typedef __uint128_t uint128_t;
+#endif
+
 
 // borrow::diff = a - b - borrow_in
 #define INLINE_ASM 1
@@ -431,6 +442,8 @@ static inline uint8_t my_sbb64(uint8_t borrow_in, uint64_t a, uint64_t b, uint64
 	c = __builtin_usubll_overflow(a, b, (unsigned long long*)diff);
 	c |= __builtin_usubll_overflow(*diff, borrow_in, (unsigned long long*)diff);
 	return c;
+#elif defined(_MSC_VER)
+	return _subborrow_u64(borrow_in, a, b, (unsigned long long*)diff);
 #else
 	if (__builtin_constant_p(borrow_in) && borrow_in == 0) {
 		if (__builtin_constant_p(a) && a == 0) {
@@ -479,11 +492,16 @@ static void ciosSubtract128(uint64_t* res_lo, uint64_t* res_hi, uint64_t carries
 		t_hi = n_hi;
 		b = my_sbb64(0, n_lo, mod_lo, &n_lo);
 		b = my_sbb64(b, n_hi, mod_hi, &n_hi);
+#ifdef _MSC_VER
+		b = my_sbb64(b, carries, 0, &carries);
+#else
 		if (__builtin_constant_p(carries) && carries == 0) {
 		}
 		else {
 			b = my_sbb64(b, carries, 0, &carries);
 		}
+#endif
+		
 	} while (b == 0);
 	// get the saved values when a borrow occurs
 	*res_lo = t_lo;
@@ -493,6 +511,137 @@ static void ciosSubtract128(uint64_t* res_lo, uint64_t* res_hi, uint64_t carries
 static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
 {
+
+#ifdef _MSC_VER
+	uint64_t a_lo = *res_lo, a_hi = *res_hi;
+	uint64_t cshi, cslo, cchi, cclo;
+	uint64_t t0, t1, t2, t3, m, ignore;
+
+	//cc = (uint128_t)a_lo * b_lo;	// #1
+	//t0 = (uint64_t)cc;
+	//cc = cc >> 64;
+	cclo = _umul128(a_lo, b_lo, &cchi);
+	t0 = cclo;
+	cclo = cchi;
+
+	//cc += (uint128_t)a_lo * b_hi;	// #2
+	cslo = _umul128(a_lo, b_hi, &cshi);
+	cchi = _addcarry_u64(0, cclo, cslo, &cclo);
+	cchi += cshi;
+	
+	//t1 = (uint64_t)cc;
+	//cc = cc >> 64;
+	//t2 = (uint64_t)cc;
+	t1 = cclo;
+	t2 = cchi;
+#if PARANOID
+	assert(cc >> 64 == 0);
+#endif
+
+	m = t0 * mmagic;	// #3
+	//cs = (uint128_t)m * mod_lo;	// #4
+	cslo = _umul128(m, mod_lo, &cshi);
+
+	//cs += t0;
+	//cs = cs >> 64;
+	cshi += _addcarry_u64(0, t0, cslo, &cslo);
+	cslo = cshi;
+
+	//cs += (uint128_t)m * mod_hi;	// #5
+	//cs += t1;
+	cclo = _umul128(m, mod_hi, &cchi);
+	cchi += _addcarry_u64(0, cclo, cslo, &cclo);
+	cchi += _addcarry_u64(0, t1, cclo, &cclo);
+
+	//t0 = (uint64_t)cs;
+	//cs = cs >> 64;
+	t0 = cclo;
+	cslo = cchi;
+	
+	//cs += t2;
+	cshi = _addcarry_u64(0, t2, cslo, &cslo);
+
+	//t1 = (uint64_t)cs;
+	//cs = cs >> 64;
+	//t2 = (uint64_t)cs;
+	t1 = cslo;
+	t2 = cshi;
+
+#if PARANOID
+	assert(cs >> 64 == 0);
+#endif
+
+	//cc = (uint128_t)a_hi * b_lo;	// #6
+	//cc += t0;
+	//t0 = (uint64_t)cc;
+	//cc = cc >> 64;
+	cclo = _umul128(a_hi, b_lo, &cchi);
+	cchi += _addcarry_u64(0, cclo, t0, &cclo);
+	t0 = cclo;
+	cclo = cchi;
+	
+	//cc += (uint128_t)a_hi * b_hi;	// #7
+	//cc += t1;
+	//t1 = (uint64_t)cc;
+	//cc = cc >> 64;
+	cslo = _umul128(a_hi, b_hi, &cshi);
+	cshi += _addcarry_u64(0, cclo, cslo, &cslo);
+	cshi += _addcarry_u64(0, cslo, t1, &cslo);
+	t1 = cslo;
+	cclo = cshi;
+
+	//cc += t2;
+	//t2 = (uint64_t)cc;
+	//cc = cc >> 64;
+	//t3 = (uint64_t)cc;
+	cchi = _addcarry_u64(0, cclo, t2, &cclo);
+	t2 = cclo;
+	t3 = cchi;
+
+#if PARANOID
+	assert(cc >> 64 == 0);
+#endif
+
+	m = t0 * mmagic;	// #8
+	//cs = (uint128_t)m * mod_lo;	// #9
+	//cs += t0;
+	//cs = cs >> 64;
+	cslo = _umul128(m, mod_lo, &cshi);
+	cshi += _addcarry_u64(0, t0, cslo, &cslo);
+	cslo = cshi;
+
+	//cs += (uint128_t)m * mod_hi;	// #10
+	//cs += t1;
+	cclo = _umul128(m, mod_hi, &cchi);
+	cchi += _addcarry_u64(0, cclo, cslo, &cclo);
+	cchi += _addcarry_u64(0, t1, cclo, &cclo);
+
+	//t0 = (uint64_t)cs;
+	//cs = cs >> 64;
+	t0 = cclo;
+	cslo = cchi;
+
+	//cs += t2;
+	cshi = _addcarry_u64(0, t2, cslo, &cslo);
+
+	//t1 = (uint64_t)cs;
+	//cs = cs >> 64;
+	t1 = cslo;
+	cslo = cshi;
+
+	//cs += t3;
+	//t2 = (uint64_t)cs;
+	cshi = _addcarry_u64(0, t3, cslo, &cslo);
+	t2 = cslo;
+
+	if (t2) {
+		unsigned char carry = _subborrow_u64(0, t0, mod_lo, &t0);
+		_subborrow_u64(carry, t1, mod_hi, &t1);
+		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
+	}
+
+
+#else
 	uint64_t a_lo = *res_lo, a_hi = *res_hi;
 	uint128_t cs, cc;
 	uint64_t t0, t1, t2, t3, m, ignore;
@@ -559,6 +708,7 @@ static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
 	}
 
+#endif
 	*res_lo = t0;
 	*res_hi = t1;
 }
@@ -569,6 +719,11 @@ static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 static void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
 {
+#ifdef _MSC_VER
+	*res_lo = b_lo;
+	*res_hi = b_hi;
+	ciosModMul128(res_lo, res_hi, b_lo, b_hi, mod_lo, mod_hi, mmagic);
+#else
 	uint128_t cs, cc, b_lohi;
 	uint64_t t0, t1, t2, t3, m, ignore;
 
@@ -636,6 +791,9 @@ static void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 
 	*res_lo = t0;
 	*res_hi = t1;
+
+#endif
+
 }
 #endif
 
@@ -673,7 +831,9 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 	w[0] = t[0];
 	w[1] = t[1];
 	return;
-#endif
+
+#else
+
 
 	// integrate multiply and reduction steps, alternating
 	// between iterations of the outer loops.
@@ -781,6 +941,7 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 
 #endif
 
+#endif
 	return;
 }
 
@@ -789,7 +950,9 @@ void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 #ifdef USE_PERIG_128BIT
 	ciosModSqr128(&w[0], &w[1], u[0], u[1], mdata->n[0], mdata->n[1], mdata->rho);
 	return;
-#endif
+
+#else
+
 
 	// integrate multiply and reduction steps, alternating
 	// between iterations of the outer loops.
@@ -824,6 +987,8 @@ void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 #else
 
     mulmod128(u, u, w, mdata);
+
+#endif
 
 #endif
 	return;
