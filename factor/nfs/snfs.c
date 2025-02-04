@@ -533,7 +533,11 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				//printf("c1 = %d, i = %d, j = %d, c2 = %d\n", c1, i, j, c2);
 
 				if ((c1 == 1) && (c2 == 1) && (sign == NEGATIVE) && (j % 2) == 0)
+				{
+					// with no leading coefficients, a -1 constant term, and
+					// even exponent, the exponent can be divided by 2.
 					j /= 2;
+				}
 
 				form->form_type = SNFS_BRENT;
 				form->coeff1 = c1;
@@ -1213,9 +1217,10 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 	franks[0][0] = 1;
 	cranks[0] = 1;
 
+	if (VFLAG > 2) printf("gen: finding primitive factor of exponent %d\n", e);
 	// rank 1 is a list of the distinct odd factors.
 	j=0;
-	if (VFLAG > 1) printf("gen: rank 1 terms: ");
+	if (VFLAG > 2) printf("gen: rank 1 terms: ");
 	for (i=0; i<nf; i++)
 	{
 		if (f[i] & 0x1)
@@ -1225,11 +1230,11 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 			{
 				// distinct
 				franks[1][j++] = f[i];
-				if (VFLAG > 1) printf("%d ", f[i]);
+				if (VFLAG > 2) printf("%d ", f[i]);
 			}
 		}
 	}
-	if (VFLAG > 1) printf("\n");
+	if (VFLAG > 2) printf("\n");
 	cranks[1] = j;
 	nr = j + 1;
 
@@ -1252,35 +1257,35 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 	{
 		franks[2][0] = franks[1][0] * franks[1][1];
 		cranks[2] = 1;
-		if (VFLAG > 1) printf("gen: rank 2 term: %d\n", franks[2][0]);
+		if (VFLAG > 2) printf("gen: rank 2 term: %d\n", franks[2][0]);
 	}
 	else if (cranks[1] == 3)
 	{
 		// combinations of 2 primes
 		m=0;
-		if (VFLAG > 1) printf("gen: rank 2 terms: ");
+		if (VFLAG > 2) printf("gen: rank 2 terms: ");
 		for (j=0; j<cranks[1]-1; j++)
 		{
 			for (k=j+1; k<cranks[1]; k++)
 			{
 				franks[2][m++] = franks[1][j] * franks[1][k];
-				if (VFLAG > 1) printf("%d ", franks[2][m-1]);
+				if (VFLAG > 2) printf("%d ", franks[2][m-1]);
 			}
 		}
 		cranks[2] = m;
-		if (VFLAG > 1) printf("\n");
+		if (VFLAG > 2) printf("\n");
 
 		// combinations of 3 primes
 		franks[3][0] = franks[1][0] * franks[1][1] * franks[1][2];
 		cranks[3] = 1;
-		if (VFLAG > 1) printf("gen: rank 3 term: %d\n", franks[3][0]);
+		if (VFLAG > 2) printf("gen: rank 3 term: %d\n", franks[3][0]);
 	}
 
 	// for exponents with repeated or even factors, find the multiplier
 	mult = e;
 	for (i=0; i<cranks[1]; i++)
 		mult /= franks[1][i];
-	if (VFLAG > 1) printf("gen: base exponent multiplier: %d\n", mult);
+	if (VFLAG > 2) printf("gen: base exponent multiplier: %d\n", mult);
 
 	// form the primitive factor, following the rank system of
 	// http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
@@ -1312,7 +1317,7 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 1) gmp_printf("gen: multiplying by %Zd^%d %c %Zd^%d = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c %Zd^%d = %Zd\n", 
 						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
 
 				}
@@ -1326,7 +1331,7 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 1) gmp_printf("gen: multiplying by %Zd^%d %c 1 = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c 1 = %Zd\n", 
 						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mul(n, n, term);
@@ -1353,7 +1358,7 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 1) gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n", 
 						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
 				}
 				else
@@ -1366,7 +1371,7 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 1) gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n", 
 						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mod(t, n, term);
@@ -1376,12 +1381,43 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 		}
 	}
 
-	mpz_set(poly->primitive, n);
-
-	if (mpz_cmp(n, poly->n) < 0)
+	mpz_tdiv_r(poly->primitive, poly->n, n);
+	if (mpz_cmp_ui(poly->primitive, 0) != 0)
 	{
-		gmp_printf("gen: found primitive cofactor < input number:\ngen: %Zd\n", n);		
-		mpz_set(poly->n, n);
+		// we found a primitive factor that doesn't divide our
+		// input cofactor.  This primitive factor is therefore 
+		// a factor of some larger power of the target polynomial
+		// that we were supplied a smaller cofactor of.
+		// see if any part of the discovered primitive factor can 
+		// be used
+		mpz_gcd(t, poly->n, n);
+		if (mpz_cmp_ui(t, 1) > 0)
+		{
+			// GCD of the primitive factor we discovered and our input discovered
+			// a divisor.  Is it ever possible that this divisor is not useful?
+			// i.e., that if we divide it out, what we are left with is a no-longer-snfsable
+			// number that is more difficult than the original SNFS-able input?
+			// we can't know unless we *don't* divide it out and continue with SNFS
+			// poly generation, and then later compare everything.  
+			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor %Zd \n", n);
+			if (VFLAG > 0) gmp_printf("gen: found factor of input with GCD: %Zd\n", t);
+			// keep the discovered factor
+			mpz_set(poly->primitive, t);
+			// and don't reduce the input polynomial.
+			// this will cause gen_brent_poly (if that is our caller)
+			// to deal with the factor
+			//mpz_set(poly->n, poly->primitive);
+		}
+	}
+	else
+	{
+		mpz_set(poly->primitive, n);
+
+		if (mpz_cmp(n, poly->n) < 0)
+		{
+			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor < input number:\ngen: %Zd\n", n);
+			mpz_set(poly->n, n);
+		}
 	}
 
 	mpz_clear(n);
@@ -1460,8 +1496,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 			if (fobj->VFLAG > 0)
 			{
-				printf("nfs: snfs primitive factor is a probable prime\nnfs: ");
-				gmp_printf("%Zd\n", poly->primitive);
+				gmp_printf("nfs: snfs primitive factor %Zd is a probable prime\n", poly->primitive);
 			}
 
 			char c[4];
@@ -1487,13 +1522,25 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				}
 			}
 
-			mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
+			gmp_printf("nfs: residue is %Zd\n", fobj->nfs_obj.gmp_n);
 			*npolys = 0;
 			return NULL;
 
 		}
 		else
 		{
+			// it's not prime, but what is left over might be.  either way, add it 
+			// to our factor list.
+			mpz_tdiv_r(t, fobj->nfs_obj.gmp_n, poly->primitive);
+			if ((mpz_cmp_ui(t, 0) == 0) && (mpz_cmp_ui(poly->primitive, 1) > 0))
+			{
+				mpz_tdiv_q(t, fobj->nfs_obj.gmp_n, poly->primitive);
+				//gmp_printf("fac: adding residue %Zd to the factor list\n", t);
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_set(fobj->nfs_obj.gmp_n, poly->primitive);
+			}
+
 			if (fobj->LOGFLAG)
 			{
 				FILE* f = fopen(fobj->flogname, "a");
@@ -1508,6 +1555,20 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			}
 		}
     }
+	else if (mpz_cmp_ui(poly->primitive, 0) > 0)
+	{
+		// we found a factor of the input that isn't a primitive factor
+		add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
+
+		// reduce the input and keep going
+		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
+		//mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+		if (fobj->VFLAG > 0)
+			gmp_printf("nfs: continuing with residue %Zd\n", fobj->nfs_obj.gmp_n);
+
+		*npolys = 0;
+		return NULL;
+	}
     else
     {
 		if (fobj->LOGFLAG)

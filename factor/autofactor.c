@@ -357,6 +357,16 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	double t_time;
 	uint32_t  curves_done;
 
+	if (mpz_cmp_ui(b, 1) <= 0)
+	{
+		gmp_printf("asked to do work on input = %Zd\n", b);
+		printf("here are the factors I know about:\n");
+		print_factors(fobj, fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+		gmp_printf("here was the original input: %Zd\n", fobj->N);
+		printf("please report this bug\n");
+		exit(1);
+	}
+
 	gettimeofday(&tstart, NULL);
 
 	switch (method)
@@ -603,6 +613,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		if (fobj->VFLAG > 0)
 			printf("pretesting / nfs ratio was %1.2f\n", 
 				fwork->total_time / t_time); 
+
 		break;
 
 	default:
@@ -1248,9 +1259,11 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		int gnfs_size;
 
 		if (fobj->VFLAG > 0)
+		{
 			printf("fac: generating an SNFS polynomial to assess ECM effort\n");
+		}
 
-        fobj->VFLAG = -1;
+        //fobj->VFLAG = -1;
 
 		mpz_set(fobj->nfs_obj.gmp_n, b);
 		poly = snfs_find_form(fobj);
@@ -1265,6 +1278,13 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
             polys = gen_brent_poly(fobj, poly, &npoly);
         }
 
+		// it's possible that poly generation found a primitive factor
+		// so we need to update our input.  If not this should
+		// have no effect.
+		mpz_set(b, fobj->nfs_obj.gmp_n);
+		//gmp_printf("after polygen, b = %Zd, nfs->gmp_n = %Zd, primitive = %Zd\n",
+		//	b, fobj->nfs_obj.gmp_n, poly->primitive);
+
 		// then scale and rank them
 		snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
 		npoly = snfs_rank_polys(fobj, polys, npoly);
@@ -1272,13 +1292,64 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         fobj->VFLAG = tmpV;
 
 		// and test the best one, compared to gnfs or qs, depending on 
-        // which one will run.
-		if (npoly > 0)
-			gnfs_size = est_gnfs_size_via_poly(&polys[0]);
+        // which one will run.  
+		if (mpz_cmp_ui(poly->primitive, 0) > 0)
+		{
+			// if gen_brent_poly found a primitive factor, it is put into
+			// the factor list.  if what's left over is below the QS threshold
+			// then we can stop with the SNFS detection
+			gnfs_size = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+			if (gnfs_size < fobj->autofact_obj.qs_snfs_xover)
+			{
+				// if the primitive factor size is small enough
+				// we don't need to bother with NFS at all (S or G).
+				// don't consider the qs/snfs cutoff any more
+				fobj->autofact_obj.has_snfs_form = 0;
+			}
+		}
 		else
+		{
 			gnfs_size = 999999;
+		}
 
-		if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
+		if (npoly > 0)
+		{
+			// pick the smaller of the gnfs-equivalent SNFS size of the best
+			// polynomial or the size of the primitive factor, if one was found.
+			gnfs_size = MIN(gnfs_size, est_gnfs_size_via_poly(&polys[0]));
+		}
+		
+		if (gnfs_size < fobj->autofact_obj.qs_snfs_xover)
+		{
+			// this is the case where we're keeping a small primitive 
+			// factor to continue working on.  reassess target_digits for ECM.
+			numdigits = gnfs_size;
+
+			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
+			{
+				target_digits = 1. * (double)numdigits / 3.;
+			}
+			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
+			{
+				target_digits = 2. * (double)numdigits / 9.;
+			}
+			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+			{
+				target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
+			}
+			else
+			{
+				target_digits = 4. * (double)numdigits / 13.;
+			}
+
+			if (fobj->VFLAG >= 0)
+			{
+				printf("fac: ecm effort reset to %1.2f for primitive factor of size %d\n",
+					target_digits, numdigits);
+			}
+
+		}
+		else if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
 		{
 			// Finally - to the best of our knowledge this will be a SNFS job.
 			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
