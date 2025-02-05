@@ -71,7 +71,7 @@ int nfs_check_special_case(fact_obj_t *fobj)
 	// below a certain amount, revert to SIQS
 
     if ((size < fobj->autofact_obj.qs_snfs_xover) ||
-        ((size < fobj->nfs_obj.min_digits) && (fobj->autofact_obj.has_snfs_form != 1)))
+        ((size < fobj->nfs_obj.min_digits) && (fobj->autofact_obj.has_snfs_form < 1)))
 	{
 		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);

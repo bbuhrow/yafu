@@ -1187,7 +1187,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	have_tune = check_tune_params(fobj);		
 
 	// set target pretesting depth, depending on user selection and whether or not
-	// the input is both big enough and snfsable...
+	// the input is both big enough and snfsable.  First we need to figure out
+	// if the input is SNFSable, if we haven't already (has_snfs_form < 0), and
+	// if large enough.
     if ((numdigits >= fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
     {
         mpz_set(fobj->nfs_obj.gmp_n, b);
@@ -1204,7 +1206,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
         if (poly != NULL)
         {
-            fobj->autofact_obj.has_snfs_form = 1;
+            fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
             // The actual poly is not needed now, so just get rid of it.
             snfs_clear(poly);
             free(poly);
@@ -1218,6 +1220,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 #endif
 	}
 	
+	// set an ECM target depth based on any user-supplied plan
     if (fobj->autofact_obj.only_pretest > 1)
     {
         target_digits = fobj->autofact_obj.only_pretest;
@@ -1240,7 +1243,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
     }
 
 #ifdef USE_NFS
-	if ((fobj->autofact_obj.has_snfs_form == 1) && (fobj->nfs_obj.gnfs == 0) && 
+	if ((fobj->autofact_obj.has_snfs_form > 0) && (fobj->nfs_obj.gnfs == 0) && 
         (strcmp(fobj->autofact_obj.plan_str,"custom") != 0) &&
         (fobj->autofact_obj.only_pretest <= 1))
 	{
@@ -1282,6 +1285,21 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// so we need to update our input.  If not this should
 		// have no effect.
 		mpz_set(b, fobj->nfs_obj.gmp_n);
+
+		// it's also possible that a detected primitive factor is prime,
+		// and completes the factorization.  If so we are done.
+		if (mpz_cmp_ui(b, 1) == 0)
+		{
+			snfs_clear(poly);
+			free(poly);
+			for (i = 0; i < npoly; i++)
+			{
+				snfs_clear(&polys[i]);
+			}
+			free(polys);
+			return state_done;
+		}
+
 		//gmp_printf("after polygen, b = %Zd, nfs->gmp_n = %Zd, primitive = %Zd\n",
 		//	b, fobj->nfs_obj.gmp_n, poly->primitive);
 
@@ -1395,6 +1413,19 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         }
         free(polys);
 	}
+	else if (fobj->nfs_obj.gnfs == 1) 
+	{
+		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - GNFS specified\n");
+	}
+	else if (strcmp(fobj->autofact_obj.plan_str, "custom") == 0)
+	{
+		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - custom pretest plan specified\n");
+	}
+	else if (fobj->autofact_obj.only_pretest > 1)
+	{
+		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - pretest bound specified\n");
+	}
+
 #endif
 
 	// get the current amount of work done - only print status prior to 
@@ -2186,7 +2217,7 @@ void factor(fact_obj_t *fobj)
 
                 if (poly != NULL)
                 {
-                    fobj->autofact_obj.has_snfs_form = 1;
+                    fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
                     // The actual poly is not needed now, so just get rid of it.
                     snfs_clear(poly);
                     free(poly);

@@ -1406,7 +1406,6 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 			// and don't reduce the input polynomial.
 			// this will cause gen_brent_poly (if that is our caller)
 			// to deal with the factor
-			//mpz_set(poly->n, poly->primitive);
 		}
 	}
 	else
@@ -1530,10 +1529,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		}
 		else
 		{
-			// it's not prime, but what is left over might be.  either way, add it 
-			// to our factor list.
+			// it's not prime.  If it has a non-trivial residue with the input
+			// number, add the residue to the factor list.
 			mpz_tdiv_r(t, fobj->nfs_obj.gmp_n, poly->primitive);
-			if ((mpz_cmp_ui(t, 0) == 0) && (mpz_cmp_ui(poly->primitive, 1) > 0))
+			if ((mpz_cmp_ui(t, 0) == 0) && (mpz_cmp_ui(poly->primitive, 1) > 0) &&
+				(mpz_cmp(fobj->nfs_obj.gmp_n, poly->primitive) < 0))
 			{
 				mpz_tdiv_q(t, fobj->nfs_obj.gmp_n, poly->primitive);
 				//gmp_printf("fac: adding residue %Zd to the factor list\n", t);
