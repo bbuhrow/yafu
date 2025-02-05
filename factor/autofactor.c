@@ -1699,6 +1699,11 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_60digit_curves = 0;
 	fwork->ecm_65digit_curves = 0;
 
+	int i;
+	for (i = 0; i < NUM_ECM_LEVELS; i++)
+	{
+		fwork->tlevels[i] = 0.0;
+	}
     
 	// preload work structure with curves appropriate to the amount
 	// of specified initial work
