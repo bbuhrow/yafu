@@ -25,7 +25,6 @@ code to the public domain.
 void init_factobj(fact_obj_t* fobj)
 {
     uint32_t seed1, seed2;
-    int i;
 
     // initialize general stuff in fobj
     get_random_seeds(&seed1, &seed2);
@@ -41,6 +40,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->NUM_WITNESSES = 1;
     fobj->OBASE = 10;
     fobj->refactor_depth = 0;
+    fobj->OUTPUT_TERSE = 0;
+    fobj->VFLAG = 0;
 
     // get space for everything
     alloc_factobj(fobj);
@@ -223,6 +224,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->autofact_obj.stopge = -1;
     fobj->autofact_obj.stopprime = 0;
     fobj->autofact_obj.check_stop_conditions = 0;
+    fobj->autofact_obj.max_siqs = -1;
+    fobj->autofact_obj.max_nfs = -1;
 
     //pretesting plan used by factor()
     fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
@@ -372,9 +375,7 @@ void alloc_factobj(fact_obj_t *fobj)
 
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
 {
-    uint32_t seed1, seed2;
     int i;
-
 
     dest->seed1 = src->seed1;
     dest->seed2 = src->seed2;
@@ -386,6 +387,10 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->LOGFLAG = src->LOGFLAG;
     dest->NUM_WITNESSES = src->NUM_WITNESSES;
     dest->OBASE = src->OBASE;
+    dest->VFLAG = src->VFLAG;
+    dest->OUTPUT_TERSE = src->OUTPUT_TERSE;
+    dest->THREADS = src->THREADS;
+    dest->LATHREADS = src->LATHREADS;
 
     // initialize stuff for rho	
     dest->rho_obj.iterations = src->rho_obj.iterations;
@@ -549,6 +554,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->autofact_obj.stople = src->autofact_obj.stople;
     dest->autofact_obj.stopprime = src->autofact_obj.stopprime;
     dest->autofact_obj.check_stop_conditions = src->autofact_obj.check_stop_conditions;
+    dest->autofact_obj.max_siqs = src->autofact_obj.max_siqs;
+    dest->autofact_obj.max_nfs = src->autofact_obj.max_siqs;
 
     //pretesting plan used by factor()
     dest->autofact_obj.yafu_pretest_plan = src->autofact_obj.yafu_pretest_plan;
@@ -614,6 +621,8 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
 	int found = 0, v = 0;
 
     flist->total_factors++;
+
+    //gmp_printf("adding %Zd to factor list\n", n);
 
 	// look to see if this factor is already in the list
     for (i = 0; i < flist->num_factors && !found; i++)
@@ -795,7 +804,7 @@ void print_factor(const char* prefix, mpz_t factor, int OBASE)
     // could also print the size in base-X digits but that doesn't seem right...
     if (OBASE == 8)
     {
-        gmp_printf("%s%d = %Zo\n", prefix, gmp_base10(factor), factor);
+        gmp_printf("%s%do = 0o%Zo\n", prefix, mpz_sizeinbase(factor, 8), factor);
     }
     else if (OBASE == 10)
     {
@@ -803,7 +812,17 @@ void print_factor(const char* prefix, mpz_t factor, int OBASE)
     }
     else if (OBASE == 16)
     {
-        gmp_printf("%s%d = %Zx\n", prefix, gmp_base10(factor), factor);
+        gmp_printf("%s%dx = 0x%Zx\n", prefix, mpz_sizeinbase(factor, 16), factor);
+    }
+    else if (OBASE == 2)
+    {
+        int i;
+        printf("%s%db = 0b", prefix, mpz_sizeinbase(factor, 2));
+        for (i = mpz_sizeinbase(factor, 2) - 1; i >= 0; i--)
+        {
+            printf("%d", mpz_tstbit(factor, i));
+        }
+        printf("\n");
     }
     return;
 }
@@ -814,18 +833,23 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 	int j, v;
 	mpz_t tmp, tmp2;
     char* tersebuf = NULL;
-    int print_terse = fobj->autofact_obj.autofact_active && (VFLAG == -2);
+    char* tersebuf2 = NULL;
+    int maxlen;
+    int print_terse = fobj->OUTPUT_TERSE;
+
 
     if (print_terse)
     {    
-        tersebuf = (char*)xmalloc(gmp_base10(fobj->input_N) * 4);
+        maxlen = gmp_base10(fobj->input_N) + 1;
+        tersebuf = (char*)xmalloc(maxlen * 4);
+        tersebuf2 = (char*)xmalloc(maxlen);
         strcpy(tersebuf, "");
     }
 
 	//always print factors unless complete silence is requested
 	if ((VFLAG >= 0) || print_terse)
 	{
-		if (VFLAG >= 0) printf("\n\n***factors found***\n\n");
+		if (VFLAG >= 0) printf("\n\n***factors found***\n");
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 1);
 
@@ -837,8 +861,11 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 				for (j=0;j< flist->factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                    else print_factor("P", flist->factors[i].factor, OBASE);
+                    if (print_terse) {
+                        gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor); 
+                        strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                    }
+                    print_factor("P", flist->factors[i].factor, OBASE);
 				}
 			}
 			else if (flist->factors[i].type == PRP)
@@ -847,8 +874,11 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                    else print_factor("PRP", flist->factors[i].factor, OBASE);
+                    if (print_terse) {
+                        gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                        strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                    }
+                    print_factor("PRP", flist->factors[i].factor, OBASE);
                 }
             }
             else if (flist->factors[i].type == COMPOSITE)
@@ -857,8 +887,11 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
                 for (j = 0; j < flist->factors[i].count; j++)
                 {
                     mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                    else print_factor("C", flist->factors[i].factor, OBASE);
+                    if (print_terse) {
+                        gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                        strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                    }
+                    print_factor("C", flist->factors[i].factor, OBASE);
                 }
             }
             else
@@ -893,8 +926,11 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 							//gmp_printf("P%d = %Zd\n", 
                             //    gmp_base10(flist->factors[i].factor),
                             //    flist->factors[i].factor);
-                            if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                            else print_factor("P", flist->factors[i].factor, OBASE);
+                            if (print_terse) {
+                                gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                                strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                            }
+                            print_factor("P", flist->factors[i].factor, OBASE);
 						}
 					}
 					else
@@ -912,8 +948,11 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 							mpz_mul(tmp, tmp, flist->factors[i].factor);
 							//gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
                             //    flist->factors[i].factor);
-                            if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                            else print_factor("C", flist->factors[i].factor, OBASE);
+                            if (print_terse) {
+                                gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                                strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                            }
+                            print_factor("C", flist->factors[i].factor, OBASE);
 						}
 					}
 				}
@@ -926,13 +965,19 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
                             mpz_mul(tmp, tmp, flist->factors[i].factor);
                             if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
                             {
-                                if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                                else print_factor("P", flist->factors[i].factor, OBASE);
+                                if (print_terse) {
+                                    gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                                    strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                                }
+                                print_factor("P", flist->factors[i].factor, OBASE);
                             }
                             else
                             {
-                                if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                                else print_factor("PRP", flist->factors[i].factor, OBASE);
+                                if (print_terse) {
+                                    gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                                    strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                                }
+                                print_factor("PRP", flist->factors[i].factor, OBASE);
                             }
                         }
                     }
@@ -941,8 +986,11 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
                         for (j = 0; j < flist->factors[i].count; j++)
                         {
                             mpz_mul(tmp, tmp, flist->factors[i].factor);
-                            if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                            else print_factor("C", flist->factors[i].factor, OBASE);
+                            if (print_terse) {
+                                gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                                strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                            }
+                            print_factor("C", flist->factors[i].factor, OBASE);
                         }
                     }
                 }
@@ -951,27 +999,15 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
                     for (j = 0; j < flist->factors[i].count; j++)
                     {
                         mpz_mul(tmp, tmp, flist->factors[i].factor);
-                        if (print_terse) gmp_sprintf(tersebuf, "%s%Zd*", tersebuf, flist->factors[i].factor);
-                        else print_factor("U", flist->factors[i].factor, OBASE);
+                        if (print_terse) {
+                            gmp_sprintf(tersebuf2, "%Zd*", flist->factors[i].factor);
+                            strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                        }
+                        print_factor("U", flist->factors[i].factor, OBASE);
                     }
                 }
 			}
 		}
-
-        if (print_terse)
-        {
-            if (mpz_cmp_ui(N, 1) > 0)
-            {
-                gmp_sprintf(tersebuf, "%s%Zd\n", tersebuf, N);
-            }
-            else
-            {
-                tersebuf[strlen(tersebuf) - 1] = ' ';
-            }
-            
-            gmp_printf("%Zd=%s\n", tmp, tersebuf);
-            free(tersebuf);
-        }
 
 		mpz_init(tmp2);
 		mpz_set(tmp2, N);
@@ -1100,10 +1136,26 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
                 }
 			}			
 		}
+
+        if (print_terse)
+        {
+            if (mpz_cmp_ui(tmp2, 1) > 0)
+            {
+                gmp_sprintf(tersebuf2, "%Zd\n", tmp2);
+                strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+            }
+            else
+            {
+                tersebuf[strlen(tersebuf) - 1] = ' ';
+            }
+
+            gmp_printf("\n***factorization:***\n%Zd=%s\n", fobj->input_N, tersebuf);
+            free(tersebuf);
+            free(tersebuf2);
+        }
+
 		mpz_clear(tmp);
 		mpz_clear(tmp2);
-
-        
 	}
 
 	return;

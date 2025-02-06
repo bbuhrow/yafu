@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 115
+#define NUMOPTIONS 117
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -96,6 +96,7 @@ typedef struct
     uint32_t no_clk_test;
     int json_pretty;
     int obase;
+    int terse_output;
 
     // qs options
     uint32_t siqsB;
@@ -197,6 +198,8 @@ typedef struct
     int stopk;
     int strict;
     int check_stop_conditions;
+    int max_siqs;
+    int max_nfs;
 
     // prime finding options
     uint32_t pfile;

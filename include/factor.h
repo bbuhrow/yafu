@@ -375,7 +375,7 @@ typedef struct
 
     //balance of ecm and various sieve methods
     double target_pretest_ratio;
-    int has_snfs_form;			// 1 = input has snfs form
+    int has_snfs_form;			// 1-4 = input has snfs form (number corresponds to snfs_form_e)
                                 // 0 = input does not have snfs form
                                 // -1 = input has not been checked yet
 
@@ -405,6 +405,8 @@ typedef struct
     int stopk;
     int stop_strict;
     int check_stop_conditions;
+    int max_siqs;
+    int max_nfs;
 
     enum pretest_plan yafu_pretest_plan;
     char plan_str[1024];
@@ -468,6 +470,7 @@ typedef struct
     int NUM_WITNESSES;
     int num_threads;
     int OBASE;
+    int OUTPUT_TERSE;
 
     // computer info
     double MEAS_CPU_FREQUENCY;

@@ -1492,9 +1492,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
                 (fobj->autofact_obj.has_snfs_form)) ||
                 (numdigits > fobj->autofact_obj.qs_gnfs_xover)) &&
 				(numdigits >= 75))
-				return state_nfs;
+				next_state = state_nfs;
 			else
-				return state_qs;			
+				next_state = state_qs;
 		}
 		else
 		{
@@ -1516,7 +1516,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
                 {
                     printf("fac: tune params scheduling SIQS work\n");
                 }
-                return state_qs;
+				next_state = state_qs;
             }
             else
             {
@@ -1524,8 +1524,40 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
                 {
                     printf("fac: tune params scheduling NFS work\n");
                 }
-                return state_nfs;
+				next_state = state_nfs;
             }
+		}
+	}
+
+	if (next_state == state_nfs) 
+	{
+		if ((fobj->autofact_obj.max_nfs > 0) && (gmp_base10(b) > fobj->autofact_obj.max_nfs))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: NFS job size larger than specified maximum, finishing\n");
+			}
+			return state_done;
+		}
+		else
+		{
+			return next_state;
+		}
+	}
+
+	if (next_state == state_qs)
+	{
+		if ((fobj->autofact_obj.max_siqs > 0) && (gmp_base10(b) > fobj->autofact_obj.max_siqs))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: SIQS job size larger than specified maximum, finishing\n");
+			}
+			return state_done;
+		}
+		else
+		{
+			return next_state;
 		}
 	}
 
@@ -2986,28 +3018,54 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 		if (nump > 0)
 		{
+			int* printed = (int*)xmalloc(flist->num_factors * sizeof(int));
+			for (i = 0; i < flist->num_factors; i++)
+			{
+				printed[i] = 0;
+			}
+
 			fprintf(fid, "\t\"factors-prime\":[");
 			for (i = 0; i < flist->num_factors; i++)
 			{
+				// if already printed, move on
+				if (printed[i])
+					continue;
+
+				int k;
 				if (flist->factors[i].type == PRIME)
 				{
-					// don't redo APR-CL calculations already performed by add_to_factor_list
-					for (j = 0; j < flist->factors[i].count - 1; j++)
+					// if there is a smaller number than this one, print it first (sorts prime factors)
+					k = i;
+					for (j = i+1; j < flist->num_factors; j++)
 					{
-						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+						if ((mpz_cmp(flist->factors[j].factor, flist->factors[i].factor) < 0) &&
+							(printed[j] == 0))
+						{
+							k = j;		// set next index to print
+							i = i - 1;	// consider this number again on the next iteration
+							break;
+						}
+					}
+
+					// don't redo APR-CL calculations already performed by add_to_factor_list
+					for (j = 0; j < flist->factors[k].count - 1; j++)
+					{
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[k].factor);
 					}
 
 					if (printedp == (nump - 1))
 					{
-						gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
+						gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[k].factor, lf);
 					}
 					else
 					{
-						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[k].factor);
 					}
 					printedp++;
+					printed[k] = 1;
 				}
 			}
+			free(printed);
 		}
 
 		if (numprp > 0)

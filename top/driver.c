@@ -378,6 +378,11 @@ int main(int argc, char *argv[])
         process_expression("OBASE=16;", &calc_metadata, 0, 1);
         fobj->OBASE = 16;
     }
+    else if (options->obase == 2)
+    {
+        process_expression("OBASE=2;", &calc_metadata, 0, 1);
+        fobj->OBASE = 2;
+    }
 
     //test_dlp_composites();
 
@@ -1859,7 +1864,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.stop_strict = options->strict;
     fobj->autofact_obj.stopprime = options->stopprime;
     fobj->autofact_obj.check_stop_conditions = options->check_stop_conditions;
-
+    fobj->autofact_obj.max_siqs = options->max_siqs;
+    fobj->autofact_obj.max_nfs = options->max_nfs;
 
     // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
     fobj->factors->aprcl_prove_cutoff = options->aprcl_p;
@@ -1867,6 +1873,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->factors->aprcl_display_cutoff = options->aprcl_d;
 
     fobj->VFLAG = options->verbosity;
+    fobj->OUTPUT_TERSE = options->terse_output;
     if (strlen(options->factorlog) == 0)
     {
         fobj->LOGFLAG = 0;

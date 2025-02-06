@@ -80,7 +80,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
-    "obase", "minrels", "stopk", "stop_strict", "terse"};
+    "obase", "minrels", "stopk", "stop_strict", "terse",
+    "max_siqs", "max_nfs"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -200,7 +201,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): Minimum relations to find in NFS before trying to filter",
     "(Integer < 32-bit): Stop factor() after finding k factors",
     "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)",
-    "                  : Set verbosity to suppress all output except the results of a factorization",
+    "                  : Also output a one-line terse summary of the complete factorization found",
+    "(Integer < 32-bit): do not start SIQS on composites above this size",
+    "(Integer < 32-bit): do not start NFS on composites above this size"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -231,7 +234,8 @@ int needsArg[NUMOPTIONS] = {
     1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
-    1,1,1,0
+    1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
+    1,1
 };
 
 // command line option aliases, specified by '--'
@@ -260,7 +264,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", ""
+    "", "", "", "", "",
+    "", ""
 };
 
 
@@ -1107,13 +1112,16 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[110]) == 0)
     {
         // argument "OBASE"
-        options->obase = atoi(arg);
-        if ((options->obase != 8) && (options->obase != 10) && (options->obase != 16))
+        int b = atoi(arg);
+        if ((b == 2) || (b == 8) || (b == 10) || (b == 16))
         {
-            printf("*** argument obase must be either 8,10,or 16 ***\n");
+            options->obase = b;
+        }
+        else
+        {
+            printf("*** argument obase must be either 2,8,10,or 16 ***\n");
             options->obase = 10;
         }
- 
     }
     else if (strcmp(opt, OptionArray[111]) == 0)
     {
@@ -1122,8 +1130,10 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[112]) == 0)
     {
-        // argument "stopk"
+        // argument "stopk".  also sets strict, which includes
+        // trial division and rho factors in this number (why shouldn't it?)
         options->stopk = atoi(arg);
+        options->strict = 1;
     }
     else if (strcmp(opt, OptionArray[113]) == 0)
     {
@@ -1133,7 +1143,17 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[114]) == 0)
     {
         // terse
-        options->verbosity = -2;
+        options->terse_output = 1;
+    }
+    else if (strcmp(opt, OptionArray[115]) == 0)
+    {
+        // max_siqs
+        options->max_siqs = atoi(arg);
+    }
+    else if (strcmp(opt, OptionArray[116]) == 0)
+    {
+        // max_nfs
+        options->max_nfs = atoi(arg);
     }
     else
     {
@@ -1203,11 +1223,13 @@ options_t* initOpt(void)
     options->no_clk_test = 1;
     options->json_pretty = 0;
     options->obase = 10;
+    options->terse_output = 1;
 
     // autofact options
     options->no_ecm = 0;
     options->pretest_ratio = 4.0 / 13.0;
     options->xover = 95;
+    options->qs_snfs_xover = 95;
     options->one_factor = 0;
     strcpy(options->opfile, "");
     strcpy(options->offile, "");
@@ -1226,6 +1248,8 @@ options_t* initOpt(void)
     options->strict = 0;
     options->stopprime = 0;
     options->check_stop_conditions = 0;
+    options->max_siqs = -1;
+    options->max_nfs = -1;
     
     // nfs options
     strcpy(options->nfs_outfile, "nfs.dat");
@@ -1245,7 +1269,6 @@ options_t* initOpt(void)
     options->lathreads = 1;
     options->filt_bump = 5;
     options->force_gnfs = 0;
-    options->qs_snfs_xover = 95;
     options->snfs_testsieve_threshold = 160;
     strcpy(options->testsieve, "");
     strcpy(options->poly_method, "avg");

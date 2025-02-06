@@ -1582,6 +1582,15 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                 {
                     gmp_printf("%Zo\n", tmp);
                 }
+                else if (OBASE == BIN)
+                {
+                    int i;
+                    for (i = mpz_sizeinbase(tmp, 2) - 1; i >= 0; i--)
+                    {
+                        printf("%d", mpz_tstbit(tmp, i));
+                    }
+                    printf("\n");
+                }
             }
         }
     }
@@ -2442,6 +2451,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // bail).
         fobj->nfs_obj.snfs = 1;
         mpz_set(fobj->N, operands[1]);
+        mpz_set(fobj->input_N, operands[1]);
         mpz_set(fobj->nfs_obj.snfs_cofactor, operands[1]);
 
         if (mpz_sizeinbase(fobj->nfs_obj.snfs_cofactor, 10) < fobj->nfs_obj.min_digits)
@@ -2516,6 +2526,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 54:
         // pm1 - one argument
         if (check_args(funcnum, nargs)) break;
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->N, operands[0]);
         mpz_set(fobj->pm1_obj.gmp_n, operands[0]);
         pollard_loop(fobj);
@@ -2524,6 +2535,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
     case 55:
         // pp1 - two arguments, one optional
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->N, operands[0]);
         if (nargs == 2)
         {
@@ -2550,6 +2562,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // rho - one argument
         if (check_args(funcnum, nargs)) break;
 
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->N, operands[0]);
         mpz_set(fobj->rho_obj.gmp_n, operands[0]);
         brent_loop(fobj);
@@ -2558,6 +2571,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
     case 57:
         // trial - two arguments
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->N, operands[0]);
         if (nargs == 2)
         {
@@ -2589,6 +2603,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
         mpz_init(gmpz);
 
+        mpz_set(fobj->input_N, operands[0]);
         n64 = sp_shanks_loop(operands[0], fobj);
         print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
         mpz_set_64(operands[0], n64);
@@ -2598,6 +2613,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
@@ -2667,6 +2683,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("***********RUN %d***********\n", j + 1);
             mpz_urandomb(operands[2], gmp_randstate, k);
             mpz_set(fobj->N, operands[2]);
+            mpz_set(fobj->input_N, operands[2]);
             factor(fobj);
             mpz_set(operands[0], fobj->N);
             print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
@@ -2677,6 +2694,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 62:
         // ecm - two arguments
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, operands[0]);
         if (nargs == 2)
         {
             k = mpz_get_ui(operands[1]);
@@ -2736,6 +2754,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         mpz_set(mp2, operands[0]);
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, operands[0]);
         k = mpz_get_ui(operands[1]);
         factor(fobj);
 
@@ -2766,6 +2785,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         mpz_set(mp2, operands[0]);
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, operands[0]);
         factor(fobj);
         mpz_set(operands[0], mp2);
         mpz_tdiv_q(mp1, mp2, fobj->factors->factors[0].factor);
@@ -2787,6 +2807,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         if (strlen(fobj->flogname) > 0)
         {
@@ -2906,6 +2927,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (nargs == 2)
         {
             mpz_set(fobj->N, operands[1]);
+            mpz_set(fobj->input_N, operands[1]);
             mpz_set(fobj->div_obj.gmp_n, operands[1]);
             n64 = mpz_get_64(operands[2]);
             j = 1;
@@ -2913,6 +2935,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         else if (nargs == 3)
         {
             mpz_set(fobj->N, operands[0]);
+            mpz_set(fobj->input_N, operands[0]);
             mpz_set(fobj->div_obj.gmp_n, operands[0]);
             n64 = mpz_get_64(operands[1]);
             j = mpz_get_ui(operands[2]);
@@ -2933,6 +2956,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
@@ -3116,6 +3140,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
 
     case 77:
+
+
+#if 0
         // vpm1
         {
             FILE* workfile;
@@ -3163,6 +3190,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         }
 
         vecPM1(fobj);
+#endif
+
         break;
 
     case 78:
@@ -3353,7 +3382,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // run special tests.  previously had just dropped these
         // into driver.c 
         
-        //test_dlp_composites();
+        test_dlp_composites();
 
 #if 0
         if (0)
