@@ -1,0 +1,1380 @@
+gnfs-lasieve4I11e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 649999
+FBsize 52795+0 (deg 4), 97181+0 (deg 1)
+Sorted factor base on side 0: 1: 16467 2: 16372
+Sorted factor base on side 1: 1: 93670
+total yield: 68694, q=660001 (0.00037 sec/rel) ETA 0h00m)
+748 Special q, 1443 reduction iterations
+
+reports: 88792938->13263592->12183309->2865179->2865179->2865179->71261 (813206)
+
+Total yield: 68694
+milliseconds total: Sieve 4800 Sched 2658 medsched 2830
+TD 4334 (Init 404, MPQS 388) Sieve-Change 10841
+TD side 0: init/small/medium/large/search: 137 481 184 159 1027
+sieve: init/small/medium/large/search: 450 1506 147 126 467
+TD side 1: init/small/medium/large/search: 24 403 169 156 707
+sieve: init/small/medium/large/search: 167 1008 152 134 643
+aborts: 0 0
+Expected yield/cost: 3.177e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 39491 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I12e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 899999
+FBsize 71848+0 (deg 4), 135071+0 (deg 1)
+Sorted factor base on side 0: 1: 22608 2: 22846
+Sorted factor base on side 1: 1: 131560
+total yield: 73186, q=905011 (0.00040 sec/rel) ETA 0h00m)
+354 Special q, 670 reduction iterations
+
+reports: 105975745->13714805->12286324->3855799->3855799->3833443->133199 (2076721)
+
+Total yield: 73186
+milliseconds total: Sieve 6995 Sched 4096 medsched 4339
+TD 7110 (Init 463, MPQS 1377) Sieve-Change 6929
+TD side 0: init/small/medium/large/search: 198 622 261 290 1406
+sieve: init/small/medium/large/search: 435 2428 223 276 691
+TD side 1: init/small/medium/large/search: 38 651 231 292 1165
+sieve: init/small/medium/large/search: 173 1677 220 302 570
+aborts: 0 0
+Expected yield/cost: 1.769e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 115509 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 1599999
+FBsize 121315+0 (deg 5), 220792+0 (deg 1)
+Sorted factor base on side 0: 1: 54909 2: 31407
+Sorted factor base on side 1: 1: 217281
+total yield: 10370, q=1601023 (0.00155 sec/rel) ETA 0h00m)
+72 Special q, 214 reduction iterations
+reports: 13680917->3742530->3370815->876107->861469->755682->22478 (363419)
+
+Total yield: 10370
+milliseconds total: Sieve 4653 Sched 3896 medsched 2687
+TD 2520 (Init 136, MPQS 242) Sieve-Change 2362
+TD side 0: init/small/medium/large/search: 74 340 128 210 427
+sieve: init/small/medium/large/search: 165 1993 127 259 218
+TD side 1: init/small/medium/large/search: 33 299 120 207 280
+sieve: init/small/medium/large/search: 90 1267 131 274 129
+aborts: 0 0
+Expected yield/cost: 2694  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 19784 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 2699999
+FBsize 196412+0 (deg 5), 354970+0 (deg 1)
+Sorted factor base on side 0: 1: 90188 2: 51343
+Sorted factor base on side 1: 1: 351459
+total yield: 5170, q=2701007 (0.00257 sec/rel) ETA 0h00m)
+54 Special q, 159 reduction iterations
+reports: 8911235->1930241->1749652->458187->452464->400926->11876 (202453)
+
+Total yield: 5170
+milliseconds total: Sieve 3376 Sched 3365 medsched 2022
+TD 1570 (Init 73, MPQS 151) Sieve-Change 2980
+TD side 0: init/small/medium/large/search: 48 177 93 168 231
+sieve: init/small/medium/large/search: 126 1360 94 220 154
+TD side 1: init/small/medium/large/search: 28 171 88 166 162
+sieve: init/small/medium/large/search: 67 951 98 226 79
+aborts: 0 0
+Expected yield/cost: 1302  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 10574 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 6499999
+FBsize 445329+0 (deg 5), 527153+0 (deg 1)
+Sorted factor base on side 0: 1: 205697 2: 118035
+Sorted factor base on side 1: 1: 523642
+total yield: 2966, q=6501007 (0.00725 sec/rel) ETA 0h00m)
+71 Special q, 230 reduction iterations
+reports: 12903228->2247295->2023743->608912->447918->352637->6626 (136603)
+
+Total yield: 2966
+milliseconds total: Sieve 4585 Sched 5185 medsched 2664
+TD 1909 (Init 89, MPQS 87) Sieve-Change 7172
+TD side 0: init/small/medium/large/search: 62 245 123 257 311
+sieve: init/small/medium/large/search: 186 1833 126 353 214
+TD side 1: init/small/medium/large/search: 39 174 115 231 159
+sieve: init/small/medium/large/search: 87 1244 129 317 95
+aborts: 0 0
+Expected yield/cost: 956  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 5670 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I14e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 15299999
+FBsize 990256+0 (deg 5), 1892784+0 (deg 1)
+Sorted factor base on side 0: 1: 459510 2: 263633
+Sorted factor base on side 1: 1: 1889273
+total yield: 1530, q=15301007 (0.03803 sec/rel) ETA 0h00m)
+54 Special q, 73 reduction iterations
+reports: 9974335->1120617->994952->512256->318873->192654->3594 (80828)
+
+Total yield: 1530
+milliseconds total: Sieve 13303 Sched 19084 medsched 5549
+TD 3881 (Init 86, MPQS 69) Sieve-Change 16381
+TD side 0: init/small/medium/large/search: 230 361 243 816 378
+sieve: init/small/medium/large/search: 380 5582 247 1242 427
+TD side 1: init/small/medium/large/search: 217 220 239 812 179
+sieve: init/small/medium/large/search: 203 3660 264 1205 91
+aborts: 0 0
+Expected yield/cost: 378  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 3216 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 49999999
+FBsize 5764165+0 (deg 5), 5761454+0 (deg 1)
+Sorted factor base on side 0: 1: 2687143 2: 1536705
+Sorted factor base on side 1: 1: 5757943
+total yield: 604, q=50000257 (0.36208 sec/rel) ETA 0h00m)
+17 Special q, 24 reduction iterations
+reports: 8837891->294253->248756->186279->109873->73600->1921 (42267)
+
+Total yield: 604
+milliseconds total: Sieve 64295 Sched 111586 medsched 125
+TD 19313 (Init 191, MPQS 68) Sieve-Change 23382
+TD side 0: init/small/medium/large/search: 3492 1025 192 4728 414
+sieve: init/small/medium/large/search: 874 28274 144 7593 1709
+TD side 1: init/small/medium/large/search: 3431 658 169 4595 223
+sieve: init/small/medium/large/search: 661 17816 136 6838 251
+aborts: 0 0
+Expected yield/cost: 79  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 1842 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I15e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 99999999
+FBsize 14496980+0 (deg 6), 5761454+0 (deg 1)
+Sorted factor base on side 0: 2: 7246696
+Sorted factor base on side 1: 1: 5757943
+total yield: 830, q=100000259 (0.11462 sec/rel) ETA 0h00m)
+14 Special q, 106 reduction iterations
+reports: 34324349->7510037->7045519->5676189->2106414->1161389->35160 (482209)
+
+Total yield: 830
+milliseconds total: Sieve 11463 Sched 26333 medsched 2817
+TD 19106 (Init 337, MPQS 9316) Sieve-Change 35424
+TD side 0: init/small/medium/large/search: 262 2203 164 1542 1715
+sieve: init/small/medium/large/search: 191 3224 145 1575 694
+TD side 1: init/small/medium/large/search: 117 1417 142 1070 778
+sieve: init/small/medium/large/search: 156 3708 148 1390 233
+aborts: 0 0
+Expected yield/cost: 177  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 34983 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 204, q=250000211 (0.85651 sec/rel) ETA 0h01m)
+8 Special q, 65 reduction iterations
+reports: 39701285->3717291->3369477->3032550->1179176->430979->14443 (207908)
+
+Total yield: 204
+milliseconds total: Sieve 26295 Sched 68282 medsched 66
+TD 22257 (Init 285, MPQS 4581) Sieve-Change 57833
+TD side 0: init/small/medium/large/search: 471 4344 92 3169 1618
+sieve: init/small/medium/large/search: 352 7011 73 3921 1214
+TD side 1: init/small/medium/large/search: 711 2938 80 3090 800
+sieve: init/small/medium/large/search: 346 8864 72 4160 282
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14417 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 595, q=325000201 (0.38595 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82587531->2719124->2505506->2354282->1257719->1022522->31447 (421336)
+
+Total yield: 595
+milliseconds total: Sieve 35090 Sched 86964 medsched 79
+TD 32057 (Init 242, MPQS 12221) Sieve-Change 75459
+TD side 0: init/small/medium/large/search: 635 4423 104 4560 1127
+sieve: init/small/medium/large/search: 505 10237 84 6241 1838
+TD side 1: init/small/medium/large/search: 868 3265 95 3408 1013
+sieve: init/small/medium/large/search: 413 10711 86 4648 326
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I11e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 649999
+FBsize 52795+0 (deg 4), 97181+0 (deg 1)
+Sorted factor base on side 0: 1: 16467 2: 16372
+Sorted factor base on side 1: 1: 93670
+total yield: 68694, q=660001 (0.00038 sec/rel) ETA 0h00m)
+748 Special q, 1443 reduction iterations
+
+reports: 88792938->13263592->12183309->2865179->2865179->2865179->71261 (813206)
+
+Total yield: 68694
+milliseconds total: Sieve 4964 Sched 2699 medsched 2878
+TD 4451 (Init 412, MPQS 394) Sieve-Change 11087
+TD side 0: init/small/medium/large/search: 141 501 193 166 1048
+sieve: init/small/medium/large/search: 460 1548 157 136 478
+TD side 1: init/small/medium/large/search: 25 419 176 162 716
+sieve: init/small/medium/large/search: 171 1037 160 145 670
+aborts: 0 0
+Expected yield/cost: 3.177e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 39491 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I12e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 899999
+FBsize 71848+0 (deg 4), 135071+0 (deg 1)
+Sorted factor base on side 0: 1: 22608 2: 22846
+Sorted factor base on side 1: 1: 131560
+total yield: 73186, q=905011 (0.00042 sec/rel) ETA 0h00m)
+354 Special q, 670 reduction iterations
+
+reports: 105975745->13714805->12286324->3855799->3855799->3833443->133199 (2076721)
+
+Total yield: 73186
+milliseconds total: Sieve 7374 Sched 4207 medsched 4472
+TD 7486 (Init 484, MPQS 1434) Sieve-Change 7181
+TD side 0: init/small/medium/large/search: 210 665 285 315 1460
+sieve: init/small/medium/large/search: 457 2530 249 299 725
+TD side 1: init/small/medium/large/search: 40 684 253 322 1207
+sieve: init/small/medium/large/search: 187 1751 248 327 600
+aborts: 0 0
+Expected yield/cost: 1.769e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 115509 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 1599999
+FBsize 121315+0 (deg 5), 220792+0 (deg 1)
+Sorted factor base on side 0: 1: 54909 2: 31407
+Sorted factor base on side 1: 1: 217281
+total yield: 10370, q=1601023 (0.00162 sec/rel) TA 0h00m)
+72 Special q, 214 reduction iterations
+reports: 13680917->3742530->3370815->876107->861469->755682->22478 (363419)
+
+Total yield: 10370
+milliseconds total: Sieve 4893 Sched 4011 medsched 2773
+TD 2680 (Init 142, MPQS 253) Sieve-Change 2451
+TD side 0: init/small/medium/large/search: 79 357 140 225 457
+sieve: init/small/medium/large/search: 173 2082 139 282 227
+TD side 1: init/small/medium/large/search: 36 315 130 220 298
+sieve: init/small/medium/large/search: 94 1324 144 294 136
+aborts: 0 0
+Expected yield/cost: 2694  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 19784 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 2699999
+FBsize 196412+0 (deg 5), 354970+0 (deg 1)
+Sorted factor base on side 0: 1: 90188 2: 51343
+Sorted factor base on side 1: 1: 351459
+total yield: 5170, q=2701007 (0.00270 sec/rel) ETA 0h00m)
+54 Special q, 159 reduction iterations
+reports: 8911235->1930241->1749652->458187->452464->400926->11876 (202453)
+
+Total yield: 5170
+milliseconds total: Sieve 3596 Sched 3490 medsched 2104
+TD 1682 (Init 78, MPQS 156) Sieve-Change 3105
+TD side 0: init/small/medium/large/search: 53 190 103 184 246
+sieve: init/small/medium/large/search: 134 1437 104 246 163
+TD side 1: init/small/medium/large/search: 29 182 96 178 171
+sieve: init/small/medium/large/search: 72 1003 107 245 86
+aborts: 0 0
+Expected yield/cost: 1302  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 10574 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 6499999
+FBsize 445329+0 (deg 5), 527153+0 (deg 1)
+Sorted factor base on side 0: 1: 205697 2: 118035
+Sorted factor base on side 1: 1: 523642
+total yield: 2966, q=6501007 (0.00738 sec/rel) ETA 0h00m)
+71 Special q, 230 reduction iterations
+reports: 12903228->2247295->2023743->608912->447918->352637->6626 (136603)
+
+Total yield: 2966
+milliseconds total: Sieve 4686 Sched 5269 medsched 2702
+TD 1961 (Init 93, MPQS 88) Sieve-Change 7276
+TD side 0: init/small/medium/large/search: 64 256 127 264 318
+sieve: init/small/medium/large/search: 190 1870 129 363 218
+TD side 1: init/small/medium/large/search: 41 178 118 236 163
+sieve: init/small/medium/large/search: 91 1268 133 327 97
+aborts: 0 0
+Expected yield/cost: 956  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 5670 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I14e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 15299999
+FBsize 990256+0 (deg 5), 1892784+0 (deg 1)
+Sorted factor base on side 0: 1: 459510 2: 263633
+Sorted factor base on side 1: 1: 1889273
+total yield: 1530, q=15301007 (0.03837 sec/rel) ETA 0h00m)
+54 Special q, 73 reduction iterations
+reports: 9974335->1120617->994952->512256->318873->192654->3594 (80828)
+
+Total yield: 1530
+milliseconds total: Sieve 13415 Sched 19243 medsched 5583
+TD 3908 (Init 90, MPQS 68) Sieve-Change 16563
+TD side 0: init/small/medium/large/search: 228 365 245 826 378
+sieve: init/small/medium/large/search: 382 5621 253 1258 431
+TD side 1: init/small/medium/large/search: 219 216 244 819 179
+sieve: init/small/medium/large/search: 205 3687 270 1215 93
+aborts: 0 0
+Expected yield/cost: 378  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 3216 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 49999999
+FBsize 5764165+0 (deg 5), 5761454+0 (deg 1)
+Sorted factor base on side 0: 1: 2687143 2: 1536705
+Sorted factor base on side 1: 1: 5757943
+total yield: 604, q=50000257 (0.36382 sec/rel) ETA 0h00m)
+17 Special q, 24 reduction iterations
+reports: 8837891->294253->248756->186279->109873->73600->1921 (42267)
+
+Total yield: 604
+milliseconds total: Sieve 64449 Sched 112222 medsched 126
+TD 19433 (Init 198, MPQS 68) Sieve-Change 23522
+TD side 0: init/small/medium/large/search: 3499 1055 199 4725 423
+sieve: init/small/medium/large/search: 881 28407 143 7479 1727
+TD side 1: init/small/medium/large/search: 3455 648 171 4631 234
+sieve: init/small/medium/large/search: 662 17896 137 6865 250
+aborts: 0 0
+Expected yield/cost: 79  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 1842 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I15e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 99999999
+FBsize 14496980+0 (deg 6), 5761454+0 (deg 1)
+Sorted factor base on side 0: 2: 7246696
+Sorted factor base on side 1: 1: 5757943
+total yield: 830, q=100000259 (0.11612 sec/rel) ETA 0h00m)
+14 Special q, 106 reduction iterations
+reports: 34324349->7510037->7045519->5676189->2106414->1161389->35160 (482209)
+
+Total yield: 830
+milliseconds total: Sieve 11692 Sched 26636 medsched 2860
+TD 19426 (Init 349, MPQS 9431) Sieve-Change 35773
+TD side 0: init/small/medium/large/search: 270 2217 170 1585 1770
+sieve: init/small/medium/large/search: 202 3286 150 1610 706
+TD side 1: init/small/medium/large/search: 119 1420 146 1099 804
+sieve: init/small/medium/large/search: 160 3764 154 1421 240
+aborts: 0 0
+Expected yield/cost: 177  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 34983 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 204, q=250000211 (0.81459 sec/rel) ETA 0h01m)
+8 Special q, 65 reduction iterations
+reports: 39701285->3717291->3369477->3032550->1179176->430979->14443 (207908)
+
+Total yield: 204
+milliseconds total: Sieve 25025 Sched 64973 medsched 61
+TD 20940 (Init 262, MPQS 4548) Sieve-Change 55183
+TD side 0: init/small/medium/large/search: 416 3996 83 2950 1502
+sieve: init/small/medium/large/search: 338 6760 65 3618 1170
+TD side 1: init/small/medium/large/search: 665 2738 74 2924 712
+sieve: init/small/medium/large/search: 321 8531 66 3909 246
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14417 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 595, q=325000201 (0.38420 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82587531->2719124->2505506->2354282->1257719->1022522->31447 (421336)
+
+Total yield: 595
+milliseconds total: Sieve 35274 Sched 86572 medsched 80
+TD 31917 (Init 244, MPQS 12169) Sieve-Change 74763
+TD side 0: init/small/medium/large/search: 625 4419 107 4526 1111
+sieve: init/small/medium/large/search: 494 10183 86 6559 1842
+TD side 1: init/small/medium/large/search: 864 3239 96 3406 1011
+sieve: init/small/medium/large/search: 406 10652 84 4638 330
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I11e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 649999
+FBsize 52795+0 (deg 4), 97181+0 (deg 1)
+Sorted factor base on side 0: 1: 16467 2: 16372
+Sorted factor base on side 1: 1: 93670
+total yield: 68906, q=660001 (0.00022 sec/rel) ETA 0h00m)
+748 Special q, 1443 reduction iterations
+
+reports: 88846100->13276910->12209260->2873935->2873935->2873935->71548 (818370)
+
+Total yield: 68906
+milliseconds total: Sieve 4542 Sched 1397 medsched 1208
+TD 4335 (Init 413, MPQS 399) Sieve-Change 3669
+TD side 0: init/small/medium/large/search: 139 496 180 139 1027
+sieve: init/small/medium/large/search: 461 1462 155 134 232
+TD side 1: init/small/medium/large/search: 25 419 167 134 700
+sieve: init/small/medium/large/search: 174 957 160 141 666
+aborts: 0 0
+Expected yield/cost: 3.177e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 39778 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I12e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 899999
+FBsize 71848+0 (deg 4), 135071+0 (deg 1)
+Sorted factor base on side 0: 1: 22608 2: 22846
+Sorted factor base on side 1: 1: 131560
+total yield: 73253, q=905011 (0.00028 sec/rel) ETA 0h00m)
+354 Special q, 670 reduction iterations
+
+reports: 106077371->13724786->12303973->3864670->3864670->3841699->133636 (2083589)
+
+Total yield: 73253
+milliseconds total: Sieve 6694 Sched 2300 medsched 1844
+TD 7207 (Init 482, MPQS 1441) Sieve-Change 2365
+TD side 0: init/small/medium/large/search: 204 652 260 254 1419
+sieve: init/small/medium/large/search: 440 2398 238 291 388
+TD side 1: init/small/medium/large/search: 40 681 235 254 1159
+sieve: init/small/medium/large/search: 178 1613 237 316 593
+aborts: 0 0
+Expected yield/cost: 1.769e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 115946 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 1599999
+FBsize 121315+0 (deg 5), 220792+0 (deg 1)
+Sorted factor base on side 0: 1: 54909 2: 31407
+Sorted factor base on side 1: 1: 217281
+total yield: 10370, q=1601023 (0.00107 sec/rel) ETA 0h00m)
+72 Special q, 214 reduction iterations
+reports: 13679308->3740714->3371008->876157->861516->755678->22478 (363420)
+
+Total yield: 10370
+milliseconds total: Sieve 4495 Sched 2144 medsched 1167
+TD 2468 (Init 140, MPQS 251) Sieve-Change 805
+TD side 0: init/small/medium/large/search: 75 346 124 178 427
+sieve: init/small/medium/large/search: 165 1942 131 260 161
+TD side 1: init/small/medium/large/search: 34 307 116 170 275
+sieve: init/small/medium/large/search: 88 1205 135 278 131
+aborts: 0 0
+Expected yield/cost: 2694  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 19784 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 2699999
+FBsize 196412+0 (deg 5), 354970+0 (deg 1)
+Sorted factor base on side 0: 1: 90188 2: 51343
+Sorted factor base on side 1: 1: 351459
+total yield: 5170, q=2701007 (0.00164 sec/rel) ETA 0h00m)
+54 Special q, 159 reduction iterations
+reports: 8911499->1929881->1750179->458391->452634->401025->11880 (202529)
+
+Total yield: 5170
+milliseconds total: Sieve 3251 Sched 1843 medsched 865
+TD 1509 (Init 76, MPQS 153) Sieve-Change 1000
+TD side 0: init/small/medium/large/search: 48 178 90 141 229
+sieve: init/small/medium/large/search: 126 1312 97 226 114
+TD side 1: init/small/medium/large/search: 28 175 85 134 158
+sieve: init/small/medium/large/search: 66 896 101 232 81
+aborts: 0 0
+Expected yield/cost: 1302  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 10578 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 6499999
+FBsize 445329+0 (deg 5), 527153+0 (deg 1)
+Sorted factor base on side 0: 1: 205697 2: 118035
+Sorted factor base on side 1: 1: 523642
+total yield: 2966, q=6501007 (0.00430 sec/rel) ETA 0h00m)
+71 Special q, 230 reduction iterations
+reports: 12908712->2247549->2025342->609645->448065->352635->6627 (136606)
+
+Total yield: 2966
+milliseconds total: Sieve 4499 Sched 2822 medsched 1154
+TD 1864 (Init 94, MPQS 89) Sieve-Change 2409
+TD side 0: init/small/medium/large/search: 64 256 124 221 315
+sieve: init/small/medium/large/search: 190 1803 134 367 161
+TD side 1: init/small/medium/large/search: 41 178 116 191 159
+sieve: init/small/medium/large/search: 91 1187 135 332 99
+aborts: 0 0
+Expected yield/cost: 956  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 5671 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I14e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 15299999
+FBsize 990256+0 (deg 5), 1892784+0 (deg 1)
+Sorted factor base on side 0: 1: 459510 2: 263633
+Sorted factor base on side 1: 1: 1889273
+total yield: 1530, q=15301007 (0.02259 sec/rel) ETA 0h00m)
+54 Special q, 73 reduction iterations
+reports: 9974268->1120603->995103->512340->318903->192654->3594 (80828)
+
+Total yield: 1530
+milliseconds total: Sieve 13001 Sched 10253 medsched 2299
+TD 3642 (Init 93, MPQS 70) Sieve-Change 5372
+TD side 0: init/small/medium/large/search: 235 369 244 692 375
+sieve: init/small/medium/large/search: 380 5441 260 1281 340
+TD side 1: init/small/medium/large/search: 226 224 239 665 179
+sieve: init/small/medium/large/search: 208 3468 278 1247 97
+aborts: 0 0
+Expected yield/cost: 378  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 3216 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 49999999
+FBsize 5764165+0 (deg 5), 5761454+0 (deg 1)
+Sorted factor base on side 0: 1: 2687143 2: 1536705
+Sorted factor base on side 1: 1: 5757943
+total yield: 604, q=50000257 (0.24651 sec/rel) ETA 0h00m)
+17 Special q, 24 reduction iterations
+reports: 8835258->292589->248755->186278->109872->73599->1921 (42266)
+
+Total yield: 604
+milliseconds total: Sieve 61728 Sched 61893 medsched 132
+TD 17796 (Init 194, MPQS 70) Sieve-Change 7351
+TD side 0: init/small/medium/large/search: 3549 976 201 3983 417
+sieve: init/small/medium/large/search: 885 27219 151 7590 1235
+TD side 1: init/small/medium/large/search: 3491 615 175 3763 229
+sieve: init/small/medium/large/search: 627 16704 142 6925 250
+aborts: 0 0
+Expected yield/cost: 79  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 1842 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I15e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 99999999
+FBsize 14496980+0 (deg 6), 5761454+0 (deg 1)
+Sorted factor base on side 0: 2: 7246696
+Sorted factor base on side 1: 1: 5757943
+total yield: 829, q=100000259 (0.06482 sec/rel) ETA 0h00m)
+14 Special q, 106 reduction iterations
+reports: 34326161->7509477->7046296->5676895->2106441->1161387->35160 (482208)
+
+Total yield: 829
+milliseconds total: Sieve 10646 Sched 15217 medsched 999
+TD 15695 (Init 339, MPQS 6527) Sieve-Change 11183
+TD side 0: init/small/medium/large/search: 259 2131 150 1295 1692
+sieve: init/small/medium/large/search: 189 2913 144 1578 539
+TD side 1: init/small/medium/large/search: 118 1380 128 871 764
+sieve: init/small/medium/large/search: 146 3380 148 1374 234
+aborts: 0 0
+Expected yield/cost: 177  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 34983 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 204, q=250000211 (0.49658 sec/rel) ETA 0h00m)
+8 Special q, 65 reduction iterations
+reports: 39701233->3716265->3369616->3032671->1179218->430978->14442 (207906)
+
+Total yield: 204
+milliseconds total: Sieve 23411 Sched 41725 medsched 62
+TD 18855 (Init 265, MPQS 3476) Sieve-Change 17255
+TD side 0: init/small/medium/large/search: 420 4053 84 2426 1496
+sieve: init/small/medium/large/search: 342 6086 66 3664 855
+TD side 1: init/small/medium/large/search: 674 2761 74 2335 719
+sieve: init/small/medium/large/search: 297 7921 66 3864 250
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14416 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 594, q=325000201 (0.23605 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82585966->2719343->2505699->2354466->1257772->1022522->31447 (421336)
+
+Total yield: 594
+milliseconds total: Sieve 32419 Sched 57416 medsched 80
+TD 27008 (Init 244, MPQS 8972) Sieve-Change 23298
+TD side 0: init/small/medium/large/search: 606 4284 105 3734 1079
+sieve: init/small/medium/large/search: 490 9175 86 6142 1360
+TD side 1: init/small/medium/large/search: 860 3188 95 2758 983
+sieve: init/small/medium/large/search: 368 9789 85 4614 312
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+	   
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 204, q=250000211 (0.49154 sec/rel) ETA 0h00m)
+8 Special q, 65 reduction iterations
+reports: 39701233->3716265->3369616->3032671->1179218->430978->14442 (207906)
+
+Total yield: 204
+milliseconds total: Sieve 23123 Sched 41493 medsched 61
+TD 18547 (Init 259, MPQS 3417) Sieve-Change 17055
+TD side 0: init/small/medium/large/search: 400 4001 87 2378 1437
+sieve: init/small/medium/large/search: 333 6078 63 3571 844
+TD side 1: init/small/medium/large/search: 657 2721 73 2354 696
+sieve: init/small/medium/large/search: 288 7889 65 3757 237
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14416 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+	   
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 594, q=325000201 (0.23650 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82585966->2719343->2505699->2354466->1257772->1022522->31447 (421336)
+
+Total yield: 594
+milliseconds total: Sieve 32721 Sched 57483 medsched 77
+TD 27275 (Init 246, MPQS 8788) Sieve-Change 22934
+TD side 0: init/small/medium/large/search: 596 4327 108 4013 1080
+sieve: init/small/medium/large/search: 481 9320 83 6176 1351
+TD side 1: init/small/medium/large/search: 866 3212 94 2855 995
+sieve: init/small/medium/large/search: 367 9834 84 4721 306
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+	   
+$ ./test.sh
+gnfs-lasieve4I11e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 649999
+FBsize 52795+0 (deg 4), 97181+0 (deg 1)
+Sorted factor base on side 0: 1: 16467 2: 16372
+Sorted factor base on side 1: 1: 93670
+total yield: 68694, q=660001 (0.00039 sec/rel) ETA 0h00m)
+748 Special q, 1443 reduction iterations
+
+reports: 88792938->13263592->12183309->2865179->2865179->2865179->71261 (813206)
+
+Total yield: 68694
+milliseconds total: Sieve 5024 Sched 2752 medsched 2867
+TD 5263 (Init 429, MPQS 1148) Sieve-Change 11054
+TD side 0: init/small/medium/large/search: 125 492 185 180 1056
+sieve: init/small/medium/large/search: 436 1623 124 149 490
+TD side 1: init/small/medium/large/search: 16 449 173 161 741
+sieve: init/small/medium/large/search: 170 1060 172 142 658
+aborts: 0 0
+Expected yield/cost: 3.177e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 39491 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I12e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 899999
+FBsize 71848+0 (deg 4), 135071+0 (deg 1)
+Sorted factor base on side 0: 1: 22608 2: 22846
+Sorted factor base on side 1: 1: 131560
+total yield: 73186, q=905011 (0.00045 sec/rel) ETA 0h00m)
+354 Special q, 670 reduction iterations
+
+reports: 105975745->13714805->12286324->3855799->3855799->3833443->133199 (2076721)
+
+Total yield: 73186
+milliseconds total: Sieve 7209 Sched 4181 medsched 4537
+TD 9623 (Init 431, MPQS 3827) Sieve-Change 7031
+TD side 0: init/small/medium/large/search: 200 652 238 312 1426
+sieve: init/small/medium/large/search: 411 2655 203 263 730
+TD side 1: init/small/medium/large/search: 24 638 224 291 1214
+sieve: init/small/medium/large/search: 172 1688 231 297 559
+aborts: 0 0
+Expected yield/cost: 1.769e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 115509 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 1599999
+FBsize 121315+0 (deg 5), 220792+0 (deg 1)
+Sorted factor base on side 0: 1: 54909 2: 31407
+Sorted factor base on side 1: 1: 217281
+total yield: 10370, q=1601023 (0.00160 sec/rel) TA 0h00m)
+72 Special q, 214 reduction iterations
+reports: 13680917->3742530->3370815->876107->861469->755682->22478 (363419)
+
+Total yield: 10370
+milliseconds total: Sieve 4739 Sched 3918 medsched 2760
+TD 2746 (Init 118, MPQS 645) Sieve-Change 2397
+TD side 0: init/small/medium/large/search: 51 289 114 200 419
+sieve: init/small/medium/large/search: 157 2056 134 240 246
+TD side 1: init/small/medium/large/search: 24 256 124 203 280
+sieve: init/small/medium/large/search: 78 1307 121 279 121
+aborts: 0 0
+Expected yield/cost: 2694  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 19784 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 2699999
+FBsize 196412+0 (deg 5), 354970+0 (deg 1)
+Sorted factor base on side 0: 1: 90188 2: 51343
+Sorted factor base on side 1: 1: 351459
+total yield: 5170, q=2701007 (0.00265 sec/rel) ETA 0h00m)
+54 Special q, 159 reduction iterations
+reports: 8911235->1930241->1749652->458187->452464->400926->11876 (202453)
+
+Total yield: 5170
+milliseconds total: Sieve 3452 Sched 3415 medsched 2123
+TD 1685 (Init 60, MPQS 374) Sieve-Change 3035
+TD side 0: init/small/medium/large/search: 42 147 95 154 225
+sieve: init/small/medium/large/search: 113 1437 92 266 166
+TD side 1: init/small/medium/large/search: 29 133 95 170 145
+sieve: init/small/medium/large/search: 66 940 91 211 70
+aborts: 0 0
+Expected yield/cost: 1302  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 10574 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 6499999
+FBsize 445329+0 (deg 5), 527153+0 (deg 1)
+Sorted factor base on side 0: 1: 205697 2: 118035
+Sorted factor base on side 1: 1: 523642
+total yield: 2966, q=6501007 (0.00742 sec/rel) ETA 0h00m)
+71 Special q, 230 reduction iterations
+reports: 12903228->2247295->2023743->608912->447918->352637->6626 (136603)
+
+Total yield: 2966
+milliseconds total: Sieve 4791 Sched 5253 medsched 2709
+TD 1939 (Init 71, MPQS 208) Sieve-Change 7314
+TD side 0: init/small/medium/large/search: 42 230 116 257 315
+sieve: init/small/medium/large/search: 180 1934 130 406 188
+TD side 1: init/small/medium/large/search: 40 138 116 236 161
+sieve: init/small/medium/large/search: 83 1313 114 354 89
+aborts: 0 0
+Expected yield/cost: 956  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 5670 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I14e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 15299999
+FBsize 990256+0 (deg 5), 1892784+0 (deg 1)
+Sorted factor base on side 0: 1: 459510 2: 263633
+Sorted factor base on side 1: 1: 1889273
+total yield: 1530, q=15301007 (0.03906 sec/rel) ETA 0h00m)
+54 Special q, 73 reduction iterations
+reports: 9974335->1120617->994952->512256->318873->192654->3594 (80828)
+
+Total yield: 1530
+milliseconds total: Sieve 13896 Sched 19687 medsched 5720
+TD 3760 (Init 70, MPQS 147) Sieve-Change 16703
+TD side 0: init/small/medium/large/search: 212 331 232 831 341
+sieve: init/small/medium/large/search: 350 5951 262 1377 432
+TD side 1: init/small/medium/large/search: 201 185 217 812 172
+sieve: init/small/medium/large/search: 177 3777 251 1260 59
+aborts: 0 0
+Expected yield/cost: 378  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 3216 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 49999999
+FBsize 5764165+0 (deg 5), 5761454+0 (deg 1)
+Sorted factor base on side 0: 1: 2687143 2: 1536705
+Sorted factor base on side 1: 1: 5757943
+total yield: 604, q=50000257 (0.36654 sec/rel) ETA 0h00m)
+17 Special q, 24 reduction iterations
+reports: 8837891->294253->248756->186279->109873->73600->1921 (42267)
+
+Total yield: 604
+milliseconds total: Sieve 64885 Sched 114559 medsched 26
+TD 18106 (Init 80, MPQS 119) Sieve-Change 23820
+TD side 0: init/small/medium/large/search: 3411 803 69 4741 236
+sieve: init/small/medium/large/search: 748 28983 26 7694 1683
+TD side 1: init/small/medium/large/search: 3355 466 45 4650 107
+sieve: init/small/medium/large/search: 490 18213 13 6935 100
+aborts: 0 0
+Expected yield/cost: 79  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 1842 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I15e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 99999999
+FBsize 14496980+0 (deg 6), 5761454+0 (deg 1)
+Sorted factor base on side 0: 2: 7246696
+Sorted factor base on side 1: 1: 5757943
+total yield: 830, q=100000259 (0.11739 sec/rel) ETA 0h00m)
+14 Special q, 106 reduction iterations
+reports: 34324349->7510037->7045519->5676189->2106414->1161389->35160 (482209)
+
+Total yield: 830
+milliseconds total: Sieve 11499 Sched 27176 medsched 2933
+TD 19684 (Init 332, MPQS 9657) Sieve-Change 36147
+TD side 0: init/small/medium/large/search: 254 2368 146 1576 1763
+sieve: init/small/medium/large/search: 167 3395 148 1569 694
+TD side 1: init/small/medium/large/search: 104 1494 118 1066 790
+sieve: init/small/medium/large/search: 130 3723 133 1373 167
+aborts: 0 0
+Expected yield/cost: 177  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 34983 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 204, q=250000211 (0.81435 sec/rel) ETA 0h01m)
+8 Special q, 65 reduction iterations
+reports: 39701285->3717291->3369477->3032550->1179176->430979->14443 (207908)
+
+Total yield: 204
+milliseconds total: Sieve 24689 Sched 66654 medsched 5
+TD 19452 (Init 201, MPQS 4644) Sieve-Change 55335
+TD side 0: init/small/medium/large/search: 324 3597 18 2889 1452
+sieve: init/small/medium/large/search: 247 6692 11 3622 1153
+TD side 1: init/small/medium/large/search: 604 2270 21 2727 689
+sieve: init/small/medium/large/search: 263 8682 7 3838 174
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14417 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 595, q=325000201 (0.38109 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82587531->2719124->2505506->2354282->1257719->1022522->31447 (421336)
+
+Total yield: 595
+milliseconds total: Sieve 33935 Sched 87996 medsched 13
+TD 30337 (Init 169, MPQS 12249) Sieve-Change 74476
+TD side 0: init/small/medium/large/search: 531 4016 33 4381 968
+sieve: init/small/medium/large/search: 402 10183 14 6038 1794
+TD side 1: init/small/medium/large/search: 835 2774 28 3413 913
+sieve: init/small/medium/large/search: 303 10523 14 4482 182
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I11e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 649999
+FBsize 52795+0 (deg 4), 97181+0 (deg 1)
+Sorted factor base on side 0: 1: 16467 2: 16372
+Sorted factor base on side 1: 1: 93670
+total yield: 68694, q=660001 (0.00037 sec/rel) ETA 0h00m)
+748 Special q, 1443 reduction iterations
+
+reports: 88792938->13263592->12183309->2865179->2865179->2865179->71261 (813206)
+
+Total yield: 68694
+milliseconds total: Sieve 4823 Sched 2662 medsched 2832
+TD 4327 (Init 390, MPQS 363) Sieve-Change 10793
+TD side 0: init/small/medium/large/search: 140 472 195 161 1043
+sieve: init/small/medium/large/search: 463 1559 162 112 477
+TD side 1: init/small/medium/large/search: 23 425 146 146 704
+sieve: init/small/medium/large/search: 163 987 165 136 599
+aborts: 0 0
+Expected yield/cost: 3.177e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 39491 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I12e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 899999
+FBsize 71848+0 (deg 4), 135071+0 (deg 1)
+Sorted factor base on side 0: 1: 22608 2: 22846
+Sorted factor base on side 1: 1: 131560
+total yield: 73186, q=905011 (0.00041 sec/rel) ETA 0h00m)
+354 Special q, 670 reduction iterations
+
+reports: 105975745->13714805->12286324->3855799->3855799->3833443->133199 (2076721)
+
+Total yield: 73186
+milliseconds total: Sieve 7062 Sched 4120 medsched 4427
+TD 7201 (Init 428, MPQS 1402) Sieve-Change 6953
+TD side 0: init/small/medium/large/search: 183 621 274 277 1384
+sieve: init/small/medium/large/search: 421 2472 221 288 707
+TD side 1: init/small/medium/large/search: 37 634 264 319 1237
+sieve: init/small/medium/large/search: 189 1721 189 305 549
+aborts: 0 0
+Expected yield/cost: 1.769e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 115509 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 1599999
+FBsize 121315+0 (deg 5), 220792+0 (deg 1)
+Sorted factor base on side 0: 1: 54909 2: 31407
+Sorted factor base on side 1: 1: 217281
+total yield: 10370, q=1601023 (0.00154 sec/rel) ETA 0h00m)
+72 Special q, 214 reduction iterations
+reports: 13680917->3742530->3370815->876107->861469->755682->22478 (363419)
+
+Total yield: 10370
+milliseconds total: Sieve 4640 Sched 3876 medsched 2758
+TD 2326 (Init 127, MPQS 233) Sieve-Change 2362
+TD side 0: init/small/medium/large/search: 49 308 130 216 393
+sieve: init/small/medium/large/search: 135 2029 128 263 211
+TD side 1: init/small/medium/large/search: 28 250 115 175 270
+sieve: init/small/medium/large/search: 88 1283 130 258 115
+aborts: 0 0
+Expected yield/cost: 2694  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 19784 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 2699999
+FBsize 196412+0 (deg 5), 354970+0 (deg 1)
+Sorted factor base on side 0: 1: 90188 2: 51343
+Sorted factor base on side 1: 1: 351459
+total yield: 5170, q=2701007 (0.00280 sec/rel) ETA 0h00m)
+54 Special q, 159 reduction iterations
+reports: 8911235->1930241->1749652->458187->452464->400926->11876 (202453)
+
+Total yield: 5170
+milliseconds total: Sieve 3828 Sched 3617 medsched 2182
+TD 1705 (Init 73, MPQS 169) Sieve-Change 3173
+TD side 0: init/small/medium/large/search: 52 180 109 206 245
+sieve: init/small/medium/large/search: 133 1542 115 224 191
+TD side 1: init/small/medium/large/search: 26 185 93 196 160
+sieve: init/small/medium/large/search: 71 1117 104 237 94
+aborts: 0 0
+Expected yield/cost: 1302  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 10574 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 6499999
+FBsize 445329+0 (deg 5), 527153+0 (deg 1)
+Sorted factor base on side 0: 1: 205697 2: 118035
+Sorted factor base on side 1: 1: 523642
+total yield: 2966, q=6501007 (0.00799 sec/rel) ETA 0h00m)
+71 Special q, 230 reduction iterations
+reports: 12903228->2247295->2023743->608912->447918->352637->6626 (136603)
+
+Total yield: 2966
+milliseconds total: Sieve 5205 Sched 5647 medsched 2956
+TD 2071 (Init 114, MPQS 95) Sieve-Change 7832
+TD side 0: init/small/medium/large/search: 64 224 120 308 323
+sieve: init/small/medium/large/search: 190 2214 119 351 226
+TD side 1: init/small/medium/large/search: 40 171 143 275 184
+sieve: init/small/medium/large/search: 90 1411 141 363 100
+aborts: 0 0
+Expected yield/cost: 956  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 5670 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I14e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 15299999
+FBsize 990256+0 (deg 5), 1892784+0 (deg 1)
+Sorted factor base on side 0: 1: 459510 2: 263633
+Sorted factor base on side 1: 1: 1889273
+total yield: 1530, q=15301007 (0.03837 sec/rel) ETA 0h00m)
+54 Special q, 73 reduction iterations
+reports: 9974335->1120617->994952->512256->318873->192654->3594 (80828)
+
+Total yield: 1530
+milliseconds total: Sieve 13451 Sched 19386 medsched 5620
+TD 3736 (Init 76, MPQS 62) Sieve-Change 16517
+TD side 0: init/small/medium/large/search: 205 368 219 876 360
+sieve: init/small/medium/large/search: 328 5718 236 1254 422
+TD side 1: init/small/medium/large/search: 201 215 235 771 136
+sieve: init/small/medium/large/search: 200 3727 247 1261 58
+aborts: 0 0
+Expected yield/cost: 378  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 3216 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 49999999
+FBsize 5764165+0 (deg 5), 5761454+0 (deg 1)
+Sorted factor base on side 0: 1: 2687143 2: 1536705
+Sorted factor base on side 1: 1: 5757943
+total yield: 604, q=50000257 (0.38012 sec/rel) ETA 0h00m)
+17 Special q, 24 reduction iterations
+reports: 8837891->294253->248756->186279->109873->73600->1921 (42267)
+
+Total yield: 604
+milliseconds total: Sieve 68098 Sched 117814 medsched 22
+TD 19191 (Init 106, MPQS 75) Sieve-Change 24474
+TD side 0: init/small/medium/large/search: 3504 964 66 5092 302
+sieve: init/small/medium/large/search: 778 30650 15 7916 1681
+TD side 1: init/small/medium/large/search: 3528 541 55 4839 98
+sieve: init/small/medium/large/search: 539 18955 26 7417 121
+aborts: 0 0
+Expected yield/cost: 79  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 1842 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I15e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 99999999
+FBsize 14496980+0 (deg 6), 5761454+0 (deg 1)
+Sorted factor base on side 0: 2: 7246696
+Sorted factor base on side 1: 1: 5757943
+total yield: 830, q=100000259 (0.11598 sec/rel) ETA 0h00m)
+14 Special q, 106 reduction iterations
+reports: 34324349->7510037->7045519->5676189->2106414->1161389->35160 (482209)
+
+Total yield: 830
+milliseconds total: Sieve 11280 Sched 27004 medsched 2847
+TD 19179 (Init 339, MPQS 9480) Sieve-Change 35961
+TD side 0: init/small/medium/large/search: 284 2187 161 1585 1701
+sieve: init/small/medium/large/search: 141 3124 136 1633 681
+TD side 1: init/small/medium/large/search: 96 1329 121 1103 785
+sieve: init/small/medium/large/search: 115 3717 123 1396 214
+aborts: 0 0
+Expected yield/cost: 177  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 34983 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 204, q=250000211 (0.81850 sec/rel) ETA 0h01m)
+8 Special q, 65 reduction iterations
+reports: 39701285->3717291->3369477->3032550->1179176->430979->14443 (207908)
+
+Total yield: 204
+milliseconds total: Sieve 24541 Sched 66508 medsched 9
+TD 20748 (Init 213, MPQS 4657) Sieve-Change 55174
+TD side 0: init/small/medium/large/search: 363 4149 32 2924 1412
+sieve: init/small/medium/large/search: 272 6753 10 3604 1129
+TD side 1: init/small/medium/large/search: 673 2728 19 2855 704
+sieve: init/small/medium/large/search: 262 8470 11 3865 165
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14417 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 595, q=325000201 (0.38961 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82587531->2719124->2505506->2354282->1257719->1022522->31447 (421336)
+
+Total yield: 595
+milliseconds total: Sieve 35076 Sched 89308 medsched 15
+TD 31948 (Init 166, MPQS 12555) Sieve-Change 75479
+TD side 0: init/small/medium/large/search: 556 4627 25 4585 963
+sieve: init/small/medium/large/search: 399 10360 13 6311 1799
+TD side 1: init/small/medium/large/search: 802 3225 22 3415 977
+sieve: init/small/medium/large/search: 320 10970 17 4679 208
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I11e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 649999
+FBsize 52795+0 (deg 4), 97181+0 (deg 1)
+Sorted factor base on side 0: 1: 16467 2: 16372
+Sorted factor base on side 1: 1: 93670
+total yield: 68906, q=660001 (0.00022 sec/rel) ETA 0h00m)
+748 Special q, 1443 reduction iterations
+
+reports: 88846100->13276910->12209260->2873935->2873935->2873935->71548 (818370)
+
+Total yield: 68906
+milliseconds total: Sieve 4337 Sched 1467 medsched 1193
+TD 4277 (Init 422, MPQS 379) Sieve-Change 3641
+TD side 0: init/small/medium/large/search: 135 509 169 129 984
+sieve: init/small/medium/large/search: 390 1428 134 112 198
+TD side 1: init/small/medium/large/search: 18 438 154 126 713
+sieve: init/small/medium/large/search: 152 995 143 134 651
+aborts: 0 0
+Expected yield/cost: 3.177e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 39778 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I12e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 899999
+FBsize 71848+0 (deg 4), 135071+0 (deg 1)
+Sorted factor base on side 0: 1: 22608 2: 22846
+Sorted factor base on side 1: 1: 131560
+total yield: 73253, q=905011 (0.00027 sec/rel) ETA 0h00m)
+354 Special q, 670 reduction iterations
+
+reports: 106077371->13724786->12303973->3864670->3864670->3841699->133636 (2083589)
+
+Total yield: 73253
+milliseconds total: Sieve 6552 Sched 2294 medsched 1820
+TD 6865 (Init 461, MPQS 1405) Sieve-Change 2306
+TD side 0: init/small/medium/large/search: 181 603 238 231 1376
+sieve: init/small/medium/large/search: 433 2420 212 272 392
+TD side 1: init/small/medium/large/search: 21 643 214 239 1145
+sieve: init/small/medium/large/search: 159 1560 232 291 581
+aborts: 0 0
+Expected yield/cost: 1.769e+04  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 115946 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 1599999
+FBsize 121315+0 (deg 5), 220792+0 (deg 1)
+Sorted factor base on side 0: 1: 54909 2: 31407
+Sorted factor base on side 1: 1: 217281
+total yield: 10370, q=1601023 (0.00103 sec/rel) ETA 0h00m)
+72 Special q, 214 reduction iterations
+reports: 13679308->3740714->3371008->876157->861516->755678->22478 (363420)
+
+Total yield: 10370
+milliseconds total: Sieve 4424 Sched 2137 medsched 1105
+TD 2242 (Init 127, MPQS 242) Sieve-Change 785
+TD side 0: init/small/medium/large/search: 72 295 102 165 423
+sieve: init/small/medium/large/search: 150 1977 117 258 131
+TD side 1: init/small/medium/large/search: 26 233 93 191 248
+sieve: init/small/medium/large/search: 78 1193 127 283 110
+aborts: 0 0
+Expected yield/cost: 2694  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 19784 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 2699999
+FBsize 196412+0 (deg 5), 354970+0 (deg 1)
+Sorted factor base on side 0: 1: 90188 2: 51343
+Sorted factor base on side 1: 1: 351459
+total yield: 5170, q=2701007 (0.00161 sec/rel) ETA 0h00m)
+54 Special q, 159 reduction iterations
+reports: 8911499->1929881->1750179->458391->452634->401025->11880 (202529)
+
+Total yield: 5170
+milliseconds total: Sieve 3326 Sched 1799 medsched 795
+TD 1432 (Init 65, MPQS 165) Sieve-Change 995
+TD side 0: init/small/medium/large/search: 46 152 75 110 241
+sieve: init/small/medium/large/search: 120 1316 106 234 111
+TD side 1: init/small/medium/large/search: 16 137 87 153 172
+sieve: init/small/medium/large/search: 74 937 109 247 72
+aborts: 0 0
+Expected yield/cost: 1302  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 10578 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I13e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 6499999
+FBsize 445329+0 (deg 5), 527153+0 (deg 1)
+Sorted factor base on side 0: 1: 205697 2: 118035
+Sorted factor base on side 1: 1: 523642
+total yield: 2966, q=6501007 (0.00433 sec/rel) ETA 0h00m)
+71 Special q, 230 reduction iterations
+reports: 12908712->2247549->2025342->609645->448065->352635->6627 (136606)
+
+Total yield: 2966
+milliseconds total: Sieve 4475 Sched 2879 medsched 1135
+TD 1684 (Init 93, MPQS 85) Sieve-Change 2673
+TD side 0: init/small/medium/large/search: 50 193 102 233 293
+sieve: init/small/medium/large/search: 180 1819 119 360 149
+TD side 1: init/small/medium/large/search: 33 148 81 194 165
+sieve: init/small/medium/large/search: 96 1202 130 332 88
+aborts: 0 0
+Expected yield/cost: 956  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 5671 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I14e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 15299999
+FBsize 990256+0 (deg 5), 1892784+0 (deg 1)
+Sorted factor base on side 0: 1: 459510 2: 263633
+Sorted factor base on side 1: 1: 1889273
+total yield: 1530, q=15301007 (0.02209 sec/rel) ETA 0h00m)
+54 Special q, 73 reduction iterations
+reports: 9974268->1120603->995103->512340->318903->192654->3594 (80828)
+
+Total yield: 1530
+milliseconds total: Sieve 12897 Sched 10113 medsched 2251
+TD 3237 (Init 63, MPQS 69) Sieve-Change 5309
+TD side 0: init/small/medium/large/search: 185 345 189 636 328
+sieve: init/small/medium/large/search: 350 5496 244 1316 319
+TD side 1: init/small/medium/large/search: 211 190 203 661 147
+sieve: init/small/medium/large/search: 172 3453 227 1249 71
+aborts: 0 0
+Expected yield/cost: 378  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 3216 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 49999999
+FBsize 5764165+0 (deg 5), 5761454+0 (deg 1)
+Sorted factor base on side 0: 1: 2687143 2: 1536705
+Sorted factor base on side 1: 1: 5757943
+total yield: 604, q=50000257 (0.24475 sec/rel) ETA 0h00m)
+17 Special q, 24 reduction iterations
+reports: 8835258->292589->248755->186278->109872->73599->1921 (42266)
+
+Total yield: 604
+milliseconds total: Sieve 61692 Sched 62299 medsched 29
+TD 16552 (Init 89, MPQS 69) Sieve-Change 7264
+TD side 0: init/small/medium/large/search: 3566 726 69 3942 253
+sieve: init/small/medium/large/search: 699 27516 16 7892 1081
+TD side 1: init/small/medium/large/search: 3531 425 38 3688 136
+sieve: init/small/medium/large/search: 447 16810 20 7119 92
+aborts: 0 0
+Expected yield/cost: 79  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 1842 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I15e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 99999999
+FBsize 14496980+0 (deg 6), 5761454+0 (deg 1)
+Sorted factor base on side 0: 2: 7246696
+Sorted factor base on side 1: 1: 5757943
+total yield: 830, q=100000259 (0.06813 sec/rel) ETA 0h00m)
+14 Special q, 106 reduction iterations
+reports: 34326161->7509477->7046296->5676895->2106441->1161387->35160 (482208)
+
+Total yield: 830
+milliseconds total: Sieve 10936 Sched 15912 medsched 1014
+TD 17452 (Init 325, MPQS 7607) Sieve-Change 11243
+TD side 0: init/small/medium/large/search: 270 2340 114 1390 1883
+sieve: init/small/medium/large/search: 149 3015 126 1645 531
+TD side 1: init/small/medium/large/search: 88 1526 111 964 814
+sieve: init/small/medium/large/search: 129 3515 140 1480 206
+aborts: 0 0
+Expected yield/cost: 177  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 34983 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 249999999
+FBsize 26351441+0 (deg 8), 26355865+0 (deg 1)
+Sorted factor base on side 0: 2: 13173992
+Sorted factor base on side 1: 1: 26352354
+total yield: 203, q=250000211 (0.50663 sec/rel) ETA 0h00m)
+8 Special q, 65 reduction iterations
+reports: 39701233->3716265->3369616->3032671->1179218->430978->14442 (207906)
+
+Total yield: 203
+milliseconds total: Sieve 23105 Sched 43009 medsched 8
+TD 17955 (Init 203, MPQS 3894) Sieve-Change 18775
+TD side 0: init/small/medium/large/search: 370 3543 40 2468 1414
+sieve: init/small/medium/large/search: 239 6150 8 3636 829
+TD side 1: init/small/medium/large/search: 659 2358 17 2324 648
+sieve: init/small/medium/large/search: 230 7948 12 3878 175
+aborts: 0 0
+Expected yield/cost: 26  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 14416 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big
+gnfs-lasieve4I16e (with asm64,avx-512 lasetup,lasched,sieve1,ecm,tds0,search0,tdsched): L1_BITS=15
+Warning:  lowering FB_bound to 324999999
+FBsize 38696522+0 (deg 6), 17530337+0 (deg 1)
+Sorted factor base on side 0: 1: 8599929 2: 15046521
+Sorted factor base on side 1: 1: 17526826
+total yield: 594, q=325000201 (0.23734 sec/rel) ETA 0h00m)
+10 Special q, 74 reduction iterations
+reports: 82585966->2719343->2505699->2354466->1257772->1022522->31447 (421336)
+
+Total yield: 594
+milliseconds total: Sieve 32118 Sched 59379 medsched 10
+TD 26565 (Init 140, MPQS 9967) Sieve-Change 22916
+TD side 0: init/small/medium/large/search: 538 3865 21 3804 978
+sieve: init/small/medium/large/search: 417 9380 17 6164 1247
+TD side 1: init/small/medium/large/search: 838 2641 23 2771 952
+sieve: init/small/medium/large/search: 288 9782 9 4574 240
+aborts: 0 0
+Expected yield/cost: 106  0
+p-1: 0 tests, 0 successes  ecm: 0 tests, 0 successes
+MPQS-AUX 0
+COF: 31341 tests, 0 ecm, 0 aux:
+       0 mpqs, 0 mpqs3, 0 ecm, 0 too big

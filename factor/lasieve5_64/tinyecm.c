@@ -30,6 +30,9 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include <stdint.h>
 #include <stdio.h>
+#include "microecm.h"
+#include "if.h"
+#include "gmp-aux.h"
 
 #define D 120
 
@@ -303,21 +306,21 @@ void to_monty128(monty128_t* mdata, uint64_t* x)
     mpz_init(m);
     mpz_init(n);
 
-    mpz_set_ui(m, x[1]);
+    mpz_set_ull(m, x[1]);
     mpz_mul_2exp(m, m, 64);
-    mpz_add_ui(m, m, x[0]);
+    mpz_add_ull(m, m, x[0]);
 
-    mpz_set_ui(n, mdata->n[1]);
+    mpz_set_ull(n, mdata->n[1]);
     mpz_mul_2exp(n, n, 64);
-    mpz_add_ui(n, n, mdata->n[0]);
+    mpz_add_ull(n, n, mdata->n[0]);
 
     // implied R = 2^128
     mpz_mul_2exp(m, m, 128);
     mpz_mod(m, m, n);
 
-    x[0] = mpz_get_ui(m);
+    x[0] = mpz_get_ull(m);
     mpz_tdiv_q_2exp(m, m, 64);
-    x[1] = mpz_get_ui(m);
+    x[1] = mpz_get_ull(m);
 
     mpz_clear(m);
     mpz_clear(n);
@@ -713,9 +716,6 @@ void submod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
     return;
 }
 
-#define GCC_ASM64X
-#define USE_MULX
-
 // local functions
 void add(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P1, tinyecm_pt *P2, 
 	tinyecm_pt *Pin, tinyecm_pt *Pout);
@@ -734,21 +734,21 @@ double bench_stg2;
 
 void u128_to_mpz(uint64_t *in, mpz_t out)
 {
-	mpz_set_ui(out, in[1]);
+	mpz_set_ull(out, in[1]);
 	mpz_mul_2exp(out, out, 64);
-	mpz_add_ui(out, out, in[0]);
+	mpz_add_ull(out, out, in[0]);
 	return;
 }
 
 void mpz_to_u128(mpz_t in, uint64_t *out)
 {
-    out[0] = mpz_get_ui(in);
+    out[0] = mpz_get_ull(in);
     mpz_tdiv_q_2exp(in, in, 64);
-    out[1] = mpz_get_ui(in);
-
+    out[1] = mpz_get_ull(in);
+	
     // restore input
     mpz_mul_2exp(in, in, 64);
-    mpz_add_ui(in, in, out[0]);
+	mpz_add_ull(in, in, out[0]);
 
 	return;
 }
@@ -1626,7 +1626,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 	work.stg1_max = B1;
 	work.stg2_max = B2;
 
-	mpz_set_ui(f, 1);
+	mpz_set_ull(f, 1);
 	for (curve = 0; curve < curves; curve++)
 	{
 		work.stg1Add = 0;
@@ -2315,7 +2315,7 @@ int check_factor(uint64_t * Z, uint64_t * n, uint64_t * f)
 		if (mpz_cmp(gmp_f, gmp_n) == 0)
 		{
 			// check for a square?
-			uint32_t t2 = mpz_get_ui(gmp_f) & 31;
+			uint32_t t2 = mpz_get_ull(gmp_f) & 31;
 			if (t2 == 0 || t2 == 1 || t2 == 4 ||
 				t2 == 9 || t2 == 16 || t2 == 17 || t2 == 25)
 			{
@@ -2328,13 +2328,13 @@ int check_factor(uint64_t * Z, uint64_t * n, uint64_t * f)
 				}
 				else
 				{
-					mpz_set_ui(gmp_f, 0);
+					mpz_set_ull(gmp_f, 0);
 					status = 0;
 				}
 			}
 			else
 			{
-				mpz_set_ui(gmp_f, 0);
+				mpz_set_ull(gmp_f, 0);
 				status = 0;
 			}
 		}
@@ -2704,8 +2704,6 @@ static void tinypm1(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2)
 
 	return;
 }
-
-
 
 #ifdef USE_AVX512F
 
@@ -4446,19 +4444,19 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 	int i;
 	for (i = 0; i < 8; i++)
 	{
-		mpz_set_ui(n, N->data[1][i]);
+		mpz_set_ull(n, N->data[1][i]);
 		mpz_mul_2exp(n, n, 52);
-		mpz_add_ui(n, n, N->data[0][i]);
+		mpz_add_ull(n, n, N->data[0][i]);
 
-		mpz_set_ui(m, x->data[1][i]);
+		mpz_set_ull(m, x->data[1][i]);
 		mpz_mul_2exp(m, m, 52);
-		mpz_add_ui(m, m, x->data[0][i]);
+		mpz_add_ull(m, m, x->data[0][i]);
 
 		mpz_mul_2exp(m, m, 104);
 		mpz_mod(m, m, n);
-		x->data[0][i] = mpz_get_ui(m) & 0x000fffffffffffff;
+		x->data[0][i] = mpz_get_ull(m) & 0x000fffffffffffff;
 		mpz_tdiv_q_2exp(m, m, 52);
-		x->data[1][i] = mpz_get_ui(m) & 0x000fffffffffffff;
+		x->data[1][i] = mpz_get_ull(m) & 0x000fffffffffffff;
 	}
 
 	mpz_clear(m);
@@ -4469,20 +4467,20 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 
 void u104_to_mpz(vec_u104_t* x, int lane, mpz_t gx)
 {
-	mpz_set_ui(gx, x->data[1][lane]);
+	mpz_set_ull(gx, x->data[1][lane]);
 	mpz_mul_2exp(gx, gx, 52);
-	mpz_add_ui(gx, gx, x->data[0][lane]);
+	mpz_add_ull(gx, gx, x->data[0][lane]);
 	return;
 }
 
 void mpz_to_u104(mpz_t gx, vec_u104_t* x, int lane)
 {
-	x->data[0][lane] = mpz_get_ui(gx) & 0x000fffffffffffff;
+	x->data[0][lane] = mpz_get_ull(gx) & 0x000fffffffffffff;
 	mpz_tdiv_q_2exp(gx, gx, 52);
-	x->data[1][lane] = mpz_get_ui(gx) & 0x000fffffffffffff;
+	x->data[1][lane] = mpz_get_ull(gx) & 0x000fffffffffffff;
 	// restore input
 	mpz_mul_2exp(gx, gx, 52);
-	mpz_add_ui(gx, gx, x->data[0][lane]);
+	mpz_add_ull(gx, gx, x->data[0][lane]);
 	return;
 }
 
@@ -4621,12 +4619,12 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 	mpz_init(gR);
 	mpz_init(gT);
 
-	mpz_set_ui(gR, 1);
+	mpz_set_ull(gR, 1);
 	mpz_mul_2exp(gR, gR, 104);
 
-	mpz_set_ui(gN, n[1]);
+	mpz_set_ull(gN, n[1]);
 	mpz_mul_2exp(gN, gN, 52);
-	mpz_add_ui(gN, gN, n[0]);
+	mpz_add_ull(gN, gN, n[0]);
 
 	mpz_mod(gT, gR, gN);
 
@@ -4746,52 +4744,6 @@ done:
 #endif
 
 
-
-
-
-
-
-
-
-
-
-
-
-void tinyecm_test(int sizeb, int num, int type)
-{
-	u128_t *inputs;
-	int i;
-
-	if (sizeb > 128)
-	{
-		printf("size must be <= 128 bits\n");
-		return;
-	}
-
-	if (num > (1 << 30))
-	{
-		printf("please be reasonable\n");
-		return;
-	}
-
-	inputs = (u128_t *)malloc(num * sizeof(u128_t));
-
-	// build the requested input type, quantity and size
-	for (i = 0; i < num; i++)
-	{
-
-
-	}
-
-	// test them, building up timings in globals
-
-
-	// report results
-
-	return;
-}
-
-
 int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, uint64_t* ploc_lcg)
 {
 	int B1, curves;
@@ -4803,21 +4755,21 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, uint64_t* ploc_lcg)
 			B1 = 47;
 			curves = 1;
 			tinyecm(n, f, B1, B1 * 25, curves, ploc_lcg, 0);
-			if (mpz_get_ui(f) > 1)
+			if (mpz_get_ull(f) > 1)
 				return 1;
 		}
 		{
 			B1 = 70;
 			curves = 1;
 			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
-			if (mpz_get_ui(f) > 1)
+			if (mpz_get_ull(f) > 1)
 				return 1;
 		}
 		{
 			B1 = 125;
 			curves = 1;
 			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
-			if (mpz_get_ui(f) > 1)
+			if (mpz_get_ull(f) > 1)
 				return 1;
 		}
 	}
@@ -4865,7 +4817,7 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, uint64_t* ploc_lcg)
 		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
 	}
 
-	if (mpz_get_ui(f) > 1)
+	if (mpz_get_ull(f) > 1)
 		return 1;
 	else
 		return 0;
@@ -4895,12 +4847,12 @@ int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1)
 {
 	if (mpz_even_p(n))
 	{
-		mpz_set_ui(f, 2);
+		mpz_set_ull(f, 2);
 		return 1;
 	}
 
 	tinypm1(n, f, b1, 25 * b1);
-	if (mpz_get_ui(f) > 1)
+	if (mpz_get_ull(f) > 1)
 		return 1;
 	else
 		return 0;
@@ -4928,7 +4880,7 @@ void tecm_testmath()
 	mpz_init(gi);
 	mpz_init(glomask);
 
-	mpz_set_ui(gr, 1);
+	mpz_set_ull(gr, 1);
 	mpz_mul_2exp(gr, gr, 104);
 	mpz_sub_ui(glomask, gr, 1);
 
@@ -5107,11 +5059,13 @@ int tecm_dispatch_x8_list(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg
 	uint64_t f[2];
 	int i;
 
-	n[0] = mpz_get_ui(gn) & 0x000fffffffffffffull;
+	n[0] = gn->_mp_d[0] & 0x000fffffffffffffull; //mpz_get_ull(gn) & 0x000fffffffffffffull;
 	mpz_tdiv_q_2exp(gf, gn, 52);
-	n[1] = mpz_get_ui(gf) & 0x000fffffffffffffull;
+	n[1] = gf->_mp_d[0] & 0x000fffffffffffffull; //mpz_get_ull(gf) & 0x000fffffffffffffull;
 
-	mpz_set_ui(gf, 1);
+	//printf("in tecm_dispatch, N = %013llx%013llx\n", n[1], n[0]);
+
+	mpz_set_ull(gf, 1);
 
 	if (targetBits <= 20)
 	{
@@ -5156,11 +5110,11 @@ int tecm_dispatch_x8_list(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg
 		tinyecm_x8_list(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
 	}
 
-	mpz_set_ui(gf, f[1]);
+	mpz_set_ull(gf, f[1]);
 	mpz_mul_2exp(gf, gf, 64);
-	mpz_add_ui(gf, gf, f[0]);
+	mpz_add_ull(gf, gf, f[0]);
 
-	if (mpz_get_ui(gf) > 1)
+	if (mpz_get_ull(gf) > 1)
 		return 1;
 	else
 		return 0;
@@ -5183,13 +5137,15 @@ int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
 	//return tecm_dispatch(n, f, target_bits, pran);
 }
 
+
+
 #else
 
 int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
 {
 	if (mpz_even_p(n))
 	{
-		mpz_set_ui(f, 2);
+		mpz_set_ull(f, 2);
 		return 1;
 	}
 

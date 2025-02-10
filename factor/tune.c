@@ -113,6 +113,21 @@ void factor_tune(fact_obj_t *inobj)
 	strcpy(siqslist[8], "1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
 	strcpy(siqslist[9], "466734409955806375058988820327650664396976790744285564594552020197119774272189758795312820988691316775181");
 
+	/*
+	c95 dlp (default, 8t, inmem): 224/238
+	c100 dlp (default, 8t, inmem): 520/543 (-siqsNB 6 502/525)
+	c105 dlp (default, 8t): 2042/2090
+	
+	c95 tlp (tbd, inmem):
+	c100 tlp: 495/509 (35.9M batched, lpb-27 mfbt-2.6 B-60k TF-95 TFsm-19 BT-250k, NB-8 Bdiv 3)
+	c100 tlp: 472/487 (36.5M batched, lpb-27 mfbt-2.65 B-60k TF-95 TFsm-19 BT-250k NB-6 Bdiv 3)
+	c100 tlp: 476/490 (36.5M batched, lpb-27 mfbt-2.65 B-55k TF-95 TFsm-19 BT-250k NB-6 Bdiv 3)
+	c100 tlp: 487/499 (30.8M batched, lpb-26 mfbt-2.7 B-60k TF-95 TFsm-19 BT-250k NB-6 Bdiv 3)
+ 	
+	c105 tlp: 1584/1635 (85M batched, lpb-27 mfbt-2.7 B-100k TF-100 TFsm-19 BT-500k NB-6 Bdiv 3)
+	*/
+
+
 	// nfs: start with c85, increment by 5 digits, up to C110
 	// this will allow determination of NFS/QS crossover
 	// to do NFS time estimation, probably need to go much higher - say c155.
@@ -213,7 +228,7 @@ void factor_tune(fact_obj_t *inobj)
 		gettimeofday(&start, NULL);
 
 		//start the test
-		sprintf(syscmd,"%s -a tune.job -f %u -c %u -o tunerels.out",
+		sprintf(syscmd,"%s -f %u -c %u -o tunerels.out -a tune.job",
 			sievername, startq, qrange);
 		printf("nfs: commencing lattice sieving over range: %u - %u\n",
 			startq, startq + qrange);

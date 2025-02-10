@@ -5,6 +5,7 @@
 #include <sys/types.h> 
 #include <math.h> 
 #include <stdlib.h> 
+#include <stdint.h>
 #include <unistd.h> 
 #include <limits.h> 
 #include <string.h> 
@@ -19,6 +20,7 @@
 #include "ecm.h"
 #include "pm1.h"
 
+#include "gmp-aux.h"
 #include "mpqs.h"
 #include "mpqs3.h"
 
@@ -465,12 +467,13 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 			fac = uecm_factors;
 
 			if (mpz_sizeinbase(large_factors[s], 2) <= 64) {
-				uint64_t n64 = mpz_get_ui(large_factors[s]);
+
+				uint64_t n64 = large_factors[s]->_mp_d[0]; // mpz_get_ull(large_factors[s]);
 				uint64_t f = getfactor_uecm(n64, 0, &pran);
 				if (f > 1)
 				{
-					mpz_set_ui(fac[0], f);
-					mpz_tdiv_q_ui(fac[1], large_factors[s], f);
+					mpz_set_ull(fac[0], f);
+					mpz_tdiv_q_ull(fac[1], large_factors[s], f);
 					nf = 2;
 
 					if (mpz_sizeinbase(fac[0], 2) > max_primebits[s]) 
@@ -498,7 +501,12 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 			}
 			else
 			{
-				if (getfactor_tecm(large_factors[s], fac[0],
+
+#if defined(AVX512_ECM)
+
+				if (mpz_sizeinbase(large_factors[s], 2) > 104)
+					nf = mpqs3_factor(large_factors[s], max_primebits[s], &fac);
+				else if (getfactor_tecm(large_factors[s], fac[0],
 					mpz_sizeinbase(large_factors[s], 2) / 3 - 2, &pran) > 0)
 				{
 					if (mpz_sizeinbase(fac[0], 2) <= max_primebits[s])
@@ -535,9 +543,9 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						uint64_t f64;
 						if (mpz_sizeinbase(fac[1], 2) <= 64)
 						{
-							q64 = mpz_get_ui(fac[1]);
+							q64 = mpz_get_ull(fac[1]);
 							f64 = getfactor_uecm(q64, 0, &pran);
-							mpz_set_ui(fac[2], f64);
+							mpz_set_ull(fac[2], f64);
 						}
 						else
 						{
@@ -545,11 +553,11 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 							// use ecm first with high effort.
 							getfactor_tecm(fac[1], fac[2], 32, &pran);
 						}
-						f64 = mpz_get_ui(fac[2]);
+						f64 = mpz_get_ull(fac[2]);
 
 						if (f64 > 1)
 						{
-							mpz_tdiv_q_ui(fac[1], fac[1], f64);
+							mpz_tdiv_q_ull(fac[1], fac[1], f64);
 							nf = 3;
 
 							if (mpz_sizeinbase(fac[1], 2) > max_primebits[s]) {
@@ -622,9 +630,9 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 							uint64_t f64;
 							if (mpz_sizeinbase(fac[0], 2) <= 64)
 							{
-								q64 = mpz_get_ui(fac[0]);
+								q64 = mpz_get_ull(fac[0]);
 								f64 = getfactor_uecm(q64, 0, &pran);
-								mpz_set_ui(fac[2], f64);
+								mpz_set_ull(fac[2], f64);
 							}
 							else
 							{
@@ -632,11 +640,11 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 								// use ecm with high effort first
 								getfactor_tecm(fac[0], fac[2], 32, &pran);
 							}
-							f64 = mpz_get_ui(fac[2]);
+							f64 = mpz_get_ull(fac[2]);
 
 							if (f64 > 1)
 							{
-								mpz_tdiv_q_ui(fac[0], fac[0], f64);
+								mpz_tdiv_q_ull(fac[0], fac[0], f64);
 								nf = 3;
 
 								if (mpz_sizeinbase(fac[0], 2) > max_primebits[s]) {
@@ -657,7 +665,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 								{
 									nf = 0;
 								}
-								
+
 							}
 							else
 							{
@@ -724,6 +732,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						break;
 #else
 
+
 					if (mpz_sizeinbase(large_factors[s], 2) <= (max_primebits[s] * 2))
 					{
 						nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
@@ -765,6 +774,17 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 #endif
 				}
 
+
+#else
+
+				if (mpz_sizeinbase(large_factors[s], 2) > 96)
+					nf = mpqs3_factor(large_factors[s], max_primebits[s], &fac);
+				else
+					nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
+#endif
+
+				
+
 			}
 
 		done:
@@ -782,7 +802,6 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 				mpz_set(large_primes[s][nlp[s] + i], fac[i]);
 			nlp[s] += nf;
 			done[s] = 2;
-
 
 		}
 		else {

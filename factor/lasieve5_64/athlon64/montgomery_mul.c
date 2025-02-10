@@ -8,7 +8,7 @@
 #include <gmp.h>
 #include "siever-config.h"
 #include "../if.h"
-
+#include "../gmp-aux.h"
 #include "montgomery_mul.h"
 
 #define uchar   unsigned char
@@ -53,16 +53,16 @@ extern int asm_inv64(ulong *,ulong *);
 */
 
 #ifdef ULONG_HAS_32BIT
-extern void asm_mulm96(ulong *,ulong *,ulong *);
+extern void ASM_ATTR asm_mulm96(ulong *,ulong *,ulong *);
 extern void asm_sqm96(ulong *,ulong *);
-extern void asm_add96(ulong *,ulong *);
+extern void ASM_ATTR asm_add96(ulong *,ulong *);
 extern void asm_diff96(ulong *,ulong *,ulong *);
-extern void asm_sub96_3(ulong *,ulong *,ulong *);
+extern void ASM_ATTR asm_sub96_3(ulong *,ulong *,ulong *);
 extern void asm_add96_ui(ulong *,ulong);
-extern void asm_copy96(ulong *,ulong *);
-extern void asm_zero96(ulong *);
+extern void ASM_ATTR asm_copy96(ulong *,ulong *);
+extern void ASM_ATTR asm_zero96(ulong *);
 extern void asm_sub_n96(ulong *,ulong *);
-extern void asm_half96(ulong *);
+extern void ASM_ATTR asm_half96(ulong *);
 extern int asm_inv96(ulong *,ulong *);
 #endif
 
@@ -82,16 +82,16 @@ extern int asm_inv128(ulong *,ulong *);
 */
 
 #ifdef ULONG_HAS_32BIT
-extern void asm_mulm160(ulong *,ulong *,ulong *);
+extern void ASM_ATTR asm_mulm160(ulong *,ulong *,ulong *);
 void asm_sqm160(ulong *,ulong *);
 extern void asm_diff160(ulong *,ulong *,ulong *);
-extern void asm_add160(ulong *,ulong *);
-extern void asm_sub160_3(ulong *,ulong *,ulong *);
+extern void ASM_ATTR asm_add160(ulong *,ulong *);
+extern void ASM_ATTR asm_sub160_3(ulong *,ulong *,ulong *);
 extern void asm_add160_ui(ulong *,ulong);
-extern void asm_zero160(ulong *);
-extern void asm_copy160(ulong *,ulong *);
+extern void ASM_ATTR asm_zero160(ulong *);
+extern void ASM_ATTR asm_copy160(ulong *,ulong *);
 extern void asm_sub_n160(ulong *,ulong *);
-extern void asm_half160(ulong *);
+extern void ASM_ATTR asm_half160(ulong *);
 extern int asm_inv160(ulong *,ulong *);
 #endif
 
@@ -177,13 +177,13 @@ void init_montgomery_R2(mpz_t n)
 {
   size_t i;
 
-  mpz_set_ui(montgomery_gmp_help,1);
+  mpz_set_ull(montgomery_gmp_help,1);
   mpz_mul_2exp(montgomery_gmp_help,montgomery_gmp_help,2*mp_bits_per_limb*montgomery_ulongs);
   mpz_fdiv_r(montgomery_gmp_help,montgomery_gmp_help,n);
-  montgomery_modulo_R2[0]=mpz_get_ui(montgomery_gmp_help);
+  montgomery_modulo_R2[0]=mpz_get_ull(montgomery_gmp_help);
   for (i=1; i<montgomery_ulongs; i++) {
     mpz_fdiv_q_2exp(montgomery_gmp_help,montgomery_gmp_help,mp_bits_per_limb);
-    montgomery_modulo_R2[i]=mpz_get_ui(montgomery_gmp_help);
+    montgomery_modulo_R2[i]=mpz_get_ull(montgomery_gmp_help);
   }
 }
 
@@ -251,16 +251,17 @@ int set_montgomery_multiplication(mpz_t n)
   size_t new, old;
   int j;
 
+  //printf("mp_bits_per_limb in set monty_mul = %d\n", mp_bits_per_limb);
   if (!montgomery_multiplication_is_init) init_montgomery_multiplication();
   old=montgomery_ulongs;
   new=mpz_size(n);
   if (new>NMAX_ULONGS) return 0;
   for (j=1; j<NMAX_ULONGS; j++) montgomery_modulo_n[j]=0;
-  montgomery_modulo_n[0]=mpz_get_ui(n);
+  montgomery_modulo_n[0]=mpz_get_ull(n);
   montgomery_ulongs=1;
   if (new>1) mpz_fdiv_q_2exp(montgomery_gmp_help,n,mp_bits_per_limb);
   while (montgomery_ulongs<new) {
-    montgomery_modulo_n[montgomery_ulongs]=mpz_get_ui(montgomery_gmp_help);
+    montgomery_modulo_n[montgomery_ulongs]=mpz_get_ull(montgomery_gmp_help);
     mpz_fdiv_q_2exp(montgomery_gmp_help,montgomery_gmp_help,mp_bits_per_limb);
     montgomery_ulongs++;
   }
@@ -361,6 +362,7 @@ int set_montgomery_multiplication(mpz_t n)
 void init_montgomery_multiplication()
 {
   mpz_init(montgomery_gmp_help);
+  //printf("sizeof(ulong) in monty init = %d\n", sizeof(ulong));
   montgomery_modulo_n=(ulong *)xmalloc(NMAX_ULONGS*sizeof(ulong));
   montgomery_ulongs=0;
   montgomery_multiplication_is_init=1;

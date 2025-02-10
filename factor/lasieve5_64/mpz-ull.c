@@ -19,6 +19,7 @@ typedef unsigned long long ullong;
 #include "asm/siever-config.h"
 #include "gmp-aux.h"
 
+
 #ifdef ULL_NO_UL
 static unsigned int have_init=0;
 static mpz_t auxz,auxz2;
@@ -35,14 +36,30 @@ mpz_ull_init()
 }
 #endif
 
-#define BITS_PER_ULONG (sizeof(ulong)*CHAR_BIT)
+#ifndef BITS_PER_GMP_ULONG
+#define BITS_PER_GMP_ULONG (sizeof(ulong)*CHAR_BIT)
+#endif
+
 #ifdef ULL_NO_UL
+//#include <stdio.h>
 void mpz_set_ull(mpz_t targ,unsigned long long src)
 {
-  mpz_set_ui(targ,
-	     (ulong)((src&((unsigned long long)ULONG_MAX<<BITS_PER_ULONG))>>BITS_PER_ULONG));
-  mpz_mul_2exp(targ,targ,BITS_PER_ULONG);
-  mpz_add_ui(targ,targ,(ulong)(src&ULONG_MAX));
+    //printf("sizeof(ulong) = %u\n", sizeof(ulong));
+    //printf("sizeof(ullong) = %u\n", sizeof(ullong));
+    //printf("sizeof(mp_limb_t) = %u\n", sizeof(mp_limb_t));
+    //printf("ulong_max = %lx\n", ULONG_MAX);
+    //printf("BITS_PER_GMP_ULONG = %lu\n", BITS_PER_GMP_ULONG);
+    // printf("src = %llx\n", src);
+    // printf("ulongmax<<BITS_PER_GMP_ULONG = %llx\n", ((unsigned long long)ULONG_MAX << BITS_PER_GMP_ULONG));
+    // printf("src&prev = %llx\n", (src & ((unsigned long long)ULONG_MAX << BITS_PER_GMP_ULONG)));
+    // printf("prev>>BITS_PER_GMP_ULONG = %lx\n", 
+    //     (ulong)((src & ((unsigned long long)ULONG_MAX << BITS_PER_GMP_ULONG)) >> BITS_PER_GMP_ULONG));
+    // printf("src&ulong_max = %lx\n", (ulong)(src & ULONG_MAX));
+    mpz_set_ui(targ,
+	     (ulong)((src&((unsigned long long)ULONG_MAX<<BITS_PER_GMP_ULONG))>>BITS_PER_GMP_ULONG));
+    mpz_mul_2exp(targ,targ,BITS_PER_GMP_ULONG);
+    mpz_add_ui(targ,targ,(ulong)(src&ULONG_MAX));
+    // gmp_printf("result = %Zx\n", targ);
 }
 #endif
 
@@ -51,11 +68,10 @@ ullong
 mpz_get_ull(mpz_t src)
 {
   ullong res;
-
-  if(sizeof(ullong)==2*sizeof(ulong)) {
-    mpz_fdiv_q_2exp(auxz,src,sizeof(ulong)*CHAR_BIT);
+  if(sizeof(ullong)==2*(BITS_PER_GMP_ULONG/CHAR_BIT)) { //sizeof(ulong)) {
+    mpz_fdiv_q_2exp(auxz,src, BITS_PER_GMP_ULONG);
     res=mpz_get_ui(auxz);
-    res<<=sizeof(ulong)*CHAR_BIT;
+    res<<= BITS_PER_GMP_ULONG;
     res|=mpz_get_ui(src);
   } else {
     /* CAVE: This has not been checked! */
@@ -81,6 +97,24 @@ mpz_cmp_ull(mpz_t op1,ullong op2)
 {
   mpz_set_ull(auxz,op2);
   return mpz_cmp(op1,auxz);
+}
+#endif
+
+#ifdef ULL_NO_UL
+void
+mpz_add_ull(mpz_t rop, mpz_t op1, ullong op2)
+{
+    mpz_set_ull(auxz, op2);
+    mpz_add(rop, op1, auxz);
+}
+#endif
+
+#ifdef ULL_NO_UL
+void
+mpz_tdiv_q_ull(mpz_t rop, mpz_t op1, ullong op2)
+{
+    mpz_set_ull(auxz, op2);
+    mpz_tdiv_q(rop, op1, auxz);
 }
 #endif
 

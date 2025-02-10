@@ -641,9 +641,9 @@ static void mpqs_choose_multiplier()
 #endif
   mpz_mul_ui(mpqs_kN,mpqs_N,(ulong)mpqs_multiplier);
   mpz_fdiv_q_2exp(mpqs_dummy,mpqs_kN,mp_bits_per_limb);
-  mpqs_kN_64=(u64_t)mpz_get_ui(mpqs_dummy); mpqs_kN_64<<=mp_bits_per_limb;
+  mpqs_kN_64=(u64_t)mpz_get_ull(mpqs_dummy); mpqs_kN_64<<=mp_bits_per_limb;
   if (mp_bits_per_limb>=64) mpqs_kN_64=0;
-  mpqs_kN_64+=(u64_t)mpz_get_ui(mpqs_kN);
+  mpqs_kN_64+=(u64_t)mpz_get_ull(mpqs_kN);
 }
 
 

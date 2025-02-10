@@ -27,6 +27,8 @@ long long int mpz_get_sll(mpz_t);
 void mpz_set_sll(mpz_t,long long int);
 unsigned long long mpz_get_ull(mpz_t);
 void mpz_set_ull(mpz_t,unsigned long long);
+void mpz_add_ull(mpz_t rop, mpz_t op1, ullong op2);
+void mpz_tdiv_q_ull(mpz_t rop, mpz_t op1, ullong op2);
 #else
 #line 39 "gmp-aux.w"
 #define mpz_ull_init()
@@ -38,6 +40,8 @@ void mpz_set_ull(mpz_t,unsigned long long);
 #define mpz_set_sll mpz_set_si
 #define mpz_get_ull mpz_get_ui
 #define mpz_set_ull mpz_set_ui
+#define mpz_add_ull mpz_add_ui
+#define mpz_tdiv_q_ull mpz_tdiv_q_ui
 #endif
 #line 49 "gmp-aux.w"
 /*:1*/

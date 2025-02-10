@@ -21,9 +21,17 @@
 #CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -funroll-loops -Ic:/users/steve/progs/local/include 
 
 # linux
-CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
-	-I../../../gmp_install/gmp-6.2.0/include -I../../include -fcommon
+#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
+#	-I../../../gmp-install/6.2.1/include -I../../include -L../../../gmp-install/6.2.1/lib -fcommon
 
+# mingw
+# BRB: ULL_NO_UL didn't quite do the job by itself, because gmp ./configure set ulong to be 4 bytes
+# but ulong is set to 8 bytes in siever_config.h when compiling lasieve.  Changing the siever_config
+# definition breaks the montgomery asm code.  An easier solution is to set the following new definition:
+# BITS_PER_GMP_ULONG, and a few relevant lines of code in mpz-ull.c
+CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -O2 -Ofast -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fomit-frame-pointer -march=native -funroll-loops  \
+	-I. -I../../../gmp-install/mingw/include -L../../../gmp-install/mingw/lib -lgmp -I../../include -fcommon
+	
 #clang
 #CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
 #clang for profiling
@@ -32,7 +40,7 @@ CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-point
 #endif
 
 
-GMP_LIB=-L../../../gmp_install/gmp-6.2.0/include/lib -lgmp
+GMP_LIB=../../../gmp-install/mingw/lib/libgmp.a
 #For windows
 #GMP_LIB=-Lc:/Users/steve/progs/local/lib -lgmp -lws2_32
 #Using brew installed gmp
@@ -96,7 +104,7 @@ endif
 
 ifeq ($(AVX512_ALL),1)
 	ifeq ($(CC),icc)
-		CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
+		CFLAGS += -DUSE_AVX512F -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
 		ASM_FLAGS += AVX512_TD=1
 	else
 		CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_ECM -DAVX512_LASCHED -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
@@ -118,8 +126,8 @@ SRCFILES=fbgen.c fbgen.h lasieve-prepn.c if.c la-cs.c gmp-aux.c mpz-ull.c \
 	primgen32.c primgen64.c gnfs-lasieve4e.c gnfs-lasieve4g.w \
 	td.[ch] \
 	ecm.[ch] strategy.c ecmtest.c \
-	ecmstat.c mpqsstat.c mpqstest.c mpqs3test.c mpqs.c mpqs3.c tinyecm.c ../gmp-ecm/microecm.c \
-	../gmp-ecm/micropm1.c pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
+	ecmstat.c mpqsstat.c mpqstest.c mpqs3test.c mpqs.c mpqs3.c tinyecm.c microecm.c \
+	micropm1.c pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
 
 
 ASMDIRS=athlon athlon64 piii generic xeon64
@@ -223,7 +231,7 @@ mpqs3.o: mpqs3.c asm/mpqs-config.h asm/siever-config.h
 gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
 	recurrence6.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
-	strategy.o ecm.o mpqs3.o pm1.o ../gmp-ecm/microecm.o ../gmp-ecm/micropm1.o tinyecm.o \
+	strategy.o ecm.o mpqs3.o pm1.o microecm.o micropm1.o tinyecm.o \
 	asm/liblasieve.a asm/liblasieveI%.a
 	$(CC) -o $@ $^ $(GMP_LIB) -lm
 
