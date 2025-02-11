@@ -114,8 +114,8 @@ static void stage1_callback_log(mpz_t ad, mpz_t p, mpz_t m, void *extra) {
 	
 	FILE *mfile = (FILE *)extra;
 	// gmp_printf("%Zd %Zd %Zd\n", ad, p, m);
-	// gmp_fprintf(mfile, "%Zd %Zd %Zd\n", ad, p, m);
-	// fflush(mfile);
+	gmp_fprintf(mfile, "%Zd %Zd %Zd\n", ad, p, m);
+	fflush(mfile);
 }
 
 /*------------------------------------------------------------------*/
@@ -203,6 +203,10 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 					stage1_callback, &sizeopt_data);
 		}
 		else {
+			sizeopt_data.best_saved_combined_e = 0.0;
+			sizeopt_data.num_rootopt = 0;
+			sizeopt_data.num_saved = 0;
+
 			sprintf(buf, "%s.m", obj->savefile.name);
 			stage1_outfile = fopen(buf, "a");
 			if (stage1_outfile == NULL) {
@@ -282,6 +286,9 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 					sizeopt_callback, &sizeopt_callback_data);
 		}
 		else {
+			rootopt_data.best_saved_combined_e = 0.0;
+			rootopt_data.num_saved = 0;
+
 			sprintf(buf, "%s.ms", obj->savefile.name);
 			sizeopt_outfile = fopen(buf, "a");
 			if (sizeopt_outfile == NULL) {

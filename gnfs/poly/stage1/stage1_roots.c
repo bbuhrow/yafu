@@ -94,7 +94,8 @@ typedef struct {
 } sieve_fb_t;
 
 /*------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 lift_root_32(uint32 n, uint32 r, uint32 old_power, 
 		uint32 p, uint32 d)
 {
@@ -134,7 +135,8 @@ sieve_fb_free(void *s_in)
 }
 
 /*------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 get_prime_roots(poly_coeff_t *c, uint32 p, uint32 *roots,
 		mpz_poly_t *tmp_poly)
 {
@@ -164,7 +166,8 @@ get_prime_roots(poly_coeff_t *c, uint32 p, uint32 *roots,
 }
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 sieve_add_aprog(sieve_fb_t *s, poly_coeff_t *c, uint32 p, 
 		uint32 fb_roots_min, uint32 fb_roots_max)
 {
@@ -361,7 +364,8 @@ sieve_fb_reset(void *s_in, uint32 p_min, uint32 p_max,
 }
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 lift_roots(sieve_fb_t *s, poly_coeff_t *c, uint32 p, uint32 num_roots)
 {
 	/* we have num_roots arithmetic progressions mod p;
@@ -403,7 +407,8 @@ lift_roots(sieve_fb_t *s, poly_coeff_t *c, uint32 p, uint32 num_roots)
 }
 
 /*------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 combine_roots(sieve_fb_t *s, uint32 p,
 		uint32 num_factors, uint32 p_i[MAX_P_FACTORS],
 		uint32 num_roots[MAX_P_FACTORS],
@@ -477,7 +482,8 @@ finished:
 }
 
 /*------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 get_enum_roots(sieve_fb_t *s)
 {
 	uint32 i, j;
@@ -506,7 +512,8 @@ get_enum_roots(sieve_fb_t *s)
 }
 
 /*------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 get_next_enum(sieve_fb_t *s)
 {
 	/* find the next p by enumerating combinations of

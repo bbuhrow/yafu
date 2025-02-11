@@ -17,8 +17,11 @@ $Id: minimize.c 734 2012-08-04 15:13:07Z jasonp_sf $
 #define PHI 1.618033988749
 #define COMP_PHI (2.0 - PHI)
 
+//#define MSIEVE_STATIC static
+#define MSIEVE_STATIC 
+
 /*-------------------------------------------------------------------------*/
-static double evaluate(double *base, double dist, 
+MSIEVE_STATIC double evaluate(double *base, double dist, 
 			double *search_dir, uint32 ndim,
 			objective_func callback, void *extra)
 {
@@ -32,7 +35,7 @@ static double evaluate(double *base, double dist,
 }
 
 /*-------------------------------------------------------------------------*/
-static void bracket_min(double *base, double *search_dir,
+MSIEVE_STATIC void bracket_min(double *base, double *search_dir,
 			double *a_out, double *b_out, double *c_out,
 			double tol, double *fb_out, uint32 ndim, 
 			objective_func callback, void *extra)
@@ -121,7 +124,7 @@ static void bracket_min(double *base, double *search_dir,
 }
 
 /*-------------------------------------------------------------------------*/
-static double minimize_line_core(double *base, double *search_dir,
+MSIEVE_STATIC double minimize_line_core(double *base, double *search_dir,
 			double a_in, double b_in, double c_in, 
 			double fb_in, double tol, double *min_out, 
 			uint32 ndim, int32 *status,
@@ -217,7 +220,7 @@ static double minimize_line_core(double *base, double *search_dir,
 }
 
 /*-------------------------------------------------------------------------*/
-static double minimize_line(double *base, double *search_dir, 
+MSIEVE_STATIC double minimize_line(double *base, double *search_dir, 
 				uint32 ndim, double ftol,
 				int32 *status,
 				objective_func callback,
@@ -261,9 +264,9 @@ static double minimize_line(double *base, double *search_dir,
 }
 
 /*-------------------------------------------------------------------------*/
-double minimize(double p[MAX_VARS], uint32 ndim, 
-			double ftol, uint32 max_iter,
-			objective_func callback, void *extra)
+double minimize(double p[MAX_VARS], uint32 ndim,
+	double ftol, uint32 max_iter,
+	objective_func callback, void* extra)
 {
 	uint32 i, j;
 	double best_f, curr_f;
@@ -280,8 +283,8 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 
 	if (ndim == 1) {
 		curr_f = minimize_line(p, directions[0], ndim,
-					MAX(ftol, 1e-7), &status,
-					callback, extra);
+			MAX(ftol, 1e-7), &status,
+			callback, extra);
 		if (status)
 			return best_f;
 		return curr_f;
@@ -294,9 +297,12 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 		double start_f = best_f;
 
 		for (j = 0; j < ndim; j++) {
+			// when called from poly_sizeopt, ndim is the following:
+			// uint32 rotate_dim = deg - 4;
+			// uint32 num_vars = rotate_dim + 3;
 			curr_f = minimize_line(p, directions[j], ndim,
-					MAX(ftol, 1e-7), &status, 
-					callback, extra);
+				MAX(ftol, 1e-7), &status,
+				callback, extra);
 			if (status)
 				return best_f;
 
@@ -307,8 +313,8 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 			best_f = curr_f;
 		}
 
-		if (2.0 * fabs(start_f - best_f) <= 
-				ftol * (fabs(start_f) + fabs(best_f)) + 1e-20)
+		if (2.0 * fabs(start_f - best_f) <=
+			ftol * (fabs(start_f) + fabs(best_f)) + 1e-20)
 			return best_f;
 
 		for (j = 0; j < ndim; j++) {
@@ -323,19 +329,19 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 			double t1 = start_f - best_f - del;
 			double t2 = start_f - curr_f;
 			double t = 2.0 * (start_f - 2.0 * best_f + curr_f) *
-					t1 * t1 - del * t2 * t2;
+				t1 * t1 - del * t2 * t2;
 
 			if (t < 0.0) {
 				best_f = minimize_line(p, dir_extrap, ndim,
-							MAX(ftol, 1e-7), &status, 
-							callback, extra);
+					MAX(ftol, 1e-7), &status,
+					callback, extra);
 				if (status)
 					return best_f;
 
 				for (j = 0; j < ndim; j++) {
-					directions[ibig][j] = 
-						directions[ndim-1][j];
-					directions[ndim-1][j] = 
+					directions[ibig][j] =
+						directions[ndim - 1][j];
+					directions[ndim - 1][j] =
 						dir_extrap[j];
 				}
 			}
@@ -517,7 +523,7 @@ double minimize_hess(double p[MAX_VARS], uint32 ndim,
 }
 
 /*-------------------------------------------------------------------------*/
-static double minimize_line_quasinewt(
+MSIEVE_STATIC double minimize_line_quasinewt(
 		double base[MAX_VARS], 
 		uint32 ndim,
 		double fbase, 

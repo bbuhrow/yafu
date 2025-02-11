@@ -54,6 +54,8 @@ typedef struct {
 	mpz_t gmp_N;
 	uint32 degree;
 
+	int flags;		// copy of msieve flags for the sizeopt run
+
 	// statistics on rootopt called from sizeopt
 	uint32 num_rootopt;
 	uint32_t num_saved;

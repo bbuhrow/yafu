@@ -61,7 +61,8 @@ static const double recip_factorial[] = {
 #define NUM_RECIP_FACTORIALS (sizeof(recip_factorial) / sizeof(double))
 
 /*------------------------------------------------------------------*/
-static int compare_double(const void *x, const void *y) {
+//static
+int compare_double(const void *x, const void *y) {
 	double *xx = (double *)x;
 	double *yy = (double *)y;
 
@@ -73,7 +74,8 @@ static int compare_double(const void *x, const void *y) {
 }
 
 /*------------------------------------------------------------------*/
-static double get_polyval(ddpoly_t *poly, double x, double h) {
+//static
+double get_polyval(ddpoly_t *poly, double x, double h) {
 
 	/* evaluate poly(x+h) using a taylor series centered
 	   at poly(x). We compute poly(x) and the correction
@@ -253,7 +255,8 @@ static double get_polyval(ddpoly_t *poly, double x, double h) {
 }
 
 /*------------------------------------------------------------------*/
-static double integrand(double x, double h, void *params) {
+//static
+double integrand(double x, double h, void *params) {
 
 	/* callback for numerical integration */
 
@@ -367,7 +370,8 @@ uint32 analyze_poly_size(integrate_t *integ_aux,
 }
 
 /*------------------------------------------------------------------*/
-static double eval_dpoly(dpoly_t *poly,
+//static
+double eval_dpoly(dpoly_t *poly,
 			double x0, double xh, 
 			double y0, double yh) {
 
@@ -448,7 +452,8 @@ static double eval_dpoly(dpoly_t *poly,
 }
 
 /*------------------------------------------------------------------*/
-static double murphy_integrand(double r, double h, void *params) {
+//static
+double murphy_integrand(double r, double h, void *params) {
 
 	murphy_param_t *p = (murphy_param_t *)params;
 	double x0, xh, y0, yh;

@@ -6,19 +6,21 @@ errors.
 
 Optionally, please be nice and tell me if you find this source to be
 useful. Again optionally, if you add to the functionality present here
-please consider making those additions public too, so that others may 
-benefit from your work.	
+please consider making those additions public too, so that others may
+benefit from your work.
 
 $Id: optimize.c 839 2013-01-13 14:31:02Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "stage2.h"
+#include <immintrin.h>
 
-typedef double (*norm_t)(double *a, uint32 degree, double s);
+typedef double (*norm_t)(double* a, uint32 degree, double s);
 
 /*-------------------------------------------------------------------------*/
-static double
-ifs_rectangular(double *a, uint32 degree, double s)
+// static
+double
+ifs_rectangular(double* a, uint32 degree, double s)
 {
 	double a0, a1, a2, a3, a4, a5, a6;
 	double s2, s3, s4, s5, s6;
@@ -38,21 +40,21 @@ ifs_rectangular(double *a, uint32 degree, double s)
 
 	switch (degree) {
 	case 4:
-		norm = 1.0 / 9.0 * (a4 * a4 + a0 * a0) + 
-		       2.0 / 21.0 * (a4 * a2 + a2 * a0) + 
-		       1.0 / 21.0 * (a3 * a3 + a1 * a1) + 
-		       2.0 / 25.0 * (a4 * a0 + a3 * a1) + 
-		       1.0 / 25.0 * a2 * a2;
+		norm = 1.0 / 9.0 * (a4 * a4 + a0 * a0) +
+			2.0 / 21.0 * (a4 * a2 + a2 * a0) +
+			1.0 / 21.0 * (a3 * a3 + a1 * a1) +
+			2.0 / 25.0 * (a4 * a0 + a3 * a1) +
+			1.0 / 25.0 * a2 * a2;
 		return norm / s4;
 
 	case 5:
 		s5 = s4 * s;
 		a5 = a[5] * s5;
-		norm = 1.0 / 11.0 * (a5 * a5 + a0 * a0) + 
-		       2.0 / 27.0 * (a5 * a3 + a2 * a0) + 
-		       1.0 / 27.0 * (a4 * a4 + a1 * a1) +
-		       1.0 / 35.0 * (a3 * a3 + a2 * a2) +
-		       2.0 / 35.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+		norm = 1.0 / 11.0 * (a5 * a5 + a0 * a0) +
+			2.0 / 27.0 * (a5 * a3 + a2 * a0) +
+			1.0 / 27.0 * (a4 * a4 + a1 * a1) +
+			1.0 / 35.0 * (a3 * a3 + a2 * a2) +
+			2.0 / 35.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
 		return norm / s5;
 
 	case 6:
@@ -60,21 +62,22 @@ ifs_rectangular(double *a, uint32 degree, double s)
 		a5 = a[5] * s5;
 		s6 = s5 * s;
 		a6 = a[6] * s6;
-		norm = 1.0 / 13.0 * (a6 * a6 + a0 * a0) + 
-		       2.0 / 33.0 * (a6 * a4 + a2 * a0) + 
-		       1.0 / 33.0 * (a5 * a5 + a1 * a1) +
-		       1.0 / 45.0 * (a4 * a4 + a2 * a2) + 
-		       2.0 / 45.0 * (a6 * a2 + a5 * a3 + a4 * a0 + a3 * a1) + 
-		       2.0 / 49.0 * (a6 * a0 + a5 * a1 + a4 * a2) + 
-		       1.0 / 49.0 * a3 * a3;
+		norm = 1.0 / 13.0 * (a6 * a6 + a0 * a0) +
+			2.0 / 33.0 * (a6 * a4 + a2 * a0) +
+			1.0 / 33.0 * (a5 * a5 + a1 * a1) +
+			1.0 / 45.0 * (a4 * a4 + a2 * a2) +
+			2.0 / 45.0 * (a6 * a2 + a5 * a3 + a4 * a0 + a3 * a1) +
+			2.0 / 49.0 * (a6 * a0 + a5 * a1 + a4 * a2) +
+			1.0 / 49.0 * a3 * a3;
 		return norm / s6;
 	}
 
 	return 1e200;
 }
 
-static double
-ifs_radial(double *a, uint32 degree, double s)
+// static
+double
+ifs_radial(double* a, uint32 degree, double s)
 {
 	double a0, a1, a2, a3, a4, a5, a6;
 	double s2, s3, s4, s5, s6;
@@ -94,21 +97,21 @@ ifs_radial(double *a, uint32 degree, double s)
 
 	switch (degree) {
 	case 4:
-		norm = 35.0 * (a4 * a4 + a0 * a0) + 
-		       10.0 * (a4 * a2 + a2 * a0) + 
-		        5.0 * (a3 * a3 + a1 * a1) + 
-		        6.0 * (a4 * a0 + a3 * a1) + 
-		        3.0 * a2 * a2;
+		norm = 35.0 * (a4 * a4 + a0 * a0) +
+			10.0 * (a4 * a2 + a2 * a0) +
+			5.0 * (a3 * a3 + a1 * a1) +
+			6.0 * (a4 * a0 + a3 * a1) +
+			3.0 * a2 * a2;
 		return norm / s4;
 
 	case 5:
 		s5 = s4 * s;
 		a5 = a[5] * s5;
-		norm = 63.0 * (a5 * a5 + a0 * a0) + 
-		       14.0 * (a5 * a3 + a2 * a0) + 
-		        7.0 * (a4 * a4 + a1 * a1) +
-		        3.0 * (a3 * a3 + a2 * a2) +
-		        6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+		norm = 63.0 * (a5 * a5 + a0 * a0) +
+			14.0 * (a5 * a3 + a2 * a0) +
+			7.0 * (a4 * a4 + a1 * a1) +
+			3.0 * (a3 * a3 + a2 * a2) +
+			6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
 		return norm / s5;
 
 	case 6:
@@ -116,24 +119,24 @@ ifs_radial(double *a, uint32 degree, double s)
 		a5 = a[5] * s5;
 		s6 = s5 * s;
 		a6 = a[6] * s6;
-		norm = 231.0 * (a6 * a6 + a0 * a0) + 
-		        42.0 * (a6 * a4 + a2 * a0) + 
-		        21.0 * (a5 * a5 + a1 * a1) +
-		         7.0 * (a4 * a4 + a2 * a2) + 
-		        14.0 * (a6 * a2 + a5 * a3 + a4 * a0 + a3 * a1) + 
-		        10.0 * (a6 * a0 + a5 * a1 + a4 * a2) + 
-		         5.0 * a3 * a3;
+		norm = 231.0 * (a6 * a6 + a0 * a0) +
+			42.0 * (a6 * a4 + a2 * a0) +
+			21.0 * (a5 * a5 + a1 * a1) +
+			7.0 * (a4 * a4 + a2 * a2) +
+			14.0 * (a6 * a2 + a5 * a3 + a4 * a0 + a3 * a1) +
+			10.0 * (a6 * a0 + a5 * a1 + a4 * a2) +
+			5.0 * a3 * a3;
 		return norm / s6;
 	}
 
 	return 1e200;
 }
- 
+
 /*----------------------------------------------------------------------*/
 uint32
-stage2_root_score(uint32 deg1, mpz_t *coeff1, 
-		 uint32 prime_bound, double *score,
-		 uint32 projective_only)
+stage2_root_score(uint32 deg1, mpz_t* coeff1,
+	uint32 prime_bound, double* score,
+	uint32 projective_only)
 {
 	uint32 i;
 	uint32 status;
@@ -146,8 +149,8 @@ stage2_root_score(uint32 deg1, mpz_t *coeff1,
 		mpz_set(apoly.coeff[i], coeff1[i]);
 
 	if (projective_only)
-		status = analyze_poly_roots_projective(&apoly, 
-						prime_bound, score);
+		status = analyze_poly_roots_projective(&apoly,
+			prime_bound, score);
 	else
 		status = analyze_poly_roots(&apoly, prime_bound, score);
 
@@ -155,7 +158,7 @@ stage2_root_score(uint32 deg1, mpz_t *coeff1,
 	return status;
 }
 
-static const double xlate_weights[6+1][6+1] = {
+static const double xlate_weights[6 + 1][6 + 1] = {
 	{  1.,  1.,  1.,  1.,  1.,  1.,  1.},
 	{  0.,  1.,  2.,  3.,  4.,  5.,  6.},
 	{  0.,  0.,  1.,  3.,  6., 10., 15.},
@@ -166,18 +169,19 @@ static const double xlate_weights[6+1][6+1] = {
 };
 
 /*-------------------------------------------------------------------------*/
-static void
-translate_d(double *c, double *d, uint32 deg, double x)
+// static
+void
+translate_d(double* c, double* d, uint32 deg, double x)
 {
 	uint32 i, j;
 
 	for (i = 0, x = -x; i < deg; i++) {
 
-		const double *weights = xlate_weights[i];
+		const double* weights = xlate_weights[i];
 		double accum = d[deg] * weights[deg];
 
 		for (j = deg; j > i; j--) {
-			accum = accum * x + d[j-1] * weights[j-1];
+			accum = accum * x + d[j - 1] * weights[j - 1];
 		}
 		c[i] = accum;
 	}
@@ -185,19 +189,20 @@ translate_d(double *c, double *d, uint32 deg, double x)
 }
 
 /*-------------------------------------------------------------------------*/
-static void
-translate_dd(dd_t *c, dd_t *d, uint32 deg, double x)
+// static
+void
+translate_dd(dd_t* c, dd_t* d, uint32 deg, double x)
 {
 	uint32 i, j;
 
 	for (i = 0, x = -x; i < deg; i++) {
 
-		const double *weights = xlate_weights[i];
+		const double* weights = xlate_weights[i];
 		dd_t accum = dd_mul_d(d[deg], weights[deg]);
 
 		for (j = deg; j > i; j--) {
 			accum = dd_add_dd(dd_mul_d(accum, x),
-					  dd_mul_d(d[j-1], weights[j-1]));
+				dd_mul_d(d[j - 1], weights[j - 1]));
 		}
 		c[i] = accum;
 	}
@@ -205,11 +210,12 @@ translate_dd(dd_t *c, dd_t *d, uint32 deg, double x)
 }
 
 /*-------------------------------------------------------------------------*/
-static void
-translate_gmp(curr_poly_t *c, mpz_t *gmp_c, uint32 deg,
-		mpz_t *lin, int64 k)
+// static
+void
+translate_gmp(curr_poly_t* c, mpz_t* gmp_c, uint32 deg,
+	mpz_t* lin, int64 k)
 {
-	/* note that unlike the other translation functions, 
+	/* note that unlike the other translation functions,
 	   gmp_c[] and lin[] are overwritten */
 
 	uint32 i, j;
@@ -218,14 +224,14 @@ translate_gmp(curr_poly_t *c, mpz_t *gmp_c, uint32 deg,
 
 	for (i = 0; i < deg; i++) {
 
-		const double *weights = xlate_weights[i];
+		const double* weights = xlate_weights[i];
 
 		mpz_set_d(c->gmp_help2, weights[deg]);
 		mpz_mul(c->gmp_help2, c->gmp_help2, gmp_c[deg]);
 
 		for (j = deg; j > i; j--) {
-			mpz_set_d(c->gmp_help3, weights[j-1]);
-			mpz_mul(c->gmp_help3, c->gmp_help3, gmp_c[j-1]);
+			mpz_set_d(c->gmp_help3, weights[j - 1]);
+			mpz_mul(c->gmp_help3, c->gmp_help3, gmp_c[j - 1]);
 			mpz_addmul(c->gmp_help3, c->gmp_help2, c->gmp_help1);
 			mpz_swap(c->gmp_help2, c->gmp_help3);
 		}
@@ -244,14 +250,14 @@ translate_gmp(curr_poly_t *c, mpz_t *gmp_c, uint32 deg,
 
 typedef struct {
 	uint32 rotate_dim;
-	dpoly_t *drpoly;
-	dpoly_t *dapoly;
+	dpoly_t* drpoly;
+	dpoly_t* dapoly;
 
-	ddpoly_t *rpoly;
-	ddpoly_t *apoly;
-	integrate_t *integ_aux;
+	ddpoly_t* rpoly;
+	ddpoly_t* apoly;
+	integrate_t* integ_aux;
 
-	dickman_t *dickman_aux;
+	dickman_t* dickman_aux;
 	double root_score_r;
 	double root_score_a;
 
@@ -259,10 +265,11 @@ typedef struct {
 	norm_t norm_callback;
 } opt_data_t;
 
-static double poly_xlate_callback(double *v, void *extra)
+// static
+double poly_xlate_callback(double* v, void* extra)
 {
-	opt_data_t *opt = (opt_data_t *)extra;
-	dpoly_t *apoly = opt->dapoly;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t* apoly = opt->dapoly;
 	double translated[MAX_POLY_DEGREE + 1];
 	double t = floor(v[TRANSLATE_SIZE] + 0.5);
 	double s = v[SKEWNESS];
@@ -272,19 +279,21 @@ static double poly_xlate_callback(double *v, void *extra)
 	return ifs_rectangular(translated, apoly->degree, s);
 }
 
-static double poly_skew_callback(double *v, void *extra)
+// static
+double poly_skew_callback(double* v, void* extra)
 {
-	opt_data_t *opt = (opt_data_t *)extra;
-	dpoly_t *apoly = opt->dapoly;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t* apoly = opt->dapoly;
 	double s = v[SKEWNESS];
 
 	return opt->norm_callback(apoly->coeff, apoly->degree, s);
 }
 
-static double poly_rotate_callback(double *v, void *extra)
+// static
+double poly_rotate_callback(double* v, void* extra)
 {
 	uint32 i;
-	opt_data_t *opt = (opt_data_t *)extra;
+	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
 	double s = floor(v[SKEWNESS] + 0.5);
@@ -298,18 +307,630 @@ static double poly_rotate_callback(double *v, void *extra)
 	for (i = 0; i <= opt->rotate_dim; i++) {
 		double c = floor(v[ROTATE0 + i] + 0.5);
 		apoly.coeff[i] += r0 * c;
-		apoly.coeff[i+1] += r1 * c;
+		apoly.coeff[i + 1] += r1 * c;
 	}
-	
+
 	translate_d(translated, apoly.coeff, apoly.degree, t);
 	return opt->norm_callback(translated, apoly.degree, s);
 }
 
-static double poly_murphy_callback(double *v, void *extra)
+double poly_rotate_callback_deg6_radial(double* v, void* extra)
 {
-	opt_data_t *opt = (opt_data_t *)extra;
-	ddpoly_t *apoly = opt->apoly;
-	ddpoly_t *rpoly = opt->rpoly;
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	double c1 = floor(v[ROTATE0 + 1] + 0.5);
+	double c2 = floor(v[ROTATE0 + 2] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+	apoly.coeff[1] += r0 * c1;
+	apoly.coeff[1 + 1] += r1 * c1;
+	apoly.coeff[2] += r0 * c2;
+	apoly.coeff[2 + 1] += r1 * c2;
+
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[6] * weights[6];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	weights = xlate_weights[4];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	translated[4] = accum;
+
+	weights = xlate_weights[5];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	translated[5] = accum;
+
+	translated[6] = apoly.coeff[6];
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+	s5 = s4 * s;
+	a5 = a[5] * s5;
+	s6 = s5 * s;
+	a6 = a[6] * s6;
+	norm = 231.0 * (a6 * a6 + a0 * a0) +
+		42.0 * (a6 * a4 + a2 * a0) +
+		21.0 * (a5 * a5 + a1 * a1) +
+		7.0 * (a4 * a4 + a2 * a2) +
+		14.0 * (a6 * a2 + a5 * a3 + a4 * a0 + a3 * a1) +
+		10.0 * (a6 * a0 + a5 * a1 + a4 * a2) +
+		5.0 * a3 * a3;
+	return norm / s6;
+}
+
+double poly_rotate_callback_deg6_rectangular(double* v, void* extra)
+{
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	double c1 = floor(v[ROTATE0 + 1] + 0.5);
+	double c2 = floor(v[ROTATE0 + 2] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+	apoly.coeff[1] += r0 * c1;
+	apoly.coeff[1 + 1] += r1 * c1;
+	apoly.coeff[2] += r0 * c2;
+	apoly.coeff[2 + 1] += r1 * c2;
+
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[6] * weights[6];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	weights = xlate_weights[4];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	translated[4] = accum;
+
+	weights = xlate_weights[5];
+	accum = apoly.coeff[6] * weights[6];
+	accum = accum * t + apoly.coeff[5] * weights[5];
+	translated[5] = accum;
+
+	translated[6] = apoly.coeff[6];
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+	s5 = s4 * s;
+	a5 = a[5] * s5;
+	s6 = s5 * s;
+	a6 = a[6] * s6;
+	norm = 1.0 / 13.0 * (a6 * a6 + a0 * a0) +
+		2.0 / 33.0 * (a6 * a4 + a2 * a0) +
+		1.0 / 33.0 * (a5 * a5 + a1 * a1) +
+		1.0 / 45.0 * (a4 * a4 + a2 * a2) +
+		2.0 / 45.0 * (a6 * a2 + a5 * a3 + a4 * a0 + a3 * a1) +
+		2.0 / 49.0 * (a6 * a0 + a5 * a1 + a4 * a2) +
+		1.0 / 49.0 * a3 * a3;
+	return norm / s6;
+}
+
+double poly_rotate_callback_deg5_radial(double* v, void* extra)
+{
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+#if 0
+	for (i = 0; i <= opt->rotate_dim; i++) {
+		double c = floor(v[ROTATE0 + i] + 0.5);
+		apoly.coeff[i] += r0 * c;
+		apoly.coeff[i + 1] += r1 * c;
+	}
+#else
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	double c1 = floor(v[ROTATE0 + 1] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+	apoly.coeff[1] += r0 * c1;
+	apoly.coeff[1 + 1] += r1 * c1;
+#endif
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+#if 0
+	double x = t;
+	double* c = translated;
+	double* d = apoly.coeff;
+	int deg = apoly.degree;
+	for (i = 0, x = -x; i < deg; i++) {
+
+		const double* weights = xlate_weights[i];
+		double accum = d[deg] * weights[deg];
+
+		for (j = deg; j > i; j--) {
+			accum = accum * x + d[j - 1] * weights[j - 1];
+		}
+		c[i] = accum;
+	}
+	c[i] = d[i];
+#else
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[5] * weights[5];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	weights = xlate_weights[4];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	translated[4] = accum;
+
+	translated[5] = apoly.coeff[5];
+#endif
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+	s5 = s4 * s;
+	a5 = a[5] * s5;
+
+	norm = 63.0 * (a5 * a5 + a0 * a0) +
+		14.0 * (a5 * a3 + a2 * a0) +
+		7.0 * (a4 * a4 + a1 * a1) +
+		3.0 * (a3 * a3 + a2 * a2) +
+		6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+	return norm / s5;
+}
+
+double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
+{
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+#if 0
+	for (i = 0; i <= opt->rotate_dim; i++) {
+		double c = floor(v[ROTATE0 + i] + 0.5);
+		apoly.coeff[i] += r0 * c;
+		apoly.coeff[i + 1] += r1 * c;
+	}
+#else
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	double c1 = floor(v[ROTATE0 + 1] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+	apoly.coeff[1] += r0 * c1;
+	apoly.coeff[1 + 1] += r1 * c1;
+#endif
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+#if 0
+	double x = t;
+	double* c = translated;
+	double* d = apoly.coeff;
+	int deg = apoly.degree;
+	for (i = 0, x = -x; i < deg; i++) {
+
+		const double* weights = xlate_weights[i];
+		double accum = d[deg] * weights[deg];
+
+		for (j = deg; j > i; j--) {
+			accum = accum * x + d[j - 1] * weights[j - 1];
+		}
+		c[i] = accum;
+	}
+	c[i] = d[i];
+#else
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[5] * weights[5];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	weights = xlate_weights[4];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	translated[4] = accum;
+
+	translated[5] = apoly.coeff[5];
+#endif
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+	s5 = s4 * s;
+	a5 = a[5] * s5;
+
+	norm = 1.0 / 11.0 * (a5 * a5 + a0 * a0) +
+		2.0 / 27.0 * (a5 * a3 + a2 * a0) +
+		1.0 / 27.0 * (a4 * a4 + a1 * a1) +
+		1.0 / 35.0 * (a3 * a3 + a2 * a2) +
+		2.0 / 35.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+	return norm / s5;
+}
+
+double poly_rotate_callback_deg4_radial(double* v, void* extra)
+{
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[4] * weights[4];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	translated[4] = apoly.coeff[4];
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+
+	norm = 35.0 * (a4 * a4 + a0 * a0) +
+		10.0 * (a4 * a2 + a2 * a0) +
+		5.0 * (a3 * a3 + a1 * a1) +
+		6.0 * (a4 * a0 + a3 * a1) +
+		3.0 * a2 * a2;
+	return norm / s4;
+}
+
+double poly_rotate_callback_deg4_rectangular(double* v, void* extra)
+{
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[4] * weights[4];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	translated[4] = apoly.coeff[4];
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+
+	norm = 1.0 / 9.0 * (a4 * a4 + a0 * a0) +
+		2.0 / 21.0 * (a4 * a2 + a2 * a0) +
+		1.0 / 21.0 * (a3 * a3 + a1 * a1) +
+		2.0 / 25.0 * (a4 * a0 + a3 * a1) +
+		1.0 / 25.0 * a2 * a2;
+	return norm / s4;
+}
+
+static double poly_murphy_callback(double* v, void* extra)
+{
+	opt_data_t* opt = (opt_data_t*)extra;
+	ddpoly_t* apoly = opt->apoly;
+	ddpoly_t* rpoly = opt->rpoly;
 	ddpoly_t new_rpoly, new_apoly;
 	double t = floor(v[TRANSLATE_SIZE] + 0.5);
 	double s = v[SKEWNESS];
@@ -321,22 +942,24 @@ static double poly_murphy_callback(double *v, void *extra)
 	new_rpoly.degree = 1;
 	new_rpoly.coeff[1] = rpoly->coeff[1];
 	new_rpoly.coeff[0] = dd_sub_dd(rpoly->coeff[0],
-					dd_mul_d(rpoly->coeff[1], t));
+		dd_mul_d(rpoly->coeff[1], t));
 
 	new_apoly.degree = apoly->degree;
 	translate_dd(new_apoly.coeff, apoly->coeff, apoly->degree, t);
 
 	analyze_poly_murphy(opt->integ_aux, opt->dickman_aux,
-				&new_rpoly, opt->root_score_r,
-				&new_apoly, opt->root_score_a,
-				s, &score, &opt->num_real_roots);
+		&new_rpoly, opt->root_score_r,
+		&new_apoly, opt->root_score_a,
+		s, &score, &opt->num_real_roots);
 
 	return -score;
 }
 
 /*-------------------------------------------------------------------------*/
+#define NEW_CALLBACK_STRUCTURE
+
 void
-optimize_initial(curr_poly_t *c, uint32 deg, double *pol_norm, uint32 skew_only)
+optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 {
 	uint32 rotate_dim = deg - 4;
 	uint32 num_vars = rotate_dim + 3;
@@ -345,7 +968,19 @@ optimize_initial(curr_poly_t *c, uint32 deg, double *pol_norm, uint32 skew_only)
 	double best[MAX_VARS];
 	double score, last_score, tol;
 	dpoly_t rpoly, apoly;
-	objective_func objective = poly_rotate_callback;
+	objective_func objective;
+
+#ifdef NEW_CALLBACK_STRUCTURE
+	switch (deg)
+	{
+	case 4: objective = poly_rotate_callback_deg4_radial; break;
+	case 5: objective = poly_rotate_callback_deg5_radial; break;
+	case 6: objective = poly_rotate_callback_deg6_radial; break;
+	default: printf("unhandled poly degree %d in optimize_initial\n", deg);
+	}
+#else
+	objective = poly_rotate_callback;
+#endif
 
 	opt_data.rotate_dim = rotate_dim;
 	opt_data.drpoly = &rpoly;
@@ -358,6 +993,7 @@ optimize_initial(curr_poly_t *c, uint32 deg, double *pol_norm, uint32 skew_only)
 	best[ROTATE1] = 0;
 	best[ROTATE2] = 0;
 	if (skew_only) {
+		// only called if rootopt
 		num_vars = 1;
 		objective = poly_skew_callback;
 	}
@@ -380,19 +1016,19 @@ optimize_initial(curr_poly_t *c, uint32 deg, double *pol_norm, uint32 skew_only)
 
 		do {
 			last_score = score;
-			score = minimize(best, num_vars, tol, 40, 
-					objective, &opt_data);
+			score = minimize(best, num_vars, tol, 40,
+				objective, &opt_data);
 
 			for (j = 0; j <= rotate_dim; j++) {
 				double cj = floor(best[ROTATE0 + j] + 0.5);
 				mpz_set_d(c->gmp_help1, cj);
-				mpz_addmul(c->gmp_a[j+1], c->gmp_help1, 
-						c->gmp_p);
-				mpz_submul(c->gmp_a[j], c->gmp_help1, 
-						c->gmp_d);
+				mpz_addmul(c->gmp_a[j + 1], c->gmp_help1,
+					c->gmp_p);
+				mpz_submul(c->gmp_a[j], c->gmp_help1,
+					c->gmp_d);
 			}
 			translate_gmp(c, c->gmp_a, deg, c->gmp_lina,
-					(int64)(best[TRANSLATE_SIZE] + 0.5));
+				(int64)(best[TRANSLATE_SIZE] + 0.5));
 
 			mpz_neg(c->gmp_d, c->gmp_lina[0]);
 			for (j = 0; j <= 1; j++)
@@ -411,9 +1047,21 @@ optimize_initial(curr_poly_t *c, uint32 deg, double *pol_norm, uint32 skew_only)
 
 		if (i == 0) {
 			opt_data.norm_callback = ifs_rectangular;
+
+#ifdef NEW_CALLBACK_STRUCTURE
+			if (!skew_only) {
+				switch (deg)
+				{
+				case 4: objective = poly_rotate_callback_deg4_rectangular; break;
+				case 5: objective = poly_rotate_callback_deg5_rectangular; break;
+				case 6: objective = poly_rotate_callback_deg6_rectangular; break;
+				default: printf("unhandled poly degree %d in optimize_initial\n", deg);
+				}
+			}
+#endif
 			tol = 1e-5;
 			score = ifs_rectangular(apoly.coeff, apoly.degree,
-						best[SKEWNESS]);
+				best[SKEWNESS]);
 		}
 	}
 
@@ -429,8 +1077,8 @@ optimize_initial(curr_poly_t *c, uint32 deg, double *pol_norm, uint32 skew_only)
 
 /*-------------------------------------------------------------------------*/
 double
-optimize_basic(dpoly_t *apoly, double *best_skewness,
-		double *best_translation)
+optimize_basic(dpoly_t* apoly, double* best_skewness,
+	double* best_translation)
 {
 	opt_data_t opt_data;
 	double best[MAX_VARS];
@@ -443,17 +1091,18 @@ optimize_basic(dpoly_t *apoly, double *best_skewness,
 	score = minimize(best, 2, 1e-5, 40, poly_xlate_callback, &opt_data);
 
 	*best_translation = floor(best[TRANSLATE_SIZE] + 0.5);
-	*best_skewness  = best[SKEWNESS];
+	*best_skewness = best[SKEWNESS];
 	return sqrt(score);
 }
 
 /*-------------------------------------------------------------------------*/
-static void
-optimize_final_core(curr_poly_t *c, assess_t *assess, uint32 deg,
-			double root_score_r, double root_score_a,
-			double *best_score_out,
-			double *best_skewness_out, 
-			uint32 *num_real_roots_out)
+// static
+void
+optimize_final_core(curr_poly_t* c, assess_t* assess, uint32 deg,
+	double root_score_r, double root_score_a,
+	double* best_score_out,
+	double* best_skewness_out,
+	uint32* num_real_roots_out)
 {
 	uint32 i;
 	opt_data_t opt_data;
@@ -478,11 +1127,11 @@ optimize_final_core(curr_poly_t *c, assess_t *assess, uint32 deg,
 	for (i = 0; i <= deg; i++)
 		apoly.coeff[i] = dd_gmp2dd(c->gmp_b[i]);
 
-	score = minimize(best, 2, 1e-5, 40, 
-			poly_murphy_callback, &opt_data);
+	score = minimize(best, 2, 1e-5, 40,
+		poly_murphy_callback, &opt_data);
 
-	translate_gmp(c, c->gmp_b, deg, c->gmp_linb, 
-			(int64)(best[TRANSLATE_SIZE] + 0.5));
+	translate_gmp(c, c->gmp_b, deg, c->gmp_linb,
+		(int64)(best[TRANSLATE_SIZE] + 0.5));
 
 	*best_score_out = fabs(score);
 	*best_skewness_out = best[SKEWNESS];
@@ -490,15 +1139,16 @@ optimize_final_core(curr_poly_t *c, assess_t *assess, uint32 deg,
 }
 
 /*-------------------------------------------------------------------------*/
-static void
-get_bernstein_score(curr_poly_t *c, assess_t *assess,
-		uint32 deg, double root_score, double *eptr)
+// static
+void
+get_bernstein_score(curr_poly_t* c, assess_t* assess,
+	uint32 deg, double root_score, double* eptr)
 {
 	uint32 i;
 	double size_score;
 	ddpoly_t rpoly, apoly;
 
-	root_score = pow(exp(root_score), -2./(deg + 1));
+	root_score = pow(exp(root_score), -2. / (deg + 1));
 
 	rpoly.degree = 1;
 	for (i = 0; i <= 1; i++)
@@ -508,8 +1158,8 @@ get_bernstein_score(curr_poly_t *c, assess_t *assess,
 	for (i = 0; i <= deg; i++)
 		apoly.coeff[i] = dd_gmp2dd(c->gmp_b[i]);
 
-	analyze_poly_size(&assess->integ_aux, 
-			&rpoly, &apoly, &size_score);
+	analyze_poly_size(&assess->integ_aux,
+		&rpoly, &apoly, &size_score);
 	if (size_score == 0.0)
 		printf("error: size score computation failed\n");
 
@@ -518,15 +1168,15 @@ get_bernstein_score(curr_poly_t *c, assess_t *assess,
 
 /*-------------------------------------------------------------------------*/
 void
-optimize_final(mpz_t x, mpz_t y, int64 z, poly_rootopt_t *data)
+optimize_final(mpz_t x, mpz_t y, int64 z, poly_rootopt_t* data)
 {
 	uint32 i;
 	uint32 deg = data->degree;
 	uint32 num_real_roots;
 	double alpha_r, alpha_a, skewness, bscore, combined_score;
-	stage2_curr_data_t *s = (stage2_curr_data_t *)data->internal;
-	curr_poly_t *c = &s->curr_poly;
-	assess_t *assess = &s->assess;
+	stage2_curr_data_t* s = (stage2_curr_data_t*)data->internal;
+	curr_poly_t* c = &s->curr_poly;
+	assess_t* assess = &s->assess;
 
 	for (i = 0; i <= 1; i++)
 		mpz_set(c->gmp_linb[i], c->gmp_lina[i]);
@@ -544,12 +1194,12 @@ optimize_final(mpz_t x, mpz_t y, int64 z, poly_rootopt_t *data)
 	mpz_addmul(c->gmp_b[1], c->gmp_p, x);
 	mpz_submul(c->gmp_b[0], c->gmp_d, x);
 
-	if (stage2_root_score(deg, c->gmp_b, 
-			data->murphy_p_bound, &alpha_a, 0))
+	if (stage2_root_score(deg, c->gmp_b,
+		data->murphy_p_bound, &alpha_a, 0))
 		return;
 
-	if (stage2_root_score(1, c->gmp_linb, 
-			data->murphy_p_bound, &alpha_r, 0))
+	if (stage2_root_score(1, c->gmp_linb,
+		data->murphy_p_bound, &alpha_r, 0))
 		return;
 
 	if (alpha_a > -4.5)
@@ -559,18 +1209,18 @@ optimize_final(mpz_t x, mpz_t y, int64 z, poly_rootopt_t *data)
 
 	if (bscore > data->min_e_bernstein) {
 
-		optimize_final_core(c, assess, deg, alpha_r, alpha_a, 
-				&combined_score, &skewness,
-				&num_real_roots);
+		optimize_final_core(c, assess, deg, alpha_r, alpha_a,
+			&combined_score, &skewness,
+			&num_real_roots);
 
 		if (combined_score > data->min_e) {
 			data->num_saved++;
 			if (combined_score > data->best_saved_combined_e)
 				data->best_saved_combined_e = combined_score;
-			data->callback(data->callback_data, deg, c->gmp_b, 
-					c->gmp_linb, skewness, bscore,
-					alpha_a, combined_score, 
-					num_real_roots);
+			data->callback(data->callback_data, deg, c->gmp_b,
+				c->gmp_linb, skewness, bscore,
+				alpha_a, combined_score,
+				num_real_roots);
 		}
 	}
 }

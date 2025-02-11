@@ -17,7 +17,8 @@ $Id: stage1.c 1023 2018-08-19 00:30:42Z jasonp_sf $
 /* main driver for stage 1 */
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 stage1_bounds_update(poly_search_t *poly, poly_coeff_t *c)
 {
 	/* determine the parametrs for the collision search,
@@ -146,7 +147,8 @@ handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
 }
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 poly_search_init(poly_search_t *poly, poly_stage1_t *data)
 {
 	mpz_init_set(poly->N, data->gmp_N);
@@ -163,7 +165,8 @@ poly_search_init(poly_search_t *poly, poly_stage1_t *data)
 	poly->callback_data = data->callback_data;
 }
 
-static void
+//static
+void
 poly_search_free(poly_search_t *poly)
 {
 	mpz_clear(poly->N);
@@ -235,7 +238,8 @@ typedef struct {
 } sieve_t;
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 sieve_ad_block(sieve_t *sieve, poly_search_t *poly)
 {
 	uint32 i;
@@ -264,7 +268,8 @@ sieve_ad_block(sieve_t *sieve, poly_search_t *poly)
 }
 
 /*------------------------------------------------------------------------*/
-static int
+//static
+int
 find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 {
 	uint32 i, j, p, k;
@@ -335,7 +340,8 @@ find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 }
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 {
 	uint32 i, j, p;
@@ -405,7 +411,8 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 }
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 free_ad_sieve(sieve_t *sieve)
 {
 	free(sieve->primes);
@@ -413,7 +420,8 @@ free_ad_sieve(sieve_t *sieve)
 }
 
 /*------------------------------------------------------------------------*/
-static void
+//static
+void
 search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 {
 	double deadline_per_coeff;

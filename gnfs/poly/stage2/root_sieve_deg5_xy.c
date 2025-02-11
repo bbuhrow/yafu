@@ -28,7 +28,8 @@ find_lattice_size_y(double line_length)
 }
 
 /*-------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 find_lattice_primes(sieve_prime_t *primes, uint32 num_primes,
 			uint64 lattice_size, sieve_prime_t *lattice_primes)
 {
@@ -60,7 +61,8 @@ find_lattice_primes(sieve_prime_t *primes, uint32 num_primes,
 }
 
 /*-------------------------------------------------------------------------*/
-static void 
+//static
+void 
 do_sieving(sieve_root_t *r, uint16 *sieve,
 		uint32 contrib, uint32 dim)
 {
@@ -89,7 +91,8 @@ do_sieving(sieve_root_t *r, uint16 *sieve,
 /*-------------------------------------------------------------------------*/
 #define MAX_DIM 16
 
-static void 
+//static
+void 
 find_hits(sieve_prime_t *lattice_primes,
 	uint32 num_lattice_primes, hit_t *hitlist)
 {

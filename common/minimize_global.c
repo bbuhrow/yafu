@@ -18,7 +18,8 @@ $Id: minimize_global.c 296 2010-06-07 01:29:37Z jasonp_sf $
 #define IMPULSE() (-impulse * log(((double)get_rand(seed1, \
 				seed2) + 1) / MP_RADIX))
 
-static double simplex_core(double p[MAX_VARS+1][MAX_VARS], 
+//static
+double simplex_core(double p[MAX_VARS+1][MAX_VARS], 
 				double y[MAX_VARS+1], double psum[MAX_VARS], 
 				double pbest[MAX_VARS], double *ybest, 
 				double *yhi, int ndim, int ihi, double impulse, 
@@ -55,7 +56,8 @@ static double simplex_core(double p[MAX_VARS+1][MAX_VARS],
 }
 
 /*-------------------------------------------------------------------------*/
-static int32 simplex(double p[MAX_VARS+1][MAX_VARS], double y[MAX_VARS+1], 
+//static 
+int32 simplex(double p[MAX_VARS+1][MAX_VARS], double y[MAX_VARS+1], 
 			double pbest[MAX_VARS], double *ybest,
 			double impulse, uint32 *seed1, 
 			uint32 *seed2, int ndim, double tol,

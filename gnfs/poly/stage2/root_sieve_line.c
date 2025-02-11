@@ -34,7 +34,8 @@ typedef struct {
 #define HEAP_LEFT(i)    (2 * (i) + 1)
 #define HEAP_RIGHT(i)   (2 * (i) + 2)
 
-static void
+//static
+void
 heapify(line_score_t *h, uint32 index, uint32 size) {
 
 	uint32 c;
@@ -57,7 +58,8 @@ heapify(line_score_t *h, uint32 index, uint32 size) {
 	}
 }
 
-static void
+//static
+void
 make_heap(line_score_t *h, uint32 size) {
 
 	int32 i;
@@ -65,7 +67,8 @@ make_heap(line_score_t *h, uint32 size) {
 		heapify(h, (uint32)i, size);
 }
 
-static void
+//static
+void
 save_line_score(line_score_heap_t *heap, uint32 x_off, uint32 score)
 {
 	line_score_t *h = heap->entries;
@@ -85,7 +88,8 @@ save_line_score(line_score_heap_t *heap, uint32 x_off, uint32 score)
 }
 
 /*-------------------------------------------------------------------------*/
-static void
+//static
+void
 sieve_one_block(uint16 *sieve_block, uint32 sieve_block_size,
 		sieve_prime_t *primes, uint32 num_primes)
 {
@@ -159,7 +163,8 @@ sieve_one_block(uint16 *sieve_block, uint32 sieve_block_size,
 }
 
 /*-------------------------------------------------------------------------*/
-static void
+//static
+void
 prepare_sieve_line(root_sieve_t *rs)
 {
 	uint32 i, j, k;
@@ -228,7 +233,8 @@ prepare_sieve_line(root_sieve_t *rs)
 }
 
 /*-------------------------------------------------------------------------*/
-static void 
+//static
+void 
 fill_contrib_array(root_sieve_t *rs, sieve_power_t *sp,
 		uint16 *contrib_array, uint32 contrib_array_size,
 		uint32 lattice_mod, uint32 power)
@@ -278,7 +284,8 @@ fill_contrib_array(root_sieve_t *rs, sieve_power_t *sp,
 }
 
 /*-------------------------------------------------------------------------*/
-static void 
+//static
+void 
 fill_contrib_array_special(root_sieve_t *rs, sieve_power_t *sp,
 		uint16 *contrib_array, uint32 contrib_array_size,
 		uint32 lattice_mod, uint32 power,
@@ -333,7 +340,8 @@ fill_contrib_array_special(root_sieve_t *rs, sieve_power_t *sp,
 }
 
 /*-------------------------------------------------------------------------*/
-static void
+//static
+void
 prepare_sieve_lattice(root_sieve_t *rs)
 {
 	uint32 i, j;

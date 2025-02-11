@@ -32,7 +32,8 @@ assess_free(assess_t *a)
 }
 
 /*-------------------------------------------------------------------------*/
-static uint32
+//static
+uint32
 check_poly(curr_poly_t *c, mpz_t *coeffs, mpz_t lin0, 
 		mpz_t gmp_N, uint32 degree) {
 
@@ -56,8 +57,8 @@ check_poly(curr_poly_t *c, mpz_t *coeffs, mpz_t lin0,
 
 /*-------------------------------------------------------------------------*/
 #define MAX_CORRECT_STEPS 10
-
-static int
+//static
+int
 pol_expand(curr_poly_t *c, mpz_t gmp_N, mpz_t high_coeff,
 		mpz_t gmp_p, mpz_t gmp_d, 
 		double coeff_bound, uint32 degree)
@@ -143,7 +144,8 @@ pol_expand(curr_poly_t *c, mpz_t gmp_N, mpz_t high_coeff,
 }
 
 /*-------------------------------------------------------------------------*/
-static void
+//static
+void
 curr_poly_init(curr_poly_t *c)
 {
 	int i;
@@ -167,7 +169,8 @@ curr_poly_init(curr_poly_t *c)
 }
 
 /*-------------------------------------------------------------------------*/
-static void
+//static
+void
 curr_poly_free(curr_poly_t *c)
 {
 	int i;
@@ -248,9 +251,13 @@ poly_sizeopt_run(poly_sizeopt_t *data, mpz_t ad, mpz_t p, mpz_t d)
 				data->callback_data);
 
 		sizeopt_callback_data_t* callback = (sizeopt_callback_data_t*)data->callback_data;
-		poly_rootopt_t* rootopt = callback->rootopt;
-		data->num_saved = rootopt->num_saved;
-		data->best_saved_combined_e = rootopt->best_saved_combined_e;
+		
+		if (data->flags & MSIEVE_FLAG_NFS_POLYROOT) {
+			// if rootopt ran, record some stats.
+			poly_rootopt_t* rootopt = callback->rootopt;
+			data->num_saved = rootopt->num_saved;
+			data->best_saved_combined_e = rootopt->best_saved_combined_e;
+		}
 	}
 }
 
