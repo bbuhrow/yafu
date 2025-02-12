@@ -1772,6 +1772,22 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     {
         fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
     }
+    if (options->np1 > 0)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
+        fobj->nfs_obj.np1 = 1;
+    }
+    if (options->nps > 0)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
+        fobj->nfs_obj.nps = 1;
+    }
+    if (options->npr > 0)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
+        fobj->nfs_obj.npr = 1;
+    }
+
 
     char tmp[MAXARGLEN];
     char* cptr;

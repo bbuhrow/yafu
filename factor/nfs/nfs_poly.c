@@ -119,7 +119,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 		// if this is a factor() run, restore the original input number so that we 
-		// can detect these forms
+		// can detect these forms on the original input
 		if (fobj->autofact_obj.autofact_active)
 		{
 			mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
@@ -421,6 +421,110 @@ cleanup:
 	return retcode;
 }
 
+void split_file(int nthreads, char* base_filename, char* file_extension)
+{
+	// split a file into N files, with each file getting 1/Nth the lines
+	int i, j;
+	char line[8192];
+	int count = 0;
+	int lines_per_file = 0;
+	char fname[80];
+	char* strptr;
+
+	sprintf(fname, "%s.%s", base_filename, file_extension);
+	FILE* fid = fopen(fname, "r");
+	if (fid != NULL)
+	{
+		// count the lines in the file
+		while (~feof(fid))
+		{
+			strptr = fgets(line, 8192, fid);
+			if (strptr == NULL)
+			{
+				break;
+			}
+			count++;
+		}
+		fclose(fid);
+	}
+
+	printf("nfs: Found %d lines in %s\n", count);
+	if (nthreads == 0)
+	{
+		printf("invalid number of threads, must be > 0\n");
+		exit(1);
+	}
+	lines_per_file = count / nthreads;
+
+	fid = fopen(fname, "r");
+	if (fid != NULL)
+	{
+		for (i = 0; i < nthreads - 1; i++)
+		{
+			// note, dealing the lines out like cards, one at
+			// a time to N files, will balance the load better.
+			// but it requires having N files open at once.  Maybe 
+			// it's not a big deal but that makes me nervous somehow.
+			// so we do it one file at a time with a good-enough
+			// load balancing.
+			sprintf(fname, "%s.%d.%s", base_filename, i, file_extension);
+			FILE* fid_out = fopen(fname, "w");
+			if (fid_out != NULL)
+			{
+				for (j = 0; j < lines_per_file; j++)
+				{
+					// need the ability to parse an arbitrary length line
+					char line[8192];
+					strptr = fgets(line, 8192, fid);
+					if (strptr == NULL)
+					{
+						break;
+					}
+					fputs(line, fid_out);
+					if (feof(fid))
+					{
+						break;
+					}
+				}
+				fclose(fid_out);
+			}
+			else
+			{
+				printf("could not open %s to write\n", fname);
+			}
+
+		}
+		sprintf(fname, "%s.%d.%s", base_filename, i, file_extension);
+		FILE* fid_out = fopen(fname, "w");
+		if (fid_out != NULL)
+		{
+			for (j = 0; j < lines_per_file; j++)
+			{
+				// need the ability to parse an arbitrary length line
+				char line[8192];
+				strptr = fgets(line, 8192, fid);
+				if (strptr == NULL)
+				{
+					break;
+				}
+				fputs(line, fid_out);
+				if (feof(fid))
+				{
+					break;
+				}
+			}
+			fclose(fid_out);
+		}
+		else
+		{
+			printf("could not open %s to write\n", fname);
+		}
+	}
+
+
+	return;
+}
+
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, 
 	mp_t *mpN, factor_list_t *factor_list)
 {
@@ -444,9 +548,11 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	pthread_cond_t queue_cond;
 #endif
 
+	int special_polyfind = 0;		// if user has specified np1, nps, or npr
 	int i,j,is_startup;
 	char syscmd[GSTR_MAXSIZE + 4];
 	char master_polyfile[GSTR_MAXSIZE + 2];
+	char polyfile_extension[8];
 	uint64_t start = 0, range = 0;
 	uint32_t deadline, estimated_range_time, this_range_time, total_time, num_ranges;
 	struct timeval stopt;	// stop time of this job
@@ -456,6 +562,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
     int sysreturn;
 
 	//file into which we will combine all of the thread results
+	strcpy(polyfile_extension, "p");
 	snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.p",fobj->nfs_obj.outputfile);
 
 	if (job->last_leading_coeff == 0)
@@ -560,6 +667,16 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	{
 		// 'fast' search.  scale by number of threads
 		deadline /= fobj->THREADS;
+	}
+
+	if ((fobj->nfs_obj.timeout < deadline) && (deadline > 1.0))
+	{
+		deadline = fobj->nfs_obj.timeout;
+		if (fobj->VFLAG > 0)
+		{
+			printf("nfs: reducing poly deadline to specified gnfs timeout of %u seconds\n",
+				deadline);
+		}
 	}
 
     // if a command line option 'min', 'avg', or 'good' is
@@ -669,9 +786,51 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	flags = 0;
 	if (fobj->VFLAG > 1)
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-	flags = flags | MSIEVE_FLAG_NFS_POLY1;
-	flags = flags | MSIEVE_FLAG_NFS_POLYSIZE;
-	flags = flags | MSIEVE_FLAG_NFS_POLYROOT;
+
+	if (fobj->nfs_obj.np1)
+	{
+		flags = flags | MSIEVE_FLAG_NFS_POLY1;
+		strcpy(polyfile_extension, "m");
+		snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.m", fobj->nfs_obj.outputfile);
+		special_polyfind = 1;
+	}
+	
+	if (fobj->nfs_obj.nps)
+	{
+		flags = flags | MSIEVE_FLAG_NFS_POLYSIZE;
+		strcpy(polyfile_extension, "ms");
+		snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.ms", fobj->nfs_obj.outputfile);
+		special_polyfind = 1;
+		// split the main .m file into N parts
+		split_file(fobj->THREADS, fobj->nfs_obj.outputfile, "m");
+	}
+
+	if (fobj->nfs_obj.npr)
+	{
+		flags = flags | MSIEVE_FLAG_NFS_POLYROOT;
+		strcpy(polyfile_extension, "p");
+		snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.p", fobj->nfs_obj.outputfile);
+		special_polyfind = 1;
+		// split the main .ms file into N parts
+		split_file(fobj->THREADS, fobj->nfs_obj.outputfile, "ms");
+	}
+
+	if ((fobj->nfs_obj.np1 == 0) && (fobj->nfs_obj.nps == 0) && (fobj->nfs_obj.npr == 0))
+	{
+		// no special stages selected for polyselect
+		flags = flags | MSIEVE_FLAG_NFS_POLY1;
+		flags = flags | MSIEVE_FLAG_NFS_POLYSIZE;
+		flags = flags | MSIEVE_FLAG_NFS_POLYROOT;
+		strcpy(polyfile_extension, "p");
+		snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.p", fobj->nfs_obj.outputfile);
+		special_polyfind = 0;
+	}
+
+	if (job->last_leading_coeff == 0)
+	{
+		//make sure we are starting from scratch
+		remove(master_polyfile);
+	}
 	
 	for (i = 0; i < fobj->THREADS; i++)
 	{
@@ -835,31 +994,35 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 					int a;
 
 					// test for cat
-					sprintf(syscmd,"cat %s.p >> %s 2> nul",t->polyfilename,master_polyfile);
+					sprintf(syscmd,"cat %s.%s >> %s 2> nul",
+						t->polyfilename, polyfile_extension, master_polyfile);
 					a = system(syscmd);
 	
 					if (a)		
 					{
 						char tmp[80];
-						sprintf(tmp, "%s.p",t->polyfilename);
+						sprintf(tmp, "%s.%s",t->polyfilename, polyfile_extension);
 						win_file_concat(tmp, master_polyfile);
 					}
 				}
 
 #else
-				sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
+				sprintf(syscmd,"cat %s.%s >> %s",
+					t->polyfilename, polyfile_extension, master_polyfile);
 				sysreturn = system(syscmd);
 #endif
 				// then stick on the current total elasped time
 				// this is used to help restart jobs in the polyfind phase
-				fid = fopen(master_polyfile, "a");
-				fprintf(fid, "time: %u\n", total_time);
-				fclose(fid);
-
+				if (!special_polyfind)
+				{
+					fid = fopen(master_polyfile, "a");
+					fprintf(fid, "time: %u\n", total_time);
+					fclose(fid);
+				}
 			}
 
 			// remove each thread's .p file after it's copied
-			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.p",t->polyfilename);
+			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%s",t->polyfilename, polyfile_extension);
 			remove(syscmd);	
 
 			// also remove the temporary log file
@@ -881,7 +1044,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
             // if user has specified "good enough" option then check if
             // we've found one and stop if so
-            if (!is_startup)
+            if ((!is_startup) && (!special_polyfind))
             {
                 bestscore = find_best_msieve_poly(fobj, job, 0);
             }
@@ -897,7 +1060,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 // deadline, go ahead and do so.  Also make sure we at least have
                 // one poly before quitting.
                 if (((uint32_t)t_time + estimated_range_time <= deadline) ||
-                    (bestscore == 0.0))
+                    ((bestscore == 0.0) && (!special_polyfind)))
                 {
 
                     // unless the user has specified a custom range search, in which case
@@ -944,7 +1107,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 }
 				else
 				{
-					if (fobj->VFLAG > 0)
+					if ((fobj->VFLAG > 0) && (!special_polyfind))
 					{
 						printf("nfs: range will not finish before deadline, "
 							"thread stopping with bestscore = %1.4e\n", bestscore);
@@ -954,7 +1117,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
             else
             {
                 // announce we are finishing and don't restart the thread.
-                if (fobj->VFLAG > 0)
+				if ((fobj->VFLAG > 0) && (!special_polyfind))
                 {
                     printf("nfs: found poly better than %s quality (e = %1.4e > %1.4e)\n", 
 						quality, bestscore, e0 * quality_mult);
@@ -1182,26 +1345,28 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
     // the search for at best an incremental improvement in score.  With
     // larger inputs that might be ok, but for most use below say c130 it
     // seems wasteful.
-    if (digits <= 100.0)
-        deadline_per_coeff = 5;
-    else if (digits <= 105.0)
-        deadline_per_coeff = 20;
-    else if (digits <= 110.0)
-        deadline_per_coeff = 30;
-    else if (digits <= 120.0)
-        deadline_per_coeff = 50;
-    else if (digits <= 130.0)
-        deadline_per_coeff = 100;
-    else if (digits <= 140.0)
-        deadline_per_coeff = 200;
-    else if (digits <= 150.0)
-        deadline_per_coeff = 400;
-    else if (digits <= 175.0)
-        deadline_per_coeff = 800;
-    else if (digits <= 200.0)
-        deadline_per_coeff = 1600;
-    else
-        deadline_per_coeff = 3200;
+    //if (digits <= 100.0)
+    //    deadline_per_coeff = 5;
+    //else if (digits <= 105.0)
+    //    deadline_per_coeff = 20;
+    //else if (digits <= 110.0)
+    //    deadline_per_coeff = 30;
+    //else if (digits <= 120.0)
+    //    deadline_per_coeff = 50;
+    //else if (digits <= 130.0)
+    //    deadline_per_coeff = 100;
+    //else if (digits <= 140.0)
+    //    deadline_per_coeff = 200;
+    //else if (digits <= 150.0)
+    //    deadline_per_coeff = 400;
+    //else if (digits <= 175.0)
+    //    deadline_per_coeff = 800;
+    //else if (digits <= 200.0)
+    //    deadline_per_coeff = 1600;
+    //else
+    //    deadline_per_coeff = 3200;
+
+	deadline_per_coeff = deadline;
 
 	t->logfilename = (char *)malloc(80 * sizeof(char));
 	t->polyfilename = (char *)malloc(80 * sizeof(char));
@@ -1240,6 +1405,7 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 
 	if ((t->fobj->VFLAG > 0) && (tid == 0))
 	{
+		printf("nfs: flags = %08x\n", flags);
 		printf("nfs: stage 1 norm = %0.4le\n", norm1);
 		printf("nfs: stage 2 norm = %0.4le\n", norm2);
 		printf("nfs: min E score  = %0.4le\n", min_e);

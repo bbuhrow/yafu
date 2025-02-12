@@ -81,7 +81,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
     "obase", "minrels", "stopk", "stop_strict", "terse",
-    "max_siqs", "max_nfs"};
+    "max_siqs", "max_nfs", "np1", "nps", "npr"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -203,7 +203,10 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)",
     "                  : Also output a one-line terse summary of the complete factorization found",
     "(Integer < 32-bit): do not start SIQS on composites above this size",
-    "(Integer < 32-bit): do not start NFS on composites above this size"
+    "(Integer < 32-bit): do not start NFS on composites above this size",
+    "                  : only run stage 1 of msieve nfs poly generation",
+    "                  : only run stage 2 sizeopt of msieve nfs poly generation",
+    "                  : only run stage 2 rootopt of msieve nfs poly generation"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -235,7 +238,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
-    1,1
+    1,1,0,0,0   // "max_siqs", "max_nfs", "np1", "nps", "npr"
 };
 
 // command line option aliases, specified by '--'
@@ -265,7 +268,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", ""
+    "", "", "", "", ""
 };
 
 
@@ -1155,6 +1158,21 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // max_nfs
         options->max_nfs = atoi(arg);
     }
+    else if (strcmp(opt, OptionArray[117]) == 0)
+    {
+        // np1
+        options->np1 = 1;
+    }
+    else if (strcmp(opt, OptionArray[118]) == 0)
+    {
+        // nps
+        options->nps = 1;
+    }
+    else if (strcmp(opt, OptionArray[119]) == 0)
+    {
+        // npr
+        options->npr = 1;
+    }
     else
     {
         int i;
@@ -1266,6 +1284,9 @@ options_t* initOpt(void)
     options->nc2 = 0;
     options->nc3 = 0;
     options->ncr = 0;
+    options->np1 = 0;
+    options->nps = 0;
+    options->npr = 0;
     options->lathreads = 1;
     options->filt_bump = 5;
     options->force_gnfs = 0;

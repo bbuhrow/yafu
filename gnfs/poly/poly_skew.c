@@ -292,7 +292,7 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 			sprintf(buf, "%s.ms", obj->savefile.name);
 			sizeopt_outfile = fopen(buf, "a");
 			if (sizeopt_outfile == NULL) {
-				printf("error: cannot open sizeopt file\n");
+				printf("error: cannot open sizeopt file %s\n", buf);
 				exit(-1);
 			}
 			poly_sizeopt_init(&sizeopt_data, sizeopt_callback_log, 
@@ -371,7 +371,7 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 		sprintf(buf, "%s.m", obj->savefile.name);
 		stage1_outfile = fopen(buf, "r");
 		if (stage1_outfile == NULL) {
-			printf("error: cannot open sizeopt input file\n");
+			printf("error: cannot open sizeopt input file %s\n", buf);
 			exit(-1);
 		}
 

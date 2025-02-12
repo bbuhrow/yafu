@@ -318,6 +318,9 @@ typedef struct
 	uint32_t rangeq;
 	uint32_t polystart;
 	uint32_t polyrange;
+    int np1;
+    int nps;
+    int npr;
 	double filter_min_rels_nudge;
 	char outputfile[GSTR_MAXSIZE];
 	char logfile[GSTR_MAXSIZE];
