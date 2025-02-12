@@ -2693,20 +2693,22 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
     case 62:
         // ecm - two arguments
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, operands[0]);
         if (nargs == 2)
         {
+            mpz_set(fobj->N, operands[0]);
+            mpz_set(fobj->input_N, operands[0]);
+            mpz_set(fobj->ecm_obj.gmp_n, operands[0]);
             k = mpz_get_ui(operands[1]);
             fobj->ecm_obj.num_curves = k;
-            mpz_set(fobj->ecm_obj.gmp_n, operands[0]);
             ecm_loop(fobj);
             mpz_set(operands[0], fobj->ecm_obj.gmp_n);
         }
         else if (nargs == 1)
         {
-            fobj->ecm_obj.num_curves = 1;
+            mpz_set(fobj->N, operands[1]);
+            mpz_set(fobj->input_N, operands[1]);
             mpz_set(fobj->ecm_obj.gmp_n, operands[1]);
+            fobj->ecm_obj.num_curves = 1;
             ecm_loop(fobj);
             mpz_set(operands[0], fobj->ecm_obj.gmp_n);
         }

@@ -21,6 +21,9 @@ Purpose:	Port into Yafu-1.14.
 #include "qs_impl.h"
 #include "factor.h"
 
+#define HAS_MMX
+#define HAS_CMOV
+
 #ifdef __cplusplus
 extern "C" {
 #endif

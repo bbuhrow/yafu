@@ -891,22 +891,45 @@ void helpfunc(char *s)
 		fgets(str,1024,doc);
 		//is this a header?
 		//printf("(%d) %s",strlen(str),str);
-		if ((str[0] == '[') && (str[strlen(str) - 2] == ']'))
-		{
-			//printf("in printtopic if\n");
-			if (printtopic == 1)
-				break;
-			printtopic = 0;
-			//does it match our topic?
-			str[strlen(str) - 2] = '\0';
-			if (strstr(func,str+1) != NULL)
-				printtopic = 1;
-		}
-		else
-		{
-			if (printtopic)
-				printf("%s",str);
-		}
+        char* start = strchr(str, '[');
+        char* stop = strchr(str, ']');
+
+        if ((start == NULL) || (stop == NULL))
+        {
+            // not a header line
+            if (printtopic)
+                printf("%s", str);
+        }
+        else if ((start != NULL) && (stop != NULL))
+        {
+            // possibly a header line.  also check that the start character
+            // is the first one
+            if (str[0] == '[')
+            {
+                if (!printtopic)
+                {
+                    // if we are not currently printing a topic, then check if
+                    // the text in between the braces matches what we're searching for
+                    char* funcptr = strstr(str, func);
+                    if (funcptr != NULL)
+                    {
+                        if (str[1 + strlen(func)] == ']')
+                        {
+                            // this is our guy, start printing
+                            printtopic = 1;
+                        }
+                    }
+                }
+                else
+                {
+                    // if we are printing a topic then we stop, since we've found a new one.
+                    // note: this could be fooled by description lines that happen to start
+                    // with a '[' character and also include a ']' somewhere else in the line.
+                    printtopic = 0;
+                    break;
+                }
+            }
+        }
 	}
 	fclose(doc);
 	free(str);
@@ -1046,6 +1069,9 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #elif defined(__INTEL_LLVM_COMPILER)
         printf("Built with Intel LLVM Compiler %s\n", __clang_version__);
         logprint(logfile, "Built with Intel LLVM Compiler %s\n", __clang_version__);
+#elif defined(__clang_version__)
+        printf("Built with llvm compiler %s\n", __clang_version__);
+        logprint(logfile, "Built with llvm compiler %s\n", __clang_version__);
 #elif defined (__GNUC__)
         printf("Built with GCC %d\n", __GNUC__);
         logprint(logfile, "Built with GCC %d\n", __GNUC__);

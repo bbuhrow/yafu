@@ -842,8 +842,9 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
     {    
         maxlen = gmp_base10(fobj->input_N) + 1;
         tersebuf = (char*)xmalloc(maxlen * 4);
-        tersebuf2 = (char*)xmalloc(maxlen);
+        tersebuf2 = (char*)xmalloc(maxlen + 4);
         strcpy(tersebuf, "");
+        strcpy(tersebuf2, "");
     }
 
 	//always print factors unless complete silence is requested
@@ -1141,8 +1142,15 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
         {
             if (mpz_cmp_ui(tmp2, 1) > 0)
             {
-                gmp_sprintf(tersebuf2, "%Zd\n", tmp2);
-                strncpy(tersebuf + strlen(tersebuf), tersebuf2, maxlen);
+                gmp_sprintf(tersebuf2, "%Zd", tmp2);
+
+                if (strlen(tersebuf2) >= (maxlen + 4))
+                    printf("warning: temporary buffer may have overflowed\n");
+                if ((strlen(tersebuf2) + strlen(tersebuf)) >= (maxlen * 4))
+                    printf("warning: destination buffer may overflow\n");
+
+                strcpy(&tersebuf[strlen(tersebuf)], tersebuf2);
+                tersebuf[strlen(tersebuf)] = '\0';
             }
             else
             {

@@ -59,7 +59,9 @@ SOFTWARE.
 #include <stdint.h>
 #include <immintrin.h>
 
-
+#ifdef __GNUC__
+#include <stdbool.h>
+#endif
 
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
@@ -423,19 +425,13 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 
 #ifdef USE_PERIG_128BIT
 
-
-#ifdef _MSC_VER
-
-#else
 typedef __uint128_t uint128_t;
-#endif
-
 
 // borrow::diff = a - b - borrow_in
 #define INLINE_ASM 1
 static inline uint8_t my_sbb64(uint8_t borrow_in, uint64_t a, uint64_t b, uint64_t* diff)
 {
-#if (INLINE_ASM && defined(__x86_64__))
+#if (INLINE_ASM && (defined( __INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)))
 	return _subborrow_u64(borrow_in, a, b, (unsigned long long*)diff);
 #elif defined(__GNUC__)
 	bool c;
@@ -703,8 +699,8 @@ static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 	cs += t3;
 	t2 = (uint64_t)cs;
 	if (t2) {
-		unsigned char carry = _subborrow_u64(0, t0, mod_lo, &t0);
-		_subborrow_u64(carry, t1, mod_hi, &t1);
+		unsigned char carry = my_sbb64(0, t0, mod_lo, &t0);
+		my_sbb64(carry, t1, mod_hi, &t1);
 		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
 	}
 
@@ -784,8 +780,8 @@ static void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 	cs += t3;
 	t2 = (uint64_t)cs;
 	if (t2) {
-		unsigned char carry = _subborrow_u64(0, t0, mod_lo, &t0);
-		_subborrow_u64(carry, t1, mod_hi, &t1);
+		unsigned char carry = my_sbb64(0, t0, mod_lo, &t0);
+		my_sbb64(carry, t1, mod_hi, &t1);
 		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
 	}
 

@@ -56,8 +56,7 @@ typedef struct {
 #define HEAP_LEFT(i)    (2 * (i) + 1)
 #define HEAP_RIGHT(i)   (2 * (i) + 2)
 
-//static
-void
+static void
 heapify(xline_t *h, uint32 index, uint32 size) {
 
 	uint32 c;
@@ -80,8 +79,7 @@ heapify(xline_t *h, uint32 index, uint32 size) {
 	}
 }
 
-//static
-void
+static void
 make_heap(xline_t *h, uint32 size) {
 
 	int32 i;
@@ -89,8 +87,7 @@ make_heap(xline_t *h, uint32 size) {
 		heapify(h, (uint32)i, size);
 }
 
-//static
-void
+static void
 save_xline(xline_heap_t *heap, uint32 score, 
 		uint32 which_y_block, uint32 which_lattice,
 		uint64 resclass)
@@ -158,8 +155,7 @@ uint64 find_lattice_size_x(mpz_t prev_lattice_size,
 }
 
 /*-------------------------------------------------------------------------*/
-//static
-uint32
+static uint32
 find_lattice_primes(sieve_prime_t *primes, uint32 num_primes,
 			sieve_prime_t *lattice_primes, 
 			uint64 lattice_size_x)
@@ -363,8 +359,7 @@ xdata_init(sieve_prime_t *lattice_primes, xdata_t *xdata,
 }
 
 /*-------------------------------------------------------------------------*/
-//static
-void
+static void
 do_sieving(xdata_t *xdata)
 {
 	uint32 i, j, k;
@@ -397,8 +392,7 @@ do_sieving(xdata_t *xdata)
 }
 
 /*-------------------------------------------------------------------------*/
-//static
-void 
+static void
 find_hits(root_sieve_t *rs, xdata_t *xdata, 
 		uint32 num_lattice_primes, uint32 y_blocks,
 		xline_heap_t *heap, uint32 which_lattice,

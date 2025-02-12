@@ -32,8 +32,7 @@ assess_free(assess_t *a)
 }
 
 /*-------------------------------------------------------------------------*/
-//static
-uint32
+static uint32
 check_poly(curr_poly_t *c, mpz_t *coeffs, mpz_t lin0, 
 		mpz_t gmp_N, uint32 degree) {
 
@@ -57,8 +56,7 @@ check_poly(curr_poly_t *c, mpz_t *coeffs, mpz_t lin0,
 
 /*-------------------------------------------------------------------------*/
 #define MAX_CORRECT_STEPS 10
-//static
-int
+static int
 pol_expand(curr_poly_t *c, mpz_t gmp_N, mpz_t high_coeff,
 		mpz_t gmp_p, mpz_t gmp_d, 
 		double coeff_bound, uint32 degree)
@@ -144,8 +142,7 @@ pol_expand(curr_poly_t *c, mpz_t gmp_N, mpz_t high_coeff,
 }
 
 /*-------------------------------------------------------------------------*/
-//static
-void
+static void
 curr_poly_init(curr_poly_t *c)
 {
 	int i;
@@ -169,8 +166,7 @@ curr_poly_init(curr_poly_t *c)
 }
 
 /*-------------------------------------------------------------------------*/
-//static
-void
+static void
 curr_poly_free(curr_poly_t *c)
 {
 	int i;
