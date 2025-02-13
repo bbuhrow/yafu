@@ -532,6 +532,99 @@ double poly_rotate_callback_deg6_rectangular(double* v, void* extra)
 	return norm / s6;
 }
 
+double poly_rotate_callback_avx2_deg5_radial(double* v, void* extra)
+{
+	uint32 i;
+	opt_data_t* opt = (opt_data_t*)extra;
+	dpoly_t apoly = *(opt->dapoly);
+	double translated[MAX_POLY_DEGREE + 1];
+	double s = floor(v[SKEWNESS] + 0.5);
+	double t = floor(v[TRANSLATE_SIZE] + 0.5);
+	double r0 = opt->drpoly->coeff[0];
+	double r1 = opt->drpoly->coeff[1];
+
+	if (s < 1.0)
+		return 1e200;
+
+	double c0 = floor(v[ROTATE0 + 0] + 0.5);
+	double c1 = floor(v[ROTATE0 + 1] + 0.5);
+	apoly.coeff[0] += r0 * c0;
+	apoly.coeff[0 + 1] += r1 * c0;
+	apoly.coeff[1] += r0 * c1;
+	apoly.coeff[1 + 1] += r1 * c1;
+
+	// translate_d(translated, apoly.coeff, apoly.degree, t);
+	uint32 j;
+
+	const double* weights = xlate_weights[0];
+	double accum = apoly.coeff[5] * weights[5];
+
+	t = -t;
+
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	accum = accum * t + apoly.coeff[0] * weights[0];
+	translated[0] = accum;
+
+	weights = xlate_weights[1];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	accum = accum * t + apoly.coeff[1] * weights[1];
+	translated[1] = accum;
+
+	weights = xlate_weights[2];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	accum = accum * t + apoly.coeff[2] * weights[2];
+	translated[2] = accum;
+
+	weights = xlate_weights[3];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	accum = accum * t + apoly.coeff[3] * weights[3];
+	translated[3] = accum;
+
+	weights = xlate_weights[4];
+	accum = apoly.coeff[5] * weights[5];
+	accum = accum * t + apoly.coeff[4] * weights[4];
+	translated[4] = accum;
+
+	translated[5] = apoly.coeff[5];
+
+	//return opt->norm_callback(translated, apoly.degree, s);
+
+	double a0, a1, a2, a3, a4, a5, a6;
+	double s2, s3, s4, s5, s6;
+	double norm;
+	double* a = translated;
+
+	if (s < 1)
+		return 1e200;
+
+	a0 = a[0];
+	a1 = a[1] * s;
+	s2 = s * s;
+	a2 = a[2] * s2;
+	s3 = s2 * s;
+	a3 = a[3] * s3;
+	s4 = s3 * s;
+	a4 = a[4] * s4;
+	s5 = s4 * s;
+	a5 = a[5] * s5;
+
+	norm = 63.0 * (a5 * a5 + a0 * a0) +
+		14.0 * (a5 * a3 + a2 * a0) +
+		7.0 * (a4 * a4 + a1 * a1) +
+		3.0 * (a3 * a3 + a2 * a2) +
+		6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+	return norm / s5;
+}
+
 double poly_rotate_callback_deg5_radial(double* v, void* extra)
 {
 	uint32 i;

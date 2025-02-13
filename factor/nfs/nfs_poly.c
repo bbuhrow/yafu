@@ -421,7 +421,7 @@ cleanup:
 	return retcode;
 }
 
-void split_file(int nthreads, char* base_filename, char* file_extension)
+void split_file(int nthreads, char* base_filename, const char* file_extension)
 {
 	// split a file into N files, with each file getting 1/Nth the lines
 	int i, j;
@@ -436,7 +436,7 @@ void split_file(int nthreads, char* base_filename, char* file_extension)
 	if (fid != NULL)
 	{
 		// count the lines in the file
-		while (~feof(fid))
+		while (!feof(fid))
 		{
 			strptr = fgets(line, 8192, fid);
 			if (strptr == NULL)
@@ -448,7 +448,7 @@ void split_file(int nthreads, char* base_filename, char* file_extension)
 		fclose(fid);
 	}
 
-	printf("nfs: Found %d lines in %s\n", count);
+	printf("nfs: Found %d lines in %s\n", count, fname);
 	if (nthreads == 0)
 	{
 		printf("invalid number of threads, must be > 0\n");
@@ -669,7 +669,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		deadline /= fobj->THREADS;
 	}
 
-	if ((fobj->nfs_obj.timeout < deadline) && (deadline > 1.0))
+	if ((fobj->nfs_obj.timeout < deadline) && (fobj->nfs_obj.timeout > 1.0))
 	{
 		deadline = fobj->nfs_obj.timeout;
 		if (fobj->VFLAG > 0)
@@ -802,6 +802,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.ms", fobj->nfs_obj.outputfile);
 		special_polyfind = 1;
 		// split the main .m file into N parts
+		if (fobj->VFLAG > 0 ) 
+			printf("nfs: splitting file: %s.m into %d piece(s)\n",
+				fobj->nfs_obj.outputfile, fobj->THREADS);
 		split_file(fobj->THREADS, fobj->nfs_obj.outputfile, "m");
 	}
 
@@ -1019,6 +1022,13 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 					fprintf(fid, "time: %u\n", total_time);
 					fclose(fid);
 				}
+
+				if (fobj->nfs_obj.nps)
+				{
+					// remove this threads' portion of the .m file
+					snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%s", t->polyfilename, "m");
+					remove(syscmd);
+				}
 			}
 
 			// remove each thread's .p file after it's copied
@@ -1060,15 +1070,19 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 // deadline, go ahead and do so.  Also make sure we at least have
                 // one poly before quitting.
                 if (((uint32_t)t_time + estimated_range_time <= deadline) ||
-                    ((bestscore == 0.0) && (!special_polyfind)))
+					(bestscore < 1e-20)) 
                 {
 
                     // unless the user has specified a custom range search, in which case
                     // this thread is done
                     if ((fobj->nfs_obj.polyrange > 0) && !is_startup)
                     {
-                        printf("thread %d finished custom range search\n", tid);
+                        printf("nfs: thread %d finished custom range search\n", tid);
                     }
+					else if ((special_polyfind) && !is_startup)
+					{
+						printf("nfs: thread %d finished special polyfind\n", tid);
+					}
                     else
                     {
                         init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,
