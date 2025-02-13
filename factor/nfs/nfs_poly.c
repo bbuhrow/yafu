@@ -1072,15 +1072,15 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 if (((uint32_t)t_time + estimated_range_time <= deadline) ||
 					(bestscore < 1e-20)) 
                 {
-
-                    // unless the user has specified a custom range search, in which case
-                    // this thread is done
                     if ((fobj->nfs_obj.polyrange > 0) && !is_startup)
                     {
+						// unless the user has specified a custom range search, in which case
+						// this thread is done
                         printf("nfs: thread %d finished custom range search\n", tid);
                     }
 					else if ((special_polyfind) && !is_startup)
 					{
+						// or if we are doing -np1, -nps, or -npr
 						printf("nfs: thread %d finished special polyfind\n", tid);
 					}
                     else

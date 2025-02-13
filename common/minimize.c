@@ -17,11 +17,8 @@ $Id: minimize.c 734 2012-08-04 15:13:07Z jasonp_sf $
 #define PHI 1.618033988749
 #define COMP_PHI (2.0 - PHI)
 
-//#define MSIEVE_STATIC static
-#define MSIEVE_STATIC 
-
 /*-------------------------------------------------------------------------*/
-MSIEVE_STATIC double evaluate(double *base, double dist, 
+static double evaluate(double *base, double dist,
 			double *search_dir, uint32 ndim,
 			objective_func callback, void *extra)
 {
@@ -35,7 +32,7 @@ MSIEVE_STATIC double evaluate(double *base, double dist,
 }
 
 /*-------------------------------------------------------------------------*/
-MSIEVE_STATIC void bracket_min(double *base, double *search_dir,
+static void bracket_min(double *base, double *search_dir,
 			double *a_out, double *b_out, double *c_out,
 			double tol, double *fb_out, uint32 ndim, 
 			objective_func callback, void *extra)
@@ -124,7 +121,7 @@ MSIEVE_STATIC void bracket_min(double *base, double *search_dir,
 }
 
 /*-------------------------------------------------------------------------*/
-MSIEVE_STATIC double minimize_line_core(double *base, double *search_dir,
+static double minimize_line_core(double *base, double *search_dir,
 			double a_in, double b_in, double c_in, 
 			double fb_in, double tol, double *min_out, 
 			uint32 ndim, int32 *status,
@@ -220,7 +217,7 @@ MSIEVE_STATIC double minimize_line_core(double *base, double *search_dir,
 }
 
 /*-------------------------------------------------------------------------*/
-MSIEVE_STATIC double minimize_line(double *base, double *search_dir, 
+static double minimize_line(double *base, double *search_dir,
 				uint32 ndim, double ftol,
 				int32 *status,
 				objective_func callback,
@@ -523,7 +520,7 @@ double minimize_hess(double p[MAX_VARS], uint32 ndim,
 }
 
 /*-------------------------------------------------------------------------*/
-MSIEVE_STATIC double minimize_line_quasinewt(
+static double minimize_line_quasinewt(
 		double base[MAX_VARS], 
 		uint32 ndim,
 		double fbase, 

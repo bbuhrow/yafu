@@ -532,99 +532,6 @@ double poly_rotate_callback_deg6_rectangular(double* v, void* extra)
 	return norm / s6;
 }
 
-double poly_rotate_callback_avx2_deg5_radial(double* v, void* extra)
-{
-	uint32 i;
-	opt_data_t* opt = (opt_data_t*)extra;
-	dpoly_t apoly = *(opt->dapoly);
-	double translated[MAX_POLY_DEGREE + 1];
-	double s = floor(v[SKEWNESS] + 0.5);
-	double t = floor(v[TRANSLATE_SIZE] + 0.5);
-	double r0 = opt->drpoly->coeff[0];
-	double r1 = opt->drpoly->coeff[1];
-
-	if (s < 1.0)
-		return 1e200;
-
-	double c0 = floor(v[ROTATE0 + 0] + 0.5);
-	double c1 = floor(v[ROTATE0 + 1] + 0.5);
-	apoly.coeff[0] += r0 * c0;
-	apoly.coeff[0 + 1] += r1 * c0;
-	apoly.coeff[1] += r0 * c1;
-	apoly.coeff[1 + 1] += r1 * c1;
-
-	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
-
-	const double* weights = xlate_weights[0];
-	double accum = apoly.coeff[5] * weights[5];
-
-	t = -t;
-
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	accum = accum * t + apoly.coeff[0] * weights[0];
-	translated[0] = accum;
-
-	weights = xlate_weights[1];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	translated[1] = accum;
-
-	weights = xlate_weights[2];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	translated[2] = accum;
-
-	weights = xlate_weights[3];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	translated[3] = accum;
-
-	weights = xlate_weights[4];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	translated[4] = accum;
-
-	translated[5] = apoly.coeff[5];
-
-	//return opt->norm_callback(translated, apoly.degree, s);
-
-	double a0, a1, a2, a3, a4, a5, a6;
-	double s2, s3, s4, s5, s6;
-	double norm;
-	double* a = translated;
-
-	if (s < 1)
-		return 1e200;
-
-	a0 = a[0];
-	a1 = a[1] * s;
-	s2 = s * s;
-	a2 = a[2] * s2;
-	s3 = s2 * s;
-	a3 = a[3] * s3;
-	s4 = s3 * s;
-	a4 = a[4] * s4;
-	s5 = s4 * s;
-	a5 = a[5] * s5;
-
-	norm = 63.0 * (a5 * a5 + a0 * a0) +
-		14.0 * (a5 * a3 + a2 * a0) +
-		7.0 * (a4 * a4 + a1 * a1) +
-		3.0 * (a3 * a3 + a2 * a2) +
-		6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
-	return norm / s5;
-}
-
 double poly_rotate_callback_deg5_radial(double* v, void* extra)
 {
 	uint32 i;
@@ -639,108 +546,98 @@ double poly_rotate_callback_deg5_radial(double* v, void* extra)
 	if (s < 1.0)
 		return 1e200;
 
-#if 0
-	for (i = 0; i <= opt->rotate_dim; i++) {
-		double c = floor(v[ROTATE0 + i] + 0.5);
-		apoly.coeff[i] += r0 * c;
-		apoly.coeff[i + 1] += r1 * c;
-	}
-#else
 	double c0 = floor(v[ROTATE0 + 0] + 0.5);
 	double c1 = floor(v[ROTATE0 + 1] + 0.5);
 	apoly.coeff[0] += r0 * c0;
 	apoly.coeff[0 + 1] += r1 * c0;
 	apoly.coeff[1] += r0 * c1;
 	apoly.coeff[1 + 1] += r1 * c1;
-#endif
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
 	uint32 j;
 
-#if 0
-	double x = t;
-	double* c = translated;
-	double* d = apoly.coeff;
-	int deg = apoly.degree;
-	for (i = 0, x = -x; i < deg; i++) {
-
-		const double* weights = xlate_weights[i];
-		double accum = d[deg] * weights[deg];
-
-		for (j = deg; j > i; j--) {
-			accum = accum * x + d[j - 1] * weights[j - 1];
-		}
-		c[i] = accum;
-	}
-	c[i] = d[i];
-#else
-	const double* weights = xlate_weights[0];
-	double accum = apoly.coeff[5] * weights[5];
-
 	t = -t;
 
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	accum = accum * t + apoly.coeff[0] * weights[0];
-	translated[0] = accum;
+	double accum1 = apoly.coeff[5];
+	double accum2 = apoly.coeff[5] * 5.0;
+	double accum3 = apoly.coeff[5] * 10.0;
+	double accum4 = apoly.coeff[5] * 10.0;
+	double accum5 = apoly.coeff[5] * 5.0;
 
-	weights = xlate_weights[1];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	translated[1] = accum;
+	accum1 = accum1 * t + apoly.coeff[4];
+	accum2 = accum2 * t + apoly.coeff[4] * 4.0;
+	accum3 = accum3 * t + apoly.coeff[4] * 6.0;
+	accum4 = accum4 * t + apoly.coeff[4] * 4.0;
+	accum5 = accum5 * t + apoly.coeff[4];
 
-	weights = xlate_weights[2];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	translated[2] = accum;
+	accum1 = accum1 * t + apoly.coeff[3];
+	accum2 = accum2 * t + apoly.coeff[3] * 3.0;
+	accum3 = accum3 * t + apoly.coeff[3] * 3.0;
+	accum4 = accum4 * t + apoly.coeff[3];
 
-	weights = xlate_weights[3];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	translated[3] = accum;
+	accum1 = accum1 * t + apoly.coeff[2];
+	accum2 = accum2 * t + apoly.coeff[2] * 2.0;
+	accum3 = accum3 * t + apoly.coeff[2];
 
-	weights = xlate_weights[4];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	translated[4] = accum;
+	accum1 = accum1 * t + apoly.coeff[1];
+	accum2 = accum2 * t + apoly.coeff[1];
 
+	accum1 = accum1 * t + apoly.coeff[0];
+
+	translated[0] = accum1;
+	translated[1] = accum2;
+	translated[2] = accum3;
+	translated[3] = accum4;
+	translated[4] = accum5;
 	translated[5] = apoly.coeff[5];
-#endif
 
 	//return opt->norm_callback(translated, apoly.degree, s);
 
-	double a0, a1, a2, a3, a4, a5, a6;
-	double s2, s3, s4, s5, s6;
+	double a0, a1, a2, a3, a4, a5;
+	double s2, s3, s4, s5;
 	double norm;
 	double* a = translated;
-
-	if (s < 1)
-		return 1e200;
 
 	a0 = a[0];
 	a1 = a[1] * s;
 	s2 = s * s;
-	a2 = a[2] * s2;
 	s3 = s2 * s;
+	s4 = s2 * s2;
+	s5 = s3 * s2;
+	a2 = a[2] * s2;
 	a3 = a[3] * s3;
-	s4 = s3 * s;
-	a4 = a[4] * s4;
-	s5 = s4 * s;
+	a4 = a[4] * s4;	
 	a5 = a[5] * s5;
 
-	norm = 63.0 * (a5 * a5 + a0 * a0) +
-		14.0 * (a5 * a3 + a2 * a0) +
-		7.0 * (a4 * a4 + a1 * a1) +
-		3.0 * (a3 * a3 + a2 * a2) +
-		6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
-	return norm / s5;
+	s2 = a5 * a3;
+	s3 = a2 * a0;
+	s4 = a5 * a1;
+	s = a4 * a0;
+
+	a5 = a5 * a5;
+	a0 = a0 * a0;
+	norm = 63.0 * (a5 + a0);
+	norm += 14.0 * (s2 + s3);
+
+	s2 = a4 * a2;
+	s3 = a3 * a1;
+	s5 = 1.0 / s5;
+
+	a4 = a4 * a4;
+	a3 = a3 * a3;
+	a2 = a2 * a2;
+	a1 = a1 * a1;
+
+	norm += 7.0 * (a4 + a1);
+	norm += 3.0 * (a3 + a2);
+	norm += 6.0 * (s4 + s2 + s + s3);
+
+	//norm = 63.0 * (a5 * a5 + a0 * a0) +
+	//	14.0 * (a5 * a3 + a2 * a0) +
+	//	7.0 * (a4 * a4 + a1 * a1) +
+	//	3.0 * (a3 * a3 + a2 * a2) +
+	//	6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+
+	return norm * s5;
 }
 
 double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
@@ -757,108 +654,111 @@ double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 	if (s < 1.0)
 		return 1e200;
 
-#if 0
-	for (i = 0; i <= opt->rotate_dim; i++) {
-		double c = floor(v[ROTATE0 + i] + 0.5);
-		apoly.coeff[i] += r0 * c;
-		apoly.coeff[i + 1] += r1 * c;
-	}
-#else
 	double c0 = floor(v[ROTATE0 + 0] + 0.5);
 	double c1 = floor(v[ROTATE0 + 1] + 0.5);
 	apoly.coeff[0] += r0 * c0;
 	apoly.coeff[0 + 1] += r1 * c0;
 	apoly.coeff[1] += r0 * c1;
 	apoly.coeff[1 + 1] += r1 * c1;
-#endif
+
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
 	uint32 j;
 
-#if 0
-	double x = t;
-	double* c = translated;
-	double* d = apoly.coeff;
-	int deg = apoly.degree;
-	for (i = 0, x = -x; i < deg; i++) {
-
-		const double* weights = xlate_weights[i];
-		double accum = d[deg] * weights[deg];
-
-		for (j = deg; j > i; j--) {
-			accum = accum * x + d[j - 1] * weights[j - 1];
-		}
-		c[i] = accum;
-	}
-	c[i] = d[i];
-#else
-	const double* weights = xlate_weights[0];
-	double accum = apoly.coeff[5] * weights[5];
-
 	t = -t;
 
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	accum = accum * t + apoly.coeff[0] * weights[0];
-	translated[0] = accum;
+	double accum1 = apoly.coeff[5];
+	double accum2 = apoly.coeff[5] * 5.0;
+	double accum3 = apoly.coeff[5] * 10.0;
+	double accum4 = apoly.coeff[5] * 10.0;
+	double accum5 = apoly.coeff[5] * 5.0;
 
-	weights = xlate_weights[1];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	translated[1] = accum;
+	accum1 = accum1 * t + apoly.coeff[4];
+	accum2 = accum2 * t + apoly.coeff[4] * 4.0;
+	accum3 = accum3 * t + apoly.coeff[4] * 6.0;
+	accum4 = accum4 * t + apoly.coeff[4] * 4.0;
+	accum5 = accum5 * t + apoly.coeff[4];
 
-	weights = xlate_weights[2];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	translated[2] = accum;
+	accum1 = accum1 * t + apoly.coeff[3];
+	accum2 = accum2 * t + apoly.coeff[3] * 3.0;
+	accum3 = accum3 * t + apoly.coeff[3] * 3.0;
+	accum4 = accum4 * t + apoly.coeff[3];
 
-	weights = xlate_weights[3];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	translated[3] = accum;
+	accum1 = accum1 * t + apoly.coeff[2];
+	accum2 = accum2 * t + apoly.coeff[2] * 2.0;
+	accum3 = accum3 * t + apoly.coeff[2];
 
-	weights = xlate_weights[4];
-	accum = apoly.coeff[5] * weights[5];
-	accum = accum * t + apoly.coeff[4] * weights[4];
-	translated[4] = accum;
+	accum1 = accum1 * t + apoly.coeff[1];
+	accum2 = accum2 * t + apoly.coeff[1];
 
+	accum1 = accum1 * t + apoly.coeff[0];
+
+	translated[0] = accum1;
+	translated[1] = accum2;
+	translated[2] = accum3;
+	translated[3] = accum4;
+	translated[4] = accum5;
 	translated[5] = apoly.coeff[5];
-#endif
 
 	//return opt->norm_callback(translated, apoly.degree, s);
 
-	double a0, a1, a2, a3, a4, a5, a6;
-	double s2, s3, s4, s5, s6;
+	double a0, a1, a2, a3, a4, a5;
+	double s2, s3, s4, s5;
 	double norm;
 	double* a = translated;
-
-	if (s < 1)
-		return 1e200;
 
 	a0 = a[0];
 	a1 = a[1] * s;
 	s2 = s * s;
-	a2 = a[2] * s2;
 	s3 = s2 * s;
+	s4 = s2 * s2;
+	s5 = s3 * s2;
+	a2 = a[2] * s2;
 	a3 = a[3] * s3;
-	s4 = s3 * s;
 	a4 = a[4] * s4;
-	s5 = s4 * s;
 	a5 = a[5] * s5;
 
-	norm = 1.0 / 11.0 * (a5 * a5 + a0 * a0) +
-		2.0 / 27.0 * (a5 * a3 + a2 * a0) +
-		1.0 / 27.0 * (a4 * a4 + a1 * a1) +
-		1.0 / 35.0 * (a3 * a3 + a2 * a2) +
-		2.0 / 35.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
-	return norm / s5;
+	s2 = a5 * a3;
+	s3 = a2 * a0;
+	s4 = a5 * a1;
+	s = a4 * a0;
+
+	a5 = a5 * a5;
+	a0 = a0 * a0;
+	norm = (1.0 / 11.0) * (a5 + a0);
+	norm += (2.0 / 27.0) * (s2 + s3);
+
+	s2 = a4 * a2;
+	s3 = a3 * a1;
+	s5 = 1.0 / s5;
+
+	a4 = a4 * a4;
+	a3 = a3 * a3;
+	a2 = a2 * a2;
+	a1 = a1 * a1;
+
+	norm += (1.0 / 27.0) * (a4 + a1);
+	norm += (1.0 / 35.0) * (a3 + a2);
+	norm += (2.0 / 35.0) * (s4 + s2 + s + s3);
+
+	return norm * s5;
+
+	//a0 = a[0];
+	//a1 = a[1] * s;
+	//s2 = s * s;
+	//a2 = a[2] * s2;
+	//s3 = s2 * s;
+	//a3 = a[3] * s3;
+	//s4 = s3 * s;
+	//a4 = a[4] * s4;
+	//s5 = s4 * s;
+	//a5 = a[5] * s5;
+	//
+	//norm = 1.0 / 11.0 * (a5 * a5 + a0 * a0) +
+	//	2.0 / 27.0 * (a5 * a3 + a2 * a0) +
+	//	1.0 / 27.0 * (a4 * a4 + a1 * a1) +
+	//	1.0 / 35.0 * (a3 * a3 + a2 * a2) +
+	//	2.0 / 35.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
+	//return norm / s5;
 }
 
 double poly_rotate_callback_deg4_radial(double* v, void* extra)
@@ -882,62 +782,74 @@ double poly_rotate_callback_deg4_radial(double* v, void* extra)
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
 	uint32 j;
 
-	const double* weights = xlate_weights[0];
-	double accum = apoly.coeff[4] * weights[4];
-
 	t = -t;
 
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	accum = accum * t + apoly.coeff[0] * weights[0];
-	translated[0] = accum;
+	double accum1 = apoly.coeff[4];
+	double accum2 = apoly.coeff[4] * 4.0;
+	double accum3 = apoly.coeff[4] * 6.0;
+	double accum4 = apoly.coeff[4] * 4.0;
 
-	weights = xlate_weights[1];
-	accum = apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	translated[1] = accum;
+	accum1 = accum1 * t + apoly.coeff[3];
+	accum2 = accum2 * t + apoly.coeff[3] * 3.0;
+	accum3 = accum3 * t + apoly.coeff[3] * 3.0;
+	accum4 = accum4 * t + apoly.coeff[3];
 
-	weights = xlate_weights[2];
-	accum = apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	translated[2] = accum;
+	accum1 = accum1 * t + apoly.coeff[2];
+	accum2 = accum2 * t + apoly.coeff[2] * 2.0;
+	accum3 = accum3 * t + apoly.coeff[2];
 
-	weights = xlate_weights[3];
-	accum = apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	translated[3] = accum;
+	accum1 = accum1 * t + apoly.coeff[1];
+	accum2 = accum2 * t + apoly.coeff[1];
 
+	accum1 = accum1 * t + apoly.coeff[0];
+
+	translated[0] = accum1;
+	translated[1] = accum2;
+	translated[2] = accum3;
+	translated[3] = accum4;
 	translated[4] = apoly.coeff[4];
 
-	//return opt->norm_callback(translated, apoly.degree, s);
-
-	double a0, a1, a2, a3, a4, a5, a6;
-	double s2, s3, s4, s5, s6;
+	double a0, a1, a2, a3, a4, a5;
+	double s2, s3, s4, s5;
 	double norm;
 	double* a = translated;
-
-	if (s < 1)
-		return 1e200;
 
 	a0 = a[0];
 	a1 = a[1] * s;
 	s2 = s * s;
-	a2 = a[2] * s2;
 	s3 = s2 * s;
+	s4 = s2 * s2;
+	a2 = a[2] * s2;
 	a3 = a[3] * s3;
-	s4 = s3 * s;
 	a4 = a[4] * s4;
 
-	norm = 35.0 * (a4 * a4 + a0 * a0) +
-		10.0 * (a4 * a2 + a2 * a0) +
-		5.0 * (a3 * a3 + a1 * a1) +
-		6.0 * (a4 * a0 + a3 * a1) +
-		3.0 * a2 * a2;
-	return norm / s4;
+	s2 = a4 * a2;
+	s3 = a2 * a0;
+	s = a4 * a0;
+
+	a4 = a4 * a4;
+	a0 = a0 * a0;
+	norm = 35.0 * (a4 + a0);
+	norm += 10.0 * (s2 + s3);
+
+	s4 = 1.0 / s4;
+	s2 = a3 * a1;
+	a3 = a3 * a3;
+	a2 = a2 * a2;
+	a1 = a1 * a1;
+
+	norm += 5.0 * (a3 + a1);
+	norm += 6.0 * (s2 + s);
+	norm += 3.0 * a2;
+
+	return norm * s4;
+
+	//norm = 35.0 * (a4 * a4 + a0 * a0) +
+	//	10.0 * (a4 * a2 + a2 * a0) +
+	//	5.0 * (a3 * a3 + a1 * a1) +
+	//	6.0 * (a4 * a0 + a3 * a1) +
+	//	3.0 * a2 * a2;
+	//return norm / s4;
 }
 
 double poly_rotate_callback_deg4_rectangular(double* v, void* extra)
@@ -961,62 +873,83 @@ double poly_rotate_callback_deg4_rectangular(double* v, void* extra)
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
 	uint32 j;
 
-	const double* weights = xlate_weights[0];
-	double accum = apoly.coeff[4] * weights[4];
-
 	t = -t;
 
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	accum = accum * t + apoly.coeff[0] * weights[0];
-	translated[0] = accum;
+	double accum1 = apoly.coeff[4];
+	double accum2 = apoly.coeff[4] * 4.0;
+	double accum3 = apoly.coeff[4] * 6.0;
+	double accum4 = apoly.coeff[4] * 4.0;
 
-	weights = xlate_weights[1];
-	accum = apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	accum = accum * t + apoly.coeff[1] * weights[1];
-	translated[1] = accum;
+	accum1 = accum1 * t + apoly.coeff[3];
+	accum2 = accum2 * t + apoly.coeff[3] * 3.0;
+	accum3 = accum3 * t + apoly.coeff[3] * 3.0;
+	accum4 = accum4 * t + apoly.coeff[3];
 
-	weights = xlate_weights[2];
-	accum = apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	accum = accum * t + apoly.coeff[2] * weights[2];
-	translated[2] = accum;
+	accum1 = accum1 * t + apoly.coeff[2];
+	accum2 = accum2 * t + apoly.coeff[2] * 2.0;
+	accum3 = accum3 * t + apoly.coeff[2];
 
-	weights = xlate_weights[3];
-	accum = apoly.coeff[4] * weights[4];
-	accum = accum * t + apoly.coeff[3] * weights[3];
-	translated[3] = accum;
+	accum1 = accum1 * t + apoly.coeff[1];
+	accum2 = accum2 * t + apoly.coeff[1];
 
+	accum1 = accum1 * t + apoly.coeff[0];
+
+	translated[0] = accum1;
+	translated[1] = accum2;
+	translated[2] = accum3;
+	translated[3] = accum4;
 	translated[4] = apoly.coeff[4];
 
-	//return opt->norm_callback(translated, apoly.degree, s);
-
-	double a0, a1, a2, a3, a4, a5, a6;
-	double s2, s3, s4, s5, s6;
+	double a0, a1, a2, a3, a4, a5;
+	double s2, s3, s4, s5;
 	double norm;
 	double* a = translated;
-
-	if (s < 1)
-		return 1e200;
 
 	a0 = a[0];
 	a1 = a[1] * s;
 	s2 = s * s;
-	a2 = a[2] * s2;
 	s3 = s2 * s;
+	s4 = s2 * s2;
+	a2 = a[2] * s2;
 	a3 = a[3] * s3;
-	s4 = s3 * s;
 	a4 = a[4] * s4;
 
-	norm = 1.0 / 9.0 * (a4 * a4 + a0 * a0) +
-		2.0 / 21.0 * (a4 * a2 + a2 * a0) +
-		1.0 / 21.0 * (a3 * a3 + a1 * a1) +
-		2.0 / 25.0 * (a4 * a0 + a3 * a1) +
-		1.0 / 25.0 * a2 * a2;
-	return norm / s4;
+	s2 = a4 * a2;
+	s3 = a2 * a0;
+	s = a4 * a0;
+
+	a4 = a4 * a4;
+	a0 = a0 * a0;
+	norm = (1.0 / 9.0) * (a4 + a0);
+	norm += (2.0 / 21.0) * (s2 + s3);
+
+	s4 = 1.0 / s4;
+	s2 = a3 * a1;
+	a3 = a3 * a3;
+	a2 = a2 * a2;
+	a1 = a1 * a1;
+
+	norm += (1.0 / 21.0) * (a3 + a1);
+	norm += (2.0 / 25.0) * (s2 + s);
+	norm += (1.0 / 25.0) * a2;
+
+	return norm * s4;
+
+	//a0 = a[0];
+	//a1 = a[1] * s;
+	//s2 = s * s;
+	//a2 = a[2] * s2;
+	//s3 = s2 * s;
+	//a3 = a[3] * s3;
+	//s4 = s3 * s;
+	//a4 = a[4] * s4;
+	//
+	//norm = 1.0 / 9.0 * (a4 * a4 + a0 * a0) +
+	//	2.0 / 21.0 * (a4 * a2 + a2 * a0) +
+	//	1.0 / 21.0 * (a3 * a3 + a1 * a1) +
+	//	2.0 / 25.0 * (a4 * a0 + a3 * a1) +
+	//	1.0 / 25.0 * a2 * a2;
+	//return norm / s4;
 }
 
 static double poly_murphy_callback(double* v, void* extra)

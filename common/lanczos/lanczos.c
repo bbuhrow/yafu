@@ -866,9 +866,11 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 	uint32 next_dump = 0;
 	time_t first_time;
 
+	omp_set_num_threads(packed_matrix->num_threads);
+
 	if (packed_matrix->num_threads > 1)
 		logprintf(obj, "commencing Lanczos iteration (%u threads)\n",
-					packed_matrix->num_threads);
+			packed_matrix->num_threads);
 	else
 		logprintf(obj, "commencing Lanczos iteration\n");
 
