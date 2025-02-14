@@ -658,8 +658,8 @@ void nfs(fact_obj_t *fobj)
 				FILE *relatFile = fopen("nfs.cado", "r");
 				checkFp(relatFile, "nfs.cado");
 
-				char relatLine[256];
-				while (fgets(relatLine, 256, relatFile)) {
+				char relatLine[1024];
+				while (fgets(relatLine, 1024, relatFile)) {
 					// Is this line a comment?
 					if (relatLine[0] == '#') continue;
 
