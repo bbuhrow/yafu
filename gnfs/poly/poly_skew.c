@@ -350,6 +350,15 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 
 		poly_stage1_run(obj, &stage1_data);
 
+		if (!(obj->flags & MSIEVE_FLAG_NFS_POLYSIZE))
+		{
+			// just doing -np1?  need to close the 
+			// logfile for stage1 hits.
+			if (stage1_outfile != NULL) {
+				fclose(stage1_outfile);
+			}
+		}
+
 		poly_stage1_free(&stage1_data);
 		if (obj->flags & MSIEVE_FLAG_NFS_POLYROOT) {
 			fclose(rootopt_callback_data.all_poly_file);

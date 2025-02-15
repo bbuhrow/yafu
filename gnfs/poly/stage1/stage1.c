@@ -421,7 +421,7 @@ free_ad_sieve(sieve_t *sieve)
 
 /*------------------------------------------------------------------------*/
 //static
-void
+double 
 search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 {
 	double deadline_per_coeff;
@@ -489,6 +489,8 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 	gpu_data_free(gpu_data);
 #endif
 	poly_coeff_free(c);
+
+	return cumulative_time;
 }
 
 /*------------------------------------------------------------------------*/
@@ -523,7 +525,11 @@ poly_stage1_run(msieve_obj *obj, poly_stage1_t *data)
 
 	poly_search_init(&poly, data);
 
-	search_coeffs(obj, &poly, data->deadline);
+	data->elasped = search_coeffs(obj, &poly, data->deadline);
+	if (data->elasped < 1e-9)
+	{
+		printf("No progressions found with the supplied parameters\n");
+	}
 
 	poly_search_free(&poly);
 }

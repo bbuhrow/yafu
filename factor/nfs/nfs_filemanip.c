@@ -603,7 +603,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	{
 		printf("fopen error: %s\n", strerror(errno));
 		printf("could not open %s for reading!\n",line);
-		exit(1);
+		return 0.0;
 	}
 
 	// read and count polys of the file

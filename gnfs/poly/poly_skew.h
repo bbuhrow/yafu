@@ -34,6 +34,7 @@ typedef struct {
 	uint32 degree;
 	double norm_max;
 	uint32 deadline;
+	double elasped;
 	stage1_callback_t callback;
 	void *callback_data;
 } poly_stage1_t;

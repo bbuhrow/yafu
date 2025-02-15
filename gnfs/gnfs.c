@@ -83,7 +83,16 @@ uint32 factor_gnfs(msieve_obj *obj, mp_t *input_n,
 					&alg_poly, &params.skewness);
 	}
 	if (status != 0) {
-		printf("error generating or reading NFS polynomials\n");
+		if ((obj->flags & MSIEVE_FLAG_NFS_POLY1) &&
+			(obj->flags & MSIEVE_FLAG_NFS_POLYSIZE) &&
+			(obj->flags & MSIEVE_FLAG_NFS_POLYROOT))
+		{
+			// it's potentially an error only if we are actually 
+			// doing all of the polygen phases.  Even so, we may
+			// have just not found any polynomials with the 
+			// provided parameters. 
+			printf("No NFS polynomials found or read\n");
+		}
 		goto finished;
 	}
 	analyze_one_poly(obj, &rat_poly, &alg_poly, params.skewness);
