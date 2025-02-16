@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: lanczos_reorder.c 348 2010-07-25 02:51:09Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "lanczos.h"

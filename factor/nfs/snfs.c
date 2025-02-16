@@ -279,9 +279,9 @@ void approx_norms(snfs_t *poly)
 
             // pick closest entry
             if ((d - ggnfs_table[i][0]) < (ggnfs_table[i + 1][0] - d))
-                siever = ggnfs_table[i][5];
+                siever = ggnfs_table[i][9];
             else
-                siever = ggnfs_table[i + 1][5];
+                siever = ggnfs_table[i + 1][9];
 
             found = 1;
         }

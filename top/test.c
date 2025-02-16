@@ -20,6 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "microecm.h"
+#include "tinyecm.h"
 #include "arith.h"
 #include "ytools.h"
 #include "qs.h"

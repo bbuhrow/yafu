@@ -719,6 +719,16 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 #endif
         /* seen exceptional polys with +40% but that's */
         /* rare. The fit is good for 88..232 digits */
+
+		// best msieve poly scores on mersenneforum
+		// https://www.mersenneforum.org/node/15489?p=875709#post875709
+		// Once again Batalov found some nice trendlines :
+		// 
+		// Score_deg5 = 10 ^ (-0.06248 * d - 1.75205) R² = 0.99911
+		// 
+		// Score_deg6 = 10 ^ (-0.05828 * d - 2.54967) R² = 0.99604
+
+
     }
 
     if (fobj->VFLAG > 0)

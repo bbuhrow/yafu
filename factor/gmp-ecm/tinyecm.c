@@ -32,6 +32,7 @@ either expressed or implied, of the FreeBSD Project.
 #include <stdlib.h>
 #include "gmp.h"
 #include "monty.h"
+#include "ytools.h"
 
 #define D 120
 
@@ -54,7 +55,7 @@ typedef struct
 
 typedef struct
 {
-	uint64_t data[2][8];
+	ALIGNED_MEM uint64_t data[2][8];
 } vec_u104_t;
 
 typedef struct
@@ -65,38 +66,38 @@ typedef struct
 
 typedef struct
 {
-	vec_u104_t X;
-	vec_u104_t Z;
+	ALIGNED_MEM vec_u104_t X;
+	ALIGNED_MEM vec_u104_t Z;
 } tecm_pt_x8;
 
 typedef struct
 {
-	vec_u104_t sum1;
-	vec_u104_t diff1;
-	vec_u104_t sum2;
-	vec_u104_t diff2;
-	vec_u104_t tt1;
-	vec_u104_t tt2;
-	vec_u104_t tt3;
-	vec_u104_t tt4;
-	vec_u104_t tt5;
-	vec_u104_t s;
-	vec_u104_t n;
-	tecm_pt_x8 pt1;
-	tecm_pt_x8 pt2;
-	tecm_pt_x8 pt3;
-	tecm_pt_x8 pt4;
-	tecm_pt_x8 pt5;
-	uint32_t sigma[8];
+	ALIGNED_MEM vec_u104_t sum1;
+	ALIGNED_MEM vec_u104_t diff1;
+	ALIGNED_MEM vec_u104_t sum2;
+	ALIGNED_MEM vec_u104_t diff2;
+	ALIGNED_MEM vec_u104_t tt1;
+	ALIGNED_MEM vec_u104_t tt2;
+	ALIGNED_MEM vec_u104_t tt3;
+	ALIGNED_MEM vec_u104_t tt4;
+	ALIGNED_MEM vec_u104_t tt5;
+	ALIGNED_MEM vec_u104_t s;
+	ALIGNED_MEM vec_u104_t n;
+	ALIGNED_MEM tecm_pt_x8 pt1;
+	ALIGNED_MEM tecm_pt_x8 pt2;
+	ALIGNED_MEM tecm_pt_x8 pt3;
+	ALIGNED_MEM tecm_pt_x8 pt4;
+	ALIGNED_MEM tecm_pt_x8 pt5;
+	ALIGNED_MEM uint32_t sigma[8];
 
-	tecm_pt_x8 Pa;
-	tecm_pt_x8 Pd;
-	tecm_pt_x8 Pad;
-	tecm_pt_x8 Pb[20];
-	vec_u104_t Paprod;
-	vec_u104_t Pbprod[20];
+	ALIGNED_MEM tecm_pt_x8 Pa;
+	ALIGNED_MEM tecm_pt_x8 Pd;
+	ALIGNED_MEM tecm_pt_x8 Pad;
+	ALIGNED_MEM tecm_pt_x8 Pb[20];
+	ALIGNED_MEM vec_u104_t Paprod;
+	ALIGNED_MEM vec_u104_t Pbprod[20];
 
-	vec_u104_t stg2acc;
+	ALIGNED_MEM vec_u104_t stg2acc;
 	uint32_t stg1Add;
 	uint32_t stg1Doub;
 	uint32_t paired;
@@ -3636,13 +3637,20 @@ __inline static void tecm_uadd_x8(vec_u104_t* rho, vec_u104_t* n,
 	//x- = original x
 	//z- = original z
 	// given the sums and differences of the original points
-	vec_u104_t diff1, sum1, diff2, sum2, tmp;
+	ALIGNED_MEM vec_u104_t diff1;
+	ALIGNED_MEM vec_u104_t sum1;
+	ALIGNED_MEM vec_u104_t diff2;
+	ALIGNED_MEM vec_u104_t sum2;
+	ALIGNED_MEM vec_u104_t tmp;
 	tecm_submod104_x8(&diff1, &P1.X, &P1.Z, n);
 	tecm_addmod104_x8(&sum1, &P1.X, &P1.Z, n);
 	tecm_submod104_x8(&diff2, &P2.X, &P2.Z, n);
 	tecm_addmod104_x8(&sum2, &P2.X, &P2.Z, n);
 
-	vec_u104_t tt1, tt2, tt3, tt4;
+	ALIGNED_MEM vec_u104_t tt1;
+	ALIGNED_MEM vec_u104_t tt2;
+	ALIGNED_MEM vec_u104_t tt3;
+	ALIGNED_MEM vec_u104_t tt4;
 	tecm_mulredc104_x8(&tt1, &diff1, &sum2, n, rho); //U
 	tecm_mulredc104_x8(&tt2, &sum1, &diff2, n, rho); //V
 
@@ -3661,7 +3669,9 @@ __inline static void tecm_uadd_x8(vec_u104_t* rho, vec_u104_t* n,
 __inline static void tecm_udup_x8(vec_u104_t* s, vec_u104_t* rho, vec_u104_t* n,
 	vec_u104_t* insum, vec_u104_t* indiff, tecm_pt_x8* P)
 {
-	vec_u104_t tt1, tt2, tt3;
+	ALIGNED_MEM vec_u104_t tt1;
+	ALIGNED_MEM vec_u104_t tt2;
+	ALIGNED_MEM vec_u104_t tt3;
 	tecm_sqrredc104_x8(&tt1, indiff, n, rho);          // U=(x1 - z1)^2
 	tecm_sqrredc104_x8(&tt2, insum, n, rho);           // V=(x1 + z1)^2
 	tecm_mulredc104_x8(&P->X, &tt1, &tt2, n, rho);         // x=U*V
@@ -3685,8 +3695,11 @@ static __inline void copypt104(tecm_pt_x8* dest, tecm_pt_x8* src)
 
 static void tecm_prac70_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u104_t* s)
 {
-	vec_u104_t s1, s2, d1, d2;
-	tecm_pt_x8 swp;
+	ALIGNED_MEM vec_u104_t s1;
+	ALIGNED_MEM vec_u104_t s2;
+	ALIGNED_MEM vec_u104_t d1;
+	ALIGNED_MEM vec_u104_t d2;
+	ALIGNED_MEM tecm_pt_x8 swp;
 	int i;
 	static const uint8_t steps[116] = {
 		0,6,0,6,0,6,0,4,6,0,4,6,0,4,4,6,
@@ -3698,7 +3711,10 @@ static void tecm_prac70_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 		4,3,5,4,6,0,5,5,3,3,4,6,0,4,3,3,
 		3,5,4,6 };
 
-	tecm_pt_x8 pt1, pt2, pt3;
+	ALIGNED_MEM tecm_pt_x8 pt1;
+	ALIGNED_MEM tecm_pt_x8 pt2;
+	ALIGNED_MEM tecm_pt_x8 pt3;
+
 	for (i = 0; i < 116; i++)
 	{
 		if (steps[i] == 0)
@@ -3714,7 +3730,7 @@ static void tecm_prac70_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 		else if (steps[i] == 3)
 		{
 			// integrate step 4 followed by swap(1,2)
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
 
 			copypt104(&swp, &pt1);
@@ -3725,7 +3741,7 @@ static void tecm_prac70_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 		}
 		else if (steps[i] == 4)
 		{
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
 
 			copypt104(&swp, &pt2);
@@ -3751,8 +3767,11 @@ static void tecm_prac70_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 
 static void tecm_prac85_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u104_t* s)
 {
-	vec_u104_t s1, s2, d1, d2;
-	tecm_pt_x8 swp;
+	ALIGNED_MEM vec_u104_t s1;
+	ALIGNED_MEM vec_u104_t s2;
+	ALIGNED_MEM vec_u104_t d1;
+	ALIGNED_MEM vec_u104_t d2;
+	ALIGNED_MEM tecm_pt_x8 swp;
 	int i;
 	static const uint8_t steps[146] = {
 		0,6,0,6,0,6,0,6,0,4,
@@ -3771,7 +3790,9 @@ static void tecm_prac85_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 		3,3,3,3,5,4,6,0,3,3,
 		3,4,3,3,4,6 };
 
-	tecm_pt_x8 pt1, pt2, pt3;
+	ALIGNED_MEM tecm_pt_x8 pt1;
+	ALIGNED_MEM tecm_pt_x8 pt2;
+	ALIGNED_MEM tecm_pt_x8 pt3;
 	for (i = 0; i < 146; i++)
 	{
 		if (steps[i] == 0)
@@ -3787,7 +3808,7 @@ static void tecm_prac85_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 		else if (steps[i] == 3)
 		{
 			// integrate step 4 followed by swap(1,2)
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
 
 			copypt104(&swp, &pt1);
@@ -3798,7 +3819,7 @@ static void tecm_prac85_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, vec_u1
 		}
 		else if (steps[i] == 4)
 		{
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
 
 			copypt104(&swp, &pt2);
@@ -3826,8 +3847,11 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 {
 	uint64_t d, e, r;
 	int i;
-	vec_u104_t s1, s2, d1, d2;
-	tecm_pt_x8 swp;
+	ALIGNED_MEM vec_u104_t s1;
+	ALIGNED_MEM vec_u104_t s2;
+	ALIGNED_MEM vec_u104_t d1;
+	ALIGNED_MEM vec_u104_t d2;
+	ALIGNED_MEM tecm_pt_x8 swp;
 
 	// we require c != 0
 	int shift = _trail_zcnt64(c);
@@ -3839,7 +3863,9 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 	d = c - r;
 	e = 2 * r - c;
 
-	tecm_pt_x8 pt1, pt2, pt3;
+	ALIGNED_MEM tecm_pt_x8 pt1;
+	ALIGNED_MEM tecm_pt_x8 pt2;
+	ALIGNED_MEM tecm_pt_x8 pt3;
 
 	// the first one is always a doubling
 	// point1 is [1]P
@@ -3869,9 +3895,9 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 			d = (2 * d - e) / 3;
 			e = (e - d) / 2;
 
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt4); // T = A + B (C)
-			tecm_pt_x8 pt5;
+			ALIGNED_MEM tecm_pt_x8 pt5;
 			tecm_uadd_x8(rho, n, pt4, pt1, pt2, &pt5); // T2 = T + A (B)
 			tecm_uadd_x8(rho, n, pt2, pt4, pt1, &pt2); // B = B + T (A)
 
@@ -3893,7 +3919,7 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 		{
 			d -= e;
 
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
 
 			copypt104(&swp, &pt2);
@@ -3928,9 +3954,9 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 			tecm_submod104_x8(&d1, &pt1.X, &pt1.Z, n);
 			tecm_addmod104_x8(&s1, &pt1.X, &pt1.Z, n);
 
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_udup_x8(s, rho, n, &s1, &d1, &pt4);        // T = 2A
-			tecm_pt_x8 pt5;
+			ALIGNED_MEM tecm_pt_x8 pt5;
 			tecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt5);        // T2 = A + B (C)
 			tecm_uadd_x8(rho, n, pt4, pt1, pt1, &pt1);        // A = T + A (A)
 			tecm_uadd_x8(rho, n, pt4, pt5, pt3, &pt4);        // T = T + T2 (C)
@@ -3944,7 +3970,7 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 		{
 			d = (d - 2 * e) / 3;
 
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
 
 
@@ -3958,7 +3984,7 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 		{
 			d = (d - e) / 3;
 
-			tecm_pt_x8 pt4;
+			ALIGNED_MEM tecm_pt_x8 pt4;
 			tecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
 
 			tecm_submod104_x8(&d2, &pt1.X, &pt1.Z, n);
@@ -4141,10 +4167,10 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 {
 	int b;
 	int i, j, k;
-	tecm_pt_x8 Pa1;
+	ALIGNED_MEM tecm_pt_x8 Pa1;
 	tecm_pt_x8* Pa = &Pa1;
-	tecm_pt_x8 Pb[18];
-	tecm_pt_x8 Pd1;
+	ALIGNED_MEM tecm_pt_x8 Pb[18];
+	ALIGNED_MEM tecm_pt_x8 Pd1;
 	tecm_pt_x8* Pd = &Pd1;
 	const uint8_t* barray = 0;
 	int numb;
@@ -4168,7 +4194,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 	//Q = P = result of stage 1
 	//compute [d]Q for 0 < d <= MICRO_ECM_PARAM_D
 
-	vec_u104_t Pbprod[18];
+	ALIGNED_MEM vec_u104_t Pbprod[18];
 
 	// [1]Q
 	//Pb[1] = *P;
@@ -4235,7 +4261,8 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 
 	*/
 
-	tecm_pt_x8 pt5, pt6;
+	ALIGNED_MEM tecm_pt_x8 pt5;
+	ALIGNED_MEM tecm_pt_x8 pt6;
 
 	// Calculate all Pb: the following is specialized for MICRO_ECM_PARAM_D=60
 	// [2]Q + [1]Q([1]Q) = [3]Q
@@ -4289,7 +4316,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 #endif
 
 	// temporary - make [4]Q
-	tecm_pt_x8 pt4;
+	ALIGNED_MEM tecm_pt_x8 pt4;
 	tecm_submod104_x8(diff, &Pb[2].X, &Pb[2].Z, N);
 	tecm_addmod104_x8(sum, &Pb[2].X, &Pb[2].Z, N);
 	tecm_udup_x8(&work->s, rho, N, sum, diff, &pt4);   // pt4 = [4]Q
@@ -4302,7 +4329,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 	}
 
 	//initialize info needed for giant step
-	tecm_pt_x8 Pad;
+	ALIGNED_MEM tecm_pt_x8 Pad;
 
 	// Pd = [w]Q
 	// [17]Q + [13]Q([4]Q) = [30]Q
@@ -4311,8 +4338,8 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 	// [60]Q + [30]Q([30]Q) = [90]Q
 	tecm_uadd_x8(rho, N, *Pd, Pad, Pad, Pa);
 
-	tecm_pt_x8 pt90;   // set pt90 = [90]Q
-	tecm_pt_x8 pt60;   // set pt60 = [60]Q
+	ALIGNED_MEM tecm_pt_x8 pt90;   // set pt90 = [90]Q
+	ALIGNED_MEM tecm_pt_x8 pt60;   // set pt60 = [60]Q
 
 	copypt104(&pt90, Pa);
 	copypt104(&pt60, Pd);
@@ -4324,7 +4351,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 	tecm_uadd_x8(rho, N, *Pd, Pad, *Pa, Pa);
 
 	//initialize accumulator
-	vec_u104_t acc;
+	ALIGNED_MEM vec_u104_t acc;
 	copyvec104(&acc, &mdata->one);
 
 	// adjustment of Pa and Pad for particular B1.
@@ -4349,7 +4376,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 			numsteps = 15;
 		}
 
-		vec_u104_t pt90prod;
+		ALIGNED_MEM vec_u104_t pt90prod;
 		tecm_mulredc104_x8(&pt90prod, &pt90.X, &pt90.Z, N, rho);
 
 		for (i = 0; i < numsteps; i++)
@@ -4357,16 +4384,16 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 			b = steps[i];
 			// accumulate the cross product  (zimmerman syntax).
 			// page 342 in C&P
-			vec_u104_t tt1;
-			vec_u104_t tt2;
+			ALIGNED_MEM vec_u104_t tt1;
+			ALIGNED_MEM vec_u104_t tt2;
 			tecm_submod104_x8(&tt1, &pt90.X, &Pb[map[b]].X, N);
 			tecm_addmod104_x8(&tt2, &pt90.Z, &Pb[map[b]].Z, N);
-			vec_u104_t tt3;
+			ALIGNED_MEM vec_u104_t tt3;
 			tecm_mulredc104_x8(&tt3, &tt1, &tt2, N, rho);
 			tecm_addmod104_x8(&tt1, &tt3, &Pbprod[map[b]], N);
 			tecm_submod104_x8(&tt2, &tt1, &pt90prod, N);
 
-			vec_u104_t tmp;
+			ALIGNED_MEM vec_u104_t tmp;
 			tecm_mulredc104_x8(&tmp, &acc, &tt2, N, rho);
 			__mmask8 iszero = iszerovec(&tmp);
 			msk &= (~iszero);
@@ -4379,7 +4406,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 		static const int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
 		// we currently have Pd=120
 
-		vec_u104_t pdprod;
+		ALIGNED_MEM vec_u104_t pdprod;
 		tecm_mulredc104_x8(&pdprod, &Pd->X, &Pd->Z, N, rho);
 
 		for (i = 0; i < 15; i++)
@@ -4387,16 +4414,16 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 			b = steps[i];
 			// accumulate the cross product  (zimmerman syntax).
 			// page 342 in C&P
-			vec_u104_t tt1;
-			vec_u104_t tt2;
+			ALIGNED_MEM vec_u104_t tt1;
+			ALIGNED_MEM vec_u104_t tt2;
 			tecm_submod104_x8(&tt1, &Pd->X, &Pb[map[b]].X, N);
 			tecm_addmod104_x8(&tt2, &Pd->Z, &Pb[map[b]].Z, N);
-			vec_u104_t tt3;
+			ALIGNED_MEM vec_u104_t tt3;
 			tecm_mulredc104_x8(&tt3, &tt1, &tt2, N, rho);
 			tecm_addmod104_x8(&tt1, &tt3, &Pbprod[map[b]], N);
 			tecm_submod104_x8(&tt2, &tt1, &pdprod, N);
 
-			vec_u104_t tmp;
+			ALIGNED_MEM vec_u104_t tmp;
 			tecm_mulredc104_x8(&tmp, &acc, &tt2, N, rho);
 			__mmask8 iszero = iszerovec(&tmp);
 			msk &= (~iszero);
@@ -4429,7 +4456,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 	}
 
 	//initialize Paprod
-	vec_u104_t Paprod;
+	ALIGNED_MEM vec_u104_t Paprod;
 	tecm_mulredc104_x8(&Paprod, &Pa->X, &Pa->Z, N, rho);
 
 	if (stg1_max == 27)
@@ -4473,7 +4500,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 		if (barray[i] == 0)
 		{
 			//giant step - use the addition formula for ECM
-			tecm_pt_x8 point;
+			ALIGNED_MEM tecm_pt_x8 point;
 			copypt104(&point, Pa);
 
 			//Pa + Pd
@@ -4494,16 +4521,16 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 		b = barray[i];
 		// accumulate the cross product  (zimmerman syntax).
 		// page 342 in C&P
-		vec_u104_t tt1;
-		vec_u104_t tt2;
+		ALIGNED_MEM vec_u104_t tt1;
+		ALIGNED_MEM vec_u104_t tt2;
 		tecm_submod104_x8(&tt1, &Pa->X, &Pb[map[b]].X, N);
 		tecm_addmod104_x8(&tt2, &Pa->Z, &Pb[map[b]].Z, N);
-		vec_u104_t tt3;
+		ALIGNED_MEM vec_u104_t tt3;
 		tecm_mulredc104_x8(&tt3, &tt1, &tt2, N, rho);
 		tecm_addmod104_x8(&tt1, &tt3, &Pbprod[map[b]], N);
 		tecm_submod104_x8(&tt2, &tt1, &Paprod, N);
 
-		vec_u104_t tmp;
+		ALIGNED_MEM vec_u104_t tmp;
 		tecm_mulredc104_x8(&tmp, &acc, &tt2, N, rho);
 		__mmask8 iszero = iszerovec(&tmp);
 		msk &= (~iszero);
@@ -4569,8 +4596,15 @@ void mpz_to_u104(mpz_t gx, vec_u104_t* x, int lane)
 void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 	tinyecm_work_x8* work, uint64_t* lcg_state, int verbose)
 {
-	vec_u104_t t1, t2, t3, t4, t5, s, * rho = &mdata->rho;
-	vec_u104_t u, v, * n = &mdata->n, sigma;
+	ALIGNED_MEM vec_u104_t t1;
+	ALIGNED_MEM vec_u104_t t2;
+	ALIGNED_MEM vec_u104_t t3;
+	ALIGNED_MEM vec_u104_t t4;
+	ALIGNED_MEM vec_u104_t t5;
+	ALIGNED_MEM vec_u104_t s, * rho = &mdata->rho;
+	ALIGNED_MEM vec_u104_t u;
+	ALIGNED_MEM vec_u104_t v, * n = &mdata->n;
+	ALIGNED_MEM vec_u104_t sigma;
 	mpz_t gmpt, gmpn;
 	mpz_init(gmpt);
 	mpz_init(gmpn);
@@ -4673,12 +4707,14 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 	int found = 0;
 	int result;
 	uint64_t num_found;
-	tinyecm_work_x8 work;
-	tecm_pt_x8 P;
-	monty104_x8_t mdata;
+	ALIGNED_MEM tinyecm_work_x8 work;
+	ALIGNED_MEM tecm_pt_x8 P;
+	ALIGNED_MEM monty104_x8_t mdata;
 	uint32_t sigma;
-	vec_u104_t uarray, rarray;
-	uint64_t carray[8], oarray[8];
+	ALIGNED_MEM vec_u104_t uarray;
+	ALIGNED_MEM vec_u104_t rarray;
+	ALIGNED_MEM uint64_t carray[8];
+	ALIGNED_MEM uint64_t oarray[8];
 	uint8_t msk = 0;
 	mpz_t gN, gR, gT;
 	__m512i v_c = tecm_set64(0);
@@ -4865,9 +4901,9 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 	int found = 0;
 	int result;
 	uint64_t num_found;
-	tinyecm_work_x8 work;
-	tecm_pt_x8 P;
-	monty104_x8_t mdata;
+	ALIGNED_MEM tinyecm_work_x8 work;
+	ALIGNED_MEM tecm_pt_x8 P;
+	ALIGNED_MEM monty104_x8_t mdata;
 	uint32_t sigma;
 	mpz_t gN, gR, gT;
 

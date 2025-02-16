@@ -394,30 +394,6 @@ tune_ecm:
 	return;
 }
 
-/*
-//digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, rels
-//entries based on statistics gathered from many factorizations done
-//over the years by myself and others, and from here:
-//http://www.mersenneforum.org/showthread.php?t=12365
-#define GGNFS_TABLE_ROWS 15
-static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
-	{85,  900000,   24, 48, 2.5, 11, 0, 10000},
-	{90,  1200000,  25, 50, 2.5, 11, 0, 20000},
-	{95,  1500000,  25, 50, 2.5, 12, 0, 20000},
-	{100, 1800000,  26, 52, 2.5, 12, 0, 40000},
-	{105, 2500000,  26, 52, 2.5, 12, 0, 40000},
-	{110, 3200000,  26, 52, 2.5, 13, 0, 40000},
-	{115, 4500000,  27, 54, 2.5, 13, 0, 80000},
-	{120, 5000000,  27, 54, 2.5, 13, 0, 80000},
-	{125, 5500000,  27, 54, 2.5, 13, 0, 80000},
-	{130, 6000000,  27, 54, 2.5, 13, 0, 80000},
-	{135, 8000000,  27, 54, 2.5, 14, 0, 80000},
-	{140, 12000000, 28, 56, 2.5, 14, 0, 160000},
-	{145, 15000000, 28, 56, 2.5, 14, 0, 160000},
-	{150, 20000000, 29, 58, 2.5, 14, 0, 320000},
-	{155, 30000000, 29, 58, 2.5, 15, 0, 320000}
-};
-*/
 
 void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputstr, int inputnum, fact_obj_t *fobj)
 {

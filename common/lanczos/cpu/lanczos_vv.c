@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: lanczos_vv.c 1015 2017-06-12 03:31:05Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "lanczos_cpu.h"
@@ -45,18 +45,23 @@ void vv_clear(void *v, uint32 n) {
 	memset(v, 0, n * sizeof(v_t));
 }
 
-#ifdef _MSC_VER
-void vv_xor(void* __restrict dest_in, void* __restrict src_in, uint32 n) {
-#else
-void vv_xor(void* __restrict__ dest_in, void* __restrict__ src_in, uint32 n) {
-#endif
+void vv_xor(void *dest_in, void *src_in, uint32 n) {
 
 	v_t *src = (v_t *)src_in;
 	v_t *dest = (v_t *)dest_in;
 	uint32 i;
 
-#pragma omp parallel for
-	for (i = 0; i < n; i++)
+	for (i = 0; i < (n & ~7); i += 8) {
+		dest[i + 0] = v_xor(dest[i + 0], src[i + 0]);
+		dest[i + 1] = v_xor(dest[i + 1], src[i + 1]);
+		dest[i + 2] = v_xor(dest[i + 2], src[i + 2]);
+		dest[i + 3] = v_xor(dest[i + 3], src[i + 3]);
+		dest[i + 4] = v_xor(dest[i + 4], src[i + 4]);
+		dest[i + 5] = v_xor(dest[i + 5], src[i + 5]);
+		dest[i + 6] = v_xor(dest[i + 6], src[i + 6]);
+		dest[i + 7] = v_xor(dest[i + 7], src[i + 7]);
+	}
+	for (; i < n; i++)
 		dest[i] = v_xor(dest[i], src[i]);
 }
 
@@ -65,18 +70,22 @@ void vv_mask(void *v_in, v_t mask, uint32 n) {
 	v_t *v = (v_t *)v_in;
 	uint32 i;
 
-#pragma omp parallel for
-	for (i = 0; i < n; i++)
+	for (i = 0; i < (n & ~7); i += 8) {
+		v[i + 0] = v_and(v[i + 0], mask);
+		v[i + 1] = v_and(v[i + 1], mask);
+		v[i + 2] = v_and(v[i + 2], mask);
+		v[i + 3] = v_and(v[i + 3], mask);
+		v[i + 4] = v_and(v[i + 4], mask);
+		v[i + 5] = v_and(v[i + 5], mask);
+		v[i + 6] = v_and(v[i + 6], mask);
+		v[i + 7] = v_and(v[i + 7], mask);
+	}
+	for (; i < n; i++)
 		v[i] = v_and(v[i], mask);
 }
 
 /*-------------------------------------------------------------------*/
-#ifdef _MSC_VER
-static void core_NxB_BxB_acc(const v_t* v, const v_t* c, v_t* __restrict y, uint32 n) {
-#else
-static void core_NxB_BxB_acc(const v_t* v, const v_t* c, v_t* __restrict__ y, uint32 n) {
-#endif
-
+static void core_NxB_BxB_acc(v_t *v, v_t *c, v_t *y, uint32 n) {
 
 	uint32 i;
 
@@ -155,20 +164,46 @@ static void core_NxB_BxB_acc(const v_t* v, const v_t* c, v_t* __restrict__ y, ui
 		emms
 	}
 #else
-#pragma omp parallel for
 	for (i = 0; i < n; i++) {
-		#ifdef MANUAL_PREFETCH
-		PREFETCH(y+i+4);
-		#endif
-		uint32 j;
 		v_t vi = v[i];
-		v_t accum;
-		for (j = 0; j < VWORDS; j++) accum.w[j] = 0;
-
-		for (j = 0; j < 8 * VWORDS; j++) {
-			uint32 k = j*256 + ((vi.w[(j >> 3)] >> (8*(j & 7))) & 255);
-			accum = v_xor(accum, c[k]);
-		}
+		v_t accum =          c[ 0*256 + ((uint8)(vi.w[0] >>  0))];
+		accum = v_xor(accum, c[ 1*256 + ((uint8)(vi.w[0] >>  8))]);
+		accum = v_xor(accum, c[ 2*256 + ((uint8)(vi.w[0] >> 16))]);
+		accum = v_xor(accum, c[ 3*256 + ((uint8)(vi.w[0] >> 24))]);
+		accum = v_xor(accum, c[ 4*256 + ((uint8)(vi.w[0] >> 32))]);
+		accum = v_xor(accum, c[ 5*256 + ((uint8)(vi.w[0] >> 40))]);
+		accum = v_xor(accum, c[ 6*256 + ((uint8)(vi.w[0] >> 48))]);
+		accum = v_xor(accum, c[ 7*256 + ((uint8)(vi.w[0] >> 56))]);
+		#if VWORDS > 1
+		accum = v_xor(accum, c[ 8*256 + ((uint8)(vi.w[1] >>  0))]);
+		accum = v_xor(accum, c[ 9*256 + ((uint8)(vi.w[1] >>  8))]);
+		accum = v_xor(accum, c[10*256 + ((uint8)(vi.w[1] >> 16))]);
+		accum = v_xor(accum, c[11*256 + ((uint8)(vi.w[1] >> 24))]);
+		accum = v_xor(accum, c[12*256 + ((uint8)(vi.w[1] >> 32))]);
+		accum = v_xor(accum, c[13*256 + ((uint8)(vi.w[1] >> 40))]);
+		accum = v_xor(accum, c[14*256 + ((uint8)(vi.w[1] >> 48))]);
+		accum = v_xor(accum, c[15*256 + ((uint8)(vi.w[1] >> 56))]);
+		#if VWORDS > 2
+		accum = v_xor(accum, c[16*256 + ((uint8)(vi.w[2] >>  0))]);
+		accum = v_xor(accum, c[17*256 + ((uint8)(vi.w[2] >>  8))]);
+		accum = v_xor(accum, c[18*256 + ((uint8)(vi.w[2] >> 16))]);
+		accum = v_xor(accum, c[19*256 + ((uint8)(vi.w[2] >> 24))]);
+		accum = v_xor(accum, c[20*256 + ((uint8)(vi.w[2] >> 32))]);
+		accum = v_xor(accum, c[21*256 + ((uint8)(vi.w[2] >> 40))]);
+		accum = v_xor(accum, c[22*256 + ((uint8)(vi.w[2] >> 48))]);
+		accum = v_xor(accum, c[23*256 + ((uint8)(vi.w[2] >> 56))]);
+		#if VWORDS > 3
+		accum = v_xor(accum, c[24*256 + ((uint8)(vi.w[3] >>  0))]);
+		accum = v_xor(accum, c[25*256 + ((uint8)(vi.w[3] >>  8))]);
+		accum = v_xor(accum, c[26*256 + ((uint8)(vi.w[3] >> 16))]);
+		accum = v_xor(accum, c[27*256 + ((uint8)(vi.w[3] >> 24))]);
+		accum = v_xor(accum, c[28*256 + ((uint8)(vi.w[3] >> 32))]);
+		accum = v_xor(accum, c[29*256 + ((uint8)(vi.w[3] >> 40))]);
+		accum = v_xor(accum, c[30*256 + ((uint8)(vi.w[3] >> 48))]);
+		accum = v_xor(accum, c[31*256 + ((uint8)(vi.w[3] >> 56))]);
+		#endif
+		#endif
+		#endif
 		y[i] = v_xor(y[i], accum);
 	}
 #endif
@@ -224,10 +259,9 @@ static void mul_NxB_BxB_precomp(v_t *c, v_t *x) {
 	 
 	   We iterate through i in Gray code order to minimize overhead */
 
-	uint32 i, j;
+	uint32 i;
 	v_t acc[8 * VWORDS];
 
-#pragma omp parallel for
 	for (i = 0; i < 8 * VWORDS; i++)
 		acc[i] = c[i * 256] = v_zero;
 
@@ -239,7 +273,20 @@ static void mul_NxB_BxB_precomp(v_t *c, v_t *x) {
 		uint32 word = graycode[2 * i];
 		uint32 bit = graycode[2 * i + 1];
 
-		for (j = 0; j < 8 * VWORDS; j++) { BXB_ACC(j); }
+		BXB_ACC(0); BXB_ACC(1); BXB_ACC(2); BXB_ACC(3);
+		BXB_ACC(4); BXB_ACC(5); BXB_ACC(6); BXB_ACC(7);
+		#if VWORDS > 1
+		BXB_ACC(8); BXB_ACC(9); BXB_ACC(10); BXB_ACC(11);
+		BXB_ACC(12); BXB_ACC(13); BXB_ACC(14); BXB_ACC(15);
+		#if VWORDS > 2
+		BXB_ACC(16); BXB_ACC(17); BXB_ACC(18); BXB_ACC(19);
+		BXB_ACC(20); BXB_ACC(21); BXB_ACC(22); BXB_ACC(23);
+		#if VWORDS > 3
+		BXB_ACC(24); BXB_ACC(25); BXB_ACC(26); BXB_ACC(27);
+		BXB_ACC(28); BXB_ACC(29); BXB_ACC(30); BXB_ACC(31);
+		#endif
+		#endif
+		#endif
 	}
 }
 
@@ -250,7 +297,7 @@ void mul_NxB_BxB_acc(v_t *v, v_t *x, v_t *y, uint32 n) {
 	   represented as an array of n v_t structures. Let c[][]
 	   be an (8*VWORDS) x 256 scratch matrix of v_t structures.
 	   This code multiplies v[][] by the BxB matrix 
-	   x[][], then XORs the N x B result into y[][] */
+	   x[][], then XORs the n x 64 result into y[][] */
 
 	v_t c[8 * VWORDS * 256];
 
@@ -260,25 +307,62 @@ void mul_NxB_BxB_acc(v_t *v, v_t *x, v_t *y, uint32 n) {
 }
 
 /*-------------------------------------------------------------------*/
+static void outer_thread_run(void *data, int thread_num)
+{
+	la_task_t *task = (la_task_t *)data;
+	packed_matrix_t *p = task->matrix;
+	cpudata_t *cpudata = (cpudata_t *)p->extra;
+	thread_data_t *t = cpudata->thread_data + task->task_num;
+
+	core_NxB_BxB_acc(t->x, t->b, t->y, t->vsize);
+}
+
 void vv_mul_NxB_BxB_acc(packed_matrix_t *matrix, 
 			void *v_in, v_t *x,
 			void *y_in, uint32 n) {
 
+	cpudata_t *cpudata = (cpudata_t *)matrix->extra;
 	v_t *v = (v_t *)v_in;
 	v_t *y = (v_t *)y_in;
-	
-	mul_NxB_BxB_acc(v, x, y, n);
+	v_t c[8 * VWORDS * 256];
+	uint32 i;
+	uint32 vsize = n / matrix->num_threads;
+	uint32 off;
+	task_control_t task = {NULL, NULL, NULL, NULL};
+
+	mul_NxB_BxB_precomp(c, x);
+
+	for (i = off = 0; i < matrix->num_threads; i++, off += vsize) {
+
+		thread_data_t *t = cpudata->thread_data + i;
+
+		t->x = v + off;
+		t->b = c;
+		t->y = y + off;
+		if (i == matrix->num_threads - 1)
+			t->vsize = n - off;
+		else
+			t->vsize = vsize;
+	}
+
+	task.run = outer_thread_run;
+
+	for (i = 0; i < matrix->num_threads - 1; i++) {
+		task.data = cpudata->tasks + i;
+		threadpool_add_task(cpudata->threadpool, &task, 0);
+	}
+	outer_thread_run(cpudata->tasks + i, i);
+
+	if (i > 0)
+		threadpool_drain(cpudata->threadpool, 1);
 }
 
 /*-------------------------------------------------------------------*/
-static void core_BxN_NxB(const v_t *x, v_t *c, const v_t *y, const uint32 n) {
+static void core_BxN_NxB(v_t *x, v_t *c, v_t *y, uint32 n) {
 
-	uint32 i, j;
+	uint32 i;
 
 	memset(c, 0, 8 * VWORDS * 256 * sizeof(v_t));
-// #pragma omp parallel for
-//	for (i = 0; i < 8 * VWORDS * 256; i++)
-//		for (j = 0; j < VWORDS; j++) c[i].w[j] = 0;
 
 #if defined(GCC_ASM32A) && defined(HAS_MMX) && defined(NDEBUG) && VWORDS == 1
 	i = 0;
@@ -383,17 +467,27 @@ static void core_BxN_NxB(const v_t *x, v_t *c, const v_t *y, const uint32 n) {
 #else
 
 	#define NXB_ACC(i) \
-		k = i*256 + ((xi.w[(i >> 3)] >> (8*(i & 7))) & 255); c[k] = v_xor(c[k], yi)
+		c[i*256 + (uint8)(xi.w[i/8] >> (8*(i % 8)))] = \
+		v_xor(c[i*256 + (uint8)(xi.w[i/8] >> (8*(i % 8)))], yi)
 
-// #pragma omp parallel for private(j) reduction(^:c[0:8 * VWORDS * 256])
 	for (i = 0; i < n; i++) {
 		v_t xi = x[i];
 		v_t yi = y[i];
 
-		for (j = 0; j < 8 * VWORDS; j++) { 
-			uint32 k;
-			NXB_ACC(j); 
-		}
+		NXB_ACC(0); NXB_ACC(1); NXB_ACC(2); NXB_ACC(3);
+		NXB_ACC(4); NXB_ACC(5); NXB_ACC(6); NXB_ACC(7);
+		#if VWORDS > 1
+		NXB_ACC(8); NXB_ACC(9); NXB_ACC(10); NXB_ACC(11);
+		NXB_ACC(12); NXB_ACC(13); NXB_ACC(14); NXB_ACC(15);
+		#if VWORDS > 2
+		NXB_ACC(16); NXB_ACC(17); NXB_ACC(18); NXB_ACC(19);
+		NXB_ACC(20); NXB_ACC(21); NXB_ACC(22); NXB_ACC(23);
+		#if VWORDS > 3
+		NXB_ACC(24); NXB_ACC(25); NXB_ACC(26); NXB_ACC(27);
+		NXB_ACC(28); NXB_ACC(29); NXB_ACC(30); NXB_ACC(31);
+		#endif
+		#endif
+		#endif
 	}
 #endif
 }
@@ -401,7 +495,7 @@ static void core_BxN_NxB(const v_t *x, v_t *c, const v_t *y, const uint32 n) {
 /*-------------------------------------------------------------------*/
 static void mul_BxN_NxB_postproc(v_t *c, v_t *xy) {
 
-	uint32 i, j, k;
+	uint32 i, j;
 
 	#define NXB_POST(i) \
 		a[i] = v_xor(a[i], c[i*256 + j])
@@ -410,18 +504,28 @@ static void mul_BxN_NxB_postproc(v_t *c, v_t *xy) {
 
 		v_t a[8 * VWORDS];
 
-// #pragma omp parallel for
 		for (j = 0; j < 8 * VWORDS; j++)
 			a[j] = v_zero;
 
-// #pragma omp parallel for private(k) reduction(^:a)
 		for (j = 0; j < 256; j++) {
 			if ((j >> i) & 1) {
-				for (k = 0; k < 8 * VWORDS; k++) { NXB_POST(k); }
+				NXB_POST(0); NXB_POST(1); NXB_POST(2); NXB_POST(3);
+				NXB_POST(4); NXB_POST(5); NXB_POST(6); NXB_POST(7);
+				#if VWORDS > 1
+				NXB_POST(8); NXB_POST(9); NXB_POST(10); NXB_POST(11);
+				NXB_POST(12); NXB_POST(13); NXB_POST(14); NXB_POST(15);
+				#if VWORDS > 2
+				NXB_POST(16); NXB_POST(17); NXB_POST(18); NXB_POST(19);
+				NXB_POST(20); NXB_POST(21); NXB_POST(22); NXB_POST(23);
+				#if VWORDS > 3
+				NXB_POST(24); NXB_POST(25); NXB_POST(26); NXB_POST(27);
+				NXB_POST(28); NXB_POST(29); NXB_POST(30); NXB_POST(31);
+				#endif
+				#endif
+				#endif
 			}
 		}
 
-// #pragma omp parallel for
 		for (j = 0; j < 8 * VWORDS; j++)
 			xy[8 * j] = a[j];
 		xy++;
@@ -442,112 +546,78 @@ void mul_BxN_NxB(v_t *x, v_t *y, v_t *xy, uint32 n) {
 }
 
 /*-------------------------------------------------------------------*/
-void mul_BxN_NxB_2(v_t *x, v_t *y, v_t *xy, uint32 n) {
+static void inner_thread_run(void *data, int thread_num)
+{
+	la_task_t *task = (la_task_t *)data;
+	packed_matrix_t *p = task->matrix;
+	cpudata_t *cpudata = (cpudata_t *)p->extra;
+	thread_data_t *t = cpudata->thread_data + task->task_num;
 
-	/* Let x and y be N x B matrices. This routine computes
-	   the B x B matrix xy[][] given by transpose(x) * y 
-	   This version is as fast as or faster than the previous
-	   on most CPUs for VBITS >= 128 */
-
-	/* use only for VWORDS = 2, 4, 6, or 8
-	   processes 128 bits per loop */
-	   
-	uint32 w_x, w_y;
-
-	for (w_x = 0; w_x < VWORDS; w_x += 2) {
-		for (w_y = 0; w_y < VWORDS; w_y += 2) {
-
-			int i, j, k;
-			uint64 c[16][256][2];
-			memset(c, 0, 16 * 256 * 2 * sizeof(uint64));
-
-// #pragma omp parallel for private(j, k) reduction(^:c)
-			for (i = 0; i < n; i++) {
-				uint64 xi[2], yi[2];
-				xi[0] = x[i].w[w_x];
-				xi[1] = x[i].w[w_x + 1];
-				yi[0] = y[i].w[w_y];
-				yi[1] = y[i].w[w_y + 1];
-
-				for (j = 0; j < 16; j++) { 
-					k = (xi[(j >> 3)] >> (8*(j & 7))) & 255; 
-					c[j][k][0] ^= yi[0];
-					c[j][k][1] ^= yi[1];
-				}
-			}
-			
-			// Now combine the table entries
-
-			for (i = 0; i < 8; i++) {
-				uint64 a[16][2];
-				memset(a, 0, 16 * 2 * sizeof(uint64));
-
-// #pragma omp parallel for private(k) reduction(^:a)
-				for (j = 0; j < 256; j++) {
-					if ((j >> i) & 1) {
-						for (k = 0; k < 16; k++) { 
-							a[k][0] ^= c[k][j][0];
-							a[k][1] ^= c[k][j][1];
-						}
-					}
-				}
-
-// #pragma omp parallel for 
-				for (j = 0; j < 16; j++) {
-					xy[64 * w_x + 8 * j + i].w[w_y] = a[j][0];
-					xy[64 * w_x + 8 * j + i].w[w_y + 1] = a[j][1];
-				}
-			}
-		}
-	}
+	mul_BxN_NxB(t->x, t->y, t->tmp_b, t->vsize);
 }
-
-/*-------------------------------------------------------------------*/
 
 void vv_mul_BxN_NxB(packed_matrix_t *matrix,
 		   void *x_in, void *y_in,
 		   v_t *xy, uint32 n) {
 
+
+	cpudata_t *cpudata = (cpudata_t *)matrix->extra;
 	v_t *x = (v_t *)x_in;
 	v_t *y = (v_t *)y_in;
-	int i, threads, size;
-	v_t *xytmp;
-
-#ifdef HAVE_OMP
-	threads = omp_get_max_threads();
-#else 
-	threads = 1;
+	uint32 i;
+	uint32 vsize = n / matrix->num_threads;
+	uint32 off;
+	task_control_t task = {NULL, NULL, NULL, NULL};
+#ifdef HAVE_MPI
+	v_t xytmp[VBITS];
 #endif
-	xytmp = (v_t *) malloc(threads * VBITS * sizeof(v_t));
-	size = n / threads + 1;
 
-#pragma omp parallel for schedule(static, 1)
-	for (i = 0; i < threads; i++) {
-		uint32 my_n;
-		if (i == threads-1) my_n = n + size - threads * size;
-		else my_n = size;
-#if VWORDS == 2 || VWORDS == 4 || VWORDS == 6 || VWORDS == 8
-		mul_BxN_NxB_2(x + i * size, y + i * size, xytmp + i * VBITS, my_n);
-#else
-		mul_BxN_NxB(x + i * size, y + i * size, xytmp + i * VBITS, my_n);
-#endif
+	for (i = off = 0; i < matrix->num_threads; i++, off += vsize) {
+		thread_data_t *t = cpudata->thread_data + i;
+
+		t->x = x + off;
+		t->y = y + off;
+
+		if (i == matrix->num_threads - 1)
+			t->vsize = n - off;
+		else
+			t->vsize = vsize;
 	}
 
-	vv_clear(xy, VBITS);
-	for (i = 0; i < threads; i++) vv_xor(xy, xytmp + i * VBITS, VBITS);
+	task.run = inner_thread_run;
+
+	for (i = 0; i < matrix->num_threads - 1; i++) {
+		task.data = cpudata->tasks + i;
+		threadpool_add_task(cpudata->threadpool, &task, 0);
+	}
+	inner_thread_run(cpudata->tasks + i, i);
+
+	/* All the scratch vectors used by threads get 
+	   xor-ed into the final xy vector */
+
+	vv_copy(xy, cpudata->thread_data[i].tmp_b, VBITS);
+
+	if (i > 0) {
+		threadpool_drain(cpudata->threadpool, 1);
+
+		for (i = 0; i < matrix->num_threads - 1; i++) {
+			thread_data_t *t = cpudata->thread_data + i;
+
+			vv_xor(xy, t->tmp_b, VBITS);
+		}
+	}
 
 #ifdef HAVE_MPI
 	/* combine the results across an entire MPI row */
 
 	global_xor(xy, xytmp, VBITS, matrix->mpi_ncols,
 			matrix->mpi_la_col_rank,
-			matrix->mpi_word, matrix->mpi_la_row_grid);
+			matrix->mpi_la_row_grid);
 
 	/* combine the results across an entire MPI column */
     
 	global_xor(xytmp, xy, VBITS, matrix->mpi_nrows,
 			matrix->mpi_la_row_rank,
-			matrix->mpi_word, matrix->mpi_la_col_grid);    
+			matrix->mpi_la_col_grid);    
 #endif
-	free(xytmp);
 }

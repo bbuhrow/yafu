@@ -2687,7 +2687,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             factor(fobj);
             mpz_set(operands[0], fobj->N);
             print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
-            clear_factor_list(fobj->factors);
+            reset_factobj(fobj);
         }
 
         break;

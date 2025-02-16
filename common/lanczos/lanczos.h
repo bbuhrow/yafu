@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: lanczos.h 1025 2018-08-19 02:20:28Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #ifndef _COMMON_LANCZOS_LANCZOS_H_
@@ -31,7 +31,7 @@ extern "C" {
 
 #define VWORDS ((VBITS + 63) / 64)
 
-#if VBITS!=64 && VBITS!=128 && VBITS!=192 && VBITS!=256 && VBITS!=320 && VBITS!=384 && VBITS!=448 && VBITS!=512
+#if VBITS!=64 && VBITS!=128 && VBITS!=256
 #error "unsupported vector size"
 #endif
 
@@ -41,27 +41,54 @@ typedef struct {
 
 static INLINE v_t v_and(v_t a, v_t b) {
 	v_t res;
-	int i;
-	for (i = 0; i < VWORDS; i++) res.w[i] = a.w[i] & b.w[i];
+
+	res.w[0] = a.w[0] & b.w[0];
+	#if VWORDS > 1
+	res.w[1] = a.w[1] & b.w[1];
+	#if VWORDS > 2
+	res.w[2] = a.w[2] & b.w[2];
+	#if VWORDS > 3
+	res.w[3] = a.w[3] & b.w[3];
+	#endif
+	#endif
+	#endif
 	return res;
 }
 
 static INLINE v_t v_or(v_t a, v_t b) {
 	v_t res;
-	int i;
-	for (i = 0; i < VWORDS; i++) res.w[i] = a.w[i] | b.w[i];
+
+	res.w[0] = a.w[0] | b.w[0];
+	#if VWORDS > 1
+	res.w[1] = a.w[1] | b.w[1];
+	#if VWORDS > 2
+	res.w[2] = a.w[2] | b.w[2];
+	#if VWORDS > 3
+	res.w[3] = a.w[3] | b.w[3];
+	#endif
+	#endif
+	#endif
 	return res;
 }
 
 static INLINE v_t v_xor(v_t a, v_t b) {
 	v_t res;
-	int i;
-	for (i = 0; i < VWORDS; i++) res.w[i] = a.w[i] ^ b.w[i];
+
+	res.w[0] = a.w[0] ^ b.w[0];
+	#if VWORDS > 1
+	res.w[1] = a.w[1] ^ b.w[1];
+	#if VWORDS > 2
+	res.w[2] = a.w[2] ^ b.w[2];
+	#if VWORDS > 3
+	res.w[3] = a.w[3] ^ b.w[3];
+	#endif
+	#endif
+	#endif
 	return res;
 }
 
 static INLINE uint32 v_bitset(v_t a, uint32 bit) {
-	if (a.w[bit >> 6] & ((uint64)1 << (bit & 63)))
+	if (a.w[bit / 64] & ((uint64)1 << (bit % 64)))
 		return 1;
 	return 0;
 }
@@ -142,8 +169,6 @@ typedef struct packed_matrix_t {
 	uint32 num_dense_rows;
 	uint32 num_threads;
 
-	uint32 block_nnz; /* used by the CUDA code */
-
 	la_col_t *unpacked_cols;  /* used if no packing takes place */
 
 	void * extra; /* implementation-specific stuff */
@@ -154,8 +179,6 @@ typedef struct packed_matrix_t {
 	uint32 mpi_ncols;
 	uint32 mpi_la_row_rank;
 	uint32 mpi_la_col_rank;
-	MPI_Datatype mpi_word;
-	MPI_Comm mpi_la_grid;
 	MPI_Comm mpi_la_row_grid;
 	MPI_Comm mpi_la_col_grid;
 
@@ -193,10 +216,10 @@ void matrix_extra_free(packed_matrix_t *packed_matrix);
 /* top-level calls for matrix multiplies */
 
 void mul_MxN_NxB(packed_matrix_t *A, 
-			void *x, void *scratch, void *scratch2);
+			void *x, void *scratch);
 
 void mul_sym_NxN_NxB(packed_matrix_t *A, void *x, 
-			void *b, void *scratch, void *scratch2);
+			void *b, void *scratch);
 
 /* easy base cases for small problems */
 
@@ -212,33 +235,19 @@ void mul_trans_core(packed_matrix_t *A, void *x, void *b);
 #ifdef HAVE_MPI
 void global_xor(void *send_buf, void *recv_buf, 
 		uint32 bufsize, uint32 mpi_nodes, 
-		uint32 mpi_rank, MPI_Datatype, MPI_Comm comm);
+		uint32 mpi_rank, MPI_Comm comm);
 
 void global_chunk_info(uint32 total_size, uint32 num_nodes, 
 		uint32 my_id, uint32 *chunk_size, uint32 *chunk_start);
 
 void global_allgather(void *send_buf, void *recv_buf, 
                         uint32 bufsize, uint32 mpi_nodes, 
-                        uint32 mpi_rank, MPI_Datatype, MPI_Comm comm);
+                        uint32 mpi_rank, MPI_Comm comm);
 
 void global_xor_scatter(void *send_buf, void *recv_buf, 
 			void *scratch, uint32 bufsize, 
 			uint32 mpi_nodes, uint32 mpi_rank, 
-			MPI_Datatype, MPI_Comm comm);
-			
-v_t * gather_ncols(msieve_obj *obj,
-			packed_matrix_t *packed_matrix,
-			void *v_in, void *scratch_in, 
-			v_t *out);
-			
-v_t * gather_nrows(msieve_obj *obj,
-			packed_matrix_t *packed_matrix,
-			void *scratch_in, v_t *out);
-			
-void scatter_ncols(msieve_obj *obj,
-			packed_matrix_t *packed_matrix,
-			void *out_in, void *scratch_in, 
-			v_t *in);
+			MPI_Comm comm);
 #endif
 
 /* top-level calls for vector-vector operations */

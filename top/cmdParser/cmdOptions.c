@@ -81,7 +81,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
     "obase", "minrels", "stopk", "stop_strict", "terse",
-    "max_siqs", "max_nfs", "np1", "nps", "npr"};
+    "max_siqs", "max_nfs", "np1", "nps", "npr",
+    "nfs_params"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -206,7 +207,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): do not start NFS on composites above this size",
     "                  : only run stage 1 of msieve nfs poly generation",
     "                  : only run stage 2 sizeopt of msieve nfs poly generation",
-    "                  : only run stage 2 rootopt of msieve nfs poly generation"
+    "                  : only run stage 2 rootopt of msieve nfs poly generation",
+    "(String)          : file containing nfs comma-delimited parameters"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -238,7 +240,8 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
-    1,1,0,0,0   // "max_siqs", "max_nfs", "np1", "nps", "npr"
+    1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
+    1            // "nfs_params"
 };
 
 // command line option aliases, specified by '--'
@@ -268,7 +271,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", ""
+    "", "", "", "", "",
+    ""
 };
 
 
@@ -1173,6 +1177,14 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // npr
         options->npr = 1;
     }
+    else if (strcmp(opt, OptionArray[120]) == 0)
+    {
+        // params_file
+        if (strlen(arg) < MAXARGLEN)
+            strcpy(options->params_file, arg);
+        else
+            printf("*** argument to params_file too long, ignoring ***\n");
+    }
     else
     {
         int i;
@@ -1275,6 +1287,7 @@ options_t* initOpt(void)
     options->rat_side = 0;
     options->nfs_timeout = 0;
     strcpy(options->nfs_jobfile, "nfs.job");
+    strcpy(options->params_file, "");
     options->sieveQstart = 0;
     options->sieveQstop = 0;
     options->polystart = 0;

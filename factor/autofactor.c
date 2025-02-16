@@ -2531,7 +2531,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 
 		if (mpz_sizeinbase(in, 2) <= 64) {
 			uint64_t n64 = mpz_get_ui(in);
-			uint64_t f = getfactor_uecm(n64, 1, &prng);
+			uint64_t f = getfactor_uecm(n64, 1, prng);
 			if (f > 1)
 			{
 				if (prp_uecm(f) == 0)

@@ -81,6 +81,19 @@ extern "C" {
 		#endif
 	#endif
 
+#elif defined(__MINGW32__)
+
+	#define ASM_M __asm__
+	#define ASM_G __asm__
+
+	#if defined(__x86_64__) 
+		#define GCC_ASM64A
+		#define GCC_ASM64X
+	#elif defined(__i386__)
+		#define GCC_ASM32A
+		#define GCC_ASM32X
+	#endif
+
 #elif defined(__GNUC__)
 
 	#define ASM_G __asm__

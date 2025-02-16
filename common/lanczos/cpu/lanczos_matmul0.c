@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: lanczos_matmul0.c 1014 2017-06-12 03:00:48Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "lanczos_cpu.h"
@@ -18,68 +18,56 @@ $Id$
 static void mul_packed(packed_matrix_t *p, v_t *x, v_t *b) 
 {
 	uint32 i, j;
+	task_control_t task = {NULL, NULL, NULL, NULL};
 	cpudata_t *c = (cpudata_t *)p->extra;
-	uint32 threads, vsize;
-	v_t *btmp;
 
-	/* start accumulating the dense matrix multiply results */
+	c->x = x;
+	c->b = b;
 
-	vv_clear(b, p->nrows);
+	/* start accumulating the dense matrix multiply results;
+	   each thread has scratch space for these, so we don't have
+	   to wait for the tasks to finish */
 
-	/* first row of sparse blocks */
+	task.run = mul_packed_small_core;
 
-#pragma omp parallel for reduction(^:b[0:c->first_block_size])
-	for (i = 0; i < c->num_block_cols; i++) {
-		mul_one_med_block(c->blocks + i, x + i * c->block_size, b);
+	for (i = 0; i < p->num_threads - 1; i++) {
+		task.data = c->tasks + i;
+		threadpool_add_task(c->threadpool, &task, 1);
 	}
-
-	/* multiply the densest few rows by x (in batches of VBITS rows) */
-
-	threads = p->num_threads;
-	vsize = p->ncols / threads + 1;
-	btmp = (v_t *) malloc(threads * VBITS * sizeof(v_t));
-
-	for (i = 0; i < (p->num_dense_rows + VBITS - 1) / VBITS; i++) {
-#pragma omp parallel for schedule(static, 1)
-		for (j = 0; j < threads; j++) {
-			uint32 my_n;
-                	if (j == threads-1) my_n = p->ncols + vsize - threads * vsize;
-                	else my_n = vsize;
-#if VWORDS == 2 || VWORDS == 4 || VWORDS == 6 || VWORDS == 8
-			mul_BxN_NxB_2(c->dense_blocks[i] + j * vsize,
-					x + j * vsize, btmp + VBITS * j, my_n);
-#else
-			mul_BxN_NxB(c->dense_blocks[i] + j * vsize,
-					x + + j * vsize, btmp + VBITS * j, my_n);
-#endif
-		}
-		for (j = 0; j < threads; j++) vv_xor(b + VBITS * i, btmp + j * VBITS, VBITS);
-	}
-
-	free(btmp);
+	mul_packed_small_core(c->tasks + i, i);
 
 	/* switch to the sparse blocks */
 
+	task.run = mul_packed_core;
+
 	for (i = 0; i < c->num_superblock_cols; i++) {
-		uint32 start_block_c = i * c->superblock_size;
-		uint32 num_blocks_c = MIN(c->superblock_size, 
-				c->num_block_cols - start_block_c);
-		packed_block_t *start_block = c->blocks + start_block_c +
-					c->num_block_cols; /* skip first row */
-		v_t *curr_x = x + start_block_c * c->block_size;
 
-#pragma omp parallel for schedule(static, 1)
-		for (j = 0; j < c->num_block_rows - 1; j++) {
-			uint32 k;
-			packed_block_t *curr_block = start_block + 
-					j * c->num_block_cols;
-			uint32 b_off = j * c->block_size + c->first_block_size;
+		la_task_t *t = c->tasks;
+				
+		for (j = 0; j < p->num_threads; j++)
+			t[j].block_num = i;
 
-			for (k = 0; k < num_blocks_c; k++) {
-				mul_one_block(curr_block + k, curr_x + k * c->block_size, b + b_off);
-			}
+		for (j = 0; j < p->num_threads - 1; j++) {
+			task.data = t + j;
+			threadpool_add_task(c->threadpool, &task, 1);
+		}
+
+		mul_packed_core(t + j, j);
+		if (j) {
+			threadpool_drain(c->threadpool, 1);
 		}
 	}
+
+	/* xor the small vectors from each thread */
+
+	vv_copy(b, c->thread_data[0].tmp_b, 
+			MAX(c->first_block_size, VBITS * 
+				((p->num_dense_rows + VBITS - 1) / VBITS)));
+
+	for (i = 1; i < p->num_threads; i++)
+		vv_xor(b, c->thread_data[i].tmp_b,
+			MAX(c->first_block_size, VBITS * 
+				((p->num_dense_rows + VBITS - 1) / VBITS)));
 
 #if defined(GCC_ASM32A) && defined(HAS_MMX)
 	ASM_G volatile ("emms");
@@ -92,40 +80,48 @@ static void mul_packed(packed_matrix_t *p, v_t *x, v_t *b)
 static void mul_trans_packed(packed_matrix_t *p, v_t *x, v_t *b) 
 {
 	uint32 i, j;
+	task_control_t task = {NULL, NULL, NULL, NULL};
 	cpudata_t *c = (cpudata_t *)p->extra;
 
-	vv_clear(b, p->ncols);
+	c->x = x;
+	c->b = b;
+
+	task.run = mul_trans_packed_core;
 
 	for (i = 0; i < c->num_superblock_rows; i++) {
-		uint32 start_block_r = 1 + i * c->superblock_size;
-		uint32 num_blocks_r = MIN(c->superblock_size, 
-				c->num_block_rows - start_block_r);
-		packed_block_t *start_block = c->blocks + 
-				start_block_r * c->num_block_cols;
-		v_t *curr_x = x + (start_block_r - 1) * c->block_size +
-				c->first_block_size;
 
-#pragma omp parallel for schedule(static, 1)
-		for (j = 0; j < c->num_block_cols; j++) {
-			uint32 k;
-			packed_block_t *curr_block = start_block + j;
-			uint32 b_off = j * c->block_size;
-	
-			if (start_block_r == 1) {
-				mul_trans_one_med_block(curr_block - 
-					c->num_block_cols, x, b + b_off);
-			}
+		la_task_t *t = c->tasks;
+				
+		for (j = 0; j < p->num_threads; j++)
+			t[j].block_num = i;
 
-			for (k = 0; k < num_blocks_r; k++) {
-				mul_trans_one_block(curr_block + k * c->num_block_cols, curr_x + k * c->block_size, b + b_off);
-			}
+		for (j = 0; j < p->num_threads - 1; j++) {
+			task.data = t + j;
+			threadpool_add_task(c->threadpool, &task, 1);
+		}
+
+		mul_trans_packed_core(t + j, j);
+		if (j) {
+			threadpool_drain(c->threadpool, 1);
 		}
 	}
 
 	if (p->num_dense_rows) {
-		/* add in the dense matrix multiply blocks */
-		for (i = 0; i < (p->num_dense_rows + VBITS - 1) / VBITS; i++)
-			mul_NxB_BxB_acc(c->dense_blocks[i], x + VBITS * i, b, p->ncols);
+		/* add in the dense matrix multiply blocks; these don't 
+		   use scratch space, but need all of b to accumulate 
+		   results so we have to wait until all tasks finish */
+
+		task.run = mul_trans_packed_small_core;
+
+		for (i = 0; i < p->num_threads - 1; i++) {
+			task.data = c->tasks + i;
+			threadpool_add_task(c->threadpool, &task, 1);
+		}
+
+		mul_trans_packed_small_core(c->tasks + i, i);
+		if (i) {
+			threadpool_drain(c->threadpool, 1);
+		}
 	}
 
 #if defined(GCC_ASM32A) && defined(HAS_MMX)
@@ -133,6 +129,33 @@ static void mul_trans_packed(packed_matrix_t *p, v_t *x, v_t *b)
 #elif defined(MSC_ASM32A) && defined(HAS_MMX)
 	ASM_M emms
 #endif
+}
+
+/*--------------------------------------------------------------------*/
+static void matrix_thread_init(void *data, int thread_num) {
+
+	packed_matrix_t *p = (packed_matrix_t *)data;
+	cpudata_t *c = (cpudata_t *)p->extra;
+	thread_data_t *t = c->thread_data + thread_num;
+
+	/* we use this scratch vector for both matrix multiplies
+	   and vector-vector operations; it has to be large enough
+	   to support both. Note that first_block_size is split across
+	   MPI rows, so it is conceivable with enough MPI processes that
+	   the MAX() is necessary */
+
+	t->tmp_b = (v_t *)vv_alloc(MAX(c->first_block_size, VBITS *
+			(1 + (p->num_dense_rows + VBITS - 1) / VBITS)), p->extra);
+}
+
+/*-------------------------------------------------------------------*/
+static void matrix_thread_free(void *data, int thread_num) {
+
+	packed_matrix_t *p = (packed_matrix_t *)data;
+	cpudata_t *c = (cpudata_t *)p->extra;
+	thread_data_t *t = c->thread_data + thread_num;
+
+	vv_free(t->tmp_b);
 }
 
 /*-------------------------------------------------------------------*/
@@ -322,9 +345,11 @@ static void pack_matrix_core(packed_matrix_t *p)
 void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 			uint32 first_block_size) {
 
+	uint32 i;
 	uint32 num_threads;
 	uint32 block_size;
 	uint32 superblock_size;
+	thread_control_t control;
 	cpudata_t *c;
 
 	p->extra = c = (cpudata_t *)xcalloc(1, sizeof(cpudata_t));
@@ -332,11 +357,34 @@ void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 	/* determine the number of threads to use */
 
 	num_threads = obj->num_threads;
-	if (num_threads < 2) num_threads = 1;
+	if (num_threads < 2 || p->max_nrows < MIN_NROWS_TO_THREAD)
+		num_threads = 1;
 
-	p->num_threads = num_threads;
+	p->num_threads = num_threads = MIN(num_threads, MAX_THREADS);
+
+	/* start the thread pool; note that even single-threaded
+	   runs need these structures to be allocated */
 
 	c->first_block_size = first_block_size;
+
+	control.init = matrix_thread_init;
+	control.shutdown = matrix_thread_free;
+	control.data = p;
+
+	if (num_threads > 1) {
+		c->threadpool = threadpool_init(num_threads - 1, 
+						200, &control);
+	}
+	matrix_thread_init(p, num_threads - 1);
+
+	/* pre-generate the structures to drive the thread pool */
+
+	c->tasks = (la_task_t *)xmalloc(sizeof(la_task_t) * num_threads);
+
+	for (i = 0; i < num_threads; i++) {
+		c->tasks[i].matrix = p;
+		c->tasks[i].task_num = i;
+	}
 
 	if (p->max_nrows <= MIN_NROWS_TO_PACK)
 		return;
@@ -418,6 +466,13 @@ void matrix_extra_free(packed_matrix_t *p) {
 		free(c->blocks);
 	}
 
+	if (p->num_threads > 1) {
+		threadpool_drain(c->threadpool, 1);
+		threadpool_free(c->threadpool);
+	}
+	matrix_thread_free(p, p->num_threads - 1);
+
+	free(c->tasks);
 	free(c);
 }
 

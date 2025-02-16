@@ -1791,6 +1791,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     char tmp[MAXARGLEN];
     char* cptr;
+    strcpy(fobj->nfs_obj.params_file, options->params_file);
     strcpy(fobj->nfs_obj.outputfile, options->nfs_outfile);
     strcpy(tmp, fobj->nfs_obj.outputfile);
     cptr = strchr(tmp, 46);

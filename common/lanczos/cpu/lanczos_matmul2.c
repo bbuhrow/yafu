@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: lanczos_matmul2.c 1012 2017-06-11 17:42:14Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "lanczos_cpu.h"
@@ -18,7 +18,7 @@ $Id$
 	   when the matrix is in packed format */
 
 /*-------------------------------------------------------------------*/
-void mul_trans_one_med_block(packed_block_t *curr_block,
+static void mul_trans_one_med_block(packed_block_t *curr_block,
 			v_t *curr_row, v_t *curr_b) {
 
 	uint16 *entries = curr_block->d.med_entries;
@@ -91,9 +91,6 @@ void mul_trans_one_med_block(packed_block_t *curr_block,
 		:"%eax", "%ecx", "%edx", "%mm0", "%mm1", "memory", "cc");
 
 	#undef _txor
-	
-		for (; i < count; i++)
-			curr_b[entries[i+2]] = v_xor(t, curr_b[entries[i+2]]);
 
 #elif defined(GCC_ASM64X) && VWORDS == 1
 
@@ -142,9 +139,6 @@ void mul_trans_one_med_block(packed_block_t *curr_block,
 		 "%r12", "%r13", "%r14", "%r15", "memory", "cc");
 
 	#undef _txor
-	
-		for (; i < count; i++)
-			curr_b[entries[i+2]] = v_xor(t, curr_b[entries[i+2]]);
 
 #elif defined(MSC_ASM32A) && defined(HAS_MMX) && VWORDS == 1
 
@@ -191,25 +185,52 @@ void mul_trans_one_med_block(packed_block_t *curr_block,
 	}
 
 	#undef _txor
-	
+
+#else
+		for (i = 0; i < (count & (uint32)(~15)); i += 16) {
+			curr_b[entries[i+2+ 0]] = v_xor(t, 
+					curr_b[entries[i+2+ 0]]);
+			curr_b[entries[i+2+ 1]] = v_xor(t, 
+					curr_b[entries[i+2+ 1]]);
+			curr_b[entries[i+2+ 2]] = v_xor(t, 
+					curr_b[entries[i+2+ 2]]);
+			curr_b[entries[i+2+ 3]] = v_xor(t, 
+					curr_b[entries[i+2+ 3]]);
+			curr_b[entries[i+2+ 4]] = v_xor(t, 
+					curr_b[entries[i+2+ 4]]);
+			curr_b[entries[i+2+ 5]] = v_xor(t, 
+					curr_b[entries[i+2+ 5]]);
+			curr_b[entries[i+2+ 6]] = v_xor(t, 
+					curr_b[entries[i+2+ 6]]);
+			curr_b[entries[i+2+ 7]] = v_xor(t, 
+					curr_b[entries[i+2+ 7]]);
+			curr_b[entries[i+2+ 8]] = v_xor(t, 
+					curr_b[entries[i+2+ 8]]);
+			curr_b[entries[i+2+ 9]] = v_xor(t, 
+					curr_b[entries[i+2+ 9]]);
+			curr_b[entries[i+2+10]] = v_xor(t, 
+					curr_b[entries[i+2+10]]);
+			curr_b[entries[i+2+11]] = v_xor(t, 
+					curr_b[entries[i+2+11]]);
+			curr_b[entries[i+2+12]] = v_xor(t, 
+					curr_b[entries[i+2+12]]);
+			curr_b[entries[i+2+13]] = v_xor(t, 
+					curr_b[entries[i+2+13]]);
+			curr_b[entries[i+2+14]] = v_xor(t, 
+					curr_b[entries[i+2+14]]);
+			curr_b[entries[i+2+15]] = v_xor(t, 
+					curr_b[entries[i+2+15]]);
+		}
+#endif
 		for (; i < count; i++)
 			curr_b[entries[i+2]] = v_xor(t, curr_b[entries[i+2]]);
-#else
-		for (i = 0; i < count; i++)
-			curr_b[entries[i+2]] = v_xor(t, curr_b[entries[i+2]]);
-#endif
 		entries += count + 2;
 	}
 }
 
 /*-------------------------------------------------------------------*/
-#ifdef _MSC_VER
-void mul_trans_one_block(const packed_block_t* curr_block,
-	const v_t* curr_row, v_t* __restrict curr_b) {
-#else
-void mul_trans_one_block(const packed_block_t* curr_block,
-	const v_t* curr_row, v_t* __restrict__ curr_b) {
-#endif
+static void mul_trans_one_block(packed_block_t *curr_block,
+				v_t *curr_row, v_t *curr_b) {
 
 	uint32 i = 0;
 	uint32 num_entries = curr_block->num_entries;
@@ -255,12 +276,6 @@ void mul_trans_one_block(const packed_block_t* curr_block,
 		 "g"(num_entries & (uint32)(~15))
 		:"%eax", "%ecx", "%mm0", "memory", "cc");
 
-	#undef _txor
-
-	for (; i < num_entries; i++) {
-		curr_b[entries[i].col_off] = v_xor(curr_b[entries[i].col_off],
-						curr_row[entries[i].row_off]);
-	}
 #elif defined(MSC_ASM32A) && defined(HAS_MMX) && VWORDS == 1
 
 	#define _txor(x)			\
@@ -295,33 +310,90 @@ void mul_trans_one_block(const packed_block_t* curr_block,
 		pop ebx
 	}
 
+#else
+	#define _txor(x) curr_b[entries[i+x].col_off] = v_xor(\
+				curr_b[entries[i+x].col_off], \
+				 curr_row[entries[i+x].row_off])
+
+	for (i = 0; i < (num_entries & (uint32)(~15)); i += 16) {
+		#ifdef MANUAL_PREFETCH
+		PREFETCH(entries + i + 48 / VWORDS);
+		#endif
+		_txor( 0); _txor( 1); _txor( 2); _txor( 3);
+		_txor( 4); _txor( 5); _txor( 6); _txor( 7);
+		_txor( 8); _txor( 9); _txor(10); _txor(11);
+		_txor(12); _txor(13); _txor(14); _txor(15);
+	}
+#endif
 	#undef _txor
 
 	for (; i < num_entries; i++) {
 		curr_b[entries[i].col_off] = v_xor(curr_b[entries[i].col_off],
 						curr_row[entries[i].row_off]);
 	}
-#elif defined(A64FX) && VWORDS == 8
-        svbool_t __attribute__((arm_sve_vector_bits(512))) everything=svptrue_b64();
-        for (i = 0; i < num_entries; i++) {
-                #ifdef MANUAL_PREFETCH
-                PREFETCH(entries + i + 48 / VWORDS);
-                #endif
-                uint64* b = (uint64*)(curr_b  + entries[i].col_off);
-                const uint64* c = (const uint64*)(curr_row +entries[i].row_off);
-                svstnt1_u64(everything,
-                        b,
-                        sveor_u64_x(everything,
-                                svld1_u64(everything, b),
-                                svldnt1_u64(everything, c)));
-        }
-#else
-	for (i = 0; i < num_entries; i++) {
-		#ifdef MANUAL_PREFETCH
-		PREFETCH(entries + i + 48 / VWORDS);
-		#endif
-		curr_b[entries[i].col_off] = v_xor(curr_b[entries[i].col_off],
-						curr_row[entries[i].row_off]);
+}
+
+/*-------------------------------------------------------------------*/
+void mul_trans_packed_core(void *data, int thread_num)
+{
+	la_task_t *task = (la_task_t *)data;
+	packed_matrix_t *p = task->matrix;
+	cpudata_t *c = (cpudata_t *)p->extra;
+
+	uint32 start_block_r = 1 + task->block_num * c->superblock_size;
+	uint32 num_blocks_r = MIN(c->superblock_size, 
+				c->num_block_rows - start_block_r);
+
+	packed_block_t *start_block = c->blocks + 
+				start_block_r * c->num_block_cols;
+	v_t *x = c->x + (start_block_r - 1) * c->block_size +
+				c->first_block_size;
+	uint32 i, j;
+
+	for (i = task->task_num; i < c->num_block_cols; 
+					i += p->num_threads) {
+
+		packed_block_t *curr_block = start_block + i;
+		uint32 b_off = i * c->block_size;
+		v_t *curr_x = x;
+		v_t *b = c->b + b_off;
+
+		if (start_block_r == 1) {
+			vv_clear(b, MIN(c->block_size, p->ncols - b_off));
+			mul_trans_one_med_block(curr_block - 
+					c->num_block_cols, c->x, b);
+		}
+
+		for (j = 0; j < num_blocks_r; j++) {
+			mul_trans_one_block(curr_block, curr_x, b);
+			curr_block += c->num_block_cols;
+			curr_x += c->block_size;
+		}
 	}
-#endif
+}
+
+/*-------------------------------------------------------------------*/
+void mul_trans_packed_small_core(void *data, int thread_num)
+{
+	/* multiply the densest few rows by x (in batches of VBITS rows)
+	
+	   b doesn't need initializing since this is the last operation
+	   of a transpose multiply */
+
+	la_task_t *task = (la_task_t *)data;
+	packed_matrix_t *p = task->matrix;
+	cpudata_t *c = (cpudata_t *)p->extra;
+	uint32 vsize = p->ncols / p->num_threads;
+	uint32 off = vsize * task->task_num;
+	v_t *x = c->x;
+	v_t *b = c->b + off;
+	uint32 i;
+
+	if (p->num_threads == 1)
+		vsize = p->ncols;
+	else if (task->task_num == p->num_threads - 1)
+		vsize = p->ncols - off;
+
+	for (i = 0; i < (p->num_dense_rows + VBITS - 1) / VBITS; i++)
+		mul_NxB_BxB_acc(c->dense_blocks[i] + off, x + VBITS * i, b, vsize);
 }

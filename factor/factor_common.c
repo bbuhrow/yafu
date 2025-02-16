@@ -166,6 +166,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.np1 = 0;
     fobj->nfs_obj.nps = 0;
     fobj->nfs_obj.npr = 0;
+    strcpy(fobj->nfs_obj.params_file, "");          // default: use built-in table
     strcpy(fobj->nfs_obj.outputfile, "nfs.dat");			//default
     strcpy(fobj->nfs_obj.logfile, "nfs.log");			//default
     strcpy(fobj->nfs_obj.fbfile, "nfs.fb");				//default
@@ -517,6 +518,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->nfs_obj.np1 = src->nfs_obj.np1;
     dest->nfs_obj.nps = src->nfs_obj.nps;
     dest->nfs_obj.npr = src->nfs_obj.npr;
+    strcpy(dest->nfs_obj.params_file, src->nfs_obj.params_file);
     strcpy(dest->nfs_obj.outputfile, src->nfs_obj.outputfile);
     strcpy(dest->nfs_obj.logfile, src->nfs_obj.logfile);
     strcpy(dest->nfs_obj.fbfile, src->nfs_obj.fbfile);

@@ -224,7 +224,7 @@ typedef struct
     mpz_t gmp_n;
     char* savefile_name;
     char* flogname;
-    qs_savefile_t savefile;		//savefile object
+    savefile_t savefile;		//savefile object
     FILE* logfile;
     char siqs_savefile[1024];
 
@@ -311,6 +311,7 @@ typedef struct
 	int pref_degree;
 	int alt_degree;
 
+    char params_file[GSTR_MAXSIZE];
 	char ggnfs_dir[GSTR_MAXSIZE];
 	uint32_t siever;
 	int sq_side;
@@ -514,7 +515,7 @@ int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
 void print_factors(fact_obj_t* fobj, yfactor_list_t* factorlist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE);
 void clear_factor_list(yfactor_list_t* fobj);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
-
+int find_in_factor_list(yfactor_list_t* flist, mpz_t n);
 
 
 /* =============== interface to various small-factor-finding routines =========== */

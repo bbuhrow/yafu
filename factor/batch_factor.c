@@ -18,6 +18,7 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "prime_sieve.h"
 #include "yafu_ecm.h"
 #include "microecm.h"
+#include "tinyecm.h"
 
 /*------------------------------------------------------------------
 
