@@ -1584,7 +1584,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	double lambda;
     int betterskew = 0;
 	int table_rows = GGNFS_TABLE_ROWS;
-	double** table;
+	double** table = NULL;
 	double* parsed_table = NULL;
 	int parsed_rows;
 
@@ -1653,6 +1653,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			}
 		}
 	}
+
 	/*
 	if (job->snfs == N && job->size != 0 && job->size != d && fobj->VFLAG > 0)
 		printf("nfs: warning: size param in job file does not match size of "

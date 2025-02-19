@@ -113,6 +113,16 @@ enum param_flag_e
     PARAM_FLAG_ALL = 0xFFF
 };
 
+enum nfs_thread_task {
+    TASK_DONE,
+    TASK_NP1,
+    TASK_NPS,
+    TASK_NPR,
+    TASK_NP1_GPU,
+    TASK_SIEVE
+};
+
+
 typedef struct
 {
     mpz_polys_t* poly; // the idea is that job->snfs->poly == job->poly
@@ -152,6 +162,8 @@ typedef struct {
     int tindex;
     int is_poly_select;
     int inflight;
+
+    enum nfs_thread_task task;
 
     /* fields for thread pool synchronization */
     volatile enum nfs_thread_command command;

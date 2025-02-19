@@ -842,15 +842,15 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 	mpz_t tmp, tmp2;
     char* tersebuf = NULL;
     char* tersebuf2 = NULL;
-    int maxlen;
+    int maxlen = 0;
     int print_terse = fobj->OUTPUT_TERSE;
 
 
     if (print_terse)
     {    
-        maxlen = gmp_base10(fobj->input_N) + 1;
+        maxlen = gmp_base10(fobj->input_N) + 4;
         tersebuf = (char*)xmalloc(maxlen * 4);
-        tersebuf2 = (char*)xmalloc(maxlen + 4);
+        tersebuf2 = (char*)xmalloc(maxlen);
         strcpy(tersebuf, "");
         strcpy(tersebuf2, "");
     }
@@ -1018,6 +1018,8 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 			}
 		}
 
+        //printf("after processing factors, tersebuf = %s\n", tersebuf);
+
 		mpz_init(tmp2);
 		mpz_set(tmp2, N);
 		if (mpz_cmp_ui(tmp2, 1) > 0)
@@ -1146,6 +1148,9 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
 			}			
 		}
 
+        //gmp_printf("after processing cofactors, tmp2 = %Zd\n", tmp2);
+        //printf("after processing cofactors, tersebuf = %s,maxlen = %d\n", tersebuf,maxlen);
+
         if (print_terse)
         {
             if (mpz_cmp_ui(tmp2, 1) > 0)
@@ -1162,7 +1167,7 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
             }
             else
             {
-                tersebuf[strlen(tersebuf) - 1] = ' ';
+                tersebuf[strlen(tersebuf) - 1] = '\0';
             }
 
             gmp_printf("\n***factorization:***\n%Zd=%s\n", fobj->input_N, tersebuf);

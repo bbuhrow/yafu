@@ -1315,7 +1315,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 			{
                 if (strlen(line) > 0)
                 {
-                    printf("last line: %s\n", line);
+                    //printf("last line: %s\n", line);
                     break;
                 }
 				printf("eof; done processing batchfile\n");
