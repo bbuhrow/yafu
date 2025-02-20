@@ -577,9 +577,13 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
     logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
     if (numwit == 1)
-        logprint(logfile,"using %u random witness for Rabin-Miller PRP checks\n", numwit);
+    {
+        logprint(logfile, "using %u random witness for Rabin-Miller PRP checks\n", numwit);
+    }
     else
+    {
         logprint(logfile, "using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
+    }
 
 	if (VFLAG > 0)
 	{		

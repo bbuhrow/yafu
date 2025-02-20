@@ -580,21 +580,21 @@ void mp_mul_1(mp_t *a, uint32 b, mp_t *x) {
 void mp_mul(mp_t *a, mp_t *b, mp_t *prod) {
 
 	uint32 i;
-	mp_t *small = a;
+	mp_t *_small = a;
 	mp_t *large = b;
 
-	if (small->nwords > large->nwords) {
-		small = b;
+	if (_small->nwords > large->nwords) {
+		_small = b;
 		large = a;
 	}
-	if (small->nwords == 0) {
+	if (_small->nwords == 0) {
 		mp_clear(prod);
 		return;
 	}
 
-	mp_mul_1(large, small->val[0], prod);
-	for (i = 1; i < small->nwords; i++) 
-		mp_addmul_1(large, small->val[i], prod->val + i);
+	mp_mul_1(large, _small->val[0], prod);
+	for (i = 1; i < _small->nwords; i++) 
+		mp_addmul_1(large, _small->val[i], prod->val + i);
 	
 	prod->nwords = num_nonzero_words(prod->val, 
 				MIN(a->nwords + b->nwords, MAX_MP_WORDS));
@@ -887,22 +887,22 @@ uint32 mp_divrem_1(mp_t *num, uint32 denom, mp_t *quot) {
 void mp_modmul(mp_t *a, mp_t *b, mp_t *n, mp_t *res) {
 
 	uint32 i;
-	mp_t *small = a;
+	mp_t *_small = a;
 	mp_t *large = b;
 	big_mp_t prod;
 
-	if (small->nwords > large->nwords) {
-		small = b;
+	if (_small->nwords > large->nwords) {
+		_small = b;
 		large = a;
 	}
-	if (mp_is_zero(small)) {
+	if (mp_is_zero(_small)) {
 		mp_clear(res);
 		return;
 	}
 
 	memset(&prod, 0, sizeof(big_mp_t));
-	for (i = 0; i < small->nwords; i++) 
-		mp_addmul_1(large, small->val[i], prod.val + i);
+	for (i = 0; i < _small->nwords; i++) 
+		mp_addmul_1(large, _small->val[i], prod.val + i);
 	
 	prod.nwords = num_nonzero_words(prod.val, a->nwords + b->nwords);
 

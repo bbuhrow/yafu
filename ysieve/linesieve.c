@@ -25,7 +25,11 @@ SOFTWARE.
 #include "soe.h"
 #include "soe_impl.h"
 #include "ytools.h"
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
 #include <immintrin.h>
+#endif
 #include <math.h>
 #include <string.h>
 
@@ -38,7 +42,7 @@ SOFTWARE.
 // have different sweet spots for different compilers...
 // these were tested with 10^11 on AVX512 5122 gold cpu
 // using the avx2_32k linesieve and avx2 presieving.
-#ifdef _INTEL_COMPILER
+#if defined(_INTEL_COMPILER) || defined(__clang__)
 #define BITLOGIC32  /* 15.68 */
 //#define BITMASKS8  
 #elif defined(_MSC_VER)

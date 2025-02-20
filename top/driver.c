@@ -1059,6 +1059,9 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #elif defined(__INTEL_LLVM_COMPILER)
         printf("Built with Microsoft Visual Studio %d and Intel LLVM Compiler %d\n", _MSC_VER, __clang_version__);
         logprint(logfile, "Built with Microsoft Visual Studio %d and Intel LLVM Compiler %d\n", _MSC_VER, __clang_version__);
+#elif defined(__clang_version__)
+        printf("Built with Microsoft Visual Studio %d and LLVM Compiler %s\n", _MSC_VER, __clang_version__);
+        logprint(logfile, "Built with Microsoft Visual Studio %d and LLVM Compiler %s\n", _MSC_VER, __clang_version__);
 #else
         printf("Built with Microsoft Visual Studio %d\n", _MSC_VER);
         logprint(logfile, "Built with Microsoft Visual Studio % d\n", _MSC_VER);

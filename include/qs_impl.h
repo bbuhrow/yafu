@@ -86,8 +86,10 @@
 // assume we have SSE2 available
 #define D_HAS_SSE2
 
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if (defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)) || \
+    (defined(_MSC_VER) && defined(__clang__))
 #define _MM_SCALE_1 1
+#define _MM_SCALE_2 2
 #endif
 
 #if defined(USE_AVX2)

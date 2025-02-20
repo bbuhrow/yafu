@@ -25,7 +25,11 @@ SOFTWARE.
 #include "soe.h"
 #include "soe_impl.h"
 #include <stdint.h>
-#include <immintrin.h> //<immintrin.h>
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
+#include <immintrin.h>
+#endif
 
 //void (*pre_sieve_ptr)(soe_dynamicdata_t*, soe_staticdata_t*, uint8_t*);
 

@@ -31,6 +31,7 @@ SOFTWARE.
 #include "gmp.h"
 #include "ytools.h"
 
+#if 0
 #ifdef USE_SOE_THREADPOOL
 void start_soe_worker_thread(thread_soedata_t *t) {
 
@@ -404,4 +405,5 @@ void *soe_worker_thread_main(void *thread_data) {
 #endif
 }
 
+#endif
 #endif

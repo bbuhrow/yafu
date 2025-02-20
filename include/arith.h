@@ -94,23 +94,42 @@ __inline uint64_t _lead_zcnt64(uint64_t x)
 #endif
 #elif defined(_MSC_VER)
 #include <immintrin.h>
-//#ifdef USE_BMI2
+#include <intrin.h>
 
-// not safe to assume these just because this is defined.
-// instead always use the inline functions below.
+#ifdef USE_BMI2
+#define _reset_lsb(x) _blsr_u32(x)
+#define _reset_lsb64(x) _blsr_u64(x)
+#else
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1))
+#endif
 
-//#define _lead_zcnt64 __lzcnt64
-//#define _trail_zcnt _tzcnt_u32
-//#define _trail_zcnt64 _tzcnt_u64
-//// MSVC pages say these are available, but using them
-//// leads to immediate crashes in msvc-190 (v160)
-//// https://docs.microsoft.com/en-us/cpp/intrinsics/x64-amd64-intrinsics-list?view=msvc-160
-////#define _reset_lsb(x) _blsr_u32(x)
-////#define _reset_lsb64(x) _blsr_u64(x)
-//#define _reset_lsb(x) ((x) &= ((x) - 1))
-//#define _reset_lsb64(x) ((x) &= ((x) - 1))
-//
-//#else
+#ifdef __clang__
+__inline uint32_t _trail_zcnt(uint32_t x)
+{
+    unsigned long pos;
+    if (_BitScanForward(&pos, x))
+        return (uint32_t)pos;
+    else
+        return 32;
+}
+__inline uint32_t _trail_zcnt64(uint64_t x)
+{
+    unsigned long  pos;
+    if (_BitScanForward64(&pos, x))
+        return (uint32_t)pos;
+    else
+        return 64;
+}
+__inline uint32_t _lead_zcnt64(uint64_t x)
+{
+    unsigned long  pos;
+    if (_BitScanReverse64(&pos, x))
+        return (uint32_t)pos;
+    else
+        return 64;
+}
+#else
 __inline uint32_t _trail_zcnt(uint32_t x)
 {
     uint32_t pos;
@@ -119,7 +138,7 @@ __inline uint32_t _trail_zcnt(uint32_t x)
     else
         return 32;
 }
-__inline uint64_t _trail_zcnt64(uint64_t x)
+__inline uint32_t _trail_zcnt64(uint64_t x)
 {
     uint32_t pos;
     if (_BitScanForward64(&pos, x))
@@ -127,7 +146,7 @@ __inline uint64_t _trail_zcnt64(uint64_t x)
     else
         return 64;
 }
-__inline uint64_t _lead_zcnt64(uint64_t x)
+__inline uint32_t _lead_zcnt64(uint64_t x)
 {
     uint32_t pos;
     if (_BitScanReverse64(&pos, x))
@@ -135,9 +154,8 @@ __inline uint64_t _lead_zcnt64(uint64_t x)
     else
         return 64;
 }
-#define _reset_lsb(x) ((x) &= ((x) - 1))
-#define _reset_lsb64(x) ((x) &= ((x) - 1))
-//#endif
+#endif
+
 
 #else
 

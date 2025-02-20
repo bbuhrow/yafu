@@ -16,10 +16,12 @@ $Id: util.h 1005 2016-11-11 15:43:21Z jasonp_sf $
 #define _MS_UTIL_H_
 
 /* system-specific stuff ---------------------------------------*/
-
-#if defined(WIN32) || defined(_WIN64)
+#if defined(WIN32) || defined(_WIN64) 
 	#define WIN32_LEAN_AND_MEAN
 
+#if defined(__clang__)
+#include <time.h>
+#endif
 	#include <windows.h>
 	#include <process.h>
 #else
@@ -60,7 +62,7 @@ $Id: util.h 1005 2016-11-11 15:43:21Z jasonp_sf $
 extern "C" {
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 #include <winsock.h>
 #endif
 
@@ -168,7 +170,7 @@ int msieve_gettimeofday(struct timeval* tv, struct timezone* tz);
 
 #if defined(__GNUC__) && __GNUC__ >= 3
 	#define PREFETCH(addr) __builtin_prefetch(addr) 
-#elif defined(_MSC_VER) && _MSC_VER >= 1400
+#elif defined(_MSC_VER) && (_MSC_VER >= 1400)
 	#define PREFETCH(addr) PreFetchCacheLine(PF_TEMPORAL_LEVEL_1, addr)
 #else
 	#define PREFETCH(addr) /* nothing */

@@ -30,8 +30,8 @@ SOFTWARE.
 
 #if defined(_WIN32)
 
-#include <windows.h>
-#include <process.h>
+//#include <windows.h>
+//#include <process.h>
 
 #endif
 
@@ -199,42 +199,42 @@ typedef struct {
 	mpz_t offset, lowlimit, highlimit, tmpz;
 
 	/* fields for thread pool synchronization */
-	volatile enum soe_command command;
-
-#ifdef USE_SOE_THREADPOOL
-    /* fields for thread pool synchronization */
-    volatile int *thread_queue, *threads_waiting;
-
-#if defined(WIN32) || defined(_WIN64)
-    HANDLE thread_id;
-    HANDLE run_event;
-
-    HANDLE finish_event;
-    HANDLE *queue_event;
-    HANDLE *queue_lock;
-
-#else
-    pthread_t thread_id;
-    pthread_mutex_t run_lock;
-    pthread_cond_t run_cond;
-
-    pthread_mutex_t *queue_lock;
-    pthread_cond_t *queue_cond;
-#endif
-
-#else
-
-#if defined(WIN32) || defined(_WIN64)
-    HANDLE thread_id;
-    HANDLE run_event;
-    HANDLE finish_event;
-#else
-    pthread_t thread_id;
-    pthread_mutex_t run_lock;
-    pthread_cond_t run_cond;
-#endif
-
-#endif
+//	volatile enum soe_command command;
+//
+//#ifdef USE_SOE_THREADPOOL
+//    /* fields for thread pool synchronization */
+//    volatile int *thread_queue, *threads_waiting;
+//
+//#if (defined(WIN32) || defined(_WIN64))
+//    HANDLE thread_id;
+//    HANDLE run_event;
+//
+//    HANDLE finish_event;
+//    HANDLE *queue_event;
+//    HANDLE *queue_lock;
+//
+//#else
+//    pthread_t thread_id;
+//    pthread_mutex_t run_lock;
+//    pthread_cond_t run_cond;
+//
+//    pthread_mutex_t *queue_lock;
+//    pthread_cond_t *queue_cond;
+//#endif
+//
+//#else
+//
+//#if defined(WIN32) || defined(_WIN64)
+//    HANDLE thread_id;
+//    HANDLE run_event;
+//    HANDLE finish_event;
+//#else
+//    pthread_t thread_id;
+//    pthread_mutex_t run_lock;
+//    pthread_cond_t run_cond;
+//#endif
+//
+//#endif
 
 } thread_soedata_t;
 

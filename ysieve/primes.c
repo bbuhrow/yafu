@@ -26,7 +26,11 @@ SOFTWARE.
 #include "soe_impl.h"
 #include "ytools.h"
 #include "threadpool.h"
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
 #include <immintrin.h>
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <inttypes.h>

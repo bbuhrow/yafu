@@ -23,7 +23,11 @@ SOFTWARE.
 */
 
 #include "soe.h"
-#include "immintrin.h"
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
+#include <immintrin.h>
+#endif
 #include "ytools.h"
 #include <math.h>
 

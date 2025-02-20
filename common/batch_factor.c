@@ -159,7 +159,7 @@ static void check_relation(relation_batch_t *rb,
 	uint32 lp_r[MAX_LARGE_PRIMES];
 	uint32 lp_a[MAX_LARGE_PRIMES];
 	uint32 num_r, num_a;
-	mp_t *small, *large;
+	mp_t *_small, *large;
 
 	/* first compute gcd(prime_product, rational large cofactor).
 	   The rational part will split into a cofactor with all 
@@ -362,16 +362,16 @@ static void check_relation(relation_batch_t *rb,
 		if (tinyqs(&f1r, &t0, &t1) == 0)
 			return;
 
-		small = &t0;
+		_small = &t0;
 		large = &t1;
-		if (mp_cmp(small, large) > 0) {
-			small = &t1;
+		if (mp_cmp(_small, large) > 0) {
+			_small = &t1;
 			large = &t0;
 		}
 
-		if (small->nwords > 1 || small->val[0] > rb->lp_cutoff_r)
+		if (_small->nwords > 1 || _small->val[0] > rb->lp_cutoff_r)
 			return;
-		lp_r[num_r++] = small->val[0];
+		lp_r[num_r++] = _small->val[0];
 		i = squfof(large);
 		if (i <= 1 || i > rb->lp_cutoff_r)
 			return;
@@ -386,16 +386,16 @@ static void check_relation(relation_batch_t *rb,
 		if (tinyqs(&f1a, &t0, &t1) == 0)
 			return;
 
-		small = &t0;
+		_small = &t0;
 		large = &t1;
-		if (mp_cmp(small, large) > 0) {
-			small = &t1;
+		if (mp_cmp(_small, large) > 0) {
+			_small = &t1;
 			large = &t0;
 		}
 
-		if (small->nwords > 1 || small->val[0] > rb->lp_cutoff_a)
+		if (_small->nwords > 1 || _small->val[0] > rb->lp_cutoff_a)
 			return;
-		lp_a[num_a++] = small->val[0];
+		lp_a[num_a++] = _small->val[0];
 		i = squfof(large);
 		if (i <= 1 || i > rb->lp_cutoff_a)
 			return;

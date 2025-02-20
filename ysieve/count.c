@@ -26,7 +26,11 @@ SOFTWARE.
 #include "soe_impl.h"
 #include "ytools.h"
 #include <stdint.h>
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
 #include <immintrin.h>
+#endif
 #include "threadpool.h"
 
 uint64_t count_8_bytes(soe_staticdata_t* sdata,

@@ -447,7 +447,7 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 #endif
 		uint32_t result = 0;
 
-#if defined (_MSC_VER) && !defined(__INTEL_COMPILER)
+#if defined (_MSC_VER) && !defined(__INTEL_COMPILER) && !defined(__clang__)
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             SCAN_16X;

@@ -426,6 +426,10 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 #include <immintrin.h>
 #include <intrin.h>
 
+#if defined(_MSC_VER) && defined(__clang__)
+extern uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r);
+#endif
+
 __inline uint64_t u64div(uint64_t c, uint64_t n)
 {
     uint64_t r;

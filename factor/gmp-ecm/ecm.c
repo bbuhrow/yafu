@@ -1050,7 +1050,7 @@ void ecm_do_one_curve(void *ptr)
                 thread_data->curves_run++;
                 free(tmpstr);
                 free(cmd);
-                return ptr;
+                return; // ptr;
             }
         }
         else if (thread_data->resume_avx_ecm == 2)
@@ -1075,7 +1075,7 @@ void ecm_do_one_curve(void *ptr)
                 thread_data->curves_run++;
                 free(tmpstr);
                 free(cmd);
-                return ptr;
+                return; // ptr;
             }
         }
         else
@@ -1248,7 +1248,7 @@ void ecm_do_one_curve(void *ptr)
 
     thread_data->curves_run++;
 
-	return ptr;
+    return; // ptr;
 }
 
 // function definitions

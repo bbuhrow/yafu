@@ -844,11 +844,27 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		//make sure we are starting from scratch
 		remove(master_polyfile);
 	}
-	
+
+
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		nfs_threaddata_t *t = thread_data + i;		
 		t->fobj = fobj;
+
+#ifdef HAVE_CUDA
+		if (special_polyfind == 0)
+		{
+			if (fobj->THREADS > 1)
+			{
+				// if this is a normal multithreaded polyfind but we are using a gpu for stage 1,
+				// then split the threads into different tasks.
+				// one thread runs the gpu and stores results into files by leading coefficient.
+				// the other threads run nps and npr on those files as they become available.
+
+
+			}
+		}
+#endif
 
 		// create thread data with dummy range for now
 		init_poly_threaddata(t, obj, mpN, factor_list, i, flags,

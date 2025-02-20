@@ -324,7 +324,7 @@ void get_params(static_conf_t *sconf)
     // processor dependent...
 #if defined(USE_AVX512F)
     // another adjustment smaller (testing on skylake-x)
-    int param_table[NUM_PARAM_ROWS][7] = {
+    double param_table[NUM_PARAM_ROWS][7] = {
         {50,	30,	    30,	    1,  1.0, 0, 0},
         {60,	36,	    40,	    1,  1.0, 0, 0},
         {70,	50,	    40,	    1,  1.0, 0, 0},
@@ -547,12 +547,12 @@ void get_params(static_conf_t *sconf)
 
                 if ((param_table[i + 1][0] - bits) < (bits - param_table[i][0]))
                 {
-                    sconf->large_mult = 1 << param_table[i + 1][2];
+                    sconf->large_mult = 1 << (int)param_table[i + 1][2];
                     sconf->num_blocks = param_table[i + 1][3];
                 }
                 else
                 {
-                    sconf->large_mult = 1 << param_table[i][2];
+                    sconf->large_mult = 1 << (int)param_table[i][2];
                     sconf->num_blocks = param_table[i][3];
                 }
             }

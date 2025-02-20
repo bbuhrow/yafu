@@ -41,7 +41,7 @@ extern "C" {
 #include <unistd.h>
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
+#if (defined(_WIN32) || defined(_WIN64))  // && (!defined(__clang__))
     // MINGW defines these too: mingw will use windows 
     // threading instead of pthreads.
 #include <windows.h>
@@ -91,7 +91,7 @@ typedef struct
     volatile int *thread_queue;
     volatile int *threads_waiting;
 
-#if defined(WIN32) || defined(_WIN64)
+#if (defined(_WIN32) || defined(_WIN64))  // && (!defined(__clang__))
     HANDLE thread_id;
     HANDLE run_event;
 

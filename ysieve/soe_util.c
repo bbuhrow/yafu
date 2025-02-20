@@ -24,7 +24,11 @@ SOFTWARE.
 
 #include "soe.h"
 #include "ytools.h"
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
 #include <immintrin.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>

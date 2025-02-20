@@ -22,13 +22,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ----------------------------------------------------------------------*/
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
+#pragma intrinsic(__rdtsc)
+#elif defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
 #pragma intrinsic(__rdtsc)
 #endif
 
 
-#if (defined(__unix__) || defined(__MINGW32__))
+#if (defined(__unix__) || defined(__MINGW32__) || defined(__clang__))
 #define asm __asm__
 #endif
 
@@ -39,6 +42,7 @@ SOFTWARE.
 #include "ytools.h"
 #include <stdlib.h>
 #include <malloc.h>
+#include <math.h>
 
 // ============================================================================
 // precision time
@@ -46,7 +50,7 @@ SOFTWARE.
 
 
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) // && !defined(__clang__)
 
     /* Core aware timing on Windows, courtesy of Brian Gladman */
 
@@ -97,7 +101,22 @@ int unlock_thread_from_core(void)
 #endif
 
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
+
+#if 0 // defined(__clang__)
+int gettimeofday(struct timeval* tv, struct timezone* tz)
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+
+    //printf("timespec_get returned sec = %lu, nsec = %lu\n", ts.tv_sec, ts.tv_nsec);
+
+    tv->tv_sec = ts.tv_sec;
+    tv->tv_usec = ts.tv_nsec / 1000;
+
+    return 0;
+}
+#else
 int gettimeofday(struct timeval* tv, struct timezone* tz)
 {
     FILETIME ft;
@@ -133,11 +152,10 @@ int gettimeofday(struct timeval* tv, struct timezone* tz)
     return 0;
 }
 #endif
+#endif
 
-//user dimis:
-//http://cboard.cprogramming.com/cplusplus-programming/
-//101085-how-measure-time-multi-core-machines-pthreads.html
-//
+#if defined(_MSC_VER)
+
 double ytools_difftime(struct timeval* start, struct timeval* end)
 {
     double secs;
@@ -159,6 +177,8 @@ double ytools_difftime(struct timeval* start, struct timeval* end)
 
     return secs + usecs / 1000000.;
 }
+
+#endif
 
 char* time_from_secs(char* str, unsigned long time)
 {
@@ -222,7 +242,11 @@ void get_random_seeds(uint32_t *seed1, uint32_t *seed2) {
         uint64_t high_res_time = (uint64_t)start.tv_sec * 1000000 + (uint64_t)start.tv_usec;
         tmp_seed1 = ((uint32_t)(high_res_time >> 32) ^
             (uint32_t)time(NULL)) *
+#ifdef _MSC_VER
+            (uint32_t)_getpid();
+#else
             (uint32_t)getpid();
+#endif
         tmp_seed2 = (uint32_t)high_res_time;
     }
 
@@ -589,7 +613,17 @@ void ytools_get_computer_info(info_t* info, int do_print)
 			:"=a"(a), "=m"(b), "=c"(c), "=d"(d) 	\
 			:"0"(code1), "2"(code2) : "%esi")
 
-#elif defined(_MSC_VER)
+//#elif defined(_MSC_VER) && defined(__clang__)
+//#include <x86intrin.h>
+//#define HAS_CPUID
+//#define CPUID(__leaf, __eax, __ebx, __ecx, __edx) \
+//    __asm("cpuid" : "=a"(__eax), "=b" (__ebx), "=c"(__ecx), "=d"(__edx) \
+//                  : "0"(__leaf))
+//#define CPUID2(code1, code2, a, b, c, d) \
+//	__asm("cpuid" : "=a"(a), "=b" (b), "=c"(c), "=d"(d) \
+//                  : "0"(code1), "2"(code2))
+//
+#elif defined(_MSC_VER) 
 #include <intrin.h>
 #define HAS_CPUID
 #define CPUID(code, a, b, c, d)	\

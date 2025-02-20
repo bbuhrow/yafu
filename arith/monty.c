@@ -65,7 +65,7 @@ SOFTWARE.
 
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
-	
+#if !defined(_MSC_VER)
 __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
 {
     __asm__(
@@ -77,6 +77,20 @@ __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
 
     *hi = y;
     return x;
+}
+#endif
+#endif
+
+#if defined(_MSC_VER) && defined(__clang__)
+
+uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r) // uint64_t c, uint64_t n)
+{
+	__asm__("divq %4"
+		: "=a"(lo), "=d"(hi)
+		: "1"(hi), "0"(lo), "r"(d));
+
+	*r = hi;
+	return lo;
 }
 
 #endif
@@ -319,7 +333,7 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 #if defined( USE_AVX2 ) && defined(GCC_ASM64X)
     // requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
 
-	__asm__(
+	ASM_M(
 		"movq %0, %%r10	\n\t"			/* u ptr in r10 */
 		"movq %2, %%r11	\n\t"			/* w ptr in r11 */
 		"movq 0(%1), %%r9	\n\t"		/* v[0] ptr in r9 */
@@ -845,7 +859,7 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 
 	if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
 	{
-		__asm__(
+		ASM_M(
 			"movq %4, %%r11 \n\t"
 			"movq %0, 0(%%r11) \n\t"
 			"movq %1, 8(%%r11) \n\t"
@@ -1037,7 +1051,7 @@ void submod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 {
 #if defined(GCC_ASM64X)
     // requires GCC_ASM64 syntax
-	__asm__(
+	ASM_G(
 		"movq %6, %%r11 \n\t"
 		"xorq %%r8, %%r8 \n\t"
 		"xorq %%r9, %%r9 \n\t"

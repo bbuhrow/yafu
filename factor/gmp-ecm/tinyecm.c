@@ -36,9 +36,6 @@ either expressed or implied, of the FreeBSD Project.
 
 #define D 120
 
-#if defined( _MSC_VER)
-#define USE_AVX512F
-#endif
 
 #ifdef USE_AVX512F
 #include <immintrin.h>

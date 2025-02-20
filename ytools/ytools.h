@@ -41,10 +41,16 @@ extern "C" {
 #include <stdarg.h>     // va_start, va_end, va_list, ...
 #include <errno.h>      // strerror, errno ...
 
-#ifdef _MSC_VER
+#if defined(WIN32) || defined(_WIN64) 
+#define WIN32_LEAN_AND_MEAN
+
+#if defined(__clang__)
+#include <time.h>
+#endif
 #include <windows.h>
 #include <process.h>
 #include <winsock.h>
+
 #else
 #include <sys/time.h>	//for gettimeofday using gcc
 #include <unistd.h>
@@ -66,7 +72,7 @@ extern "C" {
 
 #if defined(__GNUC__) && __GNUC__ >= 3
 #define PREFETCH(addr) __builtin_prefetch(addr) 
-#elif defined(_MSC_VER) && _MSC_VER >= 1400
+#elif defined(_MSC_VER) && (_MSC_VER >= 1400)
 #define PREFETCH(addr) PreFetchCacheLine(PF_TEMPORAL_LEVEL_1, addr)
 #else
 #define PREFETCH(addr) /* nothing */
@@ -148,10 +154,11 @@ extern "C" {
     };
 #endif
 
-    double ytools_difftime(struct timeval* start, struct timeval* end);
 
-    //http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
-#if defined (_MSC_VER)
+double ytools_difftime(struct timeval* start, struct timeval* end);
+
+
+#if defined(_MSC_VER)
     int gettimeofday(struct timeval* tv, struct timezone* tz);
 #endif
 

@@ -49,7 +49,7 @@ extern "C" {
 
    */
 
-#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || defined(__clang__)
 
 	#define ASM_G __asm__
 	#define ASM_M __asm

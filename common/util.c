@@ -111,7 +111,22 @@ get_cpu_time(void) {
 }
 
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
+
+#if defined(__clang__)
+int msieve_gettimeofday(struct timeval* tv, struct timezone* tz)
+{
+	struct timespec ts;
+	timespec_get(&ts, TIME_UTC);
+
+	//printf("timespec_get returned sec = %lu, nsec = %lu\n", ts.tv_sec, ts.tv_nsec);
+
+	tv->tv_sec = ts.tv_sec;
+	tv->tv_usec = ts.tv_nsec / 1000;
+
+	return 0;
+}
+#else
 int msieve_gettimeofday(struct timeval* tv, struct timezone* tz)
 {
 	FILETIME ft;
@@ -147,6 +162,7 @@ int msieve_gettimeofday(struct timeval* tv, struct timezone* tz)
 	return 0;
 }
 #endif
+#endif
 
 double msieve_difftime(struct timeval* start, struct timeval* end)
 {
@@ -173,7 +189,7 @@ double msieve_difftime(struct timeval* start, struct timeval* end)
 /*--------------------------------------------------------------------*/
 void set_idle_priority(void) {
 
-#if defined(WIN32) || defined(_WIN64)
+#if (defined(WIN32) || defined(_WIN64))
 	SetPriorityClass(GetCurrentProcess(),
 			IDLE_PRIORITY_CLASS);
 #else
@@ -249,7 +265,17 @@ typedef union {
 			:"=a"(a), "=m"(b), "=c"(c), "=d"(d) 	\
 			:"0"(code1), "2"(code2) : "%rsi")
 
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#define HAS_CPUID
+#define CPUID(__leaf, __eax, __ebx, __ecx, __edx) \
+    __asm("cpuid" : "=a"(__eax), "=b" (__ebx), "=c"(__ecx), "=d"(__edx) \
+                  : "0"(__leaf))
+#define CPUID2(code1, code2, a, b, c, d) \
+	__asm("cpuid" : "=a"(a), "=b" (b), "=c"(c), "=d"(d) \
+                  : "0"(code1), "2"(code2))
+
+#elif defined(_MSC_VER) 
 	#include <intrin.h>
 	#define HAS_CPUID
 	#define CPUID(code, a, b, c, d)	\
