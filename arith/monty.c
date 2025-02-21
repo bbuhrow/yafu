@@ -333,7 +333,7 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 #if defined( USE_AVX2 ) && defined(GCC_ASM64X)
     // requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
 
-	ASM_M(
+	ASM_G(
 		"movq %0, %%r10	\n\t"			/* u ptr in r10 */
 		"movq %2, %%r11	\n\t"			/* w ptr in r11 */
 		"movq 0(%1), %%r9	\n\t"		/* v[0] ptr in r9 */
@@ -859,7 +859,7 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 
 	if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
 	{
-		ASM_M(
+		ASM_G(
 			"movq %4, %%r11 \n\t"
 			"movq %0, 0(%%r11) \n\t"
 			"movq %1, 8(%%r11) \n\t"
@@ -978,7 +978,7 @@ void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 
 	if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
 	{
-		__asm__(
+		ASM_G(
 			"movq %4, %%r11 \n\t"
 			"movq %0, 0(%%r11) \n\t"
 			"movq %1, 8(%%r11) \n\t"
@@ -1010,7 +1010,7 @@ void addmod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
     // requires GCC_ASM64 syntax
 	w[1] = a[1];
 	w[0] = a[0];
-	__asm__(
+	ASM_G(
 		"movq %0, %%r8 \n\t"
 		"movq %1, %%r9 \n\t"
 		"subq %4, %%r8 \n\t"		/* t = x - n */
