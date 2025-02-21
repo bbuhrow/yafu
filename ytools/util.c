@@ -154,8 +154,6 @@ int gettimeofday(struct timeval* tv, struct timezone* tz)
 #endif
 #endif
 
-#if defined(_MSC_VER)
-
 double ytools_difftime(struct timeval* start, struct timeval* end)
 {
     double secs;
@@ -177,8 +175,6 @@ double ytools_difftime(struct timeval* start, struct timeval* end)
 
     return secs + usecs / 1000000.;
 }
-
-#endif
 
 char* time_from_secs(char* str, unsigned long time)
 {

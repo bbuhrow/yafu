@@ -266,7 +266,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     __m256i vblock = _mm256_set1_epi16(32767);
     vblock = _mm256_add_epi16(vblock, _mm256_set1_epi16(1));
 #else
-    __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
+    __m256i vblock = _mm256_set1_epi16(BLOCKSIZE);
 #endif
     //__m256i vinterval = _mm256_set1_epi16(4 * BLOCKSIZE);
     __m256i vprime, vroot1, vroot2, vtmp1, vtmp2;
