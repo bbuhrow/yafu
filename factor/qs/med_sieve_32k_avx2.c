@@ -454,7 +454,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         for (j = 0; j < 16; j++)
         {
             printf("%04x, ", r_id2[j]);
-        }
+        }  
         printf("\n");
         _mm256_store_si256((__m256i*)r_id2, vprime);
         printf("primes that hit block @ i = %u: ", i);
@@ -464,7 +464,6 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         }
         printf("\n");
 #endif
-
         // now all larger roots are invalid.  Last iteration for 
         // possibly still valid root1s.  If they are still valid, 
         // record the sieve hit, advance them, and swap with the
