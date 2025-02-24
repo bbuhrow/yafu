@@ -635,8 +635,11 @@ void SIQS(fact_obj_t *fobj)
 	}
 
     // test/debug: force a particular random seed
-    //fobj->lcg_state = 12789661829260397587;
+    // fobj->lcg_state = 1946832636881765315ULL;
     // printf("warning: test lcg_state is enabled!\n");
+
+    fobj->seed1 = (uint32_t)(fobj->lcg_state >> 32);
+    fobj->seed2 = (uint32_t)(fobj->lcg_state & 0xffffffff);
 
 	if (sieve_log != NULL)
 	{
@@ -979,11 +982,18 @@ void SIQS(fact_obj_t *fobj)
             }
             else
             {
+                uint32_t old_needed = udata.num_needed;
                 udata.num_needed = udata.num_needed * 1.05;
+                static_conf->num_extra_relations += (udata.num_needed - old_needed);
                 printf("Problem with filtering (code %d), re-trying with new relation "
                     "target of %u\n", j, udata.num_needed);
                 logprint(sieve_log, "Problem with filtering (code %d), re-trying with new relation "
                     "target of % u\n", j, udata.num_needed);
+
+                // also update the RNG as that could fix it too
+                lcg_rand_64(&fobj->lcg_state);
+                fobj->seed1 = (uint32_t)(fobj->lcg_state >> 32);
+                fobj->seed2 = (uint32_t)(fobj->lcg_state & 0xffffffff);
 
                 //initialize the bookkeeping for tracking partial relations
                 free(static_conf->cycle_hashtable);
@@ -1064,11 +1074,18 @@ void SIQS(fact_obj_t *fobj)
             }
             else
             {
+                uint32_t old_needed = udata.num_needed;
                 udata.num_needed = udata.num_needed * 1.05;
+                static_conf->num_extra_relations += (udata.num_needed - old_needed);
                 printf("Failed to find factors, re-trying with new relation target of %u\n",
                     udata.num_needed);
                 logprint(sieve_log, "Failed to find factors, re-trying with "
                     "new relation target of % u\n", udata.num_needed);
+
+                // also update the RNG as that could fix it too
+                lcg_rand_64(&fobj->lcg_state);
+                fobj->seed1 = (uint32_t)(fobj->lcg_state >> 32);
+                fobj->seed2 = (uint32_t)(fobj->lcg_state & 0xffffffff);
 
                 //initialize the bookkeeping for tracking partial relations
                 free(static_conf->cycle_hashtable);
