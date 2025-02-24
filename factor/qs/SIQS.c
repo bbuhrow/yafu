@@ -122,6 +122,7 @@ void siqs_start(void *vptr)
 	printf("Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
 #endif
 
+
     udata->results[0] = 0.0;
     udata->results[1] = 0.0;
     udata->results[2] = 0.0;
@@ -3737,7 +3738,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #endif
 		
 #if defined( __amd64__ ) && defined(USE_AVX512F)
-    // amd eypc (zen4) didn't like the avx512 variants of these.
+    // amd eypc (zen4) was slower when using the avx512 variants of these
     lp_sieveblock_ptr = &lp_sieveblock;
     tdiv_LP_ptr = &tdiv_LP_avx2;
 #endif

@@ -1378,7 +1378,8 @@ void test_vecarith(int numbits, int iterations, int validate)
         }
 
         // vec powm: tests mul and sqr
-        vecslidingmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
+        // TODO: NEEDS THIS FROM THE VECPM1 CODE
+        //vecslidingmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
         //vecmodexp(vec_p, vec_am, e, vec_n, vec_s, mdata->one, mdata);
 
         // un-monty rep

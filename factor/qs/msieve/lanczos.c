@@ -374,14 +374,30 @@ void yafu_mul_Nx64_64x64_acc(uint64_t *v, uint64_t *x,
 #else
 	for (i = 0; i < n; i++) {
 		uint64_t word = v[i];
-		y[i] ^=  c[ 0*256 + ((uint8_t)(word >>  0)) ]
-		       ^ c[ 1*256 + ((uint8_t)(word >>  8)) ]
-		       ^ c[ 2*256 + ((uint8_t)(word >> 16)) ]
-		       ^ c[ 3*256 + ((uint8_t)(word >> 24)) ]
-		       ^ c[ 4*256 + ((uint8_t)(word >> 32)) ]
-		       ^ c[ 5*256 + ((uint8_t)(word >> 40)) ]
-		       ^ c[ 6*256 + ((uint8_t)(word >> 48)) ]
-		       ^ c[ 7*256 + ((uint8_t)(word >> 56)) ];
+		
+#if defined( __amd64__ ) && defined(__clang__)
+		// llvm compiler 17.0.6 (CLANG: AOCC_5.0.0-Build#1377 2024_09_24)
+		// needed a slightly different formulation of this, for some reason.
+		// Segfault if done with the equivalent code in the #else, or if
+		// we try to group more than 4 terms at a time into the ^.
+		y[i] ^= (c[0ULL    + ((uint8_t)(word >> 0))] ^
+		        c[256ULL  + ((uint8_t)(word >> 8))] ^
+		        c[512ULL  + ((uint8_t)(word >> 16))] ^
+		        c[768ULL  + ((uint8_t)(word >> 24))]);
+		y[i] ^= (c[1024ULL + ((uint8_t)(word >> 32))] ^
+		        c[1280ULL + ((uint8_t)(word >> 40))] ^
+		        c[1536ULL + ((uint8_t)(word >> 48))] ^
+		        c[1792ULL + ((uint8_t)(word >> 56))]);
+#else
+		y[i] ^= c[0 * 256 + ((uint8_t)(word >> 0))]
+			^ c[1 * 256 + ((uint8_t)(word >> 8))]
+			^ c[2 * 256 + ((uint8_t)(word >> 16))]
+			^ c[3 * 256 + ((uint8_t)(word >> 24))]
+			^ c[4 * 256 + ((uint8_t)(word >> 32))]
+			^ c[5 * 256 + ((uint8_t)(word >> 40))]
+			^ c[6 * 256 + ((uint8_t)(word >> 48))]
+			^ c[7 * 256 + ((uint8_t)(word >> 56))];
+#endif
 	}
 #endif
 }

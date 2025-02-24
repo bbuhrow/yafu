@@ -51,11 +51,12 @@ extern "C" {
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || defined(__clang__)
 
-	#define ASM_G __asm__
+	
 	#define ASM_M __asm
 
 	/* for inline assembler on Unix/Linux */
 	#if defined(__unix__)
+		#define ASM_G __asm__
 		#if defined(__x86_64__)
 			#define GCC_ASM64A
 			#define GCC_ASM64X
@@ -69,6 +70,7 @@ extern "C" {
 
 	/* for inline assembler on Windows */
 	#if defined(_WIN32)
+		#define ASM_G __asm
 		#define _ICL_WIN_
 		#if defined(_M_X64)
 			#define MSC_ASM64A

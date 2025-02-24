@@ -149,12 +149,7 @@ void williams_loop(fact_obj_t *fobj)
 	mpz_init(t);	
 
 
-#if !defined(USE_AVX512F) || defined(__MINGW32__)
-    if (1)
-#else
-    if ((fobj->ecm_obj.prefer_gmpecm) ||
-        (!fobj->HAS_AVX512F))
-#endif
+	if (1)
     {
         // prepare for gmp-ecm p+1
         pp1_init(fobj);

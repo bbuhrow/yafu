@@ -60,11 +60,15 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #  ifndef _WIN64
 #    error "64 bit compilation mode is required for MSVC"
 #  endif
-#  include <immintrin.h>
 #  include <intrin.h>
 
 #endif
 
+#if defined(_MSC_VER) && defined(__clang__)
+#include <x86intrin.h>
+#else
+#include <immintrin.h>
+#endif
 
 #ifdef USE_AVX512F
 #  include <immintrin.h>
