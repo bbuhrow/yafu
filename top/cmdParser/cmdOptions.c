@@ -39,6 +39,7 @@ SOFTWARE.
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <math.h>
 
 #ifdef __INTEL_LLVM_COMPILER
 #include <ctype.h>
@@ -276,7 +277,55 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
 };
 
 
+// Function to check if input is valid scientific notation
+int isValidScientificNotation(const char *str) {
+    int i = 0, hasExponent = 0, hasDecimal = 0;
 
+    // Check for optional sign at the beginning
+    if (str[i] == '+' || str[i] == '-') {
+        i++;
+    }
+
+    // Check for digits and optional decimal point
+    while (isdigit(str[i]) || str[i] == '.') {
+        if (str[i] == '.') {
+            if (hasDecimal) {
+                return 0; // Multiple decimal points
+            }
+            hasDecimal = 1;
+        }
+        i++;
+    }
+
+    // Check for exponent part
+    if (str[i] == 'e' || str[i] == 'E') {
+        hasExponent = 1;
+        i++;
+
+        // Check for optional sign after exponent
+        if (str[i] == '+' || str[i] == '-') {
+            i++;
+        }
+
+        // There must be at least one digit after exponent
+        if (!isdigit(str[i])) {
+            return 0;
+        }
+
+        while (isdigit(str[i])) {
+            i++;
+        }
+    }
+
+    // Check if the entire string has been parsed
+    return hasExponent && str[i] == '\0';
+}
+
+// Function to convert scientific notation to unsigned long int
+unsigned long int scientificToULong(const char *str) {
+    double num = strtod(str, NULL); // Convert to double
+    return (unsigned long int)num; // Convert to unsigned long int
+}
 
 // ========================================================================
 int enforce_numeric(char* arg, char *opt)
@@ -317,6 +366,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
 {
     int i;
     char** ptr = NULL;
+    unsigned long int num;
 
     if (strcmp(opt, OptionArray[0]) == 0)
     {
@@ -333,6 +383,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[2]) == 0)
     {
         //"B1ecm"
+
+    if (isValidScientificNotation(arg)) {
+        num = scientificToULong(arg); // Convert to unsigned long int
+        sprintf(arg, "%lu", num); // Convert to string
+    }
         enforce_numeric(arg, opt);
         options->B1ecm = strtoull(arg, ptr, 10);
     }
