@@ -488,9 +488,9 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[16]) == 0)
     {
-        //options->rand_seed = strtoull(arg, ptr, 10);
         printf("attempting to parse user rng seed from %s\n", arg);
-        sscanf(arg, "%lu", &options->rand_seed);
+        options->rand_seed = strtoull(arg, ptr, 10);
+        //sscanf(arg, "%" PRIu64"", &options->rand_seed);
         printf("read: % "PRIu64"\n", options->rand_seed);
     }
     else if (strcmp(opt, OptionArray[17]) == 0)

@@ -638,8 +638,8 @@ void SIQS(fact_obj_t *fobj)
     // fobj->lcg_state = 1946832636881765315ULL;
     // printf("warning: test lcg_state is enabled!\n");
 
-    fobj->seed1 = (uint32_t)(fobj->lcg_state >> 32);
-    fobj->seed2 = (uint32_t)(fobj->lcg_state & 0xffffffff);
+    fobj->seed1 = (uint32_t)(fobj->lcg_state & 0xffffffff );
+    fobj->seed2 = (uint32_t)(fobj->lcg_state >> 32);
 
 	if (sieve_log != NULL)
 	{
@@ -992,8 +992,8 @@ void SIQS(fact_obj_t *fobj)
 
                 // also update the RNG as that could fix it too
                 lcg_rand_64(&fobj->lcg_state);
-                fobj->seed1 = (uint32_t)(fobj->lcg_state >> 32);
-                fobj->seed2 = (uint32_t)(fobj->lcg_state & 0xffffffff);
+                fobj->seed1 = (uint32_t)(fobj->lcg_state & 0xffffffff);
+                fobj->seed2 = (uint32_t)(fobj->lcg_state >> 32 );
 
                 //initialize the bookkeeping for tracking partial relations
                 free(static_conf->cycle_hashtable);
@@ -1084,8 +1084,8 @@ void SIQS(fact_obj_t *fobj)
 
                 // also update the RNG as that could fix it too
                 lcg_rand_64(&fobj->lcg_state);
-                fobj->seed1 = (uint32_t)(fobj->lcg_state >> 32);
-                fobj->seed2 = (uint32_t)(fobj->lcg_state & 0xffffffff);
+                fobj->seed1 = (uint32_t)(fobj->lcg_state & 0xffffffff);
+                fobj->seed2 = (uint32_t)(fobj->lcg_state >> 32 );
 
                 //initialize the bookkeeping for tracking partial relations
                 free(static_conf->cycle_hashtable);
