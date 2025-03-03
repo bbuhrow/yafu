@@ -709,7 +709,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	}
 
 	get_ggnfs_params(fobj, job);
-	job->startq = fobj->nfs_obj.sq_side < 0 ? job->rlim/2 : job->alim/2;
+	//job->startq = fobj->nfs_obj.sq_side < 0 ? job->rlim/2 : job->alim/2;
 	// use alim if side not specified
 
 	// always overwrites previous job files!

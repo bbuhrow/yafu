@@ -213,7 +213,11 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 		qrange_data->default_thread_qrange =
 			MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
 		qrange_data->maxq = 0xffffffff;
-		qrange_data->minq = 0;
+
+		if (fobj->nfs_obj.startq > 0)
+			qrange_data->minq = fobj->nfs_obj.startq;
+		else
+			qrange_data->minq = 0;
 	}
 
 	if (fobj->VFLAG > 0)

@@ -405,8 +405,11 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	// also create a .fb file
 	ggnfs_to_msieve(fobj, job);
 
-	// set the starting q
-	job->startq = job->snfs->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
+	// set the starting q: no longer needed, set by get_ggnfs_params
+	// if (fobj->nfs_obj.startq > 0)
+	// 	job->startq = fobj->nfs_obj.startq;
+	// else
+	// 	job->startq = job->snfs->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
 cleanup:
     for (i = 0; i < npoly; i++)

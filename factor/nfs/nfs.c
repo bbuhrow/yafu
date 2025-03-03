@@ -299,6 +299,8 @@ void nfs(fact_obj_t *fobj)
 
             if (fobj->nfs_obj.rangeq > 0)
             {
+				// user specified a starting and stopping Q, so we sieve
+				// that Q-range only (rest of job is default).
                 job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
             }
 
@@ -1178,10 +1180,10 @@ void nfs(fact_obj_t *fobj)
 				else
 				{
 					// this is a guess, may be completely wrong
-					job.startq = (job.poly->side == RATIONAL_SPQ ? job.rlim : job.alim) / 2;
+					//job.startq = (job.poly->side == RATIONAL_SPQ ? job.rlim : job.alim) / 2;
 
 					sprintf(tmpstr, "nfs: continuing with sieving - could not determine "
-						"last special q; using default startq\n");
+						"last special q; using default startq = %u\n", job.startq);
 				}
 
 				// next step is sieving
@@ -1251,14 +1253,16 @@ void nfs(fact_obj_t *fobj)
 
 				if (fobj->nfs_obj.startq > 0)
 				{
-					// user wants to resume sieving.
+					// user wants to resume sieving at a specified point,
+					// regardless of what the last found special-q may be.
 					job.startq = fobj->nfs_obj.startq;
 					nfs_state = NFS_STATE_SIEVE;
 					sprintf(tmpstr, "nfs: resuming with sieving at special-q = %u\n",
-						last_specialq);
+						job.startq);
 				}
 				else
 				{
+					// resume at the last found special-q
 					job.startq = last_specialq;
 
 					// we found some relations - find the appropriate state
@@ -1459,34 +1463,35 @@ int est_gnfs_size_via_poly(snfs_t *job)
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
 #define GGNFS_TABLE_ROWS 23
-double ggnfs_table[GGNFS_TABLE_ROWS][11] = {
+#define GGNFS_TABLE_COLS 12
+double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
-/* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
-    {75,  300000,   300000,   23, 23,  46, 46, 2.0, 2.0, 11, 2000  },
-    {80,  600000,   600000,   24, 24,  48, 48, 2.1, 2.1, 11, 5000  },
-    {85,  900000,   900000,   24, 24,  48, 48, 2.1, 2.1, 11, 10000 },
-	{90,  1200000,  1200000,  25, 25,  50, 50, 2.3, 2.3, 11, 10000 },
-	{95,  1500000,  1500000,  25, 25,  50, 50, 2.5, 2.5, 12, 20000 },
-	{100, 1800000,  1800000,  26, 26,  52, 52, 2.5, 2.5, 12, 20000 },
-	{105, 2500000,  2500000,  26, 26,  52, 52, 2.5, 2.5, 12, 20000 },
-	{110, 3200000,  3200000,  26, 26,  52, 52, 2.5, 2.5, 13, 40000 },
-	{115, 4500000,  4500000,  27, 27,  54, 54, 2.5, 2.5, 13, 40000 },
-	{120, 5500000,  5500000,  27, 27,  54, 54, 2.5, 2.5, 13, 40000 },
-	{125, 7000000,  7000000,  27, 27,  54, 54, 2.5, 2.5, 13, 40000 },
-	{130, 9000000,  9000000,  28, 28,  56, 56, 2.5, 2.5, 13, 80000 },
-	{135, 11500000, 11500000, 28, 28,  56, 56, 2.6, 2.6, 14, 80000 },
-	{140, 14000000, 14000000, 28, 28,  56, 56, 2.6, 2.6, 14, 80000 },
-	{145, 19000000, 19000000, 28, 28,  56, 56, 2.6, 2.6, 14, 80000 },
-	{150, 25000000, 25000000, 29, 29,  58, 58, 2.6, 2.6, 14, 160000},
-	{155, 32000000, 32000000, 29, 29,  58, 58, 2.6, 2.6, 14, 160000},	
-	{160, 40000000, 40000000, 30, 30,  60, 60, 2.6, 2.6, 14, 160000},	// snfs 232
-	{165, 49000000, 49000000, 30, 30,  60, 60, 2.6, 2.6, 14, 160000},	// 241
-	{170, 59000000, 59000000, 31, 31,  62, 62, 2.6, 2.6, 14, 320000},	// 250
-	{175, 70000000, 70000000, 31, 31,  62, 62, 2.6, 2.6, 15, 320000},	// 259
-	{180, 82000000, 82000000, 31, 31,  62, 62, 2.6, 2.6, 15, 320000},	// 267
-	{185, 100000000,100000000, 32, 32, 64, 64, 2.6, 2.6, 16, 320000}
+/* digits, rlim, alim, lpbr, lpba, mfbr, mfba, rlambda, alambda, siever, start-q, q-range */
+    {75,  300000,   300000,   23, 23,  46, 46, 2.0, 2.0, 11, 150000, 2000  },
+    {80,  600000,   600000,   24, 24,  48, 48, 2.1, 2.1, 11, 300000, 5000  },
+    {85,  900000,   900000,   24, 24,  48, 48, 2.1, 2.1, 11, 450000, 10000 },
+	{90,  1200000,  1200000,  25, 25,  50, 50, 2.3, 2.3, 11, 600000, 10000 },
+	{95,  1500000,  1500000,  25, 25,  50, 50, 2.5, 2.5, 12, 750000, 20000 },
+	{100, 1800000,  1800000,  26, 26,  52, 52, 2.5, 2.5, 12, 900000, 20000 },
+	{105, 2500000,  2500000,  26, 26,  52, 52, 2.5, 2.5, 12, 1250000, 20000 },
+	{110, 3200000,  3200000,  26, 26,  52, 52, 2.5, 2.5, 13, 1600000, 40000 },
+	{115, 4500000,  4500000,  27, 27,  54, 54, 2.5, 2.5, 13, 2250000, 40000 },
+	{120, 5500000,  5500000,  27, 27,  54, 54, 2.5, 2.5, 13, 2750000, 40000 },
+	{125, 7000000,  7000000,  27, 27,  54, 54, 2.5, 2.5, 13, 3500000, 40000 },
+	{130, 9000000,  9000000,  28, 28,  56, 56, 2.5, 2.5, 13, 4500000, 80000 },
+	{135, 11500000, 11500000, 28, 28,  56, 56, 2.6, 2.6, 14, 5750000, 80000 },
+	{140, 14000000, 14000000, 28, 28,  56, 56, 2.6, 2.6, 14, 7000000, 80000 },
+	{145, 19000000, 19000000, 28, 28,  56, 56, 2.6, 2.6, 14, 9500000, 80000 },
+	{150, 25000000, 25000000, 29, 29,  58, 58, 2.6, 2.6, 14, 12500000, 160000},
+	{155, 32000000, 32000000, 29, 29,  58, 58, 2.6, 2.6, 14, 16000000, 160000},	
+	{160, 40000000, 40000000, 30, 30,  60, 60, 2.6, 2.6, 14, 20000000, 160000},	// snfs 232
+	{165, 49000000, 49000000, 30, 30,  60, 60, 2.6, 2.6, 14, 24500000, 160000},	// 241
+	{170, 59000000, 59000000, 31, 31,  62, 62, 2.6, 2.6, 14, 29500000, 320000},	// 250
+	{175, 70000000, 70000000, 31, 31,  62, 62, 2.6, 2.6, 15, 35000000, 320000},	// 259
+	{180, 82000000, 82000000, 31, 31,  62, 62, 2.6, 2.6, 15, 41000000, 320000},	// 267
+	{185, 100000000,100000000, 32, 32, 64, 64, 2.6, 2.6, 16, 50000000, 320000}
 };
 // in light of test sieving, this table might need to be extended
 
@@ -1519,15 +1524,15 @@ double* parse_params_file(char* filename, int *numrows)
 			if ((line[0] == '/') && (line[1] == '/'))
 				continue;
 
-			// read 11 doubles from this line.  If sscanf indicates
+			// read 12 doubles from this line.  If sscanf indicates
 			// it didn't read that many, abort and use the default table
 			// after warning the user that something is wrong.
 			double rl, al;
-			uint32_t d, rlim, alim, lpbr, lpba, mfbr, mfba, sa, qr;
-			int n = sscanf(line, "%u,%u,%u,%u,%u,%u,%u,%lf,%lf,%u,%u",
-				&d, &rlim, &alim, &lpbr, &lpba, &mfbr, &mfba, &rl, &al, &sa, &qr);
+			uint32_t d, rlim, alim, lpbr, lpba, mfbr, mfba, sa, qr, sq;
+			int n = sscanf(line, "%u,%u,%u,%u,%u,%u,%u,%lf,%lf,%u,%u,%u",
+				&d, &rlim, &alim, &lpbr, &lpba, &mfbr, &mfba, &rl, &al, &sa, &sq, &qr);
 
-			if (n != 11)
+			if (n != GGNFS_TABLE_COLS)
 			{
 				printf("Format error in params_file: %s, using built-in params table\n",
 					filename);
@@ -1540,21 +1545,23 @@ double* parse_params_file(char* filename, int *numrows)
 			else
 			{
 				if ((*numrows) == 0)
-					table = (double*)xmalloc(11 * sizeof(double));
+					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
 				else
-					table = (double*)xrealloc(table, ((*numrows) + 1) * 11 * sizeof(double));
+					table = (double*)xrealloc(table, ((*numrows) + 1) * 
+						GGNFS_TABLE_COLS * sizeof(double));
 
-				table[(*numrows) * 11 + 0] = d;
-				table[(*numrows) * 11 + 1] = rlim;
-				table[(*numrows) * 11 + 2] = alim;
-				table[(*numrows) * 11 + 3] = lpbr;
-				table[(*numrows) * 11 + 4] = lpba;
-				table[(*numrows) * 11 + 5] = mfbr;
-				table[(*numrows) * 11 + 6] = mfba;
-				table[(*numrows) * 11 + 7] = rl;
-				table[(*numrows) * 11 + 8] = al;
-				table[(*numrows) * 11 + 9] = sa;
-				table[(*numrows) * 11 + 10] = qr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 0] = d;
+				table[(*numrows) * GGNFS_TABLE_COLS + 1] = rlim;
+				table[(*numrows) * GGNFS_TABLE_COLS + 2] = alim;
+				table[(*numrows) * GGNFS_TABLE_COLS + 3] = lpbr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 4] = lpba;
+				table[(*numrows) * GGNFS_TABLE_COLS + 5] = mfbr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 6] = mfba;
+				table[(*numrows) * GGNFS_TABLE_COLS + 7] = rl;
+				table[(*numrows) * GGNFS_TABLE_COLS + 8] = al;
+				table[(*numrows) * GGNFS_TABLE_COLS + 9] = sa;
+				table[(*numrows) * GGNFS_TABLE_COLS + 10] = sq;
+				table[(*numrows) * GGNFS_TABLE_COLS + 11] = qr;
 
 				(*numrows)++;
 			}
@@ -1600,13 +1607,13 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			table = (double**)xmalloc(parsed_rows * sizeof(double*));
 			for (i = 0; i < parsed_rows; i++)
 			{
-				table[i] = (double*)xmalloc(11 * sizeof(double));
-				for (j = 0; j < 11; j++)
+				table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
+				for (j = 0; j < GGNFS_TABLE_COLS; j++)
 				{
 					if ((j == 7) || (j == 8))
-						table[i][j] = parsed_table[i * 11 + j]; 
+						table[i][j] = parsed_table[i * GGNFS_TABLE_COLS + j];
 					else
-						table[i][j] = floor(parsed_table[i * 11 + j] + 0.5);
+						table[i][j] = floor(parsed_table[i * GGNFS_TABLE_COLS + j] + 0.5);
 				}
 			}
 			table_rows = parsed_rows;
@@ -1622,7 +1629,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				printf("parsed table:\n");
 				for (i = 0; i < parsed_rows; i++)
 				{
-					for (j = 0; j < 11; j++)
+					for (j = 0; j < GGNFS_TABLE_COLS; j++)
 					{
 						if ((j == 7) || (j == 8))
 							printf("%1.4f,\t", table[i][j]);
@@ -1643,8 +1650,8 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		{
 			int j;
 
-			table[i] = (double*)xmalloc(11 * sizeof(double));
-			for (j = 0; j < 11; j++)
+			table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
+			for (j = 0; j < GGNFS_TABLE_COLS; j++)
 			{
 				if ((j == 7) || (j == 8))
 					table[i][j] = ggnfs_table[i][j];
@@ -1898,8 +1905,12 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
 			//interp
-			job->qrange = table[i+1][10] - 
-				(uint32_t)(scale * (double)(table[i+1][10] - table[i][10]));
+			job->startq = table[i + 1][10] -
+				(uint32_t)(scale * (double)(table[i + 1][10] - table[i][10]));
+
+			//interp
+			job->qrange = table[i+1][11] - 
+				(uint32_t)(scale * (double)(table[i+1][11] - table[i][11]));
 
 			found = 1;
 		}
@@ -1937,7 +1948,8 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			siever = table[0][9];
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
-			job->qrange = table[0][10];
+			job->startq = table[0][10];
+			job->qrange = table[0][11];
 		}
 		else
 		{
@@ -1968,7 +1980,8 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			siever = table[table_rows -1][9];
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
-			job->qrange = table[table_rows -1][10];
+			job->startq = table[table_rows - 1][10];
+			job->qrange = table[table_rows - 1][11];
 		}
 	}
 
@@ -1986,6 +1999,21 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				job->min_rels, fobj->nfs_obj.minrels);
 		}
 		job->min_rels = fobj->nfs_obj.minrels;
+	}
+
+	if ((fobj->nfs_obj.startq > 0) && (fobj->nfs_obj.rangeq == 0))
+	{
+		// user specified startq but not a full range.  Normal job
+		// with a modified startq.
+		if (fobj->VFLAG > 0)
+		{
+			logprint_oc(fobj->flogname, "a",
+				"nfs: overriding default startq = %u with user supplied startq = %u\n",
+				job->startq, fobj->nfs_obj.startq);
+			printf("nfs: overriding default min_rels = %u with user supplied min_rels = %u\n",
+				job->startq, fobj->nfs_obj.startq);
+		}
+		job->startq = fobj->nfs_obj.startq;
 	}
 
 	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
@@ -2154,7 +2182,6 @@ void copy_job(nfs_job_t *src, nfs_job_t *dest)
 	}
 	return;
 }
-
 
 void mpz_polys_init(mpz_polys_t* poly) {
     mpz_poly_init(&poly->rat);

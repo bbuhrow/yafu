@@ -1717,26 +1717,32 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.siever = options->ggnfs_siever;
     fobj->nfs_obj.startq = options->sieveQstart;
     fobj->nfs_obj.rangeq = options->sieveQstop;
-    if (fobj->nfs_obj.rangeq < fobj->nfs_obj.startq)
+    if ((fobj->nfs_obj.rangeq < fobj->nfs_obj.startq) && (fobj->nfs_obj.rangeq > 0))
     {
         printf("ignoring sieve stop < sieve start\n");
     }
     else
     {
-        fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
+        // if both start and stop were specified then we sieve over
+        // just that range.  If just start then we modify the 
+        // default startq and sieve normally.
+        if (fobj->nfs_obj.rangeq > 0)
+            fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
     }
     if (options->sieveQstart > 0)
     {
         if ((options->sieveQstart == 1) && (options->sieveQstop == 1))
         {
+            // this is option -ns with no arguments.  Sieve only 
+            // with default parameters.
             fobj->nfs_obj.startq = fobj->nfs_obj.rangeq = 0;
+            fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
         }
-        fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
     }
 
     fobj->nfs_obj.polystart = options->polystart;
     fobj->nfs_obj.polyrange = options->polystop;
-    if (fobj->nfs_obj.rangeq < fobj->nfs_obj.startq)
+    if (fobj->nfs_obj.polyrange < fobj->nfs_obj.polystart)
     {
         printf("ignoring poly stop < poly start\n");
     }

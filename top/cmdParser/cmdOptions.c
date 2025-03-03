@@ -733,12 +733,13 @@ void applyOpt(char* opt, char* arg, options_t* options)
             //special Q in the format X,Y
             options->sieveQstart = strtoul(arg, nextptr, 10);
 
-            if (*nextptr[0] != ',')
+            options->sieveQstop = 0;
+            if (*nextptr[0] == ',')
             {
-                printf("format of sieving argument is START,STOP\n");
-                exit(1);
+                //printf("format of sieving argument is START,STOP\n");
+                options->sieveQstop = strtoul(*nextptr + 1, NULL, 10);
             }
-            options->sieveQstop = strtoul(*nextptr + 1, NULL, 10);
+            
         }
         else
         {

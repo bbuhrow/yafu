@@ -274,7 +274,8 @@ void mpz_polys_free(mpz_polys_t* poly);
 extern int NFS_ABORT;
 extern int IGNORE_NFS_ABORT;
 #define GGNFS_TABLE_ROWS 23
-extern double ggnfs_table[GGNFS_TABLE_ROWS][11];
+#define GGNFS_TABLE_COLS 12
+extern double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS];
 
 
 
