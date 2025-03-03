@@ -1403,9 +1403,9 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params)
 			fprintf(out,"mfba: %u\n",job->mfba);
 		
 		if (missing_params & PARAM_FLAG_RLAMBDA)
-			fprintf(out,"rlambda: %.1lf\n",job->rlambda);
+			fprintf(out,"rlambda: %.4lf\n",job->rlambda);
 		if (missing_params & PARAM_FLAG_ALAMBDA)
-			fprintf(out,"alambda: %.1lf\n",job->alambda);
+			fprintf(out,"alambda: %.4lf\n",job->alambda);
 		
 		fclose(out);
 	}

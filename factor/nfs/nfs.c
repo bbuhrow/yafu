@@ -2001,16 +2001,16 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->min_rels = fobj->nfs_obj.minrels;
 	}
 
-	if ((fobj->nfs_obj.startq > 0) && (fobj->nfs_obj.rangeq == 0))
+	if (fobj->nfs_obj.startq > 0) // && (fobj->nfs_obj.rangeq == 0))
 	{
-		// user specified startq but not a full range.  Normal job
-		// with a modified startq.
+		// user specified startq, either by itself or as part of
+		// a custom range.  override the table start-q
 		if (fobj->VFLAG > 0)
 		{
 			logprint_oc(fobj->flogname, "a",
 				"nfs: overriding default startq = %u with user supplied startq = %u\n",
 				job->startq, fobj->nfs_obj.startq);
-			printf("nfs: overriding default min_rels = %u with user supplied min_rels = %u\n",
+			printf("nfs: overriding default startq = %u with user supplied startq = %u\n",
 				job->startq, fobj->nfs_obj.startq);
 		}
 		job->startq = fobj->nfs_obj.startq;
