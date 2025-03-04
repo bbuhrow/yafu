@@ -27,6 +27,7 @@ code to the public domain.
 #include "batch_factor.h"
 #endif
 #include "microecm.h"
+#include "tinyecm.h"
 
 //#define SIQSDEBUG 1
 

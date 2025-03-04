@@ -38,6 +38,7 @@ SOFTWARE.
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <ctype.h>  // isdigit, isspace
 
 // this function prints the help information specified by usageHelp
 // and OptionHelp.

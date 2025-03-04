@@ -25,6 +25,10 @@ benefit from your work.
 #include <unistd.h>
 #endif
 
+#ifdef _MSC_VER
+#include <direct.h>		// _getcwd
+#endif
+
 #ifdef USE_NFS
 
 int NFS_ABORT;
@@ -458,7 +462,7 @@ void nfs(fact_obj_t *fobj)
                 // so that we can keep sieving until it is actually time to
                 // filter.
 				gettimeofday(&ustart, NULL);
-                do_sieving(fobj, &job);
+                do_sieving_nfs(fobj, &job);
 				gettimeofday(&ustop, NULL);
 				t_time = ytools_difftime(&ustart, &ustop);
 				fobj->nfs_obj.sieve_time += t_time;
@@ -609,7 +613,11 @@ void nfs(fact_obj_t *fobj)
 
 			// Specify work directory as an absolute path
 			char cwdBuf[4097];
+#ifdef _MSC_VER
+			_getcwd(cwdBuf, 4097);
+#else
 			getcwd(cwdBuf, 4097);
+#endif
 			sprintf(syscmd + strlen(syscmd), "-w %s/cadoWorkdir", cwdBuf);
 
 			printf("nfs: cmdline: %s\n", syscmd);
@@ -968,9 +976,11 @@ void nfs(fact_obj_t *fobj)
 		case NFS_STATE_FILTCHECK:
 			if (job.current_rels >= job.min_rels)
 			{
-				if (fobj->VFLAG > 0)
+				if (fobj->VFLAG >= 0)
+				{
 					printf("nfs: found %u relations, need at least %u, proceeding with filtering ...\n",
-					job.current_rels, job.min_rels);
+						job.current_rels, job.min_rels);
+				}
 				
 				nfs_state = NFS_STATE_FILTER;
 			}
@@ -994,11 +1004,12 @@ void nfs(fact_obj_t *fobj)
 					(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE))
 				{
 					if (fobj->VFLAG >= 0)
+					{
 						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
-							job.current_rels, job.min_rels, est_time / 3600, 
+							job.current_rels, job.min_rels, est_time / 3600,
 							(est_time % 3600) / 60);
-
+					}
 
 					logprint_oc(fobj->flogname, "a", "nfs: found %u relations, need at least %u "
 						"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
@@ -1010,10 +1021,12 @@ void nfs(fact_obj_t *fobj)
 				else
 				{
 					if (fobj->VFLAG >= 0)
+					{
 						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), sieving not selected, finishing ...\n",
-							job.current_rels, job.min_rels, est_time / 3600, 
+							job.current_rels, job.min_rels, est_time / 3600,
 							(est_time % 3600) / 60);
+					}
 
 					nfs_state = NFS_STATE_DONE;
 				}
@@ -2001,7 +2014,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->min_rels = fobj->nfs_obj.minrels;
 	}
 
-	if (fobj->nfs_obj.startq > 0) // && (fobj->nfs_obj.rangeq == 0))
+	if (fobj->nfs_obj.startq > 0)
 	{
 		// user specified startq, either by itself or as part of
 		// a custom range.  override the table start-q

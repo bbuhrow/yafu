@@ -34,7 +34,8 @@ code to the public domain.
 #if defined(__unix__)
 #include <termios.h>
 #elif defined(_MSC_VER)
-#include <io.h>
+#include <io.h>         // _isatty
+#include <direct.h>     // _getcwd
 #endif
 
 #ifdef __INTEL_LLVM_COMPILER
@@ -152,7 +153,11 @@ int main(int argc, char *argv[])
     {
         if (ini_success)
         {
+#ifdef _MSC_VER
+            _getcwd(yafu_obj.CWD, 1024);
+#else
             getcwd(yafu_obj.CWD, 1024);
+#endif
         }
         else
         {
@@ -1154,7 +1159,11 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
     if (strlen(cwd) == 0)
     {
         char buf[1024];
+#ifdef _MSC_VER
+        _getcwd(buf, 1024);
+#else
         getcwd(buf, 1024);
+#endif
         logprint(logfile, "Could not parse yafu.ini from %s\n\n", buf);
     }
     else
@@ -1199,7 +1208,11 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
         if (strlen(cwd) == 0)
         {
             char buf[1024];
+#ifdef _MSC_VER
+            _getcwd(buf, 1024);
+#else
             getcwd(buf, 1024);
+#endif
             printf("Could not parse yafu.ini from %s\n\n", buf);
         }
         else

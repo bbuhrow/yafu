@@ -216,7 +216,7 @@ void get_polysearch_params(fact_obj_t* fobj, uint64_t* start, uint64_t* range);
 void init_poly_threaddata(nfs_threaddata_t* t, msieve_obj* obj,
     mp_t* mpN, factor_list_t* factor_list, int tid, uint32_t flags, uint32_t deadline, 
     uint64_t start, uint64_t stop);
-void do_sieving(fact_obj_t* fobj, nfs_job_t* job);
+void do_sieving_nfs(fact_obj_t* fobj, nfs_job_t* job);
 void trial_sieve(fact_obj_t* fobj); // external test sieve frontend
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);
 void savefile_concat(char* filein, char* fileout, msieve_obj* mobj);

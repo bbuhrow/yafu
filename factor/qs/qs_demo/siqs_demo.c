@@ -27,6 +27,9 @@ code to the public domain.
 #include <stdio.h>
 #include "cmdOptions.h"
 #include <immintrin.h>
+#ifdef _MSC_VER
+#include <io.h> //_isatty
+#endif
 
 // function to print the splash screen to file/screen
 void print_splash(info_t* comp_info, int is_cmdline_run, FILE *logfile, 

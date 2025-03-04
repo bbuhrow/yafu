@@ -767,7 +767,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	return minscore_id;
 }
 
-void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
+void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 {
 	nfs_threaddata_t *thread_data;
 	int i;
