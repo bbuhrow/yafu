@@ -56,7 +56,7 @@ typedef struct
     int alloc_a;
     uint32_t minq;
     uint32_t maxq;
-    uint32_t default_thread_qrange;
+    uint32_t thread_qrange;
 } qrange_data_t;
 
 enum nfs_thread_command {

@@ -203,15 +203,14 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 		// and put bounds on new assignments.
 		printf("nfs: configuring custom q-range %u-%u, splitting over %u threads\n",
 			job->startq, job->startq + fobj->nfs_obj.rangeq, fobj->THREADS);
-		qrange_data->default_thread_qrange =
+		qrange_data->thread_qrange =
 			ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
 		qrange_data->minq = job->startq;
 		qrange_data->maxq = job->startq + fobj->nfs_obj.rangeq;
 	}
 	else
 	{
-		qrange_data->default_thread_qrange =
-			MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
+		qrange_data->thread_qrange = job->qrange;
 		qrange_data->maxq = 0xffffffff;
 
 		if (fobj->nfs_obj.startq > 0)
@@ -283,7 +282,7 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 			{
 				// an unfinished range... work towards finishing it.
 				qrange->qrange_start = qrange_data->qranges_a[i].qrange_end;
-				qrange->qrange_end = qrange->qrange_start + qrange_data->default_thread_qrange;
+				qrange->qrange_end = qrange->qrange_start + qrange_data->thread_qrange;
 				if (qrange->qrange_end > qrange_data->qranges_a[i + 1].qrange_start)
 					qrange->qrange_end = qrange_data->qranges_a[i + 1].qrange_start;
 				return qrange;
@@ -294,7 +293,7 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 		{
 			qrange->qrange_start = qrange_data->qranges_a[i].qrange_end;
 			qrange->qrange_end = qrange_data->qranges_a[i].qrange_end +
-				qrange_data->default_thread_qrange;
+				qrange_data->thread_qrange;
 		}
 	}
 	else
@@ -306,7 +305,7 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 			{
 				// an unfinished range... work towards finishing it.
 				qrange->qrange_start = qrange_data->qranges_r[i].qrange_end;
-				qrange->qrange_end = qrange->qrange_start + qrange_data->default_thread_qrange;
+				qrange->qrange_end = qrange->qrange_start + qrange_data->thread_qrange;
 				if (qrange->qrange_end > qrange_data->qranges_r[i + 1].qrange_start)
 					qrange->qrange_end = qrange_data->qranges_r[i + 1].qrange_start;
 				return qrange;
@@ -317,7 +316,7 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 		{
 			qrange->qrange_start = qrange_data->qranges_r[i].qrange_end;
 			qrange->qrange_end = qrange_data->qranges_r[i].qrange_end +
-				qrange_data->default_thread_qrange;
+				qrange_data->thread_qrange;
 		}
 	}
 
@@ -777,6 +776,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	uint32_t totalrels;
 	uint32_t custom_qstart = 0;
 	uint32_t custom_qrange = 0;
+	int make_afb = 0;
 
 	side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
 
@@ -787,7 +787,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	if (fobj->nfs_obj.rangeq > 0)
 	{
 		custom_qstart = fobj->nfs_obj.startq;
-		custom_qrange = qrange_data->default_thread_qrange;
+		custom_qrange = qrange_data->thread_qrange;
 	}
 
 	for (i = 0; i < fobj->THREADS; i++)
@@ -817,7 +817,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 			if ((qrange_data->num_a == 0) && (qrange_data->num_r == 0))
 			{
 				thread_data[i].job.startq = job->startq;
-				thread_data[i].job.qrange = qrange_data->default_thread_qrange;
+				thread_data[i].job.qrange = qrange_data->thread_qrange;
 			}
 			else
 			{
@@ -874,6 +874,22 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
             fclose(logfile);
         }
     }
+
+	if (0)
+	{
+		// it would be faster to write the .afb once rather than
+		// recompute it for every qrange that is run.  But if it
+		// doesn't get deleted when the job completes that could
+		// be problematic.  Need a way to query if existing .afb's
+		// are valid for the current run.  Not sure how to do that yet.
+		char syscmd[1024];
+		
+		sprintf(syscmd, "%s -b %s -k -c 0 -F", job->sievername, fobj->nfs_obj.job_infile);
+
+		if (fobj->VFLAG > 1) printf("syscmd: %s\n", syscmd);
+		if (fobj->VFLAG > 1) fflush(stdout);
+		system(syscmd);
+	}
 
 	// create a new lasieve process in each thread and watch it
 	for (i = 0; i < fobj->THREADS; i++)
