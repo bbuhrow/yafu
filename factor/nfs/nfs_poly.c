@@ -1076,6 +1076,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			free(t->logfilename);
 			free(t->polyfilename);
 			msieve_obj_free(t->obj);
+			t->obj = NULL;
 
 			// exit the loop without restarting if abort is asserted.
 			if (NFS_ABORT)
@@ -1159,6 +1160,19 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
             }
             else
             {
+				// send a stop signal to all active threads doing standard polyselect.
+				for (i = 0; i < fobj->THREADS; i++)
+				{
+					if ((thread_data[i].obj != NULL) && (!special_polyfind))
+					{
+						if (fobj->VFLAG > 0)
+						{
+							printf("nfs: sending stop signal to thread %d\n", i);
+						}
+						thread_data[i].obj->flags |= MSIEVE_FLAG_STOP_SIEVING;
+					}
+				}
+				
                 // announce we are finishing and don't restart the thread.
 				if ((fobj->VFLAG > 0) && (!special_polyfind))
                 {
