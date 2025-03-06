@@ -1162,12 +1162,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 							strncpy(tmpoutfile, t->outfilename, 80);
 							sprintf(t->outfilename, "poly_test_sieve.%d.dat", tid);
 							copy_job(job, &t->job);
-
 							
 							gettimeofday(&teststart, NULL);
-
 							lasieve_launcher((void*)t);
-
 							gettimeofday(&teststop, NULL);
 							
 							double dtime = ytools_difftime(&teststart, &teststop);
@@ -1183,13 +1180,11 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 								printf("nfs: total estimated sieving time with this poly is %1.4f "
 									"sec with %d threads\n", total_est_sec, fobj->THREADS);
 							}
-							logprint_oc(fobj->flogname, "a",
-								"nfs: test sieve of new best poly with score %1.4e "
-								"found %u relations in %1.4f seconds\n"
-								"nfs: total estimated sieving time with this poly is %1.4f "
-								"sec with %d threads\n",
-								bestscore, t->job.current_rels, dtime,
-								total_est_sec, fobj->THREADS);
+							logprint_oc(fobj->flogname, "a", "nfs: test sieve of new best poly with score %1.4e "
+								"found %u relations in %1.4f seconds\n",
+								bestscore, t->job.current_rels, dtime);
+							logprint_oc(fobj->flogname, "a", "nfs: total estimated sieving time with this poly is %1.4f "
+								"sec with %d threads\n", total_est_sec, fobj->THREADS);
 
 							remove(t->outfilename);
 							strncpy(t->outfilename, tmpoutfile, 80);

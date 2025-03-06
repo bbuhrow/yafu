@@ -155,7 +155,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.gnfs_exponent = 0;
     fobj->nfs_obj.gnfs_multiplier = 0;
     fobj->nfs_obj.gnfs_tune_freq = 0;
-    fobj->nfs_obj.min_digits = 85;
+    fobj->nfs_obj.min_digits = 80;
     fobj->nfs_obj.filter_min_rels_nudge = 1.05;	// raise min_rels bounds by 5%
                                                     // on unsuccessful filtering
     fobj->nfs_obj.siever = 0;					//default, use automatic selection
@@ -181,6 +181,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.snfs_testsieve_threshold = 160;
     *fobj->nfs_obj.filearg = '\0';
     fobj->nfs_obj.minrels = 0;                      // 0 = default stopping point (heuristic)
+    fobj->nfs_obj.poly_testsieve = 390;
+    fobj->nfs_obj.poly_percent_max = 8;
 
     fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
@@ -213,7 +215,6 @@ void init_factobj(fact_obj_t* fobj)
     fobj->autofact_obj.want_output_expressions = 1;
     fobj->autofact_obj.qs_gnfs_xover = 95;
     fobj->autofact_obj.qs_snfs_xover = 95;
-    // use xover even when timing info is available
     fobj->autofact_obj.prefer_xover = 0;
     fobj->autofact_obj.want_only_1_factor = 0;
     fobj->autofact_obj.no_ecm = 0;
@@ -531,6 +532,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->nfs_obj.snfs_testsieve_threshold = src->nfs_obj.snfs_testsieve_threshold;
     strcpy(dest->nfs_obj.filearg, src->nfs_obj.filearg);
     dest->nfs_obj.skip_snfs_check = src->nfs_obj.skip_snfs_check;
+    dest->nfs_obj.poly_percent_max = src->nfs_obj.poly_percent_max;
+    dest->nfs_obj.poly_testsieve = src->nfs_obj.poly_testsieve;
 
     dest->nfs_obj.polybatch = src->nfs_obj.polybatch;
     strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
