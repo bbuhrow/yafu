@@ -1167,9 +1167,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 
 void *lasieve_launcher(void *ptr)
 {
-	//top level sieving function which performs all work for a single
-	//new a coefficient.  has pthread calling conventions, meant to be
-	//used in a multi-threaded environment
+	// launch a gnfs-lasieve job
 	nfs_threaddata_t *thread_data = (nfs_threaddata_t *)ptr;
 	fact_obj_t *fobj = thread_data->fobj;
 	char syscmd[GSTR_MAXSIZE], tmpstr[GSTR_MAXSIZE], side[GSTR_MAXSIZE];	

@@ -83,7 +83,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
-    "nfs_params"};
+    "nfs_params", "poly_testsieve", "poly_percent_max"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -209,7 +209,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : only run stage 1 of msieve nfs poly generation",
     "                  : only run stage 2 sizeopt of msieve nfs poly generation",
     "                  : only run stage 2 rootopt of msieve nfs poly generation",
-    "(String)          : file containing nfs comma-delimited parameters"
+    "(String)          : file containing nfs comma-delimited parameters",
+    "(Integer < 32-bit): input size threshold (in bits) above which poly select will test sieve to estimate sieve time as a stopping condition",
+    "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -242,7 +244,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
-    1            // "nfs_params"
+    1,1,1        // "nfs_params", "poly_testsieve", "poly_percent_thresh"
 };
 
 // command line option aliases, specified by '--'
@@ -273,7 +275,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    ""
+    "", "", ""
 };
 
 
@@ -589,8 +591,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         //argument "xover"
         sscanf(arg, "%lf", &options->xover);
-        //fobj->nfs_obj.min_digits = fobj->autofact_obj.qs_gnfs_xover;
-        //fobj->autofact_obj.prefer_xover = 1;
     }
     else if (strcmp(opt, OptionArray[33]) == 0)
     {
@@ -1241,6 +1241,16 @@ void applyOpt(char* opt, char* arg, options_t* options)
         else
             printf("*** argument to params_file too long, ignoring ***\n");
     }
+    else if (strcmp(opt, OptionArray[121]) == 0)
+    {
+        // poly_testsieve
+        options->poly_testsieve = atoi(arg);
+    }
+    else if (strcmp(opt, OptionArray[122]) == 0)
+    {
+        // poly_percent_max
+        options->poly_percent_max = atoi(arg);
+    }
     else
     {
         int i;
@@ -1374,6 +1384,8 @@ options_t* initOpt(void)
 #endif
     options->skip_snfscheck = 0;
     options->minrels = 0;
+    options->poly_percent_max = 8;
+    options->poly_testsieve = 390;
     
     // prime finding options
     options->soe_blocksize = 32768;

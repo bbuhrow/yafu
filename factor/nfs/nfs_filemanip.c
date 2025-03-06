@@ -688,7 +688,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	fclose(in);
 
 	if (fobj->VFLAG > 0)
-		printf("nfs: new best score = %0.4e, new best poly = %d of %d\n", bestscore, bestline, count);
+		printf("nfs: best score = %0.4e, best poly = %d of %d\n", bestscore, bestline, count);
 
 	if (highest_c5 > 0)
 		job->last_leading_coeff = highest_c5;
