@@ -395,7 +395,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	// copy the best job to the object that will be returned from this function
 	copy_job(best, job);
 
-	// re-compute the min_rels, in case that changed
+	// re-compute the min_rels, in case LPB's changed
 	nfs_set_min_rels(job);
 
 	// make the file and fill it
@@ -1371,6 +1371,10 @@ void get_default_poly5_norms(double digits, double* norm1, double* norm2, double
 	j = digits - low[0];
 	k = high[0] - digits;
 
+	//printf("poly-parmas lo entry: %1.4f\n", low[0]);
+	//printf("poly-parmas hi entry: %1.4f\n", high[0]);
+	//printf("dist, j-weight, k-weight: %1.4f, %1.4f, %1.4f\n", dist, j, k);
+
 	/* use exponential interpolation */
 	*norm1 = exp((log(low[1]) * k +
 		log(high[1]) * j) / dist);
@@ -1378,6 +1382,11 @@ void get_default_poly5_norms(double digits, double* norm1, double* norm2, double
 		log(high[2]) * j) / dist);
 	*min_e = exp((log(low[3]) * k +
 		log(high[3]) * j) / dist);
+
+	//printf("norm1 lo,hi,interp = %1.4e, %1.4e, %1.4e\n", low[1], high[1], *norm1);
+	//printf("norm2 lo,hi,interp = %1.4e, %1.4e, %1.4e\n", low[2], high[2], *norm2);
+	//printf("min_e lo,hi,interp = %1.4e, %1.4e, %1.4e\n", low[3], high[3], *min_e);
+
 }
 
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
@@ -1496,8 +1505,10 @@ void get_polysearch_params(fact_obj_t *fobj, uint64_t*start, uint64_t*range)
 	//search smallish chunks of the space in parallel until we've hit our deadline
 	if (fobj->nfs_obj.polystart > 0)
 		*start = fobj->nfs_obj.polystart;
+	else if (gmp_base10(fobj->nfs_obj.gmp_n) <= 120)
+		*start = 120ULL;		// default leading coefficient
 	else
-		*start = 8192ULL;		// default leading coefficient
+		*start = 2048ULL;		// default leading coefficient
 	
 	if (fobj->nfs_obj.polyrange > 0)
 	{

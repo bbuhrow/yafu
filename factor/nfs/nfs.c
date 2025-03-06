@@ -74,9 +74,26 @@ int nfs_check_special_case(fact_obj_t *fobj)
     int size = gmp_base10(fobj->nfs_obj.gmp_n);
 	// below a certain amount, revert to SIQS
 
-    if ((size < fobj->autofact_obj.qs_snfs_xover) ||
-        ((size < fobj->nfs_obj.min_digits) && (fobj->autofact_obj.has_snfs_form < 1)))
+	if ((size < fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form > 0))
 	{
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: snfs size %u < qs_snfs_xover %u (form %u), using SIQS\n",
+				size, fobj->autofact_obj.qs_snfs_xover, fobj->autofact_obj.has_snfs_form);
+		}
+		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+		SIQS(fobj);
+		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+		return 1;
+	}
+
+	if ((size < fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 1))
+	{
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: gnfs size %u < qs_gnfs_xover %u, using SIQS\n",
+				size, fobj->autofact_obj.qs_snfs_xover);
+		}
 		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);
 		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
@@ -1475,36 +1492,35 @@ int est_gnfs_size_via_poly(snfs_t *job)
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
-#define GGNFS_TABLE_ROWS 23
-#define GGNFS_TABLE_COLS 12
+
 double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
-/* digits, rlim, alim, lpbr, lpba, mfbr, mfba, rlambda, alambda, siever, start-q, q-range */
-    {75,  300000,   300000,   23, 23,  46, 46, 2.0, 2.0, 11, 150000, 1000  },
-    {80,  600000,   600000,   24, 24,  48, 48, 2.1, 2.1, 11, 300000, 1000  },
-    {85,  900000,   900000,   24, 24,  48, 48, 2.1, 2.1, 11, 450000, 1000 },
-	{90,  1200000,  1200000,  25, 25,  50, 50, 2.3, 2.3, 11, 600000, 1000 },
-	{95,  1500000,  1500000,  25, 25,  50, 50, 2.5, 2.5, 12, 750000, 2000 },
-	{100, 1800000,  1800000,  26, 26,  52, 52, 2.5, 2.5, 12, 900000, 2000 },
-	{105, 2500000,  2500000,  26, 26,  52, 52, 2.5, 2.5, 12, 1250000, 2000 },
-	{110, 3200000,  3200000,  26, 26,  52, 52, 2.5, 2.5, 13, 1600000, 4000 },
-	{115, 4500000,  4500000,  27, 27,  54, 54, 2.5, 2.5, 13, 2250000, 4000 },
-	{120, 5500000,  5500000,  27, 27,  54, 54, 2.5, 2.5, 13, 2750000, 4000 },
-	{125, 7000000,  7000000,  27, 27,  54, 54, 2.5, 2.5, 13, 3500000, 4000 },
-	{130, 9000000,  9000000,  28, 28,  56, 56, 2.5, 2.5, 13, 4500000, 8000 },
-	{135, 11500000, 11500000, 28, 28,  56, 56, 2.6, 2.6, 14, 5750000, 8000 },
-	{140, 14000000, 14000000, 28, 28,  56, 56, 2.6, 2.6, 14, 7000000, 8000 },
-	{145, 19000000, 19000000, 28, 28,  56, 56, 2.6, 2.6, 14, 9500000, 8000 },
-	{150, 25000000, 25000000, 29, 29,  58, 58, 2.6, 2.6, 14, 12500000, 16000},
-	{155, 32000000, 32000000, 29, 29,  58, 58, 2.6, 2.6, 14, 16000000, 16000},	
-	{160, 40000000, 40000000, 30, 30,  60, 60, 2.6, 2.6, 14, 20000000, 16000},	// snfs 232
-	{165, 49000000, 49000000, 30, 30,  60, 60, 2.6, 2.6, 14, 24500000, 16000},	// 241
-	{170, 59000000, 59000000, 31, 31,  62, 62, 2.6, 2.6, 14, 29500000, 32000},	// 250
-	{175, 70000000, 70000000, 31, 31,  62, 62, 2.6, 2.6, 15, 35000000, 32000},	// 259
-	{180, 82000000, 82000000, 31, 31,  62, 62, 2.6, 2.6, 15, 41000000, 32000},	// 267
-	{185, 100000000,100000000, 32, 32, 64, 64, 2.6, 2.6, 16, 50000000, 32000}
+/* digits, rlim, alim, lpbr, lpba, mfbr, mfba, rlambda, alambda, siever, start-q, q-range, minrels */
+    {75,  300000,   300000,   23, 23,  46, 46, 2.0, 2.0, 11, 150000, 1000   , 0},
+    {80,  600000,   600000,   24, 24,  48, 48, 2.1, 2.1, 11, 300000, 1000   , 0},
+    {85,  900000,   900000,   24, 24,  48, 48, 2.1, 2.1, 11, 450000, 1000   , 0},
+	{90,  1200000,  1200000,  25, 25,  50, 50, 2.3, 2.3, 11, 600000, 1000   , 0},
+	{95,  1500000,  1500000,  25, 25,  50, 50, 2.5, 2.5, 12, 750000, 2000   , 0},
+	{100, 1800000,  1800000,  26, 26,  52, 52, 2.5, 2.5, 12, 900000, 2000   , 0},
+	{105, 2500000,  2500000,  26, 26,  52, 52, 2.5, 2.5, 12, 1250000, 2000  , 0},
+	{110, 3200000,  3200000,  26, 26,  52, 52, 2.5, 2.5, 13, 1600000, 4000  , 0},
+	{115, 4500000,  4500000,  27, 27,  54, 54, 2.5, 2.5, 13, 2250000, 4000  , 0},
+	{120, 5500000,  5500000,  27, 27,  54, 54, 2.5, 2.5, 13, 2750000, 4000  , 0},
+	{125, 7000000,  7000000,  27, 27,  54, 54, 2.5, 2.5, 13, 3500000, 4000  , 0},
+	{130, 9000000,  9000000,  28, 28,  56, 56, 2.5, 2.5, 13, 4500000, 8000  , 0},
+	{135, 11500000, 11500000, 28, 28,  56, 56, 2.6, 2.6, 14, 5750000, 8000  , 0},
+	{140, 14000000, 14000000, 28, 28,  56, 56, 2.6, 2.6, 14, 7000000, 8000  , 0},
+	{145, 19000000, 19000000, 28, 28,  56, 56, 2.6, 2.6, 14, 9500000, 8000  , 0},
+	{150, 25000000, 25000000, 29, 29,  58, 58, 2.6, 2.6, 14, 12500000, 16000, 0},
+	{155, 32000000, 32000000, 29, 29,  58, 58, 2.6, 2.6, 14, 16000000, 16000, 0},	
+	{160, 40000000, 40000000, 30, 30,  60, 60, 2.6, 2.6, 14, 20000000, 16000, 0},	// snfs 232
+	{165, 49000000, 49000000, 30, 30,  60, 60, 2.6, 2.6, 14, 24500000, 16000, 0},	// 241
+	{170, 59000000, 59000000, 31, 31,  62, 62, 2.6, 2.6, 14, 29500000, 32000, 0},	// 250
+	{175, 70000000, 70000000, 31, 31,  62, 62, 2.6, 2.6, 15, 35000000, 32000, 0},	// 259
+	{180, 82000000, 82000000, 31, 31,  62, 62, 2.6, 2.6, 15, 41000000, 32000, 0},	// 267
+	{185, 100000000,100000000, 32, 32, 64, 64, 2.6, 2.6, 16, 50000000, 32000, 0}
 };
 // in light of test sieving, this table might need to be extended
 
@@ -1541,21 +1557,11 @@ double* parse_params_file(char* filename, int *numrows)
 			// it didn't read that many, abort and use the default table
 			// after warning the user that something is wrong.
 			double rl, al;
-			uint32_t d, rlim, alim, lpbr, lpba, mfbr, mfba, sa, qr, sq;
-			int n = sscanf(line, "%u,%u,%u,%u,%u,%u,%u,%lf,%lf,%u,%u,%u",
-				&d, &rlim, &alim, &lpbr, &lpba, &mfbr, &mfba, &rl, &al, &sa, &sq, &qr);
+			uint32_t d, rlim, alim, lpbr, lpba, mfbr, mfba, sa, qr, sq, mr;
+			int n = sscanf(line, "%u,%u,%u,%u,%u,%u,%u,%lf,%lf,%u,%u,%u,%u",
+				&d, &rlim, &alim, &lpbr, &lpba, &mfbr, &mfba, &rl, &al, &sa, &sq, &qr, &mr);
 
-			if (n != GGNFS_TABLE_COLS)
-			{
-				printf("Format error in params_file: %s, using built-in params table\n",
-					filename);
-				if ((*numrows) > 0)
-				{
-					free(table);
-				}
-				return NULL;
-			}
-			else
+			if (n == (GGNFS_TABLE_COLS - 1))
 			{
 				if ((*numrows) == 0)
 					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
@@ -1575,8 +1581,43 @@ double* parse_params_file(char* filename, int *numrows)
 				table[(*numrows) * GGNFS_TABLE_COLS + 9] = sa;
 				table[(*numrows) * GGNFS_TABLE_COLS + 10] = sq;
 				table[(*numrows) * GGNFS_TABLE_COLS + 11] = qr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 12] = 0;
 
 				(*numrows)++;
+			}
+			else if (n == GGNFS_TABLE_COLS)
+			{
+				if ((*numrows) == 0)
+					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
+				else
+					table = (double*)xrealloc(table, ((*numrows) + 1) *
+						GGNFS_TABLE_COLS * sizeof(double));
+
+				table[(*numrows) * GGNFS_TABLE_COLS + 0] = d;
+				table[(*numrows) * GGNFS_TABLE_COLS + 1] = rlim;
+				table[(*numrows) * GGNFS_TABLE_COLS + 2] = alim;
+				table[(*numrows) * GGNFS_TABLE_COLS + 3] = lpbr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 4] = lpba;
+				table[(*numrows) * GGNFS_TABLE_COLS + 5] = mfbr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 6] = mfba;
+				table[(*numrows) * GGNFS_TABLE_COLS + 7] = rl;
+				table[(*numrows) * GGNFS_TABLE_COLS + 8] = al;
+				table[(*numrows) * GGNFS_TABLE_COLS + 9] = sa;
+				table[(*numrows) * GGNFS_TABLE_COLS + 10] = sq;
+				table[(*numrows) * GGNFS_TABLE_COLS + 11] = qr;
+				table[(*numrows) * GGNFS_TABLE_COLS + 12] = mr;
+
+				(*numrows)++;
+			}
+			else
+			{
+				printf("Format error in params_file: %s, using built-in params table\n",
+					filename);
+				if ((*numrows) > 0)
+				{
+					free(table);
+				}
+				return NULL;
 			}
 		}
 
@@ -1925,6 +1966,10 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->qrange = table[i+1][11] - 
 				(uint32_t)(scale * (double)(table[i+1][11] - table[i][11]));
 
+			//interp
+			job->min_rels = table[i + 1][12] -
+				(uint32_t)(scale * (double)(table[i + 1][12] - table[i][12]));
+
 			found = 1;
 		}
 	}
@@ -1963,6 +2008,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 			job->startq = table[0][10];
 			job->qrange = table[0][11];
+			job->min_rels = table[0][12];
 		}
 		else
 		{
@@ -1995,12 +2041,16 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 			job->startq = table[table_rows - 1][10];
 			job->qrange = table[table_rows - 1][11];
+			job->min_rels = table[table_rows - 1][12];
 		}
 	}
 
 	job->test_score = 9999999.0;		// haven't tested it yet.
+	
+	// if there is no min_rels in the table, use the equation
 	nfs_set_min_rels(job);
 
+	// command line switch override
 	if (fobj->nfs_obj.minrels > 0)
 	{
 		if (fobj->VFLAG > 0)
@@ -2080,62 +2130,66 @@ void nfs_set_min_rels(nfs_job_t *job)
 	double fudge; // sundae :)
 	uint32_t lpb;
 
-	job->min_rels = 0;
-	for (i = 0; i < 2; i++)
+	if (job->min_rels == 0)
 	{
-		// these are always the same now... but someday maybe they won't be.  this
-		// routine will handle that when we get there.
-		// edit: we're there!!
-		if (i == 0)
-			lpb = job->lpbr;
-		else
-			lpb = job->lpba;
-
-		// appoximate min_rels:
-		// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
-		// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
-		switch (lpb)
+		job->min_rels = 0;
+		for (i = 0; i < 2; i++)
 		{
-		case 24:
-			fudge = 0.40;
-			break;
-		case 25:
-			fudge = 0.50;
-			break;
-		case 26:
-			fudge = 0.60;
-			break;
-		case 27:
-			fudge = 0.70;
-			break;
-		case 28:
-			fudge = 0.76;
-			break;
-		case 29:
-			fudge = 0.84;
-			break;
-		case 30:
-			fudge = 0.89;
-			break;
-		case 31:
-			fudge = 0.91;
-			break;
-		case 32:
-			fudge = 0.95;
-			break;
-		case 33:
-			fudge = 0.98;
-			break;
-		default:
-			fudge = 0.40;
-			break;
+			// these are always the same now... but someday maybe they won't be.  this
+			// routine will handle that when we get there.
+			// edit: we're there!!
+			if (i == 0)
+				lpb = job->lpbr;
+			else
+				lpb = job->lpba;
+
+			// appoximate min_rels:
+			// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
+			// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
+			switch (lpb)
+			{
+			case 24:
+				fudge = 0.40;
+				break;
+			case 25:
+				fudge = 0.50;
+				break;
+			case 26:
+				fudge = 0.60;
+				break;
+			case 27:
+				fudge = 0.70;
+				break;
+			case 28:
+				fudge = 0.76;
+				break;
+			case 29:
+				fudge = 0.84;
+				break;
+			case 30:
+				fudge = 0.89;
+				break;
+			case 31:
+				fudge = 0.91;
+				break;
+			case 32:
+				fudge = 0.95;
+				break;
+			case 33:
+				fudge = 0.98;
+				break;
+			default:
+				fudge = 0.40;
+				break;
+			}
+
+			job->min_rels += (uint32_t)(fudge * (
+				pow(2.0, (double)lpb) / log(pow(2.0, (double)lpb))));
+
+			//printf("nfs: lpb = %u, fudge = %lf, min_rels is now %u\n", lpb, fudge, job->min_rels);
 		}
-
-		job->min_rels += (uint32_t)(fudge * (
-			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
-
-        //printf("nfs: lpb = %u, fudge = %lf, min_rels is now %u\n", lpb, fudge, job->min_rels);
 	}
+	
 }
 
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest)

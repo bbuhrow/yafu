@@ -1893,7 +1893,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.qs_gnfs_xover = options->xover;
     fobj->autofact_obj.qs_snfs_xover = options->qs_snfs_xover;
     // use xover even when timing info is available
-    fobj->autofact_obj.prefer_xover = (options->xover != 95);
+    fobj->autofact_obj.prefer_xover = (options->xover != 95);   // not equal to default value
     fobj->autofact_obj.want_only_1_factor = options->one_factor;
     fobj->autofact_obj.no_ecm = options->no_ecm;
     fobj->autofact_obj.target_pretest_ratio = options->pretest_ratio;

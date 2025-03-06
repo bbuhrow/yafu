@@ -761,6 +761,11 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	if (fobj->VFLAG > 0)
 		gmp_printf("n: %Zd\n",fobj->nfs_obj.gmp_n);
 
+	if (fobj->LOGFLAG)
+	{
+		logfile = fopen(fobj->flogname, "a");
+	}
+
 	// copy out the poly
 	// in the future we might want to record the poly in job->poly
 	while (!feof(in))
@@ -785,6 +790,11 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 
 		if (fobj->VFLAG > 0)
 			printf("%s",line);
+
+		if ((fobj->LOGFLAG) && (logfile != NULL))
+		{
+			logprint(logfile, "%s", line);
+		}
 	}
 
 	// and copy in the job parameters
@@ -797,8 +807,25 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	fprintf(out,"rlambda: %.1f\n",job->rlambda);
 	fprintf(out,"alambda: %.1f\n",job->alambda);
 
+	if ((fobj->LOGFLAG) && (logfile != NULL))
+	{
+		logprint(logfile, "rlim: %u\n", job->rlim);
+		logprint(logfile, "alim: %u\n", job->alim);
+		logprint(logfile, "lpbr: %u\n", job->lpbr);
+		logprint(logfile, "lpba: %u\n", job->lpba);
+		logprint(logfile, "mfbr: %u\n", job->mfbr);
+		logprint(logfile, "mfba: %u\n", job->mfba);
+		logprint(logfile, "rlambda: %.1f\n", job->rlambda);
+		logprint(logfile, "alambda: %.1f\n", job->alambda);
+	}
+
 	fclose(in);
 	fclose(out);
+
+	if ((fobj->LOGFLAG) && (logfile != NULL))
+	{
+		fclose(logfile);
+	}
 
 	return bestscore;
 }
