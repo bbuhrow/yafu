@@ -23,7 +23,7 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	FILE *tmp, *logfile;
 	uint32_t relations_needed;
 	uint32_t flags = 0;
-	char nfs_args[80];
+	char nfs_args[100];
 
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
 	if (fobj->VFLAG > 0)
@@ -43,6 +43,15 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 		if (fobj->VFLAG >= 0)
 			printf("nfs: commencing msieve filtering\n");
 	}
+	
+	if(fobj->nfs_obj.td > 0){
+	    if(strlen(nfs_args)>0)
+            sprintf(nfs_args + strlen(nfs_args), " target_density=%d", fobj->nfs_obj.td);
+        else
+            sprintf(nfs_args, "target_density=%d",fobj->nfs_obj.td);
+
+	    obj->nfs_args = nfs_args;
+    }
 
     if (fobj->LOGFLAG)
     {

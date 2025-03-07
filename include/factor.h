@@ -335,6 +335,7 @@ typedef struct
 	uint32_t snfs_testsieve_threshold;
     int skip_snfs_check;
     uint32_t minrels;
+    int td;
     int poly_testsieve;
     int poly_percent_max;
 
