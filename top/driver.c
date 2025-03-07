@@ -1723,6 +1723,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.gnfs_tune_freq = 0;
     fobj->nfs_obj.min_digits = 85;
     fobj->nfs_obj.minrels = options->minrels;
+    fobj->nfs_obj.td = options->td;
     fobj->nfs_obj.poly_percent_max = options->poly_percent_max;
     fobj->nfs_obj.poly_testsieve = options->poly_testsieve;
 
