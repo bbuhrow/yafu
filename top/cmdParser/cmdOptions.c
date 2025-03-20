@@ -83,7 +83,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
-    "nfs_params", "poly_testsieve", "poly_percent_max"};
+    "nfs_params", "poly_testsieve", "poly_percent_max", "td"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -211,7 +211,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : only run stage 2 rootopt of msieve nfs poly generation",
     "(String)          : file containing nfs comma-delimited parameters",
     "(Integer < 32-bit): input size threshold (in bits) above which poly select will test sieve to estimate sieve time as a stopping condition",
-    "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time"
+    "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time",
+    "                  : target density"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -244,7 +245,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
-    1,1,1        // "nfs_params", "poly_testsieve", "poly_percent_thresh"
+    1,1,1,1        // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td"
 };
 
 // command line option aliases, specified by '--'
@@ -275,7 +276,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", ""
+    "", "", "", ""
 };
 
 
@@ -1251,6 +1252,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // poly_percent_max
         options->poly_percent_max = atoi(arg);
     }
+     else if (strcmp(opt, OptionArray[123]) == 0)
+    {
+        // argument "td"
+        options->td = atoi(arg);
+    }
     else
     {
         int i;
@@ -1384,6 +1390,7 @@ options_t* initOpt(void)
 #endif
     options->skip_snfscheck = 0;
     options->minrels = 0;
+    options->td = 0;
     options->poly_percent_max = 8;
     options->poly_testsieve = 390;
     

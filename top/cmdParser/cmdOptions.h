@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 123
+#define NUMOPTIONS 124
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -153,6 +153,7 @@ typedef struct
     char convert_poly_path[MAXARGLEN];
     int skip_snfscheck;
     uint32_t minrels;
+    int td;
     int poly_percent_max;
     int poly_testsieve;
 
