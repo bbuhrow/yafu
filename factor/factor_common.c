@@ -548,6 +548,28 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->autofact_obj.want_output_factors = src->autofact_obj.want_output_factors;
     dest->autofact_obj.want_output_unfactored = src->autofact_obj.want_output_unfactored;
     dest->autofact_obj.want_output_expressions = src->autofact_obj.want_output_expressions;
+
+    if (src->autofact_obj.want_output_primes && 
+        (strlen(src->autofact_obj.op_str) > 0) &&
+        (strlen(src->autofact_obj.op_str) < 256))
+    {
+        strcpy(dest->autofact_obj.op_str, src->autofact_obj.op_str);
+    }
+
+    if (src->autofact_obj.want_output_factors &&
+        (strlen(src->autofact_obj.of_str) > 0) &&
+        (strlen(src->autofact_obj.of_str) < 256))
+    {
+        strcpy(dest->autofact_obj.of_str, src->autofact_obj.of_str);
+    }
+
+    if (src->autofact_obj.want_output_unfactored &&
+        (strlen(src->autofact_obj.ou_str) > 0) &&
+        (strlen(src->autofact_obj.ou_str) < 256))
+    {
+        strcpy(dest->autofact_obj.ou_str, src->autofact_obj.ou_str);
+    }
+
     dest->autofact_obj.qs_gnfs_xover = src->autofact_obj.qs_gnfs_xover;
     dest->autofact_obj.qs_snfs_xover = src->autofact_obj.qs_snfs_xover;
     // use xover even when timing info is available

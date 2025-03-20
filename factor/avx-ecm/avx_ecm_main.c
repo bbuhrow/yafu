@@ -972,7 +972,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
             if (is_mpz_prp(g, fobj->NUM_WITNESSES))
             {
-                if (fobj->VFLAG > 0)
+                if (fobj->VFLAG >= 0)
                     gmp_printf("\necm: found prp%d factor = %Zd\n",
                         gmp_base10(g), g);
 
@@ -993,7 +993,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             }
             else
             {
-                if (fobj->VFLAG > 0)
+                if (fobj->VFLAG >= 0)
                     gmp_printf("\necm: found c%d factor = %Zd\n",
                         gmp_base10(g), g);
 

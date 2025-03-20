@@ -199,7 +199,7 @@ void williams_loop(fact_obj_t *fobj)
                     add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
                         fobj->VFLAG, fobj->NUM_WITNESSES);
 
-                    if (fobj->VFLAG > 0)
+                    if (fobj->VFLAG >= 0)
                         gmp_printf("pp1: found prp%d factor = %Zd\n",
                             gmp_base10(fobj->pp1_obj.gmp_f), fobj->pp1_obj.gmp_f);
 
@@ -213,7 +213,7 @@ void williams_loop(fact_obj_t *fobj)
                     add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
                         fobj->VFLAG, fobj->NUM_WITNESSES);
 
-                    if (fobj->VFLAG > 0)
+                    if (fobj->VFLAG >= 0)
                         gmp_printf("pp1: found c%d factor = %Zd\n",
                             gmp_base10(fobj->pp1_obj.gmp_f), fobj->pp1_obj.gmp_f);
 

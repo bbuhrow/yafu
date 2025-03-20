@@ -119,7 +119,7 @@ void brent_loop(fact_obj_t *fobj)
 				add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_f, 
                     fobj->VFLAG, fobj->NUM_WITNESSES);
 
-				if (fobj->VFLAG > 0)
+				if (fobj->VFLAG >= 0)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
 					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
@@ -135,7 +135,7 @@ void brent_loop(fact_obj_t *fobj)
 				add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_f, 
                     fobj->VFLAG, fobj->NUM_WITNESSES);
 
-				if (fobj->VFLAG > 0)
+				if (fobj->VFLAG >= 0)
 					gmp_printf("rho: found c%d factor = %Zd\n",
 					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 

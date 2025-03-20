@@ -719,7 +719,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 		add_to_factor_list(fobj->factors, thread_data->gmp_factor, 
             fobj->VFLAG, fobj->NUM_WITNESSES);
 
-        if (fobj->VFLAG > 0)
+        if (fobj->VFLAG >= 0)
         {
             gmp_printf("\necm: found prp%d factor = %Zd\n",
                 gmp_base10(thread_data->gmp_factor),
@@ -738,7 +738,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 		add_to_factor_list(fobj->factors, thread_data->gmp_factor, 
             fobj->VFLAG, fobj->NUM_WITNESSES);
 		
-        if (fobj->VFLAG > 0)
+        if (fobj->VFLAG >= 0)
         {
             gmp_printf("\necm: found c%d factor = %Zd\n",
                 gmp_base10(thread_data->gmp_factor),

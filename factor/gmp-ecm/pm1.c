@@ -187,7 +187,7 @@ void pollard_loop(fact_obj_t *fobj)
 			add_to_factor_list(fobj->factors, fobj->pm1_obj.gmp_f,
                 fobj->VFLAG, fobj->NUM_WITNESSES);
 
-			if (fobj->VFLAG > 0)
+			if (fobj->VFLAG >= 0)
 				gmp_printf("pm1: found prp%d factor = %Zd\n",
 				gmp_base10(fobj->pm1_obj.gmp_f), fobj->pm1_obj.gmp_f);
 
@@ -199,7 +199,7 @@ void pollard_loop(fact_obj_t *fobj)
 			add_to_factor_list(fobj->factors, fobj->pm1_obj.gmp_f,
                 fobj->VFLAG, fobj->NUM_WITNESSES);
 
-			if (fobj->VFLAG > 0)
+			if (fobj->VFLAG >= 0)
 				gmp_printf("pm1: found c%d factor = %Zd\n",
 				gmp_base10(fobj->pm1_obj.gmp_f), fobj->pm1_obj.gmp_f);
 
