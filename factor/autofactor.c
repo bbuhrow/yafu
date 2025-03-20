@@ -705,6 +705,12 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						//	fobj_refactor->input_str_alloc = mpz_sizeinbase(fobj_refactor->N, 10);
 						//}
 						//mpz_get_str(fobj_refactor->input_str, 10, fobj_refactor->N);
+						
+						// these will get recombined in the original fobj; 
+						// no need to output them twice.
+						fobj_refactor->autofact_obj.want_output_factors = 0;
+						fobj_refactor->autofact_obj.want_output_primes = 0;
+						fobj_refactor->autofact_obj.want_output_unfactored = 0;
 						factor(fobj_refactor);
 
 						// remove the factor from the original list
