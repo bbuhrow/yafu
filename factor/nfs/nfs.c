@@ -1775,6 +1775,8 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
         if (fobj->VFLAG > 0)
         {
             printf("nfs: snfs skewed difficulty: %lf\n", job->snfs->sdifficulty);
+			printf("nfs: snfs special-q side: %s\n", 
+				job->poly->side == RATIONAL_SPQ ? "rational" : "algebraic");
         }
 
         d = job->snfs->sdifficulty;
@@ -1887,6 +1889,8 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
     {
         // user override
         job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
+		printf("nfs: user override of special-q side: to %s\n",
+			job->poly->side == RATIONAL_SPQ ? "rational" : "algebraic");
     }
 
     if (fobj->VFLAG > 0)
@@ -2043,6 +2047,30 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->qrange = table[table_rows - 1][11];
 			job->min_rels = table[table_rows - 1][12];
 		}
+	}
+
+	// swap parameters if side is not algebraic.  This assumes the param table data
+	// was assembled for algebraic-side sieving.  
+	if (job->poly->side == RATIONAL_SPQ)
+	{
+		uint32_t tmp;
+		double dtmp;
+
+		tmp = job->rlim;
+		job->rlim = job->alim;
+		job->alim = tmp;
+
+		tmp = job->lpbr;
+		job->lpbr = job->lpba;
+		job->lpba = tmp;
+
+		tmp = job->mfbr;
+		job->mfbr = job->mfba;
+		job->mfba = tmp;
+
+		dtmp = job->rlambda;
+		job->rlambda = job->alambda;
+		job->alambda = dtmp;
 	}
 
 	job->test_score = 9999999.0;		// haven't tested it yet.

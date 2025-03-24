@@ -209,7 +209,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : only run stage 1 of msieve nfs poly generation",
     "                  : only run stage 2 sizeopt of msieve nfs poly generation",
     "                  : only run stage 2 rootopt of msieve nfs poly generation",
-    "(String)          : file containing nfs comma-delimited parameters",
+    "(String)          : file containing nfs comma-delimited parameters, assumes algebraic-side sieving",
     "(Integer < 32-bit): input size threshold (in bits) above which poly select will test sieve to estimate sieve time as a stopping condition",
     "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time",
     "                  : target density"

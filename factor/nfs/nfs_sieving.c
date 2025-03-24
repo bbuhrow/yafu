@@ -54,16 +54,46 @@ void print_ranges(qrange_data_t* qrange_data)
 {
 	int i;
 	printf("rational side completed ranges:\n");
-	for (i = 0; i < qrange_data->num_r; i++)
+	
+	if (qrange_data->num_r > 0)
 	{
-		printf("\t%u -> %u\n", qrange_data->qranges_r[i].qrange_start,
-			qrange_data->qranges_r[i].qrange_end);
+		printf("\t%u -> ", qrange_data->qranges_r[0].qrange_start);
 	}
-	printf("algebraic side completed ranges:\n");
-	for (i = 0; i < qrange_data->num_a; i++)
+
+	for (i = 1; i < qrange_data->num_r; i++)
 	{
-		printf("\t%u -> %u\n", qrange_data->qranges_a[i].qrange_start,
-			qrange_data->qranges_a[i].qrange_end);
+		if (qrange_data->qranges_r[i - 1].qrange_end !=
+			qrange_data->qranges_r[i].qrange_start)
+		{
+			printf("%u\n\t%u -> \n", qrange_data->qranges_r[i - 1].qrange_end,
+				qrange_data->qranges_r[i].qrange_start);
+		}
+	}
+
+	if (qrange_data->num_r > 0)
+	{
+		printf("%u\n", qrange_data->qranges_r[i - 1].qrange_end);
+	}
+
+	printf("algebraic side completed ranges:\n");
+
+	if (qrange_data->num_a > 0)
+	{
+		printf("\t%u -> ", qrange_data->qranges_a[0].qrange_start);
+	}
+	for (i = 1; i < qrange_data->num_a; i++)
+	{
+		if (qrange_data->qranges_a[i - 1].qrange_end !=
+			qrange_data->qranges_a[i].qrange_start)
+		{
+			printf("%u\n\t%u -> \n", qrange_data->qranges_a[i - 1].qrange_end,
+				qrange_data->qranges_a[i].qrange_start);
+		}
+	}
+
+	if (qrange_data->num_a > 0)
+	{
+		printf("%u\n", qrange_data->qranges_a[i - 1].qrange_end);
 	}
 	return;
 }
@@ -458,12 +488,12 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		if( jobs[i].poly->side == RATIONAL_SPQ)
 		{
 			sprintf(side, "rational");
-			jobs[i].startq = jobs[i].rlim; // no reason to test sieve *inside* the fb
+			jobs[i].startq = jobs[i].rlim / 2; // no reason to test sieve *inside* the fb
 		}
 		else
 		{
 			sprintf(side, "algebraic");
-			jobs[i].startq = jobs[i].alim; // ditto
+			//jobs[i].startq = jobs[i].alim; // ditto
 		}
 
         if (fobj->LOGFLAG)
@@ -563,7 +593,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			actual_range = line - jobs[i].startq;
 			if (fobj->VFLAG > 0)
 				printf("test: found %u relations in a range of %u special-q\n", 
-				count, actual_range);
+				count, spq_range);
 
 			if (actual_range > spq_range) 
 				actual_range = spq_range;
@@ -597,117 +627,123 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			logprint(flog, "test: new best estimated total sieving time = %s (with %d threads)\n", 
 				time_from_secs(time, (unsigned long)score[i]), fobj->THREADS);
 
-			// edit lbpr/a depending on test results.  we target something around 2 rels/Q.
-			// could also change siever version in more extreme cases.
-			if (count > 4*actual_range)
+			if (0)
 			{
-				if (fobj->VFLAG > 0)
-					printf("test: yield greater than 4x/spq, reducing lpbr/lpba\n");
-				jobs[i].lpba--;
-				jobs[i].lpbr--;
-				jobs[i].mfba -= 2;
-				jobs[i].mfbr -= 2;
-			}
+				// don't edit by default.  Maybe allow with a user option.
+				// edit lbpr/a depending on test results.  we target something around 2 rels/Q.
+				// could also change siever version in more extreme cases.
 
-			if (count > 8*actual_range)
-			{
-				char *pos;
-				int siever;
-
-				pos = strstr(jobs[i].sievername, "gnfs-lasieve4I");
-				siever = (pos[14] - 48) * 10 + (pos[15] - 48);
-
-				if (fobj->VFLAG > 0)
-					printf("test: yield greater than 8x/spq, reducing siever version\n");
-
-				switch (siever)
+				if (count > 4 * actual_range)
 				{
-				case 11:
-					if (fobj->VFLAG > 0) printf("test: siever version cannot be decreased further\n");
-					jobs[i].snfs->siever = 11;
-					break;
-
-				case 12:
-					pos[15] = '1';
-					jobs[i].snfs->siever = 11;
-					break;
-
-				case 13:
-					pos[15] = '2';
-					jobs[i].snfs->siever = 12;
-					break;
-
-				case 14:
-					pos[15] = '3';
-					jobs[i].snfs->siever = 13;
-					break;
-
-				case 15:
-					pos[15] = '4';
-					jobs[i].snfs->siever = 14;
-					break;
-
-				case 16:
-					pos[15] = '5';
-					jobs[i].snfs->siever = 15;
-					break;
+					if (fobj->VFLAG > 0)
+						printf("test: yield greater than 4x/spq, reducing lpbr/lpba\n");
+					jobs[i].lpba--;
+					jobs[i].lpbr--;
+					jobs[i].mfba -= 2;
+					jobs[i].mfbr -= 2;
 				}
-			}
 
-			if (count < actual_range)
-			{
-				if (fobj->VFLAG > 0)
-					printf("test: yield less than 1x/spq, increasing lpbr/lpba\n");
-				
-				jobs[i].lpba++;
-				jobs[i].lpbr++;
-				jobs[i].mfba += 2;
-				jobs[i].mfbr += 2;
-			}
-
-			if (count < (actual_range/2))
-			{
-				char *pos;
-				int siever;
-
-				pos = strstr(jobs[i].sievername, "gnfs-lasieve4I");
-				siever = (pos[14] - 48) * 10 + (pos[15] - 48);
-
-				if (fobj->VFLAG > 0)
-					printf("test: yield less than 1x/2*spq, increasing siever version\n");
-
-				switch (siever)
+				if (count > 8 * actual_range)
 				{
-				case 16:
-					if (fobj->VFLAG > 0) printf("test: siever version cannot be increased further\n");
-					jobs[i].snfs->siever = 16;
-					break;
+					char* pos;
+					int siever;
 
-				case 15:
-					pos[15] = '6';
-					jobs[i].snfs->siever = 16;
-					break;
+					pos = strstr(jobs[i].sievername, "gnfs-lasieve4I");
+					siever = (pos[14] - 48) * 10 + (pos[15] - 48);
 
-				case 14:
-					pos[15] = '5';
-					jobs[i].snfs->siever = 15;
-					break;
+					if (fobj->VFLAG > 0)
+						printf("test: yield greater than 8x/spq, reducing siever version\n");
 
-				case 13:
-					pos[15] = '4';
-					jobs[i].snfs->siever = 14;
-					break;
+					switch (siever)
+					{
+					case 11:
+						if (fobj->VFLAG > 0) printf("test: siever version cannot be decreased further\n");
+						jobs[i].snfs->siever = 11;
+						break;
 
-				case 12:
-					pos[15] = '3';
-					jobs[i].snfs->siever = 13;
-					break;
+					case 12:
+						pos[15] = '1';
+						jobs[i].snfs->siever = 11;
+						break;
 
-				case 11:
-					pos[15] = '2';
-					jobs[i].snfs->siever = 12;
-					break;
+					case 13:
+						pos[15] = '2';
+						jobs[i].snfs->siever = 12;
+						break;
+
+					case 14:
+						pos[15] = '3';
+						jobs[i].snfs->siever = 13;
+						break;
+
+					case 15:
+						pos[15] = '4';
+						jobs[i].snfs->siever = 14;
+						break;
+
+					case 16:
+						pos[15] = '5';
+						jobs[i].snfs->siever = 15;
+						break;
+					}
 				}
+
+				if (count < actual_range)
+				{
+					if (fobj->VFLAG > 0)
+						printf("test: yield less than 1x/spq, increasing lpbr/lpba\n");
+
+					jobs[i].lpba++;
+					jobs[i].lpbr++;
+					jobs[i].mfba += 2;
+					jobs[i].mfbr += 2;
+				}
+
+				if (count < (actual_range / 2))
+				{
+					char* pos;
+					int siever;
+
+					pos = strstr(jobs[i].sievername, "gnfs-lasieve4I");
+					siever = (pos[14] - 48) * 10 + (pos[15] - 48);
+
+					if (fobj->VFLAG > 0)
+						printf("test: yield less than 1x/2*spq, increasing siever version\n");
+
+					switch (siever)
+					{
+					case 16:
+						if (fobj->VFLAG > 0) printf("test: siever version cannot be increased further\n");
+						jobs[i].snfs->siever = 16;
+						break;
+
+					case 15:
+						pos[15] = '6';
+						jobs[i].snfs->siever = 16;
+						break;
+
+					case 14:
+						pos[15] = '5';
+						jobs[i].snfs->siever = 15;
+						break;
+
+					case 13:
+						pos[15] = '4';
+						jobs[i].snfs->siever = 14;
+						break;
+
+					case 12:
+						pos[15] = '3';
+						jobs[i].snfs->siever = 13;
+						break;
+
+					case 11:
+						pos[15] = '2';
+						jobs[i].snfs->siever = 12;
+						break;
+					}
+				}
+
 			}
      	}
 		else
