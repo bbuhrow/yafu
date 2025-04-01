@@ -657,14 +657,15 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					modulo32 = FB[fbi];
 
 					if (proots[fbi] == modulo32) {
-						printf("rare case? proots = %u, modulo32 = %u, b0_ul = %u, ", proots[fbi], modulo32, b0_ul);
+						//printf("rare case? proots = %u, modulo32 = %u, b0_ul = %u, ",
+						//	proots[fbi], modulo32, b0_ul);
 						x = B0MOD(modulo32);
 						if (x == 0)x = modulo32;
 						else {
 							x = modmul32(modinv32(x), B1MOD(modulo32));
 							if (x > 0)x = modulo32 - x;
 						}
-						printf("x = %u\n", x);
+						//printf("x = %u\n", x);
 					}
 					else {
 						x = modsub32(A0MOD(modulo32), modmul32(proots[fbi], B0MOD(modulo32)));

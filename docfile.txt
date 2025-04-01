@@ -296,22 +296,22 @@ by the user to impact the program execution.  They can be useful if
 you are in interactive mode and want to set a global variable that
 wasn't set while invoking yafu (or in the .ini file). 
 Some examples include:
-POLLARD_STG1_MAX - controls the upper bound of p-1 stage 1 factoring
-POLLARD_STG2_MAX - controls the upper bound of p-1 stage 2 factoring
-WILL_STG1_MAX - controls the upper bound of p+1 stage 1 factoring
-WILL_STG2_MAX - controls the upper bound of p+1 stage 2 factoring
-ECM_STG1_MAX - controls the upper bound of ECM stage 1 factoring
-ECM_STG2_MAX - controls the upper bound of ECM stage 2 factoring
-BRENT_MAX_IT - controls the maximum number of iterations in pollard rho
-NUM_WITNESSES - the number of witnesses to use in rabin-miller prp tests
+B1pm1 - controls the upper bound of p-1 stage 1 factoring
+B2pm1 - controls the upper bound of p-1 stage 2 factoring
+B1pp1 - controls the upper bound of p+1 stage 1 factoring
+B2pp1 - controls the upper bound of p+1 stage 2 factoring
+B1ecm - controls the upper bound of ECM stage 1 factoring
+B2ecm - controls the upper bound of ECM stage 2 factoring
+rhomax - controls the maximum number of iterations in pollard rho
+nprp - the number of witnesses to use in rabin-miller prp tests
 IBASE - controls the input numeric base
 OBASE - controls the output numeric base
-PRIMES_TO_FILE - set to non zero to enable printing primes to a file, when using the
+pfile - set to non zero to enable printing primes to a file, when using the
 		primes() function
-PRIMES_TO_SCREEN - set to non zero to enable printing primes to the screen, when using the
+pscreen - set to non zero to enable printing primes to the screen, when using the
 		primes() function
-VFLAG - control verbosity within the interactive environment
-
+verbose - control verbosity within the interactive environment
+threads - set the number of threads for various algorithms to use
 
 [tune]
 usage: tune()

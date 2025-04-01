@@ -291,16 +291,16 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 				}
 			}
 
+			// do ECM until we find a factor.
 			int found = 0;
+			uint64_t lcg = 42;
 			do
 			{
-				uint64_t lcg = 42;
 				found = getfactor_tecm(fobj->qs_obj.gmp_n, f1, 0, &lcg);
 				mpz_tdiv_r(f2, fobj->qs_obj.gmp_n, f1);
-				if (mpz_cmp_ui(f2, 0) == 0)
-				{
-					found = 1;
 
+				if (found)
+				{
 					add_to_factor_list(fobj->factors, f1,
 						fobj->VFLAG, fobj->NUM_WITNESSES);
 
