@@ -681,7 +681,6 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 					}
 					else
 					{
-						//printf("ignoring refactorization of composite factor\n");
 						fact_obj_t *fobj_refactor;
 						int j;
 
@@ -713,6 +712,10 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						fobj_refactor->autofact_obj.want_output_unfactored = 0;
 						factor(fobj_refactor);
 
+						// original count: if > 1, need to add multiples of
+						// each factor found.
+						int ocount = fobj->factors->factors[i].count;
+
 						// remove the factor from the original list
 						delete_from_factor_list(fobj->factors, fobj->factors->factors[i].factor);
 
@@ -720,7 +723,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						for (j=0; j< fobj_refactor->factors->num_factors; j++)
 						{
 							int k;
-							for (k=0; k < fobj_refactor->factors->factors[j].count; k++)
+							for (k=0; k < fobj_refactor->factors->factors[j].count * ocount; k++)
 								add_to_factor_list(fobj->factors, 
                                     fobj_refactor->factors->factors[j].factor,
                                     fobj->VFLAG, fobj->NUM_WITNESSES);
