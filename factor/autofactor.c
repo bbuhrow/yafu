@@ -695,15 +695,6 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						mpz_set(fobj_refactor->N, fobj->factors->factors[i].factor);
                         fobj_refactor->refactor_depth = fobj->refactor_depth + 1;
 
-						// recurse on factor
-						//mpz_set(fobj_refactor->input_N, fobj_refactor->N);
-						//if (fobj_refactor->input_str_alloc <= mpz_sizeinbase(fobj_refactor->N, 10))
-						//{
-						//	fobj_refactor->input_str = (char *)xrealloc(fobj_refactor->input_str,
-						//		mpz_sizeinbase(fobj_refactor->N, 10) + 2);
-						//	fobj_refactor->input_str_alloc = mpz_sizeinbase(fobj_refactor->N, 10);
-						//}
-						//mpz_get_str(fobj_refactor->input_str, 10, fobj_refactor->N);
 						
 						// these will get recombined in the original fobj; 
 						// no need to output them twice.
@@ -1216,6 +1207,17 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         if (poly != NULL)
         {
             fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
+
+			if (poly->form_type == SNFS_BRENT)
+			{
+				// are there algebraic factors we can extract?
+				find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
+
+				// if we found any, set the autofactor target to whatever is left over.
+				mpz_set(b, fobj->nfs_obj.gmp_n);
+				gmp_printf("fac: continuing autofactor on residue %Zd\n", b);
+			}
+
             // The actual poly is not needed now, so just get rid of it.
             snfs_clear(poly);
             free(poly);

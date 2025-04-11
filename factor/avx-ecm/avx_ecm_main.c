@@ -290,7 +290,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	vec_monty_t *montyconst;
 	int pid = getpid();
     uint64_t limit;
-    int size_n, isMersenne = 0, forceNoMersenne = 0;
+    int size_n, isMersenne = 0, forceNoMersenne = 1;
     uint64_t sigma = fobj->ecm_obj.sigma;
     uint32_t maxbits, mmaxbits, nwords, nblocks;
 
@@ -367,7 +367,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     mpz_set(N, fobj->ecm_obj.gmp_n);
 
     // if the input is Mersenne and still contains algebraic factors, remove them.
-    if (abs(isMersenne) == 1)
+    if ((abs(isMersenne) == 1) && (forceNoMersenne == 0))
     {
 #ifdef USE_NFS
         snfs_t poly;
@@ -378,7 +378,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         poly.coeff1 = 1;
         poly.coeff2 = -isMersenne;
         poly.exp1 = size_n;
-        find_primitive_factor(&poly, fobj->primes, fobj->num_p, verbose);
+        find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);
@@ -472,7 +472,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
     }
 
-    if ((isMersenne != 0) && ((double)nwords / ((double)mmaxbits / (double)DIGITBITS) < 0.7))
+    if ((isMersenne != 0) && (forceNoMersenne == 0) && 
+        ((double)nwords / ((double)mmaxbits / (double)DIGITBITS) < 0.7))
     {
         if (verbose > 1)
         {
@@ -482,7 +483,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         forceNoMersenne = 1;
         size_n = mpz_sizeinbase(N, 2);
     }
-    else if (isMersenne != 0)
+    else if ((isMersenne != 0) && (forceNoMersenne == 0))
     {
         nwords = mmaxbits / DIGITBITS;
         nblocks = nwords / BLOCKWORDS;

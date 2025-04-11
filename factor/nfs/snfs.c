@@ -1192,7 +1192,7 @@ done:
 }
 
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
-void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int VFLAG)
+void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
 	// factor the exponent.  The algebraic reductions yafu knows how to handle are
 	// for cunningham and homogenous cunningham inputs where the exponent is in
@@ -1206,6 +1206,8 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 	int cranks[4];			// doesn't that make you happy?   <-- bonus points if you get this...
 	int nr, mrank;
 	mpz_t n, term, t;
+
+	mpz_set_ui(poly->primitive, 1);
 
 	nf = tdiv_int(e, f, primes, num_p);	
 	
@@ -1377,6 +1379,19 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 				mpz_mod(t, n, term);
 				if (mpz_cmp_ui(t, 0) != 0) printf("gen: error, term doesn't divide n!\n");
 				mpz_tdiv_q(n, n, term);
+
+				if (fobj->autofact_obj.autofact_active)
+				{
+					// does this term divide the input we are trying to autofactor?
+					mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
+					if (mpz_cmp_ui(t, 1) > 0)
+					{
+						//gmp_printf("adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n", 
+						//	t, fobj->nfs_obj.gmp_n, term);
+						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+					}
+				}
 			}
 		}
 	}
@@ -1407,6 +1422,10 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 			// this will cause gen_brent_poly (if that is our caller)
 			// to deal with the factor
 		}
+		else
+		{
+			mpz_set(poly->primitive, t);
+		}
 	}
 	else
 	{
@@ -1416,6 +1435,19 @@ void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int V
 		{
 			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor < input number:\ngen: %Zd\n", n);
 			mpz_set(poly->n, n);
+		}
+	}
+
+	if (fobj->autofact_obj.autofact_active)
+	{
+		// does this term divide the input we are trying to autofactor?
+		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
+		if (mpz_cmp_ui(t, 0) == 0)
+		{
+			//gmp_printf("adding primitive factor %Zd of autofactor input %Zd to factor list\n",
+			//	poly->primitive, fobj->nfs_obj.gmp_n);
+			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
 		}
 	}
 
@@ -1472,7 +1504,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// coefficients are 1.  More complex algebraic reductions like Aurifeuillian 
 	// factorizations are not attempted here.
 	if ((poly->form_type != SNFS_DIRECT) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
-		find_primitive_factor(poly, fobj->primes, fobj->num_p, fobj->VFLAG);
+	{
+		find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
+	}
 
 
     if (mpz_cmp(poly->primitive, poly->n) == 0)
@@ -1557,6 +1591,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
     }
 	else if (mpz_cmp_ui(poly->primitive, 0) > 0)
 	{
+		// gmp_printf("found factor %Zd of input %Zd\n", poly->primitive, fobj->nfs_obj.gmp_n);
 		// we found a factor of the input that isn't a primitive factor
 		add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
 
