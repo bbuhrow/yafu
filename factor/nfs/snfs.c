@@ -1384,7 +1384,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 				{
 					// does this term divide the input we are trying to autofactor?
 					mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
-					if (mpz_cmp_ui(t, 1) > 0)
+					if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 					{
 						//gmp_printf("adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n", 
 						//	t, fobj->nfs_obj.gmp_n, term);
@@ -1406,7 +1406,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 		// see if any part of the discovered primitive factor can 
 		// be used
 		mpz_gcd(t, poly->n, n);
-		if (mpz_cmp_ui(t, 1) > 0)
+		if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 		{
 			// GCD of the primitive factor we discovered and our input discovered
 			// a divisor.  Is it ever possible that this divisor is not useful?
@@ -1442,7 +1442,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 	{
 		// does this term divide the input we are trying to autofactor?
 		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
-		if (mpz_cmp_ui(t, 0) == 0)
+		if ((mpz_cmp_ui(t, 0) == 0) && (mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0))
 		{
 			//gmp_printf("adding primitive factor %Zd of autofactor input %Zd to factor list\n",
 			//	poly->primitive, fobj->nfs_obj.gmp_n);
