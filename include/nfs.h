@@ -25,16 +25,6 @@ code to the public domain.
 #include "factor.h"
 #include "gnfs-yafu.h"
 
-// gnfs.h has an mpz_poly_t struct:
-/* typedef struct {
-    uint32 degree;
-    mpz_t coeff[MAX_POLY_DEGREE + 1];
-
-    // scratch quantities for evaluating the homogeneous form of poly
-    mpz_t tmp1, tmp2, tmp3;
-} mpz_poly_t; */
-
-
 enum special_q_e
 {
     NEITHER_SPQ,

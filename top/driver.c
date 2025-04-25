@@ -389,8 +389,6 @@ int main(int argc, char *argv[])
         fobj->OBASE = 2;
     }
 
-    //test_dlp_composites();
-
 	// command line
 	while (1)
 	{		
@@ -1525,6 +1523,14 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 
+        if (yobj->VFLAG > 1)
+        {
+            printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
+                fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
+                fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent,
+                fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
+        }
+
 	}
 #elif defined(WIN32)
 	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
@@ -1536,6 +1542,14 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
 			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
+
+        if (yobj->VFLAG > 1)
+        {
+            printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
+                fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
+                fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent,
+                fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
+        }
 	}
 #else 
 
@@ -1550,14 +1564,18 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
 			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
+
+        if (yobj->VFLAG > 1)
+        {
+            printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
+                fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
+                fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent,
+                fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
+        }
 	}
 #endif	
 
-	//printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
-	//	fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
-	//	fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
-	//	fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
-
+	
     // restore the user's xover if preferred.
     if (fobj->autofact_obj.prefer_xover)
     {
