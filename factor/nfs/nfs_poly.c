@@ -1197,8 +1197,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						// if we've used less than 5% of the estimated sieve time, continue
 						// with polyselect.
 						double curr_poly_time = ytools_difftime(&startt, &teststop);
-						double est_percent_poly = (curr_poly_time / total_est_sec);
-						if (est_percent_poly < 0.05)
+						double est_percent_poly = (curr_poly_time / total_est_sec) * 100;
+						if (est_percent_poly < fobj->nfs_obj.poly_percent_max)
 						{
 							init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,
 								deadline, start, start + range);

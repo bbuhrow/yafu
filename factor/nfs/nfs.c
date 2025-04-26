@@ -1494,7 +1494,7 @@ int est_gnfs_size_via_poly(snfs_t *job)
 //http://www.mersenneforum.org/showthread.php?t=12365
 // Note: this original table will become the new SNFS table.
 // GNFS jobs will use the data contributed by Gimarel (below).
-double ggnfs_table[SNFS_TABLE_ROWS][SNFS_TABLE_COLS] = {
+double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
@@ -1527,7 +1527,7 @@ double ggnfs_table[SNFS_TABLE_ROWS][SNFS_TABLE_COLS] = {
 // contributed by Gimarel
 /* columns:								*/
 /* digits, rlim, alim, lpbr, lpba, mfbr, mfba, rlambda, alambda, siever, start-q, q-range, minrels */
-double ggnfs_table_Gimarel[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS] = {
+double ggnfs_table_Gimarel[GGNFS_TABLE_ROWS_NEW][GGNFS_TABLE_COLS_NEW] = {
 	{91, 350000, 840000, 25, 25, 50, 50, 2.400, 2.400, 12, 210000, 2000, 1460000		},
 	{92, 375000, 900000, 25, 25, 50, 50, 2.400, 2.400, 12, 225000, 2000, 1510000		},
 	{93, 400000, 960000, 25, 25, 50, 50, 2.400, 2.400, 12, 240000, 2000, 1560000		},

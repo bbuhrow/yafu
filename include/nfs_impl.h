@@ -273,12 +273,12 @@ void mpz_polys_free(mpz_polys_t* poly);
 
 extern int NFS_ABORT;
 extern int IGNORE_NFS_ABORT;
-#define SNFS_TABLE_ROWS 23
-#define SNFS_TABLE_COLS 13
-#define GGNFS_TABLE_ROWS 58
+#define GGNFS_TABLE_ROWS 23
 #define GGNFS_TABLE_COLS 13
+#define GGNFS_TABLE_ROWS_NEW 58
+#define GGNFS_TABLE_COLS_NEW 13
 extern double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS];
-extern double snfs_table[SNFS_TABLE_ROWS][SNFS_TABLE_COLS];
+extern double ggnfs_table_Gimarel[GGNFS_TABLE_ROWS_NEW][GGNFS_TABLE_COLS_NEW];
 
 
 #endif
