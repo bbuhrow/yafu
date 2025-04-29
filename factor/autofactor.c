@@ -727,8 +727,6 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 						factor(fobj_refactor);
 
 						// remember the ecm work we performed
-						printf("after refactoring, ecm work is %1.2f\n",
-							fobj_refactor->autofact_obj.ecm_total_work_performed);
 						fobj->autofact_obj.ecm_total_work_performed =
 							fobj->autofact_obj.initial_work =
 							fobj_refactor->autofact_obj.ecm_total_work_performed;
