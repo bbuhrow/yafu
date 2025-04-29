@@ -74,6 +74,8 @@ int nfs_check_special_case(fact_obj_t *fobj)
     int size = gmp_base10(fobj->nfs_obj.gmp_n);
 	// below a certain amount, revert to SIQS
 
+	//gmp_printf("checking special cases for nfs input (C%d): %Zd\n", size, fobj->nfs_obj.gmp_n);
+
 	if ((size < fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form > 0))
 	{
 		if (fobj->VFLAG >= 0)

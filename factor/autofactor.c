@@ -233,7 +233,7 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b);
 double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b);
 void do_work(enum factorization_state method, factor_work_t *fwork, mpz_t b, fact_obj_t *fobj);
 enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj);
-int check_if_done(fact_obj_t *fobj, mpz_t N);
+int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N);
 uint32_t  get_ecm_curves_done(factor_work_t *fwork, enum factorization_state state);
 uint32_t  set_ecm_curves_done(factor_work_t *fwork, enum factorization_state state, uint32_t  curves_done);
 uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
@@ -624,7 +624,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	return;
 }
 
-int check_if_done(fact_obj_t *fobj, mpz_t N)
+int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 {
 	int i, done = 0;
 	mpz_t tmp;
@@ -640,6 +640,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 		return done;
 	}
 
+	// more generally, stop after finding k factors
 	if ((fobj->autofact_obj.stopk > 0) &&
 		(fobj->factors->total_factors >= fobj->autofact_obj.stopk))
 	{
@@ -647,6 +648,8 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 		mpz_clear(tmp);
 		return done;
 	}
+
+	// if we are pretesting and have exceeded the pretest limit
 
 	// check if the number is completely factorized
 	for (i=0; i<fobj->factors->num_factors; i++)
@@ -666,14 +669,29 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 			for (i=0; i<fobj->factors->num_factors; i++)
 			{
 				if (is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES) == 0)
-				{					
-					if (fobj->autofact_obj.only_pretest)
+				{	
+					// can still do pretesting on composite factors, for instance
+					// if primitive factor detection found a large composite factor.
+					// 
+					if (fobj->autofact_obj.only_pretest > 1)
 					{
-						// if we found factors and pretest is active then we're done.  
-						done = 1;
-						break;
+						if (fobj->autofact_obj.ecm_total_work_performed >= fobj->autofact_obj.only_pretest)
+						{
+							printf("fac: completed work %1.2f > %d, composite refactorization skipped\n",
+								fobj->autofact_obj.ecm_total_work_performed, fobj->autofact_obj.only_pretest);
+							// if we are pretesting and have already done all of
+							// the ecm work specified then we are done.
+							done = 1;
+							break;
+						}
+						else
+						{
+							printf("fac: completed work %1.2f of %d, attempting composite refactorization\n",
+								fobj->autofact_obj.ecm_total_work_performed, fobj->autofact_obj.only_pretest);
+						}
 					}
-					else if (fobj->refactor_depth > 3)
+					
+					if (fobj->refactor_depth > 3)
 					{
 						printf("too many refactorization attempts, aborting\n");
 						done = 1;
@@ -687,6 +705,10 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						if (fobj->VFLAG > 0)
 							printf("\nComposite result found, starting re-factorization\n");
 
+						//gmp_printf("current factorization input: N = %Zd\n", fobj->N);
+						//printf("here are the current factors of N I know about: \n");
+						//print_factors(fobj, fobj->factors, fobj->N, 1, 1, 10);
+
 						// load the new fobj with this number
 						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 						init_factobj(fobj_refactor);
@@ -694,7 +716,8 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 
 						mpz_set(fobj_refactor->N, fobj->factors->factors[i].factor);
                         fobj_refactor->refactor_depth = fobj->refactor_depth + 1;
-
+						fobj_refactor->autofact_obj.initial_work = 
+							fobj->autofact_obj.ecm_total_work_performed;
 						
 						// these will get recombined in the original fobj; 
 						// no need to output them twice.
@@ -702,6 +725,13 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						fobj_refactor->autofact_obj.want_output_primes = 0;
 						fobj_refactor->autofact_obj.want_output_unfactored = 0;
 						factor(fobj_refactor);
+
+						// remember the ecm work we performed
+						printf("after refactoring, ecm work is %1.2f\n",
+							fobj_refactor->autofact_obj.ecm_total_work_performed);
+						fobj->autofact_obj.ecm_total_work_performed =
+							fobj->autofact_obj.initial_work =
+							fobj_refactor->autofact_obj.ecm_total_work_performed;
 
 						// original count: if > 1, need to add multiples of
 						// each factor found.
@@ -1255,8 +1285,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 #ifdef USE_NFS
 	if ((fobj->autofact_obj.has_snfs_form > 0) && (fobj->nfs_obj.gnfs == 0) && 
-        (strcmp(fobj->autofact_obj.plan_str,"custom") != 0) &&
-        (fobj->autofact_obj.only_pretest <= 1))
+        (strcmp(fobj->autofact_obj.plan_str,"custom") != 0)) // &&
+        //(fobj->autofact_obj.only_pretest <= 1))
 	{
 		// 1) we found a snfs polynomial for the input.
 		// 2) user has not specifically chosen gnfs.
@@ -1353,8 +1383,12 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// this is the case where we're keeping a small primitive 
 			// factor to continue working on.  reassess target_digits for ECM.
 			numdigits = gnfs_size;
+			
+			if (fobj->autofact_obj.only_pretest > 1)
+			{
 
-			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
+			}
+			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
 			{
 				target_digits = 1. * (double)numdigits / 3.;
 			}
@@ -1373,8 +1407,18 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 			if (fobj->VFLAG >= 0)
 			{
-				printf("fac: ecm effort reset to %1.2f for primitive factor of size %d\n",
-					target_digits, numdigits);
+				if (fobj->autofact_obj.only_pretest > 1)
+				{
+					printf("fac: ecm effort is %1.2f for primitive factor of size %d\n",
+						target_digits, numdigits);
+					printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
+						target_digits);
+				}
+				else
+				{
+					printf("fac: ecm effort reset to %1.2f for primitive factor of size %d\n",
+						target_digits, numdigits);
+				}
 			}
 
 		}
@@ -1385,10 +1429,27 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// the plan ratio in accord with the snfs job.
 			if (fobj->VFLAG >= 0)
 			{
-				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
-					target_digits, target_digits / 1.2857);
+				if (fobj->autofact_obj.only_pretest > 1)
+				{
+					printf("fac: ecm effort is %1.2f: input has snfs form\n",
+						target_digits / 1.2857);
+					printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
+						target_digits);
+				}
+				else
+				{
+					printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
+						target_digits, target_digits / 1.2857);
+				}
 			}
-			target_digits /= 1.2857;
+			if (fobj->autofact_obj.only_pretest <= 1)
+			{
+
+			}
+			else
+			{
+				target_digits /= 1.2857;
+			}
 		}
         else
         {
@@ -1432,10 +1493,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	{
 		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - custom pretest plan specified\n");
 	}
-	else if (fobj->autofact_obj.only_pretest > 1)
-	{
-		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - pretest bound specified\n");
-	}
+	//else if (fobj->autofact_obj.only_pretest > 1)
+	//{
+	//	if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - pretest bound specified\n");
+	//}
 
 #endif
 
@@ -1458,6 +1519,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 				printf("fac: setting target pretesting digits to %1.6f\n", target_digits);
 			
 			work_done = compute_ecm_work_done(fwork, 1, NULL, fobj->VFLAG, fobj->LOGFLAG);
+			fobj->autofact_obj.ecm_total_work_performed = work_done;
 			
 			if (fobj->VFLAG >= 1)
 				printf("fac: estimated sum of completed work is t%1.6f\n", work_done);
@@ -1466,21 +1528,25 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 		default:
 			work_done = compute_ecm_work_done(fwork, 0, NULL, fobj->VFLAG, fobj->LOGFLAG);
+			fobj->autofact_obj.ecm_total_work_performed = work_done;
 			break;
 	}
 
 	// if there is a trivial amount of ecm to do, skip directly to a sieve method
+	int is_trivial = 0;
 	if ((target_digits < 15) && (numdigits <= 45))
 	{
 		if (fobj->VFLAG > 0)
 			printf("fac: trivial ECM work to do... skipping to sieve method\n");
 		next_state = state_nfs;
+		is_trivial = 1;
 	}
 
 	// handle the case where the next state is a sieve method
 	if ((next_state == state_nfs) || (work_done > target_digits) ||
 		((work_done > fobj->autofact_obj.only_pretest) && 
-		(fobj->autofact_obj.only_pretest > 1)))
+		(fobj->autofact_obj.only_pretest > 1)) ||
+		is_trivial)
 	{
 		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.6f\n", work_done);
 
@@ -1488,7 +1554,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// we should stop factoring now that ecm is done.  this covers the
 		// case where the user specified a pretest work amount that was
 		// too large as determined by factor
-		if (fobj->autofact_obj.only_pretest)
+		if ((fobj->autofact_obj.only_pretest) && !is_trivial)
 		{
 			logprint_oc(fobj->flogname, "a", "scheduler: pretesting active, now finishing\n");
 			return state_done;
@@ -2319,7 +2385,7 @@ void factor(fact_obj_t *fobj)
         // * number is completely factored
         // * sieve method was performed and either finished or was interrupted.
 		// * one of the exit-on-factor-found conditions is met
-        if (check_if_done(fobj, origN) || check_for_exit_on_factor(fobj) ||
+        if (check_if_done(fobj, &fwork, origN) || check_for_exit_on_factor(fobj) ||
             (quit_after_sieve_method &&
             ((fact_state == state_qs) ||
             (fact_state == state_nfs))) ||
@@ -2342,6 +2408,7 @@ void factor(fact_obj_t *fobj)
                     flog = fopen(fobj->flogname, "a");
                 }
                 work_done = compute_ecm_work_done(&fwork, 1, flog, fobj->VFLAG, fobj->LOGFLAG);
+				fobj->autofact_obj.ecm_total_work_performed = work_done;
                 if (fobj->LOGFLAG)
                 {
                     logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);

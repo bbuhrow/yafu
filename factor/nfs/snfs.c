@@ -1386,8 +1386,11 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 					mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
 					if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 					{
-						//gmp_printf("adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n", 
-						//	t, fobj->nfs_obj.gmp_n, term);
+						if (VFLAG > 2)
+						{
+							gmp_printf("adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n",
+								t, fobj->nfs_obj.gmp_n, term);
+						}
 						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 					}
@@ -1442,13 +1445,24 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 	{
 		// does this term divide the input we are trying to autofactor?
 		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
-		if ((mpz_cmp_ui(t, 0) == 0) && (mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0))
+		if ((mpz_cmp_ui(t, 0) == 0) &&
+			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) && 
+			(mpz_cmp_ui(poly->primitive, 1) > 0))
 		{
-			//gmp_printf("adding primitive factor %Zd of autofactor input %Zd to factor list\n",
-			//	poly->primitive, fobj->nfs_obj.gmp_n);
+			if (VFLAG > 2)
+			{
+				gmp_printf("adding primitive factor %Zd of autofactor input %Zd to factor list\n",
+					poly->primitive, fobj->nfs_obj.gmp_n);
+			}
 			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
+			
 		}
+	}
+
+	if (VFLAG > 2)
+	{
+		gmp_printf("after find_primitive_factor, nfs_obj.gmp_n is now %Zd\n", fobj->nfs_obj.gmp_n);
 	}
 
 	mpz_clear(n);
@@ -1593,11 +1607,17 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	{
 		// gmp_printf("found factor %Zd of input %Zd\n", poly->primitive, fobj->nfs_obj.gmp_n);
 		// we found a factor of the input that isn't a primitive factor
-		add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
+		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
+		if ((mpz_cmp_ui(t, 0) == 0) &&
+			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) &&
+			(mpz_cmp_ui(poly->primitive, 1) > 0))
+		{
+			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
 
-		// reduce the input and keep going
-		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
-		//mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+			// reduce the input and keep going
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
+		}
+
 		if (fobj->VFLAG > 0)
 			gmp_printf("nfs: continuing with residue %Zd\n", fobj->nfs_obj.gmp_n);
 

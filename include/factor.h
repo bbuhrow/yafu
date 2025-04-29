@@ -423,6 +423,8 @@ typedef struct
     // user supplied value indicating prior pretesting work
     double initial_work;
 
+    double ecm_total_work_performed;
+
     double ttime;
 
 } autofact_obj_t;

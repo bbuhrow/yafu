@@ -591,6 +591,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->autofact_obj.check_stop_conditions = src->autofact_obj.check_stop_conditions;
     dest->autofact_obj.max_siqs = src->autofact_obj.max_siqs;
     dest->autofact_obj.max_nfs = src->autofact_obj.max_siqs;
+    dest->autofact_obj.initial_work = src->autofact_obj.initial_work;
+    dest->autofact_obj.ecm_total_work_performed = src->autofact_obj.ecm_total_work_performed;
 
     //pretesting plan used by factor()
     dest->autofact_obj.yafu_pretest_plan = src->autofact_obj.yafu_pretest_plan;
