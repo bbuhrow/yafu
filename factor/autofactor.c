@@ -357,7 +357,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	double t_time;
 	uint32_t  curves_done;
 
-	if (mpz_cmp_ui(b, 1) <= 0)
+	if (0) //mpz_cmp_ui(b, 1) <= 0)
 	{
 		gmp_printf("asked to do work on input = %Zd\n", b);
 		printf("here are the factors I know about:\n");
@@ -1336,7 +1336,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 				snfs_clear(&polys[i]);
 			}
 			free(polys);
-			return state_done;
+			return next_state;
 		}
 
 		//gmp_printf("after polygen, b = %Zd, nfs->gmp_n = %Zd, primitive = %Zd\n",
