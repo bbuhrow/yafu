@@ -1192,7 +1192,7 @@ done:
 }
 
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
-void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uint64_t num_p, int VFLAG)
+void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
 	// factor the exponent.  The algebraic reductions yafu knows how to handle are
 	// for cunningham and homogenous cunningham inputs where the exponent is in
@@ -1209,9 +1209,9 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 
 	mpz_set_ui(poly->primitive, 1);
 
-	nf = tdiv_int(e, f, primes, num_p);	
-	
-	for (i=0; i<4; i++)
+	nf = tdiv_int(e, f, primes, num_p);
+
+	for (i = 0; i < 4; i++)
 		cranks[i] = 0;
 
 	// now arrange the factors into ranks of combinations of unique, distinct, and odd factors.
@@ -1221,14 +1221,14 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 
 	if (VFLAG > 2) printf("gen: finding primitive factor of exponent %d\n", e);
 	// rank 1 is a list of the distinct odd factors.
-	j=0;
+	j = 0;
 	if (VFLAG > 2) printf("gen: rank 1 terms: ");
-	for (i=0; i<nf; i++)
+	for (i = 0; i < nf; i++)
 	{
 		if (f[i] & 0x1)
 		{
 			// odd
-			if (j==0 || f[i] != franks[1][j-1])
+			if (j == 0 || f[i] != franks[1][j - 1])
 			{
 				// distinct
 				franks[1][j++] = f[i];
@@ -1264,14 +1264,14 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 	else if (cranks[1] == 3)
 	{
 		// combinations of 2 primes
-		m=0;
+		m = 0;
 		if (VFLAG > 2) printf("gen: rank 2 terms: ");
-		for (j=0; j<cranks[1]-1; j++)
+		for (j = 0; j < cranks[1] - 1; j++)
 		{
-			for (k=j+1; k<cranks[1]; k++)
+			for (k = j + 1; k < cranks[1]; k++)
 			{
 				franks[2][m++] = franks[1][j] * franks[1][k];
-				if (VFLAG > 2) printf("%d ", franks[2][m-1]);
+				if (VFLAG > 2) printf("%d ", franks[2][m - 1]);
 			}
 		}
 		cranks[2] = m;
@@ -1285,7 +1285,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 
 	// for exponents with repeated or even factors, find the multiplier
 	mult = e;
-	for (i=0; i<cranks[1]; i++)
+	for (i = 0; i < cranks[1]; i++)
 		mult /= franks[1][i];
 	if (VFLAG > 2) printf("gen: base exponent multiplier: %d\n", mult);
 
@@ -1295,18 +1295,18 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 	mpz_set_ui(n, 1);
 	mpz_init(term);
 	mpz_init(t);
-	if ((nr & 0x1) == 1) 
+	if ((nr & 0x1) == 1)
 		mrank = 0;
 	else
 		mrank = 1;
-	for (i=nr-1; i >= 0; i--)
+	for (i = nr - 1; i >= 0; i--)
 	{
 		char c;
 		if ((i & 0x1) == mrank)
 		{
 			// multiply by every other rank - do this before the division
-			for (j=0; j<cranks[i]; j++)
-			{			
+			for (j = 0; j < cranks[i]; j++)
+			{
 				if (poly->form_type == SNFS_H_CUNNINGHAM)
 				{
 					mpz_set(term, poly->base1);
@@ -1319,7 +1319,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c %Zd^%d = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c %Zd^%d = %Zd\n",
 						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
 
 				}
@@ -1333,21 +1333,21 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c 1 = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c 1 = %Zd\n",
 						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mul(n, n, term);
 			}
 		}
 	}
-	for (i=nr-1; i >= 0; i--)
+	for (i = nr - 1; i >= 0; i--)
 	{
 		char c;
 		if ((i & 0x1) == (!mrank))
 		{
 			// divide by every other rank
-			for (j=0; j<cranks[i]; j++)
-			{		
+			for (j = 0; j < cranks[i]; j++)
+			{
 				if (poly->form_type == SNFS_H_CUNNINGHAM)
 				{
 					mpz_set(term, poly->base1);
@@ -1360,7 +1360,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n",
 						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
 				}
 				else
@@ -1373,7 +1373,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n", 
+					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n",
 						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mod(t, n, term);
@@ -1446,7 +1446,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 		// does this term divide the input we are trying to autofactor?
 		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
 		if ((mpz_cmp_ui(t, 0) == 0) &&
-			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) && 
+			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) &&
 			(mpz_cmp_ui(poly->primitive, 1) > 0))
 		{
 			if (VFLAG > 2)
@@ -1456,7 +1456,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 			}
 			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
-			
+
 		}
 	}
 
@@ -1468,9 +1468,81 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 	// finally, if the base and exponent admit an Aurifeuillian form, add the two
 	// factors if they divide the input.  We don't have code to build SNFS polys for
 	// these, yet, but can still halve the size of the input and do qs/gnfs on those.
-	int auri_bases[8] = { 2, 3, 6, 7, 10, 11, 12, 14 };
-	int auri_m[8] = { 4, 6, 12, 14, 20, 22, 6, 28 };
-	int auri_c[8] = { 2, 3, 6, 7, 10, 11, 3, 14 };
+#define NAURI 10
+	int auri_bases[NAURI] = { 2, 3, 6, 7, 10, 11, 12, 14, 15, 18 };
+	int auri_m[NAURI] = { 4, 6, 12, 14, 20, 22, 6, 28, 30, 4 };
+	int auri_c[NAURI] = { 2, 3, 6, 7, 10, 11, 3, 14, 15, 2 };
+	int fterm_em[NAURI] = { 0, 2, 4, 2, 4, 2, 2, 4, 0, 0 };
+	int fterm_ec[NAURI] = { 0, 1, 2, 1, 2, 1, 1, 2, 0, 0 };
+	int c_num_terms[NAURI] = { 2, 2, 3, 4, 5, 6, 2, 7, 5, 2 };
+	int d_num_terms[NAURI] = { 1, 1, 2, 3, 4, 5, 1, 6, 4, 1 };
+	int cterm_em[NAURI][7] = {
+		{ 2, 0, 0, 0, 0, 0, 0 },			// base 2
+		{ 2, 0, 0, 0, 0, 0, 0 },			// base 3
+		{ 4, 2, 0, 0, 0, 0, 0 },			// base 6
+		{ 6, 4, 2, 0, 0, 0, 0 },			// base 7
+		{ 8, 6, 4, 2, 0, 0, 0 },			// base 10
+		{ 10, 8, 6, 4, 2, 0, 0 },			// base 11
+		{ 2, 0, 0, 0, 0, 0, 0 },			// base 12
+		{ 12, 10, 8, 6, 4, 2, 0 },	 		// base 14
+		{ 8, 6, 4, 2, 0 },
+		{ 2, 0 } };
+	int cterm_ec[NAURI][7] = {
+		{ 1, 0, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0, 0 },
+		{ 2, 1, 0, 0, 0, 0, 0 },
+		{ 3, 2, 1, 0, 0, 0, 0 },
+		{ 4, 3, 2, 1, 0, 0, 0 },
+		{ 5, 4, 3, 2, 1, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0, 0 },
+		{ 6, 5, 4, 3, 2, 1, 0 },
+		{ 4, 3, 2, 1, 0 },
+		{ 1, 0 } };
+	int cterm_m[NAURI][7] = {
+		{ 1, 1, 0, 0, 0, 0, 0 },
+		{ 1, 1, 0, 0, 0, 0, 0 },
+		{ 1, 3, 1, 0, 0, 0, 0 },
+		{ 1, 3, 3, 1, 0, 0, 0 },
+		{ 1, 5, 7, 5, 1, 0, 0 },
+		{ 1, 5, -1, -1, 5, 1, 0 },
+		{ 1, 1, 0, 0, 0, 0, 0 },
+		{ 1, 7, 3, -7, 3, 7, 1 },
+		{ 1, 8, 13, 8, 1 },
+		{ 1, 1 } };
+	int dterm_em[NAURI][6] = {
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 3, 1, 0, 0, 0, 0 },
+		{ 5, 3, 1, 0, 0, 0 },
+		{ 7, 5, 3, 1, 0, 0 },
+		{ 9, 7, 5, 3, 1, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 11, 9, 7, 5, 3, 1 },
+		{ 7, 5, 3, 1 },
+		{ 1 } };
+	int dterm_ec[NAURI][6] = {
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 2, 1, 0, 0, 0, 0 },
+		{ 3, 2, 1, 0, 0, 0 },
+		{ 4, 3, 2, 1, 0, 0 },
+		{ 5, 4, 3, 2, 1, 0 },
+		{ 0, 0, 0, 0, 0, 0 },
+		{ 6, 5, 4, 3, 2, 1 },
+		{ 4, 3, 2, 1 },
+		{ 0 } };
+	int dterm_m[NAURI][6] = {
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 1, 0, 0, 0, 0 },
+		{ 1, 1, 1, 0, 0, 0 },
+		{ 1, 2, 2, 1, 0, 0 },
+		{ 1, 1, -1, 1, 1, 0 },
+		{ 6, 0, 0, 0, 0, 0 },
+		{ 1, 2, -1, -1, 2, 1 },
+		{ 1, 3, 3, 1 },
+		{ 6 } };
+
 	int base;
 	int do_check = 0;
 	mpz_t F, L, M, C, D;
@@ -1480,7 +1552,7 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 	mpz_init(C);
 	mpz_init(D);
 
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < NAURI; i++)
 	{
 		base = auri_bases[i];
 		// printf("checking form %d^(%dk + %d)+1\n", base, auri_m[i], auri_c[i]);
@@ -1489,231 +1561,30 @@ void find_primitive_factor(fact_obj_t *fobj, snfs_t *poly, uint64_t* primes, uin
 			if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
 			{
 				k = (poly->exp1 - auri_c[i]) / auri_m[i];
-				switch (base)
+				mpz_set_ui(term, base);
+				mpz_pow_ui(F, term, fterm_em[i] * k + fterm_ec[i]);
+				mpz_add_ui(F, F, 1);
+
+				// build F, L, and M factors from the table here:
+				// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
+				mpz_set_ui(C, 0);
+				for (j = 0; j < c_num_terms[i]; j++)
 				{
-				case 2:
-					mpz_set_ui(F, 1);
-
-					mpz_set_ui(term, 1);
-					mpz_mul_2exp(M, term, 2 * k + 1);
-					mpz_set_ui(term, 1);
-					mpz_mul_2exp(term, term, k + 1);
-					mpz_add(M, M, term);
-					mpz_add_ui(M, M, 1);
-
-					mpz_set_ui(term, 1);
-					mpz_mul_2exp(L, term, 2 * k + 1);
-					mpz_set_ui(term, 1);
-					mpz_mul_2exp(term, term, k + 1);
-					mpz_sub(L, L, term);
-					mpz_add_ui(L, L, 1);
-					break;
-
-				case 3:
-					mpz_set_ui(term, 3);
-					mpz_pow_ui(F, term, 2 * k + 1);
-					mpz_add_ui(F, F, 1);
-
-					mpz_set_ui(term, 3);
-					mpz_pow_ui(term, term, k + 1);
-					mpz_add(M, F, term);
-					mpz_sub(L, F, term);
-					break;
-
-				case 6:
-					mpz_set_ui(term, 6);
-					mpz_pow_ui(F, term, 4 * k + 2);
-					mpz_add_ui(F, F, 1);
-
-					mpz_set_ui(term, 6);
-					mpz_pow_ui(term, term, 2 * k + 1);
-					mpz_mul_ui(term, term, 3);
-					mpz_add(C, F, term);
-					
-					mpz_set_ui(term, 6);
-					mpz_pow_ui(D, term, 3 * k + 2);
-					mpz_pow_ui(term, term, k + 1);
-					mpz_add(D, D, term);
-
-					mpz_add(M, C, D);
-					mpz_sub(L, C, D);
-					break;
-
-				case 7:
-					mpz_set_ui(term, 7);
-					mpz_pow_ui(F, term, 2 * k + 1);
-					mpz_add_ui(F, F, 1);
-
-					mpz_sub_ui(term, F, 1);
-					mpz_mul_ui(C, term, 3);
-					mpz_set_ui(term, 7);
-					mpz_pow_ui(term, term, 6 * k + 3);
+					mpz_set_ui(term, base);
+					mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
+					mpz_mul_si(term, term, cterm_m[i][j]);
 					mpz_add(C, C, term);
-					mpz_set_ui(term, 7);
-					mpz_pow_ui(term, term, 4 * k + 2);
-					mpz_mul_ui(term, term, 3);
-					mpz_add(C, C, term);
-					mpz_add_ui(C, C, 1);
-
-					mpz_set_ui(term, 7);
-					mpz_pow_ui(D, term, 5 * k + 3);
-					mpz_pow_ui(term, term, 3 * k + 2);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 7);
-					mpz_pow_ui(term, term, k + 1);
-					mpz_add(D, D, term);
-
-					mpz_add(M, C, D);
-					mpz_sub(L, C, D);
-
-					break;
-
-				case 10:
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(F, term, 4 * k + 2);
-					mpz_add_ui(F, F, 1);
-
-					mpz_sub_ui(term, F, 1);
-					mpz_mul_ui(C, term, 7);
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(term, term, 8 * k + 4);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(term, term, 6 * k + 3);
-					mpz_mul_ui(term, term, 5);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(term, term, 2 * k + 1);
-					mpz_mul_ui(term, term, 5);
-					mpz_add(C, C, term);
-					mpz_add_ui(C, C, 1);
-
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(D, term, 7 * k + 4);
-					mpz_pow_ui(term, term, 5 * k + 3);
-					mpz_mul_ui(term, term, 2);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(term, term, 3 * k + 2);
-					mpz_mul_ui(term, term, 2);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 10);
-					mpz_pow_ui(term, term, k + 1);
-					mpz_add(D, D, term);
-
-					mpz_add(M, C, D);
-					mpz_sub(L, C, D);
-
-					break;
-				case 11:
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(F, term, 2 * k + 1);
-					mpz_add_ui(F, F, 1);
-
-					mpz_sub_ui(term, F, 1);
-					mpz_mul_ui(C, term, 5);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, 10 * k + 5);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, 8 * k + 4);
-					mpz_mul_ui(term, term, 5);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, 6 * k + 3);
-					mpz_sub(C, C, term);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, 4 * k + 2);
-					mpz_sub(C, C, term);
-					mpz_add_ui(C, C, 1);
-
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(D, term, 9 * k + 5);
-					mpz_pow_ui(term, term, 7 * k + 4);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, 5 * k + 3);
-					mpz_sub(D, D, term);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, 3 * k + 2);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 11);
-					mpz_pow_ui(term, term, k + 1);
-					mpz_add(D, D, term);
-
-					mpz_add(M, C, D);
-					mpz_sub(L, C, D);
-
-					break;
-				case 12:
-					mpz_set_ui(term, 12);
-					mpz_pow_ui(F, term, 2 * k + 1);
-					mpz_add_ui(F, F, 1);
-
-					mpz_set(C, F);
-
-					mpz_set_ui(term, 12);
-					mpz_pow_ui(term, term, k);
-					mpz_mul_ui(D, term, 6);
-
-					mpz_add(M, C, D);
-					mpz_sub(L, C, D);
-
-					break;
-				case 14:
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(F, term, 4 * k + 2);
-					mpz_add_ui(F, F, 1);
-
-					mpz_sub_ui(term, F, 1);
-					mpz_mul_ui(C, term, 3);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 12 * k + 6);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 10 * k + 5);
-					mpz_mul_ui(term, term, 7);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 8 * k + 4);
-					mpz_mul_ui(term, term, 3);
-					mpz_add(C, C, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 6 * k + 3);
-					mpz_mul_ui(term, term, 7);
-					mpz_sub(C, C, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 2 * k + 1);
-					mpz_mul_ui(term, term, 7);
-					mpz_add(C, C, term);
-					mpz_add_ui(C, C, 1);
-
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(D, term, 11 * k + 6);
-					mpz_pow_ui(term, term, 9 * k + 5);
-					mpz_mul_ui(term, term, 2);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 7 * k + 4);
-					mpz_sub(D, D, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 5 * k + 3);
-					mpz_sub(D, D, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, 3 * k + 2);
-					mpz_mul_ui(term, term, 2);
-					mpz_add(D, D, term);
-					mpz_set_ui(term, 14);
-					mpz_pow_ui(term, term, k + 1);
-					mpz_add(D, D, term);
-
-					mpz_add(M, C, D);
-					mpz_sub(L, C, D);
-
-					break;
 				}
-
-				
+				mpz_set_ui(D, 0);
+				for (j = 0; j < d_num_terms[i]; j++)
+				{
+					mpz_set_ui(term, base);
+					mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
+					mpz_mul_si(term, term, dterm_m[i][j]);
+					mpz_add(D, D, term);
+				}
+				mpz_add(M, C, D);
+				mpz_sub(L, C, D);
 				do_check = 1;
 				break;
 			}
