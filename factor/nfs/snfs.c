@@ -1608,9 +1608,13 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 				{
 					gmp_printf("gen: adding Aurifeuillian F-factor %Zd of autofactor input %Zd to factor list\n",
 						t, fobj->nfs_obj.gmp_n);
-					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 				}
+				else if (VFLAG >= 0)
+				{
+					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
+				}
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
 		}
 
@@ -1627,9 +1631,13 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 			{
 				gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
 					t, fobj->nfs_obj.gmp_n);
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
+			else if (VFLAG >= 0)
+			{
+				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
 
 		if (VFLAG > 2)
@@ -1645,9 +1653,13 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 			{
 				gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
 					t, fobj->nfs_obj.gmp_n);
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
+			else if (VFLAG >= 0)
+			{
+				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
 
 	}
