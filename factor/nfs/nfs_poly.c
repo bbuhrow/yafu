@@ -165,6 +165,12 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
         }
     }
 
+	if (poly->form_type == SNFS_NONE)
+	{
+		//if (fobj->VFLAG >= 0) printf("nfs: searching for lucas special forms...\n");
+		//find_lucas_form(fobj, poly);
+	}
+
     gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
 	if (fobj->VFLAG >= 0) printf("nfs: snfs form detection took %lf seconds\n", t_time);
@@ -203,9 +209,17 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 	// with the form detected, create a good polynomial
 	if (poly->form_type == SNFS_XYYXF)
+	{
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
+	}
+	else if (poly->form_type == SNFS_LUCAS)
+	{
+		polys = gen_lucas_poly(fobj, poly, &npoly);
+	}
 	else
+	{
 		polys = gen_brent_poly(fobj, poly, &npoly);
+	}
 
 	if (npoly == 0)
 	{
@@ -366,7 +380,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		}
 	}
 
-    int do_skew_opt = 1;
+    int do_skew_opt = 0;
     if (do_skew_opt)
     {
         // if requested, dither the skew to attempt to find 

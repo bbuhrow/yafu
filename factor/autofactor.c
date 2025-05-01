@@ -649,8 +649,6 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 		return done;
 	}
 
-	// if we are pretesting and have exceeded the pretest limit
-
 	// check if the number is completely factorized
 	for (i=0; i<fobj->factors->num_factors; i++)
 	{		
@@ -1234,12 +1232,22 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
         if (poly != NULL)
         {
+			printf("fac: found form %d\n", (int)poly->form_type);
             fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
 
 			if (poly->form_type == SNFS_BRENT)
 			{
 				// are there algebraic factors we can extract?
 				find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
+
+				// if we found any, set the autofactor target to whatever is left over.
+				mpz_set(b, fobj->nfs_obj.gmp_n);
+				gmp_printf("fac: continuing autofactor on residue %Zd\n", b);
+			}
+			else if (poly->form_type == SNFS_LUCAS)
+			{
+				// are there algebraic factors we can extract?
+				//find_primitive_factor_lucas(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
 
 				// if we found any, set the autofactor target to whatever is left over.
 				mpz_set(b, fobj->nfs_obj.gmp_n);
@@ -1315,7 +1323,11 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         {
             polys = gen_xyyxf_poly(fobj, poly, &npoly);
         }
-        else
+		else if (poly->form_type == SNFS_LUCAS)
+		{
+			polys = gen_lucas_poly(fobj, poly, &npoly);
+		}
+		else
         {
             polys = gen_brent_poly(fobj, poly, &npoly);
         }
@@ -1375,6 +1387,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// polynomial or the size of the primitive factor, if one was found.
 			gnfs_size = MIN(gnfs_size, est_gnfs_size_via_poly(&polys[0]));
 		}
+		else if (fobj->VFLAG >= 0)
+		{
+			printf("fac: found no SNFS polynomials\n");
+		}
 		
 		if (gnfs_size < fobj->autofact_obj.qs_snfs_xover)
 		{
@@ -1420,7 +1436,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			}
 
 		}
-		else if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
+		else if ((gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)) &&
+			(npoly > 0))
 		{
 			// Finally - to the best of our knowledge this will be a SNFS job.
 			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
@@ -1440,7 +1457,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 						target_digits, target_digits / 1.2857);
 				}
 			}
-			if (fobj->autofact_obj.only_pretest <= 1)
+
+			if (fobj->autofact_obj.only_pretest > 1)
 			{
 
 			}

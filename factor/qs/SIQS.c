@@ -4406,7 +4406,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         sconf->rb[0].num_uecm[0] = 0;
         sconf->rb[0].num_uecm[1] = 0;
         sconf->rb[0].num_uecm[2] = 0;
+        sconf->rb[0].num_uecm[3] = 0;
         sconf->rb[0].num_tecm = 0;
+        sconf->rb[0].num_tecm2 = 0;
         sconf->rb[0].num_qs = 0;
         sconf->rb[0].num_attempt = 0;
         sconf->rb[0].num_success = 0;

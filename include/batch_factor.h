@@ -84,8 +84,9 @@ typedef struct {
 	mpz_t prime_product;  /* product of primes used in the gcd */
 
 	tiny_qs_params *params;
-	uint32_t num_uecm[3];		/* calls to uecm to split 2LP on the f1r and f2r sides */
+	uint32_t num_uecm[4];		/* calls to uecm to split 2LP on the f1r and f2r sides */
 	uint32_t num_tecm;			/* calls to tecm to split 3LP on the f1r side */
+	uint32_t num_tecm2;			/* calls to tecm to split 3LP on the f2r side */
 	uint32_t num_qs;			/* tecm failures (in the future, handled by qs) */
 	uint32_t num_attempt;		/* number of calls to check_relation (possibly involving ecm) */
 	uint32_t num_success;       /* number of surviving relations */

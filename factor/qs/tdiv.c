@@ -622,8 +622,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
                         if ((dconf->batch_run_override - 1) > 0)
                         {
-                            rb->num_uecm[0] = rb->num_uecm[1] = rb->num_uecm[2] = 0;
-                            rb->num_tecm = 0;
+                            rb->num_uecm[0] = rb->num_uecm[1] = rb->num_uecm[2] = rb->num_uecm[3] = 0;
+                            rb->num_tecm = rb->num_tecm2 = 0;
                             rb->num_qs = 0;
                             for (i = 0; i < 8; i++)
                             {
@@ -649,7 +649,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             sconf->rb[0].num_uecm[0] += rb->num_uecm[0];
                             sconf->rb[0].num_uecm[1] += rb->num_uecm[1];
                             sconf->rb[0].num_uecm[2] += rb->num_uecm[2];
+                            sconf->rb[0].num_uecm[3] += rb->num_uecm[3];
                             sconf->rb[0].num_tecm += rb->num_tecm;
+                            sconf->rb[0].num_tecm2 += rb->num_tecm2;
                             sconf->rb[0].num_qs += rb->num_qs;
                             for (i = 0; i < 8; i++)
                             {
@@ -657,9 +659,10 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             }
                         }
                         printf("\tattempt: %u\n", sconf->rb[0].num_attempt);
-                        printf("\tuecm1/uecm2/uecm3/tecm/qs: %u,%u,%u,%u,%u\n", 
+                        printf("\tuecm1/uecm2/uecm3/uecm4/tecm1/tecm2/qs: %u,%u,%u,%u,%u,%u,%u\n", 
                             sconf->rb[0].num_uecm[0], sconf->rb[0].num_uecm[1], sconf->rb[0].num_uecm[2],
-                            sconf->rb[0].num_tecm, sconf->rb[0].num_qs);
+                            sconf->rb[0].num_uecm[3], sconf->rb[0].num_tecm, sconf->rb[0].num_tecm2, 
+                            sconf->rb[0].num_qs);
                         printf("\taborts: %u,%u,%u,%u,%u,%u,%u,%u\n",
                             sconf->rb[0].num_abort[0], sconf->rb[0].num_abort[1], sconf->rb[0].num_abort[2],
                             sconf->rb[0].num_abort[3], sconf->rb[0].num_abort[4], sconf->rb[0].num_abort[5],

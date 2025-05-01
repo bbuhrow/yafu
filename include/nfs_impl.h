@@ -242,8 +242,10 @@ void find_brent_form(fact_obj_t* fobj, snfs_t* poly);
 void find_hcunn_form(fact_obj_t* fobj, snfs_t* poly);
 void find_xyyxf_form(fact_obj_t* fobj, snfs_t* poly);
 void find_direct_form(fact_obj_t* fobj, snfs_t* poly);
+void find_lucas_form(fact_obj_t* fobj, snfs_t* poly);
 snfs_t* gen_brent_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys); // the workhorse
 snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys);
+snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys);
 int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
 void check_poly(snfs_t* poly, int VFLAG);
 void compute_difficulty_from_poly(snfs_t* poly, int VFLAG);

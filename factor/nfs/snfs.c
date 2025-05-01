@@ -1191,6 +1191,84 @@ done:
     return;
 }
 
+void find_lucas_form(fact_obj_t* fobj, snfs_t* form)
+{
+	// by brute force, detect if the input is a lucas or fibonacci number.
+	// we check up to fib(1500), about 1024 bits.
+	mpz_t F, L, r, n;
+	int i;
+
+	mpz_init(F);
+	mpz_init(L);
+	mpz_init(r);
+	mpz_init(n);
+
+
+	for (i = 3; i < 1500; i++)
+	{
+		mpz_fib_ui(F, i);
+		mpz_lucnum_ui(L, i);
+
+		mpz_gcd(r, F, fobj->nfs_obj.gmp_n);
+
+		if (mpz_cmp_ui(r, 1) > 0)
+		{
+			if (mpz_cmp(r, fobj->nfs_obj.gmp_n) < 0)
+			{
+				if (fobj->VFLAG >= 0)
+				{
+					gmp_printf("gen: found algebraic factor fib(%d) = %Zd\n", i, r);
+				}
+
+				add_to_factor_list(fobj->factors, r, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, r);
+				continue;
+			}
+
+			form->form_type = SNFS_LUCAS;
+
+			if (fobj->VFLAG >= 0) gmp_printf("nfs: input divides fib(%d)\n", i);
+			logprint_oc(fobj->flogname, "a", "nfs: input divides fib(%d)\n", i);
+
+			form->coeff1 = 1;
+			mpz_set(form->base1, r);
+			form->exp1 = 1;				// codes fibonacci number
+			mpz_set_ui(form->base2, 1);
+			form->coeff2 = 0;
+			form->exp2 = i;
+			mpz_set(form->n, r);
+
+			break;
+		}
+
+		mpz_gcd(r, L, fobj->nfs_obj.gmp_n);
+
+		if (mpz_cmp_ui(r, 1) > 0)
+		{
+			form->form_type = SNFS_LUCAS;
+
+			if (fobj->VFLAG >= 0) gmp_printf("nfs: input divides luc(%d)\n", i);
+			logprint_oc(fobj->flogname, "a", "nfs: input divides luc(%d)\n", i);
+
+			form->coeff1 = 1;
+			mpz_set(form->base1, r);
+			form->exp1 = 2;				// codes lucas number
+			mpz_set_ui(form->base2, 1);
+			form->coeff2 = 0;
+			form->exp2 = i;
+			mpz_set(form->n, r);
+			break;
+		}
+	}
+
+	mpz_clear(F);
+	mpz_clear(L);
+	mpz_clear(r);
+	mpz_clear(n);
+
+	return;
+}
+
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
 void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
@@ -1674,6 +1752,490 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 	mpz_clear(t);
 	return;
 }
+
+void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
+{
+	// factor the exponent.  The algebraic reductions yafu knows how to handle are
+	// for cunningham and homogenous cunningham inputs where the exponent is in
+	// the exp1 field.
+	int e = poly->exp1;
+	int f[32];
+	int nf, i, j, k, m, mult;
+	// ranks of factors - we support up to 3 distinct odd factors of e
+	int franks[4][32];		// and beans
+	// and counts of the factors in each rank
+	int cranks[4];			// doesn't that make you happy?   <-- bonus points if you get this...
+	int nr, mrank;
+	mpz_t n, term, t;
+
+	mpz_set_ui(poly->primitive, 1);
+
+	nf = tdiv_int(e, f, primes, num_p);
+
+	for (i = 0; i < 4; i++)
+		cranks[i] = 0;
+
+	// now arrange the factors into ranks of combinations of unique, distinct, and odd factors.
+	// rank 0 is always 1
+	franks[0][0] = 1;
+	cranks[0] = 1;
+
+	if (VFLAG > 2) printf("gen: finding primitive factor of exponent %d\n", e);
+	// rank 1 is a list of the distinct odd factors.
+	j = 0;
+	if (VFLAG > 2) printf("gen: rank 1 terms: ");
+	for (i = 0; i < nf; i++)
+	{
+		if (f[i] & 0x1)
+		{
+			// odd
+			if (j == 0 || f[i] != franks[1][j - 1])
+			{
+				// distinct
+				franks[1][j++] = f[i];
+				if (VFLAG > 2) printf("%d ", f[i]);
+			}
+		}
+	}
+	if (VFLAG > 2) printf("\n");
+	cranks[1] = j;
+	nr = j + 1;
+
+	if (j > 3)
+	{
+		printf("gen: too many distinct odd factors in exponent!\n");
+		exit(1);
+	}
+
+	// ranks 2...nf build on the first rank combinatorially.
+	// knuth, of course, has a lot to say on enumerating combinations:
+	// http://www.cs.utsa.edu/~wagner/knuth/fasc3a.pdf
+	// in which algorithm T might be sufficient since e shouldn't have too many
+	// factors.
+	// but since e shouldn't have too many factors and I don't feel like implementing
+	// algorithm T from that reference right now, I will proceed to hardcode a bunch of
+	// simple loops.
+	// here is the second rank, if necessary
+	if (cranks[1] == 2)
+	{
+		franks[2][0] = franks[1][0] * franks[1][1];
+		cranks[2] = 1;
+		if (VFLAG > 2) printf("gen: rank 2 term: %d\n", franks[2][0]);
+	}
+	else if (cranks[1] == 3)
+	{
+		// combinations of 2 primes
+		m = 0;
+		if (VFLAG > 2) printf("gen: rank 2 terms: ");
+		for (j = 0; j < cranks[1] - 1; j++)
+		{
+			for (k = j + 1; k < cranks[1]; k++)
+			{
+				franks[2][m++] = franks[1][j] * franks[1][k];
+				if (VFLAG > 2) printf("%d ", franks[2][m - 1]);
+			}
+		}
+		cranks[2] = m;
+		if (VFLAG > 2) printf("\n");
+
+		// combinations of 3 primes
+		franks[3][0] = franks[1][0] * franks[1][1] * franks[1][2];
+		cranks[3] = 1;
+		if (VFLAG > 2) printf("gen: rank 3 term: %d\n", franks[3][0]);
+	}
+
+	// for exponents with repeated or even factors, find the multiplier
+	mult = e;
+	for (i = 0; i < cranks[1]; i++)
+		mult /= franks[1][i];
+	if (VFLAG > 2) printf("gen: base exponent multiplier: %d\n", mult);
+
+	// form the primitive factor, following the rank system of
+	// http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
+	mpz_init(n);
+	mpz_set_ui(n, 1);
+	mpz_init(term);
+	mpz_init(t);
+	if ((nr & 0x1) == 1)
+		mrank = 0;
+	else
+		mrank = 1;
+	for (i = nr - 1; i >= 0; i--)
+	{
+		char c;
+		if ((i & 0x1) == mrank)
+		{
+			// multiply by every other rank - do this before the division
+			for (j = 0; j < cranks[i]; j++)
+			{
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					mpz_set(t, poly->base2);
+					mpz_pow_ui(t, t, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub(term, term, t); c = '-';
+					}
+					else {
+						mpz_add(term, term, t); c = '+';
+					}
+					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c %Zd^%d = %Zd\n",
+						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
+
+				}
+				else
+				{
+					mpz_set(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub_ui(term, term, 1); c = '-';
+					}
+					else {
+						mpz_add_ui(term, term, 1); c = '+';
+					}
+					if (VFLAG > 2) gmp_printf("gen: multiplying by %Zd^%d %c 1 = %Zd\n",
+						poly->base1, franks[i][j] * mult, c, term);
+				}
+				mpz_mul(n, n, term);
+			}
+		}
+	}
+	for (i = nr - 1; i >= 0; i--)
+	{
+		char c;
+		if ((i & 0x1) == (!mrank))
+		{
+			// divide by every other rank
+			for (j = 0; j < cranks[i]; j++)
+			{
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					mpz_set(t, poly->base2);
+					mpz_pow_ui(t, t, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub(term, term, t); c = '-';
+					}
+					else {
+						mpz_add(term, term, t); c = '+';
+					}
+					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n",
+						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
+				}
+				else
+				{
+					mpz_set(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub_ui(term, term, 1); c = '-';
+					}
+					else {
+						mpz_add_ui(term, term, 1); c = '+';
+					}
+					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n",
+						poly->base1, franks[i][j] * mult, c, term);
+				}
+				mpz_mod(t, n, term);
+				if (mpz_cmp_ui(t, 0) != 0) printf("gen: error, term doesn't divide n!\n");
+				mpz_tdiv_q(n, n, term);
+
+				if (fobj->autofact_obj.autofact_active)
+				{
+					// does this term divide the input we are trying to autofactor?
+					mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
+					if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+					{
+						if (VFLAG > 2)
+						{
+							gmp_printf("gen: adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n",
+								t, fobj->nfs_obj.gmp_n, term);
+						}
+						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+					}
+				}
+			}
+		}
+	}
+
+	mpz_tdiv_r(poly->primitive, poly->n, n);
+	if (mpz_cmp_ui(poly->primitive, 0) != 0)
+	{
+		// we found a primitive factor that doesn't divide our
+		// input cofactor.  This primitive factor is therefore 
+		// a factor of some larger power of the target polynomial
+		// that we were supplied a smaller cofactor of.
+		// see if any part of the discovered primitive factor can 
+		// be used
+		mpz_gcd(t, poly->n, n);
+		if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		{
+			// GCD of the primitive factor we discovered and our input discovered
+			// a divisor.  Is it ever possible that this divisor is not useful?
+			// i.e., that if we divide it out, what we are left with is a no-longer-snfsable
+			// number that is more difficult than the original SNFS-able input?
+			// we can't know unless we *don't* divide it out and continue with SNFS
+			// poly generation, and then later compare everything.  
+			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor %Zd \n", n);
+			if (VFLAG > 0) gmp_printf("gen: found factor of input with GCD: %Zd\n", t);
+			// keep the discovered factor
+			mpz_set(poly->primitive, t);
+			// and don't reduce the input polynomial.
+			// this will cause gen_brent_poly (if that is our caller)
+			// to deal with the factor
+		}
+		else
+		{
+			mpz_set(poly->primitive, t);
+		}
+	}
+	else
+	{
+		mpz_set(poly->primitive, n);
+
+		if (mpz_cmp(n, poly->n) < 0)
+		{
+			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor < input number:\ngen: %Zd\n", n);
+			mpz_set(poly->n, n);
+		}
+	}
+
+	if (fobj->autofact_obj.autofact_active)
+	{
+		// does this term divide the input we are trying to autofactor?
+		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
+		if ((mpz_cmp_ui(t, 0) == 0) &&
+			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) &&
+			(mpz_cmp_ui(poly->primitive, 1) > 0))
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: adding primitive factor %Zd of autofactor input %Zd to factor list\n",
+					poly->primitive, fobj->nfs_obj.gmp_n);
+			}
+			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
+
+		}
+	}
+
+	if (VFLAG > 2)
+	{
+		gmp_printf("gen: after find_primitive_factor, nfs_obj.gmp_n is now %Zd\n", fobj->nfs_obj.gmp_n);
+	}
+
+	// finally, if the base and exponent admit an Aurifeuillian form, add the two
+	// factors if they divide the input.  We don't have code to build SNFS polys for
+	// these, yet, but can still halve the size of the input and do qs/gnfs on those.
+#define NAURI 10
+	int auri_bases[NAURI] = { 2, 3, 6, 7, 10, 11, 12, 14, 15, 18 };
+	int auri_m[NAURI] = { 4, 6, 12, 14, 20, 22, 6, 28, 30, 4 };
+	int auri_c[NAURI] = { 2, 3, 6, 7, 10, 11, 3, 14, 15, 2 };
+	int fterm_em[NAURI] = { 0, 2, 4, 2, 4, 2, 2, 4, 0, 0 };
+	int fterm_ec[NAURI] = { 0, 1, 2, 1, 2, 1, 1, 2, 0, 0 };
+	int c_num_terms[NAURI] = { 2, 2, 3, 4, 5, 6, 2, 7, 5, 2 };
+	int d_num_terms[NAURI] = { 1, 1, 2, 3, 4, 5, 1, 6, 4, 1 };
+	int cterm_em[NAURI][7] = {
+		{ 2, 0, 0, 0, 0, 0, 0 },			// base 2
+		{ 2, 0, 0, 0, 0, 0, 0 },			// base 3
+		{ 4, 2, 0, 0, 0, 0, 0 },			// base 6
+		{ 6, 4, 2, 0, 0, 0, 0 },			// base 7
+		{ 8, 6, 4, 2, 0, 0, 0 },			// base 10
+		{ 10, 8, 6, 4, 2, 0, 0 },			// base 11
+		{ 2, 0, 0, 0, 0, 0, 0 },			// base 12
+		{ 12, 10, 8, 6, 4, 2, 0 },	 		// base 14
+		{ 8, 6, 4, 2, 0 },
+		{ 2, 0 } };
+	int cterm_ec[NAURI][7] = {
+		{ 1, 0, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0, 0 },
+		{ 2, 1, 0, 0, 0, 0, 0 },
+		{ 3, 2, 1, 0, 0, 0, 0 },
+		{ 4, 3, 2, 1, 0, 0, 0 },
+		{ 5, 4, 3, 2, 1, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0, 0 },
+		{ 6, 5, 4, 3, 2, 1, 0 },
+		{ 4, 3, 2, 1, 0 },
+		{ 1, 0 } };
+	int cterm_m[NAURI][7] = {
+		{ 1, 1, 0, 0, 0, 0, 0 },
+		{ 1, 1, 0, 0, 0, 0, 0 },
+		{ 1, 3, 1, 0, 0, 0, 0 },
+		{ 1, 3, 3, 1, 0, 0, 0 },
+		{ 1, 5, 7, 5, 1, 0, 0 },
+		{ 1, 5, -1, -1, 5, 1, 0 },
+		{ 1, 1, 0, 0, 0, 0, 0 },
+		{ 1, 7, 3, -7, 3, 7, 1 },
+		{ 1, 8, 13, 8, 1 },
+		{ 1, 1 } };
+	int dterm_em[NAURI][6] = {
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 3, 1, 0, 0, 0, 0 },
+		{ 5, 3, 1, 0, 0, 0 },
+		{ 7, 5, 3, 1, 0, 0 },
+		{ 9, 7, 5, 3, 1, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 11, 9, 7, 5, 3, 1 },
+		{ 7, 5, 3, 1 },
+		{ 1 } };
+	int dterm_ec[NAURI][6] = {
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 2, 1, 0, 0, 0, 0 },
+		{ 3, 2, 1, 0, 0, 0 },
+		{ 4, 3, 2, 1, 0, 0 },
+		{ 5, 4, 3, 2, 1, 0 },
+		{ 0, 0, 0, 0, 0, 0 },
+		{ 6, 5, 4, 3, 2, 1 },
+		{ 4, 3, 2, 1 },
+		{ 0 } };
+	int dterm_m[NAURI][6] = {
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 0, 0, 0, 0, 0 },
+		{ 1, 1, 0, 0, 0, 0 },
+		{ 1, 1, 1, 0, 0, 0 },
+		{ 1, 2, 2, 1, 0, 0 },
+		{ 1, 1, -1, 1, 1, 0 },
+		{ 6, 0, 0, 0, 0, 0 },
+		{ 1, 2, -1, -1, 2, 1 },
+		{ 1, 3, 3, 1 },
+		{ 6 } };
+
+	int base;
+	int do_check = 0;
+	mpz_t F, L, M, C, D;
+	mpz_init(F);
+	mpz_init(L);
+	mpz_init(M);
+	mpz_init(C);
+	mpz_init(D);
+
+	for (i = 0; i < NAURI; i++)
+	{
+		base = auri_bases[i];
+		// printf("checking form %d^(%dk + %d)+1\n", base, auri_m[i], auri_c[i]);
+		if (mpz_cmp_ui(poly->base1, base) == 0)
+		{
+			if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
+			{
+				k = (poly->exp1 - auri_c[i]) / auri_m[i];
+				mpz_set_ui(term, base);
+				mpz_pow_ui(F, term, fterm_em[i] * k + fterm_ec[i]);
+				mpz_add_ui(F, F, 1);
+
+				// build F, L, and M factors from the table here:
+				// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
+				mpz_set_ui(C, 0);
+				for (j = 0; j < c_num_terms[i]; j++)
+				{
+					mpz_set_ui(term, base);
+					mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
+					mpz_mul_si(term, term, cterm_m[i][j]);
+					mpz_add(C, C, term);
+				}
+				mpz_set_ui(D, 0);
+				for (j = 0; j < d_num_terms[i]; j++)
+				{
+					mpz_set_ui(term, base);
+					mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
+					mpz_mul_si(term, term, dterm_m[i][j]);
+					mpz_add(D, D, term);
+				}
+				mpz_add(M, C, D);
+				mpz_sub(L, C, D);
+				do_check = 1;
+				break;
+			}
+		}
+	}
+
+	if (do_check)
+	{
+		if (VFLAG > 2)
+		{
+			gmp_printf("gen: checking F-factor %Zd\n", F);
+		}
+
+		if (mpz_cmp_ui(F, 1) > 0)
+		{
+			mpz_gcd(t, fobj->nfs_obj.gmp_n, F);
+			if ((mpz_cmp_ui(t, 1) > 0) &&
+				(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+			{
+				if (VFLAG > 2)
+				{
+					gmp_printf("gen: adding Aurifeuillian F-factor %Zd of autofactor input %Zd to factor list\n",
+						t, fobj->nfs_obj.gmp_n);
+				}
+				else if (VFLAG >= 0)
+				{
+					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
+				}
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+			}
+		}
+
+		if (VFLAG > 2)
+		{
+			gmp_printf("gen: checking M-factor %Zd\n", M);
+		}
+
+		mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
+		if ((mpz_cmp_ui(t, 1) > 0) &&
+			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
+					t, fobj->nfs_obj.gmp_n);
+			}
+			else if (VFLAG >= 0)
+			{
+				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+		}
+
+		if (VFLAG > 2)
+		{
+			gmp_printf("gen: checking L-factor %Zd\n", L);
+		}
+
+		mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
+		if ((mpz_cmp_ui(t, 1) > 0) &&
+			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
+					t, fobj->nfs_obj.gmp_n);
+			}
+			else if (VFLAG >= 0)
+			{
+				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+		}
+
+	}
+
+	mpz_clear(F);
+	mpz_clear(L);
+	mpz_clear(M);
+	mpz_clear(C);
+	mpz_clear(D);
+	mpz_clear(n);
+	mpz_clear(term);
+	mpz_clear(t);
+	return;
+}
+
 
 // thanks to Alex Kruppa for his phi program, on which a lot
 // of this routine is based.
@@ -3471,6 +4033,181 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	*npolys = npoly;
 	return final_polys;
+}
+
+snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
+{
+	mpz_t n, m, t;
+	int f[100];
+	int e, k, r;
+	int numf = 0;
+	double skew;
+	snfs_t* polys = NULL;
+	int npoly = 0;
+	int is_fib = (poly->exp1 == 1);
+	int VFLAG = fobj->VFLAG;
+
+	mpz_init(n);
+	mpz_init(m);
+	mpz_init(t);
+
+	if (is_fib)
+	{
+		e = poly->exp2;
+		k = e / 5;
+		r = e - k * 5;
+
+		mpz_set_ui(t, e);
+
+		numf = tdiv_mpz(t, f, fobj->primes, fobj->num_p);
+
+		for (k = 0; k < numf; k++)
+		{
+			// does this term divide the input we are trying to autofactor?
+			mpz_fib_ui(m, f[k]);
+
+			mpz_gcd(t, fobj->nfs_obj.gmp_n, m);
+			if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+			{
+				if (VFLAG > 2)
+				{
+					gmp_printf("gen: adding algebraic factor fib(%d) = %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n",
+						k, t, fobj->nfs_obj.gmp_n, m);
+				}
+				else if (VFLAG >= 0)
+				{
+					gmp_printf("gen: found algebraic factor fib(%d) = %Zd\n", f[k], t);
+				}
+
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+			}
+		}
+
+		polys = (snfs_t*)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
+
+		polys->poly->alg.degree = 5;
+		fobj->nfs_obj.pref_degree = 5;
+
+		mpz_set_ui(polys->c[5], 1);
+		mpz_set_ui(polys->c[4], 0);
+
+		// tests for each
+		// fib(613) r = -2
+		// fib(659) r = -1
+		// fib(467) r = +2
+		// fib(491) r = +1 (noecm)
+		switch (r)
+		{
+		case 1:
+			mpz_fib_ui(m, k);
+			mpz_fib_ui(t, k + 1);
+			mpz_set(polys[0].poly->rat.coeff[0], t);
+			mpz_set(polys[0].poly->rat.coeff[1], m);
+
+			mpz_invert(m, m, poly->n);
+			mpz_mul(m, m, t);
+			mpz_mod(m, m, poly->n);
+			mpz_set(polys->poly->m, m);
+			polys->difficulty = log10(mpz_get_d(m));
+
+			mpz_set_si(polys->c[3], 10);
+			mpz_set_si(polys->c[2], -10);
+			mpz_set_si(polys->c[1], 10);
+			mpz_set_si(polys->c[0], -3);
+
+			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
+			break;
+
+		case 2:
+			mpz_fib_ui(m, k);
+			mpz_fib_ui(t, k + 2);
+			mpz_set(polys[0].poly->rat.coeff[0], t);
+			mpz_set(polys[0].poly->rat.coeff[1], m);
+
+			mpz_invert(m, m, poly->n);
+			mpz_mul(m, m, t);
+			mpz_mod(m, m, poly->n);
+			mpz_set(polys->poly->m, m);
+			polys->difficulty = log10(mpz_get_d(m));
+
+			mpz_set_si(polys->c[3], -10);
+			mpz_set_si(polys->c[2], 30);
+			mpz_set_si(polys->c[1], -40);
+			mpz_set_si(polys->c[0], 21);
+
+			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
+			break;
+
+		case 4:
+			mpz_fib_ui(m, k + 1);
+			mpz_fib_ui(t, k);
+			mpz_set(polys[0].poly->rat.coeff[0], t);
+			mpz_set(polys[0].poly->rat.coeff[1], m);
+
+			mpz_invert(m, m, poly->n);
+			mpz_mul(m, m, t);
+			mpz_mod(m, m, poly->n);
+			mpz_set(polys->poly->m, m);
+			polys->difficulty = log10(mpz_get_d(m));
+
+			mpz_set_si(polys->c[3], 10);
+			mpz_set_si(polys->c[2], 10);
+			mpz_set_si(polys->c[1], 10);
+			mpz_set_si(polys->c[0], 3);
+
+			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
+			break;
+
+		case 3:
+			mpz_fib_ui(m, k + 1);
+			mpz_fib_ui(t, k - 1);
+			mpz_set(polys[0].poly->rat.coeff[0], t);
+			mpz_set(polys[0].poly->rat.coeff[1], m);
+
+			mpz_invert(m, m, poly->n);
+			mpz_mul(m, m, t);
+			mpz_mod(m, m, poly->n);
+			mpz_set(polys->poly->m, m);
+			polys->difficulty = log10(mpz_get_d(m));
+
+			mpz_set_si(polys->c[3], -10);
+			mpz_set_si(polys->c[2], 30);
+			mpz_set_si(polys->c[1], -40);
+			mpz_set_si(polys->c[0], 21);
+
+			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
+			break;
+		}
+
+		mpz_mul_si(polys[0].poly->rat.coeff[0], polys[0].poly->rat.coeff[0], -1);
+
+		npoly = 0;
+		check_poly(&polys[npoly], fobj->VFLAG);
+		approx_norms(&polys[npoly]);
+
+		if (polys[npoly].valid)
+		{
+			if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
+			npoly++;
+		}
+		else
+		{	// being explicit
+			snfs_clear(&polys[npoly]);
+			snfs_init(&polys[npoly]);
+		}
+
+		*npolys = 1;
+	}
+
+
+	mpz_clear(n);
+	mpz_clear(m);
+	mpz_clear(t);
+	return polys;
 }
 
 // we've now measured the difficulty for poly's of all common degrees possibly formed

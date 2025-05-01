@@ -54,7 +54,8 @@ enum snfs_form_e
     SNFS_BRENT,
     SNFS_H_CUNNINGHAM,
     SNFS_XYYXF,
-    SNFS_DIRECT
+    SNFS_DIRECT,
+    SNFS_LUCAS
 };
 
 typedef struct
@@ -92,6 +93,8 @@ typedef struct
 extern void nfs(fact_obj_t* fobj);
 extern snfs_t* snfs_find_form(fact_obj_t* fobj);
 extern void find_primitive_factor(fact_obj_t* fobj, 
+    snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG);
+extern void find_primitive_factor_lucas(fact_obj_t* fobj,
     snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG);
 
 #endif
