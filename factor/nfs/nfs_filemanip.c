@@ -317,7 +317,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 			if (fobj->nfs_obj.restart_flag)
 			{
 				if (fobj->VFLAG > 0) printf("nfs: finding best poly in poly file\n");
-				find_best_msieve_poly(fobj, job, 0);
+				find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 0);
 				*last_spq = job->poly_time;
 				if (fobj->VFLAG > 0) printf("nfs: last leading coefficient was %u\n", 
 					job->last_leading_coeff);
@@ -587,7 +587,8 @@ uint32_t get_spq(char **lines, int last_line, fact_obj_t *fobj)
 
 }
 
-double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
+double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, 
+	char *jobfile_name,	int write_jobfile)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
@@ -713,11 +714,12 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	// use alim if side not specified
 
 	// always overwrites previous job files!
-	out = fopen(fobj->nfs_obj.job_infile,"w");
+	//out = fopen(fobj->nfs_obj.job_infile,"w");
+	out = fopen(jobfile_name, "w");
 	if (out == NULL)
 	{
 		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for writing!\n",fobj->nfs_obj.job_infile);
+		printf("could not open %s for writing!\n", jobfile_name);
 		exit(1);
 	}
 
@@ -804,8 +806,8 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	fprintf(out,"lpba: %u\n",job->lpba);
 	fprintf(out,"mfbr: %u\n",job->mfbr);
 	fprintf(out,"mfba: %u\n",job->mfba);
-	fprintf(out,"rlambda: %.1f\n",job->rlambda);
-	fprintf(out,"alambda: %.1f\n",job->alambda);
+	fprintf(out,"rlambda: %.4f\n",job->rlambda);
+	fprintf(out,"alambda: %.4f\n",job->alambda);
 
 	if ((fobj->LOGFLAG) && (logfile != NULL))
 	{
@@ -815,8 +817,8 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 		logprint(logfile, "lpba: %u\n", job->lpba);
 		logprint(logfile, "mfbr: %u\n", job->mfbr);
 		logprint(logfile, "mfba: %u\n", job->mfba);
-		logprint(logfile, "rlambda: %.1f\n", job->rlambda);
-		logprint(logfile, "alambda: %.1f\n", job->alambda);
+		logprint(logfile, "rlambda: %.4f\n", job->rlambda);
+		logprint(logfile, "alambda: %.4f\n", job->alambda);
 	}
 
 	fclose(in);
@@ -1471,3 +1473,5 @@ void print_job(nfs_job_t *job, FILE *out)
 }
 
 #endif
+
+

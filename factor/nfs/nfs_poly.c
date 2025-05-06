@@ -642,7 +642,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		{
 			// we've already spent as much time as we need.  
 			// parse the master .p file and find the best poly	
-			find_best_msieve_poly(fobj, job, 1);
+			find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 1);
 			//also create a .fb file
 			ggnfs_to_msieve(fobj, job);
 
@@ -1105,7 +1105,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			have_new_best = 0;
             if ((!is_startup) && (!special_polyfind))
             {
-                bestscore = find_best_msieve_poly(fobj, job, 0);
+                bestscore = find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 0);
 				if ((bestscore > oldbest) && (oldbest > 1e-30))
 				{
 					printf("=== new best score %1.4e > old best score %1.4e\n",
@@ -1146,7 +1146,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						// if this is a new best score and the size of this 
 						// job is such that substantial poly-select is involved,
 						// do a quick test sieve of the new best polynomial.
-						// if, based on this, we've already spent > 5% of the time
+						// if, based on this, we've already spent > X% of the time
 						// it will take to sieve, stop now.
 						double total_est_sec = 1e20;
 						struct timeval teststart;
@@ -1159,7 +1159,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 							// log this to the logfile.
 							int tmplogflag = fobj->LOGFLAG;
 							fobj->LOGFLAG = 0;
-							bestscore = find_best_msieve_poly(fobj, job, 1);
+							sprintf(t->job_infile_name, "poly_test_sieve.%d.job", tid);
+							bestscore = find_best_msieve_poly(fobj, job, t->job_infile_name, 1);
 							fobj->LOGFLAG = tmplogflag;
 
 							if (fobj->VFLAG >= 0)
@@ -1180,11 +1181,11 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 							gettimeofday(&teststart, NULL);
 							lasieve_launcher((void*)t);
 							gettimeofday(&teststop, NULL);
-							
+
 							double dtime = ytools_difftime(&teststart, &teststop);
 							double test_rels_sec = t->job.current_rels / dtime;
 
-							total_est_sec = (job->min_rels / test_rels_sec) / fobj->THREADS;
+							total_est_sec = (t->job.min_rels / test_rels_sec) / fobj->THREADS;
 
 							if (fobj->VFLAG >= 0)
 							{
@@ -1201,7 +1202,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 								"sec with %d threads\n", total_est_sec, fobj->THREADS);
 
 							remove(t->outfilename);
+							remove(t->job_infile_name);
 							strncpy(t->outfilename, tmpoutfile, 80);
+							sprintf(t->job_infile_name, "%s", fobj->nfs_obj.job_infile);
 						}
 						else
 						{
@@ -1256,13 +1259,13 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 							{
 								printf("nfs: current poly select time of %1.2f sec is %1.2f%% of estimated "
 									"sieve time (> %d%%), stopping polyselect\n",
-									curr_poly_time, est_percent_poly * 100, 
+									curr_poly_time, est_percent_poly, 
 									fobj->nfs_obj.poly_percent_max);
 							}
 							logprint_oc(fobj->flogname, "a",
 								"nfs: current poly select time of %1.2f sec is %1.2f%% of estimated "
 								"sieve time (> %d%%), stopping polyselect\n",
-								curr_poly_time, est_percent_poly * 100,
+								curr_poly_time, est_percent_poly,
 								fobj->nfs_obj.poly_percent_max);
 
 							// send a stop signal to all active threads doing standard polyselect.
@@ -1393,7 +1396,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	if (!NFS_ABORT)
 	{
 		// parse the master .p file and find the best poly	
-		find_best_msieve_poly(fobj, job, 1);
+		find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 1);
 		// also create a .fb file
 		ggnfs_to_msieve(fobj, job);
 	}

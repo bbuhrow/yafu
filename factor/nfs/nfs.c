@@ -35,6 +35,8 @@ int NFS_ABORT;
 int IGNORE_NFS_ABORT;
 msieve_obj *obj_ptr;
 
+void set_ggnfs_tables(fact_obj_t *fobj);
+
 void nfsexit(int sig)
 {
 
@@ -225,6 +227,8 @@ void nfs(fact_obj_t *fobj)
 
 	if (nfs_check_special_case(fobj))
 		return;
+
+	set_ggnfs_tables(fobj);
 
 	if (fobj->nfs_obj.filearg[0] != '\0')
 	{
@@ -1490,13 +1494,20 @@ int est_gnfs_size_via_poly(snfs_t *job)
 		return  0.56*job->difficulty + 30;
 }
 
+double** gnfs_table;
+double** snfs_table;
+int gnfs_table_rows;
+int snfs_table_rows;
+int gnfs_table_rdy;
+int snfs_table_rdy;
+
 
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
 // Note: this original table will become the new SNFS table.
 // GNFS jobs will use the data contributed by Gimarel (below).
-double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS] = {
+double ggnfs_table_orig[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
@@ -1587,10 +1598,17 @@ double ggnfs_table_Gimarel[GGNFS_TABLE_ROWS_NEW][GGNFS_TABLE_COLS_NEW] = {
 	{145, 6540000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 68000000	},
 	{146, 6800000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 70000000	},
 	{147, 7060000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 72000000	},
-	{148, 7320000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 74000000	}
+	{148, 7320000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 74000000	},
+
+	{150, 25000000, 25000000, 29, 29,  58, 58, 2.6, 2.6, 14, 12500000, 16000, 0},
+	{155, 32000000, 32000000, 29, 29,  58, 58, 2.6, 2.6, 14, 16000000, 16000, 0},
+	{160, 40000000, 40000000, 30, 30,  60, 60, 2.6, 2.6, 14, 20000000, 16000, 0},	// snfs 232
+	{165, 49000000, 49000000, 30, 30,  60, 60, 2.6, 2.6, 14, 24500000, 16000, 0},	// 241
+	{170, 59000000, 59000000, 31, 31,  62, 62, 2.6, 2.6, 14, 29500000, 32000, 0},	// 250
+	{175, 70000000, 70000000, 31, 31,  62, 62, 2.6, 2.6, 15, 35000000, 32000, 0},	// 259
+	{180, 82000000, 82000000, 31, 31,  62, 62, 2.6, 2.6, 15, 41000000, 32000, 0},	// 267
+	{185, 100000000,100000000, 32, 32, 64, 64, 2.6, 2.6, 16, 50000000, 32000, 0}
 };
-
-
 
 double* parse_params_file(char* filename, int *numrows)
 {
@@ -1696,6 +1714,123 @@ double* parse_params_file(char* filename, int *numrows)
 	return NULL;
 }
 
+void set_ggnfs_tables(fact_obj_t* fobj)
+{
+	double* parsed_table = NULL;
+	int parsed_rows;
+	int i, j;
+
+	// if a parameters file was provided, attempt to parse it.
+	if (strlen(fobj->nfs_obj.params_file) > 0)
+	{
+		parsed_table = parse_params_file(fobj->nfs_obj.params_file, &parsed_rows);
+
+		if (parsed_table != NULL)
+		{
+			gnfs_table = (double**)xmalloc(parsed_rows * sizeof(double*));
+			for (i = 0; i < parsed_rows; i++)
+			{
+				gnfs_table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
+				for (j = 0; j < GGNFS_TABLE_COLS; j++)
+				{
+					if ((j == 7) || (j == 8))
+						gnfs_table[i][j] = parsed_table[i * GGNFS_TABLE_COLS + j];
+					else
+						gnfs_table[i][j] = floor(parsed_table[i * GGNFS_TABLE_COLS + j] + 0.5);
+				}
+			}
+			gnfs_table_rows = parsed_rows;
+
+			if (fobj->VFLAG >= 0)
+			{
+				printf("nfs: successfully parsed %d nfs parameter entries from %s\n",
+					parsed_rows, fobj->nfs_obj.params_file);
+			}
+		}
+	}
+
+	if (parsed_table == NULL)
+	{
+		// no user supplied table, use Gimarel's table (extended with orig table data > 148 digits).
+		gnfs_table = (double**)xmalloc(GGNFS_TABLE_ROWS_NEW * sizeof(double*));
+		for (i = 0; i < GGNFS_TABLE_ROWS_NEW; i++)
+		{
+			gnfs_table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
+			for (j = 0; j < GGNFS_TABLE_COLS; j++)
+			{
+				if ((j == 7) || (j == 8))
+					gnfs_table[i][j] = ggnfs_table_Gimarel[i][j];
+				else
+					gnfs_table[i][j] = floor(ggnfs_table_Gimarel[i][j] + 0.5);
+			}
+		}
+
+		gnfs_table_rows = GGNFS_TABLE_ROWS_NEW;
+	}
+
+	// snfs tables uses the original default table.
+	snfs_table = (double**)xmalloc(GGNFS_TABLE_ROWS * sizeof(double*));
+	for (i = 0; i < GGNFS_TABLE_ROWS; i++)
+	{
+		snfs_table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
+		for (j = 0; j < GGNFS_TABLE_COLS; j++)
+		{
+			if ((j == 7) || (j == 8))
+				snfs_table[i][j] = ggnfs_table_orig[i][j];
+			else
+				snfs_table[i][j] = floor(ggnfs_table_orig[i][j] + 0.5);
+		}
+	}
+
+	snfs_table_rows = GGNFS_TABLE_ROWS;
+
+	gnfs_table_rdy = 1;
+	snfs_table_rdy = 1;
+
+	if (fobj->VFLAG > 1)
+	{
+		printf("gnfs table:\n");
+		for (i = 0; i < gnfs_table_rows; i++)
+		{
+			for (j = 0; j < GGNFS_TABLE_COLS; j++)
+			{
+				if ((j == 7) || (j == 8))
+					printf("%1.4f,\t", gnfs_table[i][j]);
+				else
+					printf("%d,\t", (int)floor(gnfs_table[i][j] + 0.5));
+			}
+			printf("\n");
+		}
+		printf("snfs table:\n");
+		for (i = 0; i < snfs_table_rows; i++)
+		{
+			for (j = 0; j < GGNFS_TABLE_COLS; j++)
+			{
+				if ((j == 7) || (j == 8))
+					printf("%1.4f,\t", snfs_table[i][j]);
+				else
+					printf("%d,\t", (int)floor(snfs_table[i][j] + 0.5));
+			}
+			printf("\n");
+		}
+	}
+
+	if (parsed_table != NULL)
+	{
+		free(parsed_table);
+	}
+
+	if (fobj->VFLAG >= 0)
+	{
+		printf("nfs: gnfs parameters table has %d rows spanning %d-%d digits\n", 
+			gnfs_table_rows, (int)gnfs_table[0][0], (int)gnfs_table[gnfs_table_rows - 1][0]);
+		printf("nfs: snfs parameters table has %d rows spanning %d-%d digits\n", 
+			snfs_table_rows, (int)snfs_table[0][0], (int)snfs_table[snfs_table_rows - 1][0]);
+	}
+
+	return;
+}
+
 int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 {
 	// based on the size/difficulty of the input number, determine "good" parameters
@@ -1712,76 +1847,6 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	uint32_t lpb = 0, mfb = 0, fblim = 0, siever = 0;
 	double lambda;
     int betterskew = 0;
-	int table_rows = GGNFS_TABLE_ROWS;
-	double** table = NULL;
-	double* parsed_table = NULL;
-	int parsed_rows;
-
-	// if a parameters file was provided, attempt to parse it.
-	if (strlen(fobj->nfs_obj.params_file) > 0)
-	{
-		parsed_table = parse_params_file(fobj->nfs_obj.params_file, &parsed_rows);
-
-		if (parsed_table != NULL)
-		{
-			int j;
-
-			table = (double**)xmalloc(parsed_rows * sizeof(double*));
-			for (i = 0; i < parsed_rows; i++)
-			{
-				table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
-				for (j = 0; j < GGNFS_TABLE_COLS; j++)
-				{
-					if ((j == 7) || (j == 8))
-						table[i][j] = parsed_table[i * GGNFS_TABLE_COLS + j];
-					else
-						table[i][j] = floor(parsed_table[i * GGNFS_TABLE_COLS + j] + 0.5);
-				}
-			}
-			table_rows = parsed_rows;
-
-			if (fobj->VFLAG >= 0)
-			{
-				printf("nfs: successfully parsed %d nfs parameter entries from %s\n",
-					parsed_rows, fobj->nfs_obj.params_file);
-			}
-
-			if (fobj->VFLAG > 1)
-			{
-				printf("parsed table:\n");
-				for (i = 0; i < parsed_rows; i++)
-				{
-					for (j = 0; j < GGNFS_TABLE_COLS; j++)
-					{
-						if ((j == 7) || (j == 8))
-							printf("%1.4f,\t", table[i][j]);
-						else
-							printf("%d,\t", (int)floor(table[i][j] + 0.5));
-					}
-					printf("\n");
-				}
-			}
-		}
-	}
-
-	if (parsed_table == NULL)
-	{
-		// no user supplied table, use the default table.
-		table = (double**)xmalloc(GGNFS_TABLE_ROWS * sizeof(double*));
-		for (i = 0; i < GGNFS_TABLE_ROWS; i++)
-		{
-			int j;
-
-			table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
-			for (j = 0; j < GGNFS_TABLE_COLS; j++)
-			{
-				if ((j == 7) || (j == 8))
-					table[i][j] = ggnfs_table[i][j];
-				else
-					table[i][j] = floor(ggnfs_table[i][j] + 0.5);
-			}
-		}
-	}
 
 	/*
 	if (job->snfs == N && job->size != 0 && job->size != d && fobj->VFLAG > 0)
@@ -1967,6 +2032,20 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
         fflush(stdout);
     }
 
+	double** table;
+	int table_rows;
+
+	if (job->snfs != NULL)
+	{
+		table = snfs_table;
+		table_rows = snfs_table_rows;
+	}
+	else
+	{
+		table = gnfs_table;
+		table_rows = gnfs_table_rows;
+	}
+
 	for (i=0; i< table_rows - 1; i++)
 	{
 		if (d > table[i][0] && d <= table[i+1][0])
@@ -2014,13 +2093,13 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				lambda = table[i][7];
 			else
 				lambda = table[i+1][7];
-			if (job->rlambda == 0) job->rlambda = lambda;
+			if (job->rlambda < 1e-6) job->rlambda = lambda;
 
 			if ((d - table[i][0]) < (table[i + 1][0] - d))
 				lambda = table[i][8];
 			else
 				lambda = table[i + 1][8];
-			if (job->alambda == 0) job->alambda = lambda;
+			if (job->alambda < 1e-6) job->alambda = lambda;
 
 			//pick closest entry
 			if ((d - table[i][0]) < (table[i+1][0] - d))
@@ -2070,10 +2149,10 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			if (job->mfba == 0) job->mfba = mfb;
 
 			lambda = table[0][7];
-			if (job->rlambda == 0) job->rlambda = lambda;
+			if (job->rlambda < 1e-6) job->rlambda = lambda;
 			
 			lambda = table[0][8];
-			if (job->alambda == 0) job->alambda = lambda;
+			if (job->alambda < 1e-6) job->alambda = lambda;
 
 			siever = table[0][9];
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
@@ -2103,10 +2182,10 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			if (job->mfba == 0) job->mfba = mfb;
 
 			lambda = table[table_rows -1][7];
-			if (job->rlambda == 0) job->rlambda = lambda;
+			if (job->rlambda < 1e-6) job->rlambda = lambda;
 
 			lambda = table[table_rows - 1][8];
-			if (job->alambda == 0) job->alambda = lambda;
+			if (job->alambda < 1e-6) job->alambda = lambda;
 
 			siever = table[table_rows -1][9];
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
@@ -2119,7 +2198,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 	// swap parameters if side is not algebraic.  This assumes the param table data
 	// was assembled for algebraic-side sieving.  
-	if (job->poly->side == RATIONAL_SPQ)
+	if (0) //job->poly->side == RATIONAL_SPQ)
 	{
 		uint32_t tmp;
 		double dtmp;
@@ -2179,15 +2258,6 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
-
-	for (i = 0; i < table_rows; i++)
-	{
-		free(table[i]);
-	}
-	free(table);
-
-	if (parsed_table != NULL)
-		free(parsed_table);
 
 	return betterskew;
 }

@@ -942,7 +942,7 @@ void check_batch_relation(relation_batch_t *rb,
 #else
         int success = getfactor_tecm(f2r, _small, 0, lcg_state);
 #endif
-        rb->num_tecm++;
+        rb->num_tecm2++;
 
         if (success)
         {
@@ -966,7 +966,7 @@ void check_batch_relation(relation_batch_t *rb,
             lp_r[num_r++] = mpz_get_ui(_small);
 
             uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state); //do_uecm(mpz_get_ui(_large));
-            rb->num_uecm[2]++;
+            rb->num_uecm[3]++;
 
             if (f64 <= 1 || f64 > rb->lp_cutoff_r)
             {

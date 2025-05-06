@@ -270,18 +270,18 @@ void approx_norms(snfs_t *poly)
     // is based on difficulty, which we *have* computed, so run this
     // to pick up a siever estimate (scaling difficulty may later change 
     // it (rare) but this is an estimate anyway).
-    for (i = 0; i < GGNFS_TABLE_ROWS - 1; i++)
+    for (i = 0; i < snfs_table_rows - 1; i++)
     {
-        if (d > ggnfs_table[i][0] && d <= ggnfs_table[i + 1][0])
+        if (d > snfs_table[i][0] && d <= snfs_table[i + 1][0])
         {
-            scale = (double)(ggnfs_table[i + 1][0] - d) /
-                (double)(ggnfs_table[i + 1][0] - ggnfs_table[i][0]);
+            scale = (double)(snfs_table[i + 1][0] - d) /
+                (double)(snfs_table[i + 1][0] - snfs_table[i][0]);
 
             // pick closest entry
-            if ((d - ggnfs_table[i][0]) < (ggnfs_table[i + 1][0] - d))
-                siever = ggnfs_table[i][9];
+            if ((d - snfs_table[i][0]) < (snfs_table[i + 1][0] - d))
+                siever = snfs_table[i][9];
             else
-                siever = ggnfs_table[i + 1][9];
+                siever = snfs_table[i + 1][9];
 
             found = 1;
         }

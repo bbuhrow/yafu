@@ -829,7 +829,8 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		sprintf(thread_data[i].outfilename, "rels%d.dat", i);
-		thread_data[i].job.poly = job->poly; // no sense copying the whole struct
+		sprintf(thread_data[i].job_infile_name, "%s", fobj->nfs_obj.job_infile);
+		thread_data[i].job.poly = job->poly;
 		thread_data[i].job.rlim = job->rlim;
 		thread_data[i].job.alim = job->alim;
 		thread_data[i].job.rlambda = job->rlambda;
@@ -1227,7 +1228,7 @@ void *lasieve_launcher(void *ptr)
 	snprintf(syscmd, GSTR_MAXSIZE, "%s%s -f %u -c %u -o %s -n %d -%c %s ",
 			thread_data->job.sievername, fobj->VFLAG>0?" -v":"", thread_data->job.startq, 
 			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex,
-			*side, fobj->nfs_obj.job_infile);
+			*side, thread_data->job_infile_name);
 
 	if (fobj->VFLAG >= 0)
 	{
@@ -1262,7 +1263,8 @@ void *lasieve_launcher(void *ptr)
 	}
 	else
 	{
-		printf("nfs: could not open output file, possibly bad path to siever\n");
+		printf("nfs: could not open output file %s, possibly bad path to siever\n",
+			thread_data->outfilename);
 	}
 
 	return 0;
