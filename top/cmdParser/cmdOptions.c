@@ -1325,7 +1325,7 @@ options_t* initOpt(void)
     options->no_clk_test = 1;
     options->json_pretty = 0;
     options->obase = 10;
-    options->terse_output = 1;
+    options->terse_output = 0;
 
     // autofact options
     options->no_ecm = 0;
