@@ -1165,19 +1165,33 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 							if (fobj->VFLAG >= 0)
 							{
-								printf("nfs: running test sieve of new best poly with score %1.4e\n",
-									bestscore);
+								printf("nfs: thread %d running test sieve of new best "
+									"poly with score %1.4e\n",
+									tid, bestscore);
 							}
 							logprint_oc(fobj->flogname, "a", 
-								"nfs: running test sieve of new best poly with score %1.4e\n",
-								bestscore);
+								"nfs: thread %d running test sieve of new best poly "
+								"with score %1.4e\n",
+								tid, bestscore);
 
 							// run a brief test sieve to a temp data file
 							char tmpoutfile[80];
-							strncpy(tmpoutfile, t->outfilename, 80);
+							strncpy(tmpoutfile, t->outfilename, 79);
 							sprintf(t->outfilename, "poly_test_sieve.%d.dat", tid);
+
+							t->job.poly = NULL;			// NULL poly will get initialized by copy_job
 							copy_job(job, &t->job);
 							
+							// this needs to get put into a thread so we aren't holding up
+							// the rest of thread processing while waiting for this
+							// test sieve to finish.  Also need to set better a test sieve
+							// interval or intervals to compute estimated time.
+							// finally, this evaluation is only triggered if we find a 
+							// better poly.  Instead need to evaluate current poly time vs. the 
+							// best estimate so far when any thread finishes, and abort whenever 
+							// we cross the configured poly percentage threshold.  Waiting to find
+							// a better poly to trigger the exit condition will often far exceed
+							// the desired poly percentage time.
 							gettimeofday(&teststart, NULL);
 							lasieve_launcher((void*)t);
 							gettimeofday(&teststop, NULL);
@@ -1211,10 +1225,11 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 							gettimeofday(&teststop, NULL);
 						}
 
-						// if we've used less than 5% of the estimated sieve time, continue
+						// if we've used less than X% of the estimated sieve time, continue
 						// with polyselect.
 						double curr_poly_time = ytools_difftime(&startt, &teststop);
 						double est_percent_poly = (curr_poly_time / total_est_sec) * 100;
+
 						if (est_percent_poly < fobj->nfs_obj.poly_percent_max)
 						{
 							init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,

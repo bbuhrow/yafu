@@ -337,10 +337,25 @@ void nfs(fact_obj_t *fobj)
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
 			{
+				mpz_t orig_n;
 				int better_by_gnfs = 0;
+				int check_gnfs = 0;
+
+				mpz_init(orig_n);
+				mpz_set(orig_n, fobj->nfs_obj.gmp_n);
 
 				// always check snfs forms (it is fast)
 				better_by_gnfs = snfs_choose_poly(fobj, &job);
+
+				if (mpz_cmp(orig_n, fobj->nfs_obj.gmp_n) != 0)
+				{
+					// the number changed during snfs poly detection,
+					// i.e., it was algebraically factored.  Need
+					// to reevaluate the input against GNFS/SIQS xovers.
+					check_gnfs = 1;
+				}
+
+				mpz_clear(orig_n);
 
 				if (better_by_gnfs == 2)
 				{
@@ -350,8 +365,9 @@ void nfs(fact_obj_t *fobj)
 					break;
 				}
 
-				if (job.snfs == NULL || fobj->nfs_obj.gnfs ||
-					(better_by_gnfs && !fobj->nfs_obj.snfs))
+				if ((job.snfs == NULL) || fobj->nfs_obj.gnfs ||
+					(better_by_gnfs && !fobj->nfs_obj.snfs) ||
+					check_gnfs)
 				{ 
 					// either we never were doing snfs, or the user selected gnfs,
 					// or snfs form detect failed.
@@ -360,15 +376,18 @@ void nfs(fact_obj_t *fobj)
 						// if the latter then bail with an error because the user 
 						// explicitly wants to run snfs...
 						printf("nfs: failed to find snfs polynomial!\n");
+						printf("nfs: removing the -snfs option could allow the number to be "
+							"completed by GNFS or SIQS\n");
 						exit(-1);
 					}
 
-					if (better_by_gnfs && !(job.snfs == NULL))
+					if (better_by_gnfs || check_gnfs) // && !(job.snfs == NULL))
 					{
 						int done_by_siqs = 0;
 
 						// check if this is really a siqs job
-						if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+						if ((!(job.snfs == NULL)) &&
+							(mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover))
 						{
 							if (fobj->VFLAG >= 0)
 							{
@@ -388,8 +407,34 @@ void nfs(fact_obj_t *fobj)
 							mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 
 							done_by_siqs = 1;
+
+							nfs_state = NFS_STATE_CLEANUP;
+							break;
 						}
-						else
+						else if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+						{
+
+							if (fobj->VFLAG >= 0)
+							{
+								printf("nfs: non-snfs input of size %d is better done by siqs\n",
+									(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+								fflush(stdout);
+							}
+
+							logprint_oc(fobj->flogname, "a", 
+								"nfs: non-snfs input of size %d is better done by siqs\n",
+								(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+							mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+							SIQS(fobj);
+							mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+							done_by_siqs = 1;
+
+							nfs_state = NFS_STATE_CLEANUP;
+							break;
+						}
+						else if (better_by_gnfs)
 						{
 
 							if (fobj->VFLAG >= 0)
@@ -401,27 +446,22 @@ void nfs(fact_obj_t *fobj)
 							logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
 								": difficulty = %1.2f, size = %d, actual size = %d\n",
 								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+							// clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
+							snfs_clear(job.snfs);
+							free(job.snfs);
+							job.snfs = NULL;
+							job.alambda = 0.0;
+							job.rlambda = 0.0;
+							job.lpba = 0;
+							job.lpbr = 0;
+							job.mfba = 0;
+							job.mfbr = 0;
+							job.alim = 0;
+							job.rlim = 0;
+							fobj->nfs_obj.siever = 0;
 						}
 
-						// clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
-						snfs_clear(job.snfs);
-						free(job.snfs);
-						job.snfs = NULL;
-						job.alambda = 0.0;
-						job.rlambda = 0.0;
-						job.lpba = 0;
-						job.lpbr = 0;
-						job.mfba = 0;
-						job.mfbr = 0;
-						job.alim = 0;
-						job.rlim = 0;
-						fobj->nfs_obj.siever = 0;
-						
-						if (done_by_siqs)
-						{
-							nfs_state = NFS_STATE_CLEANUP;
-							break;
-						}
 					}
 
 					if (fobj->nfs_obj.cadoMsieve) {
@@ -1787,7 +1827,7 @@ void set_ggnfs_tables(fact_obj_t* fobj)
 	gnfs_table_rdy = 1;
 	snfs_table_rdy = 1;
 
-	if (fobj->VFLAG > 1)
+	if (fobj->VFLAG > 2)
 	{
 		printf("gnfs table:\n");
 		for (i = 0; i < gnfs_table_rows; i++)
