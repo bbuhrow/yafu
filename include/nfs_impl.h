@@ -146,6 +146,7 @@ typedef struct
 typedef struct {
     // stuff for parallel ggnfs sieving
     char outfilename[80];
+    char job_infile_name[80];
     nfs_job_t job;
     uint32_t siever;
 
@@ -191,7 +192,7 @@ typedef struct {
 //----------------------- NFS FUNCTIONS -------------------------------------//
 void* lasieve_launcher(void* ptr);
 void* polyfind_launcher(void* ptr);
-double find_best_msieve_poly(fact_obj_t* fobj, nfs_job_t* job, int write_jobfile);
+double find_best_msieve_poly(fact_obj_t* fobj, nfs_job_t* job, char *jobfile_name, int write_jobfile);
 void msieve_to_ggnfs(fact_obj_t* fobj, nfs_job_t* job);
 void ggnfs_to_msieve(fact_obj_t* fobj, nfs_job_t* job);
 int get_ggnfs_params(fact_obj_t* fobj, nfs_job_t* job);
@@ -277,9 +278,12 @@ extern int NFS_ABORT;
 extern int IGNORE_NFS_ABORT;
 #define GGNFS_TABLE_ROWS 23
 #define GGNFS_TABLE_COLS 13
-#define GGNFS_TABLE_ROWS_NEW 58
+#define GGNFS_TABLE_ROWS_NEW 66
 #define GGNFS_TABLE_COLS_NEW 13
-extern double ggnfs_table[GGNFS_TABLE_ROWS][GGNFS_TABLE_COLS];
+extern double** gnfs_table;
+extern double** snfs_table;
+extern int gnfs_table_rows;
+extern int snfs_table_rows;
 extern double ggnfs_table_Gimarel[GGNFS_TABLE_ROWS_NEW][GGNFS_TABLE_COLS_NEW];
 
 
