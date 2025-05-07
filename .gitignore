@@ -3,6 +3,8 @@
 *.o
 *.a
 /yafu
+*.no
+*.qo
 
 # Logs / Checkpoints
 *.log
@@ -13,3 +15,13 @@ cadoWorkdir
 *.optrpt
 *.obj
 *.tlog
+*.last_spq*
+
+# visual studio build
+build.vc22/.vs/*
+*.idb
+*.pdb
+*.user
+*.recipe
+
+
