@@ -107,9 +107,6 @@ void check_poly(snfs_t *poly, int VFLAG)
 	int i;
 	mpz_init(t);
 
-    if (VFLAG > 0)
-        printf("nfs: checking degree %d poly\n", poly->poly->alg.degree);
-
 	poly->valid = 1;
 	mpz_set_ui(t, 0);
 	for (i = poly->poly->alg.degree; i >= 0; i--)
@@ -127,8 +124,11 @@ void check_poly(snfs_t *poly, int VFLAG)
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		if (VFLAG > 0) 
+
+		// should probably always print invalid polys
+		//if (VFLAG > 0) 
 		{
+			printf("nfs: checking degree %d poly\n", poly->poly->alg.degree);
 			gmp_fprintf(stdout, "Error: M=%Zd is not a root of f(x) % N\n"
 				"n = %Zd\n", poly->poly->m, poly->n);
 			fprintf (stderr, "f(x) = ");
@@ -145,7 +145,7 @@ void check_poly(snfs_t *poly, int VFLAG)
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		if (VFLAG > 0)
+		//if (VFLAG > 0)
 		gmp_fprintf (stdout, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
 			poly->n, poly->poly->m, t);
 	}
@@ -2452,7 +2452,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         npoly = 1;
         snfs_copy_poly(poly, polys);		// copy algebraic form
 
-        if (fobj->VFLAG > 0)
+        if (fobj->VFLAG > 1)
         {
             printf("gen: ========================================================\n"
                 "gen: considering the following polynomials:\n"
@@ -2465,7 +2465,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
         if (polys[0].valid)
         {
-            if (fobj->VFLAG > 0) print_snfs(&polys[0], stdout);
+            if (fobj->VFLAG > 1) print_snfs(&polys[0], stdout);
         }
 
     }
@@ -2577,9 +2577,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             degree = 6;
         }
 
-        printf("nfs: degree 4 difficulty = %1.2f, degree 6 difficulty = %1.2f\n", d4, d6);
-        printf("nfs: choosing degree %d\n", degree);
-
+		if (fobj->VFLAG > 0)
+		{
+			printf("nfs: degree 4 difficulty = %1.2f, degree 6 difficulty = %1.2f\n", d4, d6);
+			printf("nfs: choosing degree %d\n", degree);
+		}
 
         if ((poly->exp1 % 6 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && (degree == 4))
         {
@@ -2719,18 +2721,19 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         // table:
         ratio = d6 / d4;
 
-        printf("d4 difficulty = %1.4f, d6 difficult = %1.4f, ratio = %1.4f\n", d4, d6, ratio);
+		if (fobj->VFLAG > 0)
+			printf("gen: d4 difficulty = %1.4f, d6 difficult = %1.4f, ratio = %1.4f\n", d4, d6, ratio);
 
         if (d4 > 220)
         {
             if (ratio < 1.2)
             {
-                printf("d4 cutoff = 1.2: choosing degree 6\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.2: choosing degree 6\n");
                 degree = 6;
             }
             else
             {
-                printf("d4 cutoff = 1.2: choosing degree 4\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.2: choosing degree 4\n");
                 degree = 4;
             }
         }
@@ -2738,12 +2741,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         {
             if (ratio < 1.15)
             {
-                printf("d4 cutoff = 1.15: choosing degree 6\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.15: choosing degree 6\n");
                 degree = 6;
             }
             else
             {
-                printf("d4 cutoff = 1.15: choosing degree 4\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.15: choosing degree 4\n");
                 degree = 4;
             }
         }
@@ -2751,12 +2754,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         {
             if (ratio < 1.1)
             {
-                printf("d4 cutoff = 1.1: choosing degree 6\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.1: choosing degree 6\n");
                 degree = 6;
             }
             else
             {
-                printf("d4 cutoff = 1.1: choosing degree 4\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.1: choosing degree 4\n");
                 degree = 4;
             }
         }
@@ -2764,12 +2767,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         {
             if (ratio < 1.05)
             {
-                printf("d4 cutoff = 1.05: choosing degree 6\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.05: choosing degree 6\n");
                 degree = 6;
             }
             else
             {
-                printf("d4 cutoff = 1.05: choosing degree 4\n");
+				if (fobj->VFLAG > 0) printf("gen: d4 cutoff = 1.05: choosing degree 4\n");
                 degree = 4;
             }
         }
@@ -2965,7 +2968,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             snfs_init(&polys[i]);
         }
 
-		if (fobj->VFLAG > 0)
+		if (fobj->VFLAG > 1)
 		{
 			printf( "gen: ========================================================\n"
 				"gen: considering the following polynomials:\n"
@@ -3061,7 +3064,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				
 				if (polys[npoly].valid)
 				{				
-					if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
+					if (fobj->VFLAG > 1) print_snfs(&polys[npoly], stdout);
 					npoly++;
 				}
 				else
@@ -3137,7 +3140,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				
 				if (polys[npoly].valid)
 				{					
-					if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
+					if (fobj->VFLAG > 1) print_snfs(&polys[npoly], stdout);
 					npoly++;
 				}
 				else
@@ -3218,7 +3221,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				
 				if (polys[npoly].valid)
 				{					
-					if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
+					if (fobj->VFLAG > 1) print_snfs(&polys[npoly], stdout);
 					npoly++;
 				}
 				else
@@ -3331,7 +3334,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						
 						if (polys[npoly].valid)
 						{							
-							if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
+							if (fobj->VFLAG > 1) print_snfs(&polys[npoly], stdout);
 							npoly++;
 						}
 						else
@@ -3426,7 +3429,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						
 						if (polys[npoly].valid)
 						{							
-							if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
+							if (fobj->VFLAG > 1) print_snfs(&polys[npoly], stdout);
 							npoly++;
 						}
 						else
@@ -3522,7 +3525,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	return polys;
 }
 
-snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
+snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 {
 	int deg, i, j, nump1, nump2, me, base, e, b;
 	// xyyxf bases never exceed a small number, by definition
@@ -3533,11 +3536,11 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	int numf1 = 0;
 	int f2[100];
 	int numf2 = 0;
-	snfs_t *polys, *final_polys;
+	snfs_t* polys, * final_polys;
 	int npoly = 0;
-	int apoly;	
-    int alloc_base_poly;
-	FILE *f;
+	int apoly;
+	int alloc_base_poly;
+	FILE* f;
 	double avg_diff;
 
 	mpz_init(n);
@@ -3560,11 +3563,11 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// have common factors, reduce Y1 and Y0 by GCD(Y1, Y0) and reduce cx, c0 by gcd(cx, c0).
 
 	mpz_set_ui(m, x);
-	if (!mpz_probab_prime_p(m,10))
+	if (!mpz_probab_prime_p(m, 10))
 		numf1 = tdiv_int(x, f1, fobj->primes, fobj->num_p);
 
 	mpz_set_ui(m, y);
-	if (!mpz_probab_prime_p(m,10))
+	if (!mpz_probab_prime_p(m, 10))
 		numf2 = tdiv_int(y, f2, fobj->primes, fobj->num_p);
 
 	// initialize candidate polynomials now that we know how many we'll need.
@@ -3574,34 +3577,37 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	nump2 = (numf2 * 2 + 2) * 3;
 	apoly = nump1 + nump2;
 
-    // so we can free it later.  apoly gets reused.
-    alloc_base_poly = apoly;
+	// so we can free it later.  apoly gets reused.
+	alloc_base_poly = apoly;
 
-	printf("number of factors: %d, %d, total polys = %d\n", numf1, numf2, apoly);
+	if (fobj->VFLAG > 1)
+	{
+		printf("gen: number of factors: %d, %d, total polys = %d\n", numf1, numf2, apoly);
+	}
 
-	polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
-	for (i=0; i<apoly; i++)
+	polys = (snfs_t*)malloc(apoly * sizeof(snfs_t));
+	for (i = 0; i < apoly; i++)
 	{
 		snfs_init(&polys[i]);
 		polys[i].valid = 0;
 	}
-		
-    if (fobj->LOGFLAG)
-    {
-        f = fopen(fobj->flogname, "a");
-        if (f != NULL)
-        {
-            logprint(f, "nfs: commencing snfs on c%d: ", gmp_base10(poly->n));
-            gmp_fprintf(f, "%Zd\n", poly->n);
-            fclose(f);
-        }
-    }
+
+	if (fobj->LOGFLAG)
+	{
+		f = fopen(fobj->flogname, "a");
+		if (f != NULL)
+		{
+			logprint(f, "nfs: commencing snfs on c%d: ", gmp_base10(poly->n));
+			gmp_fprintf(f, "%Zd\n", poly->n);
+			fclose(f);
+		}
+	}
 
 	npoly = 0;
 	// form all polys for x^y + 1 and 1 + y^x separately.  Then combine them later.
 	for (base = 0; base < 2; base++)
 	{
-		int *f, b2, numf;
+		int* f, b2, numf;
 		// set the exponent/base.  on the first pass 
 		// we process x^y and the next we process y^x
 		e = base == 0 ? y : x;
@@ -3610,7 +3616,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		numf = base == 0 ? numf1 : numf2;
 		b2 = 1;
 
-		for (deg=4; deg<7; deg++)
+		for (deg = 4; deg < 7; deg++)
 		{
 			int64_t c0, cd;
 
@@ -3639,7 +3645,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			{
 				// degree does not divide the exponent, try increasing the exponent
 				int inc = (deg - e % deg);
-				me = (e+inc) / deg;
+				me = (e + inc) / deg;
 				mpz_set_si(m, b);
 				mpz_pow_ui(m, m, me);
 				// remember the base and exponent
@@ -3650,8 +3656,8 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				d = mpz_get_d(m);
 				d = log10(d) * (double)deg;
 				cd = (int64_t)pow((double)b2, inc) * poly->coeff1;
-				c0 = (int64_t)pow((double)b,inc) * poly->coeff2;
-				skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+				c0 = (int64_t)pow((double)b, inc) * poly->coeff2;
+				skew = pow((double)abs(c0) / (double)cd, 1. / (double)deg);
 				mpz_set(polys[npoly].n, poly->n);
 				polys[npoly].difficulty = d;
 				polys[npoly].poly->skew = skew;
@@ -3662,7 +3668,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 				// and decreasing the exponent
 				inc = e % deg;
-				me = (e-inc) / deg;
+				me = (e - inc) / deg;
 				mpz_set_si(m, b);
 				mpz_pow_ui(m, m, me);
 				// remember the base and exponent
@@ -3671,10 +3677,10 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_set_si(polys[npoly].base2, 1);
 				polys[npoly].exp2 = 1;
 				d = mpz_get_d(m);
-				d = log10(d) * (double)deg + log10(pow((double)b,inc));
-				cd = (int64_t)pow((double)b,inc) * poly->coeff1;
+				d = log10(d) * (double)deg + log10(pow((double)b, inc));
+				cd = (int64_t)pow((double)b, inc) * poly->coeff1;
 				c0 = (int64_t)pow((double)b2, inc) * poly->coeff2;
-				skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+				skew = pow((double)abs(c0) / (double)cd, 1. / (double)deg);
 				// leading coefficient contributes to the difficulty
 				//d += log10((double)cd);
 				mpz_set(polys[npoly].n, poly->n);
@@ -3692,13 +3698,13 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 					// multiply by powers of each factor individually to get that 
 					// factor to a multiple of degree
-					for (j=0; j<numf; j++)
+					for (j = 0; j < numf; j++)
 					{
 						int k, i1, i2, bb;
 
 						// unique factors...
 						if (j > 0)
-							if (f[j] == f[j-1])
+							if (f[j] == f[j - 1])
 								continue;
 
 						// move it up
@@ -3710,7 +3716,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						cd = pow((double)b2, i1) * poly->coeff1;
 						bb = 1;
 						i2 = e % deg;
-						for (k=0; k<numf; k++)
+						for (k = 0; k < numf; k++)
 						{
 							if (k == j) continue;
 							cd *= pow((double)f[k], i2);
@@ -3718,14 +3724,14 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						}
 						// m is now a mix of powers of factors of b.
 						// here is the contribution of the factor we increased
-						me = (e+i1) / deg;
+						me = (e + i1) / deg;
 						mpz_set_si(m, f[j]);
 						mpz_pow_ui(m, m, me);
 						// remember the base and exponent
 						mpz_set_si(polys[npoly].base1, f[j]);
 						polys[npoly].exp1 = me;
 						// here is the contribution of the factors we decreased
-						me = (e-i2) / deg;
+						me = (e - i2) / deg;
 						mpz_set_si(n, bb);
 						mpz_pow_ui(n, n, me);
 						// remember the base and exponent
@@ -3739,7 +3745,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						// down appear as a coefficient to the high order term and thus contribute
 						// to the difficulty.
 						d += log10((double)cd);
-						skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+						skew = pow((double)abs(c0) / (double)cd, 1. / (double)deg);
 						mpz_set(polys[npoly].n, poly->n);
 						polys[npoly].difficulty = d;
 						polys[npoly].poly->skew = skew;
@@ -3757,7 +3763,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						c0 = pow((double)b2, i1) * poly->coeff2;
 						bb = 1;
 						i2 = (deg - e % deg);
-						for (k=0; k<numf; k++)
+						for (k = 0; k < numf; k++)
 						{
 							if (k == j) continue;
 							c0 *= pow((double)f[k], i2);
@@ -3765,14 +3771,14 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						}
 						// m is now a mix of powers of factors of b.
 						// here is the contribution of the factor we increased
-						me = (e-i1) / deg;
+						me = (e - i1) / deg;
 						mpz_set_si(m, f[j]);
 						mpz_pow_ui(m, m, me);
 						// remember the base and exponent
 						mpz_set_si(polys[npoly].base1, f[j]);
 						polys[npoly].exp1 = me;
 						// here is the contribution of the factors we decreased
-						me = (e+i2) / deg;
+						me = (e + i2) / deg;
 						mpz_set_si(n, bb);
 						mpz_pow_ui(n, n, me);
 						// remember the base and exponent
@@ -3786,7 +3792,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						// down appear as a coefficient to the high order term and thus contribute
 						// to the difficulty.
 						d += log10((double)cd);
-						skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+						skew = pow((double)abs(c0) / (double)cd, 1. / (double)deg);
 						mpz_set(polys[npoly].n, poly->n);
 						polys[npoly].difficulty = d;
 						polys[npoly].poly->skew = skew;
@@ -3804,7 +3810,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// is divisible by any of the various degrees or not)
 		// this matters because we need the actual number of polys for this base
 		// to use as an offset into the other base's polynomials below...
-		if (base == 0) 
+		if (base == 0)
 			nump1 = npoly;
 		else
 			nump2 = npoly - nump1;
@@ -3812,17 +3818,20 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	apoly = nump1 * nump2;
 
-	printf("actual polys = %d, %d, total actual polys = %d\n", nump1, nump2, apoly);
-
-	final_polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
-    for (i = 0; i < apoly; i++)
-    {
-        snfs_init(&final_polys[i]);
-    }
-
-	if (fobj->VFLAG > 0)
+	if (fobj->VFLAG > 1)
 	{
-		printf( "\ngen: ========================================================\n"
+		printf("gen: actual polys = %d, %d, total actual polys = %d\n", nump1, nump2, apoly);
+	}
+
+	final_polys = (snfs_t*)malloc(apoly * sizeof(snfs_t));
+	for (i = 0; i < apoly; i++)
+	{
+		snfs_init(&final_polys[i]);
+	}
+
+	if (fobj->VFLAG > 1)
+	{
+		printf("\ngen: ========================================================\n"
 			"gen: considering the following polynomials:\n"
 			"gen: ========================================================\n\n");
 	}
@@ -3830,15 +3839,15 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// now mix together the possible forms of x^y + 1 and 1 + y^x	
 	npoly = 0;
 	avg_diff = 0.;
-	for (i=0; i<nump1; i++)
+	for (i = 0; i < nump1; i++)
 	{
-		snfs_t *p1, *p2;
+		snfs_t* p1, * p2;
 		int64_t c0, cd;
 
 		p1 = &polys[i];
-		for (j=0; j<nump2; j++)
+		for (j = 0; j < nump2; j++)
 		{
-			p2 = &polys[nump1+j];
+			p2 = &polys[nump1 + j];
 
 			// don't mix degrees.
 			if (p1->poly->alg.degree != p2->poly->alg.degree)
@@ -3850,13 +3859,13 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			c0 = mpz_get_si(p1->c[0]) * mpz_get_si(p2->c[deg]);
 
 			// whichever of these is smaller can be the leading coefficient
-			if (c0 > cd) 
+			if (c0 > cd)
 			{
 				mpz_set(final_polys[npoly].n, poly->n);
 				mpz_set_si(final_polys[npoly].c[deg], cd / spGCD(c0, cd));
 				mpz_set_si(final_polys[npoly].c[0], c0 / spGCD(c0, cd));
 				final_polys[npoly].poly->skew = pow(
-					fabs(mpz_get_d(final_polys[npoly].c[0]))/mpz_get_d(final_polys[npoly].c[deg]), 1./(double)deg);
+					fabs(mpz_get_d(final_polys[npoly].c[0])) / mpz_get_d(final_polys[npoly].c[deg]), 1. / (double)deg);
 
 				final_polys[npoly].poly->alg.degree = deg;
 				final_polys[npoly].difficulty = log(pow(2.71828, p1->difficulty) + pow(2.71828, p2->difficulty));
@@ -3866,21 +3875,21 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				// to handle composite bases, the first loop records the part that was raised and 
 				// the part that was lowered separately
 				mpz_set(final_polys[npoly].poly->rat.coeff[1], p2->base1);
-				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
-						final_polys[npoly].poly->rat.coeff[1], p2->exp1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1],
+					final_polys[npoly].poly->rat.coeff[1], p2->exp1);
 				mpz_set(n, p2->base2);
 				mpz_pow_ui(n, n, p2->exp2);
 				mpz_mul(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
 				mpz_set(final_polys[npoly].poly->rat.coeff[0], p1->base1);
-				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
-						final_polys[npoly].poly->rat.coeff[0], p1->exp1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0],
+					final_polys[npoly].poly->rat.coeff[0], p1->exp1);
 				mpz_set(n, p1->base2);
 				mpz_pow_ui(n, n, p1->exp2);
 				mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 
 				mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
-				final_polys[npoly].difficulty -= log10(mpz_get_d(n))*deg;
+				final_polys[npoly].difficulty -= log10(mpz_get_d(n)) * deg;
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
@@ -3896,7 +3905,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_set_si(final_polys[npoly].c[deg], c0 / spGCD(c0, cd));
 				mpz_set_si(final_polys[npoly].c[0], cd / spGCD(c0, cd));
 				final_polys[npoly].poly->skew = pow(
-					fabs(mpz_get_d(final_polys[npoly].c[0]))/mpz_get_d(final_polys[npoly].c[deg]), 1./(double)deg);
+					fabs(mpz_get_d(final_polys[npoly].c[0])) / mpz_get_d(final_polys[npoly].c[deg]), 1. / (double)deg);
 				final_polys[npoly].poly->alg.degree = deg;
 				final_polys[npoly].difficulty = log(pow(2.71828, p1->difficulty) + pow(2.71828, p2->difficulty));
 
@@ -3905,21 +3914,21 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				// to handle composite bases, the first loop records the part that was raised and 
 				// the part that was lowered separately
 				mpz_set(final_polys[npoly].poly->rat.coeff[1], p1->base1);
-				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
-						final_polys[npoly].poly->rat.coeff[1], p1->exp1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1],
+					final_polys[npoly].poly->rat.coeff[1], p1->exp1);
 				mpz_set(n, p1->base2);
 				mpz_pow_ui(n, n, p1->exp2);
 				mpz_mul(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
 				mpz_set(final_polys[npoly].poly->rat.coeff[0], p2->base1);
-				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
-						final_polys[npoly].poly->rat.coeff[0], p2->exp1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0],
+					final_polys[npoly].poly->rat.coeff[0], p2->exp1);
 				mpz_set(n, p2->base2);
 				mpz_pow_ui(n, n, p2->exp2);
 				mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 
 				mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
-				final_polys[npoly].difficulty -= log10(mpz_get_d(n))*deg;
+				final_polys[npoly].difficulty -= log10(mpz_get_d(n)) * deg;
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
@@ -3933,7 +3942,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			final_polys[npoly].difficulty += log10(mpz_get_d(final_polys[npoly].c[deg]));
 
 			// copy algebraic form
-			mpz_set_si(final_polys[npoly].base1, x); final_polys[npoly].exp1 = y;	
+			mpz_set_si(final_polys[npoly].base1, x); final_polys[npoly].exp1 = y;
 			mpz_set_si(final_polys[npoly].base2, y); final_polys[npoly].exp2 = x;
 			final_polys[npoly].form_type = SNFS_XYYXF;
 
@@ -3973,11 +3982,11 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 			if (final_polys[npoly].valid)
 			{
-				if (fobj->VFLAG > 0) print_snfs(&final_polys[npoly], stdout);
+				if (fobj->VFLAG > 1) print_snfs(&final_polys[npoly], stdout);
 				npoly++;
 			}
 			else
-			{	// being explicit
+			{
 				snfs_clear(&final_polys[npoly]);
 				snfs_init(&final_polys[npoly]);
 			}
@@ -4015,21 +4024,24 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		fobj->nfs_obj.alt_degree = 5;
 	}
 
-	printf("generated %d polynomials: average difficulty = %1.2f, preferred degree = %d, alternate degree = %d\n",
-		npoly, avg_diff, fobj->nfs_obj.pref_degree, fobj->nfs_obj.alt_degree);
-    fflush(stdout);
+	if (fobj->VFLAG > 0)
+	{
+		printf("gen: generated %d polynomials: average difficulty = %1.2f, preferred degree = %d, alternate degree = %d\n",
+			npoly, avg_diff, fobj->nfs_obj.pref_degree, fobj->nfs_obj.alt_degree);
+		fflush(stdout);
+	}
 
-    // clean up
-    for (i = 0; i<alloc_base_poly; i++)
-    {
-        snfs_clear(&polys[i]);
-    }
-    free(polys);
+	// clean up
+	for (i = 0; i < alloc_base_poly; i++)
+	{
+		snfs_clear(&polys[i]);
+	}
+	free(polys);
 
-    for (i = npoly; i < apoly; i++)
-    {
-        snfs_clear(&final_polys[i]);
-    }
+	for (i = npoly; i < apoly; i++)
+	{
+		snfs_clear(&final_polys[i]);
+	}
 
 	*npolys = npoly;
 	return final_polys;

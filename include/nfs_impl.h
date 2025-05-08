@@ -115,11 +115,13 @@ enum param_flag_e
 
 enum nfs_thread_task {
     TASK_DONE,
+    TASK_POLY,
     TASK_NP1,
     TASK_NPS,
     TASK_NPR,
     TASK_NP1_GPU,
-    TASK_SIEVE
+    TASK_SIEVE,
+    TASK_POLY_TEST_SIEVE
 };
 
 
@@ -159,6 +161,7 @@ typedef struct {
     factor_list_t* factor_list;
     struct timeval thread_start_time;
     fact_obj_t* fobj;
+    double test_time;
 
     int tindex;
     int is_poly_select;

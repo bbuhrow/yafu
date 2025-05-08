@@ -365,6 +365,15 @@ void nfs(fact_obj_t *fobj)
 					break;
 				}
 
+				if (fobj->VFLAG > 1)
+				{
+					printf("nfs: snfs poly find flags are\n\tsnfs found = %d\n"
+						"\tgnfs specified = %d\n\tsnfs found, better by gnfs = %d\n"
+						"\tsnfs specified = %d\n\tsnfs algebraic factor removed, recheck xovers = %d\n",
+						(job.snfs == NULL), fobj->nfs_obj.gnfs, better_by_gnfs,
+						fobj->nfs_obj.snfs, check_gnfs);
+				}
+
 				if ((job.snfs == NULL) || fobj->nfs_obj.gnfs ||
 					(better_by_gnfs && !fobj->nfs_obj.snfs) ||
 					check_gnfs)
@@ -381,88 +390,79 @@ void nfs(fact_obj_t *fobj)
 						exit(-1);
 					}
 
-					if (better_by_gnfs || check_gnfs) // && !(job.snfs == NULL))
+					// check if this is really a siqs job
+					if ((!(job.snfs == NULL)) &&
+						(mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover))
 					{
-						int done_by_siqs = 0;
-
-						// check if this is really a siqs job
-						if ((!(job.snfs == NULL)) &&
-							(mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover))
+						if (fobj->VFLAG >= 0)
 						{
-							if (fobj->VFLAG >= 0)
-							{
-								printf("nfs: input snfs form is better done by siqs: "
-									"difficulty = %1.2f, size = %d, actual size = %d\n",
-									job.snfs->difficulty, est_gnfs_size(&job),
-									(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-								fflush(stdout);
-							}
-
-							logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by siqs"
-								": difficulty = %1.2f, size = %d, actual size = %d\n",
-								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-
-							mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-							SIQS(fobj);
-							mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-
-							done_by_siqs = 1;
-
-							nfs_state = NFS_STATE_CLEANUP;
-							break;
-						}
-						else if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
-						{
-
-							if (fobj->VFLAG >= 0)
-							{
-								printf("nfs: non-snfs input of size %d is better done by siqs\n",
-									(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-								fflush(stdout);
-							}
-
-							logprint_oc(fobj->flogname, "a", 
-								"nfs: non-snfs input of size %d is better done by siqs\n",
+							printf("nfs: input snfs form is better done by siqs: "
+								"difficulty = %1.2f, size = %d, actual size = %d\n",
+								job.snfs->difficulty, est_gnfs_size(&job),
 								(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-
-							mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-							SIQS(fobj);
-							mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-
-							done_by_siqs = 1;
-
-							nfs_state = NFS_STATE_CLEANUP;
-							break;
-						}
-						else if (better_by_gnfs)
-						{
-
-							if (fobj->VFLAG >= 0)
-							{
-								printf("nfs: input snfs form is better done by gnfs: "
-									"difficulty = %1.2f, size = %d, actual size = %d\n",
-									job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-							}
-							logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
-								": difficulty = %1.2f, size = %d, actual size = %d\n",
-								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-
-							// clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
-							snfs_clear(job.snfs);
-							free(job.snfs);
-							job.snfs = NULL;
-							job.alambda = 0.0;
-							job.rlambda = 0.0;
-							job.lpba = 0;
-							job.lpbr = 0;
-							job.mfba = 0;
-							job.mfbr = 0;
-							job.alim = 0;
-							job.rlim = 0;
-							fobj->nfs_obj.siever = 0;
+							fflush(stdout);
 						}
 
+						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by siqs"
+							": difficulty = %1.2f, size = %d, actual size = %d\n",
+							job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+						mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+						SIQS(fobj);
+						mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+						nfs_state = NFS_STATE_CLEANUP;
+						break;
 					}
+					else if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+					{
+
+						if (fobj->VFLAG >= 0)
+						{
+							printf("nfs: non-snfs input of size %d is better done by siqs\n",
+								(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+							fflush(stdout);
+						}
+
+						logprint_oc(fobj->flogname, "a", 
+							"nfs: non-snfs input of size %d is better done by siqs\n",
+							(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+						mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+						SIQS(fobj);
+						mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+						nfs_state = NFS_STATE_CLEANUP;
+						break;
+					}
+					else if (better_by_gnfs)
+					{
+						if (fobj->VFLAG >= 0)
+						{
+							printf("nfs: input snfs form is better done by gnfs: "
+								"difficulty = %1.2f, size = %d, actual size = %d\n",
+								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+						}
+						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
+							": difficulty = %1.2f, size = %d, actual size = %d\n",
+							job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+						// get rid of the snfs poly since we'll be proceeding with gnfs.
+						snfs_clear(job.snfs);
+						free(job.snfs);
+						job.snfs = NULL;
+					}
+
+					// prepare for gnfs polyselect
+					job.alambda = 0.0;
+					job.rlambda = 0.0;
+					job.lpba = 0;
+					job.lpbr = 0;
+					job.mfba = 0;
+					job.mfbr = 0;
+					job.alim = 0;
+					job.rlim = 0;
+					fobj->nfs_obj.siever = 0;
 
 					if (fobj->nfs_obj.cadoMsieve) {
 						// Let CADO-NFS find the poly
@@ -1423,6 +1423,14 @@ void nfs(fact_obj_t *fobj)
 		{
 			print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 			exit(1);
+		}
+
+		if (process_done && (nfs_state != NFS_STATE_DONE))
+		{
+			// if some state other than STATE_DONE set process_done, then
+			// it had a good reason to.  Don't allow factor() to continue, just leave.
+			print_factors(fobj, fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+			exit(0);
 		}
 	}
 

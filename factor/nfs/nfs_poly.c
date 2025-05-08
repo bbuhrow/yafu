@@ -199,7 +199,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	{
 		// form detection failed
 		job->snfs = NULL;
-		return 1;
+		return 0;
 	}
 
 	// once form detection is done, do some quick trial division
@@ -240,7 +240,8 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 			printf("nfs: no snfs polynomial with small coefficients found\n");
 		}
 		
-		return 1;
+		// better by gnfs - unable to construct a snfs poly.
+		return 0;
 	}
     else if (npoly == 1)
     {
@@ -870,6 +871,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	{
 		nfs_threaddata_t *t = thread_data + i;		
 		t->fobj = fobj;
+		t->task = TASK_POLY;
 
 #ifdef HAVE_CUDA
 		if (special_polyfind == 0)
@@ -962,6 +964,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
     //printf("============= starting %d thread poly search with option %d  =================\n", 
     //    fobj->THREADS, fobj->nfs_obj.poly_option);
 
+	char tmpoutfile[80];
+	double total_est_sec = 1e20;
 	estimated_range_time = 0;
 	is_startup = 1;	
 	num_ranges = 0;
@@ -1007,121 +1011,153 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			// pointer to this thread's data
 			t = thread_data + tid;
 
-			//check the total time spent so far
-			gettimeofday(&stopt, NULL);
-            t_time = ytools_difftime(&startt, &stopt);
+			// regardless of the task we finished, reset whether or
+			// not we found a new best poly. we will check the
+			// status below if applicable for this thread's finished task.
+			have_new_best = 0;
 
-			//update the estimated range time			
-            this_range_time = ytools_difftime(&t->thread_start_time, &stopt);
-
-			if (!is_startup)
+			// syncronize based on the task we just finished
+			switch (t->task)
 			{
-				total_time += this_range_time;
-				num_ranges++;
-				estimated_range_time = this_range_time; //(uint32)(total_time / (double)num_ranges);
-			}			
-
-			if (!is_startup)
+			case TASK_POLY:
 			{
-				FILE *fid;
+				// check the total time spent so far
+				gettimeofday(&stopt, NULL);
+				t_time = ytools_difftime(&startt, &stopt);
 
-				// if the main poly file doesn't exist yet, put the input number
-				// at the top.  this is used to help restart jobs in the polyfind phase
-				fid = fopen(master_polyfile, "r");
-				if (fid == NULL)
+				// update the estimated range time			
+				this_range_time = ytools_difftime(&t->thread_start_time, &stopt);
 
+				if (!is_startup)
 				{
-					fid = fopen(master_polyfile, "w");
-					gmp_fprintf(fid, "n: %Zd\n", fobj->nfs_obj.gmp_n);
-					fclose(fid);
+					total_time += this_range_time;
+					num_ranges++;
+					estimated_range_time = this_range_time;
 				}
-				else
-					fclose(fid);
 
-				// combine thread's output with main file
-#if defined(WIN32)
+				if (!is_startup)
 				{
-					int a;
+					FILE* fid;
 
-					// test for cat
-					sprintf(syscmd,"cat %s.%s >> %s 2> nul",
-						t->polyfilename, polyfile_extension, master_polyfile);
-					a = system(syscmd);
-	
-					if (a)		
+					// if the main poly file doesn't exist yet, put the input number
+					// at the top.  this is used to help restart jobs in the polyfind phase
+					fid = fopen(master_polyfile, "r");
+					if (fid == NULL)
+
 					{
-						char tmp[80];
-						sprintf(tmp, "%s.%s",t->polyfilename, polyfile_extension);
-						win_file_concat(tmp, master_polyfile);
+						fid = fopen(master_polyfile, "w");
+						gmp_fprintf(fid, "n: %Zd\n", fobj->nfs_obj.gmp_n);
+						fclose(fid);
+					}
+					else
+						fclose(fid);
+
+					// combine thread's output with main file
+#if defined(WIN32)
+					{
+						int a;
+
+						// test for cat
+						sprintf(syscmd, "cat %s.%s >> %s 2> nul",
+							t->polyfilename, polyfile_extension, master_polyfile);
+						a = system(syscmd);
+
+						if (a)
+						{
+							char tmp[80];
+							sprintf(tmp, "%s.%s", t->polyfilename, polyfile_extension);
+							win_file_concat(tmp, master_polyfile);
+						}
+					}
+
+#else
+					sprintf(syscmd, "cat %s.%s >> %s",
+						t->polyfilename, polyfile_extension, master_polyfile);
+					sysreturn = system(syscmd);
+#endif
+					// then stick on the current total elasped time
+					// this is used to help restart jobs in the polyfind phase
+					if (!special_polyfind)
+					{
+						fid = fopen(master_polyfile, "a");
+						fprintf(fid, "time: %u\n", total_time);
+						fclose(fid);
+					}
+
+					if (fobj->nfs_obj.nps)
+					{
+						// remove this threads' portion of the .m file
+						snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%s", t->polyfilename, "m");
+						remove(syscmd);
 					}
 				}
 
-#else
-				sprintf(syscmd,"cat %s.%s >> %s",
-					t->polyfilename, polyfile_extension, master_polyfile);
-				sysreturn = system(syscmd);
-#endif
-				// then stick on the current total elasped time
-				// this is used to help restart jobs in the polyfind phase
-				if (!special_polyfind)
-				{
-					fid = fopen(master_polyfile, "a");
-					fprintf(fid, "time: %u\n", total_time);
-					fclose(fid);
-				}
+				// remove each thread's .p file after it's copied
+				snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%s", t->polyfilename, polyfile_extension);
+				remove(syscmd);
 
-				if (fobj->nfs_obj.nps)
+				// also remove the temporary log file
+				snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%d", fobj->nfs_obj.logfile, tid);
+				remove(syscmd);
+
+				// and the temporary fb file
+				snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%d", fobj->nfs_obj.fbfile, tid);
+				remove(syscmd);
+
+				// free data
+				free(t->logfilename);
+				free(t->polyfilename);
+				msieve_obj_free(t->obj);
+				t->obj = NULL;
+
+				// if user has specified "good enough" option then check if
+				// we've found one and stop if so
+				if ((!is_startup) && (!special_polyfind))
 				{
-					// remove this threads' portion of the .m file
-					snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%s", t->polyfilename, "m");
-					remove(syscmd);
+					bestscore = find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 0);
+					if ((bestscore > oldbest) && (oldbest > 1e-30))
+					{
+						printf("=== new best score %1.4e > old best score %1.4e\n",
+							bestscore, oldbest);
+						oldbest = bestscore;
+						have_new_best = 1;
+					}
+					else if (oldbest < 1e-30)
+					{
+						// do at least one round of searching before test
+						// sieving, if applicable for this input.
+						oldbest = bestscore;
+					}
 				}
 			}
+			break;
 
-			// remove each thread's .p file after it's copied
-			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%s",t->polyfilename, polyfile_extension);
-			remove(syscmd);	
+			case TASK_POLY_TEST_SIEVE:
+			{
+				// the estimated (single-threaded) total time:
+				total_est_sec = ((double)t->job.min_rels / t->test_time) / fobj->THREADS;
 
-			// also remove the temporary log file
-			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%d",fobj->nfs_obj.logfile,tid);
-			remove(syscmd);
+				logprint_oc(fobj->flogname, "a", "thread %d test sieve estimating %1.2f seconds to find "
+					" %u rels with %d threads at avg rate %1.2f/sec\n",
+					t->tindex, total_est_sec, t->job.min_rels, fobj->THREADS, t->test_time);
 
-			// and the temporary fb file
-			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%d",fobj->nfs_obj.fbfile,tid);
-			remove(syscmd);
+				remove(t->outfilename);
+				remove(t->job_infile_name);
+				strncpy(t->outfilename, tmpoutfile, 80);
+				sprintf(t->job_infile_name, "%s", fobj->nfs_obj.job_infile);
+			}
+			break;
 
-			// free data
-			free(t->logfilename);
-			free(t->polyfilename);
-			msieve_obj_free(t->obj);
-			t->obj = NULL;
+			}
 
-			// exit the loop without restarting if abort is asserted.
+			// exit the loop without restarting the thread if abort is asserted.
 			if (NFS_ABORT)
+			{
 				break;
+			}
 
-            // if user has specified "good enough" option then check if
-            // we've found one and stop if so
-			have_new_best = 0;
-            if ((!is_startup) && (!special_polyfind))
-            {
-                bestscore = find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 0);
-				if ((bestscore > oldbest) && (oldbest > 1e-30))
-				{
-					printf("=== new best score %1.4e > old best score %1.4e\n",
-						bestscore, oldbest);
-					oldbest = bestscore;
-					have_new_best = 1;
-				}
-				else if (oldbest < 1e-30)
-				{
-					// do at least one round of searching before test
-					// sieving, if applicable for this input.
-					oldbest = bestscore;
-				}
-            }
-
-
+			// now decide what to do next.  If we haven't found a good enough
+			// poly yet then go in here.
             if (bestscore < (e0 * quality_mult))
             {
                 // if we can re-start the thread such that it is likely to finish before the
@@ -1130,33 +1166,37 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 if (((uint32_t)t_time + estimated_range_time <= deadline) ||
 					(bestscore < 1e-30)) 
                 {
+					// we have time to run a new range or we haven't found 
+					// a poly yet.  First check a couple special conditions before
+					// restarting on a new range.
                     if ((fobj->nfs_obj.polyrange > 0) && !is_startup)
                     {
 						// unless the user has specified a custom range search, in which case
 						// this thread is done
                         printf("nfs: thread %d finished custom range search\n", tid);
+						t->task = TASK_DONE;
                     }
 					else if ((special_polyfind) && !is_startup)
 					{
 						// or if we are doing -np1, -nps, or -npr
 						printf("nfs: thread %d finished special polyfind\n", tid);
+						t->task = TASK_DONE;
 					}
                     else
                     {
-						// if this is a new best score and the size of this 
+						// almost ready to restart this thread on a new range.
+						// 
+						// one last thing to check:
+						// if we just found a new best score and the size of this 
 						// job is such that substantial poly-select is involved,
-						// do a quick test sieve of the new best polynomial.
-						// if, based on this, we've already spent > X% of the time
-						// it will take to sieve, stop now.
-						double total_est_sec = 1e20;
+						// do a test sieve of the new best polynomial.
 						struct timeval teststart;
 						struct timeval teststop;
 
 						if (have_new_best && (!poly_time_exceeded) && 
 							(mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > fobj->nfs_obj.poly_testsieve))
 						{
-							// generate a job file for the new best scoring poly, but don't
-							// log this to the logfile.
+							// generate a job file for the new best scoring poly
 							int tmplogflag = fobj->LOGFLAG;
 							fobj->LOGFLAG = 0;
 							sprintf(t->job_infile_name, "poly_test_sieve.%d.job", tid);
@@ -1174,55 +1214,20 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 								"with score %1.4e\n",
 								tid, bestscore);
 
-							// run a brief test sieve to a temp data file
-							char tmpoutfile[80];
+							// restart this thread running a test sieve to a temp data file
 							strncpy(tmpoutfile, t->outfilename, 79);
 							sprintf(t->outfilename, "poly_test_sieve.%d.dat", tid);
 
 							t->job.poly = NULL;			// NULL poly will get initialized by copy_job
 							copy_job(job, &t->job);
-							
-							// this needs to get put into a thread so we aren't holding up
-							// the rest of thread processing while waiting for this
-							// test sieve to finish.  Also need to set better a test sieve
-							// interval or intervals to compute estimated time.
-							// finally, this evaluation is only triggered if we find a 
-							// better poly.  Instead need to evaluate current poly time vs. the 
-							// best estimate so far when any thread finishes, and abort whenever 
-							// we cross the configured poly percentage threshold.  Waiting to find
-							// a better poly to trigger the exit condition will often far exceed
-							// the desired poly percentage time.
-							gettimeofday(&teststart, NULL);
-							lasieve_launcher((void*)t);
-							gettimeofday(&teststop, NULL);
-
-							double dtime = ytools_difftime(&teststart, &teststop);
-							double test_rels_sec = t->job.current_rels / dtime;
-
-							total_est_sec = (t->job.min_rels / test_rels_sec) / fobj->THREADS;
-
-							if (fobj->VFLAG >= 0)
-							{
-								printf("nfs: test sieve of new best poly with score %1.4e "
-									"found %u relations in %1.4f seconds\n", 
-									bestscore, t->job.current_rels, dtime);
-								printf("nfs: total estimated sieving time with this poly is %1.4f "
-									"sec with %d threads\n", total_est_sec, fobj->THREADS);
-							}
-							logprint_oc(fobj->flogname, "a", "nfs: test sieve of new best poly with score %1.4e "
-								"found %u relations in %1.4f seconds\n",
-								bestscore, t->job.current_rels, dtime);
-							logprint_oc(fobj->flogname, "a", "nfs: total estimated sieving time with this poly is %1.4f "
-								"sec with %d threads\n", total_est_sec, fobj->THREADS);
-
-							remove(t->outfilename);
-							remove(t->job_infile_name);
-							strncpy(t->outfilename, tmpoutfile, 80);
-							sprintf(t->job_infile_name, "%s", fobj->nfs_obj.job_infile);
+							t->task = TASK_POLY_TEST_SIEVE;
 						}
 						else
 						{
+							// prepare for a standard restart of this thread with a 
+							// new set of leading coefficients.
 							gettimeofday(&teststop, NULL);
+							t->task = TASK_POLY;
 						}
 
 						// if we've used less than X% of the estimated sieve time, continue
@@ -1232,19 +1237,24 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 						if (est_percent_poly < fobj->nfs_obj.poly_percent_max)
 						{
-							init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,
-								deadline, start, start + range);
+							if (t->task == TASK_POLY)
+							{
+								// initialize the thread for poly select on
+								// a new range of coefficients.
+								init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,
+									deadline, start, start + range);
 
-							if (fobj->nfs_obj.poly_option == 2)
-							{
-								// 'deep' searching assigns all threads to the same range
-								start = start;
-							}
-							else
-							{
-								// 'fast' and 'wide' searches aim to cover more ground with extra threads.
-								// assign next range
-								start += range;
+								if (fobj->nfs_obj.poly_option == 2)
+								{
+									// 'deep' searching assigns all threads to the same range
+									start = start;
+								}
+								else
+								{
+									// 'fast' and 'wide' searches aim to cover more ground with extra threads.
+									// assign next range
+									start += range;
+								}
 							}
 
 							// signal the job to start
@@ -1301,11 +1311,13 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						printf("nfs: range will not finish before deadline, "
 							"thread stopping with bestscore = %1.4e\n", bestscore);
 					}
+					t->task = TASK_DONE;
 				}
             }
             else
             {
-				// send a stop signal to all active threads doing standard polyselect.
+				// otherwise this thread is done and we send a stop signal 
+				// to all active threads doing standard polyselect.
 				for (i = 0; i < fobj->THREADS; i++)
 				{
 					if ((thread_data[i].obj != NULL) && (!special_polyfind))
@@ -1675,22 +1687,123 @@ void *polyfind_launcher(void *ptr)
 	// top level function which performs poly search on a range of leading A coefficient values.
 	// has pthread calling conventions, meant to be used in a multi-threaded environment
 	nfs_threaddata_t *t = (nfs_threaddata_t *)ptr;
+	fact_obj_t* fobj = t->fobj;
 
-	// remove any temporary relation files
-	remove(t->polyfilename);
-    MySleep(100);
-
-	if (t->fobj->VFLAG >= 0)
+	switch (t->task)
 	{
-		uint64_t start, stop; // one instance where the new msieve api is rather a pain
-		sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
-		printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
-			t->tindex, start, stop);
-		fflush(stdout);
-	}
+	case TASK_POLY:
+		// remove any temporary relation files
+		remove(t->polyfilename);
+		MySleep(100);
 
-	// start polyfind
-	factor_gnfs(t->obj, t->mpN, t->factor_list);
+		if (t->fobj->VFLAG >= 0)
+		{
+			uint64_t start, stop; // one instance where the new msieve api is rather a pain
+			sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
+			printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
+				t->tindex, start, stop);
+			fflush(stdout);
+		}
+
+		// start polyfind
+		factor_gnfs(t->obj, t->mpN, t->factor_list);
+		break;
+
+	case TASK_POLY_TEST_SIEVE:
+		
+		{
+			struct timeval stopt;	// stop time of this job
+			struct timeval startt;	// start time of this job
+			double rels_per_sec[3];
+			double this_time;
+			uint32_t num_ranges;
+
+			// to get here, poly select found a new best poly, which means
+			// that find_best_msieve_poly() was run, which means that 
+			// get_ggnfs_params() was called, which filled the job with
+			// default/specified parameters, including startq and min_rels.
+			// the test sieve runs 3 intervals of 1000 special-q (scale
+			// as a function of size?) and finds the area under the
+			// rels/sec graph formed by those data points to estimate
+			// the total time needed to sieve with this polynomial.
+			t->test_time = 0;
+			t->job.qrange = 1000;
+
+			// run with default startq
+			gettimeofday(&startt, NULL);
+			lasieve_launcher((void*)t);
+			gettimeofday(&stopt, NULL);
+
+			this_time = ytools_difftime(&startt, &stopt);
+			rels_per_sec[0] = t->job.current_rels / this_time;
+
+			// how many 1k ranges would be needed assuming 
+			// production is constant at this rate?
+			num_ranges = (t->job.min_rels / t->job.current_rels) + 1;
+
+			// note: don't write the logfile here because we're in a thread.
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: thread %d test sieve found %1.2f rels/sec at q = %u\n",
+					t->tindex, rels_per_sec[0], t->job.startq);
+				printf("nfs: estimated total q-range needed is: %u-%u\n",
+					t->job.startq, num_ranges * 1000 + t->job.startq);
+			}
+
+			// now test at num_ranges/2 and num_ranges to estimate 
+			// the changing production rate.
+			t->job.startq += num_ranges / 2 * 1000;
+			t->job.current_rels = 0;
+			gettimeofday(&startt, NULL);
+			lasieve_launcher((void*)t);
+			gettimeofday(&stopt, NULL);
+
+			this_time = ytools_difftime(&startt, &stopt);
+			rels_per_sec[1] = t->job.current_rels / this_time;
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: thread %d test sieve found %1.2f rels/sec at q = %u\n",
+					t->tindex, rels_per_sec[1], t->job.startq);
+			}
+
+			t->job.startq += num_ranges / 2 * 1000;
+			t->job.current_rels = 0;
+			gettimeofday(&startt, NULL);
+			lasieve_launcher((void*)t);
+			gettimeofday(&stopt, NULL);
+
+			this_time = ytools_difftime(&startt, &stopt);
+			rels_per_sec[2] = t->job.current_rels / this_time;
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: thread %d test sieve found %1.2f rels/sec at q = %u\n",
+					t->tindex, rels_per_sec[2], t->job.startq);
+			}
+
+			// could find the slopes between these points but there
+			// is likely so much noise between 1k ranges that we'd
+			// probably be fooling ourselves that the slopes are real.
+			// find the average rels/sec
+			rels_per_sec[0] = (rels_per_sec[0] + rels_per_sec[1] + rels_per_sec[2]) / 3.0;
+
+			// and the estimated (single-threaded) total time:
+			t->test_time = (double)t->job.min_rels / rels_per_sec[0];
+
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: thread %d test sieve estimating %1.2f seconds to find "
+					" %u rels at avg rate %1.2f/sec\n",
+					t->tindex, t->test_time, t->job.min_rels, rels_per_sec[0]);
+			}
+
+			// store the average rate, so the main thread can print the above
+			// information to the logfile.
+			t->test_time = rels_per_sec[0];
+		}
+
+		break;
+
+	}
 
     //printf("**** finished poly work in thread %d\n", t->tindex);
 
