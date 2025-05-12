@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.35-beta
+YAFU Version 3.0-beta
 
 --------------------------------------------------------------------------------
 Introduction:

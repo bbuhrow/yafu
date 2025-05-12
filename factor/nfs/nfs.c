@@ -1421,6 +1421,21 @@ void nfs(fact_obj_t *fobj)
 
 		if (NFS_ABORT)
 		{
+			if (obj != NULL)
+				msieve_obj_free(obj);
+			free(input);
+
+			if (job.snfs)
+			{
+				snfs_clear(job.snfs);
+				free(job.snfs);
+			}
+			else if (job.poly)
+			{
+				mpz_polys_free(job.poly);
+				free(job.poly);
+			}
+
 			print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 			exit(1);
 		}
@@ -1428,7 +1443,22 @@ void nfs(fact_obj_t *fobj)
 		if (process_done && (nfs_state != NFS_STATE_DONE))
 		{
 			// if some state other than STATE_DONE set process_done, then
-			// it had a good reason to.  Don't allow factor() to continue, just leave.
+			// it had a good reason to.  Don't allow nfs() or factor() to continue, just leave.
+			if (obj != NULL)
+				msieve_obj_free(obj);
+			free(input);
+
+			if (job.snfs)
+			{
+				snfs_clear(job.snfs);
+				free(job.snfs);
+			}
+			else if (job.poly)
+			{
+				mpz_polys_free(job.poly);
+				free(job.poly);
+			}
+
 			print_factors(fobj, fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
 			exit(0);
 		}

@@ -133,6 +133,11 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 
 	for (i=2; i<bits; i++)
 	{
+		if (mpz_cmp_ui(b, 1) == 0)
+		{
+			break;
+		}
+
 		mpz_root(base, b, i);
 		mpz_pow_ui(ans, base, i);
 		if (mpz_cmp(ans, b) == 0)
@@ -154,53 +159,18 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 			}
 			else
 			{
-				// if composite, factor it and then multiply
-				// all factors by i (the exponent).
-				fact_obj_t *fobj_refactor;
-				uint32_t j;
-
-				gmp_printf("\nFactoring composite base %Zd...\n", base);
-
-				// load the new fobj with this number
-				fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-				init_factobj(fobj_refactor);
-				mpz_set(fobj_refactor->N, base);
-
-				// recurse on factor
-				//factor(fobj_refactor);
-                // FIXME: need to find a better way to do this or 
-                // a different place to put this function, since the
-                // "factor()" function is not part of factor_common... it
-                // is now in autofactor.  For now just do more trial division.
-                zTrial(fobj_refactor);
-
-				// add all factors found during the refactorization
-				for (j=0; j< fobj_refactor->factors->num_factors; j++)
+				gmp_printf("fac: detected composite power %Zd^%d\n", base, i);
+				int c;
+				char* s = mpz_get_str(NULL, 10, base);
+				for (c = 0; c < i; c++)
 				{
-					int k, c;
-                    char* s = mpz_get_str(NULL, 10, fobj_refactor->factors->factors[j].factor);
-
-					for (k=0; k < fobj_refactor->factors->factors[j].count; k++)
-					{
-						// add i copies of it, since this was a perfect power
-						for (c = 0; c < i; c++)
-						{
-							add_to_factor_list(fobj->factors, 
-                                fobj_refactor->factors->factors[j].factor,
-                                fobj->VFLAG, fobj->NUM_WITNESSES);
-							mpz_tdiv_q(b, b, fobj_refactor->factors->factors[j].factor);
-							logprint(flog,"prp%d = %s\n",
-								gmp_base10(fobj_refactor->factors->factors[j].factor), s);
-						}
-					}
-                    free(s);
+					add_to_factor_list(fobj->factors, base,
+						fobj->VFLAG, fobj->NUM_WITNESSES);
+					mpz_tdiv_q(b, b, base);
+					logprint(flog, "c%d = %s\n", gmp_base10(base), s);
 				}
-
-				// free temps
-				free_factobj(fobj_refactor);
-				free(fobj_refactor);
+				free(s);
 			}
-			break;
 		}
 	}
 
