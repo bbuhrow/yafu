@@ -137,6 +137,10 @@ int main(int argc, char *argv[])
         strcpy(yafu_obj.batchfilename, options->batchfile);
         batchnum = 1;
     }
+    if (strlen(options->sessionlog) > 0)
+    {
+        strcpy(yafu_obj.sessionname, options->sessionlog);
+    }
     if (options->rand_seed == 0)
     {
         uint32_t seed1, seed2;
