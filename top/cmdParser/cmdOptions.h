@@ -97,7 +97,6 @@ typedef struct
     int json_pretty;
     int obase;
     int terse_output;
-    char jsonlog[MAXARGLEN];
 
     // qs options
     uint32_t siqsB;
@@ -208,6 +207,7 @@ typedef struct
     int check_stop_conditions;
     int max_siqs;
     int max_nfs;
+    char jsonlog[MAXARGLEN];
 
     // prime finding options
     uint32_t pfile;
