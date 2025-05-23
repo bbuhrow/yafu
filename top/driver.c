@@ -1597,6 +1597,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     fobj->num_threads = options->threads;
     strcpy(fobj->flogname, options->factorlog);
+    strcpy(fobj->factor_json_name, options->jsonlog);
 
     // initialize global stuff in fobj
     if (options->rand_seed != 0)

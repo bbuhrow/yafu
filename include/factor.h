@@ -437,8 +437,8 @@ typedef struct
 	uint32_t bits;				    // number of bits in input
 	char flogname[1024];		    // name of the factorization logfile to use
 	FILE *logfile;				    // the logfile
-	char savefile_name[80];		    // data savefile name
-    char factor_json_name[80];      // json file name
+	char savefile_name[256];	    // data savefile name
+    char factor_json_name[256];     // json file name
 	uint32_t flags;				    // state flags
     char *input_str;                // a copy of the input string
     int input_str_alloc;
