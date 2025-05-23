@@ -83,7 +83,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
-    "nfs_params", "poly_testsieve", "poly_percent_max", "td"};
+    "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -212,7 +212,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : file containing nfs comma-delimited parameters, assumes algebraic-side sieving",
     "(Integer < 32-bit): input size threshold (in bits) above which poly select will test sieve to estimate sieve time as a stopping condition",
     "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time",
-    "                  : target density"
+    "                  : target density",
+    "(String)          : Name of output JSON logfile"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -245,7 +246,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
-    1,1,1,1        // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td"
+    1,1,1,1,1    // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
 };
 
 // command line option aliases, specified by '--'
@@ -276,7 +277,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", ""
+    "", "", "", "", ""
 };
 
 
@@ -1257,6 +1258,14 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "td"
         options->td = atoi(arg);
     }
+    else if (strcmp(opt, OptionArray[124]) == 0)
+    {
+        // jsonlog
+        if (strlen(arg) < MAXARGLEN)
+            strcpy(options->jsonlog, arg);
+        else
+            printf("*** argument to jsonlog too long, ignoring ***\n");
+    }
     else
     {
         int i;
@@ -1464,6 +1473,7 @@ options_t* initOpt(void)
     strcpy(options->vpp1_work_file, "pp1_work.ini");
     strcpy(options->vpm1_work_file, "pm1_work.ini");
     strcpy(options->resume_file, "");
+    strcpy(options->jsonlog, "factor.json");
     
     // ========================================================================
     return options;
