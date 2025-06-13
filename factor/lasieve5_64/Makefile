@@ -130,7 +130,7 @@ SRCFILES=fbgen.c fbgen.h lasieve-prepn.c if.c la-cs.c gmp-aux.c mpz-ull.c \
 	micropm1.c pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
 
 
-ASMDIRS=athlon athlon64 piii generic xeon64
+ASMDIRS=athlon64 generic
 
 list_asm_files = \
 	$(foreach file, $(shell $(MAKE) -s -C $(asm_dir) bup),$(asm_dir)/$(file))
