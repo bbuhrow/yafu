@@ -25,10 +25,10 @@ code to the public domain.
 
 uint32_t make_fb_siqs(static_conf_t *sconf)
 {
-	//finds the factor base primes, and computes the solutions to the congruence x^2 = N mod p
-	//for the QS, these are the starting positions of the sieve relative to the sqrt of N.
-	//for the MPQS, additional work using the polynomial coefficents and these congruences 
-	//needs to be done to compute the starting positions of the sieve.
+	// finds the factor base primes, and computes the solutions to the congruence x^2 = N mod p
+	// for the QS, these are the starting positions of the sieve relative to the sqrt of N.
+	// for the MPQS, additional work using the polynomial coefficents and these congruences 
+	// needs to be done to compute the starting positions of the sieve.
 
 	//locals
 	int i;

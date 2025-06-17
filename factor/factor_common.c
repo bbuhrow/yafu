@@ -894,7 +894,7 @@ void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, 
         strcpy(tersebuf, "");
     }
 
-	//always print factors unless complete silence is requested
+	// always print factors unless complete silence is requested
 	if ((VFLAG >= 0) || print_terse)
 	{
 		if (VFLAG >= 0) printf("\n\n***factors found***\n");

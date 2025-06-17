@@ -64,21 +64,15 @@ particular architecture, I'd love to hear about it!
 
 Linux 64 bit OS (including Windows Subsystem for Linux, WSL)
 =============
-make yafu [NFS=1] [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1]
+make yafu [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1] [VBITS=64/128/256/512]
 
-I've built and tested with gcc and icc.  Enable either by using
-COMPILER=gcc or COMPILER=icc on the make line.
+I've built and tested with gcc, icc, and a couple versions of clang
 
-Optionally enable GNFS factorizations by setting NFS=1 during make.  This will 
-require the makefile to be edited to point to the libmsieve.a library.  By 
-default, it is assumed to be located at ../msieve/ relative to the Makefile.  
-
-YAFU now requires several other projects to be built before yafu.  These are:
+As of version 3.0 YAFU now only requires GMP and GMP-ECM as dependencies.  
+Ytools, ysieve, and msieve are now included into the project locally and built 
+as needed during make.
 gmp (https://gmplib.org/)
 gmp-ecm (http://ecm.gforge.inria.fr/)
-msieve (https://sourceforge.net/projects/msieve/)
-ytools (https://github.com/bbuhrow/ytools)
-ysieve (https://github.com/bbuhrow/ysieve)
 
 Here are some terse notes on how to build these dependencies prior to yafu.  Specific
 arguments to "make" in some cases could change depending on your system.
@@ -98,7 +92,7 @@ YAFU
 edit makefile to add the following to CFLAGS:
 -I/path/to/a/gmp/install/location/include/ -L/path/to/a/gmp/install/location/lib
 -I/path/to/a/ecm/install/location/include/ -L/path/to/a/ecm/install/location/lib
-make yafu [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1]
+make yafu [USE_SSE41=1] [USE_AVX2=1] [USE_BMI2=1] [SKYLAKEX=1] [ICELAKE=1] [VBITS=64/128/256/512]
 
 Some support can be had here:
 http://www.mersenneforum.org/forumdisplay.php?f=96

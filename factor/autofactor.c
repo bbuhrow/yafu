@@ -2444,7 +2444,7 @@ void factor(fact_obj_t *fobj)
 	// optionally record output in one or more file formats
 	if (fobj->factors->num_factors >= 1)
 	{
-		//If the only factor in our array == N, then N is prime or prp...
+		// If the only factor in our array == N, then N is prime or prp...
 		if (fobj->autofact_obj.want_output_primes && 
             (mpz_cmp(fobj->factors->factors[0].factor,origN) == 0))
 		{
@@ -2461,7 +2461,7 @@ void factor(fact_obj_t *fobj)
 			}
 		}
 
-		//If the first factor in the array != N, then is composite and we have factors...
+		// If the first factor in the array != N, then is composite and we have factors...
 		if (fobj->autofact_obj.want_output_factors &&
             (mpz_cmp(fobj->factors->factors[0].factor,origN) != 0))
 		{
@@ -3309,11 +3309,13 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 		fprintf(fid, "\t\"info\":{");
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && defined(__clang_version__)
+		fprintf(fid, "\"compiler\":\"MSVC %d, %s\",", _MSC_VER, __clang_version__);
+#elif defined(_MSC_VER)
 		fprintf(fid, "\"compiler\":\"MSVC %d\",", _MSC_VER);
 #elif defined (__INTEL_COMPILER)
 		fprintf(fid, "\"compiler\":\"INTEL %d\",", __INTEL_COMPILER);
-#elif defined (__INTEL_LLVM_COMPILER)
+#elif defined(__clang_version__)
 		fprintf(fid, "\"compiler\":\"%s\",", __clang_version__);
 #elif defined (__GNUC__)
 		fprintf(fid, "\"compiler\":\"GNUC %d\",", __GNUC__);

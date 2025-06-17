@@ -4487,18 +4487,18 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	sconf->tlp_exp = 2.7;
 
 	// check for user overrides
-	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt - 2.8) > 1e-9)
+	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt) > 1e-9)     // - 2.8 
 	{
 		sconf->tlp_exp = sconf->obj->qs_obj.gbl_override_mfbt;
 	}
 
-	if (fabs(sconf->obj->qs_obj.gbl_override_mfbd - 1.85) > 1e-9)
+	if (fabs(sconf->obj->qs_obj.gbl_override_mfbd) > 1e-9)      //  - 1.85
 	{
 		sconf->dlp_exp = sconf->obj->qs_obj.gbl_override_mfbd;
 	}
 
 	// if we're using dlp, compute the range of residues which will
-	// be subjected to factorization beyond trial division
+	// undergo cofactorization (batch GCD, ECM)
 	if (sconf->use_dlp >= 1)
 	{
 		sconf->max_fb2 = (uint64_t)sconf->pmax * (uint64_t)sconf->pmax;
@@ -4508,11 +4508,11 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	if (sconf->use_dlp == 2)
 	{
 		sconf->max_fb3 = pow((double)sconf->pmax, 3.0);
-		sconf->large_prime_max3 = pow((double)sconf->large_prime_max, sconf->tlp_exp); //(double)(0xffffffffffffffffULL); // 
+		sconf->large_prime_max3 = pow((double)sconf->large_prime_max, sconf->tlp_exp);
 	}
 
-	//'a' values should be as close as possible to sqrt(2n)/M in order to make
-	//values of g_{a,b}(x) as uniform as possible
+	// 'a' values should be as close as possible to sqrt(2n)/M in order to make
+	// values of g_{a,b}(x) as uniform as possible
 	mpz_mul_2exp(sconf->target_a, sconf->n, 1);
 	mpz_sqrt(sconf->target_a, sconf->target_a);
 #if defined (USE_SS_SEARCH) && defined( USE_DIRECT_SIEVE_SS)
@@ -4527,9 +4527,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
 
 
-	//compute the number of bits in M/2*sqrt(N/2), the approximate value
-	//of residues in the sieve interval.  Then subtract some slack.
-	//sieve locations greater than this are worthy of trial dividing
+	// compute the number of bits in M/2*sqrt(N/2), the approximate value
+	// of residues in the sieve interval.  Then subtract some slack.
+	// sieve locations greater than this are worthy of trial dividing
 	closnuf = (uint8_t)(double)((sconf->bits - 1)/2);
 	closnuf += (uint8_t)(log((double)sconf->sieve_interval/2)/log(2.0));
 	closnuf -= (uint8_t)(sconf->fudge_factor * log(sconf->large_prime_max) / log(2.0));
@@ -4579,19 +4579,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
     else if ((sconf->use_dlp == 2) || sconf->obj->qs_obj.gbl_force_TLP)
     {
-        // different than DLP?
-        if (sconf->digits_n < 82)
-            closnuf = sconf->digits_n + 7;
-        else if (sconf->digits_n < 90)
-            closnuf = sconf->digits_n + 5;
-        else if (sconf->digits_n < 95)
-            closnuf = sconf->digits_n + 3;
-        else if (sconf->digits_n < 100)
-            closnuf = sconf->digits_n + 1;
-        else
-            closnuf = sconf->digits_n;
-
-        closnuf -= 4;
+        closnuf = sconf->digits_n - 10;
     }
     else
     {
@@ -4600,7 +4588,6 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
     if (sconf->obj->qs_obj.gbl_override_tf_flag)
     {
-        //printf("overriding TF bound %u to %u\n", closnuf, sconf->obj->gbl_override_tf);
         closnuf = sconf->obj->qs_obj.gbl_override_tf;
     }
 
@@ -4641,31 +4628,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 	// compute how often to check our list of partial relations and update the gui.
     // for the TLP-variation, this determines when we run filtering... so it is
-    // quite a bit larger in that case.  It is reduces as the factorization 
+    // quite a bit larger in that case.  It is reduced as the factorization 
     // progresses (see update_check()).
     if (sconf->use_dlp == 2)
     {
-        // new strategy: use the number of full relations found as a gauge for
-        // when to filter.  At the end of a TLP run with typical parameters we
-        // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
-        // and every 1% thereafter.
-        // Note, the starting percentage drops as the numbers get bigger, because
-        // I deliberately use smaller factor bases (to rely more on cycles from
-        // partials) and that means fewer fulls.
-        //sconf->check_inc = 8 * sconf->factor_base->B;
-
-        // check frequently for very large inputs.  Sieving will take
+        // check frequently.  Sieving will take
         // so long that filtering costs are negligible, and good
         // data will emerge from the filtering runs that might hone in
         // cycle formation predictions.
-        if (sconf->digits_n > 120)
-           sconf->check_inc = 0.08 * sconf->factor_base->B;
-        ////if (sconf->digits_n > 120)
-        //    //sconf->check_inc = 0.05 * sconf->factor_base->B;
-        else //if (sconf->digits_n >= 100)
-            sconf->check_inc = 0.10 * sconf->factor_base->B;
-        //else
-        //    sconf->check_inc = 0.15 * sconf->factor_base->B;
+        sconf->check_inc = 1000;        // run filtering after finding this many fulls
     }
     else
     {
@@ -4676,7 +4647,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	sconf->update_time = 5;
     sconf->flag = 0;
 
-	//get ready for the factorization and screen updating
+	// get ready for the factorization and screen updating
 	sconf->t_update=0;
 	sconf->last_numfull = 0;
 	sconf->last_numpartial = 0;
@@ -4715,7 +4686,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     sconf->total_blocks = 0;
     sconf->lp_scan_failures = 0;
 
-	//no factors so far...
+	// no factors so far...
 	sconf->factor_list.num_factors = 0;
 
     // diagnostics for how often AVX512 gather/scatter operations occur.
@@ -4727,11 +4698,11 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 int update_check(static_conf_t *sconf)
 {
-	//check to see if we should combine partial relations
-	//found and check to see if we're done.  also update the screen.
-	//this happens one of two ways, either we have found more than a 
-	//certain amount of relations since the last time we checked, or if
-	//a certain amount of time has elapsed.
+	// check to see if we should combine partial relations
+	// found and check to see if we're done.  also update the screen.
+	// this happens one of two ways, either we have found more than a 
+	// certain amount of relations since the last time we checked, or if
+	// a certain amount of time has elapsed.
 	mpz_t tmp1;
 	struct timeval update_stop;
 	uint32_t num_full = sconf->num_relations;
@@ -4834,12 +4805,6 @@ int update_check(static_conf_t *sconf)
             uint32_t total_rels = sconf->num_full + sconf->num_slp +
                 sconf->dlp_useful + sconf->tlp_useful;
             uint32_t rels_left;
-            
-            
-            //if (check_total > total_rels)
-            //    rels_left = check_total - total_rels;
-            //else
-            //    rels_left = 0;
 
             if (check_total > sconf->num_full)
             {
@@ -4875,16 +4840,6 @@ int update_check(static_conf_t *sconf)
                         rels_left,
                         (double)(sconf->num_relations + sconf->dlp_useful +
                             sconf->tlp_useful) / t_time);
-
-                    //t_time = ytools_difftime(&sconf->totaltime_start, &update_stop);
-                    //
-                    //printf("total : %u full, %u slp, "
-                    //    "%u dlp, %u tlp, (%1.2f r/sec)\n",
-                    //    sconf->num_full, sconf->num_slp,
-                    //    sconf->dlp_useful,
-                    //    sconf->tlp_useful,
-                    //    (double)(sconf->num_full + sconf->num_slp +
-                    //        sconf->dlp_useful + sconf->tlp_useful) / t_time);
                 }
                 else
                 {
@@ -4939,32 +4894,9 @@ int update_check(static_conf_t *sconf)
 	        uint32_t total_rels = sconf->num_full + sconf->num_slp +
 				sconf->dlp_useful + sconf->tlp_useful;
 
-            if (0) //!sconf->do_periodic_tlp_filter)
-            {
-                // if we are not doing periodic filtering, it means that
-                // we know approximately how many relations are needed for
-                // this input and parameters.  When we reach that point,
-                // exit sieving and start filtering.  If filtering fails
-                // we'll need to build in the capability to come back into
-                // the sieve loop.
-                // This process is complicated by the fact that we may have
-                // many threads running right now.  We should take into 
-                // account the relations in-flight and if it looks like we
-                // are done, notify the other running threads to stop.
-
-                if (total_rels > sconf->est_raw_rels_needed)
-                {
-                    //we've got enough total relations to stop
-                    mpz_clear(tmp1);
-                    return 1;
-                }
-            }
-
-            // new strategy: use the number of full relations found as a gauge for
+            // use the number of full relations found as a gauge for
             // when to filter.  At the end of a TLP run with typical parameters we
-            // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
-            // and every 1% thereafter.
-            //if ((total_rels > check_total) && 
+            // have about 20% fulls and 80% cycles.
             if ((sconf->num_full > check_total) &&
                 (sconf->num_found < (sconf->factor_base->B + sconf->num_extra_relations)))
 			{
@@ -4993,8 +4925,6 @@ int update_check(static_conf_t *sconf)
 
 				gettimeofday(&filt_start, NULL);
 
-				//printf("\nreached deadline of %u (%u) relations saved\n", 
-				//	total_rels, check_total);
                 printf("\nreached deadline of %u (%u) full relations found\n",
                     sconf->num_full, check_total);
 				t_time = ytools_difftime(&sconf->totaltime_start, &filt_start);
@@ -5003,8 +4933,6 @@ int update_check(static_conf_t *sconf)
 
 				if (obj->logfile != NULL)
 				{
-					//logprint(obj->logfile, "reached deadline of %u (%u) relations saved\n",
-					//	total_rels, check_total);
                     printf("\nreached deadline of %u (%u) full relations found\n",
                         sconf->num_full, check_total);
 					logprint(obj->logfile, "QS elasped time is now %1.2f sec\n", t_time);
@@ -5311,7 +5239,7 @@ int update_check(static_conf_t *sconf)
                             }
                         }
                         
-                        // new strategy: use the number of full relations found as a gauge for
+                        // use the number of full relations found as a gauge for
                         // when to filter.  At the end of a TLP run with typical parameters we
                         // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
                         // and every 1% thereafter.
@@ -5319,54 +5247,11 @@ int update_check(static_conf_t *sconf)
                             ((double)sconf->last_numfull + (double)sconf->last_numpartial) / 
                             (double)sconf->factor_base->B;
 
-                        if ((!have_cycle_growth_estimate) && (sconf->digits_n < 130))
-                        {
-                            if (percent_complete < 0.2)
-                            {
-                                sconf->check_inc = 0.025 * sconf->factor_base->B;
-                            }
-                            else if (percent_complete < 0.33)
-                            {
-                                sconf->check_inc = 0.015 * sconf->factor_base->B;
-                            }
-                            else if (percent_complete < 0.5)
-                            {
-                                sconf->check_inc = 0.01 * sconf->factor_base->B;
-                            }
-                            else
-                            {
-                                sconf->check_inc = 0.005 * sconf->factor_base->B;
-                            }
-                        }
-                        
-                        if (sconf->digits_n > 130)
-                        {
-                            if (percent_complete < 0.2)
-                            {
-                                sconf->check_inc = 0.02 * sconf->factor_base->B;
-                            }
-                            else if (percent_complete < 0.33)
-                            {
-                                sconf->check_inc = 0.01 * sconf->factor_base->B;
-                            }
-                            else if (percent_complete < 0.5)
-                            {
-                                sconf->check_inc = 0.005 * sconf->factor_base->B;
-                            }
-                            else
-                            {
-                                sconf->check_inc = 0.0025 * sconf->factor_base->B;
-                            }
-                        }
-
-                        sconf->check_inc = MIN(sconf->check_inc, sconf->factor_base->B / 40);
-
                         // check frequently for very large inputs.  Sieving will take
                         // so long that filtering costs are negligible, and good
                         // data will emerge from the filtering runs that might hone in
                         // cycle formation predictions.
-                        if (sconf->digits_n > 120)
-                            sconf->check_inc = MAX(MIN(sconf->check_inc, 1000), 100);
+                        sconf->check_inc = 1000;
 
 						// this is a better approximation than just assuming that 
 						// cycle formation stays constant.
@@ -5374,11 +5259,6 @@ int update_check(static_conf_t *sconf)
 
 						sconf->last_fullrate = fullrate;
 						sconf->last_cycrate = cycrate;
-
-						//printf("predicting %u new fulls and %u new cycles in next batch of %u rels\n",
-						//	(uint32_t)((double)sconf->check_inc * fullrate),
-						//	(uint32_t)((double)sconf->check_inc * next_cycrate), 
-                        //  sconf->check_inc);
 
                         printf("predicting %u new fulls and %u new cycles in next batch of ~%u rels\n",
                             (uint32_t)((double)sconf->check_inc),
@@ -5405,18 +5285,13 @@ int update_check(static_conf_t *sconf)
                                 (fb->B + sconf->num_extra_relations))
 							{
 								uint32_t rels_needed = (fb->B + sconf->num_extra_relations) - sconf->num_r;
-								//uint32_t batch_needed = (double)rels_needed / (next_cycrate + fullrate);
-                                //sconf->check_inc = batch_needed; // (uint32_t)((double)batch_needed * 1.1);
-                                
                                 double batch_fraction = (double)rels_needed / (double)predicted_rels;
                                 sconf->check_inc = (uint32_t)((double)sconf->check_inc * batch_fraction);
-                                //if (sconf->check_inc < 10000)
-                                //    sconf->check_inc = 10000;
 								printf("using cycle formation rate to set batch size to %u\n",
 									sconf->check_inc);
 							}
 
-                            sconf->check_inc = MAX(sconf->check_inc, 200);
+                            sconf->check_inc = MIN(sconf->check_inc, 1000);
 
 							for (j = 0; j < num_cycles; j++)
 							{
@@ -5476,7 +5351,6 @@ int update_check(static_conf_t *sconf)
                 }
 
 				sconf->check_total += sconf->check_inc;
-                //printf("new filtering deadline is %u relations\n", sconf->check_total);
                 printf("new filtering deadline is %u full relations\n", sconf->check_total);
 
 				gettimeofday(&filt_stop, NULL);
@@ -6115,10 +5989,6 @@ void rebuild_graph(static_conf_t *sconf, siqs_r *relation_list, int num_relation
     int i;
     for (i = 0; i < num_relations; i++) {
         siqs_r *r = relation_list + i;
-        //if (r->large_prime[0] != r->large_prime[1]) {
-        //    yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0],
-        //        r->large_prime[1]);
-        //}
         if (r->large_prime[0] != r->large_prime[1]) {
             yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0], r->large_prime[1]);
             sconf->num_cycles++;
