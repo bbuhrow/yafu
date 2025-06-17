@@ -93,7 +93,13 @@ uint64_t mpz_estimate_primes_in_range(mpz_t lowlimit, mpz_t highlimit)
     //printf("estimate = %lu\n", est);
 
     if (est == 0)
-        est = 1000000;
+    {
+        mpz_t d;
+        mpz_init(d);
+        mpz_sub(d, highlimit, lowlimit);
+        est = mpz_get_ui(d) / 2;
+        mpz_clear(d);
+    }
     return est;
 }
 
@@ -478,7 +484,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
     }	
     else if ((highlimit - lowlimit) > 40000000000ULL)
 	{
-        if (lowlimit < 100000000000000ULL)
+        if ((lowlimit < 100000000000000ULL))
         {
             numclasses = 480;
             prodN = 2310;
@@ -607,7 +613,7 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
 	// set sieve primes in the local data structure to the ones that were passed in
 	sdata->sieve_p = sieve_p;	
 	
-	if (offset == NULL)
+	if (mpz_cmp_ui(offset, 0) == 0)
 	{
         mpz_t h;
         mpz_init(h);
@@ -684,7 +690,7 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
 
 #endif
 		
-		sdata->offset = NULL;
+        mpz_set_ui(sdata->offset, 0);
 		sdata->sieve_range = 0;
 	}
 	else
@@ -724,7 +730,7 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
         }
 #endif
 
-		sdata->offset = offset;
+        mpz_set(sdata->offset, offset);
 		sdata->sieve_range = 1;
 	}
 
@@ -856,9 +862,9 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
 
         // the start of the range of interest is controlled by offset, not lowlimit
         // figure out how it needs to change to accomodate sieving
-        mpz_tdiv_q_ui(tmpz, *sdata->offset, numclasses * prodN);
+        mpz_tdiv_q_ui(tmpz, sdata->offset, numclasses * prodN);
         mpz_mul_ui(tmpz, tmpz, numclasses * prodN);
-        mpz_sub(tmpz2, *sdata->offset, tmpz);
+        mpz_sub(tmpz2, sdata->offset, tmpz);
 
         // raise the high limit by the amount the offset was lowered, so that
         // we allocate enough flags to cover the range of interest
@@ -871,7 +877,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
         sdata->orig_llimit += mpz_get_ui(tmpz2);
 
         // copy the new value to the pointer, which will get passed back to sieve_to_depth
-        mpz_set(*sdata->offset, tmpz);
+        mpz_set(sdata->offset, tmpz);
         mpz_clear(tmpz);
         mpz_clear(tmpz2);
 

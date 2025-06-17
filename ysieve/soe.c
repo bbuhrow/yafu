@@ -469,7 +469,7 @@ void bitmap_48class_work_fcn(void *vptr)
 }
 
 
-uint64_t spSOE(soe_staticdata_t *sdata, mpz_t *offset,
+uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
 	uint64_t lowlimit, uint64_t *highlimit, int count, uint64_t *primes)
 {
 	/*
@@ -513,14 +513,16 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t *offset,
 
 
 	// sanity check the input
-	if (check_input(*highlimit, lowlimit, num_sp, sieve_p, sdata, *offset))
+	if (check_input(*highlimit, lowlimit, num_sp, sieve_p, sdata, offset))
 		return 0;
 
 	// determine what kind of sieve to use based on the input
 	get_numclasses(*highlimit, lowlimit, sdata);
 
-    if (*offset != NULL)
+    if (mpz_cmp_ui(offset, 0) > 0)
+    {
         sdata->use_monty = 0;
+    }
 
 	// allocate and initialize some stuff
 	allocated_bytes += init_sieve(sdata);
@@ -538,6 +540,8 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t *offset,
 	// initialize stuff used in thread structures.
 	// this is necessary even if THREADS = 1;	
 	allocated_bytes += alloc_threaddata(sdata, thread_data);
+
+    mpz_set(offset, sdata->offset);
 
 	if (VFLAG > 2)
 	{	
@@ -557,9 +561,9 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t *offset,
         {
             // sieve to depth - not guarenteed to find all primes
             gmp_printf("sieving range 0 to %" PRIu64 " from offset %Zd\n", 
-                *highlimit, *sdata->offset);
+                *highlimit, sdata->offset);
             gmp_printf("requested range is %Zd + %lu:%lu\n",
-                *sdata->offset, sdata->orig_llimit, sdata->orig_hlimit);
+                sdata->offset, sdata->orig_llimit, sdata->orig_hlimit);
             printf("using %" PRIu64 " primes, max prime = %" PRIu64 "  \n",
                 sdata->pboundi, sdata->sieve_p[sdata->pboundi - 1]);
         }
@@ -998,9 +1002,9 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
 		if (sdata->sieve_range)
 		{
-            if (mpz_size(*sdata->offset) == 1)
+            if (mpz_size(sdata->offset) == 1)
             {
-                ui_offset = mpz_get_ui(*sdata->offset);
+                ui_offset = mpz_get_ui(sdata->offset);
 
                 if (ui_offset > sdata->pbound)
                 {
@@ -1086,9 +1090,9 @@ void finalize_sieve(soe_staticdata_t *sdata,
 			
 		if (sdata->sieve_range)
 		{
-            if (mpz_size(*sdata->offset) == 1)
+            if (mpz_size(sdata->offset) == 1)
             {
-                ui_offset = mpz_get_ui(*sdata->offset);
+                ui_offset = mpz_get_ui(sdata->offset);
                 if (ui_offset > sdata->pbound)
                 {
                     // huge offset, we don't need to add any primes.

@@ -294,8 +294,8 @@ uint32_t tiny_soe(uint32_t limit, uint32_t* primes);
 
 // top level sieving routines
 uint64_t* GetPRIMESRange(soe_staticdata_t* sdata,
-    mpz_t* offset, uint64_t lowlimit, uint64_t highlimit, uint64_t* num_p);
-uint64_t spSOE(soe_staticdata_t* sdata, mpz_t* offset,
+    mpz_t offset, uint64_t lowlimit, uint64_t highlimit, uint64_t* num_p);
+uint64_t spSOE(soe_staticdata_t* sdata, mpz_t offset,
     uint64_t lowlimit, uint64_t* highlimit, int count, uint64_t* primes);
 
 // misc and helper functions

@@ -218,14 +218,14 @@ void compute_primes_work_fcn(void *vptr)
 uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_data,
 	uint32_t start_count, uint64_t *primes)
 {
-	//compute primes using all of the sieved lines we have stored
-	uint32_t pcount = start_count;	
+	// compute primes using all of the sieved lines we have stored
+	uint64_t pcount = start_count;	
 	uint64_t i;
 	int j;
 	uint32_t range, lastid;
     int GLOBAL_OFFSET = sdata->GLOBAL_OFFSET;
 
-    //timing
+    // timing
     double t;
     struct timeval tstart, tstop;
 
@@ -245,7 +245,8 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
 
     if (sdata->VFLAG > 1)
     {
-        printf("computing primes from %lu to %lu\n", sdata->orig_llimit, sdata->orig_hlimit);
+        printf("computing primes from %lu to %lu, start_count is %u\n", 
+            sdata->orig_llimit, sdata->orig_hlimit, start_count);
     }
 
     // divvy up the line bytes.  Unlike when counting primes,

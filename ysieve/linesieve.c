@@ -110,7 +110,7 @@ void sieve_line(thread_soedata_t *thread_data)
         else
         {
             if ((sdata->rclass[current_line] == 1) &&
-                (mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+                (mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
                 flagblock[0] &= 0xfe;
         }
 		
@@ -481,7 +481,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
         else
         {
             if ((sdata->rclass[current_line] == 1) &&
-                (mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+                (mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
                 flagblock[0] &= 0xfe;
         }
 
@@ -880,7 +880,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 		else
 		{
 			if ((sdata->rclass[current_line] == 1) &&
-				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+				(mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
 				flagblock[0] &= 0xfe;
 		}
 
@@ -1276,7 +1276,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 		else
 		{
 			if ((sdata->rclass[current_line] == 1) &&
-				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+				(mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
 				flagblock[0] &= 0xfe;
 		}
 
@@ -1672,7 +1672,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 		else
 		{
 			if ((sdata->rclass[current_line] == 1) &&
-				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+				(mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
 				flagblock[0] &= 0xfe;
 		}
 
@@ -2085,7 +2085,7 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 		else
 		{
 			if ((sdata->rclass[current_line] == 1) &&
-				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+				(mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
 				flagblock[0] &= 0xfe;
 		}
 
@@ -2598,7 +2598,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 		else
 		{
 			if ((sdata->rclass[current_line] == 1) &&
-				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+				(mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
 				flagblock[0] &= 0xfe;
 		}
 
@@ -3007,7 +3007,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
         else
         {
             if ((sdata->rclass[current_line] == 1) &&
-                (mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
+                (mpz_cmp_ui(sdata->offset, 1) <= 0) && (i == 0))
                 flagblock[0] &= 0xfe;
         }
 

@@ -1854,3 +1854,157 @@ char* get_full_line(char* line, int *sz, FILE* fid)
     return line;
 }
 
+
+
+// ============================================================================
+// combinatorics
+// ============================================================================
+
+uint64_t choose(int n, int k)
+{
+    // compute binomial: n choose k
+    // multiplication method:
+    // prod(i=1,k,(n+1-i)/i)
+    uint64_t p = 1;
+    int i;
+    for (i = 1; i <= k; i++)
+    {
+        p = p * (n + 1 - i) / i;
+    }
+    return p;
+}
+
+/** [combination c n p x]
+ * get the [x]th lexicographically ordered set of [p] elements in [n]
+ * output is in [c], and should be sizeof(int)*[p] */
+void combination(int* c, int n, int p, int x) {
+    int i, r, k = 0;
+    for (i = 0; i < p - 1; i++) {
+        c[i] = (i != 0) ? c[i - 1] : 0;
+        do {
+            c[i]++;
+            r = choose(n - c[i], p - (i + 1));
+            k = k + r;
+        } while (k < x);
+        k = k - r;
+    }
+    c[p - 1] = c[p - 2] + x - k;
+}
+
+/** [combination c n p x]
+ * get all lexicographically ordered sets of [p] elements in [n]
+ * output is in [c], and will be a matrix of nChooseK x p integers */
+uint64_t combinations(int** c, int n, int p, int x) {
+    int j;
+    uint64_t k = choose(n, p);
+    for (j = 0; j < k; j++)
+    {
+        combination(&c[j], n, p, j);
+    }
+    return k;
+}
+
+// helper function for permute
+void swap(int* v, const int i, const int j)
+{
+    int t;
+    t = v[i];
+    v[i] = v[j];
+    v[j] = t;
+}
+
+// helper function for permute
+void rotateLeft(int* v, const int start, const int n)
+{
+    int tmp = v[start];
+    for (int i = start; i < n - 1; i++) {
+        v[i] = v[i + 1];
+    }
+    v[n - 1] = tmp;
+} // rotateLeft
+
+// in-place recursive permutation generator.
+// adapted from:
+// https://stackoverflow.com/questions/3862191/permutation-generator-on-c
+// provide a list of integers, a start value (typically 0) and size
+// of the list, and a function pointer that performs an action on
+// each evaluation.  The eval function will get the list, list size,
+// and an optional user-supplied void-pointer to arbitrary data as arguments.
+void permute(int* v, const int start, const int n,
+    void (*eval_fcn)(int*, const int, void*), void* eval_params)
+{
+    eval_fcn(v, n, eval_params);
+    if (start < n) {
+        int i, j;
+        for (i = n - 2; i >= start; i--) {
+            for (j = i + 1; j < n; j++) {
+                swap(v, i, j);
+                permute(v, i + 1, n, eval_fcn, eval_params);
+            } // for j
+            rotateLeft(v, i, n);
+        } // for i
+    }
+} // permute
+
+// example eval function - to print each permutation
+void print(const int* v, const int size, void* custom_data)
+{
+    if (v != 0) {
+        for (int i = 0; i < size; i++) {
+            printf("%4d", v[i]);
+        }
+        printf("\n");
+    }
+} // print
+
+
+// recursive combination generator, with repetitions
+// adapted from: https://www.geeksforgeeks.org/combinations-with-repetitions/
+/* arr[]  ---> Input Array
+  chosen[] ---> Temporary array to store indices of
+                   current combination
+   start & end ---> Starting and Ending indexes in arr[]
+   r ---> Size of a combination to be printed */
+void CombinationRepetitionUtil(int chosen[], int arr[],
+    int index, int r, int start, int end, int* num)
+{
+    // Since index has become r, current combination is
+    // ready to be printed, print
+    if (index == r)
+    {
+        printf("%05d: ", (*num)++);
+        for (int i = 0; i < r; i++)
+            printf("%d ", arr[chosen[i]]);
+        printf("\n");
+        return;
+    }
+
+    // One by one choose all elements (without considering
+    // the fact whether element is already chosen or not)
+    // and recur
+    for (int i = start; i <= end; i++)
+    {
+        chosen[index] = i;
+        CombinationRepetitionUtil(chosen, arr, index + 1,
+            r, i, end, num);
+    }
+    return;
+}
+
+// The main function that prints all combinations of size r
+// in arr[] of size n with repetitions. This function mainly
+// uses CombinationRepetitionUtil()
+void CombinationRepetition(int arr[], int n, int r)
+{
+    // Allocate memory
+    int* chosen = (int*)xmalloc((r + 1) * sizeof(int));
+    int num;
+
+    // Call the recursive function
+    CombinationRepetitionUtil(chosen, arr, 0, r, 0, n - 1, &num);
+
+    free(chosen);
+}
+
+
+

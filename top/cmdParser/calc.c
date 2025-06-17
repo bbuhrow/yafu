@@ -2890,10 +2890,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
     case 69:
         // sieverange - 4 arguments
-        // range lo, range hi, sieve bound, count?
+        // range lo, range hi, sieve bound, count
         if (check_args(funcnum, nargs)) break;
 
-        // move to soe library...
         {
             uint64_t num_found;
             uint64_t* primes;
@@ -2907,11 +2906,18 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(lowz, operands[0]);
             mpz_set(highz, operands[1]);
 
+            gettimeofday(&tstart, NULL);
+
             soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
 
             primes = sieve_to_depth(sdata, lowz, highz,
-                0, 0, mpz_get_ui(operands[2]),
+                mpz_get_ui(operands[3]), 1, mpz_get_ui(operands[2]),
                 &num_found, metadata->pscreen, metadata->pfile);
+
+            gettimeofday(&tstop, NULL);
+            t = ytools_difftime(&tstart, &tstop);
+
+            printf("elapsed time = %6.4f\n", t);
 
             if (!NULL)
                 free(primes);
@@ -3142,6 +3148,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
 
     case 77:
+
+    
+
+
 
 
 #if 0

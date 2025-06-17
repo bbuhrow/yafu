@@ -76,9 +76,63 @@ void compute_prps_work_fcn(void *vptr)
     thread_soedata_t *t = &udata->ddata[tdata->tindex];
 	int witnesses = sdata->witnesses;
     int i;
+
+
+
     
+#if 0
+
+#ifndef IFMA
+	dbias = _mm512_castsi512_pd(set64(0x4670000000000000ULL));
+	vbias1 = set64(0x4670000000000000ULL);
+	vbias2 = set64(0x4670000000000001ULL);
+	vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);
+#endif
+
     t->linecount = 0;
-    for (i = t->startid; i < t->stopid; i++)
+	for (i = t->startid; i < t->stopid - 8; i += 8)
+	{
+		if ((((i - t->startid) & 8191) == 0) && (sdata->VFLAG > 0))
+		{
+			printf("thread %d progress: %d%%\r", tdata->tindex,
+				(int)((double)(i - t->startid) / (double)(t->stopid - t->startid) * 100.0));
+			fflush(stdout);
+		}
+
+		ALIGNED_MEM uint64_t n8[16];
+		int j;
+		uint8_t valid_msk = 0;
+
+		for (j = 0; j < 8; j++)
+		{
+			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i + j - t->startid]);
+
+			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+			{
+				n8[j] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
+				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 52);
+				n8[j + 8] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
+				valid_msk |= (1 << j);
+			}
+		}
+
+		uint8_t prpmask = valid_msk & MR_2sprp_104x8(n8);
+		t->linecount += _mm_popcnt_u32(prpmask);
+
+		//for (j = 0; j < 8; j++)
+		//{
+		//	if (prpmask & (1 << j))
+		//	{
+		//		t->ddata.primes[t->linecount++] = t->ddata.primes[i + j - t->startid];
+		//	}
+		//}
+
+	}
+
+	for ( ; i < t->stopid; i++)
+#else
+	for (i = t->startid; i < t->stopid; i++)
+#endif
     {
         if (((i & 8191) == 0) && (sdata->VFLAG > 0))
         {
@@ -107,7 +161,8 @@ void compute_prps_work_fcn(void *vptr)
 				}
 				else
 				{
-					t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+					//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+					t->linecount++;
 				}
 				//printf("prime!\n");
             }
@@ -158,18 +213,22 @@ soe_staticdata_t* soe_init(int vflag, int threads, int blocksize)
         sdata->SOEBLOCKSIZE = blocksize;
     else
         sdata->SOEBLOCKSIZE = blocksize << 10;
+
+	mpz_init(sdata->offset);
+
     return sdata;
 }
 
 void soe_finalize(soe_staticdata_t* sdata)
 {
     free(sdata->sieve_p);
+	mpz_clear(sdata->offset);
 	free(sdata);
     return;
 }
 
 uint64_t *GetPRIMESRange(soe_staticdata_t* sdata, 
-	mpz_t *offset, uint64_t lowlimit, uint64_t highlimit, uint64_t *num_p)
+	mpz_t offset, uint64_t lowlimit, uint64_t highlimit, uint64_t *num_p)
 {
 	uint64_t i;
 	uint64_t hi_est, lo_est;
@@ -178,13 +237,13 @@ uint64_t *GetPRIMESRange(soe_staticdata_t* sdata,
 	
 	//reallocate output array based on conservative estimate of the number of 
 	//primes in the interval
-	if (offset != NULL)
+	if (mpz_cmp_ui(offset, 0) > 0)
 	{
 		mpz_t a, b;
 		mpz_init(a);
 		mpz_init(b);
-		mpz_add_ui(a, *offset, lowlimit);
-		mpz_add_ui(b, *offset, highlimit);
+		mpz_add_ui(a, offset, lowlimit);
+		mpz_add_ui(b, offset, highlimit);
 		i = mpz_estimate_primes_in_range(a, b);
 		mpz_clear(a);
 		mpz_clear(b);
@@ -194,7 +253,7 @@ uint64_t *GetPRIMESRange(soe_staticdata_t* sdata,
 
 		if (primes == NULL)
 		{
-            if (offset == NULL)
+            if (mpz_cmp_ui(offset, 0) > 0)
             {
                 printf("unable to allocate %" PRIu64 " bytes for range %" PRIu64 " to %" PRIu64 "\n",
                     (uint64_t)(i * sizeof(uint64_t)), lowlimit, highlimit);
@@ -260,7 +319,7 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 	//public interface to the sieve.  
 	uint64_t retval, tmpl, tmph, i;
 	uint32_t max_p;	
-	
+	mpz_t offset;
 	uint64_t *primes = NULL;
 
     sdata->only_count = count;
@@ -279,6 +338,8 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 	mpz_t a, b;
 	mpz_init(a);
 	mpz_init(b);
+	mpz_init(offset);
+	mpz_set_ui(offset, 0);
 	mpz_set_ui(a, highlimit);
 	mpz_set_ui(b, sdata->sieve_p[sdata->num_sp - 1]);
 	mpz_mul_ui(b, b, sdata->sieve_p[sdata->num_sp - 1]);
@@ -312,7 +373,7 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 		//find the sieving primes using the seed primes
         sdata->NO_STORE = 0;
 		sdata->is_main_sieve = 0;
-		primes = GetPRIMESRange(sdata, NULL, 0, max_p, &retval);
+		primes = GetPRIMESRange(sdata, offset, 0, max_p, &retval);
 
         if (sdata->VFLAG > 1)
         {
@@ -335,12 +396,12 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 	if (count)
 	{
 		sdata->is_main_sieve = 1;
-		*num_p = spSOE(sdata, NULL, lowlimit, &highlimit, count, NULL);
+		*num_p = spSOE(sdata, offset, lowlimit, &highlimit, count, NULL);
 	}
 	else
 	{
 		sdata->is_main_sieve = 1;
-		primes = GetPRIMESRange(sdata, NULL, lowlimit, highlimit, num_p);
+		primes = GetPRIMESRange(sdata, offset, lowlimit, highlimit, num_p);
 
 		// now dump the requested range of primes to a file, or the
 		// screen, both, or neither, depending on the state of a couple
@@ -411,7 +472,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	uint64_t retval, i, range, tmpl, tmph, num_sp_needed;
 	uint64_t *values = NULL;
 	mpz_t tmpz;
-	mpz_t *offset;
+	mpz_t offset;
 
 	if (mpz_cmp(highlimit, lowlimit) <= 0)
 	{
@@ -420,10 +481,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		return values;
 	}	
 
-	offset = (mpz_t *)malloc(sizeof(mpz_t));
 	mpz_init(tmpz);
-	mpz_init(*offset);
-	mpz_set(*offset, lowlimit);
+	mpz_init(offset);
+	mpz_set(offset, lowlimit);
 	mpz_sub(tmpz, highlimit, lowlimit);
 	range = mpz_get_ui(tmpz);
 
@@ -457,11 +517,14 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		// because the vector routines in the sieve may want to slightly 
 		// increase the number that we sieve with in order to work
 		// with full vectors.
+		mpz_t tmp_offset;
+		mpz_init(tmp_offset);
+		mpz_set_ui(tmp_offset, 0);
+
 		sdata->NO_STORE = 0;
 		sdata->is_main_sieve = 0;
-		uint64_t *primes = GetPRIMESRange(sdata, NULL, 0, sieve_limit + 10000, &retval);
+		uint64_t *primes = GetPRIMESRange(sdata, tmp_offset, 0, sieve_limit + 10000, &retval);
 
-		printf("primes found: %lu, max = %u\n", retval, primes[retval - 1]);
 		// from the oversieved list of primes, find how many will satisfy the 
 		// requested sieve_primes limit.
 		num_sp_needed = retval - 1;
@@ -469,7 +532,11 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		{
 			num_sp_needed--;
 		}
+#ifdef USE_AVX2
+		num_sp_needed += 8;
+#else
 		num_sp_needed++;
+#endif
 
 		if (sdata->VFLAG > 1)
 		{
@@ -488,18 +555,30 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		sdata->num_sp = (uint32_t)num_sp_needed;
 		sdata->alloc_sp = retval;
 		free(primes);
+		mpz_clear(tmp_offset);
 		primes = NULL;
 	}
 
 	if (count)
 	{
 		gmp_printf("commencing sieve over interval %Zd + (%lu:%lu) with %u sieve primes\n",
-			*offset, 0, range, sdata->num_sp);
+			offset, 0, range, sdata->num_sp);
+
+		if (num_witnesses > 0)
+		{
+			sdata->witnesses = num_witnesses;
+			switch (num_witnesses)
+			{
+			case 1: printf("verifying candidates with base-2 Fermat PRP check\n"); break;
+			default: printf("verifying candidates with base-2 strong PRP (MR) check\n"); break;
+			}
+			
+		}
 	}
 	else
 	{
-		gmp_printf("commencing test over interval %Zd + (%lu:%lu) with %u sieve primes and num_witness = %d\n",
-			*offset, 0, range, sdata->num_sp, num_witnesses);
+		gmp_printf("generating primes in interval %Zd + (%lu:%lu) with %u sieve primes and num_witness = %d\n",
+			offset, 0, range, sdata->num_sp, num_witnesses);
 	}
 
 	if (count)
@@ -528,7 +607,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			// conduct PRP tests on all surviving values
             if (sdata->VFLAG > 0)
             {
-                printf("starting PRP tests with %d witnesses on "
+                gmp_printf("starting PRP tests with %d witnesses on "
                     "%" PRIu64 " surviving candidates using %d threads\n",
                     num_witnesses, *num_p, sdata->THREADS);
 				fflush(stdout);
@@ -566,7 +645,39 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 				mpz_init(tmpz);
 
 				retval = 0;
-				for (i = 0; i < range; i++)
+
+#if 0
+				for (i = 0; i < range - 8; i += 8)
+				{
+					if (((i & 8191) == 0) && (sdata->VFLAG > 0))
+					{
+						printf("progress: %d%%\r",
+							(int)((double)(i) / (double)(range) * 100.0));
+						fflush(stdout);
+					}
+
+					ALIGNED_MEM uint64_t n8[16];
+					uint8_t loc_msk = 0;
+					int j;
+
+					for (j = 0; j < 8; j++)
+					{
+						mpz_add_ui(tmpz, offset, values[i + j]);
+
+						n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+						mpz_tdiv_q_2exp(tmpz, tmpz, 52);
+						n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+
+					}
+
+					uint8_t prpmask = MR_2sprp_104x8(n8);
+					retval += _mm_popcnt_u32(prpmask);
+				}
+
+				for ( ; i < range; i++)
+#else
+				for (i = 0; i < range; i += 8)
+#endif
 				{
 					if (((i & 8191) == 0) && (sdata->VFLAG > 0))
 					{
@@ -575,7 +686,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					    fflush(stdout);
 					}
 
-					mpz_add_ui(tmpz, *offset, values[i]);
+					mpz_add_ui(tmpz, offset, values[i]);
 					if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 					{
 						//gmp_printf("candidate %Zd is...", tmpz);
@@ -617,7 +728,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					mpz_init(t->offset);
 					mpz_init(t->lowlimit);
 					mpz_init(t->highlimit);
-					mpz_set(t->offset, *offset);
+					mpz_set(t->offset, offset);
 					mpz_set(t->lowlimit, lowlimit);
 					mpz_set(t->highlimit, highlimit);
 					t->current_line = (uint64_t)num_witnesses;
@@ -673,12 +784,12 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			
 		}
 
-		if (mpz_cmp(*offset, lowlimit) != 0)
+		if (mpz_cmp(offset, lowlimit) != 0)
 		{
 			// sieving needed to change the lower sieve limit.  adjust the returned
 			// values accordingly.
 			uint64_t a;
-			mpz_sub(tmpz, lowlimit, *offset);
+			mpz_sub(tmpz, lowlimit, offset);
 			a = mpz_get_ui(tmpz);
 
             for (i = 0; i < *num_p; i++)
@@ -736,8 +847,8 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	}
 
 	mpz_clear(tmpz);
-	mpz_clear(*offset);
-	free(offset);
+	mpz_clear(offset);
+	//free(offset);
 
 	return values;
 }
