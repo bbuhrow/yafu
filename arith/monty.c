@@ -428,18 +428,153 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 	return;
 }
 
-
 /********************* start of Perig's 128-bit code **********************/
 // Note: slightly modified modular subtract at the end
-#ifdef _MSC_VER
-
-#else
-#define USE_PERIG_128BIT
-#endif
-
 #ifdef USE_PERIG_128BIT
 
-typedef __uint128_t uint128_t;
+
+// count trailing zeroes in binary representation 
+uint64_t my_ctz52(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#if defined(__BMI1__)
+	uint64_t t;
+	asm(" tzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_ctzll(n);
+	return 52;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_ctzll(n);
+	return 52;
+#else
+	if (n == 0)
+		return 52;
+	uint64_t r = 0;
+	if ((n & 0xFFFFFFFFull) == 0)
+		r += 32, n >>= 32;
+	if ((n & 0xFFFFull) == 0)
+		r += 16, n >>= 16;
+	if ((n & 0xFFull) == 0)
+		r += 8, n >>= 8;
+	if ((n & 0xFull) == 0)
+		r += 4, n >>= 4;
+	if ((n & 0x3ull) == 0)
+		r += 2, n >>= 2;
+	if ((n & 0x1ull) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+// count trailing zeroes in binary representation 
+uint64_t my_ctz104(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_lo) {
+		return my_ctz52(n_lo);
+	}
+	return 52 + my_ctz52(n_hi);
+}
+
+// count leading zeroes in binary representation
+uint64_t my_clz52(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#ifdef __BMI1__
+	uint64_t t;
+	asm(" lzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_clzll(n);
+	return 52;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_clzll(n);
+	return 52;
+#else
+	if (n == 0)
+		return 52;
+	uint64_t r = 0;
+	if ((n & (0xFFFFFFFFull << 32)) == 0)
+		r += 32, n <<= 32;
+	if ((n & (0xFFFFull << 48)) == 0)
+		r += 16, n <<= 16;
+	if ((n & (0xFFull << 56)) == 0)
+		r += 8, n <<= 8;
+	if ((n & (0xFull << 60)) == 0)
+		r += 4, n <<= 4;
+	if ((n & (0x3ull << 62)) == 0)
+		r += 2, n <<= 2;
+	if ((n & (0x1ull << 63)) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+// count leading zeroes in binary representation 
+uint64_t my_clz104(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_hi) {
+		return my_clz52(n_hi);
+	}
+	return 52 + my_clz52(n_lo);
+}
+
+// count leading zeroes in binary representation
+uint64_t my_clz64(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#ifdef __BMI1__
+	uint64_t t;
+	asm(" lzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_clzll(n);
+	return 64;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_clzll(n);
+	return 64;
+#else
+	if (n == 0)
+		return 52;
+	uint64_t r = 0;
+	if ((n & (0xFFFFFFFFull << 32)) == 0)
+		r += 32, n <<= 32;
+	if ((n & (0xFFFFull << 48)) == 0)
+		r += 16, n <<= 16;
+	if ((n & (0xFFull << 56)) == 0)
+		r += 8, n <<= 8;
+	if ((n & (0xFull << 60)) == 0)
+		r += 4, n <<= 4;
+	if ((n & (0x3ull << 62)) == 0)
+		r += 2, n <<= 2;
+	if ((n & (0x1ull << 63)) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+uint64_t my_clz128(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_hi) {
+		return my_clz64(n_hi);
+	}
+	return 64 + my_clz64(n_lo);
+}
 
 // borrow::diff = a - b - borrow_in
 #define INLINE_ASM 1
@@ -1004,6 +1139,55 @@ void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 	return;
 }
 
+void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t* n, uint64_t* rho)
+{
+#ifdef USE_PERIG_128BIT
+	ciosModSqr128(&w[0], &w[1], u[0], u[1], n[0], n[1], rho);
+	return;
+
+#else
+
+
+	// integrate multiply and reduction steps, alternating
+	// between iterations of the outer loops.
+	uint64_t s[3];
+
+	s[0] = 0;
+	s[1] = 0;
+	s[2] = 0;
+
+#if defined( USE_AVX2 ) && defined(GCC_ASM64X)
+	// requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+	ciosFullMul128x(u, u, rho, n, s);
+
+	if ((s[2]) || (s[1] > n[1]) || ((s[1] == n[1]) && (s[0] > n[0])))
+	{
+		ASM_G(
+			"movq %4, %%r11 \n\t"
+			"movq %0, 0(%%r11) \n\t"
+			"movq %1, 8(%%r11) \n\t"
+			"subq %2, 0(%%r11) \n\t"
+			"sbbq %3, 8(%%r11) \n\t"
+			:
+		: "r"(s[0]), "r"(s[1]), "r"(n[0]), "r"(n[1]), "r"(w)
+			: "r11", "cc", "memory");
+	}
+	else
+	{
+		w[0] = s[0];
+		w[1] = s[1];
+	}
+
+#else
+
+	mulmod128(u, u, w, mdata);
+
+#endif
+
+#endif
+	return;
+}
+
 void addmod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 {
 #if defined(GCC_ASM64X)
@@ -1089,3 +1273,931 @@ void submod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 
 	return;
 }
+
+void dblmod128(uint64_t* a, uint64_t* n)
+{
+
+#if defined(__x86_64__) && defined(__unix__)
+	// requires GCC_ASM64 syntax
+	uint64_t t1, t0;
+
+	// do the 2-word variant of this:
+	//uint64_t r;
+	//uint64_t tmp = x - n;
+	//uint8_t c = _addcarry_u64(0, tmp, y, &r);
+	//return (c) ? r : x + y;
+	t1 = a[1];
+	t0 = a[0];
+
+	__asm__ volatile (
+		"movq %%rax, %%r8 \n\t"
+		"movq %%rdx, %%r9 \n\t"
+		"subq %4, %%r8 \n\t"		/* t = x - n */
+		"sbbq %5, %%r9 \n\t"
+		"addq %%rax, %0 \n\t"		/* x += x */
+		"adcq %%rdx, %1 \n\t"
+		"addq %%rax, %%r8 \n\t"		/* t = t + x */
+		"adcq %%rdx, %%r9 \n\t"
+		"cmovc %%r8, %0 \n\t"
+		"cmovc %%r9, %1 \n\t"
+		: "+&r"(a[0]), "+&r"(a[1])
+		: "a"(t0), "d"(t1), "r"(n[0]), "r"(n[1])
+		: "r8", "r9", "cc", "memory");
+
+#else
+
+#ifdef USE_PERIG_128BIT
+
+	uint128_t x = ((uint128_t)a[1] << 64) | a[0];
+	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
+	uint128_t r = (x >= n128 - x) ? x - (n128 - x) : x + x;
+	a[1] = (uint64_t)(r >> 64);
+	a[0] = (uint64_t)r;
+
+#else
+
+	addmod128(a, a, a, n);
+
+#endif
+
+#endif
+	return;
+}
+
+void chkmod128(uint64_t* a, uint64_t* n)
+{
+
+#if defined(__x86_64__) && defined(__unix__)
+
+	// not really faster than the branching version below
+	// but probably should be checked on more cpus.
+	uint64_t t0, t1;
+	t0 = a[0];
+	t1 = a[1];
+	__asm__ volatile (
+		"xorq %%r8, %%r8 \n\t"
+		"xorq %%r9, %%r9 \n\t"
+		"subq %2, %%r8 \n\t"		/* t = 0 - n */
+		"sbbq %3, %%r9 \n\t"
+		"addq %0, %%r8 \n\t"		/* t += x */
+		"adcq %1, %%r9 \n\t"
+		"cmovc %%r8, %0 \n\t"
+		"cmovc %%r9, %1 \n\t"
+		: "+&r"(t0), "+&r"(t1)
+		: "r"(n[0]), "r"(n[1])
+		: "r8", "r9", "cc", "memory");
+
+	a[0] = t0;
+	a[1] = t1;
+#else
+
+	if ((a[1] > n[1]) || ((a[1] == n[1]) && (a[0] >= n[0])))
+	{
+		uint8_t c1 = _subborrow_u64(0, a[0], n[0], &a[0]);
+		_subborrow_u64(c1, a[1], n[1], &a[1]);
+	}
+
+#endif
+	return;
+}
+
+/********************* 52-bit Vector Montgomery arith **********************/
+
+#ifdef USE_AVX512F
+
+
+#ifdef IFMA
+
+#define FORCE_INLINE __inline
+
+FORCE_INLINE static __m512i mul52hi(__m512i b, __m512i c)
+{
+	return _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
+}
+
+FORCE_INLINE static __m512i mul52lo(__m512i b, __m512i c)
+{
+	return _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
+}
+
+FORCE_INLINE static void mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
+{
+	*l = _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
+	*h = _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
+	return;
+}
+
+#else
+
+static __m512d dbias;
+static __m512i vbias1;
+static __m512i vbias2;
+static __m512i vbias3;
+
+__inline static __m512i mul52lo(__m512i b, __m512i c)
+{
+	return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
+}
+__inline static __m512i mul52hi(__m512i b, __m512i c)
+{
+	__m512d prod1_ld = _mm512_cvtepu64_pd(b);
+	__m512d prod2_ld = _mm512_cvtepu64_pd(c);
+	prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+	return _mm512_sub_epi64(castepu(prod1_ld), vbias1);
+}
+__inline static void mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
+{
+	__m512d prod1_ld = _mm512_cvtepu64_pd(b);
+	__m512d prod2_ld = _mm512_cvtepu64_pd(c);
+	__m512d prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+	*h = _mm512_sub_epi64(castepu(prod1_hd), vbias1);
+	prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+	prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+	*l = _mm512_castpd_si512(prod1_ld);
+	*l = _mm512_and_si512(*l, lo52mask);
+	*h = _mm512_and_si512(*h, lo52mask);
+	return;
+}
+
+#endif
+
+
+
+#ifdef IFMA
+#define _mm512_mullo_epi52(c, a, b) \
+    c = _mm512_madd52lo_epu64(_mm512_set1_epi64(0), a, b);
+
+#define VEC_MUL_ACCUM_LOHI_PD(a, b, lo, hi) \
+    lo = _mm512_madd52lo_epu64(lo, a, b); \
+    hi = _mm512_madd52hi_epu64(hi, a, b);
+#else
+
+#define VEC_MUL_ACCUM_LOHI_PD(a, b, lo, hi) \
+	prod1_ld = _mm512_cvtepu64_pd(a);		\
+	prod2_ld = _mm512_cvtepu64_pd(b);		\
+    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+    hi = _mm512_add_epi64(hi, _mm512_sub_epi64(castepu(prod1_hd), vbias1)); \
+    prod1_hd = _mm512_sub_pd(castpd(vbias2), prod1_hd); \
+	prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+	lo = _mm512_add_epi64(lo, _mm512_sub_epi64(castepu(prod1_ld), vbias3));
+
+#define VEC_MUL2_ACCUM_LOHI_PD(c, a, b, lo1, hi1, lo2, hi2) \
+	prod1_ld = _mm512_cvtepu64_pd(a);		\
+	prod2_ld = _mm512_cvtepu64_pd(b);		\
+	prod3_ld = _mm512_cvtepu64_pd(c);		\
+    prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+	prod2_hd = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+    hi1 = _mm512_add_epi64(hi1, _mm512_sub_epi64(castepu(prod1_hd), vbias1)); \
+	hi2 = _mm512_add_epi64(hi2, _mm512_sub_epi64(castepu(prod2_hd), vbias1)); \
+    prod1_hd = _mm512_sub_pd(castpd(vbias2), prod1_hd); \
+	prod2_hd = _mm512_sub_pd(castpd(vbias2), prod2_hd); \
+	prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod3_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+	prod2_ld = _mm512_fmadd_round_pd(prod2_ld, prod3_ld, prod2_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+	lo1 = _mm512_add_epi64(lo1, _mm512_sub_epi64(castepu(prod1_ld), vbias3)); \
+	lo2 = _mm512_add_epi64(lo2, _mm512_sub_epi64(castepu(prod2_ld), vbias3));
+
+#define _mm512_mullo_epi52(c, a, b) \
+    c = _mm512_and_si512(_mm512_mullo_epi64(a, b), _mm512_set1_epi64(0x000fffffffffffffull));
+#endif
+
+void printvec(char* msg, __m512i v)
+{
+	uint64_t m[8];
+	storeu64(m, v);
+	int i;
+	printf("%s: ", msg);
+	for (i = 0; i < 8; i++)
+		printf("%016lx ", m[i]);
+	printf("\n");
+	return;
+}
+
+__m512i _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_add_epi64(a, b);
+	*cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_mask_addsetc_epi52(__m512i c, __mmask8 mask, __m512i a, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_add_epi64(a, b);
+	*cout = _mm512_mask_cmpgt_epu64_mask(mask, t, _mm512_set1_epi64(0xfffffffffffffULL));
+	t = _mm512_mask_and_epi64(c, mask, t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_subsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_sub_epi64(a, b);
+	*cout = _mm512_cmpgt_epu64_mask(b, a);
+	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_mask_subsetc_epi52(__m512i c, __mmask8 mask, __m512i a, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_sub_epi64(a, b);
+	*cout = _mm512_mask_cmpgt_epu64_mask(mask, b, a);
+	t = _mm512_mask_and_epi64(c, mask, t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_add_epi64(a, b);
+	t = _mm512_add_epi64(t, _mm512_maskz_set1_epi64(c, 1));
+	*cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_add_epi64(a, b);
+	t = _mm512_mask_add_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
+	*cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_sub_epi64(a, b);
+	*cout = _mm512_cmpgt_epu64_mask(b, a);
+	__m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));
+	*cout = _mm512_kor(*cout, _mm512_cmpgt_epu64_mask(t2, t));
+	t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t2;
+}
+__m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
+{
+	__m512i t = _mm512_mask_sub_epi64(a, m, a, b);
+	*cout = _mm512_mask_cmpgt_epu64_mask(m, b, a);
+	__m512i t2 = _mm512_mask_sub_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
+	*cout = _mm512_kor(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
+	t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t2;
+}
+__m512i _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout)
+{
+	__m512i t = _mm512_add_epi64(a, _mm512_maskz_set1_epi64(c, 1));
+	*cout = c & _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL));
+	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+__m512i _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout)
+{
+	__m512i t = _mm512_sub_epi64(a, _mm512_maskz_set1_epi64(c, 1));
+	*cout = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0));
+	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+	return t;
+}
+void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with normal (negative) single-word nhat
+	__m512i m;
+	__m512i t0, t1, C1;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd;
+	__m512d prod1_ld, prod2_ld;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = C1 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a0, b0, t0, t1);
+
+	// m0
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, t1);
+
+	// propagate t0's carry before we throw it away.
+	// it is almost always exactly 1, but not always, for example when m = 0;
+	t0 = _mm512_add_epi64(t1, _mm512_srli_epi64(t0, 52));
+
+	__mmask8 bmsk = _mm512_cmpge_epu64_mask(t0, n0);
+	t0 = _mm512_mask_sub_epi64(t0, bmsk, t0, n0);
+
+	// conditional addmod (double result)
+	t0 = _mm512_mask_slli_epi64(t0, addmsk, t0, 1);
+	bmsk = _mm512_mask_cmpgt_epu64_mask(addmsk, t0, n0);
+	*c0 = _mm512_mask_sub_epi64(t0, bmsk & addmsk, t0, n0);
+	// _mm512_and_epi64(t0, lo52mask);
+
+	return;
+}
+
+
+/********************* 104-bit Vector Montgomery arith **********************/
+
+void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+	__m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with normal (negative) single-word nhat
+	__m512i m;
+	__m512i t0, t1, t2, t3, C1, C2;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	int biascount = 0;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = t2 = t3 = C1 = C2 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a0, b0, t0, t1);
+	VEC_MUL_ACCUM_LOHI_PD(a1, b0, t1, t2);
+	//VEC_MUL2_ACCUM_LOHI_PD(b0, a0, a1, t0, t1, C1, t2);
+	//t1 = _mm512_add_epi64(t1, C1);
+
+	// m0
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, C2);
+	//VEC_MUL2_ACCUM_LOHI_PD(m, n0, n1, t0, C1, t1, C2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+	t2 = _mm512_add_epi64(t2, C2);
+	// we throw t0 away after this so first propagate its carry.
+	t0 = _mm512_add_epi64(t1, _mm512_srli_epi64(t0, 52));
+	t1 = t2;
+	t2 = C1 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a0, b1, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(a1, b1, t1, t2);
+	//VEC_MUL2_ACCUM_LOHI_PD(b1, a0, a1, t0, C1, t1, t2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+	C1 = C2 = zero;
+
+	// m1
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, t2);
+	//VEC_MUL2_ACCUM_LOHI_PD(m, n0, n1, t0, C1, t1, t2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+
+	// final carryprop
+	carryprop(t0, t1, lo52mask);
+	carryprop(t1, t2, lo52mask);
+	carryprop(t2, C2, lo52mask);
+
+	scarry = _mm512_cmp_epu64_mask(C2, zero, _MM_CMPINT_GT);
+
+	if (scarry > 0) {
+		// conditionally subtract when needed (AMM - only on overflow)
+		C1 = _mm512_mask_set1_epi64(zero, _mm512_cmpgt_epi64_mask(n0, t1), 1);
+		t1 = _mm512_mask_sub_epi64(t1, scarry, t1, n0);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, n1);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, C1);
+	}
+
+	// on Zen4-epyc it is slower to do this:
+	// *c0 = _mm512_mask_and_epi64(a0, mulmsk, lo52mask, t1);
+	// *c1 = _mm512_mask_and_epi64(a1, mulmsk, lo52mask, t2);
+
+	// than this:
+	*c0 = _mm512_and_epi64(lo52mask, t1);
+	*c1 = _mm512_and_epi64(lo52mask, t2);
+	*c0 = _mm512_mask_mov_epi64(*c0, ~mulmsk, a0);
+	*c1 = _mm512_mask_mov_epi64(*c1, ~mulmsk, a1);
+
+	return;
+}
+void sqrredc104_vec(__m512i* c1, __m512i* c0,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with normal (negative) single-word nhat
+	__m512i m;
+	__m512i t0, t1, t2, t3, C1, C2, sqr_lo, sqr_hi;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	int biascount = 0;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = t2 = t3 = C1 = C2 = sqr_lo = sqr_hi = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a0, sqr_lo, sqr_hi);
+	t1 = sqr_lo;
+	t2 = sqr_hi;
+	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
+
+	// m0
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, C2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+	t2 = _mm512_add_epi64(t2, C2);
+	// we throw t0 away after this so first propagate its carry.
+	// t0 = _mm512_add_epi64(t1, one);
+	// t0 = _mm512_mask_add_epi64(t1, _mm512_cmpgt_epu64_mask(m, zero), t1, one);
+	t0 = _mm512_add_epi64(t1, _mm512_srli_epi64(t0, 52));
+	t1 = t2;
+	t2 = C1 = C2 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a1, t1, t2);
+
+	t0 = _mm512_add_epi64(t0, sqr_lo);
+	t1 = _mm512_add_epi64(t1, sqr_hi);
+
+	// m1
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, t2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+
+	// final carryprop
+	carryprop(t0, t1, lo52mask);
+	carryprop(t1, t2, lo52mask);
+	carryprop(t2, C2, lo52mask);
+
+	scarry = _mm512_cmp_epu64_mask(C2, zero, _MM_CMPINT_GT);
+
+	if (scarry > 0) {
+		// conditionally subtract when needed (AMM - only on overflow)
+		__mmask8 bmsk;
+		bmsk = _mm512_cmpgt_epi64_mask(n0, t1);
+		t1 = _mm512_mask_sub_epi64(t1, scarry, t1, n0);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, n1);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, _mm512_mask_set1_epi64(zero, bmsk, 1));
+	}
+	*c0 = _mm512_and_epi64(lo52mask, t1);
+	*c1 = _mm512_and_epi64(lo52mask, t2);
+
+	return;
+}
+void mask_sqrredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with normal (negative) single-word nhat
+	__m512i m;
+	__m512i t0, t1, t2, C3, C1, C2, sqr_lo, sqr_hi;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	int biascount = 0;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = t2 = C1 = C2 = C3 = sqr_lo = sqr_hi = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a0, sqr_lo, sqr_hi);
+	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
+
+	// m0
+	t1 += sqr_lo;
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, C2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+	t2 = _mm512_add_epi64(sqr_hi, C2);
+	// we throw t0 away after this so first propagate its carry.
+	// t0 = _mm512_add_epi64(t1, one);
+	// t0 = _mm512_mask_add_epi64(t1, _mm512_cmpgt_epu64_mask(m, zero), t1, one);
+	t0 = _mm512_add_epi64(t1, _mm512_srli_epi64(t0, 52));
+	t1 = t2;
+	t2 = C1 = C2 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a1, t1, t2);
+
+	t0 = _mm512_add_epi64(t0, sqr_lo);
+	t1 = _mm512_add_epi64(t1, sqr_hi);
+
+	// m1
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, t2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+
+	// final carryprop
+	carryprop(t0, t1, lo52mask);
+	carryprop(t1, t2, lo52mask);
+
+	carryprop(t2, C2, lo52mask);
+	scarry = _mm512_cmp_epu64_mask(C2, zero, _MM_CMPINT_GT);
+
+	//scarry = _mm512_cmpge_epu64_mask(t2, n1);
+
+	if (scarry > 0) {
+		// conditionally subtract when needed (AMM - only on overflow)
+		C1 = _mm512_mask_set1_epi64(zero, _mm512_cmpgt_epi64_mask(n0, t1), 1);
+		t1 = _mm512_mask_sub_epi64(t1, scarry, t1, n0);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, n1);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, C1);
+	}
+
+	// on Zen4-epyc it is slower to do this:
+	// *c0 = _mm512_mask_and_epi64(a0, mulmsk, lo52mask, t1);
+	// *c1 = _mm512_mask_and_epi64(a1, mulmsk, lo52mask, t2);
+
+	// than this:
+	*c0 = _mm512_and_epi64(lo52mask, t1);
+	*c1 = _mm512_and_epi64(lo52mask, t2);
+	*c0 = _mm512_mask_mov_epi64(*c0, ~mulmsk, a0);
+	*c1 = _mm512_mask_mov_epi64(*c1, ~mulmsk, a1);
+
+	return;
+}
+void mask_sqrredc104_vec_pos(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with positive variant n'
+	__m512i m;
+	__m512i t0, t1, t2, C3, C1, C2, sqr_lo, sqr_hi;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	int biascount = 0;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = t2 = C1 = C2 = C3 = sqr_lo = sqr_hi = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a0, sqr_lo, sqr_hi);
+	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
+
+	// m0
+	t1 += sqr_lo;
+
+	// note, we leave rho = 0 - rho so that we get -m,
+	// and thus the muladd becomes mulsub, since there is
+	// no fmsub52 in avx512-ifma.
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, C2);
+
+	t1 = _mm512_sub_epi64(t1, C1);
+	t2 = _mm512_add_epi64(sqr_hi, C2);
+	t0 = t1;
+	t1 = t2;
+	t2 = C1 = C2 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a1, t1, t2);
+
+	t0 = _mm512_add_epi64(t0, sqr_lo);
+	t1 = _mm512_add_epi64(t1, sqr_hi);
+
+	// m1
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, t2);
+
+	t1 = _mm512_sub_epi64(t1, C1);
+
+	// final carryprop
+	carryprop(t0, t1, lo52mask);
+	carryprop(t1, t2, lo52mask);
+	carryprop(t2, C2, lo52mask);
+	scarry = _mm512_cmp_epu64_mask(C2, zero, _MM_CMPINT_GT);
+
+	if (scarry > 0) {
+		// conditionally add
+		t1 = _mm512_mask_add_epi64(t1, scarry, t1, n0);
+		t2 = _mm512_mask_add_epi64(t2, scarry, t2, n1);
+		t2 = _mm512_mask_add_epi64(t2, scarry, t2, _mm512_srli_epi64(t1, 52));
+	}
+
+	// on Zen4-epyc it is slower to do this:
+	// *c0 = _mm512_mask_and_epi64(a0, mulmsk, lo52mask, t1);
+	// *c1 = _mm512_mask_and_epi64(a1, mulmsk, lo52mask, t2);
+
+	// than this:
+	*c0 = _mm512_and_epi64(lo52mask, t1);
+	*c1 = _mm512_and_epi64(lo52mask, t2);
+	*c0 = _mm512_mask_mov_epi64(*c0, ~mulmsk, a0);
+	*c1 = _mm512_mask_mov_epi64(*c1, ~mulmsk, a1);
+
+	return;
+}
+void mask_sqrredc104_exact_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with normal (negative) single-word nhat
+	__m512i m;
+	__m512i t0, t1, t2, C3, C1, C2, sqr_lo, sqr_hi;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	int biascount = 0;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = t2 = C1 = C2 = C3 = sqr_lo = sqr_hi = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a0, sqr_lo, sqr_hi);
+	t1 = sqr_lo;
+	t2 = sqr_hi;
+	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
+
+	// m0
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, C2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+	t2 = _mm512_add_epi64(t2, C2);
+	// we throw t0 away after this so first propagate its carry.
+	// t0 = _mm512_add_epi64(t1, one);
+	// t0 = _mm512_mask_add_epi64(t1, _mm512_cmpgt_epu64_mask(m, zero), t1, one);
+	t0 = _mm512_add_epi64(t1, _mm512_srli_epi64(t0, 52));
+	t1 = t2;
+	t2 = C1 = C2 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a1, a1, t1, t2);
+
+	t0 = _mm512_add_epi64(t0, sqr_lo);
+	t1 = _mm512_add_epi64(t1, sqr_hi);
+
+	// m1
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
+	VEC_MUL_ACCUM_LOHI_PD(m, n1, t1, t2);
+
+	t1 = _mm512_add_epi64(t1, C1);
+
+	// final carryprop
+	carryprop(t0, t1, lo52mask);
+	carryprop(t1, t2, lo52mask);
+
+	//carryprop(t2, C2, lo52mask);
+	//scarry = _mm512_cmp_epu64_mask(C2, zero, _MM_CMPINT_GT);
+
+	scarry = _mm512_cmpge_epu64_mask(t2, n1);
+	//scarry |= (_mm512_cmpeq_epu64_mask(t2, n1) & _mm512_cmpgt_epu64_mask(t1, n0));
+
+	if (scarry > 0) {
+		// conditionally subtract when result >= n
+		C1 = _mm512_mask_set1_epi64(zero, _mm512_cmpgt_epi64_mask(n0, t1), 1);
+		t1 = _mm512_mask_sub_epi64(t1, scarry, t1, n0);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, n1);
+		t2 = _mm512_mask_sub_epi64(t2, scarry, t2, C1);
+	}
+
+	// on Zen4-epyc it is slower to do this:
+	// *c0 = _mm512_mask_and_epi64(a0, mulmsk, lo52mask, t1);
+	// *c1 = _mm512_mask_and_epi64(a1, mulmsk, lo52mask, t2);
+
+	// than this:
+	*c0 = _mm512_and_epi64(lo52mask, t1);
+	*c1 = _mm512_and_epi64(lo52mask, t2);
+	*c0 = _mm512_mask_mov_epi64(*c0, ~mulmsk, a0);
+	*c1 = _mm512_mask_mov_epi64(*c1, ~mulmsk, a1);
+
+	return;
+}
+void addmod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
+	__m512i b1, __m512i b0, __m512i n1, __m512i n0)
+{
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+
+	// add
+	__mmask8 bmsk;
+	//a0 = _mm512_addsetc_epi52(a0, b0, &bmsk);
+	//a1 = _mm512_adc_epi52(a1, bmsk, b1, &bmsk);
+	a0 = _mm512_add_epi64(a0, b0);
+	a1 = _mm512_add_epi64(a1, b1);
+	a1 = _mm512_add_epi64(a1, _mm512_srli_epi64(a0, 52));
+	a0 = _mm512_and_epi64(a0, lo52mask);
+
+	// compare
+	//__mmask8 msk = bmsk | _mm512_cmpgt_epu64_mask(a1, n1);
+	__mmask8 msk = _mm512_cmpgt_epu64_mask(a1, n1);
+	msk |= (_mm512_cmpeq_epu64_mask(a1, n1) & _mm512_cmpge_epu64_mask(a0, n0));
+
+	// conditionally subtract N
+	*c0 = _mm512_mask_subsetc_epi52(a0, msk, a0, n0, &bmsk);
+	*c1 = _mm512_mask_sbb_epi52(a1, msk, bmsk, n1, &bmsk);
+	// *c0 = _mm512_mask_sub_epi64(a0, msk, a0, n0);
+	// *c1 = _mm512_mask_sub_epi64(a1, msk, a1, n1);
+	// *c1 = _mm512_mask_sub_epi64(*c1, msk, *c1, _mm512_srli_epi64(*c0, 63));
+	return;
+}
+void mask_addmod104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
+	__m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0)
+{
+	// add
+	__mmask8 bmsk;
+	a0 = _mm512_mask_addsetc_epi52(a0, addmsk, a0, b0, &bmsk);
+	a1 = _mm512_mask_adc_epi52(a1, addmsk, bmsk, b1, &bmsk);
+
+	// compare
+	__mmask8 msk = bmsk | _mm512_cmpgt_epu64_mask(a1, n1);
+	msk |= (_mm512_cmpeq_epu64_mask(a1, n1) & _mm512_cmpge_epu64_mask(a0, n0));
+
+	// conditionally subtract N
+	*c0 = _mm512_mask_subsetc_epi52(a0, addmsk & msk, a0, n0, &bmsk);
+	*c1 = _mm512_mask_sbb_epi52(a1, addmsk & msk, bmsk, n1, &bmsk);
+	return;
+}
+void mask_dblmod104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0)
+{
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+
+	// add
+	__mmask8 bmsk;
+	//a0 = _mm512_mask_addsetc_epi52(a0, addmsk, a0, b0, &bmsk);
+	//a1 = _mm512_mask_adc_epi52(a1, addmsk, bmsk, b1, &bmsk);
+
+	a0 = _mm512_mask_slli_epi64(a0, addmsk, a0, 1);
+	a1 = _mm512_mask_slli_epi64(a1, addmsk, a1, 1);
+	// when doubling, it is safe to check both carries before adding
+	// in the previous carry, because the shift makes room for
+	// the previous carry.  So either the upper word shift generates
+	// a carry or doesn't, the addition won't cause one.
+	a1 = _mm512_add_epi64(a1, _mm512_srli_epi64(a0, 52));
+	a0 = _mm512_and_epi64(lo52mask, a0);
+
+	// compare
+	__mmask8 msk = _mm512_cmpgt_epu64_mask(a1, n1);
+	msk |= (_mm512_cmpeq_epu64_mask(a1, n1) & _mm512_cmpge_epu64_mask(a0, n0));
+
+	// conditionally subtract N
+	*c0 = _mm512_mask_subsetc_epi52(a0, addmsk & msk, a0, n0, &bmsk);
+	*c1 = _mm512_mask_sbb_epi52(a1, addmsk & msk, bmsk, n1, &bmsk);
+	return;
+}
+void mask_redsub104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0)
+{
+	__mmask8 bmsk;
+
+	// compare
+	__mmask8 msk = _mm512_cmpgt_epu64_mask(a1, n1);
+	msk |= (_mm512_cmpeq_epu64_mask(a1, n1) & _mm512_cmpge_epu64_mask(a0, n0));
+
+	// conditionally subtract N
+	*c0 = _mm512_mask_subsetc_epi52(a0, addmsk & msk, a0, n0, &bmsk);
+	*c1 = _mm512_mask_sbb_epi52(a1, addmsk & msk, bmsk, n1, &bmsk);
+	return;
+}
+void redsub104_x8(__m512i* c1, __m512i* c0,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0)
+{
+	__mmask8 bmsk;
+
+	// compare
+	__mmask8 msk = _mm512_cmpgt_epu64_mask(a1, n1);
+	msk |= (_mm512_cmpeq_epu64_mask(a1, n1) & _mm512_cmpge_epu64_mask(a0, n0));
+
+	// conditionally subtract N
+	*c0 = _mm512_mask_subsetc_epi52(a0, msk, a0, n0, &bmsk);
+	*c1 = _mm512_mask_sbb_epi52(a1, msk, bmsk, n1, &bmsk);
+
+	return;
+}
+void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
+	__m512i b1, __m512i b0, __m512i n1, __m512i n0)
+{
+	// compare
+	__mmask8 msk = _mm512_cmplt_epu64_mask(a1, b1);
+	msk |= _mm512_cmpeq_epu64_mask(a1, b1) & _mm512_cmplt_epu64_mask(a0, b0);
+
+	// subtract
+	__mmask8 bmsk;
+	a0 = _mm512_subsetc_epi52(a0, b0, &bmsk);
+	a1 = _mm512_sbb_epi52(a1, bmsk, b1, &bmsk);
+
+	// conditionally add N
+	*c0 = _mm512_mask_addsetc_epi52(a0, msk, a0, n0, &bmsk);
+	*c1 = _mm512_mask_adc_epi52(a1, msk, bmsk, n1, &bmsk);
+	return;
+}
+
+uint64_t multiplicative_inverse(uint64_t a)
+{
+	// compute the 64-bit inverse of a mod 2^64
+	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+	uint64_t x0 = (3 * a) ^ 2;
+	uint64_t y = 1 - a * x0;
+	uint64_t x1 = x0 * (1 + y);
+	y *= y;
+	uint64_t x2 = x1 * (1 + y);
+	y *= y;
+	uint64_t x3 = x2 * (1 + y);
+	y *= y;
+	uint64_t x4 = x3 * (1 + y);
+	return x4;
+}
+
+__m512i multiplicative_inverse104_x8(uint64_t* a)
+{
+	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+	__m512i x0, x1, x2, x3, x4, x5, y, n, i0, i1;
+	__m512i three = _mm512_set1_epi64(3), two = _mm512_set1_epi64(2), one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+
+	n = loadu64(a);
+	_mm512_mullo_epi52(x0, n, three);
+	x0 = _mm512_xor_epi64(x0, two);
+	_mm512_mullo_epi52(y, n, x0);
+	y = _mm512_sub_epi64(one, y);
+	y = _mm512_and_epi64(lo52mask, y);
+
+	x1 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x1, x0, x1);
+	_mm512_mullo_epi52(y, y, y);
+
+	x2 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x2, x1, x2);
+	_mm512_mullo_epi52(y, y, y);
+
+	x3 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x3, x2, x3);
+	_mm512_mullo_epi52(y, y, y);
+
+	x4 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x4, x3, x4);
+
+	return x4;
+}
+
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+

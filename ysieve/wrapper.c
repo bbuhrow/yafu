@@ -577,7 +577,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	}
 	else
 	{
-		gmp_printf("generating primes in interval %Zd + (%lu:%lu) with %u sieve primes and num_witness = %d\n",
+		gmp_printf("generating prime in interval %Zd + (%" PRIu64 ":%" PRIu64 ") with %u sieve primes and num_witness = %d\n",
 			offset, 0, range, sdata->num_sp, num_witnesses);
 	}
 

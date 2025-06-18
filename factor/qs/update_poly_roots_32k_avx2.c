@@ -30,7 +30,7 @@ code to the public domain.
 // protect avx2 code under MSVC builds.  USE_AVX2 should be manually
 // enabled at the top of qs.h for MSVC builds on supported hardware.
 // this code is exclusive to 64-bit gcc format so it gets a GCC_ASM64X guard.
-#if defined( USE_AVX2 ) && defined(GCC_ASM64X) && !defined(_MSC_VER)
+#if defined( USE_AVX2 ) && defined(GCC_ASM64X) // && !defined(_MSC_VER)
 
 // we have put (j - bound_val + i) | (root1 & 0x7fff) into ymm10.
 #define UPDATE_ROOT1_NEW(it) \

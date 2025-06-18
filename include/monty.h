@@ -69,14 +69,33 @@ typedef struct
 	uint64_t rho;
 } monty128_t;
 
+#ifdef _MSC_VER
+
+#else
+#define USE_PERIG_128BIT
+#endif
+
+#ifdef USE_PERIG_128BIT
+
+typedef __uint128_t uint128_t;
+
+#endif
 
 void to_monty128(monty128_t *mdata, uint64_t * x);
 void monty128_init(monty128_t * mdata, uint64_t * n);
 void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata);
 void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata);
+void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t *n, uint64_t* nhat);
 void addmod128(uint64_t * u, uint64_t * v, uint64_t * w, uint64_t * n);
 void submod128(uint64_t * u, uint64_t * v, uint64_t * w, uint64_t * n);
-
+void dblmod128(uint64_t* a, uint64_t* n);
+void chkmod128(uint64_t* a, uint64_t* n);
+uint64_t my_clz64(uint64_t n);
+uint64_t my_clz128(uint64_t n_lo, uint64_t n_hi);
+uint64_t my_clz104(uint64_t n_lo, uint64_t n_hi);
+uint64_t my_clz52(uint64_t n);
+uint64_t my_ctz104(uint64_t n_lo, uint64_t n_hi);
+uint64_t my_ctz52(uint64_t n);
 
 /********************* 64-bit Montgomery arith **********************/
 
@@ -108,8 +127,6 @@ __inline uint64_t mul64(uint64_t x, uint64_t y, uint64_t* hi) {
     *hi = y;
     return x;
 }
-
-
 
 __inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 {
@@ -560,6 +577,88 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 
 // this works if inputs are 62 bits or less
 #define addmod60(x, y, n) ((x) + (y))
+
+#endif
+
+
+#ifdef USE_AVX512F
+
+#include <immintrin.h>
+
+
+#define and64 _mm512_and_epi64
+#define store64 _mm512_store_epi64
+#define storeu64 _mm512_storeu_epi64
+#define mstoreu64 _mm512_mask_storeu_epi64
+#define storeu512 _mm512_storeu_si512
+#define add64 _mm512_add_epi64
+#define sub64 _mm512_sub_epi64
+#define set64 _mm512_set1_epi64
+#define srli64 _mm512_srli_epi64
+#define load64 _mm512_load_epi64
+#define loadu64 _mm512_loadu_epi64
+#define loadu512 _mm512_loadu_si512
+#define castpd _mm512_castsi512_pd
+#define castepu _mm512_castpd_si512
+
+typedef struct
+{
+    //ALIGNED_MEM
+    uint64_t data[2][8];
+} vec_u104_t;
+
+/********************* 52-bit vector Montgomery arith **********************/
+#define carryprop(lo, hi, mask) \
+	{ __m512i carry = _mm512_srli_epi64(lo, 52);	\
+	hi = _mm512_add_epi64(hi, carry);		\
+	lo = _mm512_and_epi64(mask, lo); }
+
+#if defined(INTEL_COMPILER) || defined(INTEL_LLVM_COMPILER)
+#define ROUNDING_MODE (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)
+#else
+#define ROUNDING_MODE _MM_FROUND_CUR_DIRECTION
+#endif
+
+// better to #define these?
+__m512i _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout);
+__m512i _mm512_mask_addsetc_epi52(__m512i c, __mmask8 mask, __m512i a, __m512i b, __mmask8* cout);
+__m512i _mm512_subsetc_epi52(__m512i a, __m512i b, __mmask8* cout);
+__m512i _mm512_mask_subsetc_epi52(__m512i c, __mmask8 mask, __m512i a, __m512i b, __mmask8* cout);
+__m512i _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout);
+__m512i _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout);
+__m512i _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout);
+__m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout);
+__m512i _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout);
+__m512i _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout);
+void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0, __m512i n0, __m512i vrho);
+
+/********************* 104-bit vector Montgomery arith **********************/
+// can we make these static inline in the header?  does it help?
+
+void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+    __m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0, __m512i vrho);
+void sqrredc104_vec(__m512i* c1, __m512i* c0,
+    __m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho);
+void mask_sqrredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+    __m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho);
+void mask_sqrredc104_vec_pos(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+    __m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho);
+void mask_sqrredc104_exact_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0, __m512i vrho);
+void addmod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
+	__m512i b1, __m512i b0, __m512i n1, __m512i n0);
+void mask_addmod104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
+	__m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0);
+void mask_dblmod104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0);
+void mask_redsub104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0);
+void redsub104_x8(__m512i* c1, __m512i* c0,
+	__m512i a1, __m512i a0, __m512i n1, __m512i n0);
+void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
+	__m512i b1, __m512i b0, __m512i n1, __m512i n0);
+uint64_t multiplicative_inverse(uint64_t a);
+__m512i multiplicative_inverse104_x8(uint64_t* a);
 
 #endif
 

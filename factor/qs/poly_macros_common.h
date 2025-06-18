@@ -696,7 +696,7 @@ typedef struct
 
 #elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC)
 
-#ifdef _WIN32
+#if defined( _WIN32) && !defined(__MINGW32__)
 #define ASM_ ASM_M
 #else
 #define ASM_ ASM_G

@@ -3,7 +3,7 @@
 
 #if defined(GCC_ASM64X)
 
-#ifdef _WIN32
+#if defined( _WIN32)
 #define ASM_ ASM_M
 #else
 #define ASM_ ASM_G
