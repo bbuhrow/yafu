@@ -175,7 +175,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 2, 1, 1, 1, 
     3, 1, 2, 1, 1, 
     3, 2, 2, 1, 0, 
-    2, 1, 1, 4, 5, 
+    2, 1, 1, 4, 4, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 2};
 
@@ -2889,8 +2889,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
 
     case 69:
-        // sieverange - 5 arguments
-        // range lo, range hi, sieve bound, count, PRP-check
+        // sieverange - 4 arguments
+        // range lo, range hi, sieve bound, count
         if (check_args(funcnum, nargs)) break;
 
         {
@@ -2910,8 +2910,14 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
 
+            if (mpz_cmp_ui(operands[2], 2000000000ull) > 0)
+            {
+                printf("resetting sieve primes max to limit = 2e9\n");
+                mpz_set_ui(operands[2], 2000000000ull);
+            }
+
             primes = sieve_to_depth(sdata, lowz, highz,
-                mpz_get_ui(operands[3]), mpz_get_ui(operands[4]), mpz_get_ui(operands[2]),
+                mpz_get_ui(operands[3]), 1, mpz_get_ui(operands[2]),
                 &num_found, metadata->pscreen, metadata->pfile);
 
             gettimeofday(&tstop, NULL);

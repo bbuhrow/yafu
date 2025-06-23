@@ -32,15 +32,13 @@ SOFTWARE.
 #include <immintrin.h>
 #endif
 #include "threadpool.h"
-//#include "tinyprp.h"
+#include "tinyprp.h"
+#include "mpz_aprcl.h"
 
 uint64_t count_8_bytes(soe_staticdata_t* sdata,
     uint64_t pcount, uint64_t byte_offset);
 uint64_t count_8_bytes_bmi2(soe_staticdata_t* sdata,
     uint64_t pcount, uint64_t byte_offset);
-
-
-
 
 void count_twins_dispatch(void* vptr)
 {
@@ -233,8 +231,6 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
         uint64_t next_report = 1000;
         int num_cand = 0;
         uint64_t numchunks = sdata->numlinebytes / 8;
-
-#ifdef USE_AVX512F
         
         uint64_t candidates[64];   // space for worst-case 64 prime flags to test;
         int j;
@@ -246,6 +242,7 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
             {
                 uint64_t x = flagblock64[i];
 
+#ifdef USE_BMI2
                 while (x > 0)
                 {
                     uint32_t idx = _trail_zcnt64(x);
@@ -257,6 +254,22 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
                     x = _reset_lsb64(x);
                 }
 
+#else
+                for (j = 0; j < 64; j++)
+                {
+                    if (x & (1ull << j))
+                    {
+                        uint64_t value = (i * 64 + j) * prodN + sdata->rclass[current_line];
+
+                        if ((value >= sdata->orig_llimit) && (value <= sdata->orig_hlimit))
+                        {
+                            candidates[num_cand++] = value;
+                        }
+                    }
+                }
+
+#endif
+
                 if (num_cand >= 64)
                 {
                     printf("WARNING: too many candidates\n\n");
@@ -266,55 +279,119 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
                 i++;
             }
 
-            ALIGNED_MEM uint64_t n8[16];
-            uint8_t loc_msk;
-            uint8_t gmp_msk = 0;
+#ifdef USE_AVX512F
 
-            for (j = 0, loc_msk = 0; j < MIN(8, num_cand); j++)
+            if (mpz_sizeinbase(sdata->offset, 2) <= 104)
             {
-                mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                ALIGNED_MEM uint64_t n8[16];
+                uint8_t loc_msk;
+                uint8_t gmp_msk = 0;
 
-                loc_msk |= (1ull << j);
+                for (j = 0, loc_msk = 0; j < MIN(8, num_cand); j++)
+                {
+                    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
 
-                n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
-                mpz_tdiv_q_2exp(tmpz, tmpz, 52);
-                n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+                    loc_msk |= (1ull << j);
+
+                    n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+                    mpz_tdiv_q_2exp(tmpz, tmpz, 52);
+                    n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+                }
+
+                if (num_cand > 0)
+                {
+                    // fill any remaining spots with repeats of the last one:
+                    // not sure what MR_2sprp will do with garbage in a slot.
+                    for (; j < 8; j++)
+                    {
+                        n8[j] = n8[0];
+                        n8[j + 8] = n8[8];
+                    }
+
+                    uint8_t prpmask = loc_msk;
+                    //switch (sdata->witnesses)
+                    //{
+                    //case 1: prpmask &= fermat_prp_104x8(n8); break;
+                    //case 2: prpmask &= MR_2sprp_104x8(n8); break;
+                    //default: prpmask &= MR_2sprp_104x8(n8); break;
+                    prpmask &= MR_2sprp_104x8(n8); break;
+                    //}
+
+                    for (j = 0; j < num_cand; j++)
+                    {
+                        if (prpmask & (1ull << j))
+                        {
+                            it++;
+                        }
+
+                        candidates[j] = candidates[j + MIN(8, num_cand)];
+                    }
+                    num_cand -= MIN(8, num_cand);
+
+                    if (num_cand < 0)
+                    {
+                        print("WARNING: num_cand < 0\n");
+                    }
+                }
             }
-
-            if (num_cand > 0)
+            else if (mpz_sizeinbase(sdata->offset, 2) <= 128)
             {
-                // fill any remaining spots with repeats of the last one:
-                // not sure what MR_2sprp will do with garbage in a slot.
-                for (; j < 8; j++)
-                {
-                    n8[j] = n8[0];
-                    n8[j + 8] = n8[8];
-                }
-
-                uint8_t prpmask = loc_msk;
-                switch (sdata->witnesses)
-                {
-                case 1: prpmask &= fermat_prp_104x8(n8); break;
-                case 2: prpmask &= MR_2sprp_104x8(n8); break;
-                default: prpmask &= MR_2sprp_104x8(n8); break;
-                }
-
                 for (j = 0; j < num_cand; j++)
                 {
-                    if (prpmask & (1ull << j))
+                    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                    uint64_t n128[2];
+                    n128[0] = mpz_get_ui(tmpz);
+                    mpz_tdiv_q_2exp(tmpz, tmpz, 64);
+                    n128[1] = mpz_get_ui(tmpz);
+                    if (fermat_prp_128x1(n128))
                     {
                         it++;
                     }
-
-                    candidates[j] = candidates[j + MIN(8, num_cand)];
                 }
-                num_cand -= MIN(8, num_cand);
-
-                if (num_cand < 0)
+                num_cand = 0;
+            }
+            else
+            {
+                for (j = 0; j < num_cand; j++)
                 {
-                    print("WARNING: num_cand < 0\n");
+                    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                    if (mpz_strongbpsw_prp(tmpz))
+                    {
+                        it++;
+                    }
+                }
+                num_cand = 0;
+            }
+#else
+
+            for (j = 0; j < num_cand; j++)
+            {
+                mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+
+                if (mpz_sizeinbase(tmpz, 2) <= 128)
+                {
+                    uint64_t n128[2];
+                    n128[0] = mpz_get_ui(tmpz);
+                    mpz_tdiv_q_2exp(tmpz, tmpz, 64);
+                    n128[1] = mpz_get_ui(tmpz);
+                    if (fermat_prp_128x1(n128))
+                    {
+                        it++;
+                    }
+                }
+                else
+                {
+                    if (mpz_strongbpsw_prp(tmpz))
+                    {
+                        it++;
+                    }
                 }
             }
+
+            num_cand = 0;
+
+#endif
+
 
             if ((i > next_report) && (sdata->VFLAG > 0))
             {
@@ -325,43 +402,6 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
             }
 
         } while (i < numchunks);
-
-
-#else
-
-        for (i = 0; i < numchunks; i++)
-        {
-            uint64_t x = flagblock64[i];
-            int j;
-
-            for (j = 0; j < 64; j++)
-            {
-                if (x & (1ull << j))
-                {
-                    uint64_t value = (i * 64 + j) * prodN + sdata->rclass[current_line];
-                    mpz_add_ui(tmpz, sdata->offset, value);
-
-                    if ((value >= sdata->orig_llimit) && (value <= sdata->orig_hlimit))
-                    {
-                        if (mpz_probab_prime_p(tmpz, 1))
-                        {
-                            it++;
-                        }
-                    }
-                }
-            }
-
-            if ((i > next_report) && (sdata->VFLAG > 0))
-            {
-                printf("PRP progress: %d%%\r",
-                    (int)((double)(i) / (double)(numchunks) * 100.0));
-                fflush(stdout);
-                next_report = i + 1000;
-            }
-        }
-
-
-#endif
 
         mpz_clear(tmpz);
         

@@ -567,18 +567,18 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		if (num_witnesses > 0)
 		{
 			sdata->witnesses = num_witnesses;
-			switch (num_witnesses)
-			{
-			case 1: printf("verifying candidates with base-2 Fermat PRP check\n"); break;
-			default: printf("verifying candidates with base-2 strong PRP (MR) check\n"); break;
-			}
+			//switch (num_witnesses)
+			//{
+			//case 1: printf("verifying candidates with base-2 Fermat PRP check\n"); break;
+			//default: printf("verifying candidates with base-2 strong PRP (MR) check\n"); break;
+			//}
 			
 		}
 	}
 	else
 	{
-		gmp_printf("generating prime in interval %Zd + (%" PRIu64 ":%" PRIu64 ") with %u sieve primes and num_witness = %d\n",
-			offset, 0, range, sdata->num_sp, num_witnesses);
+		gmp_printf("generating prime in interval %Zd + (%" PRIu64 ":%" PRIu64 ") with %u sieve primes\n",
+			offset, 0, range, sdata->num_sp);
 	}
 
 	if (count)
