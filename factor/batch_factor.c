@@ -640,7 +640,7 @@ void check_batch_relation(relation_batch_t *rb,
     // the cost of having to split more TLP candidates in f1r.
 
     c->success = 0;
-    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = 1;
+    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
 
 	if (c->lp_r_num_words) {
 
@@ -682,12 +682,16 @@ void check_batch_relation(relation_batch_t *rb,
 		       exceeds the rational large prime cutoff
 		     - f1r is more than 3 words long */
 
-        if ((mpz_sizeinbase(f1r, 2) > 96) || 
-            ((mpz_sizeinbase(f1r, 2) < 32) && (mpz_get_ui(f1r) > rb->lp_cutoff_r)))
-        {
-            rb->num_abort[0]++;
-            return;
-        }
+        // if ((mpz_sizeinbase(f1r, 2) > 96) || 
+        //     ((mpz_sizeinbase(f1r, 2) < 32) && (mpz_get_ui(f1r) > rb->lp_cutoff_r)))
+        // {
+        //     // we never get any of these aborts because tdiv will
+        //     // never buffer anything with an unfactored residue this big.
+        //     // and, if there is a single factor found by GCD it will always
+        //     // be less than the LPB because BDiv is always > 1.
+        //     rb->num_abort[0]++;
+        //     return;
+        // }
 
 		/* give up on this relation if
 		     - f2r has a single factor, and that factor
@@ -748,8 +752,8 @@ void check_batch_relation(relation_batch_t *rb,
                 // but usually the secondary sieve cutoff is set below this point so
                 // that in practice, we will never see such numbers here.
                 // for example with LPB=30 bits, the max prime in the prime product is 
-                // usually set to 29 bits. 3LP relations containing all primes above that
-                // limit therefore result in 87+ bit composites.  but the usual practice is to  
+                // usually set to LPB-2 = 28 bits. 3LP relations containing all primes above that
+                // limit therefore result in 84+ bit composites.  but the usual practice is to  
                 // set the cofactorization threshold to LPB*2.7 which in this case is 81 bits.  
                 // So composites with 3 prime factors that are all above the GCD product never
                 // appear here.
@@ -868,7 +872,7 @@ void check_batch_relation(relation_batch_t *rb,
 	   is a good deal smaller than the large prime cutoff
 	   this happens extremely rarely */
 
-    if (mpz_sizeinbase(f1r, 2) > 64) {
+    if ((mpz_sizeinbase(f1r, 2) > 64) && (mpz_sizeinbase(f1r, 2) < 96)) {
         //gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
 
         // in this case we know there are 3 factors and all are in the GCD
@@ -902,7 +906,7 @@ void check_batch_relation(relation_batch_t *rb,
             mpz_tdiv_q(_large, f1r, _small);
             lp_r[num_r++] = mpz_get_ui(_small);
 
-            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state); //do_uecm(mpz_get_ui(_large));
+            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
             rb->num_uecm[2]++;
 
             if (f64 <= 1 || f64 > rb->lp_cutoff_r)
@@ -931,11 +935,88 @@ void check_batch_relation(relation_batch_t *rb,
             return;
         }
     }
-    if (mpz_sizeinbase(f2r, 2) > 64) {
-        //gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
+
+    if (mpz_sizeinbase(f1r, 2) > 96) {
+        gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
+        rb->num_abort[7]++;
+        return;
 
         // in this case we know there are 3 factors and all are in the GCD
         // so we don't have to run isprime.
+
+#ifdef USE_AVX512F
+        int success = getfactor_tecm_x8(f1r, _small, mpz_sizeinbase(f1r, 2) / 4, lcg_state);
+#else
+        int success = getfactor_tecm(f1r, _small, mpz_sizeinbase(f1r, 2) / 4, lcg_state);
+#endif
+        rb->num_tecm++;
+
+        if (success)
+        {
+            if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_r))
+            {
+                // it's possible we found 2 factors in _small
+                if ((mpz_cmp(_small, rb->min_prime2) > 0) && (mpz_cmp(_small, rb->lp_cutoff_r2) < 0))
+                {
+                    // now we factor _small instead of _large with uecm
+                    mpz_set(_large, _small);
+                    mpz_tdiv_q(_small, f1r, _large);
+                }
+                else
+                {
+                    rb->num_abort[7]++;
+                    return;
+                }
+            }
+
+            mpz_tdiv_q(_large, f1r, _small);
+            lp_r[num_r++] = mpz_get_ui(_small);
+
+            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+            rb->num_uecm[2]++;
+
+            if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+            {
+                rb->num_abort[7]++;
+                return;
+            }
+
+            lp_r[num_r++] = f64;
+            mpz_tdiv_q_ui(_large, _large, f64);
+
+            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
+            {
+                rb->num_abort[7]++;
+                return;
+            }
+
+            lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+        }
+        else
+        {
+            // could run QS, but this happens so rarely when tecm is given
+            // a 3LP with 3 known factors < lp_cutoff that instead we
+            // just give up and record this failure.
+            rb->num_qs++;
+            return;
+        }
+    }
+
+    if (mpz_sizeinbase(f2r, 2) > 64) {
+        //gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
+
+        // we don't really know anything about f2r in this case other than that
+        // it does not have any factors inside the GCD.
+        rb->num_abort[7]++;
+        return;
+
+        // first, run isprime:
+        if (mpz_probab_prime_p(f2r, 1))
+        {
+            rb->num_abort[7]++;
+            return;
+        }
+
 
 #ifdef USE_AVX512F
         int success = getfactor_tecm_x8(f2r, _small, mpz_sizeinbase(f2r, 2) / 3, lcg_state);
@@ -1002,7 +1083,7 @@ void check_batch_relation(relation_batch_t *rb,
     // from here, so we just mark this cofactor as a success and
     // calling code will put it into the buffer.
 
-    for (i = 0; i < MIN(3, num_r); i++)
+    for (i = 0; i < MIN(4, num_r); i++)
     {
         c->lp_r[i] = lp_r[i];
     }

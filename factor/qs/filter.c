@@ -390,7 +390,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 				 static_conf_t *sconf, fact_obj_t*obj, siqs_r *rel)
 {
 	char *nextstr;
-	uint32_t lp[3];
+	uint32_t lp[MAXLP];
 	uint32_t this_offset, this_id, this_num_factors, this_parity, this_val;
 	uint32_t fb_offsets[MAX_SMOOTH_PRIMES];
 	int i,j,k, err_code = 0;
@@ -398,6 +398,8 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     // assumes SPARSE_STORE
     mpz_t Q;
     mpz_init(Q);
+
+	//printf("processing rel: %s", substr);
 
     //read the offset
     this_offset = strtoul(substr, &nextstr, 16);	//convert
@@ -440,7 +442,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     substr = nextstr;
     lp[1] = this_val;
 
-    if (sconf->use_dlp == 2)
+    if (sconf->use_dlp >= 2)
     {
         this_val = strtoul(substr, &nextstr, 16);
         substr = nextstr;
@@ -450,6 +452,20 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     {
         lp[2] = 1;
     }
+
+	if (sconf->use_dlp >= 3)
+	{
+		this_val = strtoul(substr, &nextstr, 16);
+		substr = nextstr;
+		lp[3] = this_val;
+	}
+	else
+	{
+		lp[3] = 1;
+	}
+
+	//printf("found lps: %x,%x,%x\n", lp[0], lp[1], lp[2]);
+	//printf("B-poly index = %x\n", this_id);
 
     // combine the factors of the sieve value with
     // the factors of the polynomial 'a' value; the 
@@ -492,6 +508,9 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
             mpz_neg(Q, Q);
     }
 
+	//printf("commence trial division on ");
+	//gmp_printf("Q = %Zd\n", Q); fflush(stdout);
+
     for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
     {
         uint32_t prime = sconf->factor_base->list->prime[i];
@@ -513,6 +532,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     // so this mergesort works quickly.  We didn't add extra factors
     // of polya during sieving, so search for and add them here as
     // they are merged into the complete list of factors for this relation.
+	//printf("merging polyA primes\n"); fflush(stdout);
     i = j = 0;
     while ((i < (int)this_num_factors) && (j < sconf->curr_poly->s)) {
         uint32_t prime;
@@ -564,6 +584,8 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
         j++;
     }
 
+	//printf("adding relation to cycle table\n"); fflush(stdout);
+
     this_num_factors = k;
     mpz_clear(Q);
 
@@ -575,12 +597,12 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     rel->num_factors = this_num_factors; 
 	rel->poly_idx = this_id;
 
-	if (sconf->use_dlp == 2)
+	if (sconf->use_dlp >= 2)
 	{
 		if (!check_relation(sconf->curr_a,
 			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, sconf->knmod8))
 		{
-			yafu_add_to_cycles3(sconf, 0, lp);
+			yafu_add_to_cyclesN(sconf, 0, lp);
 		}
 		else
 		{
@@ -608,7 +630,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 		}
 	}
 
-
+	//printf("done\n"); fflush(stdout);
 	return err_code;	//error code, if there is one.
 }
 
@@ -640,7 +662,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 			fflush(stdout);
 			fflush(stderr);
 
-			if (sconf->use_dlp == 2)
+			if (sconf->use_dlp >= 2)
 			{
 				siqs_r *relation_list;
 				qs_la_col_t *cycle_list;
@@ -682,8 +704,8 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					case 'R':
 						start = strchr(str, 'L');
 						if (start != NULL) {
-							uint32_t primes[3];
-							yafu_read_tlp(start, primes);
+							uint32_t primes[MAXLP];
+							int numlp = yafu_read_Nlp(start, primes);
 							if (i == curr_rel) {
 								curr_rel = 3 * curr_rel / 2;
 								relation_list = (siqs_r *)xrealloc(
@@ -727,32 +749,32 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				hashtable = sconf->cycle_hashtable;
 				table = sconf->cycle_table;
 
-				printf("commencing singleton removal\n");
+				printf("commencing %dlp singleton removal\n", sconf->num_lp);
 
-				printf("cycle table size = %u, vertices = %u, components = %u\n",
-					sconf->cycle_table_size, sconf->vertices, sconf->components);
+				//printf("cycle table size = %u, vertices = %u, components = %u\n",
+				//	sconf->cycle_table_size, sconf->vertices, sconf->components);
 
-				num_relations = qs_purge_singletons3(sconf->obj, relation_list,
-					num_relations, table, hashtable);
+				num_relations = qs_purge_singletonsN(sconf->obj, relation_list,
+					num_relations, sconf->num_lp, table, hashtable);
 
 				printf("%u relations survived singleton removal\n", num_relations);
 
 				if (num_relations > 0)
 				{
-					printf("commencing duplicate removal\n");
+					//printf("commencing duplicate removal\n");
 					
-					num_relations = qs_purge_duplicate_relations3(sconf->obj,
-						relation_list, num_relations);
-					
-					printf("%u relations survived duplicate removal\n", num_relations);
+					//num_relations = qs_purge_duplicate_relations3(sconf->obj,
+					//	relation_list, num_relations);
+					//
+					//printf("%u relations survived duplicate removal\n", num_relations);
 
 					printf("building reduced graph\n");
 
 					rebuild_graph3(sconf, relation_list, num_relations);
 
-					printf("cycle table size = %u, edges = %u, vertices = %u, components = %u\n",
-						sconf->cycle_table_size, sconf->num_cycles,
-						sconf->vertices, sconf->components);
+					//printf("cycle table size = %u, edges = %u, vertices = %u, components = %u\n",
+					//	sconf->cycle_table_size, sconf->num_cycles,
+					//	sconf->vertices, sconf->components);
 
 					printf("commencing cycle find\n");
 
@@ -969,254 +991,9 @@ static qs_cycle_t *get_table_entry(qs_cycle_t *table, uint32_t *hashtable,
 }
 
 
-static uint32_t add_to_hashtable3(qs_cycle_t *table, uint32_t *hashtable,
-    uint32_t *primes,
-    uint32_t default_table_entry,
-    uint32_t *components, uint32_t *vertices) {
-
-    /* update the list of cycles to reflect the presence
-    of a partial relation with large primes 0..2
-
-    There are three quantities to track, the number of
-    edges, components and vertices. The number of cycles
-    in the graph is then e + c - v. There is an edge for
-	each partial relation, and one vertex for each prime
-    that appears in the graph (these are easy to count).
-
-    A connected component is a group of primes that are
-    all reachable from each other via edges in the graph.
-    All of the vertices that are in a cycle must belong
-    to the same connected component. Think of a component
-    as a tree of vertices; one prime is chosen arbitrarily
-    as the 'root' of that tree.
-
-    The number of new primes added to the graph (0, 1, 2 or 3)
-    is returned 
-	
-	To handle the TLP case we create a connected component for
-	the two smallest primes, and an edge between that
-	and the last prime.  Adding a unconnected TLP is then
-	cycle-neutral as we get +1 edge, +2 components, 
-	and -3 vertices.
-
-	a key realization is that not all cycles need to have 
-	primes with even exponents... the matrix step will sort
-	all of that out. the cycles just do some pre-combining
-	so that the matrix is not too huge.
-	*/
-
-    uint32_t root[3];
-    uint32_t root1, root2, root3;
-    uint32_t i;
-    uint32_t num_new_entries = 0;
-
-    /* for each prime */
-    for (i = 0; i < 3; i++) {
-        uint32_t prime = primes[i];
-        uint32_t offset;
-        qs_cycle_t *entry;
-
-        /* retrieve the qs_cycle_t corresponding to that
-        prime from the graph (or allocate a new one) */
-
-        entry = get_table_entry(table, hashtable, prime, default_table_entry);
-        entry->count++;
-
-        if (entry->data == 0) {
-
-            /* if this prime has not occurred in the graph
-            before, increment the number of vertices and
-            the number of components, then make the table
-            entry point to itself. */
-            //printf("new vertex: %u\n",prime);
-            num_new_entries++;
-            default_table_entry++;
-
-            offset = entry - table;
-            entry->data = offset;
-            (*components)++;
-            (*vertices)++;
-        }
-        else {
-            /* the prime is already in the table, which
-            means we can follow a linked list of pointers
-            to other primes until we reach a qs_cycle_t
-            that points to itself. This last qs_cycle_t is
-            the 'root' of the connected component that
-            contains 'prime'. Save its value */
-            //printf("data found: %u\n",prime);
-
-            qs_cycle_t *first_entry, *next_entry;
-
-            first_entry = entry;
-            next_entry = table + entry->data;
-            while (entry != next_entry) {
-                entry = next_entry;
-                next_entry = table + next_entry->data;
-            }
-
-            /* Also perform path compression: now that we
-            know the value of the root for this prime,
-            make all of the pointers in the primes we
-            visited along the way point back to this root.
-            This will speed up future root lookups */
-
-            offset = entry->data;
-            entry = first_entry;
-            next_entry = table + entry->data;
-            while (entry != next_entry) {
-                entry->data = offset;
-                entry = next_entry;
-                next_entry = table + next_entry->data;
-            }
-        }
-
-        root[i] = offset;
-    }
-
-    /* If the roots for the primes are different,
-    then they lie within separate connected components.
-    We're about to connect this edge (relation) to one of these
-    components, and the presence of the other primes
-    means that the other components are about to be
-    merged together. Hence the total number of components
-    in the graph goes down by one. 
-	
-	
-	Here are the possible tlp cases:
-	1) three roots
-		make a connected component with the smallest prime as root.
-		subtract two components for a total of 1.  This along with the
-		2 added edges and 3 new vertices gives 0 net additional cycles
-	2) two roots
-		join the two new vertices to the existing root (component)
-		and subtract 2 components for a total of +0 components.
-		Along with the 2 added edges and 2 new vertices gives 0
-		net additional cycles.
-	3) one root
-		just do path compression (set all roots to minimum root),
-		yielding 2 cycles.
-	
-	
-	
-	
-	*/
-
-	
-
-    root1 = root[0];
-    root2 = root[1];
-    root3 = root[2];
-    //printf("discovered roots: %u, %u, %u\n", root1, root2, root3);
-
-	if ((root1 != root2) && (root2 != root3) && (root1 != root3))
-	{
-		// all different roots.  we will combine them all next, so
-		// subtract off two of the components
-		(*components) -= 2;
-	}
-	else if ((root1 != root2) || (root2 != root3) || (root1 != root3))
-	{
-		// two different roots, after combining there will be only one.
-		(*components)--;
-	}
-	else
-	{
-		// if neither of the above cases are true then we must have
-		// that root1 == root2 == root3. 
-		// do nothing.
-	}
-
-    //printf("num components now %u\n", (*components));
-
-    /* We have to merge any components that are now
-    connected by this edge (relation). The surviving component is
-    the component whose representative prime is smallest;
-    since small primes are more common, this will give
-    the smaller root more edges, and will potentially
-    increase the number of cycles the graph contains */
-
-    if (table[root1].prime < table[root2].prime)
-    {
-        if (table[root1].prime < table[root3].prime)
-        {
-            // r1 < r2 && r1 < r3
-            table[root2].data = root1;
-            table[root3].data = root1;
-        }
-        else
-        {
-            // r1 < r2 && r3 <= r1
-            table[root2].data = root3;
-            table[root1].data = root3;
-        }
-    }        
-    else
-    {
-        if (table[root2].prime < table[root3].prime)
-        {
-            // r2 <= r1 && r2 < r3
-            table[root1].data = root2;
-            table[root3].data = root2;
-        }
-        else
-        {
-            // r2 <= r1 && r3 <= r2
-            table[root2].data = root3;
-            table[root1].data = root3;
-        }
-    }
-
-
-    return num_new_entries;
-}
-
-void yafu_add_to_cycles3(static_conf_t *conf, uint32_t flags, uint32_t *primes) {
-
-    /* Top level routine for updating the graph of partial
-    relations */
-
-    uint32_t table_size = conf->cycle_table_size;
-    uint32_t table_alloc = conf->cycle_table_alloc;
-    qs_cycle_t *table = conf->cycle_table;
-    uint32_t *hashtable = conf->cycle_hashtable;
-
-    /* if we don't actually want to count cycles,
-    just increment the number of vertices. This is
-    equivalent to saying that the cycle-counting
-    code will never detect any cycles */
-
-    if (flags & MSIEVE_FLAG_SKIP_QS_CYCLES) {
-        conf->vertices++;
-        return;
-    }
-
-    /* make sure there's room for new primes */
-
-    if (table_size + 3 >= table_alloc) {
-        table_alloc = conf->cycle_table_alloc = 2 * table_alloc;
-        conf->cycle_table = (qs_cycle_t *)xrealloc(conf->cycle_table,
-            table_alloc * sizeof(qs_cycle_t));
-        table = conf->cycle_table;
-    }
-
-    conf->cycle_table_size += add_to_hashtable3(table, hashtable,
-        primes,
-        table_size,
-        &conf->components,
-        &conf->vertices);
-
-	if ((primes[0] != primes[1]) && (primes[0] != primes[2]) && (primes[1] != primes[2]))
-		conf->num_cycles += 3;
-	else if ((primes[0] != primes[1]) || (primes[0] != primes[2]) || (primes[1] != primes[2]))
-		conf->num_cycles += 1;
-
-}
-
-
 /**********************************************************
 These 3 routines are used to add a relation to the cycle
-tree every time one is found after sieving
+tree every time one is found after sieving (in the 2LP variation)
 (e.g., add_to_cycles is called in save_relation)
 **********************************************************/
 
@@ -1383,6 +1160,7 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32_t flags, uint32_t prime1, ui
 						&conf->components, 
 						&conf->vertices);
 }
+
 
 
 qs_la_col_t * find_cycles(fact_obj_t*obj, uint32_t *hashtable, qs_cycle_t *table,
@@ -1561,6 +1339,13 @@ qs_la_col_t * find_cycles(fact_obj_t*obj, uint32_t *hashtable, qs_cycle_t *table
 	return cycle_list;
 }
 
+
+/**********************************************************
+These routines are used to add a relation to the cycle
+tree every time one is found after sieving (in the NLP variation)
+(e.g., add_to_cycles is called in save_relation)
+**********************************************************/
+
 // data structures for hash tables used to build cycles in TLP variation
 typedef struct
 {
@@ -1596,6 +1381,436 @@ typedef struct
 	uint32_t chain_alloc;
 	uint32_t *chain;
 } pbr_t;
+
+
+static uint32_t add_to_hashtable3(qs_cycle_t* table, uint32_t* hashtable,
+	uint32_t* primes,
+	uint32_t default_table_entry,
+	uint32_t* components, uint32_t* vertices) {
+
+	/* update the list of cycles to reflect the presence
+	of a partial relation with large primes 0..2
+
+	There are three quantities to track, the number of
+	edges, components and vertices. The number of cycles
+	in the graph is then e + c - v. There is an edge for
+	each partial relation, and one vertex for each prime
+	that appears in the graph (these are easy to count).
+
+	A connected component is a group of primes that are
+	all reachable from each other via edges in the graph.
+	All of the vertices that are in a cycle must belong
+	to the same connected component. Think of a component
+	as a tree of vertices; one prime is chosen arbitrarily
+	as the 'root' of that tree.
+
+	The number of new primes added to the graph (0, 1, 2 or 3)
+	is returned
+
+	To handle the TLP case we create a connected component for
+	the two smallest primes, and an edge between that
+	and the last prime.  Adding a unconnected TLP is then
+	cycle-neutral as we get +1 edge, +2 components,
+	and -3 vertices.
+
+	a key realization is that not all cycles need to have
+	primes with even exponents... the matrix step will sort
+	all of that out. the cycles just do some pre-combining
+	so that the matrix is not too huge.
+	*/
+
+	uint32_t root[3];
+	uint32_t root1, root2, root3;
+	uint32_t i;
+	uint32_t num_new_entries = 0;
+
+	/* for each prime */
+	for (i = 0; i < 3; i++) {
+		uint32_t prime = primes[i];
+		uint32_t offset;
+		qs_cycle_t* entry;
+
+		/* retrieve the qs_cycle_t corresponding to that
+		prime from the graph (or allocate a new one) */
+
+		entry = get_table_entry(table, hashtable, prime, default_table_entry);
+		entry->count++;
+
+		if (entry->data == 0) {
+
+			/* if this prime has not occurred in the graph
+			before, increment the number of vertices and
+			the number of components, then make the table
+			entry point to itself. */
+			//printf("new vertex: %u\n",prime);
+			num_new_entries++;
+			default_table_entry++;
+
+			offset = entry - table;
+			entry->data = offset;
+			(*components)++;
+			(*vertices)++;
+		}
+		else {
+			/* the prime is already in the table, which
+			means we can follow a linked list of pointers
+			to other primes until we reach a qs_cycle_t
+			that points to itself. This last qs_cycle_t is
+			the 'root' of the connected component that
+			contains 'prime'. Save its value */
+			//printf("data found: %u\n",prime);
+
+			qs_cycle_t* first_entry, * next_entry;
+
+			first_entry = entry;
+			next_entry = table + entry->data;
+			while (entry != next_entry) {
+				entry = next_entry;
+				next_entry = table + next_entry->data;
+			}
+
+			/* Also perform path compression: now that we
+			know the value of the root for this prime,
+			make all of the pointers in the primes we
+			visited along the way point back to this root.
+			This will speed up future root lookups */
+
+			offset = entry->data;
+			entry = first_entry;
+			next_entry = table + entry->data;
+			while (entry != next_entry) {
+				entry->data = offset;
+				entry = next_entry;
+				next_entry = table + next_entry->data;
+			}
+		}
+
+		root[i] = offset;
+	}
+
+	/* If the roots for the primes are different,
+	then they lie within separate connected components.
+	We're about to connect this edge (relation) to one of these
+	components, and the presence of the other primes
+	means that the other components are about to be
+	merged together. Hence the total number of components
+	in the graph goes down by one.
+
+
+	Here are the possible tlp cases:
+	1) three roots
+		make a connected component with the smallest prime as root.
+		subtract two components for a total of 1.  This along with the
+		2 added edges and 3 new vertices gives 0 net additional cycles
+	2) two roots
+		join the two new vertices to the existing root (component)
+		and subtract 2 components for a total of +0 components.
+		Along with the 2 added edges and 2 new vertices gives 0
+		net additional cycles.
+	3) one root
+		just do path compression (set all roots to minimum root),
+		yielding 2 cycles.
+
+
+
+
+	*/
+
+
+
+	root1 = root[0];
+	root2 = root[1];
+	root3 = root[2];
+	//printf("discovered roots: %u, %u, %u\n", root1, root2, root3);
+
+	if ((root1 != root2) && (root2 != root3) && (root1 != root3))
+	{
+		// all different roots.  we will combine them all next, so
+		// subtract off two of the components
+		(*components) -= 2;
+	}
+	else if ((root1 != root2) || (root2 != root3) || (root1 != root3))
+	{
+		// two different roots, after combining there will be only one.
+		(*components)--;
+	}
+	else
+	{
+		// if neither of the above cases are true then we must have
+		// that root1 == root2 == root3. 
+		// do nothing.
+	}
+
+	//printf("num components now %u\n", (*components));
+
+	/* We have to merge any components that are now
+	connected by this edge (relation). The surviving component is
+	the component whose representative prime is smallest;
+	since small primes are more common, this will give
+	the smaller root more edges, and will potentially
+	increase the number of cycles the graph contains */
+
+	if (table[root1].prime < table[root2].prime)
+	{
+		if (table[root1].prime < table[root3].prime)
+		{
+			// r1 < r2 && r1 < r3
+			table[root2].data = root1;
+			table[root3].data = root1;
+		}
+		else
+		{
+			// r1 < r2 && r3 <= r1
+			table[root2].data = root3;
+			table[root1].data = root3;
+		}
+	}
+	else
+	{
+		if (table[root2].prime < table[root3].prime)
+		{
+			// r2 <= r1 && r2 < r3
+			table[root1].data = root2;
+			table[root3].data = root2;
+		}
+		else
+		{
+			// r2 <= r1 && r3 <= r2
+			table[root2].data = root3;
+			table[root1].data = root3;
+		}
+	}
+
+
+	return num_new_entries;
+}
+
+static uint32_t add_to_hashtableN(qs_cycle_t* table, uint32_t* hashtable,
+	uint32_t* primes, uint32_t num_primes,
+	uint32_t default_table_entry,
+	uint32_t* components, uint32_t* vertices) {
+
+	/* update the list of cycles to reflect the presence
+	of a partial relation with large primes 0..2
+
+	There are three quantities to track, the number of
+	edges, components and vertices. The number of cycles
+	in the graph is then e + c - v. There is an edge for
+	each partial relation, and one vertex for each prime
+	that appears in the graph (these are easy to count).
+
+	A connected component is a group of primes that are
+	all reachable from each other via edges in the graph.
+	All of the vertices that are in a cycle must belong
+	to the same connected component. Think of a component
+	as a tree of vertices; one prime is chosen arbitrarily
+	as the 'root' of that tree.
+
+	The number of new primes added to the graph (0, 1, 2 or 3)
+	is returned
+
+	To handle the TLP case we create a connected component for
+	the two smallest primes, and an edge between that
+	and the last prime.  Adding a unconnected TLP is then
+	cycle-neutral as we get +1 edge, +2 components,
+	and -3 vertices.
+
+	a key realization is that not all cycles need to have
+	primes with even exponents... the matrix step will sort
+	all of that out. the cycles just do some pre-combining
+	so that the matrix is not too huge.
+	*/
+
+	uint32_t root[MAXLP];
+	uint32_t rootids[MAXLP];
+	uint32_t rootprimes[MAXLP];
+	uint32_t i;
+	uint32_t num_new_entries = 0;
+
+	/* for each prime */
+	for (i = 0; i < num_primes; i++) {
+		uint32_t prime = primes[i];
+		uint32_t offset;
+		qs_cycle_t* entry;
+
+		/* retrieve the qs_cycle_t corresponding to that
+		prime from the graph (or allocate a new one) */
+
+		entry = get_table_entry(table, hashtable, prime, default_table_entry);
+		entry->count++;
+
+		if (entry->data == 0) {
+
+			/* if this prime has not occurred in the graph
+			before, increment the number of vertices and
+			the number of components, then make the table
+			entry point to itself. */
+			//printf("new vertex: %u\n",prime);
+			num_new_entries++;
+			default_table_entry++;
+
+			offset = entry - table;
+			entry->data = offset;
+			(*components)++;
+			(*vertices)++;
+		}
+		else {
+			/* the prime is already in the table, which
+			means we can follow a linked list of pointers
+			to other primes until we reach a qs_cycle_t
+			that points to itself. This last qs_cycle_t is
+			the 'root' of the connected component that
+			contains 'prime'. Save its value */
+			//printf("data found: %u\n",prime);
+
+			qs_cycle_t* first_entry, * next_entry;
+
+			first_entry = entry;
+			next_entry = table + entry->data;
+			while (entry != next_entry) {
+				entry = next_entry;
+				next_entry = table + next_entry->data;
+			}
+
+			/* Also perform path compression: now that we
+			know the value of the root for this prime,
+			make all of the pointers in the primes we
+			visited along the way point back to this root.
+			This will speed up future root lookups */
+
+			offset = entry->data;
+			entry = first_entry;
+			next_entry = table + entry->data;
+			while (entry != next_entry) {
+				entry->data = offset;
+				entry = next_entry;
+				next_entry = table + next_entry->data;
+			}
+		}
+
+		root[i] = offset;
+		rootprimes[i] = table[root[i]].prime;
+		rootids[i] = i;
+	}
+
+	// tracking the number of components is only useful for 2LP QS.
+	// with 3 or more LPs, cycle finding is a lot more complicated
+	// and there is no simple formula (that I know of) for computing it.
+	// So we don't bother with figuring out a component count.
+
+	/* We have to merge any components that are now
+	connected by this edge (relation). The surviving component is
+	the component whose representative prime is smallest;
+	since small primes are more common, this will give
+	the smaller root more edges, and will potentially
+	increase the number of cycles the graph contains */
+
+	// find the mininum prime associated with the roots
+	// of all of the primes in this relation, and set
+	// all of the other roots to that root.
+	uint32_t tmp;
+	i = 1;
+	while (i < num_primes)
+	{
+		uint32_t j = i;
+		while ((j > 0) && (rootprimes[j - 1] > rootprimes[j]))
+		{
+			tmp = rootprimes[j - 1];
+			rootprimes[j - 1] = rootprimes[j];
+			rootprimes[j] = tmp;
+			tmp = rootids[j - 1];
+			rootids[j - 1] = rootids[j];
+			rootids[j] = tmp;
+			j = j - 1;
+		}
+		i = i + 1;
+	}
+
+	uint32_t minroot = root[rootids[0]];
+	for (i = 1; i < num_primes; i++) {
+		table[root[i]].data = minroot;
+	}
+
+	return num_new_entries;
+}
+
+void yafu_add_to_cycles3(static_conf_t* conf, uint32_t flags, uint32_t* primes) {
+
+	/* Top level routine for updating the graph of partial
+	relations */
+
+	uint32_t table_size = conf->cycle_table_size;
+	uint32_t table_alloc = conf->cycle_table_alloc;
+	qs_cycle_t* table = conf->cycle_table;
+	uint32_t* hashtable = conf->cycle_hashtable;
+
+	/* if we don't actually want to count cycles,
+	just increment the number of vertices. This is
+	equivalent to saying that the cycle-counting
+	code will never detect any cycles */
+
+	if (flags & MSIEVE_FLAG_SKIP_QS_CYCLES) {
+		conf->vertices++;
+		return;
+	}
+
+	/* make sure there's room for new primes */
+
+	if (table_size + 3 >= table_alloc) {
+		table_alloc = conf->cycle_table_alloc = 2 * table_alloc;
+		conf->cycle_table = (qs_cycle_t*)xrealloc(conf->cycle_table,
+			table_alloc * sizeof(qs_cycle_t));
+		table = conf->cycle_table;
+	}
+
+	conf->cycle_table_size += add_to_hashtable3(table, hashtable,
+		primes,
+		table_size,
+		&conf->components,
+		&conf->vertices);
+
+	if ((primes[0] != primes[1]) && (primes[0] != primes[2]) && (primes[1] != primes[2]))
+		conf->num_cycles += 3;
+	else if ((primes[0] != primes[1]) || (primes[0] != primes[2]) || (primes[1] != primes[2]))
+		conf->num_cycles += 1;
+
+}
+
+void yafu_add_to_cyclesN(static_conf_t* conf, uint32_t flags, uint32_t* primes) {
+
+	/* Top level routine for updating the graph of partial
+	relations */
+
+	uint32_t table_size = conf->cycle_table_size;
+	uint32_t table_alloc = conf->cycle_table_alloc;
+	qs_cycle_t* table = conf->cycle_table;
+	uint32_t* hashtable = conf->cycle_hashtable;
+
+	/* if we don't actually want to count cycles,
+	just increment the number of vertices. This is
+	equivalent to saying that the cycle-counting
+	code will never detect any cycles */
+
+	if (flags & MSIEVE_FLAG_SKIP_QS_CYCLES) {
+		conf->vertices++;
+		return;
+	}
+
+	/* make sure there's room for new primes */
+
+	if (table_size + conf->num_lp >= table_alloc) {
+		table_alloc = conf->cycle_table_alloc = 2 * table_alloc;
+		conf->cycle_table = (qs_cycle_t*)xrealloc(conf->cycle_table,
+			table_alloc * sizeof(qs_cycle_t));
+		table = conf->cycle_table;
+	}
+
+	conf->cycle_table_size += add_to_hashtableN(table, hashtable,
+		primes, conf->num_lp,
+		table_size,
+		&conf->components,
+		&conf->vertices);
+}
 
 rbp_t *new_rbp_entry(rbp_t *table, uint32_t *hashtable,
 	uint32_t prime, uint32_t *new_entry_offset) {
@@ -1681,7 +1896,7 @@ pbr_t *new_pbr_entry(pbr_t *table, uint32_t *hashtable,
 		entry = table + *new_entry_offset;
 		entry->next = hashtable[first_offset];
 		entry->rid = rid;
-		entry->alloc_primes = 3;
+		entry->alloc_primes = MAXLP;
 		entry->primes = (uint32_t *)xcalloc(entry->alloc_primes, sizeof(uint32_t));
 		entry->num_primes = 0;
 		entry->chain = (uint32_t *)xcalloc(2, sizeof(uint32_t));
@@ -1794,6 +2009,8 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 	uint32_t numfull = 0;
 	uint32_t cycle_alloc = (num_relations - *numcycles) * 2;
 	uint32_t num3lp = 0;
+	uint32_t num4lp = 0;
+	uint32_t numlp = sconf->num_lp;
 
 	/*
 		Each relation is read in turn and two hash tables built.
@@ -1845,28 +2062,55 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 		}
 
 		// special cases:
-		if (lp[1] == lp[2])
+		if (numlp == 3)
 		{
-			if (lp[0] > 1)
+			if (lp[1] == lp[2])
 			{
-				// list as a single large prime relation
-				printf("special case single large prime\n");
-				rbp_t *rbp_entry = new_rbp_entry(rbp_table, rbp_hashtable, lp[0], &rbp_table_size);
+				if (lp[0] > 1)
+				{
+					// list as a single large prime relation
+					printf("special case single large prime\n");
+					rbp_t* rbp_entry = new_rbp_entry(rbp_table, rbp_hashtable, lp[0], &rbp_table_size);
 
-				rbp_entry->rids[rbp_entry->num_rids] = i;
-				rbp_entry->num_rids++;
+					rbp_entry->rids[rbp_entry->num_rids] = i;
+					rbp_entry->num_rids++;
 
-				pbr_entry->primes[pbr_entry->num_primes] = lp[0];
-				pbr_entry->num_primes++;
-				continue;
+					pbr_entry->primes[pbr_entry->num_primes] = lp[0];
+					pbr_entry->num_primes++;
+					continue;
+				}
+				else
+				{
+					// list as a full relation
+					// build a cycle and don't add the relation to the table.
+					qs_la_col_t* c = cycle_list + curr_cycle;
+
+					// we have a cycle
+					curr_cycle++;
+
+					if (curr_cycle > cycle_alloc)
+						printf("====== cycle alloc failure\n");
+
+					c->cycle.num_relations = 1;
+					c->cycle.list = (uint32_t*)xmalloc(c->cycle.num_relations *
+						sizeof(uint32_t));
+
+					c->cycle.list[0] = i;
+					numfull++;
+
+					continue;
+				}
 			}
-			else
+		}
+		else if (numlp == 4)
+		{
+			if ((lp[0] == lp[1]) &&
+				(lp[0] == lp[2]) &&
+				(lp[0] == lp[3]))
 			{
 				// list as a full relation
-				//printf("special case full\n");
-
 				// build a cycle and don't add the relation to the table.
-				qs_la_col_t *c = cycle_list + curr_cycle;
+				qs_la_col_t* c = cycle_list + curr_cycle;
 
 				// we have a cycle
 				curr_cycle++;
@@ -1875,7 +2119,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 					printf("====== cycle alloc failure\n");
 
 				c->cycle.num_relations = 1;
-				c->cycle.list = (uint32_t *)xmalloc(c->cycle.num_relations *
+				c->cycle.list = (uint32_t*)xmalloc(c->cycle.num_relations *
 					sizeof(uint32_t));
 
 				c->cycle.list[0] = i;
@@ -1885,7 +2129,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 			}
 		}
 
-		for (j = 0; j < 3; j++)
+		for (j = 0; j < numlp; j++)
 		{
 			if (lp[j] > 1)
 			{
@@ -1929,10 +2173,10 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 	Once all relations have been read and the hash tables built, we begin
 	growing chains of relations until a cycle is formed, which is then emitted as
 	a line containing the line numbers of the relations concerned.  Repeated linear
-	sweeps through the pbr table are made: if the referenced relation r0 is a par, i.e.,
+	sweeps through the pbr table are made: if the referenced relation r0 is a slp, i.e.,
 	its list of primes consists of a single element p, the list of relations containing
 	p is retrieved from the rbp table. Each relation ri in the list, other than r0, is
-	dealt with in turn.  If the relation ri is a par, the pair form a cycle; r0, ri and
+	dealt with in turn.  If the relation ri is a slp, the pair form a cycle; r0, ri and
 	their respective chains (if non-empty) are emitted.  Otherwise, the chain of r0
 	and r0 itself is appended to the chain of ri, and the prime p is deleted from the 
 	prime-list in ri. When all the list of relations containing p has been processed 
@@ -2005,6 +2249,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 						qs_la_col_t *c = cycle_list + curr_cycle;
 						uint32_t m = 0;
 						int has3lp = 0;
+						int has4lp = 0;
 
 						if (length > max_length)
 							max_length = length;
@@ -2044,6 +2289,29 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 							has3lp = 1;
 						}
 
+						if (numlp == 4)
+						{
+							if ((relation_list[i].large_prime[0] > 1) &&
+								(relation_list[i].large_prime[1] > 1) &&
+								(relation_list[i].large_prime[2] > 1) &&
+								(relation_list[i].large_prime[3] > 1) &&
+								(has4lp == 0))
+							{
+								num4lp++;
+								has4lp = 1;
+							}
+
+							if ((relation_list[rid].large_prime[0] > 1) &&
+								(relation_list[rid].large_prime[1] > 1) &&
+								(relation_list[rid].large_prime[2] > 1) &&
+								(relation_list[rid].large_prime[3] > 1) &&
+								(has4lp == 0))
+							{
+								num4lp++;
+								has4lp = 1;
+							}
+						}
+
 						//if (fobj->VFLAG > 2)
 						//{
 						//	printf("found cycle of length %d\n", length);
@@ -2072,6 +2340,19 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 								has3lp = 1;
 							}
 
+							if (numlp == 4)
+							{
+								if ((relation_list[rid].large_prime[0] > 1) &&
+									(relation_list[rid].large_prime[1] > 1) &&
+									(relation_list[rid].large_prime[2] > 1) &&
+									(relation_list[rid].large_prime[3] > 1) &&
+									(has4lp == 0))
+								{
+									num4lp++;
+									has4lp = 1;
+								}
+							}
+
 							//if (fobj->VFLAG > 2)
 							//{
 							//	printf("relation %08d: %u,%u,%u\n", rid,
@@ -2092,6 +2373,19 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 							{
 								num3lp++;
 								has3lp = 1;
+							}
+
+							if (numlp == 4)
+							{
+								if ((relation_list[rid].large_prime[0] > 1) &&
+									(relation_list[rid].large_prime[1] > 1) &&
+									(relation_list[rid].large_prime[2] > 1) &&
+									(relation_list[rid].large_prime[3] > 1) &&
+									(has4lp == 0))
+								{
+									num4lp++;
+									has4lp = 1;
+								}
 							}
 
 							//if (fobj->VFLAG > 2)
@@ -2168,6 +2462,8 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 	printf("found %u cycles from partial relations\n", curr_cycle - numfull);
 	printf("maximum cycle length = %u\n", max_length);
 	printf("%1.1f%% of cycles from partials involve a tlp\n", (double)num3lp / (double)(curr_cycle - numfull) * 100.0);
+	if (numlp == 4)
+		printf("%u cycles from partials involve a qlp\n", num4lp);
 
 	if (fobj->logfile != NULL)
 	{
@@ -2177,6 +2473,8 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 		logprint(fobj->logfile, "maximum cycle length = %u\n", max_length);
 		logprint(fobj->logfile, "%1.1f%% of cycles from partials involve a tlp\n", 
 			(double)num3lp / (double)(curr_cycle - numfull) * 100.0);
+		if (numlp == 4)
+			logprint(fobj->logfile, "%u cycles from partials involve a qlp\n", num4lp);
 
 	}
 
@@ -2252,14 +2550,18 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	if (!sconf->in_mem)
 	{
+		
+
+#if 1
 		/* skip over the first line */
 		savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
 		savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 
-		//we don't know beforehand how many rels to expect, so start
-		//with some amount and allow it to increase as we read them
-		relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
+		// we don't know beforehand how many rels to expect, so start
+		// with some amount and allow it to increase as we read them
+		relation_list = (siqs_r*)xmalloc(10000 * sizeof(siqs_r));
 		curr_rel = 10000;
+
 		while (!savefile_eof(&fobj->qs_obj.savefile)) {
 			char *start;
 
@@ -2280,10 +2582,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 							sizeof(siqs_r));
 					}
 
-					if (sconf->use_dlp == 2)
+					if (sconf->use_dlp >= 2)
 					{ 
-						uint32_t primes[3];
-						yafu_read_tlp(start, primes);
+						uint32_t primes[MAXLP];
+						int numlp = yafu_read_Nlp(start, primes);
 
 						relation_list[i].poly_idx = i;
 						relation_list[i].large_prime[0] = primes[0];
@@ -2299,7 +2601,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 						relation_list[i].large_prime[0] = prime1;
 						relation_list[i].large_prime[1] = prime2;
 					}
-                    relation_list[i].apoly_idx = total_poly_a - 1;
+                    
+					relation_list[i].apoly_idx = total_poly_a - 1;
 					i++;
 				}
 				break;
@@ -2308,6 +2611,74 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		num_relations = i;
+#else
+
+		FILE *data = fopen(sconf->obj->qs_obj.siqs_savefile, "r");
+		char str[1024], *substr;
+
+		// we don't know beforehand how many rels to expect, so start
+		// with some amount and allow it to increase as we read them
+		relation_list = (siqs_r*)xmalloc(10000 * sizeof(siqs_r));
+		curr_rel = 10000;
+
+		while (!feof(data)) {
+			char* start;
+
+			fgets(str, 1024, data);
+			substr = str + 2;
+
+			switch (str[0]) {
+			case 'A':
+				total_poly_a++;
+				break;
+
+			case 'R':
+				start = strchr(str, 'L');
+				if (start != NULL) {
+					
+					if (i == curr_rel) {
+						curr_rel = 3 * curr_rel / 2;
+						relation_list = (siqs_r*)xrealloc(
+							relation_list,
+							curr_rel *
+							sizeof(siqs_r));
+					}
+
+					if (sconf->use_dlp >= 2)
+					{
+						uint32_t primes[MAXLP];
+						int numlp = yafu_read_Nlp(start, primes);
+
+						relation_list[i].poly_idx = i;
+						relation_list[i].large_prime[0] = primes[0];
+						relation_list[i].large_prime[1] = primes[1];
+						relation_list[i].large_prime[2] = primes[2];
+					}
+					else
+					{
+						uint32_t prime1, prime2;
+						yafu_read_large_primes(start, &prime1, &prime2);
+
+						relation_list[i].poly_idx = i;
+						relation_list[i].large_prime[0] = prime1;
+						relation_list[i].large_prime[1] = prime2;
+					}
+
+					relation_list[i].apoly_idx = total_poly_a - 1;
+					i++;
+				}
+				break;
+			case 'N':
+				break;
+			}
+		}
+		num_relations = i;
+
+		fclose(data);
+
+		savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
+
+#endif
 	}
 	else
 	{
@@ -2324,6 +2695,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		num_relations = sconf->buffered_rels;
 	}
 
+
     if (fobj->VFLAG > 0)
     {
         printf("read %d relations\n", num_relations);
@@ -2335,13 +2707,13 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
         rebuild_graph(sconf, relation_list, num_relations);
     }
 
-	if (sconf->use_dlp == 2)
+	if (sconf->use_dlp >= 2)
 	{
 		// tlp variation may not have built graph as it progressed... do it now.
 		rebuild_graph3(sconf, relation_list, num_relations);
 
-		num_relations = qs_purge_singletons3(fobj, relation_list, num_relations,
-			table, hashtable);
+		num_relations = qs_purge_singletonsN(fobj, relation_list, num_relations,
+			sconf->num_lp, table, hashtable);
 
 		// the loop below will rebuild the graph again with relations that
 		// survived singleton removal.  Clear the tables.
@@ -3030,6 +3402,56 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 	return;
 }
 
+int yafu_read_Nlp(char* buf, uint32_t* primes) {
+
+	char* next_field;
+	uint32_t p[MAXLP];
+	int i;
+	int numlp = 0;
+
+	for (i = 0; i < MAXLP; i++)
+	{
+		p[i] = primes[i] = i + 1;
+	}
+
+	if (*buf != 'L')
+	{
+		printf("input buf doesn't start with 'L'\n");
+		return 0;
+	}
+
+	buf++;
+
+	while (*buf != '\0')
+	{
+		while (isspace(*buf))
+		{
+			buf++;
+			if (*buf == '\0')
+				break;
+		}
+		if (*buf == '\0')
+			break;
+		else if (isxdigit(*buf)) {
+			p[numlp] = strtoul(buf, &next_field, 16);
+			buf = next_field;
+			numlp++;
+			//printf("p[%d] = %u, buf is now: %s\n", )
+		}
+		else {
+			printf("field %c not an xdigit\n", *buf);
+			return numlp;
+		}
+	}
+
+	for (i = 0; i < numlp; i++)
+	{
+		primes[i] = p[i];
+	}
+
+	return numlp;
+}
+
 uint32_t qs_purge_singletons(fact_obj_t*fobj, siqs_r *list,
 				uint32_t num_relations,
 				qs_cycle_t *table, uint32_t *hashtable) {
@@ -3124,7 +3546,7 @@ uint32_t qs_purge_singletons3(fact_obj_t*fobj, siqs_r *list,
 	/* given a list of relations and the graph from the
 	   sieving stage, remove any relation that contains
 	   a prime that only occurs once in the graph. Because
-	   removing a relation removes a second prime as well,
+	   removing a relation removes other prime as well,
 	   this process must be iterated until no more relations
 	   are removed */
 
@@ -3212,6 +3634,106 @@ uint32_t qs_purge_singletons3(fact_obj_t*fobj, siqs_r *list,
 	return num_left;
 }
 
+uint32_t qs_purge_singletonsN(fact_obj_t* fobj, siqs_r* list,
+	uint32_t num_relations, uint32_t num_lp,
+	qs_cycle_t* table, uint32_t* hashtable) {
+
+	/* given a list of relations and the graph from the
+	   sieving stage, remove any relation that contains
+	   a prime that only occurs once in the graph. Because
+	   removing a relation removes other prime as well,
+	   this process must be iterated until no more relations
+	   are removed */
+
+	uint32_t num_left;
+	uint32_t i, j, k;
+	uint32_t passes = 0;
+
+	if (fobj->VFLAG > 0)
+		printf("begin %dlp singleton removal with %u relations\n",
+			num_lp, num_relations);
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "begin %dlp singleton removal with %u relations\n", num_lp, num_relations);
+
+	// start with all unique possible primes in table
+
+	do {
+		num_left = num_relations;
+
+		/* for each relation */
+		printf("now at pass %d: %u relations\n", passes, num_relations);
+
+		for (i = j = 0; i < num_relations; i++) {
+			siqs_r* r = list + i;
+			uint32_t prime;
+			qs_cycle_t* entry;
+
+			/* full relations always survive */
+			prime = 1;
+			for (k = 0; k < num_lp; k++)
+			{
+				prime &= (r->large_prime[k] == 1);
+			}
+
+			if (prime) 
+			{
+				if (j != i)
+				{
+					list[j] = list[i];
+				}
+				j++;
+				continue;
+			}
+
+			/* for each prime in that relation */
+
+			for (k = 0; k < num_lp; k++) {
+				prime = r->large_prime[k];
+				entry = get_table_entry(table, hashtable,
+					prime, 0);
+
+				/* if the relation is due to be removed,
+				   decrement the count of its other
+				   primes in the graph. */
+
+				if (entry->count < 2) {
+					int m;
+					for (m = 0; m < num_lp; m++)
+					{
+						if (m == k) continue;
+						prime = r->large_prime[m];
+						entry = get_table_entry(table,
+							hashtable,
+							prime, 0);
+						entry->count--;
+					}
+					break;
+				}
+			}
+
+			if (k == num_lp)
+			{
+				// relation survived
+				if (j != i)
+				{
+					list[j] = list[i];
+				}
+				j++;
+			}
+		}
+		num_relations = j;
+		passes++;
+
+	} while (num_left != num_relations);
+
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "reduce to %u relations in %u passes\n",
+			num_left, passes);
+	if (fobj->VFLAG > 0)
+		printf("reduce to %u relations in %u passes\n",
+			num_left, passes);
+	return num_left;
+}
 
 /*--------------------------------------------------------------------*/
 void qs_enumerate_cycle(fact_obj_t*obj,
@@ -3289,92 +3811,6 @@ void qs_enumerate_cycle(fact_obj_t*obj,
 	c->cycle.list = (uint32_t *)xmalloc(c->cycle.num_relations * 
 					sizeof(uint32_t));
 	
-	/* Combine the two lists of relations */
-	for (i = 0; i < num1; i++)
-		c->cycle.list[i] = traceback1[i];
-
-	for (j = 0; j < num2; j++, i++)
-		c->cycle.list[i] = traceback2[j];
-
-	/* Add the relation that created the cycle in the
-	   first place */
-
-	c->cycle.list[i] = final_relation;
-}
-
-void qs_enumerate_cycle3(fact_obj_t*obj,
-	qs_la_col_t *c,
-	qs_cycle_t *table,
-	qs_cycle_t *entry1, qs_cycle_t *entry2, qs_cycle_t *entry3,
-	uint32_t final_relation) {
-
-	/* given two entries out of the hashtable, corresponding
-	   to two distinct primes, generate the list of relations
-	   that participate in the cycle that these two primes
-	   have just created. final_relation is the relation
-	   to which the two primes belong, and the completed cycle
-	   is packed into 'c' */
-
-	uint32_t traceback1[100];
-	uint32_t traceback2[100];
-	uint32_t num1, num2;
-	uint32_t i, j;
-
-	/* Follow each cycle_t back up the graph until
-	   the root component for this cycle is reached.
-	   For each prime encountered along the way, save
-	   the offset of the relation containing that prime */
-
-	num1 = 0;
-	while (entry1 != table + entry1->data) {
-		printf("entry1 step %u: entry %u points to prime %u, next step is %u\n",
-			num1, entry1->data, table[entry1->data].prime, table[entry1->data].data);
-		if (num1 >= 100) {
-			if (obj->logfile != NULL)
-				logprint(obj->logfile, "warning: cycle too long, "
-					"skipping it\n");
-			printf("warning: cycle too long, "
-				"skipping it\n");
-			return;
-		}
-		traceback1[num1++] = entry1->count;
-		entry1 = table + entry1->data;
-	}
-
-	num2 = 0;
-	while (entry2 != table + entry2->data) {
-		printf("entry2 step %u: entry %u points to prime %u, next step is %u\n",
-			num2, entry2->data, table[entry2->data].prime, table[entry2->data].data);
-		if (num2 >= 100) {
-			if (obj->logfile != NULL)
-				logprint(obj->logfile, "warning: cycle too long, "
-					"skipping it\n");
-			printf("warning: cycle too long, "
-				"skipping it\n");
-			return;
-		}
-		traceback2[num2++] = entry2->count;
-		entry2 = table + entry2->data;
-	}
-
-	/* Now walk backwards through the lists, until
-	   either one list runs out or a relation is
-	   encountered that does not appear in both lists */
-
-	while (num1 > 0 && num2 > 0) {
-		if (traceback1[num1 - 1] != traceback2[num2 - 1])
-			break;
-		num1--;
-		num2--;
-	}
-
-	/* Now that we know how many relations are in the
-	   cycle, allocate space to remember them */
-
-	c->cycle.num_relations = num1 + num2 + 1;
-	c->cycle.list = (uint32_t *)xmalloc(c->cycle.num_relations *
-		sizeof(uint32_t));
-
 	/* Combine the two lists of relations */
 	for (i = 0; i < num1; i++)
 		c->cycle.list[i] = traceback1[i];

@@ -62,6 +62,9 @@
 #define SS_ROOT_MASK (SS_MAX_ROOT - 1)
 #endif
 
+// harebrained idea
+#define NUM_ALP 3
+
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
 // so that a synthetic data set resembling this real one can
@@ -217,9 +220,11 @@ typedef struct
 } sieve_fb_compressed;
 
 /************************* SIQS types and functions *****************/
+#define MAXLP 4
+
 typedef struct
 {
-    uint32_t large_prime[3];		//large prime in the pd.
+    uint32_t large_prime[MAXLP];		//large prime in the pd.
     uint32_t sieve_offset;		//offset specifying Q (the quadratic polynomial)
     uint32_t apoly_idx;           // the index of the a-poly this relation uses
     uint32_t poly_idx;			//which b-poly this relation uses
@@ -417,14 +422,18 @@ typedef struct {
     struct timeval totaltime_start;	// start time of this job
 
     uint32_t large_prime_max;		// the cutoff value for keeping a partial
-                                // relation; actual value, not a multiplier
-    uint64_t max_fb2;					// the square of the largest factor base prime 
-    uint64_t large_prime_max2;			// the cutoff value for factoring dlp-partials 
+                                    // relation; actual value, not a multiplier
+    uint64_t max_fb2;				// the square of the largest factor base prime 
+    uint64_t large_prime_max2;		// the cutoff value for factoring dlp-partials 
     double dlp_exp;
 
     double max_fb3;					// the cube of the largest factor base prime 
-    double large_prime_max3;			// the cutoff value for factoring tlp-partials 
-    double tlp_exp;
+    double large_prime_max3;		// the cutoff value for factoring tlp-partials 
+    double tlp_exp;                 // large_prime_max3 = large_prime_max ^ tlp_exp
+
+    double max_fb4;					// largest factor base prime ^ 4
+    double large_prime_max4;		// the cutoff value for factoring qlp-partials 
+    double qlp_exp;                 // large_prime_max4 = large_prime_max ^ qlp_exp
 
     //master list of cycles
     qs_cycle_t* cycle_table;		/* list of all the vertices in the graph */
@@ -440,6 +449,7 @@ typedef struct {
     uint32_t num_found;
     uint32_t num_slp;
     uint32_t num_full;
+    uint32_t num_lp;
 
     //used to check on progress of the factorization	
     struct timeval update_start;	// time at which we last assessed the situation
@@ -466,6 +476,9 @@ typedef struct {
     uint32_t tlp_outside_range;
     uint32_t tlp_prp;
     uint32_t tlp_useful;
+    uint32_t qlp_outside_range;
+    uint32_t qlp_prp;
+    uint32_t qlp_useful;
     uint64_t total_reports;
     uint64_t total_surviving_reports;
     uint64_t total_blocks;
@@ -589,7 +602,7 @@ typedef struct {
     mpz_t gmptmp2;
     mpz_t gmptmp3;
 
-    //used in trial division
+    // used in trial division
     uint16_t* mask;
     uint32_t* reports;			//sieve locations to submit to trial division
     uint32_t num_reports;
@@ -609,11 +622,15 @@ typedef struct {
     uint32_t tlp_outside_range;
     uint32_t tlp_prp;
     uint32_t tlp_useful;
+    uint32_t qlp_outside_range;
+    uint32_t qlp_prp;
+    uint32_t qlp_useful;
     uint64_t total_reports;
     uint64_t total_surviving_reports;
     uint64_t total_blocks;
     uint64_t num_scatter_opp;
     uint64_t num_scatter;
+    uint32_t num_lp;
 
     // various things to support tlp co-factorization
     monty_t* mdata;		// monty brent attempt
@@ -816,6 +833,9 @@ uint32_t qs_purge_singletons(fact_obj_t* obj, siqs_r* list,
 uint32_t qs_purge_singletons3(fact_obj_t* obj, siqs_r* list,
     uint32_t num_relations,
     qs_cycle_t* table, uint32_t* hashtable);
+uint32_t qs_purge_singletonsN(fact_obj_t* obj, siqs_r* list,
+    uint32_t num_relations, uint32_t num_lp,
+    qs_cycle_t* table, uint32_t* hashtable);
 uint32_t qs_purge_duplicate_relations(fact_obj_t* obj,
     siqs_r* rlist,
     uint32_t num_relations);
@@ -826,11 +846,6 @@ void qs_enumerate_cycle(fact_obj_t* obj,
     qs_la_col_t* c,
     qs_cycle_t* table,
     qs_cycle_t* entry1, qs_cycle_t* entry2,
-    uint32_t final_relation);
-void qs_enumerate_cycle3(fact_obj_t* obj,
-    qs_la_col_t* c,
-    qs_cycle_t* table,
-    qs_cycle_t* entry1, qs_cycle_t* entry2, qs_cycle_t* entry3,
     uint32_t final_relation);
 int yafu_sort_cycles(const void* x, const void* y);
 
@@ -936,11 +951,13 @@ void rebuild_graph(static_conf_t* sconf, siqs_r* relation_list, int num_relation
 void rebuild_graph3(static_conf_t* sconf, siqs_r* relation_list, int num_relations);
 void yafu_read_large_primes(char* buf, uint32_t* prime1, uint32_t* prime2);
 void yafu_read_tlp(char* buf, uint32_t* primes);
+int yafu_read_Nlp(char* buf, uint32_t* primes);
 
 /* given the primes from a sieve relation, add
    that relation to the graph used for tracking
    cycles */
 
+void yafu_add_to_cyclesN(static_conf_t* conf, uint32_t flags, uint32_t* primes);
 void yafu_add_to_cycles3(static_conf_t* conf, uint32_t flags, uint32_t* primes);
 void yafu_add_to_cycles(static_conf_t* conf, uint32_t flags, uint32_t prime1, uint32_t prime2);
 

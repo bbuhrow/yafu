@@ -5682,13 +5682,6 @@ void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_mont
 
 }
 
-
-#define and64 _mm512_and_epi64
-#define storeu64 _mm512_store_epi64
-#define add64 _mm512_add_epi64
-#define set64 _mm512_set1_epi64
-#define srli64 _mm512_srli_epi64
-#define loadu64 _mm512_load_epi64
 #define DIGIT_SIZE 52
 #define DIGIT_MASK 0x000fffffffffffffULL
 #define MB_WIDTH 8

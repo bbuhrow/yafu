@@ -31,7 +31,7 @@ extern "C" {
    three large primes, though relations with any number of
    large primes will be batched and factored */
 
-#define MAX_LARGE_PRIMES 3
+#define MAX_LARGE_PRIMES 4
 
 //typedef void (*print_relation_t)(savefile_t *savefile, int64_t a, uint32_t b,
 //			uint32_t *factors_r, uint32_t num_factors_r, 
@@ -61,7 +61,7 @@ typedef struct {
 	uint32_t factor_list_word;  /* offset in an array of factors where
 				            all of the above above appear, in order */
     uint8_t success;
-    uint32_t lp_r[3];
+    uint32_t lp_r[MAX_LARGE_PRIMES];
 } cofactor_t;
 
 /* main structure controlling batch factoring. The main goal

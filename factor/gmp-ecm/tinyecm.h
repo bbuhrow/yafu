@@ -84,6 +84,8 @@ void getfactor_tecm_x8_list(uint64_t* n, uint64_t* f, int target_bits, uint32_t 
 int getfactor_tecm_x8(mpz_t n, mpz_t f, int target_bits, uint64_t* pran);
 int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1);
 
+// a Miller-Rabin SPRP test on 8x 104-bit inputs using base 2
+uint8_t MR_2sprp_104x8(uint64_t* n);
 
 #ifdef __cplusplus
 }

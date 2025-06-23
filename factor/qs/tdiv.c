@@ -274,11 +274,12 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
         // save this slp (single large prime)
-		uint32_t large_prime[3];
+		uint32_t large_prime[4];
 		
 		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
 		large_prime[1] = 1;
 		large_prime[2] = 1;
+        large_prime[3] = 1;
 
 #ifdef GATHER_RESIDUE_STATS
 
@@ -331,7 +332,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 		{
             // processing DLP's only with the batch GCD is slower...
-            if ((sconf->use_dlp == 2) && (dconf->do_batch) && 0)
+            if ((sconf->use_dlp >= 2) && (dconf->do_batch) && 0)
             {
                 int32_t soffset = offset;
 
@@ -395,7 +396,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
-                            if (c->success == 3)
+                            if (c->success == 4)
+                                dconf->qlp_useful++;
+                            else if (c->success == 3)
                                 dconf->tlp_useful++;
                             else if (c->success == 2)
                                 dconf->dlp_useful++;
@@ -480,7 +483,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 			
 			if ((f64 > 1) && (f64 != q64) && ((q64 % f64) == 0))
 			{
-				uint32_t large_prime[3];
+				uint32_t large_prime[4];
 
 				//large_prime[0] = (uint32_t)f64;
 				//large_prime[1] = (uint32_t)(q64 / f64);
@@ -495,6 +498,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     large_prime[0] = (uint32_t)f64;
                     large_prime[1] = (uint32_t)(q64 / f64);
                     large_prime[2] = 1;
+                    large_prime[3] = 1;
 
 					dconf->dlp_useful++;
 					buffer_relation(offset, large_prime, smooth_num + 1,
@@ -691,7 +695,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
-                            if (c->success == 3)
+                            if (c->success == 4)
+                                dconf->qlp_useful++;
+                            else if (c->success == 3)
                                 dconf->tlp_useful++;
                             else if (c->success == 2)
                                 dconf->dlp_useful++;
@@ -791,7 +797,220 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	{
 		dconf->tlp_outside_range++;
 	}
+
+    // if we are not considering QLP, then we are done.
+    if (sconf->use_dlp < 3)
+        return;
 	
+    // quick check if Q is obviously too big.
+    if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 128)
+    {
+        uint64_t res;
+        uint32_t numit = 128;
+
+        double qfloat = mpz_get_d(dconf->Qvals[report_num]);
+
+        //#define OUTPUT_TLP_ATTEMPT_DETAILS
+
+        // not obviously too big, see if it is actually within
+        // the defined qlp bounds.
+        if ((qfloat > sconf->max_fb4) && (qfloat < sconf->large_prime_max4))
+        {
+            uint32_t large_prime[4];
+            uint32_t r;
+
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+            FILE* fid;
+            char fname[20];
+            sprintf(fname, "tlp_attempts.dat");
+#endif
+
+#ifdef GATHER_RESIDUE_STATS
+
+            // as part of analyzing 3lp parameterizations, save off this residue.  
+            // These will be fully factored later and sorted
+            // so that a synthetic data set resembling this real one can
+            // be constructed for deeper analysis of cycle generation for
+            // this parameterization.
+            gmp_fprintf(sconf->residue_files[dconf->tid],
+                "%Zd\n", dconf->Qvals[report_num]);
+
+#endif
+
+            if (dconf->do_batch)
+            {
+                int32_t soffset = offset;
+
+                if (parity)
+                {
+                    soffset *= -1;
+                }
+
+                mpz_set_ui(dconf->gmptmp1, 0);
+
+                // use this field to record how many we've batched.
+                dconf->attempted_cosiqs++;
+                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
+                    dconf->Qvals[report_num], NULL, 0, dconf->gmptmp1, NULL, &dconf->rb);
+
+                // the relation batch persists across polynomials (we save enough
+                // info to know which polynomial the relation belongs to).  When we've 
+                // reached our target watermark the following batch processing will
+                // save valid relations off to a buffer.  That buffer in turn
+                // will get merged into the top-level relation structure and
+                // eventual TLP filtering.  Reset the batch structure when finished.
+
+                // rough in a flag that we can eventually toggle from calling code,
+                // forcing the batch to be processed (for example on abort or after
+                // determination that we have enough relations for final filtering).
+                // right now this flag isn't used and any relations in the batch
+                // buffer are lost on abort or when post-processing starts.
+
+                // one other thing we could do is switch to non-batch processing
+                // when post-processing is getting close... or incrementally 
+                // lower the target_relations watermark.
+
+                // start processing the relations in the indicated buffer if running
+                // single threaded.  otherwise, let the threading dispatcher assign 
+                // the processing to a free thread.
+                if ((dconf->batch_run_override > 0) ||
+                    ((THREADS == 1) && (sconf->rb[0].num_relations > sconf->rb[0].target_relations)))
+                {
+                    struct timeval start;
+                    struct timeval stop;
+                    double ttime;
+                    relation_batch_t* rb;
+                    int i;
+
+                    // if single threaded and we've reached the number of target relations.
+                    // or if multi-threaded and the dispatcher has released a buffer
+                    // for processing by the next available thread (us).
+                    if (THREADS == 1)
+                        rb = &sconf->rb[0];
+                    else
+                        rb = &sconf->rb[dconf->batch_run_override - 1];
+
+                    if (VFLAG > 0)
+                    {
+                        printf("\nnow processing %u relations in batch %d in thread %d\n",
+                            rb->num_relations, dconf->batch_run_override, dconf->tid);
+
+                        if ((dconf->batch_run_override - 1) > 0)
+                        {
+                            rb->num_uecm[0] = rb->num_uecm[1] = rb->num_uecm[2] = rb->num_uecm[3] = 0;
+                            rb->num_tecm = rb->num_tecm2 = 0;
+                            rb->num_qs = 0;
+                            for (i = 0; i < 8; i++)
+                            {
+                                rb->num_abort[i] = 0;
+                            }
+                        }
+                    }
+
+                    gettimeofday(&start, NULL);
+                    relation_batch_run(rb, &dconf->lcg_state);
+                    gettimeofday(&stop, NULL);
+
+                    ttime = ytools_difftime(&start, &stop);
+                    if (VFLAG > 0)
+                    {
+                        printf("\nrelation_batch_run took %1.4f sec producing %u tlp's\n",
+                            ttime, rb->num_success);
+
+                        sconf->rb[0].num_attempt += rb->num_relations;
+                        if ((dconf->batch_run_override - 1) > 0)
+                        {
+                            sconf->rb[0].num_success += rb->num_success;
+                            sconf->rb[0].num_uecm[0] += rb->num_uecm[0];
+                            sconf->rb[0].num_uecm[1] += rb->num_uecm[1];
+                            sconf->rb[0].num_uecm[2] += rb->num_uecm[2];
+                            sconf->rb[0].num_uecm[3] += rb->num_uecm[3];
+                            sconf->rb[0].num_tecm += rb->num_tecm;
+                            sconf->rb[0].num_tecm2 += rb->num_tecm2;
+                            sconf->rb[0].num_qs += rb->num_qs;
+                            for (i = 0; i < 8; i++)
+                            {
+                                sconf->rb[0].num_abort[i] += rb->num_abort[i];
+                            }
+                        }
+                        printf("\tattempt: %u\n", sconf->rb[0].num_attempt);
+                        printf("\tuecm1/uecm2/uecm3/uecm4/tecm1/tecm2/qs: %u,%u,%u,%u,%u,%u,%u\n",
+                            sconf->rb[0].num_uecm[0], sconf->rb[0].num_uecm[1], sconf->rb[0].num_uecm[2],
+                            sconf->rb[0].num_uecm[3], sconf->rb[0].num_tecm, sconf->rb[0].num_tecm2,
+                            sconf->rb[0].num_qs);
+                        printf("\taborts: %u,%u,%u,%u,%u,%u,%u,%u\n",
+                            sconf->rb[0].num_abort[0], sconf->rb[0].num_abort[1], sconf->rb[0].num_abort[2],
+                            sconf->rb[0].num_abort[3], sconf->rb[0].num_abort[4], sconf->rb[0].num_abort[5],
+                            sconf->rb[0].num_abort[6], sconf->rb[0].num_abort[7]);
+                    }
+
+                    //dconf->rb.conversion_ratio = 
+                    //    (double)dconf->rb.num_success / (double)dconf->rb.num_relations;
+                    rb->conversion_ratio =
+                        (double)rb->num_success / (double)rb->num_relations;
+
+                    //if (VFLAG > 0)
+                    //{
+                    //    printf("found %u new relations in batch of %u\n", 
+                    //        dconf->rb.num_success, dconf->rb.num_relations);
+                    //}
+
+                    // take our new tlp relations and buffer them to be
+                    // saved out to the data file.
+                    for (i = 0; i < rb->num_relations; i++)
+                    {
+                        cofactor_t* c = rb->relations + i;
+                        uint32_t* f = rb->factors + c->factor_list_word;
+
+                        if (c->success)
+                        {
+                            uint8_t parity = c->signed_offset < 0 ? 1 : 0;
+
+                            if (c->success == 4)
+                                dconf->qlp_useful++;
+                            else if (c->success == 3)
+                                dconf->tlp_useful++;
+                            else if (c->success == 2)
+                                dconf->dlp_useful++;
+                            else if (c->success == 1)
+                                dconf->num_slp++;
+
+                            buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
+                                f, c->a, c->b, parity, dconf, NULL, 0, 1);
+                        }
+                    }
+
+                    if (VFLAG > 1)
+                    {
+                        printf("done processing batch %d in thread %d, found %u relations\n",
+                            dconf->batch_run_override, dconf->tid, rb->num_success);
+                    }
+
+                    // clear the relation batch now that we are done processing it.
+                    rb->num_relations = 0;
+                    rb->num_success = 0;
+                    rb->num_factors = 0;
+
+                    // signal we are done processing the batch.
+                    if (THREADS > 1)
+                        dconf->batch_run_override = -1;
+                }
+
+                // if batch factoring, we're done now.
+                return;
+            }
+
+        }
+        else
+        {
+            dconf->qlp_outside_range++;
+        }
+    }
+    else
+    {
+        dconf->qlp_outside_range++;
+    }
+
 	return;
 }
 
@@ -868,6 +1087,10 @@ void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factor
     rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
 	rel->large_prime[2] = large_prime[2];
+    if (conf->num_lp == 4)
+    {
+        rel->large_prime[3] = large_prime[3];
+    }
 
     //printf("buffered relation at a,b = %d,%d, offset %d, side %d, lp=%u,%u\n",
     //    rel->apoly_idx, rel->poly_idx, rel->sieve_offset, rel->parity,
@@ -883,8 +1106,8 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 {
 	char buf[1024];
 	fact_obj_t *obj = conf->obj;
-	uint32_t i, k;
-	uint32_t lp[3];
+	uint32_t i, k, buf_offset;
+	uint32_t lp[MAXLP];
 
 	if (conf->in_mem)
 	{
@@ -1005,8 +1228,40 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 		while (k < num_factors)
 			i += sprintf(buf + i, "%x ", fb_offsets[k++]);
 
-		
-		if (conf->use_dlp == 2)
+        buf_offset = i;
+
+		// insertion sort 3lp or more
+        if (conf->num_lp > 2)
+        {
+            i = 1;
+            while (i < conf->num_lp)
+            {
+                uint32_t j = i;
+                while ((j > 0) && (large_prime[j - 1] > large_prime[j]))
+                {
+                    uint32_t tmp = large_prime[j - 1];
+                    large_prime[j - 1] = large_prime[j];
+                    large_prime[j] = tmp;
+                    j = j - 1;
+                }
+                i = i + 1;
+            }
+
+            if (conf->num_lp == 3)
+                sprintf(buf + buf_offset, "L %x %x %x\n", large_prime[0], large_prime[1], large_prime[2]);
+            else if (conf->num_lp == 4)
+                sprintf(buf + buf_offset, "L %x %x %x %x\n", large_prime[0], large_prime[1], 
+                    large_prime[2], large_prime[3]);
+        }
+        else
+        {
+            if (large_prime[0] < large_prime[1])
+                sprintf(buf + buf_offset, "L %x %x\n", large_prime[0], large_prime[1]);
+            else
+                sprintf(buf + buf_offset, "L %x %x\n", large_prime[1], large_prime[0]);
+        }
+
+		if (0)
 		{
             // store them sorted in ascending order
 			if (large_prime[0] < large_prime[1])
@@ -1060,13 +1315,7 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 
 			i += sprintf(buf + i, "L %x %x %x\n", lp[0], lp[1], lp[2]);
 		}
-		else
-		{
-			if (large_prime[0] < large_prime[1])
-				i += sprintf(buf + i, "L %x %x\n", large_prime[0], large_prime[1]);
-			else
-				i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
-		}
+		
 
 		savefile_write_line(&obj->qs_obj.savefile, buf);		
 	}
@@ -1074,11 +1323,11 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 	/* for partial relations, also update the bookeeping for
 		   tracking the number of fundamental cycles */
 
-	if (conf->use_dlp == 2)
+	if (conf->use_dlp >= 2)
 	{
         // when using TLP, cycle counting is a lot more complicated.
         // hand it off here.
-		yafu_add_to_cycles3(conf, 0, lp);
+		yafu_add_to_cyclesN(conf, 0, lp);
 	}
 	else
 	{
