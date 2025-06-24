@@ -29,7 +29,7 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 	int j, retval;
 	mpz_t Q, RHS;
 	// unsigned!
-	uint32_t lp[3];
+	uint32_t lp[4];
 
 	mpz_init(Q);
 	mpz_init(RHS);
@@ -38,12 +38,14 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 	lp[0] = r->large_prime[0];
 	lp[1] = r->large_prime[1];
 	lp[2] = r->large_prime[2];
+	lp[3] = r->large_prime[3];
 	parity = r->parity;
 	num_factors = r->num_factors;
 
 	mpz_set_ui(RHS, lp[0]);
 	mpz_mul_ui(RHS, RHS, lp[1]);
 	mpz_mul_ui(RHS, RHS, lp[2]);
+	mpz_mul_ui(RHS, RHS, lp[3]);
 	for (j = 0; j < num_factors; j++)
 	{
 		if (r->fb_offsets[j] > fb->B)
@@ -84,7 +86,7 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 			printf("error Q != RHS\n");
 		}
 
-		if (VFLAG > 2)
+		if (VFLAG > 0)
 		{
 			gmp_printf("Q = %Zd, RHS = %Zd\n", Q, RHS);
 			gmp_printf("A = %Zd\nB = %Zd\n", a, b);
@@ -93,8 +95,8 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 			for (j = 0; j < num_factors; j++)
 				printf("%u:%u ", r->fb_offsets[j], fb->list->prime[r->fb_offsets[j]]);
 			printf("\n");
-			printf("lp: %d, %d, %d\n", lp[0], lp[1], lp[2]);
-			printf("lp: %u, %u, %u\n", r->large_prime[0], r->large_prime[1], r->large_prime[2]);
+			printf("lp: %u, %u, %u, %u\n", lp[0], lp[1], lp[2], lp[3]);
+			printf("lp: %u, %u, %u, %u\n", r->large_prime[0], r->large_prime[1], r->large_prime[2], r->large_prime[3]);
 		}
 		retval = 1;
 	}

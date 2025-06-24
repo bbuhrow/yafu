@@ -872,10 +872,10 @@ void check_batch_relation(relation_batch_t *rb,
 	   is a good deal smaller than the large prime cutoff
 	   this happens extremely rarely */
 
-    if ((mpz_sizeinbase(f1r, 2) > 64) && (mpz_sizeinbase(f1r, 2) < 96)) {
+    if (mpz_sizeinbase(f1r, 2) > 64) {
         //gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
 
-        // in this case we know there are 3 factors and all are in the GCD
+        // in this case we know there are 3+ factors and all are in the GCD
         // so we don't have to run isprime.
 
 #ifdef USE_AVX512F
@@ -887,110 +887,191 @@ void check_batch_relation(relation_batch_t *rb,
 
         if (success)
         {
-            if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_r))
+            //if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_r))
+            //{
+            //    // it's possible we found 2 factors in _small
+            //    if ((mpz_cmp(_small, rb->min_prime2) > 0) && (mpz_cmp(_small, rb->lp_cutoff_r2) < 0))
+            //    {
+            //        // now we factor _small instead of _large with uecm
+            //        mpz_set(_large, _small);
+            //        mpz_tdiv_q(_small, f1r, _large);
+            //    }
+            //    else
+            //    {
+            //        rb->num_abort[7]++;
+            //        return;
+            //    }
+            //}
+
+            mpz_tdiv_q(_large, f1r, _small);
+
+            // process _small, which might need to be split again.
+            if (mpz_sizeinbase(_small, 2) > 64)
             {
-                // it's possible we found 2 factors in _small
-                if ((mpz_cmp(_small, rb->min_prime2) > 0) && (mpz_cmp(_small, rb->lp_cutoff_r2) < 0))
-                {
-                    // now we factor _small instead of _large with uecm
-                    mpz_set(_large, _small);
-                    mpz_tdiv_q(_small, f1r, _large);
-                }
-                else
+                // very unlikely that tecm found 3 valid factors simultaneously
+                gmp_printf("\n*********** ignored %d-bit _small = %Zd found by tecm\n",
+                    mpz_sizeinbase(_small, 2), _small);
+            }
+            else if (mpz_sizeinbase(_small, 2) > 32)
+            {
+                uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                rb->num_uecm[2]++;
+
+                if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                 {
                     rb->num_abort[7]++;
                     return;
                 }
+
+                mpz_tdiv_q_ui(_small, _small, f64);
+                uint64_t q64 = mpz_get_ui(_small);
+
+                if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                {
+                    rb->num_abort[7]++;
+                    return;
+                }
+
+                lp_r[num_r++] = f64;
+                lp_r[num_r++] = q64;
             }
-
-            mpz_tdiv_q(_large, f1r, _small);
-            lp_r[num_r++] = mpz_get_ui(_small);
-
-            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-            rb->num_uecm[2]++;
-
-            if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+            else
             {
-                rb->num_abort[7]++;
-                return;
+                uint64_t q64 = mpz_get_ui(_small);
+
+                if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                {
+                    rb->num_abort[7]++;
+                    return;
+                }
+
+                lp_r[num_r++] = q64;
             }
 
-            lp_r[num_r++] = f64;
-            mpz_tdiv_q_ui(_large, _large, f64);
-
-            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
+            // process _large, which could need to be split again
+            if (mpz_sizeinbase(_large, 2) > 64)
             {
-                rb->num_abort[7]++;
-                return;
-            }
-
-            lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
-        }
-        else
-        {
-            // could run QS, but this happens so rarely when tecm is given
-            // a 3LP with 3 known factors < lp_cutoff that instead we
-            // just give up and record this failure.
-            rb->num_qs++;
-            return;
-        }
-    }
-
-    if (mpz_sizeinbase(f1r, 2) > 96) {
-        gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
-        rb->num_abort[7]++;
-        return;
-
-        // in this case we know there are 3 factors and all are in the GCD
-        // so we don't have to run isprime.
-
 #ifdef USE_AVX512F
-        int success = getfactor_tecm_x8(f1r, _small, mpz_sizeinbase(f1r, 2) / 4, lcg_state);
+                success = getfactor_tecm_x8(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
 #else
-        int success = getfactor_tecm(f1r, _small, mpz_sizeinbase(f1r, 2) / 4, lcg_state);
+                success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
 #endif
-        rb->num_tecm++;
+                rb->num_tecm++;
 
-        if (success)
-        {
-            if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_r))
-            {
-                // it's possible we found 2 factors in _small
-                if ((mpz_cmp(_small, rb->min_prime2) > 0) && (mpz_cmp(_small, rb->lp_cutoff_r2) < 0))
+                if (success)
                 {
-                    // now we factor _small instead of _large with uecm
-                    mpz_set(_large, _small);
-                    mpz_tdiv_q(_small, f1r, _large);
+                    // process _small, which might need to be split again.
+                    if (mpz_sizeinbase(_small, 2) > 32)
+                    {
+                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                        rb->num_uecm[2]++;
+
+                        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                        {
+                            rb->num_abort[7]++;
+                            return;
+                        }
+
+                        mpz_tdiv_q_ui(_small, _small, f64);
+                        uint64_t q64 = mpz_get_ui(_small);
+
+                        if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                        {
+                            rb->num_abort[7]++;
+                            return;
+                        }
+
+                        lp_r[num_r++] = f64;
+                        lp_r[num_r++] = q64;
+                    }
+                    else
+                    {
+                        uint64_t q64 = mpz_get_ui(_small);
+
+                        if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                        {
+                            rb->num_abort[7]++;
+                            return;
+                        }
+
+                        lp_r[num_r++] = q64;
+                    }
+
+                    mpz_tdiv_q(_large, _large, _small);
+
+                    // process _large, which might need to be split again.
+                    if (mpz_sizeinbase(_large, 2) > 32)
+                    {
+                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                        rb->num_uecm[2]++;
+
+                        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                        {
+                            rb->num_abort[7]++;
+                            return;
+                        }
+
+                        lp_r[num_r++] = f64;
+                        mpz_tdiv_q_ui(_large, _large, f64);
+
+                        if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
+                        {
+                            rb->num_abort[7]++;
+                            return;
+                        }
+
+                        lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                    }
+                    else
+                    {
+                        if (mpz_get_ui(_large) > rb->lp_cutoff_r)
+                        {
+                            rb->num_abort[7]++;
+                            return;
+                        }
+
+                        lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                    }
                 }
                 else
+                {
+                    rb->num_qs++;
+                    return;
+                }
+
+            }
+            else if (mpz_sizeinbase(_large, 2) > 32)
+            {
+                uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                rb->num_uecm[2]++;
+
+                if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                 {
                     rb->num_abort[7]++;
                     return;
                 }
+
+                lp_r[num_r++] = f64;
+                mpz_tdiv_q_ui(_large, _large, f64);
+
+                if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
+                {
+                    rb->num_abort[7]++;
+                    return;
+                }
+
+                lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
             }
-
-            mpz_tdiv_q(_large, f1r, _small);
-            lp_r[num_r++] = mpz_get_ui(_small);
-
-            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-            rb->num_uecm[2]++;
-
-            if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+            else
             {
-                rb->num_abort[7]++;
-                return;
+                if (mpz_get_ui(_large) > rb->lp_cutoff_r)
+                {
+                    rb->num_abort[7]++;
+                    return;
+                }
+
+                lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
             }
-
-            lp_r[num_r++] = f64;
-            mpz_tdiv_q_ui(_large, _large, f64);
-
-            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
-            {
-                rb->num_abort[7]++;
-                return;
-            }
-
-            lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
         }
         else
         {
@@ -1088,6 +1169,36 @@ void check_batch_relation(relation_batch_t *rb,
         c->lp_r[i] = lp_r[i];
     }
     c->success = num_r;
+
+    //if (num_r == 3)
+    //{
+    //    mpz_set_ui(f1r, lp_r[0]);
+    //    mpz_mul_ui(f1r, f1r, lp_r[1]);
+    //    mpz_mul_ui(f1r, f1r, lp_r[2]);
+    //    mpz_mul_ui(f1r, f1r, lp_r[3]);
+    //
+    //    if (mpz_cmp(n, f1r) != 0)
+    //    {
+    //        gmp_printf("\n*********ERROR: tlp product of factors %Zd != input n %Zd\n", f1r, n);
+    //        printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+    //        c->success = 0;
+    //    }
+    //}
+    //
+    //if (num_r == 4)
+    //{
+    //    mpz_set_ui(f1r, lp_r[0]);
+    //    mpz_mul_ui(f1r, f1r, lp_r[1]);
+    //    mpz_mul_ui(f1r, f1r, lp_r[2]);
+    //    mpz_mul_ui(f1r, f1r, lp_r[3]);
+    //
+    //    if (mpz_cmp(n, f1r) != 0)
+    //    {
+    //        gmp_printf("\n*********ERROR: qlp product of factors %Zd != input n %Zd\n", f1r, n);
+    //        printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+    //        c->success = 0;
+    //    }
+    //}
 
     return;
 }

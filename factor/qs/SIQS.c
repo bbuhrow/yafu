@@ -292,6 +292,9 @@ void siqs_sync(void *vptr)
 		t[tid].dconf->tlp_outside_range = 0;
 		t[tid].dconf->tlp_prp = 0;
 		t[tid].dconf->tlp_useful = 0;
+        t[tid].dconf->qlp_outside_range = 0;
+        t[tid].dconf->qlp_prp = 0;
+        t[tid].dconf->qlp_useful = 0;
         t[tid].dconf->total_blocks = 0;
         t[tid].dconf->total_reports = 0;
         t[tid].dconf->total_surviving_reports = 0;
@@ -3466,6 +3469,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->qlp_outside_range = 0;
     dconf->qlp_prp = 0;
     dconf->qlp_useful = 0;
+    dconf->num_lp = sconf->num_lp;
 
     dconf->mdata = monty_alloc();
 
@@ -5016,6 +5020,7 @@ int update_check(static_conf_t *sconf)
 				uint32_t *plist0;
 				uint32_t *plist1;
 				uint32_t *plist2;
+                uint32_t* plist3;
                 uint32_t* apolylist = NULL;
 				uint32_t newrels;
 				int j;
@@ -5071,6 +5076,7 @@ int update_check(static_conf_t *sconf)
                     plist0 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
                     plist1 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
                     plist2 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
+                    plist3 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
                     curr_rel = 10000;
 
                     while (!savefile_eof(&sconf->obj->qs_obj.savefile)) {
@@ -5096,6 +5102,7 @@ int update_check(static_conf_t *sconf)
                                     plist0 = (uint32_t*)xrealloc(plist0, curr_rel * sizeof(uint32_t));
                                     plist1 = (uint32_t*)xrealloc(plist1, curr_rel * sizeof(uint32_t));
                                     plist2 = (uint32_t*)xrealloc(plist2, curr_rel * sizeof(uint32_t));
+                                    plist3 = (uint32_t*)xrealloc(plist3, curr_rel * sizeof(uint32_t));
                                 }
 
                                 //printf("found primes %u,%u,%u on line %u, current allocation: %u\n",
@@ -5105,10 +5112,12 @@ int update_check(static_conf_t *sconf)
                                 relation_list[i].large_prime[0] = primes[0];
                                 relation_list[i].large_prime[1] = primes[1];
                                 relation_list[i].large_prime[2] = primes[2];
+                                relation_list[i].large_prime[3] = primes[3];
 
                                 plist0[i] = primes[0];
                                 plist1[i] = primes[1];
                                 plist2[i] = primes[2];
+                                plist3[i] = primes[3];
                                 i++;
                             }
                             break;
@@ -5219,6 +5228,7 @@ int update_check(static_conf_t *sconf)
 							relation_list[j].large_prime[0] = plist0[j];
 							relation_list[j].large_prime[1] = plist1[j];
 							relation_list[j].large_prime[2] = plist2[j];
+                            relation_list[j].large_prime[3] = plist3[j];
 						}
 						num_relations = all_relations;
 
@@ -5412,6 +5422,7 @@ int update_check(static_conf_t *sconf)
 								relation_list[j].large_prime[0] = plist0[j];
 								relation_list[j].large_prime[1] = plist1[j];
 								relation_list[j].large_prime[2] = plist2[j];
+                                relation_list[j].large_prime[3] = plist3[j];
 							}
 							num_relations = all_relations;
 
@@ -5430,6 +5441,7 @@ int update_check(static_conf_t *sconf)
 						relation_list[j].large_prime[0] = plist0[j];
 						relation_list[j].large_prime[1] = plist1[j];
 						relation_list[j].large_prime[2] = plist2[j];
+                        relation_list[j].large_prime[3] = plist3[j];
 					}
 					num_relations = all_relations;
 
@@ -5444,6 +5456,7 @@ int update_check(static_conf_t *sconf)
 				free(plist0);
 				free(plist1);
 				free(plist2);
+                free(plist3);
 				free(relation_list);
                 if (apolylist != NULL)
                 {

@@ -545,7 +545,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
         // the defined tlp bounds.
 		if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
 		{
-			uint32_t large_prime[3];
+			uint32_t large_prime[4];
 			uint32_t r;
 
 #ifdef OUTPUT_TLP_ATTEMPT_DETAILS
@@ -696,7 +696,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
                             if (c->success == 4)
+                            {
                                 dconf->qlp_useful++;
+                            }
                             else if (c->success == 3)
                                 dconf->tlp_useful++;
                             else if (c->success == 2)
@@ -764,6 +766,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     large_prime[0] = mpz_get_ui(dconf->gmptmp1);
                     large_prime[1] = mpz_get_ui(dconf->gmptmp2);
                     large_prime[2] = 1;
+                    large_prime[3] = 1;
 
                     printf("split_3lp found a dlp: %u,%u\n",
                         large_prime[0], large_prime[1]);
@@ -779,8 +782,10 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     large_prime[0] = mpz_get_ui(dconf->gmptmp1);
                     large_prime[1] = mpz_get_ui(dconf->gmptmp2);
                     large_prime[2] = mpz_get_ui(dconf->gmptmp3);
+                    large_prime[3] = 1;
 
                     dconf->tlp_useful++;
+                    printf("should never get here\n");
                     buffer_relation(offset, large_prime, smooth_num + 1,
                         fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
                         polya_factors, it, 1);
@@ -967,7 +972,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
                             if (c->success == 4)
+                            {
                                 dconf->qlp_useful++;
+                            }
                             else if (c->success == 3)
                                 dconf->tlp_useful++;
                             else if (c->success == 2)
@@ -1087,14 +1094,14 @@ void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factor
     rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
 	rel->large_prime[2] = large_prime[2];
-    if (conf->num_lp == 4)
-    {
-        rel->large_prime[3] = large_prime[3];
-    }
+    rel->large_prime[3] = large_prime[3];
 
-    //printf("buffered relation at a,b = %d,%d, offset %d, side %d, lp=%u,%u\n",
-    //    rel->apoly_idx, rel->poly_idx, rel->sieve_offset, rel->parity,
-    //    rel->large_prime[0], rel->large_prime[1]);
+    //if ((conf->num_lp == 4) && (rel->large_prime[3] > 1))
+    //{
+    //    printf("buffered qlp relation at a,b = %d,%d, offset %d, side %d, lp=%u,%u,%u,%u\n",
+    //        rel->apoly_idx, rel->poly_idx, rel->sieve_offset, rel->parity,
+    //        rel->large_prime[0], rel->large_prime[1], rel->large_prime[2], rel->large_prime[3]);
+    //}
 
 	conf->buffered_rels++;
 	return;
@@ -1250,8 +1257,10 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
             if (conf->num_lp == 3)
                 sprintf(buf + buf_offset, "L %x %x %x\n", large_prime[0], large_prime[1], large_prime[2]);
             else if (conf->num_lp == 4)
-                sprintf(buf + buf_offset, "L %x %x %x %x\n", large_prime[0], large_prime[1], 
+            {
+                sprintf(buf + buf_offset, "L %x %x %x %x\n", large_prime[0], large_prime[1],
                     large_prime[2], large_prime[3]);
+            }
         }
         else
         {

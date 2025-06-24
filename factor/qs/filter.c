@@ -345,17 +345,18 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     r_out->large_prime[0] = rel->large_prime[0];
     r_out->large_prime[1] = rel->large_prime[1];
     r_out->large_prime[2] = rel->large_prime[2];
+	r_out->large_prime[3] = rel->large_prime[3];
     r_out->parity = rel->parity;
     r_out->num_factors = k;
     r_out->poly_idx = rel->poly_idx;
     mpz_clear(Q);
 
-    if (sconf->use_dlp == 2)
+    if (sconf->use_dlp >= 2)
     {
         if (!check_relation(sconf->curr_a,
             sconf->curr_b[r_out->poly_idx], r_out, fb, n, obj->VFLAG, sconf->knmod8))
         {
-            yafu_add_to_cycles3(sconf, 0, r_out->large_prime);
+            yafu_add_to_cyclesN(sconf, 0, r_out->large_prime);
         }
         else
         {
@@ -593,6 +594,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	rel->large_prime[0] = lp[0];
 	rel->large_prime[1] = lp[1];
 	rel->large_prime[2] = lp[2];
+	rel->large_prime[3] = lp[3];
 	rel->parity = this_parity;
     rel->num_factors = this_num_factors; 
 	rel->poly_idx = this_id;
@@ -606,6 +608,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 		}
 		else
 		{
+			printf("check relation failed\n");
 			//printf("relation string: %s\n",instr);
 			err_code = 1;
 		}
@@ -639,7 +642,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	int i,j;
 	char *str, *substr;
 	FILE *data;
-	uint32_t lp[2],pmax = sconf->large_prime_max / sconf->large_mult;
+	uint32_t lp[MAXLP], pmax = sconf->large_prime_max / sconf->large_mult;
     fact_obj_t*fobj = sconf->obj;
 
 	str = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
@@ -679,6 +682,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				uint32_t *plist0;
 				uint32_t *plist1;
 				uint32_t *plist2;
+				uint32_t* plist3;
 				int j;
 
 				printf("reading relations\n");
@@ -689,6 +693,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				plist0 = (uint32_t *)xmalloc(10000 * sizeof(uint32_t));
 				plist1 = (uint32_t *)xmalloc(10000 * sizeof(uint32_t));
 				plist2 = (uint32_t *)xmalloc(10000 * sizeof(uint32_t));
+				plist3 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
 				curr_rel = 10000;
 				while (!feof(data)) {
 					char *start;
@@ -716,6 +721,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 								plist0 = (uint32_t *)xrealloc(plist0, curr_rel * sizeof(uint32_t));
 								plist1 = (uint32_t *)xrealloc(plist1, curr_rel * sizeof(uint32_t));
 								plist2 = (uint32_t *)xrealloc(plist2, curr_rel * sizeof(uint32_t));
+								plist3 = (uint32_t*)xrealloc(plist3, curr_rel * sizeof(uint32_t));
 							}
 
 							//printf("found primes %u,%u,%u on line %u, current allocation: %u\n",
@@ -726,10 +732,12 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 							relation_list[i].large_prime[0] = primes[0];
 							relation_list[i].large_prime[1] = primes[1];
 							relation_list[i].large_prime[2] = primes[2];
+							relation_list[i].large_prime[3] = primes[3];
 
-							plist0[0] = primes[0];
-							plist1[1] = primes[1];
-							plist2[2] = primes[2];
+							plist0[i] = primes[0];
+							plist1[i] = primes[1];
+							plist2[i] = primes[2];
+							plist2[i] = primes[3];
 							i++;
 						}
 						break;
@@ -849,9 +857,10 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 					for (j = 0; j < all_relations; j++)
 					{
-						relation_list[j].large_prime[0] = plist0[0];
-						relation_list[j].large_prime[1] = plist1[1];
-						relation_list[j].large_prime[2] = plist2[2];
+						relation_list[j].large_prime[0] = plist0[j];
+						relation_list[j].large_prime[1] = plist1[j];
+						relation_list[j].large_prime[2] = plist2[j];
+						relation_list[j].large_prime[3] = plist3[j];
 					}
 					num_relations = all_relations;
 
@@ -865,9 +874,10 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 					for (j = 0; j < all_relations; j++)
 					{
-						relation_list[j].large_prime[0] = plist0[0];
-						relation_list[j].large_prime[1] = plist1[1];
-						relation_list[j].large_prime[2] = plist2[2];
+						relation_list[j].large_prime[0] = plist0[j];
+						relation_list[j].large_prime[1] = plist1[j];
+						relation_list[j].large_prime[2] = plist2[j];
+						relation_list[j].large_prime[3] = plist3[j];
 					}
 					num_relations = all_relations;
 
@@ -880,6 +890,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				free(plist0);
 				free(plist1);
 				free(plist2);
+				free(plist3);
 				free(relation_list);
 			}
 			else
@@ -2045,7 +2056,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 		cycle_alloc * sizeof(qs_la_col_t));
 	curr_cycle = 0;
 
-	printf("commencing rbp/pbr table initialization\n");
+	printf("commencing rbp/pbr table initialization for %dlp cycle-find\n", numlp);
 	for (i = 1; i < num_relations; i++)
 	{
 		pbr_t *pbr_entry;
@@ -2133,6 +2144,19 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 		{
 			if (lp[j] > 1)
 			{
+				// int k;
+				// for (k = 0; k < j; k++)
+				// {
+				// 	if (lp[j] == lp[k])
+				// 	{
+				// 		// repeated prime, don't add it to the cycle lists twice
+				// 		break;
+				// 	}
+				// }
+				// 
+				// if (k < j)
+				// 	continue;
+ 
 				rbp_t *rbp_entry = new_rbp_entry(rbp_table, rbp_hashtable, lp[j], &rbp_table_size);
 
 				if (rbp_table_size == rbp_table_alloc)
@@ -2258,7 +2282,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 						curr_cycle++;
 
 						if (curr_cycle > cycle_alloc)
-							printf("====== cycle alloc failure\n");
+							printf("\n******ERROR cycle alloc failure\n");
 						
 						/* Now that we know how many relations are in the
 						cycle, allocate space to remember them */
@@ -2271,44 +2295,58 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 						c->cycle.list[m++] = i;
 						c->cycle.list[m++] = rid;
 
-						if ((relation_list[i].large_prime[0] > 1) &&
-							(relation_list[i].large_prime[1] > 1) &&
-							(relation_list[i].large_prime[2] > 1) &&
-							(has3lp == 0))
-						{
-							num3lp++;
-							has3lp = 1;
-						}
-
-						if ((relation_list[rid].large_prime[0] > 1) &&
-							(relation_list[rid].large_prime[1] > 1) &&
-							(relation_list[rid].large_prime[2] > 1) &&
-							(has3lp == 0))
-						{
-							num3lp++;
-							has3lp = 1;
-						}
-
-						if (numlp == 4)
+						if (numlp == 3)
 						{
 							if ((relation_list[i].large_prime[0] > 1) &&
 								(relation_list[i].large_prime[1] > 1) &&
 								(relation_list[i].large_prime[2] > 1) &&
-								(relation_list[i].large_prime[3] > 1) &&
-								(has4lp == 0))
+								(has3lp == 0))
 							{
-								num4lp++;
-								has4lp = 1;
+								num3lp++;
+								has3lp = 1;
 							}
 
 							if ((relation_list[rid].large_prime[0] > 1) &&
 								(relation_list[rid].large_prime[1] > 1) &&
 								(relation_list[rid].large_prime[2] > 1) &&
-								(relation_list[rid].large_prime[3] > 1) &&
-								(has4lp == 0))
+								(has3lp == 0))
 							{
-								num4lp++;
-								has4lp = 1;
+								num3lp++;
+								has3lp = 1;
+							}
+						}
+						else if (numlp == 4)
+						{
+							if ((relation_list[i].large_prime[3] > 1) &&
+								(relation_list[i].large_prime[1] > 1) &&
+								(relation_list[i].large_prime[2] > 1))
+							{
+								if ((relation_list[i].large_prime[0] > 1) && (has4lp == 0))
+								{
+									num4lp++;
+									has4lp = 1;
+								}
+								else if (has3lp == 0)
+								{
+									num3lp++;
+									has3lp = 1;
+								}
+							}
+
+							if ((relation_list[rid].large_prime[3] > 1) &&
+								(relation_list[rid].large_prime[1] > 1) &&
+								(relation_list[rid].large_prime[2] > 1))
+							{
+								if ((relation_list[rid].large_prime[0] > 1) && (has4lp == 0))
+								{
+									num4lp++;
+									has4lp = 1;
+								}
+								else if (has3lp == 0)
+								{
+									num3lp++;
+									has3lp = 1;
+								}
 							}
 						}
 
@@ -2331,25 +2369,35 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 						{
 							rid = pbr_entry->chain[k];
 							c->cycle.list[m++] = rid;
-							if ((relation_list[rid].large_prime[0] > 1) &&
-								(relation_list[rid].large_prime[1] > 1) &&
-								(relation_list[rid].large_prime[2] > 1) &&
-								(has3lp == 0))
-							{
-								num3lp++;
-								has3lp = 1;
-							}
 
-							if (numlp == 4)
+
+							if (numlp == 3)
 							{
 								if ((relation_list[rid].large_prime[0] > 1) &&
 									(relation_list[rid].large_prime[1] > 1) &&
 									(relation_list[rid].large_prime[2] > 1) &&
-									(relation_list[rid].large_prime[3] > 1) &&
-									(has4lp == 0))
+									(has3lp == 0))
 								{
-									num4lp++;
-									has4lp = 1;
+									num3lp++;
+									has3lp = 1;
+								}
+							}
+							else if (numlp == 4)
+							{
+								if ((relation_list[rid].large_prime[3] > 1) &&
+									(relation_list[rid].large_prime[1] > 1) &&
+									(relation_list[rid].large_prime[2] > 1))
+								{
+									if ((relation_list[rid].large_prime[0] > 1) && (has4lp == 0))
+									{
+										num4lp++;
+										has4lp = 1;
+									}
+									else if (has3lp == 0)
+									{
+										num3lp++;
+										has3lp = 1;
+									}
 								}
 							}
 
@@ -2366,25 +2414,34 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 						{
 							rid = pbr_entry2->chain[k];
 							c->cycle.list[m++] = rid;
-							if ((relation_list[rid].large_prime[0] > 1) &&
-								(relation_list[rid].large_prime[1] > 1) &&
-								(relation_list[rid].large_prime[2] > 1) && 
-								(has3lp == 0))
-							{
-								num3lp++;
-								has3lp = 1;
-							}
 
-							if (numlp == 4)
+							if (numlp == 3)
 							{
 								if ((relation_list[rid].large_prime[0] > 1) &&
 									(relation_list[rid].large_prime[1] > 1) &&
 									(relation_list[rid].large_prime[2] > 1) &&
-									(relation_list[rid].large_prime[3] > 1) &&
-									(has4lp == 0))
+									(has3lp == 0))
 								{
-									num4lp++;
-									has4lp = 1;
+									num3lp++;
+									has3lp = 1;
+								}
+							}
+							else if (numlp == 4)
+							{
+								if ((relation_list[rid].large_prime[3] > 1) &&
+									(relation_list[rid].large_prime[1] > 1) &&
+									(relation_list[rid].large_prime[2] > 1))
+								{
+									if ((relation_list[rid].large_prime[0] > 1) && (has4lp == 0))
+									{
+										num4lp++;
+										has4lp = 1;
+									}
+									else if (has3lp == 0)
+									{
+										num3lp++;
+										has3lp = 1;
+									}
 								}
 							}
 
@@ -2461,9 +2518,11 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 		pbr_table_size - rbp_table_size, curr_cycle);
 	printf("found %u cycles from partial relations\n", curr_cycle - numfull);
 	printf("maximum cycle length = %u\n", max_length);
-	printf("%1.1f%% of cycles from partials involve a tlp\n", (double)num3lp / (double)(curr_cycle - numfull) * 100.0);
+	printf("%u cycles from partials (%1.1f%%) involve a tlp\n", 
+		num3lp, (double)num3lp / (double)(curr_cycle - numfull) * 100.0);
 	if (numlp == 4)
-		printf("%u cycles from partials involve a qlp\n", num4lp);
+		printf("%u cycles from partials (%1.1f%%) involve a qlp\n", num4lp,
+			(double)num4lp / (double)(curr_cycle - numfull) * 100.0);
 
 	if (fobj->logfile != NULL)
 	{
@@ -2471,11 +2530,11 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 			pbr_table_size - rbp_table_size, curr_cycle);
 		logprint(fobj->logfile, "found %u cycles from partial relations\n", curr_cycle - numfull);
 		logprint(fobj->logfile, "maximum cycle length = %u\n", max_length);
-		logprint(fobj->logfile, "%1.1f%% of cycles from partials involve a tlp\n", 
-			(double)num3lp / (double)(curr_cycle - numfull) * 100.0);
+		logprint(fobj->logfile, "%u cycles from partials (%1.1f%%) involve a tlp\n", 
+			num3lp, (double)num3lp / (double)(curr_cycle - numfull) * 100.0);
 		if (numlp == 4)
-			logprint(fobj->logfile, "%u cycles from partials involve a qlp\n", num4lp);
-
+			logprint(fobj->logfile, "%u cycles from partials (%1.1f%%) involve a qlp\n", num4lp,
+				(double)num4lp / (double)(curr_cycle - numfull) * 100.0);
 	}
 
 	for (i = 1; i < pbr_table_size; i++)
@@ -2547,12 +2606,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	i = 0;
 	total_poly_a = 0;
+	uint32_t num0lp = 0;
+	uint32_t num1lp = 0;
+	uint32_t num2lp = 0;
+	uint32_t num3lp = 0;
+	uint32_t num4lp = 0;
 
 	if (!sconf->in_mem)
 	{
-		
-
-#if 1
 		/* skip over the first line */
 		savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
 		savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
@@ -2561,6 +2622,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		// with some amount and allow it to increase as we read them
 		relation_list = (siqs_r*)xmalloc(10000 * sizeof(siqs_r));
 		curr_rel = 10000;
+
+		
 
 		while (!savefile_eof(&fobj->qs_obj.savefile)) {
 			char *start;
@@ -2591,6 +2654,20 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 						relation_list[i].large_prime[0] = primes[0];
 						relation_list[i].large_prime[1] = primes[1];
 						relation_list[i].large_prime[2] = primes[2];
+						relation_list[i].large_prime[3] = primes[3];
+
+						uint32_t thislpnum = 0;
+						if (primes[0] > 1) thislpnum++;
+						if (primes[1] > 1) thislpnum++;
+						if (primes[2] > 1) thislpnum++;
+						if (primes[3] > 1) thislpnum++;
+
+						if (thislpnum == 0) num0lp++;
+						if (thislpnum == 1) num1lp++;
+						if (thislpnum == 2) num2lp++;
+						if (thislpnum == 3) num3lp++;
+						if (thislpnum == 4) num4lp++;
+
 					}
 					else
 					{
@@ -2611,74 +2688,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		num_relations = i;
-#else
 
-		FILE *data = fopen(sconf->obj->qs_obj.siqs_savefile, "r");
-		char str[1024], *substr;
-
-		// we don't know beforehand how many rels to expect, so start
-		// with some amount and allow it to increase as we read them
-		relation_list = (siqs_r*)xmalloc(10000 * sizeof(siqs_r));
-		curr_rel = 10000;
-
-		while (!feof(data)) {
-			char* start;
-
-			fgets(str, 1024, data);
-			substr = str + 2;
-
-			switch (str[0]) {
-			case 'A':
-				total_poly_a++;
-				break;
-
-			case 'R':
-				start = strchr(str, 'L');
-				if (start != NULL) {
-					
-					if (i == curr_rel) {
-						curr_rel = 3 * curr_rel / 2;
-						relation_list = (siqs_r*)xrealloc(
-							relation_list,
-							curr_rel *
-							sizeof(siqs_r));
-					}
-
-					if (sconf->use_dlp >= 2)
-					{
-						uint32_t primes[MAXLP];
-						int numlp = yafu_read_Nlp(start, primes);
-
-						relation_list[i].poly_idx = i;
-						relation_list[i].large_prime[0] = primes[0];
-						relation_list[i].large_prime[1] = primes[1];
-						relation_list[i].large_prime[2] = primes[2];
-					}
-					else
-					{
-						uint32_t prime1, prime2;
-						yafu_read_large_primes(start, &prime1, &prime2);
-
-						relation_list[i].poly_idx = i;
-						relation_list[i].large_prime[0] = prime1;
-						relation_list[i].large_prime[1] = prime2;
-					}
-
-					relation_list[i].apoly_idx = total_poly_a - 1;
-					i++;
-				}
-				break;
-			case 'N':
-				break;
-			}
-		}
-		num_relations = i;
-
-		fclose(data);
-
-		savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
-
-#endif
 	}
 	else
 	{
@@ -2690,6 +2700,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			relation_list[i].large_prime[0] = sconf->in_mem_relations[i].large_prime[0];
 			relation_list[i].large_prime[1] = sconf->in_mem_relations[i].large_prime[1];
             relation_list[i].large_prime[2] = sconf->in_mem_relations[i].large_prime[2];
+			relation_list[i].large_prime[3] = sconf->in_mem_relations[i].large_prime[3];
 		}
 		total_poly_a = sconf->total_poly_a;
 		num_relations = sconf->buffered_rels;
@@ -2699,6 +2710,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
     if (fobj->VFLAG > 0)
     {
         printf("read %d relations\n", num_relations);
+		printf("read %u 0lp\n", num0lp);
+		printf("read %u 1lp\n", num1lp);
+		printf("read %u 2lp\n", num2lp);
+		printf("read %u 3lp\n", num3lp);
+		printf("read %u 4lp\n", num4lp);
     }
 
 	// re-filtering
@@ -3028,7 +3044,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   duplicate relations. For the sake of consistency, 
 	   always rebuild the graph afterwards */
 
-	if (sconf->use_dlp == 2)
+	if (sconf->use_dlp >= 2)
 	{
 		num_relations = qs_purge_duplicate_relations3(fobj,
 			relation_list, num_relations);
@@ -3405,13 +3421,14 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 int yafu_read_Nlp(char* buf, uint32_t* primes) {
 
 	char* next_field;
+	char* origbuf = buf;
 	uint32_t p[MAXLP];
 	int i;
 	int numlp = 0;
 
 	for (i = 0; i < MAXLP; i++)
 	{
-		p[i] = primes[i] = i + 1;
+		p[i] = primes[i] = 0;
 	}
 
 	if (*buf != 'L')
@@ -3673,6 +3690,10 @@ uint32_t qs_purge_singletonsN(fact_obj_t* fobj, siqs_r* list,
 			for (k = 0; k < num_lp; k++)
 			{
 				prime &= (r->large_prime[k] == 1);
+				//if (r->large_prime[k] == 0)
+				//{
+				//	printf("warning: lp[%d] == 0 in %dlp singleton removal\n", k, num_lp);
+				//}
 			}
 
 			if (prime) 
