@@ -400,7 +400,7 @@ void siqs_dispatch(void *vptr)
         // generate a new poly A value for the thread we pulled out of the queue
         // using its dconf.  this is done by the master thread because it also 
         // stores the coefficients in a master list
-        new_poly_a(static_conf, t[tid].dconf);
+        new_poly_a(static_conf, t[tid].dconf, 0);
         tdata->work_fcn_id = 0;
 
         if (static_conf->do_batch)
@@ -777,7 +777,7 @@ void SIQS(fact_obj_t *fobj)
         for (i = 0; i < 100000; i++)
         {
             static_conf->total_poly_a++;
-            new_poly_a(static_conf, dconf);
+            new_poly_a(static_conf, dconf, 0);
 
             // update the gray code
             get_gray_code(dconf->curr_poly);
@@ -866,6 +866,22 @@ void SIQS(fact_obj_t *fobj)
     }
 
 #endif
+
+
+
+#if 1
+
+    for (i = 0; i < 1000; i++)
+    {
+
+        new_poly_a(static_conf, thread_data[0].dconf, 1);
+
+    }
+
+
+
+#endif
+
 
     uint32_t factors_found = 0;
     int num_retries = 0;
@@ -3486,7 +3502,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->do_batch = 0;
     if (sconf->do_batch)
     {       
-        uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint32_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+            // (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv;
         // sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         dconf->do_batch = 1;
         relation_batch_init(NULL, &dconf->rb, sconf->pmax, 
@@ -4475,7 +4492,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // compute the product of primes only with one thread.
         gettimeofday(&locstart, NULL);
 
-        uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
+        //uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
+        uint32_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         sconf->rb[0].num_uecm[0] = 0;
         sconf->rb[0].num_uecm[1] = 0;
         sconf->rb[0].num_uecm[2] = 0;

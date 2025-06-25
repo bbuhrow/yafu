@@ -786,7 +786,8 @@ int free_siqs(static_conf_t* sconf);
 void free_filter_vars(static_conf_t* sconf);
 
 //poly
-void new_poly_a(static_conf_t* sconf, dynamic_conf_t* dconf);
+void new_poly_a(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_test_only);
+void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_test_only);
 void computeBl(static_conf_t* sconf, dynamic_conf_t* dconf, int needC);
 void nextB(dynamic_conf_t* dconf, static_conf_t* sconf, int needC);
 
