@@ -798,7 +798,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 		printf("checking for duplicate and size requirements...\n");
 #endif
 		afact[*s] = randindex;
-		qli[*s] = -1;
+		qli[*s] = randindex;
 		*s = *s + 1;
 
 		// check if 'close enough'

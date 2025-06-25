@@ -63,7 +63,7 @@
 #endif
 
 // harebrained idea
-#define NUM_ALP 3
+#define NUM_ALP 1
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted

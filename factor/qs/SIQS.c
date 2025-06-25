@@ -869,7 +869,7 @@ void SIQS(fact_obj_t *fobj)
 
 
 
-#if 1
+#if 0
 
     for (i = 0; i < 1000; i++)
     {
