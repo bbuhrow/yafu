@@ -200,6 +200,21 @@ int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 		}
 	}
 
+	if (mpz_cmp_ui(tmp, 1) > 0)
+	{
+		if (NUM_ALP == 1)
+		{
+			poly->qlisort[poly->s] = mpz_get_ui(tmp);
+			poly->s++;
+			mpz_tdiv_q_ui(tmp, tmp, mpz_get_ui(tmp));
+		}
+		else
+		{
+			gmp_printf("unexpected residue %Zd when factoring poly_a = %Zd\n", 
+				tmp, poly->mpz_poly_a);
+		}
+	}
+
 	return 0;
 }
 

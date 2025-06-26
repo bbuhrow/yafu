@@ -607,7 +607,6 @@ uint64_t pow2m(uint64_t b, uint64_t n)
     return acc;
 }
 
-
 /* the following recursion base-case is specialized for relations
    containing <= 3 rational and/or algebraic large primes. The rest
    of the batch factoring handles an arbitrary number of large primes,
@@ -633,7 +632,7 @@ void check_batch_relation(relation_batch_t *rb,
 	uint32_t lp_r[MAX_LARGE_PRIMES];
 	uint32_t lp_a[MAX_LARGE_PRIMES];
 	uint32_t num_r, num_a;
-
+    
 	/* first compute gcd(prime_product, rational large cofactor).
 	   The rational part will split into a cofactor with all 
 	   factors <= the largest prime in rb->prime_product (stored
@@ -756,7 +755,6 @@ void check_batch_relation(relation_batch_t *rb,
         mpz_set_ui(f2r, 0);
 	}
 
-
 	/* the relation isn't obviously bad; do more work
 	   trying to factor everything. Note that when relations 
 	   are expected to have three large primes then ~98% of 
@@ -782,7 +780,7 @@ void check_batch_relation(relation_batch_t *rb,
         uint64_t e = mpz_get_ui(f2r);
         if (prp_uecm(e) == 1)
         {
-            rb->num_abort[5]++;
+            rb->num_abort[4]++;
             return;
         }
     }
@@ -796,7 +794,9 @@ void check_batch_relation(relation_batch_t *rb,
     if (mpz_sizeinbase(f1r, 2) <= 32)
     {
         if (mpz_get_ui(f1r) > 1)
+        {
             lp_r[num_r++] = (uint32_t)mpz_get_ui(f1r);
+        }
     }
     else if (mpz_sizeinbase(f1r, 2) <= 64)
     {
@@ -810,15 +810,16 @@ void check_batch_relation(relation_batch_t *rb,
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            rb->num_abort[6]++;
+            rb->num_abort[5]++;
             return;
         }
+
         lp_r[num_r++] = (uint32_t)f64;
         mpz_tdiv_q_ui(f1r, f1r, f64);
 
         if ((mpz_sizeinbase(f1r, 2) > 32) || (mpz_get_ui(f1r) > rb->lp_cutoff_r))
         {
-            rb->num_abort[6]++;
+            rb->num_abort[5]++;
             return;
         }
 
@@ -827,8 +828,12 @@ void check_batch_relation(relation_batch_t *rb,
 
     if (mpz_sizeinbase(f2r, 2) <= 32)
     {
-        if (mpz_get_ui(f2r) > 1)
+        // f2r is not guaranteed to be inside the LPB limit because it 
+        // wasn't found by GCD
+        if ((mpz_get_ui(f2r) > 1) && (mpz_get_ui(f2r) < rb->lp_cutoff_r))
+        {
             lp_r[num_r++] = (uint32_t)mpz_get_ui(f2r);
+        }
     }
     else if (mpz_sizeinbase(f2r, 2) <= 64)
     {
@@ -866,13 +871,15 @@ void check_batch_relation(relation_batch_t *rb,
 	   this happens extremely rarely */
 
     if (mpz_sizeinbase(f1r, 2) > 64) {
-        //gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
-
         // in this case we know there are 3+ factors and all are in the GCD
         // so we don't have to run isprime.
 
 #ifdef USE_AVX512F
-        int success = getfactor_tecm_x8(f1r, _small, mpz_sizeinbase(f1r, 2) / 3, lcg_state);
+        int success;
+        if (mpz_sizeinbase(f1r, 2) <= 104)
+            success = getfactor_tecm_x8(f1r, _small, mpz_sizeinbase(f1r, 2) / 3, lcg_state);
+        else
+            success = getfactor_tecm(f1r, _small, mpz_sizeinbase(f1r, 2) / 3, lcg_state);
 #else
         int success = getfactor_tecm(f1r, _small, mpz_sizeinbase(f1r, 2) / 3, lcg_state);
 #endif
@@ -886,7 +893,7 @@ void check_batch_relation(relation_batch_t *rb,
             if (mpz_sizeinbase(_small, 2) > 64)
             {
                 // very unlikely that tecm found 3 valid factors simultaneously.
-                // it is either wrong, or we can swap it with large to process further.
+                // it is either wrong, or we can swap it with _large to process further.
                 if (mpz_divisible_p(f1r, _small))
                 {
                     // it was correct, swap it.
@@ -896,21 +903,26 @@ void check_batch_relation(relation_batch_t *rb,
 
                 uint64_t q64 = mpz_get_ui(_small);
 
-                if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                if (q64 > rb->lp_cutoff_r)
                 {
                     rb->num_abort[7]++;
                     return;
                 }
 
-                lp_r[num_r++] = q64;
+                if (q64 > 1)
+                {
+                    lp_r[num_r++] = q64;
+                }
+
             }
             else if (mpz_sizeinbase(_small, 2) > 32)
             {
                 uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
                 rb->num_uecm[2]++;
-
+                
                 if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                 {
+                    // either we failed to factor it or the factor isn't useful
                     rb->num_abort[7]++;
                     return;
                 }
@@ -926,6 +938,8 @@ void check_batch_relation(relation_batch_t *rb,
 
                 lp_r[num_r++] = f64;
                 lp_r[num_r++] = q64;
+
+                mpz_set_ui(_small, 1);
             }
             else
             {
@@ -948,15 +962,24 @@ void check_batch_relation(relation_batch_t *rb,
 #else
                 success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
 #endif
-                rb->num_tecm++;
+                rb->num_tecm2++;
 
                 if (success)
                 {
+                    mpz_tdiv_q(_large, _large, _small);
+
                     // process _small, which might need to be split again.
-                    if (mpz_sizeinbase(_small, 2) > 32)
+                    if (mpz_sizeinbase(_small, 2) > 64)
+                    {
+                        // found all 3 factors?
+                        // give up
+                        rb->num_abort[7]++;
+                        return;
+                    }
+                    else if (mpz_sizeinbase(_small, 2) > 32)
                     {
                         uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                        rb->num_uecm[2]++;
+                        rb->num_uecm[3]++;
 
                         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                         {
@@ -989,13 +1012,11 @@ void check_batch_relation(relation_batch_t *rb,
                         lp_r[num_r++] = q64;
                     }
 
-                    mpz_tdiv_q(_large, _large, _small);
-
                     // process _large, which might need to be split again.
                     if (mpz_sizeinbase(_large, 2) > 32)
                     {
                         uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                        rb->num_uecm[2]++;
+                        rb->num_uecm[3]++;
 
                         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                         {
@@ -1035,7 +1056,7 @@ void check_batch_relation(relation_batch_t *rb,
             else if (mpz_sizeinbase(_large, 2) > 32)
             {
                 uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                rb->num_uecm[2]++;
+                rb->num_uecm[3]++;
 
                 if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                 {
@@ -1062,7 +1083,11 @@ void check_batch_relation(relation_batch_t *rb,
                     return;
                 }
 
-                lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                uint32_t f32 = (uint32_t)mpz_get_ui(_large);
+                if (f32 > 1)
+                {
+                    lp_r[num_r++] = f32;
+                }
             }
         }
         else
@@ -1079,7 +1104,8 @@ void check_batch_relation(relation_batch_t *rb,
         // gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f2r, 2), f2r);
 
         // we don't really know anything about f2r in this case other than that
-        // it has either several factors or large factors not in the GCD, or both.
+        // it either has several factors not in the GCD, any of which could be too big,
+        // or it could even be prime.  None of these scenarios is cost-benficial to pursue.
         // Note: we should never actually get here, because size-based checks on f2r
         // should eliminate this residue right away, rather than waste time on f1r first.
         rb->num_abort[7]++;
@@ -1334,41 +1360,91 @@ void check_batch_relation(relation_batch_t *rb,
     // from here, so we just mark this cofactor as a success and
     // calling code will put it into the buffer.
 
-    for (i = 0; i < MIN(4, num_r); i++)
+    for (i = 0; i < num_r; i++)
     {
         c->lp_r[i] = lp_r[i];
     }
+    for (; i < 4; i++)
+    {
+        c->lp_r[i] = 1;
+    }
     c->success = num_r;
 
-    //if (num_r == 3)
-    //{
-    //    mpz_set_ui(f1r, lp_r[0]);
-    //    mpz_mul_ui(f1r, f1r, lp_r[1]);
-    //    mpz_mul_ui(f1r, f1r, lp_r[2]);
-    //    mpz_mul_ui(f1r, f1r, lp_r[3]);
-    //
-    //    if (mpz_cmp(n, f1r) != 0)
-    //    {
-    //        gmp_printf("\n*********ERROR: tlp product of factors %Zd != input n %Zd\n", f1r, n);
-    //        printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-    //        c->success = 0;
-    //    }
-    //}
-    //
-    //if (num_r == 4)
-    //{
-    //    mpz_set_ui(f1r, lp_r[0]);
-    //    mpz_mul_ui(f1r, f1r, lp_r[1]);
-    //    mpz_mul_ui(f1r, f1r, lp_r[2]);
-    //    mpz_mul_ui(f1r, f1r, lp_r[3]);
-    //
-    //    if (mpz_cmp(n, f1r) != 0)
-    //    {
-    //        gmp_printf("\n*********ERROR: qlp product of factors %Zd != input n %Zd\n", f1r, n);
-    //        printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-    //        c->success = 0;
-    //    }
-    //}
+    if (0)
+    {
+        if (((lp_r[0] > 1) && (lp_r[1] > 1) && (lp_r[0] == lp_r[1])) ||
+            ((lp_r[0] > 1) && (lp_r[2] > 1) && (lp_r[0] == lp_r[2])) ||
+            ((lp_r[0] > 1) && (lp_r[3] > 1) && (lp_r[0] == lp_r[3])) ||
+            ((lp_r[1] > 1) && (lp_r[2] > 1) && (lp_r[1] == lp_r[2])) ||
+            ((lp_r[1] > 1) && (lp_r[3] > 1) && (lp_r[1] == lp_r[3])) ||
+            ((lp_r[2] > 1) && (lp_r[3] > 1) && (lp_r[2] == lp_r[3])))
+        {
+            //gmp_printf("*********: batch_factor found repeated factor for input %Zd, lcg = %lu\n", n, start_lcg);
+            gmp_printf("f1r: %Zd\n", rb->t0);
+            gmp_printf("f2r: %Zd\n", rb->t1);
+            printf("*********: %u,%u,%u,%u\n",
+                lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+
+            mpz_set_ui(f1r, lp_r[0]);
+            mpz_mul_ui(f1r, f1r, lp_r[1]);
+            mpz_mul_ui(f1r, f1r, lp_r[2]);
+            mpz_mul_ui(f1r, f1r, lp_r[3]);
+
+            gmp_printf("product of factors = %Zd, input = %Zd\n", f1r, n);
+        }
+    }
+
+    if (0) //num_r == 3)
+    {
+        mpz_set_ui(f1r, lp_r[0]);
+        mpz_mul_ui(f1r, f1r, lp_r[1]);
+        mpz_mul_ui(f1r, f1r, lp_r[2]);
+        mpz_mul_ui(f1r, f1r, lp_r[3]);
+    
+        if (mpz_cmp(n, f1r) != 0)
+        {
+            gmp_printf("\n*********ERROR: tlp product of factors %Zd != input n %Zd\n", f1r, n);
+            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+            c->success = 0;
+        }
+
+        if ((lp_r[0] == lp_r[1]) ||
+            (lp_r[0] == lp_r[2]) ||
+            (lp_r[0] == lp_r[3]) ||
+            (lp_r[1] == lp_r[2]) ||
+            (lp_r[1] == lp_r[3]) ||
+            (lp_r[2] == lp_r[3]))
+        {
+            gmp_printf("\n*********WARNING: tlp %Zd contains rare repeated factor\n", n);
+            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+        }
+    }
+    
+    if (0) //num_r == 4)
+    {
+        mpz_set_ui(f1r, lp_r[0]);
+        mpz_mul_ui(f1r, f1r, lp_r[1]);
+        mpz_mul_ui(f1r, f1r, lp_r[2]);
+        mpz_mul_ui(f1r, f1r, lp_r[3]);
+    
+        if (mpz_cmp(n, f1r) != 0)
+        {
+            gmp_printf("\n*********ERROR: qlp product of factors %Zd != input n %Zd\n", f1r, n);
+            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+            c->success = 0;
+        }
+
+        if ((lp_r[0] == lp_r[1]) ||
+            (lp_r[0] == lp_r[2]) ||
+            (lp_r[0] == lp_r[3]) ||
+            (lp_r[1] == lp_r[2]) ||
+            (lp_r[1] == lp_r[3]) ||
+            (lp_r[2] == lp_r[3]))
+        {
+            gmp_printf("\n*********WARNING: qlp %Zd contains rare repeated factor\n", n);
+            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
+        }
+    }
 
     return;
 }
@@ -1422,8 +1498,8 @@ void compute_remainder_tree(bintree_t* tree, uint32_t first, uint32_t last,
 
 /*------------------------------------------------------------------*/
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
-			uint32_t min_prime, uint32_t max_prime,
-			uint32_t lp_cutoff_r, uint32_t lp_cutoff_a, 
+			uint32_t min_prime, uint64_t max_prime,
+			uint64_t lp_cutoff_r, uint64_t lp_cutoff_a, 
 			print_relation_t print_relation,
             int do_prime_product) {
 

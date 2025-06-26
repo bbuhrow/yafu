@@ -88,6 +88,7 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 
 		if (VFLAG > 0)
 		{
+			printf("error Q != RHS\n");
 			gmp_printf("Q = %Zd, RHS = %Zd\n", Q, RHS);
 			gmp_printf("A = %Zd\nB = %Zd\n", a, b);
 			printf("offset = %u, parity = %d\n", offset, parity);
@@ -413,7 +414,10 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 
 	for (i = 0; i < s; i++)
 	{
-		p = fb->list->prime[qli[i]];
+		if (i == (s - 1))
+			p = qli[i]; 
+		else
+			p = fb->list->prime[qli[i]];
 
 		mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
 		mpz_mul(t1, t2, t2); //zSqr(&t2,&t1);
@@ -429,7 +433,13 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 			if (j == i)
 				continue;
 
-			q = fb->list->prime[qli[j]];
+			
+
+			if (j == (s - 1))
+				q = qli[j];
+			else
+				q = fb->list->prime[qli[j]];
+
 			mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
 			if (mpz_tdiv_ui(t2, q) != 0)
 			{
@@ -439,6 +449,7 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 			}
 		}
 	}
+
 
 	mpz_clear(t1);
 	mpz_clear(t2);

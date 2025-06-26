@@ -400,7 +400,14 @@ void siqs_dispatch(void *vptr)
         // generate a new poly A value for the thread we pulled out of the queue
         // using its dconf.  this is done by the master thread because it also 
         // stores the coefficients in a master list
-        new_poly_a(static_conf, t[tid].dconf, 0);
+        if (NUM_ALP == 1)
+        {
+            new_poly_a_test(static_conf, t[tid].dconf, 0);
+        }
+        else
+        {
+            new_poly_a(static_conf, t[tid].dconf, 0);
+        }
         tdata->work_fcn_id = 0;
 
         if (static_conf->do_batch)
@@ -1608,7 +1615,7 @@ void* process_poly(void* vptr)
     gettimeofday(&start, NULL);
 
     // used to print a little more status info for huge jobs.
-    if (sconf->digits_n > 110)
+    if (sconf->digits_n > 120)
         gettimeofday(&st, NULL);
 
     // update the gray code
@@ -1617,9 +1624,7 @@ void* process_poly(void* vptr)
     // update roots, etc.
     dconf->maxB = 1 << (dconf->curr_poly->s - 1);
     dconf->numB = 1;
-    computeBl(sconf, dconf, 1);
-
-    
+    computeBl(sconf, dconf, 1);  
 
 
 #if defined( USE_SS_SEARCH )
@@ -2191,7 +2196,6 @@ void* process_poly(void* vptr)
         }
 #endif
 
-        
 
         for (i = 0; i < num_blocks; i++)
         {
@@ -2255,7 +2259,9 @@ void* process_poly(void* vptr)
             }
 #endif
 
+
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
+
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
@@ -2282,7 +2288,6 @@ void* process_poly(void* vptr)
         }
 #endif
 
-        
 
         for (i = 0; i < num_blocks; i++)
         {
@@ -2334,16 +2339,15 @@ void* process_poly(void* vptr)
         t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
         gettimeofday(&start1, NULL);
 
-
         // print a little more status info for huge jobs.
-        if (sconf->digits_n > 110)
+        if (sconf->digits_n >= 120)
         {
             gettimeofday(&stop, NULL);
             t_time = ytools_difftime(&st, &stop);
 
             if (t_time > 5)
             {
-				if (tdata->tindex == 0)
+				//if (tdata->tindex == 0)
 				{
 					uint32_t dlp = sconf->dlp_useful + dconf->dlp_useful;
 					uint32_t tlp = sconf->tlp_useful + dconf->tlp_useful;
@@ -2355,12 +2359,6 @@ void* process_poly(void* vptr)
 
 					if (sconf->use_dlp >= 2)
 					{
-						//printf("B: %u of %u, %u ppr, %u tpr, %u tlp attempts"
-						//	" (%1.2f rels/sec)\n",
-						//	dconf->numB, dconf->maxB, dlp, tlp, att,
-						//	(double)dconf->buffered_rels / t_time);
-
-
                         if (sconf->do_batch)
                         {
                             char suffix;
@@ -2379,31 +2377,40 @@ void* process_poly(void* vptr)
 
                             t_time = ytools_difftime(&sconf->totaltime_start, &stop);
 
-                            //printf("thread: %u full, %u slp, "
-                            //    "%u dlp, %u tlp (%1.1f%c batched), B = %u of %u\n",
-                            //    dconf->num_full, dconf->num_slp,
-                            //    dconf->dlp_useful, dconf->tlp_useful, (float)batched, suffix,
-                            //    dconf->numB, dconf->maxB);
-
                             if (sconf->num_lp == 3)
                             {
-                                printf("%u full, (%u,%u,%u) lp, "
-                                    "(%1.1f%c raw-GCD), B = %u of %u \r",
+                                uint32_t total_rels = sconf->num_full + dconf->num_full +
+                                    sconf->num_slp + dconf->num_slp +
+                                    sconf->dlp_useful + dconf->dlp_useful +
+                                    sconf->tlp_useful + dconf->tlp_useful;
+
+                                printf("tid %d: %u full, (%u,%u,%u) lp, "
+                                    "(%1.1f%c raw-GCD), B = %u of %u, (%1.2f r/sec) \r",
+                                    tdata->tindex,
                                     sconf->num_full + dconf->num_full, sconf->num_slp + dconf->num_slp,
                                     sconf->dlp_useful + dconf->dlp_useful,
                                     sconf->tlp_useful + dconf->tlp_useful,
-                                    (float)batched, suffix, dconf->numB, dconf->maxB); 
+                                    (float)batched, suffix, dconf->numB, dconf->maxB),
+                                    (double)(total_rels) / t_time;
                                 
                             }
                             else if(sconf->num_lp == 4)
                             {
-                                printf("%u full, (%u,%u,%u,%u) lp, "
-                                    "(%1.1f%c raw-GCD), B = %u of %u \r",
+                                uint32_t total_rels = sconf->num_full + dconf->num_full +
+                                    sconf->num_slp + dconf->num_slp +
+                                    sconf->dlp_useful + dconf->dlp_useful +
+                                    sconf->tlp_useful + dconf->tlp_useful +
+                                    sconf->qlp_useful + dconf->qlp_useful;
+
+                                printf("tid %d: %u full, (%u,%u,%u,%u) lp, "
+                                    "(%1.1f%c raw-GCD), B = %u of %u, (%1.2f r/sec) \r",
+                                    tdata->tindex, 
                                     sconf->num_full + dconf->num_full, sconf->num_slp + dconf->num_slp,
                                     sconf->dlp_useful + dconf->dlp_useful,
                                     sconf->tlp_useful + dconf->tlp_useful,
                                     sconf->qlp_useful + dconf->qlp_useful,
-                                    (float)batched, suffix, dconf->numB, dconf->maxB);
+                                    (float)batched, suffix, dconf->numB, dconf->maxB,
+                                    (double)(total_rels) / t_time);
                             }
 
                             //printf("%u full, %u slp, "
@@ -2424,9 +2431,10 @@ void* process_poly(void* vptr)
                         }
                         else
                         {
-                            printf("last: %u, now: B = %u of %u, %u full, %u slp, "
+                            printf("last (tid %u): %u, now: B = %u of %u, %u full, %u slp, "
                                 "%u dlp (%ukatt, %ukprp), "
                                 "%u tlp (%ukatt, %ukprp), (%1.2f r/sec)\n",
+                                tdata->tindex, 
                                 sconf->last_numfull + sconf->last_numpartial, dconf->numB, dconf->maxB,
                                 dconf->num_full, dconf->num_slp,
                                 dconf->dlp_useful, dconf->attempted_squfof / 1000,
@@ -2438,10 +2446,12 @@ void* process_poly(void* vptr)
 					}
 					else
 					{
-						printf("Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\n",
-							dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
+						printf("tid %u: Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\r",
+                            tdata->tindex, dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
 							(double)dconf->buffered_rels / t_time);
 					}
+
+                    fflush(stdout);
 
 					// reset the timer
 					gettimeofday(&st, NULL);
@@ -2797,7 +2807,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 
         if (sconf->obj->qs_obj.gbl_override_lpb > 0)
         {
-            printf("single large prime cutoff: %u (2^%d)\n",
+            printf("single large prime cutoff: %"PRIu64" (2^%d)\n",
                 sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
         }
         else if (sconf->large_mult > 1000)
@@ -2812,18 +2822,18 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 
             if (sconf->large_prime_max == (1 << bits))
             {
-                printf("single large prime cutoff: %u (2^%d)\n",
+                printf("single large prime cutoff: %"PRIu64" (2^%d)\n",
                     sconf->large_prime_max, bits);
             }
             else
             {
-                printf("single large prime cutoff: %u\n",
+                printf("single large prime cutoff: %"PRIu64"\n",
                     sconf->large_prime_max);
             }
         }
         else
         {
-            printf("single large prime cutoff: %u (%d * pmax)\n",
+            printf("single large prime cutoff: %"PRIu64" (%d * pmax)\n",
                 sconf->large_prime_max, sconf->large_mult);
         }
 
@@ -2938,7 +2948,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->factor_base->B,sconf->pmax);
 		if (sconf->obj->qs_obj.gbl_override_lpb > 0)
 		{
-			logprint(sconf->obj->logfile, "single large prime cutoff: %u (2^%d)\n",
+			logprint(sconf->obj->logfile, "single large prime cutoff: %"PRIu64" (2^%d)\n",
 				sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
 		}
         else if (sconf->large_mult > 1000)
@@ -2951,14 +2961,14 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
                 bits++;
             }
 
-            if (sconf->large_prime_max == (1 << bits))
+            if (sconf->large_prime_max == (1ull << bits))
             {
-                logprint(sconf->obj->logfile, "single large prime cutoff: %u (2^%d)\n",
+                logprint(sconf->obj->logfile, "single large prime cutoff: %"PRIu64" (2^%d)\n",
                     sconf->large_prime_max, bits);
             }
             else
             {
-                logprint(sconf->obj->logfile, "single large prime cutoff: %u\n",
+                logprint(sconf->obj->logfile, "single large prime cutoff: %"PRIu64"\n",
                     sconf->large_prime_max);
             }
         }
@@ -3010,7 +3020,6 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->num_blocks,sconf->qs_blocksize);
 		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n", 
 			mpz_sizeinbase(sconf->target_a, 2) / 11);
-		logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
 
         if (sconf->knmod8 == 1)
         {
@@ -3502,7 +3511,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->do_batch = 0;
     if (sconf->do_batch)
     {       
-        uint32_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
             // (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv;
         // sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         dconf->do_batch = 1;
@@ -4317,7 +4326,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         }
         else
         {
-            sconf->large_prime_max = (1 << sconf->obj->qs_obj.gbl_override_lpb);
+            sconf->large_prime_max = (1ull << sconf->obj->qs_obj.gbl_override_lpb);
         }
 	}
 
@@ -4493,7 +4502,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         gettimeofday(&locstart, NULL);
 
         //uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
-        uint32_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         sconf->rb[0].num_uecm[0] = 0;
         sconf->rb[0].num_uecm[1] = 0;
         sconf->rb[0].num_uecm[2] = 0;
@@ -4741,7 +4750,14 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // so long that filtering costs are negligible, and good
         // data will emerge from the filtering runs that might hone in
         // cycle formation predictions.
-        sconf->check_inc = 1000;        // run filtering after finding this many fulls
+        if (NUM_ALP == 1)
+        {
+            sconf->check_inc = 100000;        // run filtering after finding this many fulls
+        }
+        else
+        {
+            sconf->check_inc = 1000;        // run filtering after finding this many fulls
+        }
     }
     else
     {
@@ -5019,8 +5035,13 @@ int update_check(static_conf_t *sconf)
             // use the number of full relations found as a gauge for
             // when to filter.  At the end of a TLP run with typical parameters we
             // have about 20% fulls and 80% cycles.
+#if NUM_ALP == 1
+            if ((total_rels > check_total) &&
+                (sconf->num_found < (sconf->factor_base->B + sconf->num_extra_relations)))
+#else
             if ((sconf->num_full > check_total) &&
                 (sconf->num_found < (sconf->factor_base->B + sconf->num_extra_relations)))
+#endif
 			{
 				fact_obj_t *obj = sconf->obj;
 				siqs_r *relation_list;
@@ -5379,7 +5400,14 @@ int update_check(static_conf_t *sconf)
                         // so long that filtering costs are negligible, and good
                         // data will emerge from the filtering runs that might hone in
                         // cycle formation predictions.
-                        sconf->check_inc = 1000;
+                        if (NUM_ALP > 0)
+                        {
+                            sconf->check_inc = 100000;
+                        }
+                        else
+                        {
+                            sconf->check_inc = 1000;
+                        }
 
 						// this is a better approximation than just assuming that 
 						// cycle formation stays constant.
@@ -5419,7 +5447,14 @@ int update_check(static_conf_t *sconf)
 									sconf->check_inc);
 							}
 
-                            sconf->check_inc = MIN(sconf->check_inc, 1000);
+                            if (NUM_ALP > 0)
+                            {
+                                sconf->check_inc = MIN(sconf->check_inc, 100000);
+                            }
+                            else
+                            {
+                                sconf->check_inc = MIN(sconf->check_inc, 1000);
+                            }
 
 							for (j = 0; j < num_cycles; j++)
 							{
@@ -5590,18 +5625,31 @@ int update_final(static_conf_t *sconf)
 			gmp_printf("trial division touched %lu sieve locations out of %Zd\n",
 				sconf->num, tmp1);
 
+            if (sconf->use_dlp)
+            {
+                printf("dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
+                    sconf->failed_squfof, sconf->attempted_squfof,
+                    sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
+            }
+
 			if (sconf->use_dlp >= 2)
 			{
-				printf("tlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
-					sconf->failed_cosiqs, sconf->attempted_cosiqs,
-					sconf->tlp_outside_range, sconf->tlp_prp, sconf->tlp_useful);
-			}
-
-			if (sconf->use_dlp)
-			{
-				printf("dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
-					sconf->failed_squfof, sconf->attempted_squfof,
-					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
+                printf("batch-GCD statistics:\n");
+                printf("\tattempts: %u\n", 
+                    sconf->rb[0].num_attempt);
+                printf("\tuecm1/uecm2/uecm3/uecm4/tecm1/tecm2/qs: %u,%u,%u,%u,%u,%u,%u\n",
+                    sconf->rb[0].num_uecm[0], sconf->rb[0].num_uecm[1], sconf->rb[0].num_uecm[2],
+                    sconf->rb[0].num_uecm[3], sconf->rb[0].num_tecm, sconf->rb[0].num_tecm2,
+                    sconf->rb[0].num_qs);
+                printf("\taborts: %u,%u,%u,%u,%u,%u,%u,%u\n",
+                    sconf->rb[0].num_abort[0], sconf->rb[0].num_abort[1], sconf->rb[0].num_abort[2],
+                    sconf->rb[0].num_abort[3], sconf->rb[0].num_abort[4], sconf->rb[0].num_abort[5],
+                    sconf->rb[0].num_abort[6], sconf->rb[0].num_abort[7]);
+				printf("\ttlp-tdiv: %u outside range, %u useful\n",
+					sconf->tlp_outside_range, sconf->tlp_useful);
+                if (sconf->use_dlp >= 3)
+                    printf("\tqlp-tdiv: %u outside range, %u useful\n",
+                        sconf->qlp_outside_range, sconf->qlp_useful);
 			}
 
             printf("total reports = %lu, total surviving reports = %lu\ntotal blocks sieved = %lu, "
@@ -5639,19 +5687,34 @@ int update_final(static_conf_t *sconf)
 			logprint(sieve_log, "total blocks sieved = %lu, avg surviving reports per block = %1.2f\n", 
 				sconf->total_blocks, (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
 			
-			if (sconf->use_dlp >= 2)
-			{
-				logprint(sieve_log, "tlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
-					sconf->failed_cosiqs, sconf->attempted_cosiqs,
-					sconf->tlp_outside_range, sconf->tlp_prp, sconf->tlp_useful);
-			}
+            if (sconf->use_dlp)
+            {
+                logprint(sieve_log, "dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
+                    sconf->failed_squfof, sconf->attempted_squfof,
+                    sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
+            }
 
-			if (sconf->use_dlp)
-			{
-				logprint(sieve_log, "dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
-					sconf->failed_squfof, sconf->attempted_squfof,
-					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
-			}
+            if (sconf->use_dlp >= 2)
+            {
+                logprint(sieve_log, "batch-GCD statistics:\n");
+                logprint(sieve_log, "attempts: %u\n",
+                    sconf->rb[0].num_attempt);
+                logprint(sieve_log, "uecm1/uecm2/uecm3/uecm4/tecm1/tecm2/qs: %u,%u,%u,%u,%u,%u,%u\n",
+                    sconf->rb[0].num_uecm[0], sconf->rb[0].num_uecm[1], sconf->rb[0].num_uecm[2],
+                    sconf->rb[0].num_uecm[3], sconf->rb[0].num_tecm, sconf->rb[0].num_tecm2,
+                    sconf->rb[0].num_qs);
+                logprint(sieve_log, "aborts: %u,%u,%u,%u,%u,%u,%u,%u\n",
+                    sconf->rb[0].num_abort[0], sconf->rb[0].num_abort[1], sconf->rb[0].num_abort[2],
+                    sconf->rb[0].num_abort[3], sconf->rb[0].num_abort[4], sconf->rb[0].num_abort[5],
+                    sconf->rb[0].num_abort[6], sconf->rb[0].num_abort[7]);
+                logprint(sieve_log, "tlp-tdiv: %u outside range, %u useful\n",
+                    sconf->tlp_outside_range, sconf->tlp_useful);
+                if (sconf->use_dlp >= 3)
+                    logprint(sieve_log, "qlp-tdiv: %u outside range, %u useful\n",
+                        sconf->qlp_outside_range, sconf->qlp_useful);
+            }
+
+			
 		}
 
 		fflush(stdout);

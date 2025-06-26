@@ -631,59 +631,30 @@ void set_aprime_roots(static_conf_t *sconf, uint32_t val, int *qli, int s,
 
     if (action == 1)
     {
-        for (i = 0; i<s; i++)
-        {
-            if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
-            {
-                fb->root1[qli[i]] = 0;
-                fb->prime[qli[i]] = 0;
-                fb->root2[qli[i]] = 0;
-            }
-            else
-            {
-                fb->root1[qli[i]] = 0xffff;
-                fb->root2[qli[i]] = 0xffff;
-            }
-        }
-    }
-    else
-    {
-        for (i = 0; i < s; i++)
-        {
-            fb->root1[qli[i]] = 0xffff;
-            fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
-            fb->root2[qli[i]] = 0xffff;
-        }
-    }
-
-    /*
-	for (i=0;i<s;i++)
-	{		
-		
-		if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
+		for (i = 0; i < s - NUM_ALP; i++)
 		{
-			if (action == 1)
+			if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
 			{
-				//printf("zeroing roots and primes at index %d, prime = %u\n", qli[i], fullfb->list->prime[qli[i]]);
 				fb->root1[qli[i]] = 0;
 				fb->prime[qli[i]] = 0;
 				fb->root2[qli[i]] = 0;
 			}
 			else
 			{
-				//printf("restoring roots and primes at index %d, prime = %u\n", qli[i], fullfb->list->prime[qli[i]]);
 				fb->root1[qli[i]] = 0xffff;
-				fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
 				fb->root2[qli[i]] = 0xffff;
 			}
 		}
-		else
+    }
+    else
+    {
+		for (i = 0; i < s - NUM_ALP; i++)
 		{
 			fb->root1[qli[i]] = 0xffff;
+			fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
 			fb->root2[qli[i]] = 0xffff;
 		}
-	}
-    */
+    }
 
 	return;
 }

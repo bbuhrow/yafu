@@ -234,7 +234,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	// check for additional factors of the a-poly factors
 	// make a separate list then merge it with fb_offsets
 	it=0;	// max 20 factors allocated for - should be overkill
-	for (j = 0; (j < dconf->curr_poly->s) && (it < 20); j++)
+	for (j = 0; (j < dconf->curr_poly->s - NUM_ALP) && (it < 20); j++)
 	{
         prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
 
@@ -277,7 +277,10 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		uint32_t large_prime[4];
 		
 		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
-		large_prime[1] = 1;
+		if (NUM_ALP == 1)
+            large_prime[1] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
+        else
+            large_prime[1] = 1;
 		large_prime[2] = 1;
         large_prime[3] = 1;
 
@@ -294,7 +297,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 #endif
 
 
-		if (large_prime[0] == 1)
+		if ((large_prime[0] == 1) && (NUM_ALP == 0))
 			dconf->num_full++;
 		else
 			dconf->num_slp++;
@@ -485,19 +488,16 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 			{
 				uint32_t large_prime[4];
 
-				//large_prime[0] = (uint32_t)f64;
-				//large_prime[1] = (uint32_t)(q64 / f64);
-				//large_prime[2] = 1;
-                //
-				//if ((large_prime[0] < sconf->large_prime_max) &&
-				//	(large_prime[1] < sconf->large_prime_max))
                 if ((f64 < (uint64_t)sconf->large_prime_max) && 
                     ((q64 / f64) < (uint64_t)sconf->large_prime_max))
 				{
 					//add this one
                     large_prime[0] = (uint32_t)f64;
                     large_prime[1] = (uint32_t)(q64 / f64);
-                    large_prime[2] = 1;
+                    if (NUM_ALP == 1)
+                        large_prime[2] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
+                    else
+                        large_prime[2] = 1;
                     large_prime[3] = 1;
 
 					dconf->dlp_useful++;
@@ -534,9 +534,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	// quick check if Q is obviously too big.
 	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 96)
 	{
-		uint64_t res;
-		uint32_t numit = 128;
-
 		double qfloat = mpz_get_d(dconf->Qvals[report_num]);
 
 //#define OUTPUT_TLP_ATTEMPT_DETAILS
@@ -545,8 +542,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
         // the defined tlp bounds.
 		if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
 		{
-			uint32_t large_prime[4];
-			uint32_t r;
 
 #ifdef OUTPUT_TLP_ATTEMPT_DETAILS
 			FILE *fid;
@@ -673,16 +668,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             sconf->rb[0].num_abort[6], sconf->rb[0].num_abort[7]);
                     }
 
-                    //dconf->rb.conversion_ratio = 
-                    //    (double)dconf->rb.num_success / (double)dconf->rb.num_relations;
                     rb->conversion_ratio =
                           (double)rb->num_success / (double)rb->num_relations;
-
-                    //if (VFLAG > 0)
-                    //{
-                    //    printf("found %u new relations in batch of %u\n", 
-                    //        dconf->rb.num_success, dconf->rb.num_relations);
-                    //}
 
                     // take our new tlp relations and buffer them to be
                     // saved out to the data file.
@@ -730,68 +717,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                 // if batch factoring, we're done now.
                 return;
             }
-
-            // if we're here, that means we're not batch factoring.  So we
-            // process each potential tlp as it comes, just like with slp
-            // and dlp relations.  First step is to reject primes.
-            // could maybe use a quicker and dirtier method to reject primes...
-			res = mpz_probab_prime_p(dconf->Qvals[report_num], 1);
-
-			if (res) //mpz_cmp_ui(dconf->gmptmp3, 1) == 0)
-			{
-#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
-				fid = fopen(fname, "a");
-				fprintf(fid, "%1.0lf,0\n", qfloat);
-				fclose(fid);
-#endif
-				dconf->tlp_prp++;
-				return;
-			}
-
-			// now with superfast ecm, tinyqs is obsolete.  But we
-            // still use "attempted_cosiqs" to track how many tlp's
-            // we've tried to factor.
-			dconf->attempted_cosiqs++;
-
-			mpz_set_ui(dconf->gmptmp1, 0);
-			mpz_set_ui(dconf->gmptmp2, 0);
-
-            {
-                int numf = split_3lp_tdiv(dconf->Qvals[report_num],
-                    dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3,
-                    sconf->large_prime_max, &dconf->lcg_state);
-                
-                if (numf == 2)
-                {
-                    large_prime[0] = mpz_get_ui(dconf->gmptmp1);
-                    large_prime[1] = mpz_get_ui(dconf->gmptmp2);
-                    large_prime[2] = 1;
-                    large_prime[3] = 1;
-
-                    printf("split_3lp found a dlp: %u,%u\n",
-                        large_prime[0], large_prime[1]);
-
-                    dconf->tlp_useful++;
-                    buffer_relation(offset, large_prime, smooth_num + 1,
-                        fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
-                        polya_factors, it, 1);
-
-                }
-                else if (numf == 3)
-                {
-                    large_prime[0] = mpz_get_ui(dconf->gmptmp1);
-                    large_prime[1] = mpz_get_ui(dconf->gmptmp2);
-                    large_prime[2] = mpz_get_ui(dconf->gmptmp3);
-                    large_prime[3] = 1;
-
-                    dconf->tlp_useful++;
-                    printf("should never get here\n");
-                    buffer_relation(offset, large_prime, smooth_num + 1,
-                        fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
-                        polya_factors, it, 1);
-
-                }
-            }
 		}
 		else
 		{
@@ -810,9 +735,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
     // quick check if Q is obviously too big.
     if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 128)
     {
-        uint64_t res;
-        uint32_t numit = 128;
-
         double qfloat = mpz_get_d(dconf->Qvals[report_num]);
 
         //#define OUTPUT_TLP_ATTEMPT_DETAILS
@@ -821,8 +743,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
         // the defined qlp bounds.
         if ((qfloat > sconf->max_fb4) && (qfloat < sconf->large_prime_max4))
         {
-            uint32_t large_prime[4];
-            uint32_t r;
 
 #ifdef OUTPUT_TLP_ATTEMPT_DETAILS
             FILE* fid;
@@ -949,16 +869,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             sconf->rb[0].num_abort[6], sconf->rb[0].num_abort[7]);
                     }
 
-                    //dconf->rb.conversion_ratio = 
-                    //    (double)dconf->rb.num_success / (double)dconf->rb.num_relations;
                     rb->conversion_ratio =
                         (double)rb->num_success / (double)rb->num_relations;
-
-                    //if (VFLAG > 0)
-                    //{
-                    //    printf("found %u new relations in batch of %u\n", 
-                    //        dconf->rb.num_success, dconf->rb.num_relations);
-                    //}
 
                     // take our new tlp relations and buffer them to be
                     // saved out to the data file.
@@ -981,6 +893,11 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                                 dconf->dlp_useful++;
                             else if (c->success == 1)
                                 dconf->num_slp++;
+
+                            if (NUM_ALP == 1)
+                                c->lp_r[3] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
+                            else
+                                c->lp_r[3] = 1;
 
                             buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
                                 f, c->a, c->b, parity, dconf, NULL, 0, 1);
@@ -1090,18 +1007,10 @@ void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factor
     rel->num_factors = num_factors + num_polya_factors;
 #endif
 
-
     rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
 	rel->large_prime[2] = large_prime[2];
     rel->large_prime[3] = large_prime[3];
-
-    //if ((conf->num_lp == 4) && (rel->large_prime[3] > 1))
-    //{
-    //    printf("buffered qlp relation at a,b = %d,%d, offset %d, side %d, lp=%u,%u,%u,%u\n",
-    //        rel->apoly_idx, rel->poly_idx, rel->sieve_offset, rel->parity,
-    //        rel->large_prime[0], rel->large_prime[1], rel->large_prime[2], rel->large_prime[3]);
-    //}
 
 	conf->buffered_rels++;
 	return;
@@ -1137,57 +1046,28 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 
 		r = conf->in_mem_relations + conf->buffered_rels++;
 
-        if (conf->use_dlp == 2)
+        // insertion sort 3lp or more
+        if (conf->num_lp > 2)
         {
-            // store them sorted in ascending order
-            if (large_prime[0] < large_prime[1])
+            i = 1;
+            while (i < conf->num_lp)
             {
-                if (large_prime[1] < large_prime[2])
+                uint32_t j = i;
+                while ((j > 0) && (large_prime[j - 1] > large_prime[j]))
                 {
-                    r->large_prime[0] = large_prime[0];
-                    r->large_prime[1] = large_prime[1];
-                    r->large_prime[2] = large_prime[2];
+                    uint32_t tmp = large_prime[j - 1];
+                    large_prime[j - 1] = large_prime[j];
+                    large_prime[j] = tmp;
+                    j = j - 1;
                 }
-                else
-                {
-                    if (large_prime[2] < large_prime[0])
-                    {
-                        r->large_prime[0] = large_prime[2];
-                        r->large_prime[1] = large_prime[0];
-                        r->large_prime[2] = large_prime[1];
-                    }
-                    else
-                    {
-                        r->large_prime[0] = large_prime[0];
-                        r->large_prime[1] = large_prime[2];
-                        r->large_prime[2] = large_prime[1];
-                    }
-                }
+                i = i + 1;
             }
-            else
+
+            for (i = 0; i < conf->num_lp; i++)
             {
-                if (large_prime[0] < large_prime[2])
-                {
-                    r->large_prime[0] = large_prime[1];
-                    r->large_prime[1] = large_prime[0];
-                    r->large_prime[2] = large_prime[2];
-                }
-                else
-                {
-                    if (large_prime[2] < large_prime[1])
-                    {
-                        r->large_prime[0] = large_prime[2];
-                        r->large_prime[1] = large_prime[1];
-                        r->large_prime[2] = large_prime[0];
-                    }
-                    else
-                    {
-                        r->large_prime[0] = large_prime[1];
-                        r->large_prime[1] = large_prime[2];
-                        r->large_prime[2] = large_prime[0];
-                    }
-                }
+                r->large_prime[i] = large_prime[i];
             }
+
         }
         else
         {
@@ -1255,7 +1135,9 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
             }
 
             if (conf->num_lp == 3)
+            {
                 sprintf(buf + buf_offset, "L %x %x %x\n", large_prime[0], large_prime[1], large_prime[2]);
+            }
             else if (conf->num_lp == 4)
             {
                 sprintf(buf + buf_offset, "L %x %x %x %x\n", large_prime[0], large_prime[1],
@@ -1269,62 +1151,6 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
             else
                 sprintf(buf + buf_offset, "L %x %x\n", large_prime[1], large_prime[0]);
         }
-
-		if (0)
-		{
-            // store them sorted in ascending order
-			if (large_prime[0] < large_prime[1])
-			{
-				if (large_prime[1] < large_prime[2])
-				{
-					lp[0] = large_prime[0];
-					lp[1] = large_prime[1];
-					lp[2] = large_prime[2];
-				}
-				else
-				{
-					if (large_prime[2] < large_prime[0])
-					{
-						lp[0] = large_prime[2];
-						lp[1] = large_prime[0];
-						lp[2] = large_prime[1];
-					}
-					else
-					{
-						lp[0] = large_prime[0];
-						lp[1] = large_prime[2];
-						lp[2] = large_prime[1];
-					}
-				}
-			}
-			else
-			{
-				if (large_prime[0] < large_prime[2])
-				{
-					lp[0] = large_prime[1];
-					lp[1] = large_prime[0];
-					lp[2] = large_prime[2];
-				}
-				else
-				{
-					if (large_prime[2] < large_prime[1])
-					{
-						lp[0] = large_prime[2];
-						lp[1] = large_prime[1];
-						lp[2] = large_prime[0];
-					}
-					else
-					{
-						lp[0] = large_prime[1];
-						lp[1] = large_prime[2];
-						lp[2] = large_prime[0];
-					}
-				}
-			}
-
-			i += sprintf(buf + i, "L %x %x %x\n", lp[0], lp[1], lp[2]);
-		}
-		
 
 		savefile_write_line(&obj->qs_obj.savefile, buf);		
 	}

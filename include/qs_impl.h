@@ -63,7 +63,7 @@
 #endif
 
 // harebrained idea
-#define NUM_ALP 1
+#define NUM_ALP 0
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
@@ -421,7 +421,7 @@ typedef struct {
 
     struct timeval totaltime_start;	// start time of this job
 
-    uint32_t large_prime_max;		// the cutoff value for keeping a partial
+    uint64_t large_prime_max;		// the cutoff value for keeping a partial
                                     // relation; actual value, not a multiplier
     uint64_t max_fb2;				// the square of the largest factor base prime 
     uint64_t large_prime_max2;		// the cutoff value for factoring dlp-partials 

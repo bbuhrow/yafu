@@ -876,10 +876,17 @@ done:
 	}
 	else
 	{
-		if (VFLAG > 3)
+		if (VFLAG > 2)
 		{
-			gmp_printf("target A: %Zd (%u bits), generated A: %Zd (%u bits)\n", target_a,
-				(uint32_t)mpz_sizeinbase(target_a, 2), poly_a, (uint32_t)mpz_sizeinbase(poly_a, 2));
+			double ratio = mpz_get_d(target_a) / mpz_get_d(poly_a);
+			gmp_printf("target A: %u bits, generated ratio: %1.9f, last factor target: %u bits, #factors: %u (",
+				(uint32_t)mpz_sizeinbase(target_a, 2), ratio, too_close, poly->s);
+
+			for (i = 0; i < poly->s; i++)
+			{
+				printf("%u ", afact[i]);
+			}
+			printf(")\n");
 		}
 	}
 
@@ -940,16 +947,29 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 
     for (i = 0; i < s; i++)
     {
-        prime = fb->list->prime[qli[i]];
-        root1 = modsqrt[qli[i]];
-        root2 = prime - root1;
+		if ((i == (s - 1)) && (NUM_ALP == 1))
+		{
+			uint64_t tmp64;
+			prime = qli[i];
+			ShanksTonelli_1(mpz_tdiv_ui(sconf->n, prime), prime, &tmp64);
+			root1 = tmp64;
+		}
+		else
+		{
+			prime = fb->list->prime[qli[i]];
+			root1 = modsqrt[qli[i]];
+		}
+
+        //prime = fb->list->prime[qli[i]];
+		//root1 = modsqrt[qli[i]];
+        //root2 = prime - root1;
 
         mpz_tdiv_q_ui(dconf->gmptmp1, poly->mpz_poly_a, prime);
         amodql = (uint32_t)mpz_tdiv_ui(dconf->gmptmp1, (uint64_t)prime);
         amodql = modinv_1(amodql, prime);
 
         //the primes will all be < 65536, so we can multiply safely
-        gamma = (root1 * amodql) % prime;
+        gamma = (uint32_t)(((uint64_t)root1 * (uint64_t)amodql) % (uint64_t)prime);
 
         //check if the other root makes gamma smaller
         if (gamma > (prime >> 1))

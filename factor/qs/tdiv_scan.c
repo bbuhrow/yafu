@@ -953,7 +953,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     uint64_t* sieveblock;
     uint32_t* sieveblock32;
 
-    if (sconf->use_dlp == 2)
+    if (sconf->use_dlp >= 2)
     {
 		// In the triple large prime variation we allow
 		// the cutoff value to exceed 127, so that we can 
