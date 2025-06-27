@@ -402,7 +402,11 @@ void siqs_dispatch(void *vptr)
         // stores the coefficients in a master list
         if (NUM_ALP == 1)
         {
-            new_poly_a_test(static_conf, t[tid].dconf, 0);
+            // try every other poly?
+            //if (static_conf->total_poly_a & 1)
+                new_poly_a_test(static_conf, t[tid].dconf, 0);
+            //else
+            //    new_poly_a(static_conf, t[tid].dconf, 0);
         }
         else
         {
@@ -4752,7 +4756,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // cycle formation predictions.
         if (NUM_ALP == 1)
         {
-            sconf->check_inc = 20000;        // run filtering after finding this many fulls
+            sconf->check_inc = 100000;        // run filtering after finding this many fulls
         }
         else
         {
@@ -5413,7 +5417,7 @@ int update_check(static_conf_t *sconf)
                         // cycle formation predictions.
                         if (NUM_ALP > 0)
                         {
-                            sconf->check_inc = 20000;
+                            sconf->check_inc = 100000;
                         }
                         else
                         {
@@ -5460,7 +5464,7 @@ int update_check(static_conf_t *sconf)
 
                             if (NUM_ALP > 0)
                             {
-                                sconf->check_inc = 20000; // MIN(sconf->check_inc, 100000);
+                                sconf->check_inc = 100000; // MIN(sconf->check_inc, 100000);
                             }
                             else
                             {

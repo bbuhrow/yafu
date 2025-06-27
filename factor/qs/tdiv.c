@@ -593,9 +593,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     {
                         printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
                     }
-                    mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                        dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    mpz_set_ui(dconf->gmptmp1, 0);
+                    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
                 }
                 else
                 {
@@ -713,9 +713,12 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
+                            c->extra_f = c->a >> 32;
+                            c->a &= 0xffffffffull;
+
                             if (c->extra_f > 0)
                             {
-                                printf("buffering TLP + extra factor %u\n", c->extra_f);
+                                //printf("buffering TLP + extra factor %u\n", c->extra_f);
                                 c->lp_r[c->success++] = c->extra_f;
                             }
 

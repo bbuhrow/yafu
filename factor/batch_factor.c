@@ -268,16 +268,15 @@ void relation_to_gmp(relation_batch_t *rb,
 	
     mpz_ptr num1 = rb->f1a, num2 = rb->f2a, num3 = rb->n;
 
+    if (c->extra_f > 0)
+    {
+        printf("extra_f is %u in relation_to_gmp\n", c->extra_f);
+    }
+
 	if (c->lp_r_num_words > 1 && c->lp_a_num_words > 1) {
 
 		/* rational and algebraic parts need to be
 		   multiplied together first */
-
-		//mp_clear(&num1);
-		//mp_clear(&num2);
-		//num1.nwords = c->lp_r_num_words;
-		//for (i = 0; i < c->lp_r_num_words; i++)
-		//	num1.val[i] = f[i];
 
         mpz_set_ui(num1, f[0]);
         for (i = 1; i < c->lp_r_num_words; i++)
@@ -286,10 +285,7 @@ void relation_to_gmp(relation_batch_t *rb,
             mpz_add_ui(num1, num1, f[i]);
         }
 
-		//num2.nwords = c->lp_a_num_words;
 		f += c->lp_r_num_words;
-		//for (i = 0; i < c->lp_a_num_words; i++)
-		//	num2.val[i] = f[i];
         mpz_set_ui(num2, f[0]);
         for (i = 1; i < c->lp_a_num_words; i++)
         {
@@ -302,17 +298,12 @@ void relation_to_gmp(relation_batch_t *rb,
 	else {
 		/* no multiply necesary */
 
-		//mp_clear(&num3);
 		nwords = c->lp_r_num_words;
 
 		if (c->lp_a_num_words > 1) {
 			nwords = c->lp_a_num_words;
 			f += c->lp_r_num_words;
 		}
-
-		//num3.nwords = nwords;
-		//for (i = 0; i < nwords; i++)
-		//	num3.val[i] = f[i];
 
         mpz_set_ui(num3, f[nwords - 1]);
         for (j = nwords - 2; j >= 0; j--)
@@ -637,6 +628,11 @@ void check_batch_relation(relation_batch_t *rb,
 	   The rational part will split into a cofactor with all 
 	   factors <= the largest prime in rb->prime_product (stored
 	   in f1r) and a cofactor with all factors larger (stored in f2r) */
+
+    if (c->extra_f > 0)
+    {
+        printf("extra_f is %u in check_batch_relation\n", c->extra_f);
+    }
 
     // the larger we make lp_cutoff_r, the more TLP's we will find, at
     // the cost of having to split more TLP candidates in f1r.
@@ -1546,7 +1542,7 @@ void relation_batch_free(relation_batch_t *rb) {
 }
 
 /*------------------------------------------------------------------*/
-void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
+void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
 			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r_in,
 			uint32_t *factors_a, uint32_t num_factors_a, 
@@ -1577,12 +1573,6 @@ void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
     c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 0;
     c->success = 0;
     c->extra_f = 0;
-
-    if (mpz_cmp_ui(unfactored_a_in, 0) > 0)
-    {
-        c->extra_f = mpz_get_ui(unfactored_a_in);
-        mpz_set_ui(unfactored_a_in, 0);
-    }
 
 	/* add its small factors */
 
@@ -1622,6 +1612,13 @@ void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
 		c->lp_r_num_words = i;
 	}
 
+    if (mpz_cmp_ui(unfactored_a_in, 0) > 0)
+    {
+        c->extra_f = mpz_get_ui(unfactored_a_in);
+        c->a |= (((uint64_t)c->extra_f) << 32);
+        mpz_set_ui(unfactored_a_in, 0);
+    }
+
     if (mpz_cmp_ui(unfactored_a_in, 1) > 0) {
         mpz_set(rb->t0, unfactored_a_in);
         i = 0;
@@ -1635,6 +1632,7 @@ void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
         rb->num_factors += i;
         c->lp_a_num_words = i;
     }
+
 }
 	
 /*------------------------------------------------------------------*/
