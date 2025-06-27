@@ -458,7 +458,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     substr = nextstr;
     lp[1] = this_val;
 
-    if (sconf->use_dlp >= 2)
+    if (sconf->num_lp + NUM_ALP >= 3)
     {
         this_val = strtoul(substr, &nextstr, 16);
         substr = nextstr;
@@ -469,7 +469,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
         lp[2] = 1;
     }
 
-	if (sconf->use_dlp >= 3)
+	if (sconf->num_lp + NUM_ALP >= 4)
 	{
 		this_val = strtoul(substr, &nextstr, 16);
 		substr = nextstr;
@@ -480,7 +480,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 		lp[3] = 1;
 	}
 
-	//printf("found lps: %x,%x,%x\n", lp[0], lp[1], lp[2]);
+	//printf("found lps: %x,%x,%x,%x\n", lp[0], lp[1], lp[2], lp[3]);
 	//printf("B-poly index = %x\n", this_id);
 
     // combine the factors of the sieve value with
@@ -550,7 +550,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     // they are merged into the complete list of factors for this relation.
 	//printf("merging polyA primes\n"); fflush(stdout);
     i = j = 0;
-    while ((i < (int)this_num_factors) && (j < sconf->curr_poly->s)) {
+    while ((i < (int)this_num_factors) && (j < sconf->curr_poly->s - NUM_ALP)) {
         uint32_t prime;
 
         if (fb_offsets[i] < sconf->curr_poly->qlisort[j]) {
@@ -586,7 +586,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     while (i < (int)this_num_factors)
         rel->fb_offsets[k++] = fb_offsets[i++];
 
-    while (j < sconf->curr_poly->s)
+    while (j < sconf->curr_poly->s - NUM_ALP)
     {
         rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
         uint32_t prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
@@ -614,7 +614,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     rel->num_factors = this_num_factors; 
 	rel->poly_idx = this_id;
 
-	if (sconf->use_dlp >= 2)
+	if (sconf->num_lp + NUM_ALP >= 3)
 	{
 		if (!check_relation(sconf->curr_a,
 			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, sconf->knmod8))
@@ -624,6 +624,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 		else
 		{
 			printf("check relation failed\n");
+			//exit(1);
 			//printf("relation string: %s\n",instr);
 			err_code = 1;
 		}
@@ -778,7 +779,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				//	sconf->cycle_table_size, sconf->vertices, sconf->components);
 
 				num_relations = qs_purge_singletonsN(sconf->obj, relation_list,
-					num_relations, sconf->num_lp, table, hashtable);
+					num_relations, sconf->num_lp + NUM_ALP, table, hashtable);
 
 				printf("%u relations survived singleton removal\n", num_relations);
 
@@ -1832,7 +1833,7 @@ void yafu_add_to_cyclesN(static_conf_t* conf, uint32_t flags, uint32_t* primes) 
 	}
 
 	conf->cycle_table_size += add_to_hashtableN(table, hashtable,
-		primes, conf->num_lp,
+		primes, conf->num_lp + NUM_ALP,
 		table_size,
 		&conf->components,
 		&conf->vertices);
@@ -2036,7 +2037,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 	uint32_t cycle_alloc = (num_relations - *numcycles) * 2;
 	uint32_t num3lp = 0;
 	uint32_t num4lp = 0;
-	uint32_t numlp = sconf->num_lp;
+	uint32_t numlp = sconf->num_lp + NUM_ALP;
 
 	/*
 		Each relation is read in turn and two hash tables built.
@@ -2159,19 +2160,6 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 		{
 			if (lp[j] > 1)
 			{
-				// int k;
-				// for (k = 0; k < j; k++)
-				// {
-				// 	if (lp[j] == lp[k])
-				// 	{
-				// 		// repeated prime, don't add it to the cycle lists twice
-				// 		break;
-				// 	}
-				// }
-				// 
-				// if (k < j)
-				// 	continue;
- 
 				rbp_t *rbp_entry = new_rbp_entry(rbp_table, rbp_hashtable, lp[j], &rbp_table_size);
 
 				if (rbp_table_size == rbp_table_alloc)
@@ -2660,7 +2648,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 							sizeof(siqs_r));
 					}
 
-					if (sconf->use_dlp >= 2)
+					if (sconf->num_lp + NUM_ALP >= 3)
 					{ 
 						uint32_t primes[MAXLP];
 						int numlp = yafu_read_Nlp(start, primes);
@@ -2738,13 +2726,13 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
         rebuild_graph(sconf, relation_list, num_relations);
     }
 
-	if (sconf->use_dlp >= 2)
+	if (sconf->num_lp + NUM_ALP >= 3)
 	{
 		// tlp variation may not have built graph as it progressed... do it now.
 		rebuild_graph3(sconf, relation_list, num_relations);
 
 		num_relations = qs_purge_singletonsN(fobj, relation_list, num_relations,
-			sconf->num_lp, table, hashtable);
+			sconf->num_lp + NUM_ALP, table, hashtable);
 
 		// the loop below will rebuild the graph again with relations that
 		// survived singleton removal.  Clear the tables.
@@ -3059,7 +3047,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   duplicate relations. For the sake of consistency, 
 	   always rebuild the graph afterwards */
 
-	if (sconf->use_dlp >= 2)
+	if (sconf->num_lp + NUM_ALP >= 3)
 	{
 		num_relations = qs_purge_duplicate_relations3(fobj,
 			relation_list, num_relations);

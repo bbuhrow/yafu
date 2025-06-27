@@ -44,6 +44,7 @@ This file is a snapshot of a work in progress, originated by Mayo
 */
 
 #include "avx_ecm.h"
+#include "monty.h"
 #include <math.h>
 
 #ifdef USE_AVX512F

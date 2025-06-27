@@ -725,10 +725,32 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 					//printf("replacing factor %u (index %d) with ", afact[i], qli[i]);
 					mpz_tdiv_q_ui(poly_a, poly_a, afact[i]);
 					j = 1;
-					while (fb->list->prime[qli[i]+j] < (2 * afact[i]))
+
+					int duplicate = 0;
+					do
 					{
-						j++;
-					}
+						while (fb->list->prime[qli[i] + j] < (2 * afact[i]))
+						{
+							j++;
+						}
+
+						// is this prime already present?
+						int x;
+						duplicate = 0;
+						for (x = 0; x < *s; x++)
+						{
+							if (x == i)
+								continue;
+
+							if (fb->list->prime[qli[x]] == fb->list->prime[qli[i] + j])
+							{
+								duplicate = 1;
+								j++;
+								break;
+							}
+						}
+					} while (duplicate);
+
 					qli[i] = qli[i]+ j;
 					afact[i] = fb->list->prime[qli[i]];
 					mpz_mul_ui(poly_a, poly_a, afact[i]);
@@ -766,7 +788,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 
 			// valid fb prime?
 			uint64_t r = mpz_tdiv_ui(sconf->n, p);		
-			uint64_t b = jacobi_1(r, p);
+			int b = jacobi_1(r, p);
 			if (b != 1)
 				continue;
 
@@ -953,6 +975,11 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 			prime = qli[i];
 			ShanksTonelli_1(mpz_tdiv_ui(sconf->n, prime), prime, &tmp64);
 			root1 = tmp64;
+			if (prime < sconf->pmax)
+			{
+				printf("error: last qli entry is not the special ALP\n");
+				exit(1);
+			}
 		}
 		else
 		{
@@ -1007,7 +1034,9 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 
             if (mpz_tdiv_ui(poly->mpz_poly_c, 4) != 0)
             {
-                printf("c not divisible by 4 in Q2(x) variation!\n");
+                printf("c not divisible by 4 in Q2(x) variation! (computeBl)\n");
+				gmp_printf("A: %Zd, B: %Zd, C: %Zd\n", poly->mpz_poly_a, poly->mpz_poly_b, poly->mpz_poly_c);
+				exit(1);
             }
             mpz_tdiv_q_ui(poly->mpz_poly_c, poly->mpz_poly_c, 4);
         }
@@ -1063,7 +1092,10 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf, int needC)
 
             if (mpz_tdiv_ui(poly->mpz_poly_c, 4) != 0)
             {
-                printf("c not divisible by 4 in Q2(x) variation!\n");
+                printf("c not divisible by 4 in Q2(x) variation! (nextB)\n");
+
+				gmp_printf("A: %Zd, B: %Zd, C: %Zd\n", poly->mpz_poly_a, poly->mpz_poly_b, poly->mpz_poly_c);
+				exit(1);
             }
             mpz_tdiv_q_ui(poly->mpz_poly_c, poly->mpz_poly_c, 4);
         }

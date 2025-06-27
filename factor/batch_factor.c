@@ -632,7 +632,7 @@ void check_batch_relation(relation_batch_t *rb,
 	uint32_t lp_r[MAX_LARGE_PRIMES];
 	uint32_t lp_a[MAX_LARGE_PRIMES];
 	uint32_t num_r, num_a;
-    
+
 	/* first compute gcd(prime_product, rational large cofactor).
 	   The rational part will split into a cofactor with all 
 	   factors <= the largest prime in rb->prime_product (stored
@@ -640,7 +640,6 @@ void check_batch_relation(relation_batch_t *rb,
 
     // the larger we make lp_cutoff_r, the more TLP's we will find, at
     // the cost of having to split more TLP candidates in f1r.
-
     c->success = 0;
     c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
 
@@ -1368,83 +1367,8 @@ void check_batch_relation(relation_batch_t *rb,
     {
         c->lp_r[i] = 1;
     }
+
     c->success = num_r;
-
-    if (0)
-    {
-        if (((lp_r[0] > 1) && (lp_r[1] > 1) && (lp_r[0] == lp_r[1])) ||
-            ((lp_r[0] > 1) && (lp_r[2] > 1) && (lp_r[0] == lp_r[2])) ||
-            ((lp_r[0] > 1) && (lp_r[3] > 1) && (lp_r[0] == lp_r[3])) ||
-            ((lp_r[1] > 1) && (lp_r[2] > 1) && (lp_r[1] == lp_r[2])) ||
-            ((lp_r[1] > 1) && (lp_r[3] > 1) && (lp_r[1] == lp_r[3])) ||
-            ((lp_r[2] > 1) && (lp_r[3] > 1) && (lp_r[2] == lp_r[3])))
-        {
-            //gmp_printf("*********: batch_factor found repeated factor for input %Zd, lcg = %lu\n", n, start_lcg);
-            gmp_printf("f1r: %Zd\n", rb->t0);
-            gmp_printf("f2r: %Zd\n", rb->t1);
-            printf("*********: %u,%u,%u,%u\n",
-                lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-
-            mpz_set_ui(f1r, lp_r[0]);
-            mpz_mul_ui(f1r, f1r, lp_r[1]);
-            mpz_mul_ui(f1r, f1r, lp_r[2]);
-            mpz_mul_ui(f1r, f1r, lp_r[3]);
-
-            gmp_printf("product of factors = %Zd, input = %Zd\n", f1r, n);
-        }
-    }
-
-    if (0) //num_r == 3)
-    {
-        mpz_set_ui(f1r, lp_r[0]);
-        mpz_mul_ui(f1r, f1r, lp_r[1]);
-        mpz_mul_ui(f1r, f1r, lp_r[2]);
-        mpz_mul_ui(f1r, f1r, lp_r[3]);
-    
-        if (mpz_cmp(n, f1r) != 0)
-        {
-            gmp_printf("\n*********ERROR: tlp product of factors %Zd != input n %Zd\n", f1r, n);
-            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-            c->success = 0;
-        }
-
-        if ((lp_r[0] == lp_r[1]) ||
-            (lp_r[0] == lp_r[2]) ||
-            (lp_r[0] == lp_r[3]) ||
-            (lp_r[1] == lp_r[2]) ||
-            (lp_r[1] == lp_r[3]) ||
-            (lp_r[2] == lp_r[3]))
-        {
-            gmp_printf("\n*********WARNING: tlp %Zd contains rare repeated factor\n", n);
-            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-        }
-    }
-    
-    if (0) //num_r == 4)
-    {
-        mpz_set_ui(f1r, lp_r[0]);
-        mpz_mul_ui(f1r, f1r, lp_r[1]);
-        mpz_mul_ui(f1r, f1r, lp_r[2]);
-        mpz_mul_ui(f1r, f1r, lp_r[3]);
-    
-        if (mpz_cmp(n, f1r) != 0)
-        {
-            gmp_printf("\n*********ERROR: qlp product of factors %Zd != input n %Zd\n", f1r, n);
-            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-            c->success = 0;
-        }
-
-        if ((lp_r[0] == lp_r[1]) ||
-            (lp_r[0] == lp_r[2]) ||
-            (lp_r[0] == lp_r[3]) ||
-            (lp_r[1] == lp_r[2]) ||
-            (lp_r[1] == lp_r[3]) ||
-            (lp_r[2] == lp_r[3]))
-        {
-            gmp_printf("\n*********WARNING: qlp %Zd contains rare repeated factor\n", n);
-            printf("*********     : %u,%u,%u,%u\n", lp_r[0], lp_r[1], lp_r[2], lp_r[3]);
-        }
-    }
 
     return;
 }
@@ -1650,8 +1574,15 @@ void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
 	c->lp_r_num_words = 0;
 	c->lp_a_num_words = 0;
 	c->factor_list_word = rb->num_factors;
-    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = 0;
+    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 0;
     c->success = 0;
+    c->extra_f = 0;
+
+    if (mpz_cmp_ui(unfactored_a_in, 0) > 0)
+    {
+        c->extra_f = mpz_get_ui(unfactored_a_in);
+        mpz_set_ui(unfactored_a_in, 0);
+    }
 
 	/* add its small factors */
 

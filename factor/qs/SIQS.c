@@ -4752,7 +4752,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // cycle formation predictions.
         if (NUM_ALP == 1)
         {
-            sconf->check_inc = 100000;        // run filtering after finding this many fulls
+            sconf->check_inc = 20000;        // run filtering after finding this many fulls
         }
         else
         {
@@ -4930,6 +4930,16 @@ int update_check(static_conf_t *sconf)
                 sconf->dlp_useful + sconf->tlp_useful;
             uint32_t rels_left;
 
+#if NUM_ALP == 1
+            if (check_total > total_rels)
+            {
+                rels_left = check_total - total_rels;
+            }
+            else
+            {
+                rels_left = 0;
+            }
+#else
             if (check_total > sconf->num_full)
             {
                 rels_left = check_total - sconf->num_full;
@@ -4938,6 +4948,7 @@ int update_check(static_conf_t *sconf)
             {
                 rels_left = 0;
             }
+#endif
 
 			if (sconf->use_dlp >= 2)
 			{
@@ -4957,7 +4968,7 @@ int update_check(static_conf_t *sconf)
                         suffix = 'k';
                     }
 
-                    if (sconf->use_dlp == 3)
+                    if ((sconf->num_lp + NUM_ALP) == 4)
                     {
                         printf("%u full + %u partial from (%u,%u,%u,%u) lp, "
                             "(%1.1f%c raw-GCD), filt in %u (%1.2f r/sec)\r",
@@ -4967,7 +4978,7 @@ int update_check(static_conf_t *sconf)
                             (double)(sconf->num_relations + sconf->dlp_useful +
                                 sconf->tlp_useful) / t_time);
                     }
-                    else
+                    else if((sconf->num_lp + NUM_ALP) == 3)
                     {
                         printf("%u full + %u partial from (%u,%u,%u) lp, "
                             "(%1.1f%c raw-GCD), filt in %u (%1.2f r/sec)\r",
@@ -5204,7 +5215,7 @@ int update_check(static_conf_t *sconf)
 				}
 
 				num_relations = qs_purge_singletonsN(sconf->obj, relation_list, 
-					num_relations, sconf->num_lp, table, hashtable);
+					num_relations, sconf->num_lp + NUM_ALP, table, hashtable);
 
 				printf("%u relations survived singleton removal\n", num_relations);
 
@@ -5402,7 +5413,7 @@ int update_check(static_conf_t *sconf)
                         // cycle formation predictions.
                         if (NUM_ALP > 0)
                         {
-                            sconf->check_inc = 100000;
+                            sconf->check_inc = 20000;
                         }
                         else
                         {
@@ -5449,7 +5460,7 @@ int update_check(static_conf_t *sconf)
 
                             if (NUM_ALP > 0)
                             {
-                                sconf->check_inc = MIN(sconf->check_inc, 100000);
+                                sconf->check_inc = 20000; // MIN(sconf->check_inc, 100000);
                             }
                             else
                             {

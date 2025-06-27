@@ -296,11 +296,21 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 #endif
 
-
-		if ((large_prime[0] == 1) && (NUM_ALP == 0))
-			dconf->num_full++;
-		else
-			dconf->num_slp++;
+        if (NUM_ALP == 1)
+        {
+            if (large_prime[0] == 1)
+                dconf->num_slp++;
+            else
+                dconf->dlp_useful++;
+        }
+        else
+        {
+            if (large_prime[0] == 1)
+                dconf->num_full++;
+            else
+                dconf->num_slp++;
+        }
+		
 
 		//add this one
 		if (sconf->is_tiny)
@@ -495,12 +505,18 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     large_prime[0] = (uint32_t)f64;
                     large_prime[1] = (uint32_t)(q64 / f64);
                     if (NUM_ALP == 1)
+                    {
                         large_prime[2] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
+                        dconf->tlp_useful++;
+                    }
                     else
+                    {
                         large_prime[2] = 1;
+                        dconf->dlp_useful++;
+                    }
                     large_prime[3] = 1;
 
-					dconf->dlp_useful++;
+					
 					buffer_relation(offset, large_prime, smooth_num + 1,
 						fb_offsets, dconf->curr_poly->index, poly_id, parity,
                         dconf, polya_factors, it, 1);
@@ -570,10 +586,25 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                mpz_set_ui(dconf->gmptmp1, 0);
+                if (NUM_ALP == 1)
+                {
+                    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
+                    {
+                        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    }
+                    mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                        dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    mpz_set_ui(dconf->gmptmp1, 0);
+                }
+                else
+                {
+                    mpz_set_ui(dconf->gmptmp1, 0);
+                }
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
+
                 relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
                     dconf->Qvals[report_num], NULL, 0, dconf->gmptmp1, NULL, &dconf->rb);
 
@@ -682,6 +713,12 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
+                            if (c->extra_f > 0)
+                            {
+                                printf("buffering TLP + extra factor %u\n", c->extra_f);
+                                c->lp_r[c->success++] = c->extra_f;
+                            }
+
                             if (c->success == 4)
                             {
                                 dconf->qlp_useful++;
@@ -771,7 +808,13 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                mpz_set_ui(dconf->gmptmp1, 0);
+                if (NUM_ALP == 1)
+                {
+                    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    printf("****** warning 4+1 LPs not supported yet\n");
+                }
+                else
+                    mpz_set_ui(dconf->gmptmp1, 0);
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
@@ -893,11 +936,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                                 dconf->dlp_useful++;
                             else if (c->success == 1)
                                 dconf->num_slp++;
-
-                            if (NUM_ALP == 1)
-                                c->lp_r[3] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
-                            else
-                                c->lp_r[3] = 1;
 
                             buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
                                 f, c->a, c->b, parity, dconf, NULL, 0, 1);
@@ -1024,6 +1062,7 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 	fact_obj_t *obj = conf->obj;
 	uint32_t i, k, buf_offset;
 	uint32_t lp[MAXLP];
+    uint32_t numlp = conf->num_lp + NUM_ALP;
 
 	if (conf->in_mem)
 	{
@@ -1118,10 +1157,10 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
         buf_offset = i;
 
 		// insertion sort 3lp or more
-        if (conf->num_lp > 2)
+        if (numlp > 2)
         {
             i = 1;
-            while (i < conf->num_lp)
+            while (i < numlp)
             {
                 uint32_t j = i;
                 while ((j > 0) && (large_prime[j - 1] > large_prime[j]))
@@ -1134,11 +1173,11 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
                 i = i + 1;
             }
 
-            if (conf->num_lp == 3)
+            if (numlp == 3)
             {
                 sprintf(buf + buf_offset, "L %x %x %x\n", large_prime[0], large_prime[1], large_prime[2]);
             }
-            else if (conf->num_lp == 4)
+            else if (numlp == 4)
             {
                 sprintf(buf + buf_offset, "L %x %x %x %x\n", large_prime[0], large_prime[1],
                     large_prime[2], large_prime[3]);

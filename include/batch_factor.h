@@ -62,6 +62,7 @@ typedef struct {
 				            all of the above above appear, in order */
     uint8_t success;
     uint32_t lp_r[MAX_LARGE_PRIMES];
+	uint32_t extra_f;
 } cofactor_t;
 
 /* main structure controlling batch factoring. The main goal
