@@ -631,6 +631,7 @@ typedef struct {
     uint64_t num_scatter_opp;
     uint64_t num_scatter;
     uint32_t num_lp;
+    uint32_t num_alp;
 
     // various things to support tlp co-factorization
     monty_t* mdata;		// monty brent attempt
@@ -859,8 +860,8 @@ uint32_t siqs_merge_data(dynamic_conf_t* dconf, static_conf_t* sconf);
 
 void get_params(static_conf_t* sconf);
 void get_gray_code(siqs_poly* poly);
-void set_aprime_roots(static_conf_t* sconf, uint32_t val, int* qli, int s,
-    sieve_fb_compressed* fb, int action);
+void set_aprime_roots(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t val, 
+    int* qli, int s, sieve_fb_compressed* fb, int action);
 void siqsexit(int sig);
 int qcomp_siqs(const void* x, const void* y);
 uint32_t make_fb_siqs(static_conf_t* sconf);

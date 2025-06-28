@@ -614,8 +614,8 @@ int qcomp_siqs(const void *x, const void *y)
 		return -1;
 }
 
-void set_aprime_roots(static_conf_t *sconf, uint32_t val, int *qli, int s, 
-	sieve_fb_compressed *fb, int action)
+void set_aprime_roots(static_conf_t *sconf, dynamic_conf_t* dconf, 
+	uint32_t val, int *qli, int s,sieve_fb_compressed *fb, int action)
 {
 	int i;
 	fb_list *fullfb = sconf->factor_base;
@@ -631,9 +631,9 @@ void set_aprime_roots(static_conf_t *sconf, uint32_t val, int *qli, int s,
 
     if (action == 1)
     {
-		for (i = 0; i < s - NUM_ALP; i++)
+		for (i = 0; i < s - dconf->num_alp; i++)
 		{
-			if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
+			if ((fullfb->list->prime[qli[i]] > 8192))
 			{
 				fb->root1[qli[i]] = 0;
 				fb->prime[qli[i]] = 0;
@@ -648,7 +648,7 @@ void set_aprime_roots(static_conf_t *sconf, uint32_t val, int *qli, int s,
     }
     else
     {
-		for (i = 0; i < s - NUM_ALP; i++)
+		for (i = 0; i < s - dconf->num_alp; i++)
 		{
 			fb->root1[qli[i]] = 0xffff;
 			fb->prime[qli[i]] = fullfb->list->prime[qli[i]];

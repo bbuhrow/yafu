@@ -403,10 +403,16 @@ void siqs_dispatch(void *vptr)
         if (NUM_ALP == 1)
         {
             // try every other poly?
-            //if (static_conf->total_poly_a & 1)
+            if (static_conf->total_poly_a & 1)
+            {
+                t[tid].dconf->num_alp = 1;
                 new_poly_a_test(static_conf, t[tid].dconf, 0);
-            //else
-            //    new_poly_a(static_conf, t[tid].dconf, 0);
+            }
+            else
+            {
+                t[tid].dconf->num_alp = 0;
+                new_poly_a(static_conf, t[tid].dconf, 0);
+            }
         }
         else
         {
@@ -2214,7 +2220,7 @@ void* process_poly(void* vptr)
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
-            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
+            set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
@@ -2269,7 +2275,7 @@ void* process_poly(void* vptr)
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
-            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
+            set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
             scan_ptr(i, 0, sconf, dconf);
         }
 
@@ -2305,7 +2311,7 @@ void* process_poly(void* vptr)
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
-            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
+            set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
@@ -2334,7 +2340,7 @@ void* process_poly(void* vptr)
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
-            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
+            set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
             scan_ptr(i, 1, sconf, dconf);
         }
 
@@ -2344,7 +2350,7 @@ void* process_poly(void* vptr)
         gettimeofday(&start1, NULL);
 
         // print a little more status info for huge jobs.
-        if (sconf->digits_n >= 120)
+        if (sconf->digits_n >= 140)
         {
             gettimeofday(&stop, NULL);
             t_time = ytools_difftime(&st, &stop);

@@ -234,7 +234,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	// check for additional factors of the a-poly factors
 	// make a separate list then merge it with fb_offsets
 	it=0;	// max 20 factors allocated for - should be overkill
-	for (j = 0; (j < dconf->curr_poly->s - NUM_ALP) && (it < 20); j++)
+	for (j = 0; (j < dconf->curr_poly->s - dconf->num_alp) && (it < 20); j++)
 	{
         prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
 
@@ -277,7 +277,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		uint32_t large_prime[4];
 		
 		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
-		if (NUM_ALP == 1)
+		if (dconf->num_alp == 1)
             large_prime[1] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
         else
             large_prime[1] = 1;
@@ -296,7 +296,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 #endif
 
-        if (NUM_ALP == 1)
+        if (dconf->num_alp == 1)
         {
             if (large_prime[0] == 1)
                 dconf->num_slp++;
@@ -504,7 +504,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 					//add this one
                     large_prime[0] = (uint32_t)f64;
                     large_prime[1] = (uint32_t)(q64 / f64);
-                    if (NUM_ALP == 1)
+                    if (dconf->num_alp == 1)
                     {
                         large_prime[2] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
                         dconf->tlp_useful++;
@@ -586,7 +586,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                if (NUM_ALP == 1)
+                if (dconf->num_alp == 1)
                 {
                     //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
                     if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
@@ -773,7 +773,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
         return;
 	
     // quick check if Q is obviously too big.
-    if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 128)
+    if ((mpz_sizeinbase(dconf->Qvals[report_num], 2) < 128) && (dconf->num_alp == 0))
     {
         double qfloat = mpz_get_d(dconf->Qvals[report_num]);
 
@@ -811,13 +811,23 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                if (NUM_ALP == 1)
+                if (dconf->num_alp == 1)
                 {
-                    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
                     printf("****** warning 4+1 LPs not supported yet\n");
+
+                    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
+                    {
+                        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    }
+                    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
                 }
                 else
+                {
                     mpz_set_ui(dconf->gmptmp1, 0);
+                }
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
@@ -928,6 +938,15 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         if (c->success)
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
+
+                            c->extra_f = c->a >> 32;
+                            c->a &= 0xffffffffull;
+
+                            if (c->extra_f > 0)
+                            {
+                                //printf("buffering TLP + extra factor %u\n", c->extra_f);
+                                c->lp_r[c->success++] = c->extra_f;
+                            }
 
                             if (c->success == 4)
                             {

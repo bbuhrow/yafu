@@ -969,7 +969,7 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 
     for (i = 0; i < s; i++)
     {
-		if ((i == (s - 1)) && (NUM_ALP == 1))
+		if ((i == (s - 1)) && (NUM_ALP == 1) && (dconf->num_alp == 1))
 		{
 			uint64_t tmp64;
 			prime = qli[i];
