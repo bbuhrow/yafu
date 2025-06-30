@@ -50,33 +50,160 @@
 #include "monty.h"
 #include "ytools.h"
 
+
+//#define GMP_CHECK
+
 #ifdef GMP_CHECK
 #include "gmp.h"
 #endif
 
+void modexp_104x8b(uint8_t* is1msk, uint8_t* ism1msk, uint64_t* n, uint64_t* e, uint64_t* bases);
+
 
 int fermat_prp_64x1(uint64_t n)
 {
-	// assumes has no small factors.
-	// do a base-2 fermat prp test using LR binexp.
+	uint64_t rho = multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
+	uint64_t unityval = ((uint64_t)0 - n) % n;   // unityval == R  (mod n)
+	uint64_t result = unityval;
+	uint64_t e = (n - 1); // / 2;
 
-	uint64_t rho = multiplicative_inverse(n);
-	uint64_t unityval = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
+	// penultimate-hi-bit mask
+#if defined(USE_AVX2) || defined(USE_AVX512F)
+	// technically need to check the ABM flag, but I don't
+	// have that in place anywhere yet.  AVX2 is generally equivalent.
+
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
 	uint64_t m = 1ULL << (62 - __lzcnt64(n));   // set a mask at the leading bit - 2
-	uint64_t r = unityval;
-	uint64_t e = n - 1;
 
-	// we know the first bit is set and the first squaring is of unity,
-	// so we can do the first iteration manually with no squaring.
-	r = addmod(r, r, n);
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+	uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#else
+	// these builtin functions will have an efficient implementation
+	// for the current processor architecture.
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+	uint32_t pos;
+	if (_BitScanReverse64(&pos, n))
+		return pos;
+	else
+		return 64;
+
+	uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+	uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#endif
+
+	result = addmod(result, result, n);
 
 	while (m > 0)
 	{
-		r = sqrredc(r, n, rho);
-		if (e & m) r = addmod(r, r, n);
+		result = sqrredc_pos(result, n, rho);
+		if (e & m) result = addmod(result, result, n);
 		m >>= 1;
 	}
-	return (r == unityval);
+
+	// - Fermat primality check:
+	//   (2^(n-1) == 1) mod n
+	return (int)(result == unityval);
+	// 
+	// - Euler's criterion 2^(n>>1) == legendre_symbol(2,n) (https://en.wikipedia.org/wiki/Euler%27s_criterion)
+	// - Euler primality check:
+	//   (2^(n>>1) == 1) mod n
+	//   (2^(n>>1) == n-1) mod n
+	uint64_t legendre = ((n >> 1) ^ (n >> 2)) & 1;	// shortcut calculation of legendre symbol
+	uint64_t m1 = submod(n, unityval, n);
+	return ((result == (legendre ? m1 : unityval)));
+}
+
+//#define DEBUG_THIS
+
+int MR_2sprp_64x1(uint64_t n)
+{
+	uint64_t rho = multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
+	uint64_t one = ((uint64_t)0 - n) % n;		// one == R  (mod n)
+	uint64_t result = one;
+	uint64_t e = (n - 1);
+
+	// compute d and s
+	uint64_t s = my_ctz64(e);
+	uint64_t d = e >> s;
+
+	// penultimate-hi-bit mask of d
+#if defined(USE_AVX2) || defined(USE_AVX512F)
+	// technically need to check the ABM flag, but I don't
+	// have that in place anywhere yet.  AVX2 is generally equivalent.
+
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+	uint64_t m = 1ULL << (62 - __lzcnt64(d));   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+	uint64_t m = 1ULL << (62 - __builtin_clzll(d));
+
+#endif
+
+#else
+	// these builtin functions will have an efficient implementation
+	// for the current processor architecture.
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+	uint32_t pos;
+	if (_BitScanReverse64(&pos, d))
+		return pos;
+	else
+		return 64;
+
+	uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+	uint64_t m = 1ULL << (62 - __builtin_clzll(d));
+
+#endif
+
+#endif
+
+	// compute b^d using RL binary exponentiation.  RL because then
+	// exponent 1-bits are adds instead of multiplies.
+	// we know the first bit is set and the first squaring is of unity,
+	// so the first iteration is easier (and hence the penultimate mask bit).
+	result = addmod(result, result, n);
+
+	while (m > 0)
+	{
+		result = sqrredc_pos(result, n, rho);
+		if (d & m) result = addmod(result, result, n);
+		m >>= 1;
+	}
+
+	// check current result == 1
+	if (result == one) return 1;
+
+	// now compute b^(2^r*d) for 0 <= r < s, 
+	// and check for congruence to -1 as we go.
+	uint64_t minus1 = n - one;
+
+	while (s > 1)
+	{
+		if (result == minus1) return 1;
+		result = sqrredc_pos(result, n, rho);
+		if (result == one) return 0;
+		s--;
+	}
+
+	if (result == minus1) return 1;
+	else return 0;
 }
 
 int fermat_prp_128x1(uint64_t* n)
@@ -127,7 +254,7 @@ int fermat_prp_128x1(uint64_t* n)
 		m = (e[1] <= 1) ? 0 : 1ULL << (62 - lzcnt);   // set a mask at the leading bit - 2
 		while (m > 0)
 		{
-			sqrmod128n(r, r, n, rho);
+			sqrmod128n(r, r, n, &rho);
 			chkmod128(r, n);
 
 			if (e[1] & m) dblmod128(r, n);
@@ -137,7 +264,7 @@ int fermat_prp_128x1(uint64_t* n)
 		m = (e[1] >= 1) ? 1ULL << 63 : 1ULL << (62 - my_clz64(e[0]));   // set a mask at the leading bit - 2
 		while (m > 0)
 		{
-			sqrmod128n(r, r, n, rho);
+			sqrmod128n(r, r, n, &rho);
 			chkmod128(r, n);
 
 			if (e[0] & m) dblmod128(r, n);
@@ -150,7 +277,7 @@ int fermat_prp_128x1(uint64_t* n)
 		m = (e[1] <= 1) ? 0 : 1ULL << (62 - lzcnt);   // set a mask at the leading bit - 2
 		while (m > 0)
 		{
-			sqrmod128n(r, r, n, rho);
+			sqrmod128n(r, r, n, &rho);
 
 			if (e[1] & m) dblmod128(r, n);
 			m >>= 1;
@@ -159,7 +286,7 @@ int fermat_prp_128x1(uint64_t* n)
 		m = (e[1] >= 1) ? 1ULL << 63 : 1ULL << (62 - my_clz64(e[0]));   // set a mask at the leading bit - 2
 		while (m > 0)
 		{
-			sqrmod128n(r, r, n, rho);
+			sqrmod128n(r, r, n, &rho);
 
 			if (e[0] & m) dblmod128(r, n);
 			m >>= 1;
@@ -170,14 +297,144 @@ int fermat_prp_128x1(uint64_t* n)
 	return ((r[0] == unityval[0]) && (r[1] == unityval[1]));
 }
 
+int MR_2sprp_128x1(uint64_t *n)
+{
+	// assumes has no small factors.  
+	// assumes n has two 64-bit words, n0 and n1.
+	// do a base-2 fermat prp test using LR binexp.
+
+	uint64_t rho = multiplicative_inverse(n[0]);
+	uint64_t m;
+	uint64_t r[2];
+	uint64_t e[2];
+	uint64_t one[2] = { 1ULL, 0ULL };
+	uint64_t zero[2] = { 0ULL, 0ULL };
+
+#ifdef POS_VARIANT
+
+#else
+	rho = 0ULL - rho;
+#endif
+
+	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
+	uint128_t unity128 = (uint128_t)0 - n128;
+	unity128 = unity128 % n128;
+	one[1] = (uint64_t)(unity128 >> 64);
+	one[0] = (uint64_t)unity128;
+
+	e[1] = n[1];
+	e[0] = n[0] - 1;	// n odd: won't overflow
+
+	r[1] = one[1];
+	r[0] = one[0];
+
+	// compute d and s
+	uint64_t s = my_ctz128(e[0], e[1]);
+	uint64_t d[2];
+	d[0] = e[0];
+	d[1] = e[1];
+
+	if (s < 64)
+	{
+		d[0] >>= s;
+		d[0] |= (d[1] << (64 - s));
+		d[1] >>= s;
+	}
+	else
+	{
+		d[0] = d[1] >> (s - 64);
+		d[1] = 0;
+	}
+
+	int lzcnt = my_clz128(d[0], d[1]);
+
+#ifndef POS_VARIANT
+	int protect = ((lzcnt-s) < 3) ? 1 : 0;
+#endif
+
+	// we know the first bit is set and the first squaring is of unity,
+	// so we can do the first iteration manually with no squaring.
+	dblmod128(r, n);
+
+#ifndef POS_VARIANT
+	if (protect)
+	{
+		m = (d[1] <= 1) ? 0 : 1ULL << (62 - lzcnt);   // set a mask at the leading bit - 2
+		while (m > 0)
+		{
+			sqrmod128n(r, r, n, &rho);
+			chkmod128(r, n);
+
+			if (d[1] & m) dblmod128(r, n);
+			m >>= 1;
+		}
+
+		m = (d[1] >= 1) ? 1ULL << 63 : 1ULL << (62 - my_clz64(d[0]));   // set a mask at the leading bit - 2
+		while (m > 0)
+		{
+			sqrmod128n(r, r, n, &rho);
+			chkmod128(r, n);
+
+			if (d[0] & m) dblmod128(r, n);
+			m >>= 1;
+		}
+}
+	else
+#endif
+	{
+		m = (d[1] <= 1) ? 0 : 1ULL << (62 - lzcnt);   // set a mask at the leading bit - 2
+		while (m > 0)
+		{
+			sqrmod128n(r, r, n, &rho);
+
+			if (d[1] & m) dblmod128(r, n);
+			m >>= 1;
+		}
+
+		m = (d[1] >= 1) ? 1ULL << 63 : 1ULL << (62 - my_clz64(d[0]));   // set a mask at the leading bit - 2
+		while (m > 0)
+		{
+			sqrmod128n(r, r, n, &rho);
+
+			if (d[0] & m) dblmod128(r, n);
+			m >>= 1;
+		}
+	}
+
+	chkmod128(r, n);
+	if ((r[0] == one[0]) && (r[1] == one[1])) return 1;
+
+	// now compute b^(2^r*d) for 0 <= r < s, 
+	// and check for congruence to -1 as we go.
+	uint64_t mone[2];
+	submod128(n, one, mone, n);
+
+	while (s > 1)
+	{
+		if ((r[0] == mone[0]) && (r[1] == mone[1])) return 1;
+		sqrmod128n(r, r, n, &rho);
+		if (protect) chkmod128(r, n);
+		if ((r[0] == one[0]) && (r[1] == one[1])) return 0;
+		s--;
+	}
+
+	if ((r[0] == mone[0]) && (r[1] == mone[1])) return 1;
+	else return 0;
+}
+
+
+static uint128_t seed = ((uint128_t)0x123456789ull << 92) + ((uint128_t)0xabcdef << 36) + 0x987654321ull;
 static uint128_t my_random(void)
 {
 	// based on linear congruential generator, period = 2^128
-	static uint128_t seed = ((uint128_t)0x123456789ull << 92) + ((uint128_t)0xabcdef << 36) + 0x987654321ull;
 	seed = seed * 137 + 13;
 	// shuffle
 	uint128_t x = seed ^ (seed >> 17) ^ (seed << 13);
 	return x;
+}
+static my_random_reset(void)
+{
+	seed = ((uint128_t)0x123456789ull << 92) + ((uint128_t)0xabcdef << 36) + 0x987654321ull;
 }
 
 static inline uint64_t my_rdtsc(void)
@@ -204,6 +461,18 @@ static inline uint64_t my_rdtsc(void)
 #endif
 }
 
+static uint64_t sm_primes[168] = {
+	2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,
+	103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,
+	199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,293,307,311,
+	313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421,431,
+	433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,
+	563,569,571,577,587,593,599,601,607,613,617,619,631,641,643,647,653,659,661,
+	673,677,683,691,701,709,719,727,733,739,743,751,757,761,769,773,787,797,809,
+	811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,
+	941,947,953,967,971,977,983,991,997
+};
+
 int test_tinyprp()
 {
 	uint64_t prp[16];
@@ -221,7 +490,258 @@ int test_tinyprp()
 	int bits;
 	uint64_t elapsed;
 
-	// test of fermat_prp_64x1 on random 6k+1 inputs
+	mpz_t gmpb;
+	mpz_t gmpe;
+	mpz_t gmp1;
+	mpz_t gmpm1;
+	mpz_t gmpm;
+	mpz_t gmpa;
+	mpz_t gmpmm1;
+
+	mpz_init(gmpb);
+	mpz_init(gmpe);
+	mpz_init(gmp1);
+	mpz_init(gmpm1);
+	mpz_init(gmpmm1);
+	mpz_init(gmpm);
+	mpz_init(gmpa);
+	
+	my_random_reset();
+	for (bits = 100; bits <= 104; bits += 1)
+	{
+		uint32_t numprp = 0;
+		uint64_t ticks1 = my_rdtsc();
+		uint64_t ticks2;
+		uint32_t totalnum = 0;
+		uint32_t num = 100;
+		double telapsed = 0;
+		int k;
+
+		uint32_t num1 = 0, numm1 = 0;
+		numprp = 0;
+		k = 0;
+		elapsed = 0;
+		telapsed = 0;
+		do {
+
+			uint128_t x;
+			do {
+				x = my_random();
+				uint128_t maskAnd = ((uint128_t)1 << (bits - 1)) - 1;	// clear msbits
+				uint128_t maskOr = ((uint128_t)1 << (bits - 1)) | ((uint128_t)1 << (bits / 2));	// force msb, force another bit
+				x &= maskAnd;
+				x |= maskOr;
+				x /= 6;
+				x *= 6;	// now a multiple of 6
+				x += 1;	// number like 6*k + 1
+			} while (x >> (bits - 1) != 1);
+
+			prp[0] = (uint64_t)x & 0xfffffffffffffull;
+			prp[1] = (uint64_t)(x >> 52) & 0xfffffffffffffull;
+
+			ticks1 = my_rdtsc();
+			gettimeofday(&start, NULL);
+
+			uint64_t inc = 4;
+			int y;
+
+			for (y = 0; y < num; y++)
+			{
+				mpz_set_ui(gmpm, prp[1]);
+				mpz_mul_2exp(gmpm, gmpm, 52);
+				mpz_add_ui(gmpm, gmpm, prp[0]);
+				mpz_sub_ui(gmpmm1, gmpm, 1);
+				mpz_tdiv_q_2exp(gmpe, gmpmm1, 1);
+
+				int j;
+				for (j = 0; j < 168; j++)
+				{
+					mpz_set_ui(gmpb, sm_primes[j]);
+					mpz_powm(gmpa, gmpb, gmpe, gmpm);
+					if (mpz_cmp_ui(gmpa, 1) == 0)
+						num1++;
+					if (mpz_cmp(gmpa, gmpmm1) == 0)
+						numm1++;
+				}
+
+				prp[0] += inc;
+				inc = 6 - inc;
+			}
+
+			k++;
+			ticks2 = my_rdtsc();
+			elapsed += (ticks2 - ticks1);
+			gettimeofday(&stop, NULL);
+			telapsed += ytools_difftime(&start, &stop);
+
+			totalnum += num;
+		} while (totalnum < 10000); // (0);  (elapsed < (1ull << 30));
+
+		printf("%013lx%013lx\n", prp[1], prp[0]);
+
+		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+			elapsed, bits, (elapsed) / (k * num));
+		printf("found %u +1 and %u -1 tests out of %u %d-bit inputs: %1.2f%%\n",
+			num1, numm1, k * num, bits, 100. * (double)numprp / (double)(k * num));
+		printf("elapsed time: %1.4f sec, %1.4f us / input\n", telapsed, 1000000. * telapsed / (double)(k * num));
+	}
+	printf("\n");
+
+	my_random_reset();
+	for (bits = 80; bits <= 104; bits += 1)
+	{
+		uint32_t numprp = 0;
+		uint64_t ticks1 = my_rdtsc();
+		uint64_t ticks2;
+		uint32_t totalnum = 0;
+		uint32_t num = 100;
+		double telapsed = 0;
+		int k;
+
+		uint32_t num1 = 0, numm1 = 0;
+		numprp = 0;
+		k = 0;
+		elapsed = 0;
+		telapsed = 0;
+		do {
+
+			uint128_t x;
+			do {
+				x = my_random();
+				uint128_t maskAnd = ((uint128_t)1 << (bits - 1)) - 1;	// clear msbits
+				uint128_t maskOr = ((uint128_t)1 << (bits - 1)) | ((uint128_t)1 << (bits / 2));	// force msb, force another bit
+				x &= maskAnd;
+				x |= maskOr;
+				x /= 6;
+				x *= 6;	// now a multiple of 6
+				x += 1;	// number like 6*k + 1
+			} while (x >> (bits - 1) != 1);
+
+			prp[0] = (uint64_t)x & 0xfffffffffffffull;
+			prp[1] = (uint64_t)(x >> 52) & 0xfffffffffffffull;
+
+			ticks1 = my_rdtsc();
+			gettimeofday(&start, NULL);
+
+			uint64_t inc = 4;
+			int y;
+
+			for (y = 0; y < num; y++)
+			{
+				int j;
+
+				uint64_t e[2];
+				e[0] = prp[0];
+				e[1] = prp[1];
+
+				e[0] -= 1;		// is odd: won't carry.
+				e[0] >>= 1;
+				e[0] |= (e[1] << 51);
+				e[1] >>= 1;
+				e[0] &= 0xfffffffffffffull;
+
+#ifdef GMP_CHECK
+				mpz_set_ui(gmpn, prp[1]);
+				mpz_mul_2exp(gmpn, gmpn, 52);
+				mpz_add_ui(gmpn, gmpn, prp[0]);
+				mpz_sub_ui(gmpn1, gmpn, 1);
+				mpz_tdiv_q_2exp(gmpe, gmpn1, 1);
+#endif
+
+				uint8_t onemsk = 0;
+				uint8_t monemsk = 0;
+
+				for (j = 0; j < 21; j++)
+				{
+					modexp_104x8b(&onemsk, &monemsk, prp, e, sm_primes + j * 8);
+					num1 += _mm_popcnt_u32(onemsk);
+					numm1 += _mm_popcnt_u32(monemsk);
+
+#ifdef GMP_CHECK
+					uint8_t gonemsk = 0;
+					uint8_t gmonemsk = 0;
+
+					int m;
+					for (m = 0; m < 8; m++)
+					{
+						mpz_set_ui(gmpb, sm_primes[j * 8 + m]);
+						mpz_powm(gmp2, gmpb, gmpe, gmpn);
+
+						if (mpz_cmp_ui(gmp2, 1) == 0)
+							gonemsk |= (1 << m);
+						if (mpz_cmp(gmp2, gmpn1) == 0)
+							gmonemsk |= (1 << m);
+					}
+
+
+					if (onemsk != gonemsk)
+					{
+						printf("1 masks not equal: %02x,%02x\n", onemsk, gonemsk);
+						gmp_printf("input %Zd\n", gmpn);
+						printf("primes: ");
+						for (m = 0; m < 8; m++)
+						{
+							if (((onemsk ^ gonemsk) & (1 << m)) > 0)
+							{
+								mpz_set_ui(gmpb, sm_primes[j * 8 + m]);
+								mpz_powm(gmp2, gmpb, gmpe, gmpn);
+								gmp_printf("%u: %Zd ", sm_primes[j * 8 + m], gmp2);
+							}
+						}
+						printf("\n");
+					}
+
+					if (monemsk != gmonemsk)
+					{
+						printf("-1 masks not equal: %02x,%02x\n", monemsk, gmonemsk);
+						gmp_printf("input %Zd\n", gmpn);
+						printf("primes: ");
+						for (m = 0; m < 8; m++)
+						{
+							if (((monemsk ^ gmonemsk) & (1 << m)) > 0)
+							{
+								mpz_set_ui(gmpb, sm_primes[j * 8 + m]);
+								mpz_powm(gmp2, gmpb, gmpe, gmpn);
+								gmp_printf("%u: %Zd ", sm_primes[j * 8 + m], gmp2);
+							}
+						}
+						printf("\n");
+					}
+
+					if ((onemsk != gonemsk) || (monemsk != gmonemsk))
+						exit(0);
+#endif
+				}
+
+				prp[0] += inc;
+				inc = 6 - inc;
+			}
+
+			
+
+			k++;
+			ticks2 = my_rdtsc();
+			elapsed += (ticks2 - ticks1);
+			gettimeofday(&stop, NULL);
+			telapsed += ytools_difftime(&start, &stop);
+
+			totalnum += num;
+		} while (totalnum < 10000); // (0);  (elapsed < (1ull << 30));
+
+		printf("%013lx%013lx\n", prp[1], prp[0]);
+
+		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+			elapsed, bits, (elapsed) / (k * num));
+		printf("found %u +1 and %u -1 tests out of %u %d-bit inputs: %1.2f%%\n",
+			num1, numm1, k * num, bits, 100. * (double)numprp / (double)(k * num));
+		printf("elapsed time: %1.4f sec, %1.4f us / input\n", telapsed, 1000000. * telapsed / (double)(k * num));
+	}
+	printf("\n");
+
+	return 0;
+
+	printf("test of fermat_prp_64x1 on random 6k + 1 inputs\n");
+	my_random_reset();
 	for (bits = 20; bits <= 0; bits += 1)
 	{
 		uint32_t numprp = 0;
@@ -280,8 +800,133 @@ int test_tinyprp()
 	}
 	printf("\n");
 
-	// test of fermat_prp_128x1 on random 6k+1 inputs
-	for (bits = 118; bits <= 0; bits += 1)
+	printf("test of MR_2sprp_64x1 on random 6k + 1 inputs\n");
+	my_random_reset();
+	for (bits = 20; bits <= 0; bits += 1)
+	{
+		uint32_t numprp = 0;
+		uint64_t ticks1 = my_rdtsc();
+		uint64_t ticks2;
+		uint32_t num = 1000000;
+		double telapsed = 0;
+		int k;
+
+		numprp = 0;
+		k = 0;
+		elapsed = 0;
+		telapsed = 0;
+		do {
+
+			uint128_t x;
+			do {
+				x = my_random();
+				uint128_t maskAnd = ((uint128_t)1 << (bits - 1)) - 1;	// clear msbits
+				uint128_t maskOr = ((uint128_t)1 << (bits - 1)) | ((uint128_t)1 << (bits / 2));	// force msb, force another bit
+				x &= maskAnd;
+				x |= maskOr;
+				x /= 6;
+				x *= 6;	// now a multiple of 6
+				x += 1;	// number like 6*k + 1
+			} while (x >> (bits - 1) != 1);
+
+			prp[0] = (uint64_t)x;
+
+			ticks1 = my_rdtsc();
+			gettimeofday(&start, NULL);
+
+			uint64_t inc = 4;
+			int j;
+
+			for (j = 0; j < num; j++)
+			{
+				numprp += MR_2sprp_64x1(prp[0]);
+				prp[0] += inc;
+				inc = 6 - inc;
+			}
+
+			k++;
+			ticks2 = my_rdtsc();
+			elapsed += (ticks2 - ticks1);
+			gettimeofday(&stop, NULL);
+			telapsed += ytools_difftime(&start, &stop);
+
+		} while (elapsed < (1ull << 30));
+
+		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+			elapsed, bits, (elapsed) / (k * num));
+		printf("found %d MR_2sprp out of %u %d-bit inputs: %1.2f%%\n",
+			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
+		printf("elapsed time: %1.4f sec, %1.4f us / input\n", telapsed, 1000000. * telapsed / (double)(k * num));
+	}
+	printf("\n");
+
+	printf("test of mpz_probab_prime_p on random 6k + 1 inputs\n");
+	my_random_reset();
+	for (bits = 20; bits <= 0; bits += 1)
+	{
+		uint32_t numprp = 0;
+		uint64_t ticks1 = my_rdtsc();
+		uint64_t ticks2;
+		uint32_t num = 1000000;
+		double telapsed = 0;
+		int k;
+		mpz_t gmp_prp;
+
+		mpz_init(gmp_prp);
+
+		numprp = 0;
+		k = 0;
+		elapsed = 0;
+		telapsed = 0;
+		do {
+
+			uint128_t x;
+			do {
+				x = my_random();
+				uint128_t maskAnd = ((uint128_t)1 << (bits - 1)) - 1;	// clear msbits
+				uint128_t maskOr = ((uint128_t)1 << (bits - 1)) | ((uint128_t)1 << (bits / 2));	// force msb, force another bit
+				x &= maskAnd;
+				x |= maskOr;
+				x /= 6;
+				x *= 6;	// now a multiple of 6
+				x += 1;	// number like 6*k + 1
+			} while (x >> (bits - 1) != 1);
+
+			mpz_set_ui(gmp_prp, (uint64_t)x);
+
+			ticks1 = my_rdtsc();
+			gettimeofday(&start, NULL);
+
+			uint64_t inc = 4;
+			int j;
+
+			for (j = 0; j < num; j++)
+			{
+				numprp += (mpz_probab_prime_p(gmp_prp, 1) > 0);
+				mpz_add_ui(gmp_prp, gmp_prp, inc);
+				inc = 6 - inc;
+			}
+
+			k++;
+			ticks2 = my_rdtsc();
+			elapsed += (ticks2 - ticks1);
+			gettimeofday(&stop, NULL);
+			telapsed += ytools_difftime(&start, &stop);
+
+		} while (elapsed < (1ull << 30));
+
+		mpz_clear(gmp_prp);
+
+		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+			elapsed, bits, (elapsed) / (k * num));
+		printf("found %d mpz_probab_prime_p out of %u %d-bit inputs: %1.2f%%\n",
+			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
+		printf("elapsed time: %1.4f sec, %1.4f us / input\n", telapsed, 1000000. * telapsed / (double)(k * num));
+	}
+	printf("\n");
+
+	printf("test of fermat_prp_128x1 on random 6k + 1 inputs\n");
+	for (bits = 100; bits <= 128; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -340,8 +985,69 @@ int test_tinyprp()
 	}
 	printf("\n");
 
+	printf("test of MR_2sprp_128x1 on random 6k + 1 inputs\n");
+	for (bits = 100; bits <= 128; bits += 1)
+	{
+		uint32_t numprp = 0;
+		uint64_t ticks1 = my_rdtsc();
+		uint64_t ticks2;
+		uint32_t num = 1000000;
+		double telapsed = 0;
+		int k;
+
+		numprp = 0;
+		k = 0;
+		elapsed = 0;
+		telapsed = 0;
+		do {
+
+			uint128_t x;
+			do {
+				x = my_random();
+				uint128_t maskAnd = ((uint128_t)1 << (bits - 1)) - 1;	// clear msbits
+				uint128_t maskOr = ((uint128_t)1 << (bits - 1)) | ((uint128_t)1 << (bits / 2));	// force msb, force another bit
+				x &= maskAnd;
+				x |= maskOr;
+				x /= 6;
+				x *= 6;	// now a multiple of 6
+				x += 1;	// number like 6*k + 1
+			} while (x >> (bits - 1) != 1);
+
+			prp[0] = (uint64_t)x;
+			prp[1] = (uint64_t)(x >> 64);
+
+			ticks1 = my_rdtsc();
+			gettimeofday(&start, NULL);
+
+			uint64_t inc = 4;
+			int j;
+
+			for (j = 0; j < num; j++)
+			{
+				numprp += MR_2sprp_128x1(prp);
+				prp[0] += inc;
+				inc = 6 - inc;
+			}
+
+			k++;
+			ticks2 = my_rdtsc();
+			elapsed += (ticks2 - ticks1);
+			gettimeofday(&stop, NULL);
+			telapsed += ytools_difftime(&start, &stop);
+
+		} while (elapsed < (1ull << 30));
+
+		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+			elapsed, bits, (elapsed) / (k * num));
+		printf("found %d MR-2sprp out of %u %d-bit inputs: %1.2f%%\n",
+			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
+		printf("elapsed time: %1.4f sec, %1.4f us / input\n", telapsed, 1000000. * telapsed / (double)(k * num));
+	}
+	printf("\n");
+
+	return 0;
 	// test of fermat_prp_52x8 on random 6k+1 inputs
-	for (bits = 20; bits <= 0; bits += 1)
+	for (bits = 20; bits <= 52; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -490,7 +1196,7 @@ int test_tinyprp()
 	printf("\n");
 
 	// test of fermat_prp_52x8 on random 6k+1 inputs
-	for (bits = 20; bits <= 0; bits += 1)
+	for (bits = 20; bits <= 52; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -554,7 +1260,7 @@ int test_tinyprp()
 	printf("\n");
 
 	// test of MR_2sprp_104x8 on random 6k+1 inputs
-	for (bits = 50; bits <= 0; bits += 1)
+	for (bits = 50; bits <= 104; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -647,7 +1353,7 @@ int test_tinyprp()
 		79, 83, 89, 97 };
 
 	// test of MR_sprp_104x8 on PRP 6k+1 inputs
-	for (bits = 50; bits <= 0; bits += 1)
+	for (bits = 50; bits <= 104; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -791,7 +1497,7 @@ int test_tinyprp()
 	printf("\n");
 
 	// test of MR_sprp_104x8base on PRP 6k+1 inputs
-	for (bits = 50; bits <= 0; bits += 1)
+	for (bits = 50; bits <= 104; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1;
@@ -1592,6 +2298,159 @@ uint8_t MR_sprp_104x8(uint64_t* n, uint64_t* bases)
 		_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[0], n1v[0]));
 
 	return (is1prp | ism1prp);
+}
+
+void modexp_104x8b(uint8_t *is1msk, uint8_t *ism1msk, uint64_t* n, uint64_t *e, uint64_t* bases)
+{
+	// assumes n >= 54 bits.
+	// assumes n is 104-bit integer (2 52-bit words)
+	// assumes e is 104-bit integer (2 52-bit words)
+	// assume bases is a list of 8 small (single-word) bases.
+	// compute b^e % n for each base b and compare result to 1 and -1
+	__m512i vrho = _mm512_set1_epi64(multiplicative_inverse(n[0]));
+	__m512i one[2];
+	__m512i nv[2];
+	__m512i rv[2];
+	__m512i bv[2];
+	__m512i n1v[2];
+	__m512i m;
+	__m512i zerov = _mm512_setzero_si512();
+	__m512i onev = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	uint64_t d[2];
+	uint64_t tmp = 0;
+
+	// normal (negative) Montgomery mul
+	vrho = _mm512_and_epi64(_mm512_sub_epi64(zerov, vrho), lo52mask);
+
+	// Monty 1
+	uint128_t mod = ((uint128_t)n[1] << 52) + n[0];
+	uint128_t one128 = (uint128_t)1 << 104;
+	one128 %= mod;
+
+	one[0] = set64((uint64_t)one128 & 0xfffffffffffffULL);
+	one[1] = set64((uint64_t)(one128 >> 52));
+
+#ifdef DEBUG_THIS
+	printf("n = %013lx%013lx\n", n[1], n[0]);
+	printf("e = %013lx%013lx\n", e[1], e[0]);
+	printf("1 = %013lx%013lx\n", (uint64_t)(one128 >> 52), (uint64_t)one128 & 0xfffffffffffffULL);
+#endif
+
+	// load N
+	nv[0] = set64(n[0]);
+	nv[1] = set64(n[1]);
+
+	// and E
+	d[0] = e[0];
+	d[1] = e[1];
+
+	// get bases into Monty rep
+	bv[0] = loadu64(bases);
+	bv[1] = zerov;
+
+	__m512i mpow[2];
+
+	mpow[0] = one[0];
+	mpow[1] = one[1];
+
+	rv[0] = zerov;
+	rv[1] = zerov;
+
+	//bv[0] = _mm512_srli_epi64(bv[0], 1);
+	__mmask8 done = _mm512_cmpeq_epi64_mask(bv[0], zerov);
+	while (done != 0xff)
+	{
+		__mmask8 bitcmp = _mm512_test_epi64_mask(onev, bv[0]);
+		mask_addmod104_x8(&rv[1], &rv[0], (~done) & bitcmp, rv[1], rv[0], mpow[1], mpow[0], nv[1], nv[0]);
+		addmod104_x8(&mpow[1], &mpow[0], mpow[1], mpow[0], mpow[1], mpow[0], nv[1], nv[0]);
+
+		bv[0] = _mm512_srli_epi64(bv[0], 1);
+		done = _mm512_cmpeq_epi64_mask(bv[0], zerov);
+	}
+
+	bv[0] = rv[0];
+	bv[1] = rv[1];
+
+#ifdef DEBUG_THIS
+	{
+		uint64_t bases0[8];
+		uint64_t bases1[8];
+		storeu64(bases0, bv[0]);
+		storeu64(bases1, bv[1]);
+		printf("bases:\n");
+		int i;
+		for (i = 0; i < 8; i++)
+		{
+			printf("%013lx%013lx\n", bases1[i], bases0[i]);
+		}
+	
+	}
+#endif
+	
+	// RL-52x2
+	rv[0] = one[0];
+	rv[1] = one[1];
+	int i = 0;
+	while (d[0] > 0)
+	{
+		if (d[0] & 1)
+			mulredc104_vec(&rv[1], &rv[0], 
+				rv[1], rv[0], bv[1], bv[0], nv[1], nv[0], vrho);
+
+		d[0] >>= 1;
+		i++;
+
+		sqrredc104_vec(&bv[1], &bv[0], bv[1], bv[0], nv[1], nv[0], vrho);
+	}
+
+	for (; (i < 52) && (d[1] > 0); i++)
+	{
+		sqrredc104_vec(&bv[1], &bv[0], bv[1], bv[0], nv[1], nv[0], vrho);
+	}
+
+	while (d[1] > 0)
+	{
+		if (d[1] & 1)
+			mulredc104_vec(&rv[1], &rv[0], 
+				rv[1], rv[0], bv[1], bv[0], nv[1], nv[0], vrho);
+
+		d[1] >>= 1;
+
+		sqrredc104_vec(&bv[1], &bv[0], bv[1], bv[0], nv[1], nv[0], vrho);
+	}
+
+	// AMM possibly needs a final correction by n
+	chkmod104_x8(&rv[1], &rv[0], rv[1], rv[0], nv[1], nv[0]);
+	chkmod104_x8(&rv[1], &rv[0], rv[1], rv[0], nv[1], nv[0]);
+
+#ifdef DEBUG_THIS
+	{
+		uint64_t bases0[8];
+		uint64_t bases1[8];
+		storeu64(bases0, rv[0]);
+		storeu64(bases1, rv[1]);
+		printf("results:\n");
+		int i;
+		for (i = 0; i < 8; i++)
+		{
+			printf("%013lx%013lx\n", bases1[i], bases0[i]);
+		}
+	
+	}
+#endif
+
+	// check current result == 1
+	*is1msk = _mm512_cmpeq_epu64_mask(rv[1], one[1]) &
+		_mm512_cmpeq_epu64_mask(rv[0], one[0]);
+
+	submod104_x8(&n1v[1], &n1v[0], nv[1], nv[0], one[1], one[0], nv[1], nv[0]);
+
+	// check current result == m-1
+	*ism1msk = (_mm512_cmpeq_epu64_mask(rv[1], n1v[1]) &
+		_mm512_cmpeq_epu64_mask(rv[0], n1v[0]));
+
+	return;
 }
 
 // a Miller-Rabin SPRP test on 1 104-bit input using 8x

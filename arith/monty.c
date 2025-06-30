@@ -263,6 +263,11 @@ void monty_redc(monty_t *mdata, mpz_t x)
         mpz_sub(x, x, mdata->n);
 }
 
+
+
+
+
+
 /********************* 128-bit Montgomery arith **********************/
 void to_monty128(monty128_t *mdata, uint64_t * x)
 {
@@ -433,6 +438,44 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 #ifdef USE_PERIG_128BIT
 
 
+uint64_t my_ctz64(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#if defined(__BMI1__)
+	uint64_t t;
+	asm(" tzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_ctzll(n);
+	return 64;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_ctzll(n);
+	return 64;
+#else
+	if (n == 0)
+		return 64;
+	uint64_t r = 0;
+	if ((n & 0xFFFFFFFFull) == 0)
+		r += 32, n >>= 32;
+	if ((n & 0xFFFFull) == 0)
+		r += 16, n >>= 16;
+	if ((n & 0xFFull) == 0)
+		r += 8, n >>= 8;
+	if ((n & 0xFull) == 0)
+		r += 4, n >>= 4;
+	if ((n & 0x3ull) == 0)
+		r += 2, n >>= 2;
+	if ((n & 0x1ull) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
 // count trailing zeroes in binary representation 
 uint64_t my_ctz52(uint64_t n)
 {
@@ -479,6 +522,14 @@ uint64_t my_ctz104(uint64_t n_lo, uint64_t n_hi)
 		return my_ctz52(n_lo);
 	}
 	return 52 + my_ctz52(n_hi);
+}
+
+uint64_t my_ctz128(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_lo) {
+		return my_ctz64(n_lo);
+	}
+	return 64 + my_ctz64(n_hi);
 }
 
 // count leading zeroes in binary representation
@@ -653,7 +704,7 @@ static void ciosSubtract128(uint64_t* res_lo, uint64_t* res_hi, uint64_t carries
 	*res_hi = t_hi;
 }
 
-static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
+void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
 {
 
@@ -861,10 +912,10 @@ static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 /********************* end of Perig's 128-bit code **********************/
 
 // modSqr version I wrote based on the modMul
-static void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
+void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
 {
-#ifdef _MSC_VER
+#if 1 //def _MSC_VER
 	*res_lo = b_lo;
 	*res_hi = b_hi;
 	ciosModMul128(res_lo, res_hi, b_lo, b_hi, mod_lo, mod_hi, mmagic);

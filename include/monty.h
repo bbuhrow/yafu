@@ -96,8 +96,203 @@ uint64_t my_clz104(uint64_t n_lo, uint64_t n_hi);
 uint64_t my_clz52(uint64_t n);
 uint64_t my_ctz104(uint64_t n_lo, uint64_t n_hi);
 uint64_t my_ctz52(uint64_t n);
+uint64_t my_ctz64(uint64_t n);
+uint64_t my_ctz128(uint64_t nlo, uint64_t nhi);
 
 /********************* 64-bit Montgomery arith **********************/
+
+
+/* --- The following functions are written by Jeff Hurchalla, Copyright 2022 --- */
+
+// Using the inline asm in this file can increase performance by ~20-25%
+// (surprisingly).  Hence these macros are defined by default.
+#if defined(__x86_64__) || defined(_M_X64)
+#  define ALT_MULREDC_USE_INLINE_ASM_X86
+#endif
+
+
+// for this algorithm, see https://jeffhurchalla.com/2022/04/28/montgomery-redc-using-the-positive-inverse-mod-r/
+__inline static uint64_t mulredc_pos_alt(uint64_t x, uint64_t y, uint64_t N, uint64_t invN)
+{
+#if defined(_MSC_VER)
+	uint64_t T_hi;
+	uint64_t T_lo = _umul128(x, y, &T_hi);
+	uint64_t m = T_lo * invN;
+	uint64_t mN_hi = __umulh(m, N);
+#else
+	__uint128_t prod = (__uint128_t)x * y;
+	uint64_t T_hi = (uint64_t)(prod >> 64);
+	uint64_t T_lo = (uint64_t)(prod);
+	uint64_t m = T_lo * invN;
+	__uint128_t mN = (__uint128_t)m * N;
+	uint64_t mN_hi = (uint64_t)(mN >> 64);
+#endif
+	uint64_t tmp = T_hi + N;
+#if defined(ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
+	__asm__(
+		"subq %[mN_hi], %[tmp] \n\t"    /* tmp = T_hi + N - mN_hi */
+		"subq %[mN_hi], %[T_hi] \n\t"   /* T_hi = T_hi - mN_hi */
+		"cmovaeq %[T_hi], %[tmp] \n\t"  /* tmp = (T_hi >= mN_hi) ? T_hi : tmp */
+		: [tmp] "+&r"(tmp), [T_hi]"+&r"(T_hi)
+		: [mN_hi] "r"(mN_hi)
+		: "cc");
+	uint64_t result = tmp;
+#else
+	tmp = tmp - mN_hi;
+	uint64_t result = T_hi - mN_hi;
+	result = (T_hi < mN_hi) ? tmp : result;
+#endif
+	return result;
+}
+
+static uint64_t bin_gcd64(uint64_t u, uint64_t v)
+{
+#if 1
+	if (u == 0) {
+		return v;
+	}
+	if (v != 0) {
+		int j = _trail_zcnt64(v);
+		v = (uint64_t)(v >> j);
+		while (1) {
+			uint64_t tmp = u;
+			uint64_t sub1 = (uint64_t)(v - tmp);
+			uint64_t sub2 = (uint64_t)(tmp - v);
+			if (tmp == v)
+				break;
+			u = (tmp >= v) ? v : tmp;
+			v = (tmp >= v) ? sub2 : sub1;
+			// For the line below, the standard way to write this algorithm
+			// would have been to use _trail_zcnt64(v)  (instead of
+			// _trail_zcnt64(sub1)).  However, as pointed out by
+			// https://gmplib.org/manual/Binary-GCD, "in twos complement the
+			// number of low zero bits on u-v is the same as v-u, so counting or
+			// testing can begin on u-v without waiting for abs(u-v) to be
+			// determined."  Hence we are able to use sub1 for the argument.
+			// By removing the dependency on abs(u-v), the CPU can execute
+			// _trail_zcnt64() at the same time as abs(u-v).
+			j = _trail_zcnt64(sub1);
+			v = (uint64_t)(v >> j);
+		}
+	}
+	return u;
+#else
+	// For reference, or if in the future we need to allow an even u,
+	// this version allows u to be even or odd.
+	if (u == 0) {
+		return v;
+	}
+	if (v != 0) {
+		int i = _trail_zcnt64(u);
+		int j = _trail_zcnt64(v);
+		u = (uint64_t)(u >> i);
+		v = (uint64_t)(v >> j);
+		int k = (i < j) ? i : j;
+		while (1) {
+			uint64_t tmp = u;
+			uint64_t sub1 = (uint64_t)(v - tmp);
+			uint64_t sub2 = (uint64_t)(tmp - v);
+			if (tmp == v)
+				break;
+			u = (tmp >= v) ? v : tmp;
+			v = (tmp >= v) ? sub2 : sub1;
+			// For the line below, the standard way to write this algorithm
+			// would have been to use _trail_zcnt64(v)  (instead of
+			// _trail_zcnt64(sub1)).  However, as pointed out by
+			// https://gmplib.org/manual/Binary-GCD, "in twos complement the
+			// number of low zero bits on u-v is the same as v-u, so counting or
+			// testing can begin on u-v without waiting for abs(u-v) to be
+			// determined."  Hence we are able to use sub1 for the argument.
+			// By removing the dependency on abs(u-v), the CPU can execute
+			// _trail_zcnt64() at the same time as abs(u-v).
+			j = _trail_zcnt64(sub1);
+			v = (uint64_t)(v >> j);
+		}
+		u = (uint64_t)(u << k);
+	}
+	return u;
+#endif
+}
+
+// full strength mul/sqr redc
+__inline static uint64_t mulredc_pos(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
+{
+#if defined(__unix__) && defined(__x86_64__)
+	// On Intel Skylake: 9 cycles latency, 7 fused uops.
+	__uint128_t prod = (__uint128_t)x * y;
+	uint64_t Thi = (uint64_t)(prod >> 64);
+	uint64_t rrax = (uint64_t)(prod);
+	__asm__(
+		"imulq %[inv], %%rax \n\t"        /* m = T_lo * invN */
+		"mulq %[n] \n\t"                  /* mN = m * N */
+		"leaq (%[Thi], %[n]), %%rax \n\t" /* rax = T_hi + N */
+		"subq %%rdx, %%rax \n\t"          /* rax = rax - mN_hi */
+		"subq %%rdx, %[Thi] \n\t"         /* t_hi = T_hi - mN_hi */
+		"cmovbq %%rax, %[Thi] \n\t"       /* t_hi = (T_hi<mN_hi) ? rax : t_hi */
+		: [Thi] "+&bcSD"(Thi), "+&a"(rrax)
+		: [n] "r"(n), [inv]"r"(inv)
+		: "rdx", "cc");
+	uint64_t result = Thi;
+	return result;
+
+#else
+	return mulredc_pos_alt(x, y, n, inv);
+#endif
+}
+__inline static uint64_t sqrredc_pos(uint64_t x, uint64_t n, uint64_t inv)
+{
+#if defined(__unix__) && defined(__x86_64__)
+	// On Intel Skylake: 9 cycles latency, 7 fused uops.
+	__uint128_t prod = (__uint128_t)x * x;
+	uint64_t Thi = (uint64_t)(prod >> 64);
+	uint64_t rrax = (uint64_t)(prod);
+	__asm__(
+		"imulq %[inv], %%rax \n\t"        /* m = T_lo * invN */
+		"mulq %[n] \n\t"                  /* mN = m * N */
+		"leaq (%[Thi], %[n]), %%rax \n\t" /* rax = T_hi + N */
+		"subq %%rdx, %%rax \n\t"          /* rax = rax - mN_hi */
+		"subq %%rdx, %[Thi] \n\t"         /* t_hi = T_hi - mN_hi */
+		"cmovbq %%rax, %[Thi] \n\t"       /* t_hi = (T_hi<mN_hi) ? rax : t_hi */
+		: [Thi] "+&bcSD"(Thi), "+&a"(rrax)
+		: [n] "r"(n), [inv]"r"(inv)
+		: "rdx", "cc");
+	uint64_t result = Thi;
+	return result;
+
+#else
+	return mulredc_pos_alt(x, x, n, inv);
+#endif
+}
+__inline static uint64_t mfma64(uint64_t x, uint64_t y, uint64_t c, uint64_t N, uint64_t invN)
+{
+#if defined(_MSC_VER)
+	uint64_t T_hi;
+	uint64_t T_lo = _umul128(x, y, &T_hi);
+	uint64_t m = T_lo * invN;
+	uint64_t mN_hi = __umulh(m, N);
+#else
+	__uint128_t z = (__uint128_t)x * y;
+	uint64_t u = (uint64_t)(z >> 64);
+	uint64_t v = (uint64_t)z;
+	uint64_t w = (u < N - c) ? u + c : u + c - N;  // modular add
+	uint64_t T_hi = w;
+	uint64_t T_lo = v;
+
+	uint64_t m = T_lo * invN;
+	__uint128_t mN = (__uint128_t)m * N;
+	uint64_t mN_hi = (uint64_t)(mN >> 64);
+	uint64_t tmp = T_hi + N;
+	tmp = tmp - mN_hi;
+	uint64_t result = T_hi - mN_hi;
+	result = (T_hi < mN_hi) ? tmp : result;
+	return result;
+
+#endif
+
+}
+
+/* --- end Hurchalla functions --- */
+
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
 
@@ -297,6 +492,8 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 
     return x;
 }
+
+
 #else
 
 
@@ -1366,6 +1563,26 @@ __inline static void addmod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i 
 	// *c0 = _mm512_mask_sub_epi64(a0, msk, a0, n0);
 	// *c1 = _mm512_mask_sub_epi64(a1, msk, a1, n1);
 	// *c1 = _mm512_mask_sub_epi64(*c1, msk, *c1, _mm512_srli_epi64(*c0, 63));
+	return;
+}
+__inline static void chkmod104_x8(__m512i* c1, __m512i* c0, 
+	__m512i b1, __m512i b0, __m512i n1, __m512i n0)
+{
+	// check if larger than n and reduce if so.
+	__mmask8 bmsk = _mm512_cmpgt_epu64_mask(n0, b0);
+
+	// compare
+	__mmask8 msk = _mm512_cmpgt_epu64_mask(b1, n1);
+	__mmask8 msk2 = _mm512_cmpge_epu64_mask(b0, n0);
+	msk |= (_mm512_cmpeq_epu64_mask(b1, n1) & msk2);
+
+	// conditionally subtract N
+	// *c0 = _mm512_mask_subsetc_epi52(b0, msk, b0, n0, &bmsk);
+	// *c1 = _mm512_mask_sbb_epi52(b1, msk, bmsk, n1, &bmsk);
+	*c0 = _mm512_mask_sub_epi64(b0, msk, b0, n0);
+	*c1 = _mm512_mask_sub_epi64(b1, msk, b1, n1);
+	*c0 = _mm512_and_epi64(*c0, _mm512_set1_epi64(0xfffffffffffffull));
+	*c1 = _mm512_mask_sub_epi64(*c1, msk & bmsk, *c1, _mm512_set1_epi64(1));
 	return;
 }
 __inline static void mask_addmod104_x8(__m512i* c1, __m512i* c0, __mmask8 addmsk,
