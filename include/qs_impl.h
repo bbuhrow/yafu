@@ -62,7 +62,7 @@
 #define SS_ROOT_MASK (SS_MAX_ROOT - 1)
 #endif
 
-// harebrained idea
+// harebrained idea, didn't work :(
 #define NUM_ALP 0
 
 // as part of analyzing 3lp parameterizations, we save off the 

@@ -1,27 +1,24 @@
-/*
-This source distribution is placed in the public domain by its author,
-Ben Buhrow. You may use it for any purpose, free of charge,
-without having to notify anyone. I disclaim any responsibility for any
-errors.
-
-Optionally, please be nice and tell me if you find this source to be
-useful. Again optionally, if you add to the functionality present here
-please consider making those additions public too, so that others may
-benefit from your work.
-
-Some parts of the code (and also this header), included in this
-distribution have been reused from other sources. In particular I
-have benefitted greatly from the work of Jason Papadopoulos's msieve @
-www.boo.net/~jasonp, Scott Contini's mpqs implementation, and Tom St.
-Denis Tom's Fast Math library.  Many thanks to their kind donation of
-code to the public domain.
---bbuhrow@gmail.com 11/24/09
-*/
-
-/* 
-I gratefully acknowledge Tom St. Denis's TomsFastMath library, on which
-many of the arithmetic routines here are based
-*/
+// MIT License
+// 
+// Copyright (c) 2025 Ben Buhrow
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 /*
 
@@ -52,12 +49,12 @@ SOFTWARE.
 */
 
 #include "common.h"
-//#include "ytools.h"
 #include "monty.h"
 #include "arith.h"
 #include "gmp.h"
 #include <stdint.h>
 #include <immintrin.h>
+#include <stdio.h>
 
 #ifdef __GNUC__
 #include <stdbool.h>
@@ -96,6 +93,9 @@ uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r) // uint64_t
 #endif
 
 /********************* arbitrary-precision Montgomery arith **********************/
+// generic Montgomery arithmetic using gmp
+// specialized things like mpz_powm will be much faster
+
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t rhat, mpz_t b);
 int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat);
 
@@ -105,28 +105,8 @@ void fp_montgomery_calc_normalization(mpz_t r, mpz_t r2modn, mpz_t n)
     int nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS + 
         ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0);
 
-    //printf("GMP_LIMB_BITS is %u\n", GMP_LIMB_BITS);
     mpz_set_ui(r, 1);
     mpz_mul_2exp(r, r, nfullwords * GMP_LIMB_BITS);
-
-    /*
-    mpz_set(r2modn, r);
-
-    // now compute r^2 % n so that we can do fast 
-    // conversions into montgomery representation.
-    bits = mpz_sizeinbase(r, 2) - 1;
-    while (mpz_cmp(r2modn, n) >= 0)
-    {
-        mpz_tdiv_q_2exp(r2modn, r2modn, 1);
-        bits++;
-    }
-
-    for (x = 0; x < bits; x++) {                
-        mpz_mul_2exp(r2modn, r2modn, 1);
-        if (mpz_cmp(r2modn, n) >= 0)
-            mpz_sub(r2modn, r2modn, n);
-    }
-    */
 
     return;
 }
@@ -141,16 +121,8 @@ int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat)
 
 void to_monty(monty_t *mdata, mpz_t x)
 {
-	//given a number x in normal (hexadecimal) representation, 
-	//find its montgomery representation
-
-	//this uses some precomputed monty constants
-	//xhat = (x * r) mod n
-    // = x * R^2 / R mod n
-    // = REDC(x * R^2)
-
-    //mpz_mul(x, x, mdata->rhat);
-    //monty_redc(mdata, x);
+	// given a number x in normal representation, 
+	// find its montgomery representation
 
     mpz_mul_2exp(x, x, mpz_sizeinbase(mdata->r,2));
     mpz_tdiv_r(x, x, mdata->n);
@@ -160,9 +132,9 @@ void to_monty(monty_t *mdata, mpz_t x)
 
 monty_t * monty_alloc()
 {
-	//for a input modulus n, initialize constants for 
-	//montogomery representation
-	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	// for a input modulus n, initialize constants for 
+	// montogomery representation
+	// this assumes that n is relatively prime to 2, i.e. is odd.	
 	monty_t *mdata;
 
 	mdata = (monty_t *)malloc(sizeof(monty_t));
@@ -186,9 +158,9 @@ monty_t * monty_alloc()
 
 void monty_init(mpz_t n, monty_t *mdata)
 {
-	//for a input modulus n, initialize constants for 
-	//montogomery representation
-	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	// for a input modulus n, initialize constants for 
+	// montogomery representation
+	// this assumes that n is relatively prime to 2, i.e. is odd.	
 
 	// initialize space such that we can use vectorized
     mpz_set(mdata->n, n);
@@ -264,20 +236,11 @@ void monty_redc(monty_t *mdata, mpz_t x)
 }
 
 
-
-
-
-
 /********************* 128-bit Montgomery arith **********************/
 void to_monty128(monty128_t *mdata, uint64_t * x)
 {
-	//given a number x in normal (hexadecimal) representation, 
-	//find its montgomery representation
-
-	//this uses some precomputed monty constants
-	//xhat = (x * r) mod n
-	// = x * R^2 / R mod n
-	// = REDC(x * R^2)
+	// given a number x in normal representation, 
+	// find its montgomery representation
 	mpz_t m;
 	mpz_t n;
 
@@ -308,9 +271,9 @@ void to_monty128(monty128_t *mdata, uint64_t * x)
 
 void monty128_init(monty128_t * mdata, uint64_t * n)
 {
-	//for a input modulus n, initialize constants for 
-	//montogomery representation
-	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	// for a input modulus n, initialize constants for 
+	// montogomery representation
+	// this assumes that n is relatively prime to 2, i.e. is odd.	
 	uint64_t b = n[0];
 	uint64_t x;
 
@@ -1141,6 +1104,130 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 	return;
 }
 
+void mulmod128n(uint64_t* u, uint64_t* v, uint64_t* w, uint64_t* n, uint64_t rho)
+{
+#ifdef USE_PERIG_128BIT
+	uint64_t t[2];
+	t[0] = v[0];
+	t[1] = v[1];
+	ciosModMul128(&t[0], &t[1], u[0], u[1], n[0], n[1], rho);
+	w[0] = t[0];
+	w[1] = t[1];
+	return;
+
+#else
+
+
+	// integrate multiply and reduction steps, alternating
+	// between iterations of the outer loops.
+	uint64_t s[3];
+
+	s[0] = 0;
+	s[1] = 0;
+	s[2] = 0;
+
+#if defined( USE_AVX2 ) && defined(GCC_ASM64X)
+	// requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+	ciosFullMul128x(u, v, rho, n, s);
+
+	if ((s[2]) || (s[1] > n[1]) || ((s[1] == n[1]) && (s[0] > n[0])))
+	{
+		ASM_G(
+			"movq %4, %%r11 \n\t"
+			"movq %0, 0(%%r11) \n\t"
+			"movq %1, 8(%%r11) \n\t"
+			"subq %2, 0(%%r11) \n\t"
+			"sbbq %3, 8(%%r11) \n\t"
+			:
+		: "r"(s[0]), "r"(s[1]), "r"(n[0]), "r"(n[1]), "r"(w)
+			: "r11", "cc", "memory");
+	}
+	else
+	{
+		w[0] = s[0];
+		w[1] = s[1];
+	}
+#else
+	// TODO: implement portable u128 x u128 modular multiplication
+	uint64_t t[3], U, c2, c3;
+	uint8_t c1, c4;
+
+	// z = 0
+	// for (i = 0; i < t; i++)
+	// {
+	//     u = (z0 + xi * y0) * -m’ mod b
+	//     z = (z + xi * y + u * m) / b
+	// }
+	// if (x >= m) { x -= m; }
+
+	//printf("nhat = %" PRIx64 "\n", mdata->rho);
+	//printf("a = %" PRIx64 ",%" PRIx64 "\n", u[1], u[0]);
+	//printf("b = %" PRIx64 ",%" PRIx64 "\n", v[1], v[0]);
+	//printf("n = %" PRIx64 ",%" PRIx64 "\n", mdata->n[1], mdata->n[0]);
+
+	//i = 0;
+	//u = (z0 + x0 * y0) * nhat mod b;
+	t[0] = _umul128(u[0], v[0], &t[1]);
+	U = t[0] * rho;
+
+	//printf("t[0] = %" PRIx64 ", t[1] = %" PRIx64 ", u = %" PRIx64 "\n", t[0], t[1], U);
+
+	//j = 0;
+	//z = (z + x0 * y0 + u * m0) / b;
+	c1 = _addcarry_u64(0, _umul128(U, n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+	t[2] = _addcarry_u64(c1, t[1], c2, &t[1]);                              // c1 applies to t2
+
+	//j = 1;
+	//z = (z + x0 * y1 + u * m1) / b;
+	c1 = _addcarry_u64(0, _umul128(u[0], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+	c4 = _addcarry_u64(0, _umul128(U, n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+	c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+	t[0] = t[1];                                                            // divide by b
+	t[1] = t[2];
+	t[2] = c1 + c4;
+
+	//printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
+
+	//i = 0;
+	//u = (z + x1 * y0) * nhat mod b;
+	c1 = _addcarry_u64(0, _umul128(u[1], v[0], &c2), t[0], &t[0]);          // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+	t[2] += c1;
+	U = t[0] * rho;
+
+	//printf("t[0] = %" PRIx64 ", u = %" PRIx64 "\n", t[0], U);
+
+	//j = 0;
+	//z = (z + x1 * y0 + u * m0) / b;
+	c1 = _addcarry_u64(0, _umul128(U, n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+	t[2] += c1;
+
+	//j = 1;
+	//z = (z + x1 * y1 + u * m1) / b;
+	c1 = _addcarry_u64(0, _umul128(u[1], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+	c4 = _addcarry_u64(0, _umul128(U, n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+	c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+
+	//printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
+
+	w[0] = t[1];
+	w[1] = t[2];
+
+	//exit(1);
+
+	return;
+
+
+
+#endif
+
+#endif
+	return;
+}
+
 void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 {
 #ifdef USE_PERIG_128BIT
@@ -1190,10 +1277,10 @@ void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 	return;
 }
 
-void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t* n, uint64_t* rho)
+void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t* n, uint64_t rho)
 {
 #ifdef USE_PERIG_128BIT
-	ciosModSqr128(&w[0], &w[1], u[0], u[1], n[0], n[1], *rho);
+	ciosModSqr128(&w[0], &w[1], u[0], u[1], n[0], n[1], rho);
 	return;
 
 #else
@@ -1209,7 +1296,7 @@ void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t* n, uint64_t* rho)
 
 #if defined( USE_AVX2 ) && defined(GCC_ASM64X)
 	// requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
-	ciosFullMul128x(u, u, *rho, n, s);
+	ciosFullMul128x(u, u, rho, n, s);
 
 	if ((s[2]) || (s[1] > n[1]) || ((s[1] == n[1]) && (s[0] > n[0])))
 	{
@@ -1231,7 +1318,7 @@ void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t* n, uint64_t* rho)
 
 #else
 
-	mulmod128(u, u, w, mdata);
+	mulmod128n(u, u, w, n, rho);
 
 #endif
 
