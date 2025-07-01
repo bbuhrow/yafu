@@ -330,7 +330,7 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
 
                     if (num_cand < 0)
                     {
-                        print("WARNING: num_cand < 0\n");
+                        printf("WARNING: num_cand < 0\n");
                     }
                 }
             }
@@ -343,12 +343,23 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
                     n128[0] = mpz_get_ui(tmpz);
                     mpz_tdiv_q_2exp(tmpz, tmpz, 64);
                     n128[1] = mpz_get_ui(tmpz);
-                    if (fermat_prp_128x1(n128))
+                    if (bpsw_prp_128x1(n128))
                     {
                         it++;
                     }
                 }
                 num_cand = 0;
+
+
+                //for (j = 0; j < num_cand; j++)
+                //{
+                //    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                //    if (mpz_bpsw_prp(tmpz))
+                //    {
+                //        it++;
+                //    }
+                //}
+                //num_cand = 0;
             }
             else
             {

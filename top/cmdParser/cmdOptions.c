@@ -83,7 +83,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
-    "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog"};
+    "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
+    "forceQLP", "siqsMFBQ" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -213,7 +214,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): input size (in bits) above which poly select will test sieve to est. sieve time as a stopping condition",
     "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time",
     "                  : target density",
-    "(String)          : Name of output JSON logfile"
+    "(String)          : Name of output JSON logfile",
+    "                  : force the use of QLP SIQS (4 large primes)",
+    "(Floating point)  : Exponent of SIQS QLP: attempt to split residues up to LPB^exponent"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -246,7 +249,8 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
-    1,1,1,1,1    // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
+    1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
+    0,1
 };
 
 // command line option aliases, specified by '--'
@@ -277,7 +281,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", ""
+    "", "", "", "", "",
+    "", ""
 };
 
 
@@ -1266,6 +1271,18 @@ void applyOpt(char* opt, char* arg, options_t* options)
         else
             printf("*** argument to jsonlog too long, ignoring ***\n");
     }
+    else if (strcmp(opt, OptionArray[125]) == 0)
+    {
+        //argument "forceQLP"
+        options->siqsForceQLP = 1;
+    }
+    else if (strcmp(opt, OptionArray[126]) == 0)
+    {
+        //argument "siqsMFBQ"
+        // the exponent of the large prime bound such that residues larger than
+        // lpb^siqsMFBQ are subjected to quad large prime factorization attempts
+        sscanf(arg, "%lf", &options->siqsMFBQ);
+    }
     else
     {
         int i;
@@ -1425,9 +1442,11 @@ options_t* initOpt(void)
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;
     options->siqsForceTLP = 0;
+    options->siqsForceQLP = 0;
     options->siqsLPB = 0;
     options->siqsMFBD = 1.85;
-    options->siqsMFBT = 2.9;
+    options->siqsMFBT = 2.7;
+    options->siqsMFBQ = 3.3;
     options->siqsBDiv = 3.0;
     // larger batches of relations in TLP are more efficient
     // to run in the batch GCD:

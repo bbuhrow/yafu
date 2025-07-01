@@ -1737,6 +1737,59 @@ __inline static void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i 
 uint64_t multiplicative_inverse(uint64_t a);
 __m512i multiplicative_inverse104_x8(uint64_t* a);
 
+
+static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
+{
+	//w = gcd(u, v);
+	if ((u[1] == 0) && (u[0] == 0))
+	{
+		w[1] = v[1];
+		w[0] = v[0];
+		return;
+	}
+	if ((v[1] != 0) || (v[0] != 0)) {
+		int j = my_ctz128(v[0], v[1]);
+		//v = (uint64_t)(v >> j);
+		v[0] >>= j;
+		v[0] |= (v[1] << (64 - j));
+		v[1] >>= j;
+		while (1) {
+			uint128_t t = (uint128_t)u[1] << 64 | (uint128_t)u[0];
+			uint128_t v128 = ((uint128_t)v[1] << 64 | (uint128_t)v[0]);
+			uint128_t s1 = v128 - t;
+			uint128_t s2 = t - v128;
+			t[0] = u[0];
+			t[1] = u[1];
+
+			if (t == v)
+				break;
+			u[0] = (t >= v128) ? v128[0] : (uint64_t)t;
+			u[1] = (t >= v128) ? v128[1] : (uint64_t)(t >> 64);
+
+			v[0] = (t >= v128) ? (uint64_t)s2 : (uint64_t)s1;
+			v[1] = (t >= v128) ? (uint64_t)(s2 >> 64) : (uint64_t)(s1 >> 64);
+
+			// For the line below, the standard way to write this algorithm
+			// would have been to use _trail_zcnt64(v)  (instead of
+			// _trail_zcnt64(sub1)).  However, as pointed out by
+			// https://gmplib.org/manual/Binary-GCD, "in twos complement the
+			// number of low zero bits on u-v is the same as v-u, so counting or
+			// testing can begin on u-v without waiting for abs(u-v) to be
+			// determined."  Hence we are able to use sub1 for the argument.
+			// By removing the dependency on abs(u-v), the CPU can execute
+			// _trail_zcnt64() at the same time as abs(u-v).
+			j = my_ctz128(s1[0], s1[1]);
+			//v = (uint64_t)(v >> j);
+			v[0] >>= j;
+			v[0] |= (v[1] << (64 - j));
+			v[1] >>= j;
+		}
+	}
+	w[1] = u[1];
+	w[0] = u[0];
+}
+
+
 #endif
 
 #endif

@@ -1028,7 +1028,7 @@ int mpz_selfridge_prp(mpz_t n)
  * mpz_strongselfridge_prp:
  * A "strong Lucas-Selfridge pseudoprime" n is a "strong Lucas pseudoprime" using Selfridge parameters of:
  * Find the first element D in the sequence {5, -7, 9, -11, 13, ...} such that Jacobi(D,n) = -1
- * Then use P=1 and Q=(1-D)/4 in the strong Lucase pseudoprime test.
+ * Then use P=1 and Q=(1-D)/4 in the strong Lucas pseudoprime test.
  * Make sure n is not a perfect square, otherwise the search for D will only stop when D=n.
  * **********************************************************************************************************/
 int mpz_strongselfridge_prp(mpz_t n)
@@ -1115,7 +1115,7 @@ int mpz_strongselfridge_prp(mpz_t n)
 * mpz_strongselfridge_prp:
 * A "strong Lucas-Selfridge pseudoprime" n is a "strong Lucas pseudoprime" using Selfridge parameters of:
 * Find the first element D in the sequence {5, -7, 9, -11, 13, ...} such that Jacobi(D,n) = -1
-* Then use P=1 and Q=(1-D)/4 in the strong Lucase pseudoprime test.
+* Then use P=1 and Q=(1-D)/4 in the extra strong Lucas pseudoprime test.
 * Make sure n is not a perfect square, otherwise the search for D will only stop when D=n.
 * **********************************************************************************************************/
 int mpz_extrastrongselfridge_prp(mpz_t n)
