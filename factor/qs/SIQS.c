@@ -3505,7 +3505,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->qlp_prp = 0;
     dconf->qlp_useful = 0;
     dconf->num_lp = sconf->num_lp;
-
+    dconf->num_alp = 0;
     dconf->mdata = monty_alloc();
 
     // ?? can't remember what this was for but it's no longer needed.

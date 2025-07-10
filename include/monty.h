@@ -1754,17 +1754,27 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 		v[0] |= (v[1] << (64 - j));
 		v[1] >>= j;
 		while (1) {
+
+			//uint64_t tmp = u;
+			//uint64_t sub1 = (uint64_t)(v - tmp);
+			//uint64_t sub2 = (uint64_t)(tmp - v);
+			//if (tmp == v)
+			//	break;
+			//u = (tmp >= v) ? v : tmp;
+			//v = (tmp >= v) ? sub2 : sub1;
+
+
 			uint128_t t = (uint128_t)u[1] << 64 | (uint128_t)u[0];
 			uint128_t v128 = ((uint128_t)v[1] << 64 | (uint128_t)v[0]);
 			uint128_t s1 = v128 - t;
 			uint128_t s2 = t - v128;
-			t[0] = u[0];
-			t[1] = u[1];
 
 			if (t == v)
 				break;
-			u[0] = (t >= v128) ? v128[0] : (uint64_t)t;
-			u[1] = (t >= v128) ? v128[1] : (uint64_t)(t >> 64);
+
+
+			u[0] = (t >= v128) ? (uint64_t)v128 : (uint64_t)t;
+			u[1] = (t >= v128) ? (uint64_t)(v128 >> 64) : (uint64_t)(t >> 64);
 
 			v[0] = (t >= v128) ? (uint64_t)s2 : (uint64_t)s1;
 			v[1] = (t >= v128) ? (uint64_t)(s2 >> 64) : (uint64_t)(s1 >> 64);
@@ -1778,7 +1788,7 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 			// determined."  Hence we are able to use sub1 for the argument.
 			// By removing the dependency on abs(u-v), the CPU can execute
 			// _trail_zcnt64() at the same time as abs(u-v).
-			j = my_ctz128(s1[0], s1[1]);
+			j = my_ctz128((uint64_t)s1, (uint64_t)(s1 >> 64));
 			//v = (uint64_t)(v >> j);
 			v[0] >>= j;
 			v[0] |= (v[1] << (64 - j));

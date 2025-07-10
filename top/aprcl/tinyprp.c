@@ -47,7 +47,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "tinyprp.h"
-#include "monty.h"
+#include "monty.h"			// functions for 52- 64- 104- and 128-bit Montgomery arithmetic
 #include "ytools.h"
 #include "mpz_aprcl.h"
 
@@ -389,7 +389,7 @@ int MR_2sprp_128x1(uint64_t *n)
 {
 	// assumes has no small factors.  
 	// assumes n has two 64-bit words, n0 and n1.
-	// do a base-2 fermat prp test using LR binexp.
+	// do a base-2 Miller-Rabin sprp test.
 
 	uint64_t rho = multiplicative_inverse(n[0]);
 	uint64_t m;
@@ -518,13 +518,14 @@ int MR_2sprp_128x1(uint64_t *n)
 #if 0
 int lucas_prp_128x1(uint64_t *n, long int p, long int q)
 {
-	mpz_t zD;
 	uint64_t res[2];
-	mpz_t index;
-	mpz_t uh, vl, vh, ql, qh, tmp; /* used for calculating the Lucas U sequence */
+	uint64_t index[2];
+	uint128_t n128 = ((uint128_t)n[1] << 64) | (uint128_t)n[0];
 	int s = 0, j = 0;
 	int ret = 0;
 	long int d = p * p - 4 * q;
+	int sd = d < 0 ? 1 : 0;
+	int sq = q < 0 ? 1 : 0;
 
 	if (d == 0) /* Does not produce a proper Lucas sequence */
 		return -1;
@@ -535,48 +536,93 @@ int lucas_prp_128x1(uint64_t *n, long int p, long int q)
 	if ((n[0] & 1 == 0))
 		return 0;
 
-	//mpz_init(index);
-	//mpz_init_set_si(zD, d);
-	//mpz_init(res);
-	//
-	//mpz_mul_si(res, zD, q);
-	//mpz_mul_ui(res, res, 2);
+	if (sd)	d *= -1;
+	if (sq) q *= -1;
 
-	res[0] = (uint64_t)((int64_t)d * (int64_t)q * 2);
+	res[0] = (uint64_t)((uint64_t)d * (uint64_t)q * 2);
 	res[1] = 0;
 	bin_gcd128(res, n, res);
 
-	if ((mpz_cmp(res, n) != 0) && (mpz_cmp_ui(res, 1) > 0))
+	if (((res[1] == n[1]) && (res[0] == n[0])) ||
+		((res[1] == 0) && (res[0] == 1)))
 	{
-		mpz_clear(zD);
-		mpz_clear(res);
-		mpz_clear(index);
-		return PRP_COMPOSITE;
+
+	}
+	else
+	{
+		// if the gcd is anything other than 1 or n, return composite.
+		return 0;
 	}
 
 	/* index = n-(D/n), where (D/n) is the Jacobi symbol */
-	mpz_set(index, n);
-	ret = mpz_jacobi(zD, n);
-	if (ret == -1)
-		mpz_add_ui(index, index, 1);
-	else if (ret == 1)
-		mpz_sub_ui(index, index, 1);
+	index[0] = n[0]; 
+	index[1] = n[1];
+	if (jacobi_128(d * sd, n128) < 0)
+	{
+		uint64_t c = (n[0] == 0xffffffffffffffffull) ? 1 : 0;
+		index[0] += 1;
+		index[1] += c;
+	}
+	else
+	{
+		uint64_t c = (n[0] == 0) ? 1 : 0;
+		index[0] -= 1;
+		index[1] -= c;
+	}
+		
 
 	/* mpz_lucasumod(res, p, q, index, n); */
-	mpz_init_set_si(uh, 1);
-	mpz_init_set_si(vl, 2);
-	mpz_init_set_si(vh, p);
-	mpz_init_set_si(ql, 1);
-	mpz_init_set_si(qh, 1);
-	mpz_init_set_si(tmp, 0);
+	uint64_t uh[2], vl[2], vh[2], ql[2], qh[2], tmp[2];
+	uint64_t rho = multiplicative_inverse(n[0]);
 
-	s = mpz_scan1(index, 0);
-	for (j = mpz_sizeinbase(index, 2) - 1; j >= s + 1; j--)
+	// signs
+	int suh = 0;
+	int svl = 0;
+	int svh = 0;
+	int sql = 0;
+	int sqh = 0;
+	int st = 0;
+
+	// initialize our lucas variables into Montgomery representation
+	uint64_t one[2];
+	uint128_t unity128 = (uint128_t)0 - n128;
+	unity128 = unity128 % n128;
+	one[1] = (uint64_t)(unity128 >> 64);
+	one[0] = (uint64_t)unity128;
+
+	uh[0] = one[0];
+	vl[0] = one[0];
+	vh[0] = one[0]; // p is always 1. p;
+	ql[0] = one[0];
+	qh[0] = one[0];
+	tmp[0] = 0;
+
+	uh[1] = one[1];
+	vl[1] = one[1];
+	vh[1] = one[1];
+	ql[1] = one[1];
+	qh[1] = one[1];
+	tmp[1] = 0;
+
+	// vl = 2 = one + one
+	tmp[0] = vl[0];
+	vl[0] += one[0];
+	vl[1] += one[1];
+	vl[1] += (vl[0] < tmp[0]) ? 1 : 0;
+
+	//s = mpz_scan1(index, 0);	// index of least significant 1-bit, i.e., ctz
+	s = my_ctz128(index[0], index[1]);
+	int sz = 128 - my_clz128(index[0], index[1]);
+
+	for (j = sz - 1; j >= s + 1; j--)
 	{
 		/* ql = ql*qh (mod n) */
-		mpz_mul(ql, ql, qh);
-		mpz_mod(ql, ql, n);
-		if (mpz_tstbit(index, j) == 1)
+		mulmod128n(ql, qh, ql, n, rho);
+		sql = sql ^ sqh;
+
+		int bit = (j >= 64) ? index[1] & (1ull << (j - 64)) : index[0] & (1ull << j);
+
+		if (bit > 0)
 		{
 			/* qh = ql*q */
 			mpz_mul_si(qh, ql, q);
@@ -657,24 +703,14 @@ int lucas_prp_128x1(uint64_t *n, long int p, long int q)
 
 	mpz_mod(res, uh, n); /* uh contains our return value */
 
-	mpz_clear(zD);
-	mpz_clear(index);
-	mpz_clear(uh);
-	mpz_clear(vl);
-	mpz_clear(vh);
-	mpz_clear(ql);
-	mpz_clear(qh);
-	mpz_clear(tmp);
 
-	if (mpz_cmp_ui(res, 0) == 0)
+	if ((res[1] == 0) && (res[0] == 0))
 	{
-		mpz_clear(res);
-		return PRP_PRP;
+		return 1;
 	}
 	else
 	{
-		mpz_clear(res);
-		return PRP_COMPOSITE;
+		return 0;
 	}
 
 }/* method mpz_lucas_prp */
@@ -826,6 +862,8 @@ int selfridge_prp_128x1(uint64_t* n)
 	q = (1 - d) / 4;
 
 	result = mpz_lucas_prp(gn, p, q); // lucas_prp_128x1(gn, p, q);
+
+
 #else
 	int result = mpz_extrastrongselfridge_prp(gn);
 #endif
