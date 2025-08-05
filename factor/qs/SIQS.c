@@ -4397,6 +4397,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	}
 	else
 	{
+        sconf->use_dlp = 0;
         sconf->num_lp = 1;
 		if (sconf->digits_n < 30)
 		{
@@ -4428,7 +4429,6 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #endif
 			sconf->scan_unrolling = 64;
 		}
-		sconf->use_dlp = 0;
 	}
 
     if (sconf->obj->qs_obj.gbl_force_QLP)
@@ -5109,6 +5109,7 @@ int update_check(static_conf_t *sconf)
                     plist0 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
                     plist1 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
                     plist2 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
+                    plist3 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
                     apolylist = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
                     for (i = 0; i < sconf->buffered_rels; i++)
                     {
@@ -5117,6 +5118,7 @@ int update_check(static_conf_t *sconf)
                         relation_list[i].large_prime[0] = plist0[i] = sconf->in_mem_relations[i].large_prime[0];
                         relation_list[i].large_prime[1] = plist1[i] = sconf->in_mem_relations[i].large_prime[1];
                         relation_list[i].large_prime[2] = plist2[i] = sconf->in_mem_relations[i].large_prime[2];
+                        relation_list[i].large_prime[3] = plist2[i] = sconf->in_mem_relations[i].large_prime[3];
                     }
                     total_poly_a = sconf->total_poly_a;
                     all_relations = num_relations = sconf->buffered_rels;

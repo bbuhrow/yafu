@@ -118,7 +118,10 @@ void check_poly(snfs_t *poly, int VFLAG)
 
 	// set mpz_poly_t alg appropriately
 	for (i = poly->poly->alg.degree; i >= 0; i--)
+	{
+		//gmp_printf("c%d: %Zd\n", i, poly->c[i]);
 		mpz_set(poly->poly->alg.coeff[i], poly->c[i]);
+	}
 
 	mpz_mod(t, t, poly->n);
 	if (mpz_cmp_ui(t,0) != 0)
@@ -133,9 +136,9 @@ void check_poly(snfs_t *poly, int VFLAG)
 				"n = %Zd\n", poly->poly->m, poly->n);
 			fprintf (stderr, "f(x) = ");
 			for (i = poly->poly->alg.degree; i >= 0; i--)
-				gmp_fprintf (stdout, "%c %Zd*x^%d ",
+				gmp_fprintf (stderr, "%c %Zd*x^%d ",
 				(mpz_cmp_ui(poly->c[i],0) < 0) ? '-' : '+', poly->poly->alg.coeff[i], i);
-			gmp_fprintf (stdout, "\n""Remainder is %Zd\n\n", t);
+			gmp_fprintf (stderr, "\n""Remainder is %Zd\n\n", t);
 		}
 	}
 	
@@ -146,7 +149,7 @@ void check_poly(snfs_t *poly, int VFLAG)
 	{
 		poly->valid = 0;
 		//if (VFLAG > 0)
-		gmp_fprintf (stdout, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
+		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n",
 			poly->n, poly->poly->m, t);
 	}
 	
@@ -868,7 +871,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			if (spGCD(i,j) != 1)
 				continue;
-			
+
 			mpz_set_ui(a, i);
 			mpz_pow_ui(pa, a, 19);
 			mpz_set_ui(b, j);
@@ -1547,6 +1550,7 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 	// factors if they divide the input.  We don't have code to build SNFS polys for
 	// these, yet, but can still halve the size of the input and do qs/gnfs on those.
 #define NAURI 10
+#define NAURI_H 2
 	int auri_bases[NAURI] = { 2, 3, 6, 7, 10, 11, 12, 14, 15, 18 };
 	int auri_m[NAURI] = { 4, 6, 12, 14, 20, 22, 6, 28, 30, 4 };
 	int auri_c[NAURI] = { 2, 3, 6, 7, 10, 11, 3, 14, 15, 2 };
@@ -1630,116 +1634,267 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 	mpz_init(C);
 	mpz_init(D);
 
-	for (i = 0; i < NAURI; i++)
+	if (poly->form_type == SNFS_H_CUNNINGHAM)
 	{
-		base = auri_bases[i];
-		// printf("checking form %d^(%dk + %d)+1\n", base, auri_m[i], auri_c[i]);
-		if (mpz_cmp_ui(poly->base1, base) == 0)
-		{
-			if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
-			{
-				k = (poly->exp1 - auri_c[i]) / auri_m[i];
-				mpz_set_ui(term, base);
-				mpz_pow_ui(F, term, fterm_em[i] * k + fterm_ec[i]);
-				mpz_add_ui(F, F, 1);
+		// for homogeneous cunninghams, there is only a few bases that work within
+		// the max detected base range.
+		int aurifeuille_a, aurifeuille_b;
 
-				// build F, L, and M factors from the table here:
-				// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
-				mpz_set_ui(C, 0);
-				for (j = 0; j < c_num_terms[i]; j++)
-				{
-					mpz_set_ui(term, base);
-					mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
-					mpz_mul_si(term, term, cterm_m[i][j]);
-					mpz_add(C, C, term);
-				}
-				mpz_set_ui(D, 0);
-				for (j = 0; j < d_num_terms[i]; j++)
-				{
-					mpz_set_ui(term, base);
-					mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
-					mpz_mul_si(term, term, dterm_m[i][j]);
-					mpz_add(D, D, term);
-				}
-				mpz_add(M, C, D);
-				mpz_sub(L, C, D);
-				do_check = 1;
-				break;
+		switch (mpz_get_ui(poly->base1))
+		{
+		case 18: aurifeuille_a = 3; break;
+		case 50: aurifeuille_a = 5; break;
+		default: aurifeuille_a = 0;	break;
+		}
+
+		if (aurifeuille_a > 0)
+		{
+			switch (mpz_get_ui(poly->base2))
+			{
+			case 4: aurifeuille_b = 2; break;
+			case 9: aurifeuille_b = 3; break;
+			case 25: aurifeuille_b = 5; break;
+			case 49: aurifeuille_b = 7; break;
+			default: aurifeuille_b = 0;	break;
 			}
 		}
-	}
 
-	if (do_check)
-	{
-		if (VFLAG > 2)
+		if (aurifeuille_a == 0)
 		{
-			gmp_printf("gen: checking F-factor %Zd\n", F);
+			switch (mpz_get_ui(poly->base2))
+			{
+			case 18: aurifeuille_a = 3; break;
+			case 50: aurifeuille_a = 5; break;
+			default: aurifeuille_a = 0;	break;
+			}
+
+			if (aurifeuille_a > 0)
+			{
+				switch (mpz_get_ui(poly->base1))
+				{
+				case 4: aurifeuille_b = 2; break;
+				case 9: aurifeuille_b = 3; break;
+				case 25: aurifeuille_b = 5; break;
+				case 49: aurifeuille_b = 7; break;
+				default: aurifeuille_b = 0;	break;
+				}
+			}
 		}
 
-		if (mpz_cmp_ui(F, 1) > 0)
+		if ((aurifeuille_a > 0) && (aurifeuille_b > 0))
 		{
-			mpz_gcd(t, fobj->nfs_obj.gmp_n, F);
+			if ((poly->exp1 % 4) == 2)
+			{
+				// check if the input divides either or both Aurifeuillian factors
+				int m = (poly->exp1 - 2) / 4;
+				mpz_ui_pow_ui(C, 2 * aurifeuille_a * aurifeuille_a, 2 * m + 1);
+				mpz_ui_pow_ui(D, aurifeuille_b * aurifeuille_b, 2 * m + 1);
+				mpz_add(t, C, D);
+
+				mpz_ui_pow_ui(C, 2 * aurifeuille_a * aurifeuille_a, m);
+				mpz_ui_pow_ui(D, aurifeuille_b * aurifeuille_b, m);
+				mpz_mul(C, C, D);
+				mpz_mul_ui(C, C, 2 * aurifeuille_a * aurifeuille_b);
+				mpz_add(M, t, C);
+
+				//if (VFLAG > 2)
+				{
+					gmp_printf("checking divisibility with %d^%d + %d^%d + %d*%d^%d*%d^%d = %Zd\n",
+						2 * aurifeuille_a * aurifeuille_a, 2 * m + 1, aurifeuille_b * aurifeuille_b, 2 * m + 1,
+						2 * aurifeuille_a * aurifeuille_b, 2 * aurifeuille_a * aurifeuille_a, m,
+						aurifeuille_b * aurifeuille_b, m, M);
+				}
+				
+				//mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
+				//if ((mpz_cmp_ui(t, 1) > 0) &&
+				//	(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+				//{
+				//	gmp_printf("Aurifeuillian-M %Zd divides input: %d+%d,%d\n", t, i, j, k);
+				//}
+				//
+				mpz_sub(L, t, C);
+
+				//if (VFLAG > 2)
+				{
+					gmp_printf("checking divisibility with %d^%d + %d^%d - %d*%d^%d*%d^%d = %Zd\n",
+						2 * aurifeuille_a * aurifeuille_a, 2 * m + 1, aurifeuille_b * aurifeuille_b, 2 * m + 1,
+						2 * aurifeuille_a * aurifeuille_b, 2 * aurifeuille_a * aurifeuille_a, m,
+						aurifeuille_b * aurifeuille_b, m, L);
+				}
+				//
+				//mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
+				//if ((mpz_cmp_ui(t, 1) > 0) &&
+				//	(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+				//{
+				//	gmp_printf("Aurifeuillian-L %Zd divides input: %d-%d,%d\n", t, i, j, k);
+				//}
+
+				do_check = 1;
+			}
+
+			if (do_check)
+			{
+				if (VFLAG > 2)
+				{
+					gmp_printf("gen: checking M-factor %Zd\n", M);
+				}
+
+				mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
+				if ((mpz_cmp_ui(t, 1) > 0) &&
+					(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+				{
+					if (VFLAG > 2)
+					{
+						gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
+							t, fobj->nfs_obj.gmp_n);
+					}
+					else if (VFLAG >= 0)
+					{
+						gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
+					}
+					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+				}
+
+				if (VFLAG > 2)
+				{
+					gmp_printf("gen: checking L-factor %Zd\n", L);
+				}
+
+				mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
+				if ((mpz_cmp_ui(t, 1) > 0) &&
+					(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+				{
+					if (VFLAG > 2)
+					{
+						gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
+							t, fobj->nfs_obj.gmp_n);
+					}
+					else if (VFLAG >= 0)
+					{
+						gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
+					}
+					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+				}
+
+			}
+
+		}
+	}
+	else
+	{
+		for (i = 0; i < NAURI; i++)
+		{
+			base = auri_bases[i];
+			// printf("checking form %d^(%dk + %d)+1\n", base, auri_m[i], auri_c[i]);
+			if (mpz_cmp_ui(poly->base1, base) == 0)
+			{
+				if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
+				{
+					k = (poly->exp1 - auri_c[i]) / auri_m[i];
+					mpz_set_ui(term, base);
+					mpz_pow_ui(F, term, fterm_em[i] * k + fterm_ec[i]);
+					mpz_add_ui(F, F, 1);
+
+					// build F, L, and M factors from the table here:
+					// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
+					mpz_set_ui(C, 0);
+					for (j = 0; j < c_num_terms[i]; j++)
+					{
+						mpz_set_ui(term, base);
+						mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
+						mpz_mul_si(term, term, cterm_m[i][j]);
+						mpz_add(C, C, term);
+					}
+					mpz_set_ui(D, 0);
+					for (j = 0; j < d_num_terms[i]; j++)
+					{
+						mpz_set_ui(term, base);
+						mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
+						mpz_mul_si(term, term, dterm_m[i][j]);
+						mpz_add(D, D, term);
+					}
+					mpz_add(M, C, D);
+					mpz_sub(L, C, D);
+					do_check = 1;
+					break;
+				}
+			}
+		}
+
+		if (do_check)
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: checking F-factor %Zd\n", F);
+			}
+
+			if (mpz_cmp_ui(F, 1) > 0)
+			{
+				mpz_gcd(t, fobj->nfs_obj.gmp_n, F);
+				if ((mpz_cmp_ui(t, 1) > 0) &&
+					(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+				{
+					if (VFLAG > 2)
+					{
+						gmp_printf("gen: adding Aurifeuillian F-factor %Zd of autofactor input %Zd to factor list\n",
+							t, fobj->nfs_obj.gmp_n);
+					}
+					else if (VFLAG >= 0)
+					{
+						gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
+					}
+					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+				}
+			}
+
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: checking M-factor %Zd\n", M);
+			}
+
+			mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
 			if ((mpz_cmp_ui(t, 1) > 0) &&
 				(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 			{
 				if (VFLAG > 2)
 				{
-					gmp_printf("gen: adding Aurifeuillian F-factor %Zd of autofactor input %Zd to factor list\n",
+					gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
 						t, fobj->nfs_obj.gmp_n);
 				}
 				else if (VFLAG >= 0)
 				{
-					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
+					gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
 				}
 				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
 				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
-		}
 
-		if (VFLAG > 2)
-		{
-			gmp_printf("gen: checking M-factor %Zd\n", M);
-		}
-
-		mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
-		if ((mpz_cmp_ui(t, 1) > 0) &&
-			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
-		{
 			if (VFLAG > 2)
 			{
-				gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
-					t, fobj->nfs_obj.gmp_n);
+				gmp_printf("gen: checking L-factor %Zd\n", L);
 			}
-			else if (VFLAG >= 0)
-			{
-				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
-			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
-		}
 
-		if (VFLAG > 2)
-		{
-			gmp_printf("gen: checking L-factor %Zd\n", L);
-		}
-
-		mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
-		if ((mpz_cmp_ui(t, 1) > 0) &&
-			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
-		{
-			if (VFLAG > 2)
+			mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
+			if ((mpz_cmp_ui(t, 1) > 0) &&
+				(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 			{
-				gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
-					t, fobj->nfs_obj.gmp_n);
+				if (VFLAG > 2)
+				{
+					gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
+						t, fobj->nfs_obj.gmp_n);
+				}
+				else if (VFLAG >= 0)
+				{
+					gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
+				}
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
-			else if (VFLAG >= 0)
-			{
-				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
-			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
-		}
 
+		}
 	}
 
 	mpz_clear(F);
@@ -2236,6 +2391,22 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 	return;
 }
 
+void find_aurifeuillian_factor(fact_obj_t* fobj, snfs_t* poly)
+{
+	if (poly->form_type == SNFS_BRENT)
+	{
+		// look for forms p^(p(2k+1)) + 1
+		return;
+	}
+
+	if (poly->form_type == SNFS_H_CUNNINGHAM)
+	{
+		return;
+	}
+
+
+	return;
+}
 
 // thanks to Alex Kruppa for his phi program, on which a lot
 // of this routine is based.
@@ -2286,6 +2457,20 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	if ((poly->form_type != SNFS_DIRECT) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
+	}
+
+	// Aurifeuillian: can we write the poly as (2*y^2)^2 + 1
+	if ((poly->form_type != SNFS_DIRECT) && mpz_even_p(poly->base1) && 
+		(poly->coeff2 == 1) && ((poly->exp1 & 1) == 0))
+	{
+		// the 1st base and exponent are even, and 2nd coefficient is +1
+		// so we should be able to factor this as (2y^2 - 2y + 1)(2y^2 + 2y + 1)
+
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			// if this is HCunningham, then the 2nd base and the residual
+			// part of the 1st base must both have even exponent.
+		}
 	}
 
 
@@ -3144,9 +3329,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					npoly++;
 				}
 				else
-				{	// being explicit
-					snfs_clear(&polys[npoly]);
-					snfs_init(&polys[npoly]);
+				{
+					//snfs_clear(&polys[npoly]);
+					//snfs_init(&polys[npoly]);
 				}
 
 				// and decreasing the exponent
@@ -3225,9 +3410,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					npoly++;
 				}
 				else
-				{	// being explicit
-					snfs_clear(&polys[npoly]);
-					snfs_init(&polys[npoly]);
+				{
+					//snfs_clear(&polys[npoly]);
+					//snfs_init(&polys[npoly]);
 				}
 
 				// and playing with composite bases
@@ -3338,9 +3523,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							npoly++;
 						}
 						else
-						{	// being explicit
-							snfs_clear(&polys[npoly]);
-							snfs_init(&polys[npoly]);
+						{
+							//snfs_clear(&polys[npoly]);
+							//snfs_init(&polys[npoly]);
 						}
 
 						// move it down
@@ -3354,6 +3539,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 						// since we moved the current factor down, move the other factors up
 						// otherwise this would be the same as moving the whole composite base down.
+						// also move the second term down...
 						
 						//c0 = (int64)pow((double)b2, i1) * (int64)poly->coeff2;
 						mpz_set_si(c0, poly->coeff2);
@@ -3373,7 +3559,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							bb *= f[k];
 						}
 						// m is now a mix of powers of factors of b.
-						// here is the contribution of the factor we cecreased
+						// here is the contribution of the factor we decreased
 						me = (e-i1) / i;
 						mpz_set_si(m, f[j]);
 						mpz_pow_ui(m, m, me);
@@ -3400,7 +3586,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						{
 							mpz_set(polys[npoly].poly->rat.coeff[1], b2);		// signed?
 							mpz_pow_ui(polys[npoly].poly->rat.coeff[1],
-								   polys[npoly].poly->rat.coeff[1], (e+i1) / i);
+								   polys[npoly].poly->rat.coeff[1], (e-i1) / i);
 							mpz_set(polys[npoly].poly->rat.coeff[0], m);
 							mpz_set(polys[npoly].poly->m, m);
 							mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
@@ -3433,9 +3619,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							npoly++;
 						}
 						else
-						{	// being explicit
-							snfs_clear(&polys[npoly]);
-							snfs_init(&polys[npoly]);
+						{
+							//snfs_clear(&polys[npoly]);
+							//snfs_init(&polys[npoly]);
 						}
 					} // loop over factors of base
 				} // composite base?

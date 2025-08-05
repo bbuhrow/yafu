@@ -137,6 +137,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.flags = 0;
     fobj->qs_obj.gbl_force_DLP = 0;
     fobj->qs_obj.gbl_force_TLP = 0;
+    fobj->qs_obj.gbl_force_QLP = 0;
     fobj->qs_obj.qs_exponent = 0;
     fobj->qs_obj.qs_multiplier = 0;
     fobj->qs_obj.qs_tune_freq = 0;

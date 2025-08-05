@@ -2713,11 +2713,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
     if (fobj->VFLAG > 0)
     {
         printf("read %d relations\n", num_relations);
-		printf("read %u 0lp\n", num0lp);
-		printf("read %u 1lp\n", num1lp);
-		printf("read %u 2lp\n", num2lp);
-		printf("read %u 3lp\n", num3lp);
-		printf("read %u 4lp\n", num4lp);
+		//printf("read %u 0lp\n", num0lp);
+		//printf("read %u 1lp\n", num1lp);
+		//printf("read %u 2lp\n", num2lp);
+		//printf("read %u 3lp\n", num3lp);
+		//printf("read %u 4lp\n", num4lp);
     }
 
 	// re-filtering

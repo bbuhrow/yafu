@@ -563,7 +563,7 @@ uint64_t my_clz64(uint64_t n)
 	return 64;
 #else
 	if (n == 0)
-		return 52;
+		return 64;
 	uint64_t r = 0;
 	if ((n & (0xFFFFFFFFull << 32)) == 0)
 		r += 32, n <<= 32;

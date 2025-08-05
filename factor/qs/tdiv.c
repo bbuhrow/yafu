@@ -205,7 +205,6 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
 }
 
 
-
 void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity, 
 						 uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -277,9 +276,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		uint32_t large_prime[4];
 		
 		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
-		if (dconf->num_alp == 1)
-            large_prime[1] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
-        else
+		//if (dconf->num_alp == 1)
+        //    large_prime[1] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
+        //else
             large_prime[1] = 1;
 		large_prime[2] = 1;
         large_prime[3] = 1;
@@ -310,21 +309,11 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
             else
                 dconf->num_slp++;
         }
-		
 
-		//add this one
-		if (sconf->is_tiny)
-		{	
-            buffer_relation(offset, large_prime, smooth_num + 1,
-                fb_offsets, dconf->curr_poly->index, poly_id,
-                parity, dconf, polya_factors, it, 1);
-		}
-        else
-        {
-            buffer_relation(offset, large_prime, smooth_num + 1,
-                fb_offsets, dconf->curr_poly->index, poly_id, 
-                parity, dconf, polya_factors, it, 1);
-        }
+		// add this one
+        buffer_relation(offset, large_prime, smooth_num + 1,
+            fb_offsets, dconf->curr_poly->index, poly_id, 
+            parity, dconf, polya_factors, it, 1);
 
 		return;
 	}
@@ -1130,8 +1119,13 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
             }
 
         }
-        else
+        else if (conf->num_lp == 2)
         {
+            for (i = 0; i < 4; i++)
+            {
+                r->large_prime[i] = 1;
+            }
+
             if (large_prime[0] < large_prime[1])
             {
                 r->large_prime[0] = large_prime[0];
@@ -1142,7 +1136,15 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
                 r->large_prime[1] = large_prime[0];
                 r->large_prime[0] = large_prime[1];
             }
-            r->large_prime[2] = large_prime[2];
+        }
+        else
+        {
+            for (i = 1; i < 4; i++)
+            {
+                r->large_prime[i] = 1;
+            }
+
+            r->large_prime[0] = large_prime[0];
         }
 
 		r->num_factors = num_factors;
