@@ -1291,8 +1291,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 #ifdef USE_NFS
 	if ((fobj->autofact_obj.has_snfs_form > 0) && (fobj->nfs_obj.gnfs == 0) && 
-        (strcmp(fobj->autofact_obj.plan_str,"custom") != 0)) // &&
-        //(fobj->autofact_obj.only_pretest <= 1))
+        (strcmp(fobj->autofact_obj.plan_str,"custom") != 0) &&
+        (fobj->autofact_obj.only_pretest <= 1))
 	{
 		// 1) we found a snfs polynomial for the input.
 		// 2) user has not specifically chosen gnfs.
@@ -1509,10 +1509,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	{
 		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - custom pretest plan specified\n");
 	}
-	//else if (fobj->autofact_obj.only_pretest > 1)
-	//{
-	//	if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - pretest bound specified\n");
-	//}
+	else if (fobj->autofact_obj.only_pretest > 1)
+	{
+		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - pretest bound specified\n");
+	}
 
 #endif
 
