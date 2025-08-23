@@ -110,6 +110,7 @@ typedef struct {
 	mpz_t lp_cutoff_r3;        /* cube of lp_cutoff_r */
 	uint64_t lp_cutoff_a;       /* maximum size of algebraic factors */
     mpz_t lp_cutoff_a2         /* square of lp_cutoff_a */;
+	mpz_t lp_cutoff_a3         /* cube of lp_cutoff_a */;
 	mpz_t min_prime2;          /* the square of the smallest prime that occurs in prime_product */
     mpz_t max_prime2;          /* the square of the largest prime that occurs in prime_product */
 	mpz_t max_prime3;          /* the cube of the largest prime that occurs in prime_product */

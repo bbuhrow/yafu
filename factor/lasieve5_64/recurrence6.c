@@ -602,10 +602,10 @@ done:
             u32_t sm[16], bm[16], tm[16], cm[16];
 #endif
 
-            _mm512_storeu_epi32(sm, s);
-            _mm512_storeu_epi32(bm, b);
-            _mm512_storeu_epi32(tm, t);
-            _mm512_storeu_epi32(cm, c);
+            _mm512_storeu_si512(sm, s);
+            _mm512_storeu_si512(bm, b);
+            _mm512_storeu_si512(tm, t);
+            _mm512_storeu_si512(cm, c);
 
 
             for (i = 0; i < 16; i++)

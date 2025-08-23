@@ -51,35 +51,41 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
 
-#ifndef MICROECM_GETFACTOR_UECM_H_INCLUDED
-#define MICROECM_GETFACTOR_UECM_H_INCLUDED
+#ifndef TINYECM_GETFACTOR_TECM_H_INCLUDED
+#define TINYECM_GETFACTOR_TECM_H_INCLUDED
 
 #include <stdint.h>
+#include "gmp.h"
 
 
 #ifdef __cplusplus   // C compilers skip this ifdef section
 extern "C" {
 #endif
 
+/* ============================ interface to tinyecm ============================ */
+extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
+    uint64_t* lcg_state, int verbose);
 
-// getfactor_uecm() returns 1 if it is unable to find a factor of q64, and
-// otherwise it returns a single factor of q64.
-//
+// getfactor_tecm() returns 0 if unable to find a factor of n,
+// Otherwise it returns 1 and a factor of n in argument f.
+// 
 // if the input is known to have no small factors, set is_arbitrary=0, 
 // otherwise, set is_arbitrary=1 and a few curves targetting small factors
 // will be run prior to the standard sequence of curves for the input size.
 //  
-// Prior to your first call of getfactor_uecm(), set *pran = 0  (or set it to
+// Prior to your first call of getfactor_tecm(), set *pran = 0  (or set it to
 // some other arbitrary value); after that, don't change *pran.
-// FYI: *pran is used within microecm.c by a random number generator, and it
+// FYI: *pran is used within this file by a random number generator, and it
 // holds the current value of a pseudo random sequence.  Your first assigment
-// to *pran seeds the sequence, and after seeding it you don't want to change
-// *pran, since that would restart the sequence.
+// to *pran seeds the sequence, and after seeding it you don't want to
+// change *pran, since that would restart the sequence.
+int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran);
+void getfactor_tecm_x8_list(uint64_t* n, uint64_t* f, int target_bits, uint32_t num_in, uint64_t* pran);
+int getfactor_tecm_x8(mpz_t n, mpz_t f, int target_bits, uint64_t* pran);
+int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1);
 
-int prp_uecm(uint64_t n);
-uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran);
-void getfactor_uecm_x8_list(uint64_t* q64, uint64_t* f64, uint32_t num_in, uint64_t* pran);
-uint64_t getfactor_upm1(uint64_t q64, uint32_t b1);
+// a Miller-Rabin SPRP test on 8x 104-bit inputs using base 2
+uint8_t MR_2sprp_104x8(uint64_t* n);
 
 #ifdef __cplusplus
 }
