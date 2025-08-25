@@ -33,6 +33,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "microecm.h"
 #include "if.h"
 #include "gmp-aux.h"
+#include "ytools.h"
 
 #define D 120
 
@@ -2757,17 +2758,17 @@ typedef struct
 
 #ifdef IFMA
 
-MICRO_ECM_FORCE_INLINE static __m512i tecm_mul52hi(__m512i b, __m512i c)
+__inline static __m512i tecm_mul52hi(__m512i b, __m512i c)
 {
 	return _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
 }
 
-MICRO_ECM_FORCE_INLINE static __m512i tecm_mul52lo(__m512i b, __m512i c)
+__inline static __m512i tecm_mul52lo(__m512i b, __m512i c)
 {
 	return _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
 }
 
-MICRO_ECM_FORCE_INLINE static void tecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
+__inline static void tecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
 {
 	*l = _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
 	*h = _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
@@ -4740,6 +4741,128 @@ done:
 	return;
 }
 
+void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t curves,
+	uint32_t num_in, uint64_t* lcg_state, int verbose)
+{
+	// attempt to factor n with the elliptic curve method
+	// following brent and montgomery's papers, and CP's book
+	base_t i, j = 0;
+	int curve;
+	int tid;
+	char* wstr;
+	int found = 0;
+	int result;
+	uint64_t num_found;
+	ALIGNED_MEM tinyecm_work_x8 work;
+	ALIGNED_MEM tecm_pt_x8 P;
+	ALIGNED_MEM monty104_x8_t mdata;
+	uint32_t sigma;
+	mpz_t gN, gR, gT;
+
+	mpz_init(gN);
+	mpz_init(gR);
+	mpz_init(gT);
+
+	mpz_set_ui(gR, 1);
+	mpz_mul_2exp(gR, gR, 104);
+
+	mpz_set_ui(gN, n[1]);
+	mpz_mul_2exp(gN, gN, 52);
+	mpz_add_ui(gN, gN, n[0]);
+
+	mpz_mod(gT, gR, gN);
+
+	mpz_invert(gN, gN, gR);
+
+	for (i = 0; i < 8; i++)
+	{
+		mpz_to_u104(gT, &mdata.one, i);
+		mpz_to_u104(gN, &mdata.rho, i);
+
+		work.n.data[0][i] = mdata.n.data[0][i] = n[0];
+		work.n.data[1][i] = mdata.n.data[1][i] = n[1];
+	}
+
+	f[0] = 1;
+	f[1] = 0;
+	work.stg1_max = B1;
+	work.stg2_max = B2;
+
+	//printf("attempting tecm on %016lx%016lx\n", n[1], n[0]);
+
+	for (curve = 0; curve < curves; curve += 8)
+	{
+		build_curves_104_x8(&P, &mdata, &work, lcg_state, 0);
+		ecm_stage1_x8(&mdata, &work, &P);
+
+		for (i = 0; i < 8; i++)
+		{
+			{
+				uint64_t pz[2];
+				uint64_t ni[2];
+				uint64_t fi[2];
+
+				pz[0] = P.Z.data[1][i] << 52;
+				pz[0] |= P.Z.data[0][i];
+				pz[1] = P.Z.data[1][i] >> 12;
+
+				ni[0] = mdata.n.data[1][i] << 52;
+				ni[0] |= mdata.n.data[0][i];
+				ni[1] = mdata.n.data[1][i] >> 12;
+
+				result = check_factor(pz, ni, fi);
+
+				if (result == 1)
+				{
+					f[0] = fi[0];
+					f[1] = fi[1];
+					//printf("factor %016lx found in lane %d in stage 1\n", f[0], i);
+					goto done;
+				}
+			}
+		}
+
+		if (B2 > B1)
+		{
+			ecm_stage2_x8(&P, &mdata, &work);
+
+			for (i = 0; i < 8; i++)
+			{
+				{
+					uint64_t acc[2];
+					uint64_t ni[2];
+					uint64_t fi[2];
+
+					acc[0] = work.stg2acc.data[1][i] << 52;
+					acc[0] |= work.stg2acc.data[0][i];
+					acc[1] = work.stg2acc.data[1][i] >> 12;
+
+					ni[0] = mdata.n.data[1][i] << 52;
+					ni[0] |= mdata.n.data[0][i];
+					ni[1] = mdata.n.data[1][i] >> 12;
+
+					result = check_factor(acc, ni, fi);
+
+					if (result == 1)
+					{
+						f[0] = fi[0];
+						f[1] = fi[1];
+						//printf("factor %016lx found in lane %d in stage 2\n", f[0], i);
+						goto done;
+					}
+				}
+			}
+		}
+	}
+done:
+
+
+	mpz_clear(gN);
+	mpz_clear(gR);
+	mpz_clear(gT);
+	return;
+}
+
 
 #endif
 
@@ -5051,6 +5174,91 @@ void tecm_testmath()
 
 }
 
+int tecm_dispatch_x8(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
+{
+	int B1, curves;
+	uint64_t n[2];
+	uint64_t f[2];
+
+	n[0] = mpz_get_ui(gn) & 0x000fffffffffffffull;
+	mpz_tdiv_q_2exp(gf, gn, 52);
+	n[1] = mpz_get_ui(gf) & 0x000fffffffffffffull;
+
+	mpz_set_ui(gf, 1);
+
+	if (targetBits == 0)
+	{
+		// try fast attempts to find possible small factors.
+		{
+			B1 = 47;
+			curves = 1;
+			tinyecm_x8(n, f, B1, B1 * 25, curves, curves, ploc_lcg, 0);
+		}
+		{
+			B1 = 70;
+			curves = 1;
+			tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		}
+		{
+			B1 = 125;
+			curves = 1;
+			tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		}
+	}
+
+	if (targetBits <= 20)
+	{
+		B1 = 27;
+		curves = 32;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 22)
+	{
+		B1 = 47;
+		curves = 32;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 24)
+	{
+		B1 = 70;
+		curves = 32;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 26)
+	{
+		B1 = 85;
+		curves = 32;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 29)
+	{
+		B1 = 125;
+		curves = 32;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 31)
+	{
+		B1 = 165;
+		curves = 48;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+	else //if (targetBits <= 32)
+	{
+		B1 = 205;
+		curves = 48;
+		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+	}
+
+	mpz_set_ui(gf, f[1]);
+	mpz_mul_2exp(gf, gf, 64);
+	mpz_add_ui(gf, gf, f[0]);
+
+	if (mpz_get_ui(gf) > 1)
+		return 1;
+	else
+		return 0;
+}
+
 int tecm_dispatch_x8_list(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
 {
 	int B1, curves;
@@ -5137,7 +5345,18 @@ int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
 	//return tecm_dispatch(n, f, target_bits, pran);
 }
 
+int getfactor_tecm_x8(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
+{
+	dbias = _mm512_castsi512_pd(tecm_set64(0x4670000000000000ULL));
+	vbias1 = tecm_set64(0x4670000000000000ULL);
+	vbias2 = tecm_set64(0x4670000000000001ULL);
+	lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
 
+	//tecm_testmath();
+	//return;
+
+	return tecm_dispatch_x8(n, f, target_bits, pran);
+}
 
 #else
 

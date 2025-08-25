@@ -89,9 +89,13 @@ typedef struct {
 									(1) split 2LP on the f2r side
 									(2) split 2LP on the small side of TLP residues
 									(3) split 2LP on the large side of TLP residues */
-	uint32_t num_tecm;			/* calls to tecm to split 3LP on the f1r side */
-	uint32_t num_tecm2;			/* calls to tecm to split 4LP on the f1r side */
+	uint32_t num_uecm_a[4];		// same for the other side
+	uint32_t num_tecm;			/* calls to tecm to split 3LP on the r side */
+	uint32_t num_tecm_a;		/* calls to tecm to split 3LP on the a side */
+	uint32_t num_tecm2;			/* calls to tecm to split non-GCD 3LP on the r side */
+	uint32_t num_tecm2_a;		/* calls to tecm to split non-GCD 3LP on the a side */
 	uint32_t num_qs;			/* tecm failures (in the future, handled by qs) */
+	uint32_t num_qs_a;			/* tecm failures (in the future, handled by qs) */
 	uint32_t num_attempt;		/* number of calls to check_relation (possibly involving ecm) */
 	uint32_t num_success;       /* number of surviving relations */
 	uint32_t num_abort[8];		/* stop because:
@@ -103,6 +107,7 @@ typedef struct {
 								5) non-useful f1r double-word split (factor larger than LPB)
 								6) non-useful f2r double-word split (factor larger than LPB)
 								7) non-useful f1r TLP split (factor larger than LPB), at any point in the process */
+	uint32_t num_abort_a[8];	// same but for the other side
 	uint32_t target_relations;  /* number of relations to batch up */
 	uint64_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
