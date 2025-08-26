@@ -8,7 +8,7 @@
 #include "gmp.h"
 
 // build line:
-// clang -O2 -I. -I../../ytools/ -I../../include -I../../ms_include -I../../top/aprcl -I../../../gmp-install/6.2.0-aocc/include -L../../../gmp-install/6.2.0-aocc/lib ../../ytools/util.c ../../ytools/threadpool.c batch_factor.c process_batch.c tinyecm.c microecm.c prime_sieve.c micropm1.c -o bfact -lm -lgmp -pthread
+// clang -O2 -g -I. -I../../ytools/ -I../../include -I../../ms_include -I../../top/aprcl -I../../../gmp-install/6.2.0-aocc/include -L../../../gmp-install/6.2.0-aocc/lib -march=icelake-client -DUSE_AVX512F -DIFMA ../../ytools/util.c ../../ytools/threadpool.c batch_factor.c process_batch.c tinyecm.c microecm.c prime_sieve.c micropm1.c ../../arith/monty.c -o bfact -lm -lgmp -pthread
 // 
 // usage: bfact lpb pmin pmax relsfilein relsfileout
 
