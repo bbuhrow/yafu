@@ -125,6 +125,7 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
         tree->alloc *= 2;
         tree->nodes = (bintree_element_t*)xrealloc(tree->nodes,
             tree->alloc * sizeof(bintree_element_t));
+        printf("tree now has %u nodes allocated\n", tree->alloc);
     }
 
     if ((side == 0) && (node->left_id != -1))
@@ -368,7 +369,6 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 
 	if (first == last) {
 		relation_to_gmp(rb, first, prod);
-        //if (first == 1207) gmp_printf("converted leaf relation %u into product %Zd\n", first, prod);
 		return;
 	}
 
@@ -381,8 +381,6 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
         // the tree cutoff and the multiplication is trivial...
 		relation_to_gmp(rb, first, half_prod);
 		relation_to_gmp(rb, last, prod);
-        //if ((last == 1207) || ((first+1) == 1207)) gmp_printf("converted leaf relation %u into product %Zd\n", first, half_prod);
-        //if ((last == 1207) || ((first+1) == 1207)) gmp_printf("converted leaf relation %u into product %Zd\n", last, prod);
 	}
 	else 
     {
@@ -662,7 +660,6 @@ void check_batch_relation(relation_batch_t *rb,
 	uint32_t lp_a[MAX_LARGE_PRIMES];
 	uint32_t num_r, num_a;
     int do_r_first = 0;
-    int debug_print = 0;
 
 	/* first compute gcd(prime_product, rational large cofactor).
 	   The rational part will split into a cofactor with all 
@@ -713,12 +710,6 @@ process_r:
                 mpz_tdiv_q(f2r, n, f1r);
             }
 		}
-
-        if (debug_print)
-        {
-            gmp_printf("f1r = %Zd\n", f1r);
-            gmp_printf("f2r = %Zd\n", f2r);
-        }
 
 		/* give up on this relation if
 		     - f1r has a single factor, and that factor
@@ -919,10 +910,6 @@ process_r:
     if (mpz_sizeinbase(f1r, 2) > 64) {
         // in this case we know there are 3+ factors and all are in the GCD
         // so we don't have to run isprime.
-        if (mpz_get_ui(f1r) == 0x7802f593feef5619ull)
-            debug_print = 1;
-        else
-            debug_print = 0;
 
 #ifdef USE_AVX512F
         int success;
@@ -937,7 +924,6 @@ process_r:
 
         if (success)
         {
-            if (debug_print) gmp_printf("tecm sucess, found factor %Zd\n", _small);
 
             mpz_tdiv_q(_large, f1r, _small);
 
@@ -957,14 +943,12 @@ process_r:
 
                 if (q64 > rb->lp_cutoff_r)
                 {
-                    if (debug_print) gmp_printf("residue %lu > cutoff, abort7\n", q64);
                     rb->num_abort[7]++;
                     return;
                 }
 
                 if (q64 > 1)
                 {
-                    if (debug_print) gmp_printf("residue %lu added to lp list list\n", q64);
                     lp_r[num_r++] = q64;
                 }
 
@@ -977,7 +961,6 @@ process_r:
                 if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                 {
                     // either we failed to factor it or the factor isn't useful
-                    if (debug_print) gmp_printf("residue %lu > cutoff or factor not found, abort7\n", f64);
                     rb->num_abort[7]++;
                     return;
                 }
@@ -988,7 +971,6 @@ process_r:
                 if (q64 <= 1 || q64 > rb->lp_cutoff_r)
                 {
                     if (q64 == 1) gmp_printf("ecm found factor %lu == input, residue is 1\n", f64);
-                    if (debug_print) gmp_printf("residue %lu > cutoff or factor not found, abort7\n", q64);
                     rb->num_abort[7]++;
                     return;
                 }
@@ -1005,7 +987,6 @@ process_r:
                 if (q64 <= 1 || q64 > rb->lp_cutoff_r)
                 {
                     if (q64 == 1) gmp_printf("ecm failed to find factor (%lu) but returned success\n", q64);
-                    if (debug_print) gmp_printf("residue %lu > cutoff or factor not found, abort7\n", q64);
                     rb->num_abort[7]++;
                     return;
                 }
@@ -1022,8 +1003,6 @@ process_r:
                 success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
 #endif
                 rb->num_tecm++;
-
-                gmp_printf("processing large residue %Zd\n", _large);
 
                 if (success)
                 {
@@ -1121,7 +1100,6 @@ process_r:
 
                 if (f64 <= 1 || f64 > rb->lp_cutoff_r)
                 {
-                    if (debug_print) gmp_printf("residue %lu > cutoff or factor not found, abort7\n", f64);
                     rb->num_abort[7]++;
                     return;
                 }
@@ -1131,19 +1109,16 @@ process_r:
 
                 if (mpz_get_ui(_large) > rb->lp_cutoff_r)
                 {
-                    if (debug_print) gmp_printf("residue %lu > cutoff, abort7\n", mpz_get_ui(_large));
                     rb->num_abort[7]++;
                     return;
                 }
 
-                if (debug_print) gmp_printf("residue %lu added to lp list list\n", mpz_get_ui(_large));
                 lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
             }
             else
             {
                 if (mpz_get_ui(_large) > rb->lp_cutoff_r)
                 {
-                    if (debug_print) gmp_printf("large residue %lu > cutoff, abort7\n", mpz_get_ui(_large));
                     rb->num_abort[7]++;
                     return;
                 }
@@ -1151,7 +1126,6 @@ process_r:
                 uint32_t f32 = (uint32_t)mpz_get_ui(_large);
                 if (f32 > 1)
                 {
-                    if (debug_print) gmp_printf("residue %u added to lp list list\n", f32);
                     lp_r[num_r++] = f32;
                 }
             }
@@ -1161,7 +1135,6 @@ process_r:
             // could run QS, but this happens so rarely when tecm is given
             // a 3LP with 3 known factors < lp_cutoff that instead we
             // just give up and record this failure.
-            if (debug_print) gmp_printf("tecm failed, abort8\n");
             rb->num_qs++;
             return;
         }
@@ -1434,16 +1407,6 @@ process_a:
             mpz_add_ui(n, n, lp2[j]);
         }
 
-        if (mpz_get_ui(n) == 0x233d57b233688f5ull)
-        {
-            debug_print = 1;
-            gmp_printf("debug printing enabled for a-side index %u, residue %Zd\n", index, n);
-        }
-        else
-        {
-            debug_print = 0;
-        }
-
         if (mpz_sizeinbase(n, 2) < 32) {
             // this input is already small, assign it to the
             // "all factors <= the largest prime" side, and the other side 
@@ -1470,11 +1433,6 @@ process_a:
             }
         }
 
-        if (debug_print)
-        {
-            gmp_printf("f1a = %Zd\n", f1a);
-            gmp_printf("f2a = %Zd\n", f2a);
-        }
 
         /* give up on this relation if
              - f1r has a single factor, and that factor
@@ -1573,7 +1531,6 @@ process_a:
         // potential relation.
         if (mpz_probab_prime_p(f2a, 1) >= 1)
         {
-            if (debug_print) gmp_printf("prp f2a %Zd, abort4\n", f2a);
             rb->num_abort_a[4]++;
             return;
         }
@@ -1589,7 +1546,6 @@ process_a:
     {
         if (mpz_get_ui(f1a) > 1)
         {
-            if (debug_print) gmp_printf("added f1a %Zd to list\n", f1a);
             lp_a[num_a++] = (uint32_t)mpz_get_ui(f1a);
         }
     }
@@ -1597,8 +1553,6 @@ process_a:
     {
         uint64_t f64 = getfactor_uecm(mpz_get_ui(f1a), 0, lcg_state);
         rb->num_uecm_a[0]++;
-
-        if (debug_print) printf("uecm found factor %lu of f1a\n", f64);
 
         if (f64 == mpz_get_ui(f1a))
         {
@@ -1609,23 +1563,19 @@ process_a:
         {
             if (f64 == 1) printf("failed to find factor of %d-bit f1a %lu\n",
                 mpz_sizeinbase(f1a, 2), mpz_get_ui(f1a));
-            if (debug_print) gmp_printf("failed to find factor or factor > cutoff for f1a %Zd, f = %lu\n", f1a, f64);
             rb->num_abort_a[5]++;
             return;
         }
 
-        if (debug_print) gmp_printf("added ecm factor %lu to list\n", f64);
         lp_a[num_a++] = (uint32_t)f64;
         mpz_tdiv_q_ui(f1a, f1a, f64);
 
         if (mpz_get_ui(f1a) > rb->lp_cutoff_a)
         {
-            if (debug_print) gmp_printf("failed to find factor or factor > cutoff for f1a %Zd, f = %lu\n", f1a, f64);
             rb->num_abort_a[5]++;
             return;
         }
 
-        if (debug_print) gmp_printf("added f1a %Zd to list\n", f1a);
         lp_a[num_a++] = (uint32_t)mpz_get_ui(f1a);
     }
 
@@ -1646,8 +1596,6 @@ process_a:
         uint64_t f64 = getfactor_uecm(mpz_get_ui(f2a), 0, lcg_state);
         rb->num_uecm_a[1]++;
 
-        if (debug_print) printf("uecm found factor %lu of f2a\n", f64);
-
         if (f64 == mpz_get_ui(f2a))
         {
             gmp_printf("uecm found both factors of f2a = %Zd\n", f2a);
@@ -1657,23 +1605,19 @@ process_a:
         {
             if (f64 == 1) printf("failed to find factor of %d-bit f2a %lu\n",
                 mpz_sizeinbase(f2a, 2), mpz_get_ui(f2a));
-            if (debug_print) gmp_printf("failed to find factor or factor > cutoff for f2a %Zd, f = %lu\n", f2a, f64);
             rb->num_abort_a[6]++;
             return;
         }
 
-        if (debug_print) gmp_printf("added ecm factor %lu to list\n", f64);
         lp_a[num_a++] = (uint32_t)f64;
         mpz_tdiv_q_ui(f2a, f2a, f64);
 
         if (mpz_get_ui(f2a) > rb->lp_cutoff_a)
         {
-            if (debug_print) gmp_printf("failed to find factor or factor > cutoff %lu\n", mpz_get_ui(f2a));
             rb->num_abort_a[6]++;
             return;
         }
 
-        if (debug_print) gmp_printf("added f2a %Zd to list\n", f2a);
         lp_a[num_a++] = (uint32_t)mpz_get_ui(f2a);
     }
 
@@ -2394,6 +2338,8 @@ void relation_batch_add(uint64_t a, uint32_t b,
 		rb->relations = (cofactor_t *)xrealloc(rb->relations,
 					rb->num_relations_alloc *
 					sizeof(cofactor_t));
+        printf("memory use for relations array is now %u bytes\n", rb->num_relations_alloc *
+            sizeof(cofactor_t));
 	}
 	c = rb->relations + rb->num_relations++;
 	c->a = a;
@@ -2415,6 +2361,8 @@ void relation_batch_add(uint64_t a, uint32_t b,
 		rb->factors = (uint32_t *)xrealloc(rb->factors,
 					rb->num_factors_alloc *
 					sizeof(uint32_t));
+        printf("memory use for factors array is now %u bytes\n", rb->num_factors_alloc *
+            sizeof(uint32_t));
 	}
 	f = rb->factors + rb->num_factors;
 
@@ -2502,6 +2450,7 @@ uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
             bytes += mpz_sizeinbase(tree.nodes[i].prod, 2) / 8;
             mpz_clear(tree.nodes[i].prod);
         }
+        printf("final tree had %u nodes with products occupying %u total bytes\n", tree.size, bytes);
         
         free(tree.nodes);
 	}
