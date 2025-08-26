@@ -806,9 +806,10 @@ process_r:
         // comes from the gcd with the large prime product, i.e.,
         // is either composite or prime and already part of a 
         // potential relation.
-        //uint64_t e = mpz_get_ui(f2r);
+        uint64_t e = mpz_get_ui(f2r);
         //if (prp_uecm(e) == 1)
-        if (mpz_probab_prime_p(f2r, 1) >= 1)
+        //if (mpz_probab_prime_p(f2r, 1) >= 1)
+        if (MR_2sprp_64x1(e))
         {
             rb->num_abort[4]++;
             return;
@@ -1529,7 +1530,10 @@ process_a:
         // comes from the gcd with the large prime product, i.e.,
         // is either composite or prime and already part of a 
         // potential relation.
-        if (mpz_probab_prime_p(f2a, 1) >= 1)
+        //if (mpz_probab_prime_p(f2a, 1) >= 1)
+        uint64_t e = mpz_get_ui(f2a);
+        //if (prp_uecm(e))
+        if (MR_2sprp_64x1(e))
         {
             rb->num_abort_a[4]++;
             return;
@@ -1561,10 +1565,25 @@ process_a:
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
         {
-            if (f64 == 1) printf("failed to find factor of %d-bit f1a %lu\n",
-                mpz_sizeinbase(f1a, 2), mpz_get_ui(f1a));
-            rb->num_abort_a[5]++;
-            return;
+            if (f64 == 1)
+            {
+                // we really expect to find factors here, so try one more time
+                f64 = getfactor_uecm(mpz_get_ui(f1a), 0, lcg_state);
+                rb->num_uecm_a[0]++;
+
+                if (f64 == 1)
+                {
+                    printf("failed to find factor of %d-bit f1a %lu, this should be sent to mpqs\n",
+                        mpz_sizeinbase(f1a, 2), mpz_get_ui(f1a));
+                    rb->num_abort_a[5]++;
+                    return;
+                }
+            }
+            else
+            {
+                rb->num_abort_a[5]++;
+                return;
+            }
         }
 
         lp_a[num_a++] = (uint32_t)f64;
@@ -1603,8 +1622,8 @@ process_a:
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
         {
-            if (f64 == 1) printf("failed to find factor of %d-bit f2a %lu\n",
-                mpz_sizeinbase(f2a, 2), mpz_get_ui(f2a));
+            // if (f64 == 1) printf("failed to find factor of %d-bit f2a %lu\n",
+            //     mpz_sizeinbase(f2a, 2), mpz_get_ui(f2a));
             rb->num_abort_a[6]++;
             return;
         }

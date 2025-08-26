@@ -787,6 +787,9 @@ int main(int argc, char** argv)
     u32_t all_spq_done;
     u32_t n_spq, n_spq_discard;
     double tStart, tNow, lastReport;
+    u32_t avg_ntds;
+    u32_t num_tds_mpqs_calls = 0;
+
 #ifdef HAVE_BOINC
     double pct;
 #endif
@@ -3495,7 +3498,7 @@ nss+= n_strips;
                                     __mmask32 m;
                                     for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 
-                                        _mm512_storeu_epi64(xm, xv);
+                                        _mm512_storeu_si512(xm, xv);
 
                                         *(y + xm[3]) += l;
                                         *(y + xm[7]) += l;
@@ -3937,12 +3940,17 @@ nss+= n_strips;
                                 {
                                     unsigned char* srbs;
                                     u32_t i;
+                                    uint16_t incr[32] = { 0,1,2,3,4,5,6,7,
+                                        8,9,10,11,12,13,14,15,
+                                        16,17,18,19,20,21,22,23,
+                                        24,25,26,27,28,29,30,31 };
 
-                                    __m512i vincr = _mm512_set_epi16(
-                                        31, 30, 29, 28, 27, 26, 25, 24,
-                                        23, 22, 21, 20, 19, 18, 17, 16,
-                                        15, 14, 13, 12, 11, 10, 9, 8,
-                                        7, 6, 5, 4, 3, 2, 1, 0);
+                                    //__m512i vincr = _mm512_set_epi16(
+                                    //    31, 30, 29, 28, 27, 26, 25, 24,
+                                    //    23, 22, 21, 20, 19, 18, 17, 16,
+                                    //    15, 14, 13, 12, 11, 10, 9, 8,
+                                    //    7, 6, 5, 4, 3, 2, 1, 0);
+                                    __m512i vincr = _mm512_load_si512(incr);
                                     __m512i vincr32 = _mm512_set1_epi16(32);
 
                                     srbs = sieve_report_bounds[s][j_offset / CANDIDATE_SEARCH_STEPS];
@@ -4345,6 +4353,9 @@ nss+= n_strips;
 
 #if TDS_MPQS == TDS_SPECIAL_Q
 
+                // printf("processing TDS special-q survivors\n");
+                avg_ntds += total_ntds;
+                num_tds_mpqs_calls++;
                 output_all_tdsurvivors();
 
 #else
@@ -4499,6 +4510,8 @@ tNow= sTime();
                 (int)si_clock[side], (int)s1_clock[side], (int)s2_clock[side],
                 (int)s3_clock[side], (int)cs_clock[side]);
         }
+        logbook(0, "td calls: %u, avg tds per call: %1.2f\n",
+            num_tds_mpqs_calls, (double)avg_ntds / (double)num_tds_mpqs_calls);
         logbook(0, "aborts: %u %u\n", n_abort1, n_abort2);
         print_strategy_stat();
 #ifdef MMX_TDBENCH
@@ -6239,7 +6252,7 @@ output_all_tdsurvivors()
 {
     size_t i;
 
-    //printf("starting cofactorization of %u td survivors\n", total_ntds);
+    // printf("starting cofactorization of %u td survivors\n", total_ntds);
 
     for (i = 0; i < total_ntds; i++) {
         mpz_set_sll(sr_a, tds_ab[2 * i]);
@@ -6289,64 +6302,74 @@ mpz_t lf0,lf1;
 
 #define OBASE 16
 
-#if 0
+    int do_batch_factor = 1;
 
-    // use this to store the raw large factors for later processing
-    // by GCD or batch factorization methods
-    yield++;
+    if (do_batch_factor)
+        //&& 
+        //((mpz_sizeinbase(large_factors[0], 2) > 64) || (mpz_sizeinbase(large_factors[1], 2) > 64)))
+    {
+        // use this to store the raw large factors for later processing
+        // by GCD or batch factorization methods
+        yield++;
 
-    mpz_out_str(g_ofile, 10, large_factors[0]);
-    fprintf(g_ofile, ",");
-    mpz_out_str(g_ofile, 10, large_factors[1]);
-    fprintf(g_ofile, ";");
-
-    mpz_out_str(g_ofile, 10, sr_a);
-    fprintf(g_ofile, ",");
-    mpz_out_str(g_ofile, 10, sr_b);
-
-    nlp[0] = nlp[1] = 0;
-    for (s = 0; s < 2; s++) {
-        int num = 0;
-        u32_t* x = fbp_buffers_ub[1 - s];
+        // the loop below prints the relation side 1 first, then side 0.
+        // print the large factors in the same order.
+        mpz_out_str(g_ofile, 10, large_factors[1]);
+        fprintf(g_ofile, ",");
+        mpz_out_str(g_ofile, 10, large_factors[0]);
         fprintf(g_ofile, ":");
-        while (num < nlp[1 - s]) {
-            if (num > 0)
-            {
-                fprintf(g_ofile, ",");
-            }
-            mpz_out_str(g_ofile, OBASE, large_primes[1 - s][num]);
-            num++;
-        }
-        while (x-- != fbp_buffers[1 - s]) {
-            if ((unsigned int)*x < 1000)continue;
-            if (num > 0)
-            {
-                fprintf(g_ofile, ",");
-            }
-            fprintf(g_ofile, "%x", (unsigned int)*x);
-            num++;
-        }
-    }
-    fprintf(g_ofile, "\n");
 
-    return;
-#endif
+        mpz_out_str(g_ofile, 10, sr_a);
+        fprintf(g_ofile, ",");
+        mpz_out_str(g_ofile, 10, sr_b);
 
-    cferr = cofactorisation(&strat, large_primes, large_factors, max_primebits, nlp, FBb_sq, FBb_cu);
-    mpqs_clock += clock() - cl;
-    if (cferr < 0) {
-        fprintf(stderr, "cofactorisation failed for ");
-        mpz_out_str(stderr, 10, large_factors[0]);
-        fprintf(stderr, ",");
-        mpz_out_str(stderr, 10, large_factors[1]);
-        fprintf(stderr, " (a,b): ");
-        mpz_out_str(stderr, 10, sr_a);
-        fprintf(stderr, " ");
-        mpz_out_str(stderr, 10, sr_b);
-        fprintf(stderr, "\n");
-        n_mpqsfail[0]++;
+        nlp[0] = nlp[1] = 0;
+        for (s = 0; s < 2; s++) {
+            int num = 0;
+            u32_t* x = fbp_buffers_ub[1 - s];
+            fprintf(g_ofile, ":");
+            while (num < nlp[1 - s]) {
+                if (num > 0)
+                {
+                    fprintf(g_ofile, ",");
+                }
+                mpz_out_str(g_ofile, OBASE, large_primes[1 - s][num]);
+                num++;
+            }
+            while (x-- != fbp_buffers[1 - s]) {
+                if ((unsigned int)*x < 1000)continue;
+                if (num > 0)
+                {
+                    fprintf(g_ofile, ",");
+                }
+                fprintf(g_ofile, "%x", (unsigned int)*x);
+                num++;
+            }
+        }
+        fprintf(g_ofile, "\n");
+
+        mpqs_clock += clock() - cl;
+
+        return;
     }
-    if (cferr)return;
+    else
+    {
+        cferr = cofactorisation(&strat, large_primes, large_factors, max_primebits, nlp, FBb_sq, FBb_cu);
+        mpqs_clock += clock() - cl;
+        if (cferr < 0) {
+            fprintf(stderr, "cofactorisation failed for ");
+            mpz_out_str(stderr, 10, large_factors[0]);
+            fprintf(stderr, ",");
+            mpz_out_str(stderr, 10, large_factors[1]);
+            fprintf(stderr, " (a,b): ");
+            mpz_out_str(stderr, 10, sr_a);
+            fprintf(stderr, " ");
+            mpz_out_str(stderr, 10, sr_b);
+            fprintf(stderr, "\n");
+            n_mpqsfail[0]++;
+        }
+        if (cferr)return;
+    }
 
 
 #else
