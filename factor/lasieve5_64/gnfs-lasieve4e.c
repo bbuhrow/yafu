@@ -178,8 +178,11 @@ u32_t g_resume;
 #define MAX_LPFACTORS 3
 static mpz_t rational_rest,algebraic_rest;
 mpz_t factors[MAX_LPFACTORS];
-static u32_t yield= 0,n_mpqsfail[2]= {0,0},n_mpqsvain[2]= {0,0};
+static u32_t yield= 0,raw_yield=0,n_mpqsfail[2]= {0,0},n_mpqsvain[2]= {0,0};
 static i64_t mpqs_clock= 0;
+
+// TODO: use this mode with an option
+static int do_batch_factor = 0;
 
 static i64_t sieve_clock= 0,sch_clock= 0,td_clock= 0,tdi_clock= 0;
 static i64_t cs_clock[2]= {0,0},Schedule_clock= 0,medsched_clock= 0;
@@ -578,12 +581,13 @@ static mpz_t FBb_sq[2],FBb_cu[2];
 static char usageText[]= 
 " Usage: %s [-o <outfile>] [-k] [-v] [[-n<procnum>] | [-N<procnum>]] [-a | -r]\n"
 "                [-c <int>] [-f <<int> | <int>:<int>:<int>>] [-i <int>] [-b <string>]\n"
-"                [-q <int>] [-t <int>] [-z]\n"
+"                [-q <int>] [-t <int>] [-z] [-d]\n"
 "                [-C <int>] [-F] [-J <int>] [-L <cmd>] [-M <int>] [-P <int>] [-R]\n"
 "                [-Z <<int>:<int> | <int>>] [-S <float>]  \n"
 "                [string (if -b not specified)]\n"
 "   -o   specify output filename (can be - for stdout, add .gz for gzipped output, defaults \n"
 "        to '%%s.lasieve-%%u.%%llu-%%llu',las_basename, special_q_side,first_spq,last_spq\n"
+"   -d   ouput raw file with cofactors > 64 bits for batch factorization\n"
 "   -k   keep factorbase\n"
 "   -v   verbose (can be specified multiple times to raise verbosity level)\n"
 "   -N or -n specify a 'process number', -n also turns on signal handling (SIGTERM and SIGINT)\n"
@@ -618,7 +622,9 @@ void Usage(char* cmdName)
 static u32_t n_prereports= 0,n_reports= 0,n_rep1= 0,n_rep2= 0;
 static u32_t n_tdsurvivors[2]= {0,0},n_psp= 0,n_cof= 0;
 static FILE*g_ofile;
+static FILE* g_ofile_raw;
 static char*g_ofile_name;
+static char g_ofile_raw_name[80];
 
 #ifdef STC_DEBUG
 FILE*debugfile;
@@ -859,7 +865,7 @@ int main(int argc, char** argv)
 
         append_output = 0;
 
-        while ((option = getopt(argc, argv, "C:FJ:L:M:N:P:RS:Z:ab:c:f:hi:kn:o:q:rt:vz")) != -1) {
+        while ((option = getopt(argc, argv, "C:FJ:L:M:N:P:RS:Z:ab:c:f:hi:kn:o:q:rt:dvz")) != -1) {
             switch (option) {
             case'C':
                 if (sscanf(optarg, "%u", &spq_count) != 1)Usage(argv[0]);
@@ -907,6 +913,9 @@ int main(int argc, char** argv)
                 break;
             case'c':
                 NumRead64(sieve_count);
+                break;
+            case'd':
+                do_batch_factor = 1;
                 break;
             case'f':
 
@@ -1027,10 +1036,25 @@ int main(int argc, char** argv)
                 complain("Cannot resume using stdout\n");
             if ((g_ofile = fopen(g_ofile_name, "ab+")) == NULL)
                 complain("Cannot open %s for append: %m\n", g_ofile_name);
+
+
+            if (do_batch_factor) {
+                sprintf(g_ofile_raw_name, "%s.raw", g_ofile_name);
+                if ((g_ofile_raw = fopen(g_ofile_raw_name, "ab+")) == NULL)
+                    complain("Cannot open %s for append: %m\n", g_ofile_raw_name);
+            }
+
             while (fgets(buf, LINE_BUF_SIZE, g_ofile)) {
                 ret = parse_q_from_line(buf);
             }
-            if (ret < 0)fprintf(g_ofile, "\n");
+            if (ret < 0)
+            {
+                fprintf(g_ofile, "\n");
+
+                if (do_batch_factor) {
+                    fprintf(g_ofile_raw, "\n");
+                }
+            }
 
             printf(" Resuming with -f "UL_FMTSTR" -c "UL_FMTSTR"\n", first_spq, sieve_count);
             first_spq1 = first_spq;
@@ -1315,18 +1339,32 @@ int main(int argc, char** argv)
             }
             if (append_output > 0) {
                 g_ofile = fopen(g_ofile_name, "ab");
+
+                if (do_batch_factor) {
+                    sprintf(g_ofile_raw_name, "%s.raw", g_ofile_name);
+                    g_ofile_raw = fopen(g_ofile_raw_name, "ab");
+                }
             }
             else {
                 if ((g_ofile = fopen(g_ofile_name, "rb")) != NULL)
                     complain(" Will not overwrite existing file %s for output;"
                         "rename it, move it away, or use -R option (resume)\n", g_ofile_name);
                 g_ofile = fopen(g_ofile_name, "wb");
+
+                if (do_batch_factor) {
+                    sprintf(g_ofile_raw_name, "%s.raw", g_ofile_name);
+                    g_ofile_raw = fopen(g_ofile_raw_name, "wb");
+                }
             }
             if (g_ofile == NULL)complain("Cannot open %s for output: %m\n", g_ofile_name);
         }
         else {
             if ((g_ofile = popen(g_ofile_name, "w")) == NULL)
                 complain("Cannot exec %s for output: %m\n", g_ofile_name);
+
+            // TODO: use this with an option
+            // raw file output with gzip
+
         }
     done_opening_output:
         fprintf(g_ofile, "");
@@ -4493,6 +4531,9 @@ tNow= sTime();
         }
 
         logbook(0, "\nTotal yield: %u\n", yield);
+        if (do_batch_factor) {
+            logbook(0, "\nTotal raw yield: %u\n", raw_yield);
+        }
         if (n_mpqsfail[0] != 0 || n_mpqsfail[1] != 0 ||
             n_mpqsvain[0] != 0 || n_mpqsvain[1] != 0) {
             logbook(0, "%u/%u mpqs failures, %u/%u vain mpqs\n", n_mpqsfail[0],
@@ -6302,51 +6343,50 @@ mpz_t lf0,lf1;
 
 #define OBASE 16
 
-    int do_batch_factor = 1;
-
-    if (do_batch_factor)
-        //&& 
-        //((mpz_sizeinbase(large_factors[0], 2) > 64) || (mpz_sizeinbase(large_factors[1], 2) > 64)))
+    
+    if (do_batch_factor
+        && 
+        ((mpz_sizeinbase(large_factors[0], 2) > 64) || (mpz_sizeinbase(large_factors[1], 2) > 64)))
     {
         // use this to store the raw large factors for later processing
         // by GCD or batch factorization methods
-        yield++;
+        raw_yield++;
 
         // the loop below prints the relation side 1 first, then side 0.
         // print the large factors in the same order.
-        mpz_out_str(g_ofile, 10, large_factors[1]);
-        fprintf(g_ofile, ",");
-        mpz_out_str(g_ofile, 10, large_factors[0]);
-        fprintf(g_ofile, ":");
+        mpz_out_str(g_ofile_raw, 10, large_factors[1]);
+        fprintf(g_ofile_raw, ",");
+        mpz_out_str(g_ofile_raw, 10, large_factors[0]);
+        fprintf(g_ofile_raw, ":");
 
-        mpz_out_str(g_ofile, 10, sr_a);
-        fprintf(g_ofile, ",");
-        mpz_out_str(g_ofile, 10, sr_b);
+        mpz_out_str(g_ofile_raw, 10, sr_a);
+        fprintf(g_ofile_raw, ",");
+        mpz_out_str(g_ofile_raw, 10, sr_b);
 
         nlp[0] = nlp[1] = 0;
         for (s = 0; s < 2; s++) {
             int num = 0;
             u32_t* x = fbp_buffers_ub[1 - s];
-            fprintf(g_ofile, ":");
+            fprintf(g_ofile_raw, ":");
             while (num < nlp[1 - s]) {
                 if (num > 0)
                 {
-                    fprintf(g_ofile, ",");
+                    fprintf(g_ofile_raw, ",");
                 }
-                mpz_out_str(g_ofile, OBASE, large_primes[1 - s][num]);
+                mpz_out_str(g_ofile_raw, OBASE, large_primes[1 - s][num]);
                 num++;
             }
             while (x-- != fbp_buffers[1 - s]) {
                 if ((unsigned int)*x < 1000)continue;
                 if (num > 0)
                 {
-                    fprintf(g_ofile, ",");
+                    fprintf(g_ofile_raw, ",");
                 }
-                fprintf(g_ofile, "%x", (unsigned int)*x);
+                fprintf(g_ofile_raw, "%x", (unsigned int)*x);
                 num++;
             }
         }
-        fprintf(g_ofile, "\n");
+        fprintf(g_ofile_raw, "\n");
 
         mpqs_clock += clock() - cl;
 

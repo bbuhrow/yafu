@@ -33,7 +33,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "microecm.h"
 #include "if.h"
 #include "gmp-aux.h"
-#include "ytools.h"
+//#include "ytools.h"
 
 #define D 120
 
@@ -49,6 +49,28 @@ either expressed or implied, of the FreeBSD Project.
 #include <immintrin.h>
 #endif
 
+// aligned memory allocation
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+
+#define ALIGNED_MEM __declspec(align(64))
+#define align_free _mm_free
+
+#elif defined(_MSC_VER)
+
+#define align_free _aligned_free	
+#define ALIGNED_MEM __declspec(align(64))     
+
+#elif defined(__GNUC__)
+
+#if defined(__MINGW64__) || defined(__MINGW32__) || defined(__MSYS__)
+#define align_free _aligned_free //_mm_free
+#else
+#define align_free free
+#endif
+
+#define ALIGNED_MEM __attribute__((aligned(64)))
+
+#endif
 
 typedef struct
 {
@@ -4754,7 +4776,7 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 	int result;
 	uint64_t num_found;
 	ALIGNED_MEM tinyecm_work_x8 work;
-	ALIGNED_MEM tecm_pt_x8 P;
+	ALIGNED_MEM tecm_pt_x8 P;		
 	ALIGNED_MEM monty104_x8_t mdata;
 	uint32_t sigma;
 	mpz_t gN, gR, gT;

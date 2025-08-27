@@ -278,20 +278,40 @@ void relation_to_gmp(relation_batch_t *rb,
 		/* rational and algebraic parts need to be
 		   multiplied together first */
 
-        mpz_set_ui(num1, f[0]);
-        for (i = 1; i < c->lp_r_num_words; i++)
-        {
+        // These have been in here backwards this whole time :(
+        // relation_batch_add() puts them in there low word first.
+        // The code still worked, or gave the illusion of working,
+        // because these unfactored parts just end up in f2r/f2a instead
+        // of f1r/f1a and are still subjected to some factorization.
+        mpz_set_ui(num1, f[c->lp_r_num_words - 1]);
+        for (j = c->lp_r_num_words - 2; j >= 0; j--) {
             mpz_mul_2exp(num1, num1, 32);
-            mpz_add_ui(num1, num1, f[i]);
+            mpz_add_ui(num1, num1, f[j]);
         }
 
-		f += c->lp_r_num_words;
-        mpz_set_ui(num2, f[0]);
-        for (i = 1; i < c->lp_a_num_words; i++)
-        {
+        f += c->lp_r_num_words;
+
+        mpz_set_ui(num2, f[c->lp_a_num_words - 1]);
+        for (j = c->lp_a_num_words - 2; j >= 0; j--) {
             mpz_mul_2exp(num2, num2, 32);
-            mpz_add_ui(num2, num2, f[i]);
+            mpz_add_ui(num2, num2, f[j]);
         }
+
+
+        //mpz_set_ui(num1, f[0]);
+        //for (i = 1; i < c->lp_r_num_words; i++)
+        //{
+        //    mpz_mul_2exp(num1, num1, 32);
+        //    mpz_add_ui(num1, num1, f[i]);
+        //}
+        //
+		//f += c->lp_r_num_words;
+        //mpz_set_ui(num2, f[0]);
+        //for (i = 1; i < c->lp_a_num_words; i++)
+        //{
+        //    mpz_mul_2exp(num2, num2, 32);
+        //    mpz_add_ui(num2, num2, f[i]);
+        //}
 
 		mpz_mul(num3, num2, num1);
 	}
@@ -305,6 +325,9 @@ void relation_to_gmp(relation_batch_t *rb,
 			f += c->lp_r_num_words;
 		}
 
+        // this case gets it correct.  In siqs this is 
+        // the only case because there is no a-side, so the
+        // siqs code has been working correctly.
         mpz_set_ui(num3, f[nwords - 1]);
         for (j = nwords - 2; j >= 0; j--)
         {
@@ -1480,6 +1503,8 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->lp_cutoff_a2);
     mpz_set_ui(rb->lp_cutoff_a2, lp_cutoff_a);
     mpz_mul_ui(rb->lp_cutoff_a2, rb->lp_cutoff_a2, lp_cutoff_a);
+    mpz_init(rb->lp_cutoff_a3);
+    mpz_mul_ui(rb->lp_cutoff_a3, rb->lp_cutoff_a2, lp_cutoff_a);
 
     // max_prime is the largest prime in the GCD product
     mpz_init(rb->max_prime2);

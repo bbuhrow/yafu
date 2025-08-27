@@ -235,11 +235,6 @@ void multiply_primes(uint32_t first, uint32_t last,
         mpz_set_ui(prod, (unsigned long)get_next_prime(sieve));
         while (++first <= last) {
             uint32_t p = (unsigned long)get_next_prime(sieve);
-            //if (p == 317869709) printf("multiplying prime 317869709\n");
-            //if (p == 499277321) printf("multiplying prime 499277321\n");
-            //if (p == 1581936149) printf("multiplying prime 1581936149\n");
-            //if (p == 1412020711) printf("multiplying prime 1412020711\n");
-            //if (p == 1461436099) printf("multiplying prime 1461436099\n");
             mpz_mul_ui(prod, prod, p);
         }
         return;
@@ -274,53 +269,24 @@ void relation_to_gmp(relation_batch_t *rb,
 	
     mpz_ptr num1 = rb->f1a, num2 = rb->f2a, num3 = rb->n;
 
-    //if (index == 1207) printf("relation 1207 r words = %u, a words = %u\n", 
-    //    c->lp_r_num_words, c->lp_a_num_words);
-
 	if (c->lp_r_num_words > 1 && c->lp_a_num_words > 1) {
 
 		/* rational and algebraic parts need to be
 		   multiplied together first */
 
-        //if (index == 1207) printf("%08x ", f[0]);
-        //mpz_set_ui(num1, f[0]);
-        //for (i = 1; i < c->lp_r_num_words; i++)
-        //{
-        //    if (index == 1207) printf("%08x ", f[i]);
-        //    mpz_mul_2exp(num1, num1, 32);
-        //    mpz_add_ui(num1, num1, f[i]);
-        //}
-        //if (index == 1207) printf("%08x ", f[c->lp_r_num_words - 1]);
         mpz_set_ui(num1, f[c->lp_r_num_words- 1]);
         for (j = c->lp_r_num_words - 2; j >= 0; j--) {
-            //if (index == 1207) printf("%08x ", f[j]);
             mpz_mul_2exp(num1, num1, 32);
             mpz_add_ui(num1, num1, f[j]);
         }
 
-
-        //if (index == 1207) printf("\n");
-
 		f += c->lp_r_num_words;
 
-        //if (index == 1207) printf("%08x ", f[0]);
-        //mpz_set_ui(num2, f[0]);
-        //for (i = 1; i < c->lp_a_num_words; i++)
-        //{
-        //    if (index == 1207) printf("%08x ", f[i]);
-        //    mpz_mul_2exp(num2, num2, 32);
-        //    mpz_add_ui(num2, num2, f[i]);
-        //}
-
-        //if (index == 1207) printf("%08x ", f[c->lp_a_num_words - 1]);
         mpz_set_ui(num2, f[c->lp_a_num_words - 1]);
         for (j = c->lp_a_num_words - 2; j >= 0; j--) {
-            //if (index == 1207) printf("%08x ", f[j]);
             mpz_mul_2exp(num2, num2, 32);
             mpz_add_ui(num2, num2, f[j]);
         }
-
-        //if (index == 1207) printf("\n");
 
 		mpz_mul(num3, num2, num1);
 	}
@@ -333,14 +299,6 @@ void relation_to_gmp(relation_batch_t *rb,
 			nwords = c->lp_a_num_words;
 			f += c->lp_r_num_words;
 		}
-
-        if (nwords == 0)
-        {
-            printf("warning: rb a = %ld b = %u has lpa_words = %u, lpr_words = %u\n",
-                c->a, c->b, c->lp_a_num_words, c->lp_r_num_words);
-            mpz_set_ui(out, 1);
-            return;
-        }
 
         mpz_set_ui(num3, f[nwords - 1]);
         for (j = nwords - 2; j >= 0; j--)
@@ -839,10 +797,22 @@ process_r:
             gmp_printf("uecm found both factors of f1r = %Zd\n", f1r);
         }
 
-        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+        if (f64 == 1)
         {
-            if (f64 == 1) printf("failed to find factor of %d-bit f1r %lu\n",
-                mpz_sizeinbase(f1r, 2), mpz_get_ui(f1r));
+            // we really expect to find factors here, so try one more time
+            f64 = getfactor_uecm(mpz_get_ui(f1r), 0, lcg_state);
+            rb->num_uecm[0]++;
+
+            if (f64 == 1)
+            {
+                printf("failed to find factor of %d-bit f1r %lu, this should be sent to mpqs\n",
+                    mpz_sizeinbase(f1r, 2), mpz_get_ui(f1r));
+                rb->num_abort[5]++;
+                return;
+            }
+        }
+        else
+        {
             rb->num_abort[5]++;
             return;
         }
@@ -1145,7 +1115,7 @@ process_r:
     if (mpz_sizeinbase(f2r, 2) > 64) {
         // we don't really know anything about f2r in this case other than that
         // it either has several factors not in the GCD, any of which could be too big,
-        // or it could even be prime.  None of these scenarios is cost-benficial to pursue.
+        // or it could be prime.  None of these scenarios is cost-benficial to pursue.
         // Note: we should never actually get here, because size-based checks on f2r
         // should eliminate this residue right away, rather than waste time on f1r first.
         //rb->num_abort[7]++;
@@ -1869,9 +1839,8 @@ process_a:
         }
         else
         {
-            // could run QS, but this happens so rarely when tecm is given
-            // a 3LP with 3 known factors < lp_cutoff that instead we
-            // just give up and record this failure.
+            // need to run MPQS here.  until we get that going, record how
+            // many relations we are missing...
             rb->num_qs_a++;
             return;
         }
@@ -1882,14 +1851,13 @@ process_a:
 
         // we don't really know anything about f2a in this case other than that
         // it either has several factors not in the GCD, any of which could be too big,
-        // or it could even be prime.  None of these scenarios is cost-benficial to pursue.
+        // or it could be prime.  None of these scenarios is cost-benficial to pursue.
         // Note: we should never actually get here, because size-based checks on f2a
         // should eliminate this residue right away, rather than waste time on f1a first.
         //rb->num_abort[7]++;
         //return;
 
         // if it isn't prime, maybe try to do a little work on it.
-        //mpz_set_ui(f1a, 2);
         if (mpz_probab_prime_p(f2a, 1))
         {
             rb->num_abort_a[7]++;
