@@ -28,7 +28,6 @@ either expressed or implied, of the FreeBSD Project.
 */
 
 #include "gmp.h"
-#include "../../include/monty.h"
 #include <stdint.h>
 #include <stdio.h>
 #include "microecm.h"
@@ -55,6 +54,11 @@ typedef struct
 {
 	uint64_t base[2];
 } u128_t;
+
+typedef struct
+{
+	uint64_t data[2][8];
+} vec_u104_t;
 
 typedef struct
 {
@@ -244,10 +248,32 @@ static const int tecm_primes[NUMP] = {
 6073, 6079, 6089, 6091, 6101, 6113, 6121, 6131, 6133, 6143,
 };
 
+/********************* 128-bit Montgomery arith **********************/
+typedef struct
+{
+    uint64_t r[2];
+    uint64_t n[2];
+    uint64_t np[2];
+    uint64_t nhat[2];
+    uint64_t rhat[2];
+    uint64_t rmask[2];
+    uint64_t one[2];
+    uint64_t mtmp1[2];
+    uint64_t mtmp2[2];
+    uint64_t mtmp3[2];
+    uint64_t mtmp4[2];
+    uint64_t rho;
+} monty128_t;
 
 #define GCC_ASM64X
 #define USE_MULX
 
+void to_monty128(monty128_t* mdata, uint64_t* x);
+void monty128_init(monty128_t* mdata, uint64_t* n);
+void mulmod128(uint64_t* u, uint64_t* v, uint64_t* w, monty128_t* mdata);
+void sqrmod128(uint64_t* u, uint64_t* w, monty128_t* mdata);
+void addmod128(uint64_t* u, uint64_t* v, uint64_t* w, uint64_t* n);
+void submod128(uint64_t* u, uint64_t* v, uint64_t* w, uint64_t* n);
 __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi);
 
 #ifdef GCC_ASM64X
@@ -264,6 +290,432 @@ __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
     return x;
 }
 #endif
+
+/********************* 128-bit Montgomery arith **********************/
+void to_monty128(monty128_t* mdata, uint64_t* x)
+{
+    //given a number x in normal (hexadecimal) representation, 
+    //find its montgomery representation
+
+    //this uses some precomputed monty constants
+    //xhat = (x * r) mod n
+    // = x * R^2 / R mod n
+    // = REDC(x * R^2)
+    mpz_t m;
+    mpz_t n;
+
+    mpz_init(m);
+    mpz_init(n);
+
+    mpz_set_ull(m, x[1]);
+    mpz_mul_2exp(m, m, 64);
+    mpz_add_ull(m, m, x[0]);
+
+    mpz_set_ull(n, mdata->n[1]);
+    mpz_mul_2exp(n, n, 64);
+    mpz_add_ull(n, n, mdata->n[0]);
+
+    // implied R = 2^128
+    mpz_mul_2exp(m, m, 128);
+    mpz_mod(m, m, n);
+
+    x[0] = mpz_get_ull(m);
+    mpz_tdiv_q_2exp(m, m, 64);
+    x[1] = mpz_get_ull(m);
+
+    mpz_clear(m);
+    mpz_clear(n);
+
+    return;
+}
+
+void monty128_init(monty128_t* mdata, uint64_t* n)
+{
+    //for a input modulus n, initialize constants for 
+    //montogomery representation
+    //this assumes that n is relatively prime to 2, i.e. is odd.	
+    uint64_t b = n[0];
+    uint64_t x;
+
+    mdata->n[0] = n[0];
+    mdata->n[1] = n[1];
+
+    // invert (odd) n mod 2^64
+    x = (((b + 2) & 4) << 1) + b; // here x*a==1 mod 2**4
+    x *= 2 - b * x;               // here x*a==1 mod 2**8
+    x *= 2 - b * x;               // here x*a==1 mod 2**16
+    x *= 2 - b * x;               // here x*a==1 mod 2**32         
+    x *= 2 - b * x;               // here x*a==1 mod 2**64
+
+    mdata->rho = (uint64_t)((uint64_t)0 - ((uint64_t)x));
+
+    mdata->one[0] = 1;
+    mdata->one[1] = 0;
+    to_monty128(mdata, mdata->one);
+
+    return;
+}
+
+void ciosFullMul128x(uint64_t* u, uint64_t* v, uint64_t rho, uint64_t* n, uint64_t* w)
+{
+#if defined( USE_MULX ) && defined(GCC_ASM64X)
+    // requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+
+    __asm__(
+        "movq %0, %%r10	\n\t"			/* u ptr in r10 */
+        "movq %2, %%r11	\n\t"			/* w ptr in r11 */
+        "movq 0(%1), %%r9	\n\t"		/* v[0] ptr in r9 */
+
+        /* begin s += u * v */
+        "movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by u[0]  */
+        "mulx %%r9, %%r12, %%r14 \n\t"  /* r14 = HI(u[0] * v)         */
+        "addq %%r12, 0(%%r11) \n\t"     /* w[0] = w[0] + LO(u[0] * v) */
+
+        "movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by u[1]  */
+        "mulx %%r9, %%r12, %%r13 \n\t"  /* r13 = HI(u[1] * v)         */
+        "adcq %%r14, %%r12 \n\t"        /* r12 = HI(u[0] * v) + LO(u[1] * v) + prevcarry */
+        "adcq $0, %%r13 \n\t"           /* r13 = HI(u[1] * v) + prevcarry                */
+        "addq %%r12, 8(%%r11) \n\t"		/* w[1] = w[1] + HI(u[0] * v) + LO(u[1] * v)*/
+        "adcq %%r13, 16(%%r11) \n\t"	/* w[2] = w[2] + HI(u[1] * v) + prevcarry */
+
+        "movq 0(%%r11), %%rdx	\n\t"   /* ready to multiply by w[0]  */
+        "mulx %4, %%r9, %%r14	\n\t"   /* m = rho * w[0]         */
+        "movq %3, %%r10	\n\t"			/* n ptr in r10 */
+
+        /* begin s = (s + n * m) >> 64 */
+        "movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by n[0]  */
+        "mulx %%r9, %%r12, %%r14 \n\t"  /* r14 = HI(n[0] * m)         */
+        "addq 0(%%r11), %%r12  \n\t"    /* r12 = w[0] (could be rdx) + LO(n[0] * m) */
+
+        /* r12 should be 0 here */
+
+        "movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by n[1]  */
+        "mulx %%r9, %%r12, %%r13 \n\t"  /* r13 = HI(n[1] * m)         */
+        "adcq %%r14, %%r12 \n\t"        /* r12 = HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+        "adcq $0, %%r13 \n\t"           /* r13 = HI(n[1] * m) + prevcarry                */
+        "xorq %%r14, %%r14 \n\t"
+        "addq 8(%%r11), %%r12  \n\t"
+        "movq %%r12, 0(%%r11)	\n\t"	/* w[0] = w[1] + HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+
+        "adcq 16(%%r11), %%r13 \n\t"
+        "movq %%r13, 8(%%r11)	\n\t"	/* w[1] = w[2] + HI(n[1] * m) + prevcarry */
+        "adcq $0, %%r14 \n\t"
+        "movq %%r14, 16(%%r11)	\n\t"   /* w[2] = carry out */
+
+        /* round 2 */
+
+        "movq %0, %%r10	\n\t"			/* u ptr in r10 */
+        "movq 8(%1), %%r9	\n\t"		/* v[1] ptr in r9 */
+
+        /* begin s += u * v */
+        "movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by u[0]  */
+        "mulx %%r9, %%r12, %%r14 \n\t"  /* r14 = HI(u[0] * v)         */
+        "addq %%r12, 0(%%r11) \n\t"     /* w[0] = w[0] + LO(u[0] * v) */
+
+        "movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by u[1]  */
+        "mulx %%r9, %%r12, %%r13 \n\t"  /* r13 = HI(u[1] * v)         */
+        "adcq %%r14, %%r12 \n\t"        /* r12 = HI(u[0] * v) + LO(u[1] * v) + prevcarry */
+        "adcq $0, %%r13 \n\t"           /* r13 = HI(u[1] * v) + prevcarry                */
+        "addq %%r12, 8(%%r11) \n\t"		/* w[1] = w[1] + HI(u[0] * v) + LO(u[1] * v)*/
+        "adcq %%r13, 16(%%r11) \n\t"	/* w[2] = w[2] + HI(u[1] * v) + prevcarry */
+
+        "movq 0(%%r11), %%rdx	\n\t"   /* ready to multiply by w[0]  */
+        "mulx %4, %4, %%r14	\n\t"       /* m = rho * w[0]         */
+        "movq %3, %%r10	\n\t"			/* n ptr in r10 */
+
+        /* begin s = (s + n * m) >> 64 */
+        "movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by n[0]  */
+        "mulx %4, %%r12, %%r14	\n\t"   /* r14 = HI(n[0] * m)         */
+        "addq 0(%%r11), %%r12  \n\t"    /* r12 = w[0] (could be rdx) + LO(n[0] * m) */
+
+        /* r12 should be 0 here */
+
+        "movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by n[1]  */
+        "mulx %4, %%r12, %%r13	\n\t"   /* r13 = HI(n[1] * m)         */
+        "adcq %%r14, %%r12 \n\t"        /* r12 = HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+        "adcq $0, %%r13 \n\t"           /* r13 = HI(n[1] * m) + prevcarry                */
+        "xorq %%r14, %%r14 \n\t"
+        "addq 8(%%r11), %%r12  \n\t"
+        "movq %%r12, 0(%%r11)	\n\t"	/* w[0] = w[1] + HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+
+        "adcq 16(%%r11), %%r13 \n\t"
+        "movq %%r13, 8(%%r11)	\n\t"	/* w[1] = w[2] + HI(n[1] * m) + prevcarry */
+        "adcq $0, %%r14 \n\t"
+        "movq %%r14, 16(%%r11)	\n\t"   /* w[2] = carry out */
+
+
+
+        :
+    : "r"(u), "r"(v), "r"(w), "r"(n), "r"(rho)
+        : "r9", "r10", "rdx", "r11", "r12", "r13", "r14", "cc", "memory");
+
+#else
+
+
+#endif
+    return;
+}
+
+// already defined within mingw64/msys2
+#if 0 //defined( GCC_ASM64X ) && !defined(__MINGW32__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+
+__inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t* sum)
+{
+    uint64_t s, c;
+    s = y;
+    c = 0;
+
+    __asm__("movq %2, %%rax		\n\t"
+        "addq %3, %%rax		\n\t"
+        "adcq $0, %5		\n\t"
+        "addq %%rax, %4		\n\t"
+        "adcq $0, %5		\n\t"
+        : "=r"(s), "=r"(c)
+        : "r"(x), "r"((uint64_t)w), "0"(s), "1"(c)
+        : "rax", "memory", "cc");
+
+    *sum = s;
+    return c;
+}
+
+#endif
+
+void mulmod128(uint64_t* u, uint64_t* v, uint64_t* w, monty128_t* mdata)
+{
+    // integrate multiply and reduction steps, alternating
+    // between iterations of the outer loops.
+    uint64_t s[3];
+
+    s[0] = 0;
+    s[1] = 0;
+    s[2] = 0;
+
+#if defined( USE_MULX ) && defined(GCC_ASM64X)
+    // requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+    ciosFullMul128x(u, v, mdata->rho, mdata->n, s);
+
+    if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
+    {
+        __asm__(
+            "movq %4, %%r11 \n\t"
+            "movq %0, 0(%%r11) \n\t"
+            "movq %1, 8(%%r11) \n\t"
+            "subq %2, 0(%%r11) \n\t"
+            "sbbq %3, 8(%%r11) \n\t"
+            :
+        : "r"(s[0]), "r"(s[1]), "r"(mdata->n[0]), "r"(mdata->n[1]), "r"(w)
+            : "r11", "cc", "memory");
+    }
+    else
+    {
+        w[0] = s[0];
+        w[1] = s[1];
+    }
+#else
+    // TODO: implement portable u128 x u128 modular multiplication
+    uint64_t t[3], U, c2, c3;
+    uint8_t c1, c4;
+
+    // z = 0
+    // for (i = 0; i < t; i++)
+    // {
+    //     u = (z0 + xi * y0) * -m’ mod b
+    //     z = (z + xi * y + u * m) / b
+    // }
+    // if (x >= m) { x -= m; }
+
+    //printf("nhat = %" PRIx64 "\n", mdata->rho);
+    //printf("a = %" PRIx64 ",%" PRIx64 "\n", u[1], u[0]);
+    //printf("b = %" PRIx64 ",%" PRIx64 "\n", v[1], v[0]);
+    //printf("n = %" PRIx64 ",%" PRIx64 "\n", mdata->n[1], mdata->n[0]);
+
+    //i = 0;
+    //u = (z0 + x0 * y0) * nhat mod b;
+    t[0] = _umul128(u[0], v[0], &t[1]);
+    U = t[0] * mdata->rho;
+
+    //printf("t[0] = %" PRIx64 ", t[1] = %" PRIx64 ", u = %" PRIx64 "\n", t[0], t[1], U);
+
+    //j = 0;
+    //z = (z + x0 * y0 + u * m0) / b;
+    c1 = _addcarry_u64(0, _umul128(U, mdata->n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+    t[2] = _addcarry_u64(c1, t[1], c2, &t[1]);                              // c1 applies to t2
+
+    //j = 1;
+    //z = (z + x0 * y1 + u * m1) / b;
+    c1 = _addcarry_u64(0, _umul128(u[0], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+    c4 = _addcarry_u64(0, _umul128(U, mdata->n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+    c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+    c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+    t[0] = t[1];                                                            // divide by b
+    t[1] = t[2];
+    t[2] = c1 + c4;
+
+    //printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
+
+    //i = 0;
+    //u = (z + x1 * y0) * nhat mod b;
+    c1 = _addcarry_u64(0, _umul128(u[1], v[0], &c2), t[0], &t[0]);          // c1,c2 apply to t1
+    c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+    t[2] += c1;
+    U = t[0] * mdata->rho;
+
+    //printf("t[0] = %" PRIx64 ", u = %" PRIx64 "\n", t[0], U);
+
+    //j = 0;
+    //z = (z + x1 * y0 + u * m0) / b;
+    c1 = _addcarry_u64(0, _umul128(U, mdata->n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+    c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+    t[2] += c1;
+
+    //j = 1;
+    //z = (z + x1 * y1 + u * m1) / b;
+    c1 = _addcarry_u64(0, _umul128(u[1], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+    c4 = _addcarry_u64(0, _umul128(U, mdata->n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+    c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+    c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+
+    //printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
+
+    w[0] = t[1];
+    w[1] = t[2];
+
+    //exit(1);
+
+    return;
+
+
+
+#endif
+
+    return;
+}
+
+void sqrmod128(uint64_t* u, uint64_t* w, monty128_t* mdata)
+{
+    // integrate multiply and reduction steps, alternating
+    // between iterations of the outer loops.
+    uint64_t s[3];
+
+    s[0] = 0;
+    s[1] = 0;
+    s[2] = 0;
+
+#if defined( USE_MULX ) && defined(GCC_ASM64X)
+    // requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+    ciosFullMul128x(u, u, mdata->rho, mdata->n, s);
+
+    if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
+    {
+        __asm__(
+            "movq %4, %%r11 \n\t"
+            "movq %0, 0(%%r11) \n\t"
+            "movq %1, 8(%%r11) \n\t"
+            "subq %2, 0(%%r11) \n\t"
+            "sbbq %3, 8(%%r11) \n\t"
+            :
+        : "r"(s[0]), "r"(s[1]), "r"(mdata->n[0]), "r"(mdata->n[1]), "r"(w)
+            : "r11", "cc", "memory");
+    }
+    else
+    {
+        w[0] = s[0];
+        w[1] = s[1];
+    }
+
+#else
+
+    mulmod128(u, u, w, mdata);
+
+#endif
+    return;
+}
+
+void addmod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
+{
+#if defined(GCC_ASM64X)
+    // requires GCC_ASM64 syntax
+    w[1] = a[1];
+    w[0] = a[0];
+    __asm__(
+        "movq %0, %%r8 \n\t"
+        "movq %1, %%r9 \n\t"
+        "subq %4, %%r8 \n\t"		/* t = x - n */
+        "sbbq %5, %%r9 \n\t"
+        "addq %2, %0 \n\t"			/* x += y */
+        "adcq %3, %1 \n\t"
+        "addq %2, %%r8 \n\t"		/* t += y */
+        "adcq %3, %%r9 \n\t"
+        "cmovc %%r8, %0 \n\t"
+        "cmovc %%r9, %1 \n\t"
+        : "+r"(w[0]), "+r"(w[1])
+        : "r"(b[0]), "r"(b[1]), "r"(n[0]), "r"(n[1])
+        : "r8", "r9", "cc", "memory");
+
+#else
+
+    uint8_t c;
+    uint64_t t[2];
+    c = _addcarry_u64(0, a[0], b[0], &t[0]);
+    c = _addcarry_u64(c, a[1], b[1], &t[1]);
+    if (c || (t[1] > n[1]) || ((t[1] == n[1]) && (t[0] > n[0])))
+    {
+        c = _subborrow_u64(0, t[0], n[0], &w[0]);
+        c = _subborrow_u64(c, t[1], n[1], &w[1]);
+    }
+    else
+    {
+        w[0] = t[0];
+        w[1] = t[1];
+    }
+
+
+#endif
+    return;
+}
+
+void submod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
+{
+#if defined(GCC_ASM64X)
+    // requires GCC_ASM64 syntax
+    __asm__(
+        "movq %6, %%r11 \n\t"
+        "xorq %%r8, %%r8 \n\t"
+        "xorq %%r9, %%r9 \n\t"
+        "movq %0, 0(%%r11) \n\t"
+        "movq %1, 8(%%r11) \n\t"
+        "subq %2, 0(%%r11) \n\t"
+        "sbbq %3, 8(%%r11) \n\t"
+        "cmovc %4, %%r8 \n\t"
+        "cmovc %5, %%r9 \n\t"
+        "addq %%r8, 0(%%r11) \n\t"
+        "adcq %%r9, 8(%%r11) \n\t"
+        "1: \n\t"
+        :
+    : "r"(a[0]), "r"(a[1]), "r"(b[0]), "r"(b[1]), "r"(n[0]), "r"(n[1]), "r"(w)
+        : "r8", "r9", "r11", "cc", "memory");
+
+#else
+
+    uint8_t c;
+    uint64_t t[2];
+    c = _subborrow_u64(0, a[0], b[0], &t[0]);
+    c = _subborrow_u64(c, a[1], b[1], &t[1]);
+    if (c)
+    {
+        c = _addcarry_u64(0, t[0], n[0], &w[0]);
+        c = _addcarry_u64(c, t[1], n[1], &w[1]);
+    }
+    else
+    {
+        w[0] = t[0];
+        w[1] = t[1];
+    }
+
+#endif
+
+    return;
+}
 
 // local functions
 void add(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P1, tinyecm_pt *P2, 

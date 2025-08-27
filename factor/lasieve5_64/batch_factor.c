@@ -806,10 +806,10 @@ process_r:
         // comes from the gcd with the large prime product, i.e.,
         // is either composite or prime and already part of a 
         // potential relation.
-        uint64_t e = mpz_get_ui(f2r);
+        //uint64_t e = mpz_get_ui(f2r);
         //if (prp_uecm(e) == 1)
-        //if (mpz_probab_prime_p(f2r, 1) >= 1)
-        if (MR_2sprp_64x1(e))
+        if (mpz_probab_prime_p(f2r, 1) >= 1)
+        //if (MR_2sprp_64x1(e))
         {
             rb->num_abort[4]++;
             return;
@@ -1530,10 +1530,10 @@ process_a:
         // comes from the gcd with the large prime product, i.e.,
         // is either composite or prime and already part of a 
         // potential relation.
-        //if (mpz_probab_prime_p(f2a, 1) >= 1)
-        uint64_t e = mpz_get_ui(f2a);
+        if (mpz_probab_prime_p(f2a, 1) >= 1)
+        //uint64_t e = mpz_get_ui(f2a);
         //if (prp_uecm(e))
-        if (MR_2sprp_64x1(e))
+        //if (MR_2sprp_64x1(e))
         {
             rb->num_abort_a[4]++;
             return;

@@ -55,7 +55,6 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "../../include/monty.h"
 #if defined(_MSC_VER)
 #  ifndef _WIN64
 #    error "64 bit compilation mode is required for MSVC"
@@ -3347,84 +3346,6 @@ int prp_uecm(uint64_t n)
     return ((result == (legendre ? m1 : unityval)));
 }
 
-int MR_2sprp_64x1(uint64_t n)
-{
-    uint64_t rho = multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
-    uint64_t one = ((uint64_t)0 - n) % n;		// one == R  (mod n)
-    uint64_t result = one;
-    uint64_t e = (n - 1);
-
-    // compute d and s
-    uint64_t s = my_ctz64(e);
-    uint64_t d = e >> s;
-
-    // penultimate-hi-bit mask of d
-#if defined(USE_AVX2) || defined(USE_AVX512F)
-    // technically need to check the ABM flag, but I don't
-    // have that in place anywhere yet.  AVX2 is generally equivalent.
-
-#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
-
-    uint64_t m = 1ULL << (62 - __lzcnt64(d));   // set a mask at the leading bit - 2
-
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-
-    uint64_t m = 1ULL << (62 - __builtin_clzll(d));
-
-#endif
-
-#else
-    // these builtin functions will have an efficient implementation
-    // for the current processor architecture.
-#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
-
-    uint32_t pos;
-    if (_BitScanReverse64(&pos, d))
-        return pos;
-    else
-        return 64;
-
-    uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
-
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-
-    uint64_t m = 1ULL << (62 - __builtin_clzll(d));
-
-#endif
-
-#endif
-
-    // compute b^d using RL binary exponentiation.  RL because then
-    // exponent 1-bits are adds instead of multiplies.
-    // we know the first bit is set and the first squaring is of unity,
-    // so the first iteration is easier (and hence the penultimate mask bit).
-    result = addmod(result, result, n);
-
-    while (m > 0)
-    {
-        result = sqrredc_pos(result, n, rho);
-        if (d & m) result = addmod(result, result, n);
-        m >>= 1;
-    }
-
-    // check current result == 1
-    if (result == one) return 1;
-
-    // now compute b^(2^r*d) for 0 <= r < s, 
-    // and check for congruence to -1 as we go.
-    uint64_t minus1 = n - one;
-
-    while (s > 1)
-    {
-        if (result == minus1) return 1;
-        result = sqrredc_pos(result, n, rho);
-        if (result == one) return 0;
-        s--;
-    }
-
-    if (result == minus1) return 1;
-    else return 0;
-}
 
 #ifdef USE_AVX512F
 
