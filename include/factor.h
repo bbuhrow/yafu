@@ -340,6 +340,7 @@ typedef struct
     int td;
     int poly_testsieve;
     int poly_percent_max;
+    int batch_3lp;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;

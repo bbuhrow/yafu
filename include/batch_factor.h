@@ -53,7 +53,6 @@ typedef void (*print_relation_t)(void);
 typedef struct {
     uint64_t a;               // for siqs, index of a-poly in master list (was an int64)
 	uint32_t b;               // for siqs, index of b-poly within the indicated a-poly
-	uint32_t extra_f;
     int32_t signed_offset;    // for siqs, location of relation in the block (new to struct)
 	uint8_t num_factors_r;     /* doesn't include large primes */
 	uint8_t num_factors_a;     /* doesn't include large primes */
@@ -63,6 +62,7 @@ typedef struct {
 				            all of the above above appear, in order */
     uint8_t success;
     uint32_t lp_r[MAX_LARGE_PRIMES];
+	uint32_t lp_a[MAX_LARGE_PRIMES];
 } cofactor_t;
 
 /* main structure controlling batch factoring. The main goal
@@ -90,20 +90,25 @@ typedef struct {
 									(1) split 2LP on the f2r side
 									(2) split 2LP on the small side of TLP residues
 									(3) split 2LP on the large side of TLP residues */
-	uint32_t num_tecm;			/* calls to tecm to split 3LP on the f1r side */
-	uint32_t num_tecm2;			/* calls to tecm to split 4LP on the f1r side */
+	uint32_t num_uecm_a[4];		// same for the other side
+	uint32_t num_tecm;			/* calls to tecm to split 3LP on the r side */
+	uint32_t num_tecm_a;		/* calls to tecm to split 3LP on the a side */
+	uint32_t num_tecm2;			/* calls to tecm to split non-GCD 3LP on the r side */
+	uint32_t num_tecm2_a;		/* calls to tecm to split non-GCD 3LP on the a side */
 	uint32_t num_qs;			/* tecm failures (in the future, handled by qs) */
+	uint32_t num_qs_a;			/* tecm failures (in the future, handled by qs) */
 	uint32_t num_attempt;		/* number of calls to check_relation (possibly involving ecm) */
 	uint32_t num_success;       /* number of surviving relations */
 	uint32_t num_abort[8];		/* stop because:
-								0) f2r has one factor that's too big, 
+								0) f2r has one factor that's too big,
 								1) f2r has 2 factors, at least one of which is too big (residue > LPB^2),
-								2) f2r contains a large prime: residue is less than (max-GCD-prime)^2 
+								2) f2r contains a large prime: residue is less than (max-GCD-prime)^2
 								3) f2r has more than 2 factors; is > 64 bits
 								4) prime double-word f2r
 								5) non-useful f1r double-word split (factor larger than LPB)
 								6) non-useful f2r double-word split (factor larger than LPB)
 								7) non-useful f1r TLP split (factor larger than LPB), at any point in the process */
+	uint32_t num_abort_a[8];	// same but for the other side
 	uint32_t target_relations;  /* number of relations to batch up */
 	uint64_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
@@ -166,7 +171,6 @@ void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
 			mpz_t unfactored_r,
 			uint32_t *factors_a, uint32_t num_factors_a, 
 			mpz_t unfactored_a,
-            mpz_t tmp_in,
 			relation_batch_t *rb);
 
 void check_batch_relation(relation_batch_t *rb,

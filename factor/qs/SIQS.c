@@ -2694,9 +2694,10 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
                 mpz_add_ui(x, x, lp1[j]);
             }
 
+            mpz_neg(x, x);
             relation_batch_add(c->a, c->b, c->signed_offset, 
                 f, c->num_factors_r,
-                x, NULL, 0, tmp, NULL, dest_rb);
+                x, NULL, 0, tmp, dest_rb);
         }
 
         if (sconf->obj->VFLAG > 2)

@@ -125,7 +125,6 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
         tree->alloc *= 2;
         tree->nodes = (bintree_element_t*)xrealloc(tree->nodes,
             tree->alloc * sizeof(bintree_element_t));
-        printf("tree now has %u nodes allocated\n", tree->alloc);
     }
 
     if ((side == 0) && (node->left_id != -1))
@@ -616,8 +615,8 @@ void check_batch_relation(relation_batch_t *rb,
     mpz_ptr n = rb->n;
 	uint32_t lp_r[MAX_LARGE_PRIMES];
 	uint32_t lp_a[MAX_LARGE_PRIMES];
-	uint32_t num_r, num_a;
-    int do_r_first = 0;
+	uint32_t num_r = 0, num_a = 0;
+    int do_r_first = 1;
 
 	/* first compute gcd(prime_product, rational large cofactor).
 	   The rational part will split into a cofactor with all 
@@ -768,6 +767,7 @@ process_r:
         //if (prp_uecm(e) == 1)
         if (mpz_probab_prime_p(f2r, 1) >= 1)
         //if (MR_2sprp_64x1(e))
+        //if (pow2m(e - 1, e))
         {
             rb->num_abort[4]++;
             return;
@@ -797,24 +797,24 @@ process_r:
             gmp_printf("uecm found both factors of f1r = %Zd\n", f1r);
         }
 
-        if (f64 == 1)
+        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            // we really expect to find factors here, so try one more time
-            f64 = getfactor_uecm(mpz_get_ui(f1r), 0, lcg_state);
-            rb->num_uecm[0]++;
-
             if (f64 == 1)
             {
+                // we really expect to find factors here, so try one more time
+                f64 = getfactor_uecm(mpz_get_ui(f1r), 0, lcg_state);
+                rb->num_uecm[0]++;
+
                 printf("failed to find factor of %d-bit f1r %lu, this should be sent to mpqs\n",
                     mpz_sizeinbase(f1r, 2), mpz_get_ui(f1r));
                 rb->num_abort[5]++;
                 return;
             }
-        }
-        else
-        {
-            rb->num_abort[5]++;
-            return;
+            else
+            {
+                rb->num_abort[5]++;
+                return;
+            }
         }
 
         lp_r[num_r++] = (uint32_t)f64;
@@ -1369,6 +1369,7 @@ process_r:
         goto done;
 
 process_a:
+
     if (c->lp_a_num_words) {
 
         mpz_set_ui(n, lp2[c->lp_a_num_words - 1]);
@@ -1504,6 +1505,7 @@ process_a:
         //uint64_t e = mpz_get_ui(f2a);
         //if (prp_uecm(e))
         //if (MR_2sprp_64x1(e))
+        //if (pow2m(e - 1, e))
         {
             rb->num_abort_a[4]++;
             return;
@@ -2291,6 +2293,7 @@ void relation_batch_free(relation_batch_t *rb) {
     mpz_clear(rb->max_prime2);
     mpz_clear(rb->max_prime3);
     mpz_clear(rb->lp_cutoff_a2);
+    mpz_clear(rb->lp_cutoff_a3);
     mpz_clear(rb->lp_cutoff_r2);
     mpz_clear(rb->lp_cutoff_r3);
 	free(rb->relations);
@@ -2325,8 +2328,6 @@ void relation_batch_add(uint64_t a, uint32_t b,
 		rb->relations = (cofactor_t *)xrealloc(rb->relations,
 					rb->num_relations_alloc *
 					sizeof(cofactor_t));
-        printf("memory use for relations array is now %u bytes\n", rb->num_relations_alloc *
-            sizeof(cofactor_t));
 	}
 	c = rb->relations + rb->num_relations++;
 	c->a = a;
@@ -2348,8 +2349,6 @@ void relation_batch_add(uint64_t a, uint32_t b,
 		rb->factors = (uint32_t *)xrealloc(rb->factors,
 					rb->num_factors_alloc *
 					sizeof(uint32_t));
-        printf("memory use for factors array is now %u bytes\n", rb->num_factors_alloc *
-            sizeof(uint32_t));
 	}
 	f = rb->factors + rb->num_factors;
 
@@ -2424,6 +2423,12 @@ uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
         tree.nodes[0].left_id = -1;
         tree.nodes[0].right_id = -1;
         tree.nodes[0].complete = 0;
+
+        printf("memory use for relations array is %u bytes\n", rb->num_relations_alloc *
+            sizeof(cofactor_t));
+
+        printf("memory use for factors array is %u bytes\n", rb->num_factors_alloc *
+            sizeof(uint32_t));
 
         // this already traverses the tree... just build in
         // the capability to add and reuse nodes and we 

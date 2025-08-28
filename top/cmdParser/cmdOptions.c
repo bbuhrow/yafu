@@ -84,7 +84,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
-    "forceQLP", "siqsMFBQ" };
+    "forceQLP", "siqsMFBQ", "nfs_batch_3lp"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -216,7 +216,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : target density",
     "(String)          : Name of output JSON logfile",
     "                  : force the use of QLP SIQS (4 large primes)",
-    "(Floating point)  : Exponent of SIQS QLP: attempt to split residues up to LPB^exponent"
+    "(Floating point)  : Exponent of SIQS QLP: attempt to split residues up to LPB^exponent",
+    "                  : Use batch factorization of 3LP cofactors in NFS"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -250,7 +251,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
     1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
-    0,1
+    0,1,0       // forceQLP, qlp_exp, nfs_batch_3lp
 };
 
 // command line option aliases, specified by '--'
@@ -282,7 +283,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", ""
+    "", "", ""
 };
 
 
@@ -1283,6 +1284,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // lpb^siqsMFBQ are subjected to quad large prime factorization attempts
         sscanf(arg, "%lf", &options->siqsMFBQ);
     }
+    else if (strcmp(opt, OptionArray[127]) == 0)
+    {
+        //argument "forceQLP"
+        options->nfs_batch_3lp = 1;
+    }
     else
     {
         int i;
@@ -1419,6 +1425,7 @@ options_t* initOpt(void)
     options->td = 0;
     options->poly_percent_max = 8;
     options->poly_testsieve = 390;
+    options->nfs_batch_3lp = 0;
     
     // prime finding options
     options->soe_blocksize = 32768;

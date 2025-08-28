@@ -347,8 +347,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
+                mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
                 relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
-                    dconf->Qvals[report_num], NULL, 0, dconf->gmptmp1, NULL, &dconf->rb);
+                    dconf->gmptmp2, NULL, 0, dconf->gmptmp1, &dconf->rb);
 
                 // start processing the relations in the indicated buffer if running
                 // single threaded.  otherwise, let the threading dispatcher assign 
@@ -575,27 +576,25 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                if (dconf->num_alp == 1)
-                {
-                    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
-                    {
-                        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    }
-                    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                }
-                else
-                {
-                    mpz_set_ui(dconf->gmptmp1, 0);
-                }
+                //if (0) //dconf->num_alp == 1)
+                //{
+                //    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
+                //    {
+                //        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //    }
+                //    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                //    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //}
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
 
+                mpz_set_ui(dconf->gmptmp1, 0);
+                mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
                 relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
-                    dconf->Qvals[report_num], NULL, 0, dconf->gmptmp1, NULL, &dconf->rb);
+                    dconf->gmptmp2, NULL, 0, dconf->gmptmp1, &dconf->rb);
 
                 // the relation batch persists across polynomials (we save enough
                 // info to know which polynomial the relation belongs to).  When we've 
@@ -702,14 +701,14 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
-                            c->extra_f = c->a >> 32;
-                            c->a &= 0xffffffffull;
-
-                            if (c->extra_f > 0)
-                            {
-                                //printf("buffering TLP + extra factor %u\n", c->extra_f);
-                                c->lp_r[c->success++] = c->extra_f;
-                            }
+                            //c->extra_f = c->a >> 32;
+                            //c->a &= 0xffffffffull;
+                            //
+                            //if (c->extra_f > 0)
+                            //{
+                            //    //printf("buffering TLP + extra factor %u\n", c->extra_f);
+                            //    c->lp_r[c->success++] = c->extra_f;
+                            //}
 
                             if (c->success == 4)
                             {
@@ -800,28 +799,30 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                if (dconf->num_alp == 1)
-                {
-                    printf("****** warning 4+1 LPs not supported yet\n");
-
-                    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
-                    {
-                        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    }
-                    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                }
-                else
-                {
-                    mpz_set_ui(dconf->gmptmp1, 0);
-                }
+                //if (dconf->num_alp == 1)
+                //{
+                //    printf("****** warning 4+1 LPs not supported yet\n");
+                //
+                //    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
+                //    {
+                //        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //    }
+                //    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
+                //    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
+                //}
+                //else
+                //{
+                //    mpz_set_ui(dconf->gmptmp1, 0);
+                //}
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
+                mpz_set_ui(dconf->gmptmp1, 0);
+                mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
                 relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
-                    dconf->Qvals[report_num], NULL, 0, dconf->gmptmp1, NULL, &dconf->rb);
+                    dconf->gmptmp2, NULL, 0, dconf->gmptmp1, &dconf->rb);
 
                 // the relation batch persists across polynomials (we save enough
                 // info to know which polynomial the relation belongs to).  When we've 
@@ -928,14 +929,14 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
-                            c->extra_f = c->a >> 32;
-                            c->a &= 0xffffffffull;
-
-                            if (c->extra_f > 0)
-                            {
-                                //printf("buffering TLP + extra factor %u\n", c->extra_f);
-                                c->lp_r[c->success++] = c->extra_f;
-                            }
+                            //c->extra_f = c->a >> 32;
+                            //c->a &= 0xffffffffull;
+                            //
+                            //if (c->extra_f > 0)
+                            //{
+                            //    //printf("buffering TLP + extra factor %u\n", c->extra_f);
+                            //    c->lp_r[c->success++] = c->extra_f;
+                            //}
 
                             if (c->success == 4)
                             {
