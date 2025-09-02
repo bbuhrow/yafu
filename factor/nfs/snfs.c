@@ -1,16 +1,49 @@
-/*----------------------------------------------------------------------
-This source distribution is placed in the public domain by its author,
-Ben Buhrow. You may use it for any purpose, free of charge,
-without having to notify anyone. I disclaim any responsibility for any
-errors.
+/*
+MIT License
 
-Optionally, please be nice and tell me if you find this source to be
-useful. Again optionally, if you add to the functionality present here
-please consider making those additions public too, so that others may 
-benefit from your work.	
+Copyright (c) 2021 Ben Buhrow
 
-       				   --bbuhrow@gmail.com 12/6/2012
-----------------------------------------------------------------------*/
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+// license for the cyclotomic portion of SNFS polynomial generation:
+
+/* Make SNFS polynomials for cyclotomic numbers.
+
+  Copyright 2005 Alexander Kruppa.
+			2022 Jon Becker
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2 of the License, or (at your
+  option) any later version.
+
+  This program is distributed in the hope that it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+  more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; see the file COPYING.  If not, write to the Free
+  Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+  02111-1307, USA.
+*/
 
 #include <stdio.h>
 #include "nfs_impl.h"
@@ -20,6 +53,27 @@ benefit from your work.
 
 #define POSITIVE 1
 #define NEGATIVE 0
+
+#define MAXDEGREE 8
+#define MAXAURIFDEGREE 8
+
+static int gAurifCoeffs2_3[] = { 1, 1, 1 };
+static int gAurifCoeffs5_6[] = { 1, 3, 1, 1, 1 };
+static int gAurifCoeffs7[] = { 1, 3, 3, 1, 1, 1, 1 };
+static int gAurifCoeffs10[] = { 1, 5, 7, 5, 1, 1, 2, 2, 1 };
+static int gAurifCoeffs11[] = { 1, 5, -1, -1, 5, 1, 1, 1, -1, 1, 1 };
+static int gAurifCoeffs13[] = { 1, 7, 15, 19, 15, 7, 1, 1, 3, 5, 5, 3, 1 };
+static int gAurifCoeffs14[] = { 1, 7, 3, -7, 3, 7, 1, 1, 2, -1, -1, 2,
+				1 };
+static int gAurifCoeffs15[] = { 1, 8, 13, 8, 1, 1, 3, 3, 1 };
+static int gAurifCoeffs17[] = { 1, 9, 11, -5, -15, -5, 11, 9, 1, 1, 3, 1,
+				-3, -3, 1, 3, 1 };
+static int gAurifCoeffs21[] = { 1, 10, 13, 7, 13, 10, 1, 1, 3, 2, 2, 3,
+				1 };
+static int gAurifCoeffs30[] = { 1, 15, 38, 45, 43, 45, 38, 15, 1, 1, 5, 8,
+				8, 8, 8, 5, 1 };
+
+
 
 int tdiv_int(int x, int *factors, uint64_t *primes, uint64_t num_p);
 
@@ -118,7 +172,10 @@ void check_poly(snfs_t *poly, int VFLAG)
 
 	// set mpz_poly_t alg appropriately
 	for (i = poly->poly->alg.degree; i >= 0; i--)
+	{
+		//gmp_printf("c%d: %Zd\n", i, poly->c[i]);
 		mpz_set(poly->poly->alg.coeff[i], poly->c[i]);
+	}
 
 	mpz_mod(t, t, poly->n);
 	if (mpz_cmp_ui(t,0) != 0)
@@ -133,9 +190,9 @@ void check_poly(snfs_t *poly, int VFLAG)
 				"n = %Zd\n", poly->poly->m, poly->n);
 			fprintf (stderr, "f(x) = ");
 			for (i = poly->poly->alg.degree; i >= 0; i--)
-				gmp_fprintf (stdout, "%c %Zd*x^%d ",
+				gmp_fprintf (stderr, "%c %Zd*x^%d ",
 				(mpz_cmp_ui(poly->c[i],0) < 0) ? '-' : '+', poly->poly->alg.coeff[i], i);
-			gmp_fprintf (stdout, "\n""Remainder is %Zd\n\n", t);
+			gmp_fprintf (stderr, "\n""Remainder is %Zd\n\n", t);
 		}
 	}
 	
@@ -146,7 +203,7 @@ void check_poly(snfs_t *poly, int VFLAG)
 	{
 		poly->valid = 0;
 		//if (VFLAG > 0)
-		gmp_fprintf (stdout, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
+		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n",
 			poly->n, poly->poly->m, t);
 	}
 	
@@ -868,7 +925,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			if (spGCD(i,j) != 1)
 				continue;
-			
+
 			mpz_set_ui(a, i);
 			mpz_pow_ui(pa, a, 19);
 			mpz_set_ui(b, j);
@@ -1269,6 +1326,1549 @@ void find_lucas_form(fact_obj_t* fobj, snfs_t* form)
 	return;
 }
 
+
+// ****************************************************************************************
+// The next set of functions are from Phi version 1.0
+// ****************************************************************************************
+
+static int ipwr(int base, int exp)
+{
+	int i;
+	int n = 1;
+
+	for (i = 0; i < exp; i++) {
+		n *= base;
+	}
+	return n;
+}
+
+/* Compute p[0]^v[0] * ... * p[k-1]^v[k-1] */
+
+static void mpz_mul_list(mpz_t e, int* p, int* v, uint32_t k)
+{
+	int i;
+	uint32_t j;
+
+	mpz_set_ui(e, 1);
+	for (j = 0; j < k; j++)
+		for (i = 0; i < v[j]; i++)
+			mpz_mul_ui(e, e, p[j]);
+}
+
+/* Find prime factors < maxp of R. Cofactor is put in R,
+ the i-th prime factor in p_i with exponent v_i.
+ Returns number of distinct prime factors found. */
+
+static uint32_t trialdiv(mpz_t R, int* p, int* v, uint32_t maxp, uint32_t flen)
+{
+	uint32_t i, k = 0;
+
+#ifdef DEBUG
+	printf("trialdiv: ");
+#endif
+
+	for (i = 2; i < maxp && k < flen; i = (i + 1) | 1)	/* 2 3 5 7 9... */
+		if (mpz_divisible_ui_p(R, i)) {
+			p[k] = i;
+			v[k] = 0;
+			do {
+				v[k]++;
+				mpz_divexact_ui(R, R, i);
+			} while (mpz_divisible_ui_p(R, i));
+#ifdef DEBUG
+			printf("%d^%d ", i, v[k]);
+#endif
+			k++;
+		}
+#ifdef DEBUG
+	printf("\n");
+#endif
+
+	return k;
+}
+
+static int find_aurifeuillian(mpz_t N, mpz_t x, mpz_t y, int n, int sbp, int sp)
+{
+	int h;
+	int* highCoeffs;
+	int* lowCoeffs;
+	int degree;
+	mpz_t x_powers[MAXAURIFDEGREE + 1];
+	mpz_t y_powers[MAXAURIFDEGREE + 1];
+	int i;
+	mpz_t high;
+	mpz_t low;
+	mpz_t prod;
+	mpz_t num;
+	int sign;
+
+	h = n / sbp;
+	switch (sbp) {
+	case 2:
+	case 3:
+		highCoeffs = gAurifCoeffs2_3;
+		degree = 1;
+		break;
+	case 5:
+	case 6:
+		highCoeffs = gAurifCoeffs5_6;
+		degree = 2;
+		break;
+	case 7:
+		highCoeffs = gAurifCoeffs7;
+		degree = 3;
+		break;
+	case 10:
+		highCoeffs = gAurifCoeffs10;
+		degree = 4;
+		break;
+	case 11:
+		highCoeffs = gAurifCoeffs11;
+		degree = 5;
+		break;
+	case 13:
+		highCoeffs = gAurifCoeffs13;
+		degree = 6;
+		break;
+	case 14:
+		highCoeffs = gAurifCoeffs14;
+		degree = 6;
+		break;
+	case 15:
+		highCoeffs = gAurifCoeffs15;
+		degree = 4;
+		break;
+	case 17:
+		highCoeffs = gAurifCoeffs17;
+		degree = 8;
+		break;
+	case 21:
+		highCoeffs = gAurifCoeffs21;
+		degree = 6;
+		break;
+	case 30:
+		highCoeffs = gAurifCoeffs30;
+		degree = 8;
+		break;
+	}
+	lowCoeffs = highCoeffs + (degree + 1);
+	mpz_init_set_ui(x_powers[0], 1);
+	mpz_init_set_ui(y_powers[0], 1);
+	mpz_init(x_powers[1]);
+	mpz_pow_ui(x_powers[1], x, h);
+	mpz_init(y_powers[1]);
+	mpz_pow_ui(y_powers[1], y, h);
+	for (i = 2; i <= degree; i++) {
+		mpz_init(x_powers[i]);
+		mpz_mul(x_powers[i], x_powers[i - 1], x_powers[1]);
+		mpz_init(y_powers[i]);
+		mpz_mul(y_powers[i], y_powers[i - 1], y_powers[1]);
+	}
+	mpz_init(prod);
+
+	// Calculate the high half
+	mpz_init_set_ui(high, 0);
+	for (i = 0; i <= degree; i++) {
+		mpz_set(prod, x_powers[degree - i]);
+		mpz_mul(prod, prod, y_powers[i]);
+		mpz_mul_si(prod, prod, highCoeffs[i]);
+		mpz_add(high, high, prod);
+	}
+
+	// Now do the low half
+	mpz_init_set_ui(low, 0);
+	for (i = 0; i < degree; i++) {
+		mpz_set(prod, x_powers[degree - 1 - i]);
+		mpz_mul(prod, prod, y_powers[i]);
+		mpz_mul_si(prod, prod, lowCoeffs[i]);
+		mpz_add(low, low, prod);
+	}
+	mpz_pow_ui(prod, x, (h - 1) / 2);
+	mpz_mul(low, low, prod);
+	mpz_pow_ui(prod, y, (h - 1) / 2);
+	mpz_mul(low, low, prod);
+	mpz_mul_ui(low, low, sbp * sp);
+
+	mpz_init(num);
+	mpz_sub(num, high, low);
+	if (mpz_divisible_p(num, N)) {
+		sign = -1;
+	}
+	else {
+		mpz_add(num, high, low);
+		if (mpz_divisible_p(num, N)) {
+			sign = 1;
+		}
+		else {
+			sign = 0;
+		}
+	}
+	for (i = 0; i <= degree; i++) {
+		mpz_clear(x_powers[i]);
+		mpz_clear(y_powers[i]);
+	}
+	mpz_clear(prod);
+	mpz_clear(high);
+	mpz_clear(low);
+	mpz_clear(num);
+	return sign;
+}
+
+static int generate_aurif(mpz_t N, mpz_t x, mpz_t y, int n, int sign, int* degree,
+	mpz_t f[], mpz_t g[], double* difficulty, double* skewness, int* lm)
+{
+	int sbp;
+	int a, b;
+	int xsqr;
+	int ysqr;
+	int i;
+	int d = *degree;
+	mpz_t r;
+	int primes[6];
+	int exps[6];
+	int nprimes;
+	int success = 0;
+	int h;
+	int k;
+	int LM;  /* -1 for L, 1 for M, 0 for error */
+	double dx;			/* x as a double */
+	double dy;			/* y as a double */
+	enum { MODE_HALF, MODE_NATURAL, MODE_EXPAND };
+	int mode;
+	int exp_factor = 2;
+	int exp_offset = 1;
+
+	dx = mpz_get_d(x);
+	dy = mpz_get_d(y);
+	mpz_init(r);
+
+	/* Find the squarefree base product (sbp) and extract the square parts */
+	mpz_set(r, x);
+	nprimes = trialdiv(r, primes, exps, 31, 6);
+	if (mpz_cmp_ui(r, 1) != 0) {
+		/* Too many prime factors of bases.  Bailing out. */
+		goto exit;
+	}
+	a = b = xsqr = ysqr = 1;
+	for (i = 0; i < nprimes; i++) {
+		if (exps[i] % 2 == 1) {
+			a *= primes[i];
+		}
+		xsqr *= ipwr(primes[i], exps[i] / 2);	/* May truncate */
+	}
+	mpz_set(r, y);
+	nprimes = trialdiv(r, primes, exps, 31, 6);
+	if (mpz_cmp_ui(r, 1) != 0) {
+		/* Too many prime factors of bases.  Bailing out. */
+		goto exit;
+	}
+	for (i = 0; i < nprimes; i++) {
+		if (exps[i] % 2 == 1) {
+			b *= primes[i];
+		}
+		ysqr *= ipwr(primes[i], exps[i] / 2);	/* May truncate */
+	}
+	sbp = a * b;
+
+	/* Got the SBP.  Is there an Aurifeuillian factorization? */
+	if ((sbp % 4 == 1 && sign > 0) || (sbp % 4 != 1 && sign < 0)) {
+		/* We're on the wrong side. */
+		goto exit;
+	}
+	if (n % sbp != 0 || (n / sbp) % 2 != 1) {
+		/* Exponent isn't an odd multiple of SBP. */
+		goto exit;
+	}
+	if (sbp == 19 || sbp == 22 || sbp == 23 || sbp == 26 || sbp == 29 || sbp > 30) {
+		/* We can't make a polynomial with a reasonable degree. */
+		goto exit;
+	}
+
+	/*
+	 * We now know there should be an Aurifeuillian factorization.
+	 * Let's see if we can use it.
+	 */
+	LM = find_aurifeuillian(N, x, y, n, sbp, xsqr * ysqr);
+	if (LM == 0) {
+		/* N didn't divide either form, bail out. */
+		goto exit;
+	}
+	h = n / sbp;
+	k = h;
+	/* There are 52 distinct cases, separated by SBP */
+	switch (sbp) {
+	case 2:
+		/* 17 cases */
+		if (h % 15 == 0 && (d == 0 || d == 8)) {
+			/* Case 1: Use algebraic factors for both 3 and 5 */
+			d = 8;
+			k = h / 15;
+			mpz_set_si(f[8], 1);
+			mpz_set_si(f[7], LM * 2);
+			mpz_set_si(f[6], -14);
+			mpz_set_si(f[5], -LM * 24);
+			mpz_set_si(f[4], 64);
+			mpz_set_si(f[3], LM * 88);
+			mpz_set_si(f[2], -96);
+			mpz_set_si(f[1], -LM * 96);
+			mpz_set_si(f[0], 16);
+			mode = MODE_HALF;
+		}
+		else if (h % 9 == 0 && (d == 0 || d == 6)) {
+			/*
+			 * Case 2: Use algebraic factor of 3, and play
+			 * tricks to make it a sextic.
+			 */
+			d = 6;
+			k = h / 9;
+			mpz_set_si(f[6], 1);
+			mpz_set_si(f[4], -12);
+			mpz_set_si(f[3], LM * 4);
+			mpz_set_si(f[2], 36);
+			mpz_set_si(f[1], -LM * 24);
+			mpz_set_si(f[0], -8);
+			mode = MODE_HALF;
+		}
+		else if (h % 3 == 0 && (d == 0 || d == 4 || d == 8)) {
+			/* Algebraic factor for 3 */
+			k = h / 3;
+			if (d == 0 || d == 4) {
+				/* Case 3: quartic */
+				d = 4;
+				mpz_set_si(f[4], a * a);
+				mpz_set_si(f[3], LM * 2 * a);
+				mpz_set_si(f[2], 2);
+				mpz_set_si(f[1], LM * 2 * b);
+				mpz_set_si(f[0], b * b);
+				mode = MODE_NATURAL;
+			}
+			else {
+				/* Cases 4, 5: Need to expand it to an octic */
+				if (k % 4 == 1) {
+					mpz_set(f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_set(f[6], x);
+					mpz_set(f[2], y);
+					mpz_set(f[0], y);
+					mpz_mul(f[0], f[0], y);
+					exp_offset = -1;
+				}
+				else {
+					mpz_set(f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_set(f[6], y);
+					mpz_set(f[2], x);
+					mpz_set(f[0], x);
+					mpz_mul(f[0], f[0], x);
+					exp_offset = 1;
+				}
+				mpz_mul_si(f[6], f[6], LM * 2 * xsqr * ysqr);
+				mpz_set(f[4], x);
+				mpz_mul(f[4], f[4], y);
+				mpz_mul_si(f[2], f[2], LM * 2 * xsqr * ysqr);
+				exp_factor = 2;
+				mode = MODE_EXPAND;
+			}
+		}
+		else if (h % 5 == 0 && (d == 0 || d == 4 || d == 8)) {
+			/* Algebraic factor for 5 */
+			k = h / 5;
+			if (d == 0 || d == 4) {
+				/* Case 6: quartic */
+				d = 4;
+				mpz_set_si(f[4], 1);
+				mpz_set_si(f[3], LM * 2);
+				mpz_set_si(f[2], -6);
+				mpz_set_si(f[1], -LM * 12);
+				mpz_set_si(f[0], -4);
+				mode = MODE_HALF;
+			}
+			else {
+				/* Case 7: octic */
+				mpz_set_si(f[8], a * a * a * a);
+				mpz_set_si(f[7], LM * 2 * a * a * a);
+				mpz_set_si(f[6], 2 * a * a);
+				mpz_set_si(f[4], -4);
+				mpz_set_si(f[2], 2 * b * b);
+				mpz_set_si(f[1], LM * 2 * b * b * b);
+				mpz_set_si(f[0], b * b * b * b);
+				mode = MODE_NATURAL;
+			}
+		}
+		else if (h % 7 == 0 && (d == 0 || d == 6)) {
+			/* Case 8: algebraic factor for 7 */
+			d = 6;
+			k = h / 7;
+			mpz_set_si(f[6], 1);
+			mpz_set_si(f[5], -LM * 2);
+			mpz_set_si(f[4], -10);
+			mpz_set_si(f[3], LM * 20);
+			mpz_set_si(f[2], 16);
+			mpz_set_si(f[1], -LM * 32);
+			mpz_set_si(f[0], 8);
+			mode = MODE_HALF;
+		}
+		else {
+			/* Can't use algebraic factors.  What degree shall we use? */
+			if (d == 4) {
+				/* Cases 9, 10: quartic */
+				if (h % 4 == 1) {
+					mpz_set(f[4], x);
+					mpz_set(f[0], y);
+					exp_offset = -1;
+				}
+				else {
+					mpz_set(f[4], y);
+					mpz_set(f[0], x);
+					exp_offset = 1;
+				}
+				mpz_set_si(f[2], LM * 2 * xsqr * ysqr);
+				exp_factor = 2;
+				mode = MODE_EXPAND;
+			}
+			else if (d == 0 || d == 6) {
+				d = 6;
+				if (h % 6 == 1 || h % 6 == 5) {
+					if (h % 6 == 1) {
+						/*
+						 * Cases 11, 12: sextic. These two
+						 * cases have a lot in common, unlike when
+						 * h == 3 (mod 6).
+						 */
+						mpz_set(f[6], x);
+						mpz_set(f[0], y);
+						exp_offset = -1;
+					}
+					else {
+						mpz_set(f[6], y);
+						mpz_set(f[0], x);
+						exp_offset = 1;
+					}
+					mpz_set_si(f[3], LM * 2 * xsqr * ysqr);
+					exp_factor = 3;
+					mode = MODE_EXPAND;
+				}
+				else {
+					/*
+					 * Case 13: sextic.
+					 * This really shouldn't happen. It would mean that
+					 * h is a multiple of 3, so we should be using
+					 * the algebraic factor here, which we want to catch
+					 * above.  But if h is not a multiple of 9 and the
+					 * user is demanding a sextic anyway, then we will
+					 * end up here.  It also has unusual algebraic
+					 * properties: we're expanding, but this behaves more
+					 * like a natural sextic with k = h/3, so we use
+					 * that mode.
+					 */
+					k = h / 3;
+					mpz_set_si(f[6], a * a * a);
+					mpz_set_si(f[3], LM * 4);
+					mpz_set_si(f[0], b * b * b);
+					mode = MODE_NATURAL;
+				}
+			}
+			else if (d == 8) {
+				/* Cases 14-17: octic */
+				if (h % 8 == 1) {
+					mpz_set(f[8], x);
+					mpz_set_si(f[4], 1);
+					mpz_set(f[0], y);
+					exp_offset = -1;
+				}
+				else if (h % 8 == 3) {
+					mpz_set(f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_set(f[4], x);
+					mpz_mul(f[4], f[4], y);
+					mpz_set(f[0], y);
+					mpz_mul(f[0], f[0], y);
+					mpz_mul(f[0], f[0], y);
+					exp_offset = -3;
+				}
+				else if (h % 8 == 5) {
+					mpz_set(f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_set(f[4], x);
+					mpz_mul(f[4], f[4], y);
+					mpz_set(f[0], x);
+					mpz_mul(f[0], f[0], x);
+					mpz_mul(f[0], f[0], x);
+					exp_offset = 3;
+				}
+				else {
+					mpz_set(f[8], y);
+					mpz_set_si(f[4], 1);
+					mpz_set(f[0], x);
+					exp_offset = 1;
+				}
+				mpz_mul_si(f[4], f[4], LM * 2 * xsqr * ysqr);
+				exp_factor = 4;
+				mode = MODE_EXPAND;
+			}
+			else {
+				goto exit;
+			}
+		}
+		break;
+	case 3:
+		/* 12 cases */
+		if (h % 5 == 0 && (d == 0 || d == 4)) {
+			/* Case 1: quartic with algebraic factor of 5 */
+			d = 4;
+			k = h / 5;
+			mpz_set_si(f[4], 1);
+			mpz_set_si(f[3], LM * 3);
+			mpz_set_si(f[2], -6);
+			mpz_set_si(f[1], -LM * 18);
+			mpz_set_si(f[0], -9);
+			mode = MODE_HALF;
+		}
+		else if (h % 5 == 0 && d == 8) {
+			/* Case 2: octic with algebraic factor of 5 */
+			k = h / 5;
+			mpz_set_si(f[8], a * a * a * a);
+			mpz_set_si(f[7], LM * 3 * a * a * a);
+			mpz_set_si(f[6], 6 * a * a);
+			mpz_set_si(f[5], LM * 9 * a);
+			mpz_set_si(f[4], 9);
+			mpz_set_si(f[3], LM * 9 * b);
+			mpz_set_si(f[2], 6 * b * b);
+			mpz_set_si(f[1], LM * 3 * b * b * b);
+			mpz_set_si(f[0], b * b * b * b);
+			mode = MODE_NATURAL;
+		}
+		else if (h % 7 == 0 && (d == 0 || d == 6)) {
+			/* Case 3: sextic with algebraic factor of 7 */
+			d = 6;
+			k = h / 7;
+			mpz_set_si(f[6], 1);
+			mpz_set_si(f[5], LM * 3);
+			mpz_set_si(f[4], -12);
+			mpz_set_si(f[3], -LM * 36);
+			mpz_set_si(f[2], 18);
+			mpz_set_si(f[1], LM * 54);
+			mpz_set_si(f[0], -27);
+			mode = MODE_HALF;
+		}
+		else {
+			/* Can't use algebraic factor.  What degree? */
+			if (d == 4) {
+				/* Cases 4, 5: quartic */
+				if (h % 4 == 1) {
+					mpz_set(f[4], x);
+					mpz_set(f[0], y);
+					exp_offset = -1;
+				}
+				else {
+					mpz_set(f[4], y);
+					mpz_set(f[0], x);
+					exp_offset = 1;
+				}
+				mpz_set_si(f[2], LM * 3 * xsqr * ysqr);
+				exp_factor = 2;
+				mode = MODE_EXPAND;
+			}
+			else if (d == 0 || d == 6) {
+				d = 6;
+				if (h % 6 == 1 || h % 6 == 5) {
+					/*
+					 * Cases 6, 7: sextic.  These cases share some
+					 * features.  See comments above for cases 11, 12
+					 * with SBP = 2.
+					 */
+					if (h % 6 == 1) {
+						mpz_set(f[6], x);
+						mpz_set(f[0], y);
+						exp_offset = -1;
+					}
+					else {
+						mpz_set(f[6], y);
+						mpz_set(f[0], x);
+						exp_offset = 1;
+					}
+					mpz_set_si(f[3], LM * 3 * xsqr * ysqr);
+					exp_factor = 3;
+					mode = MODE_EXPAND;
+				}
+				else {
+					/*
+					 * Case 8: sextic.  Unlike with SBP = 2, this
+					 * is a perfectly reasonable case, since there can't
+					 * be an algebraic factor of 3 when SBP = 3.  However
+					 * the comment for that case about the unusual
+					 * properties that make it more like a natural
+					 * sextic do apply here as well.
+					 */
+					k = h / 3;
+					mpz_set_si(f[6], a * a * a);
+					mpz_set_si(f[3], LM * 9);
+					mpz_set_si(f[0], b * b * b);
+					mode = MODE_NATURAL;
+				}
+			}
+			else if (d == 8) {
+				/* Cases 9-12: octic */
+				if (h % 8 == 1) {
+					mpz_set(f[8], x);
+					mpz_set_si(f[4], 1);
+					mpz_set(f[0], y);
+					exp_offset = -1;
+				}
+				else if (h % 8 == 3) {
+					mpz_set(f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_set(f[4], x);
+					mpz_mul(f[4], f[4], y);
+					mpz_set(f[0], y);
+					mpz_mul(f[0], f[0], y);
+					mpz_mul(f[0], f[0], y);
+					exp_offset = -3;
+				}
+				else if (h % 8 == 5) {
+					mpz_set(f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_set(f[4], x);
+					mpz_mul(f[4], f[4], y);
+					mpz_set(f[0], x);
+					mpz_mul(f[0], f[0], x);
+					mpz_mul(f[0], f[0], x);
+					exp_offset = 3;
+				}
+				else {
+					mpz_set(f[8], y);
+					mpz_set_si(f[4], 1);
+					mpz_set(f[0], x);
+					exp_offset = 1;
+				}
+				mpz_mul_si(f[4], f[4], LM * 3 * xsqr * ysqr);
+				exp_factor = 4;
+				mode = MODE_EXPAND;
+			}
+			else {
+				goto exit;
+			}
+		}
+		break;
+	case 5:
+		/* 5 cases */
+		if (d != 0 && d != 4 && d != 8) goto exit;
+		if (h % 3 == 0) {
+			/* Use the algebraic factor.  Octic or quartic? */
+			k = h / 3;
+			if (d == 0 || d == 4) {
+				/* Case 1: quartic with algebraic factor of 3 */
+				d = 4;
+				mpz_set_si(f[4], 1);
+				mpz_set_si(f[3], LM * 5);
+				mpz_set_si(f[2], -10);
+				mpz_set_si(f[1], -LM * 50);
+				mpz_set_si(f[0], 25);
+				mode = MODE_HALF;
+			}
+			else {
+				/* Case 2: octic with algebraic factor of 3 */
+				mpz_set_si(f[8], a * a * a * a);
+				mpz_set_si(f[7], LM * 5 * a * a * a);
+				mpz_set_si(f[6], 10 * a * a);
+				mpz_set_si(f[5], LM * 25 * a);
+				mpz_set_si(f[4], 75);
+				mpz_set_si(f[3], LM * 25 * b);
+				mpz_set_si(f[2], 10 * b * b);
+				mpz_set_si(f[1], LM * 5 * b * b * b);
+				mpz_set_si(f[0], b * b * b * b);
+				mode = MODE_NATURAL;
+			}
+		}
+		else {
+			/* No algebraic factor.  Octic or quartic? */
+			if (d == 0 || d == 4) {
+				/* Case 3: quartic */
+				d = 4;
+				mpz_set_si(f[4], a * a);
+				mpz_set_si(f[3], LM * 5 * a);
+				mpz_set_si(f[2], 15);
+				mpz_set_si(f[1], LM * 5 * b);
+				mpz_set_si(f[0], b * b);
+				mode = MODE_NATURAL;
+			}
+			else {
+				/* Cases 4, 5: octic */
+				if (h % 4 == 1) {
+					mpz_set(f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_set(f[6], x);
+					mpz_set(f[2], y);
+					mpz_set(f[0], y);
+					mpz_mul(f[0], f[0], y);
+					exp_offset = -1;
+				}
+				else {
+					mpz_set(f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_set(f[6], y);
+					mpz_set(f[2], x);
+					mpz_set(f[0], x);
+					mpz_mul(f[0], f[0], x);
+					exp_offset = 1;
+				}
+				mpz_mul_si(f[6], f[6], LM * 5 * xsqr * ysqr);
+				mpz_set_si(f[4], 3);
+				mpz_mul(f[4], f[4], x);
+				mpz_mul(f[4], f[4], y);
+				mpz_mul_si(f[2], f[2], LM * 5 * xsqr * ysqr);
+				exp_factor = 2;
+				mode = MODE_EXPAND;
+			}
+		}
+		break;
+	case 6:
+		/* 5 cases */
+		if (h % 5 == 0 && (d == 0 || d == 8)) {
+			/* Case 1: octic with algebraic factor of 5 */
+			d = 8;
+			k = h / 5;
+			mpz_set_si(f[8], 1);
+			mpz_set_si(f[7], -LM * 6);
+			mpz_set_si(f[6], -30);
+			mpz_set_si(f[5], LM * 216);
+			mpz_set_si(f[4], 144);
+			mpz_set_si(f[3], -LM * 1944);
+			mpz_set_si(f[2], 0);
+			mpz_set_si(f[1], LM * 5184);
+			mpz_set_si(f[0], 1296);
+			mode = MODE_HALF;
+		}
+		else if (h % 3 == 0 && (d == 0 || d == 6)) {
+			/*
+			 * Case 2: no algebraic factor here, but when h is a multiple
+			 * of 3 there's a trick we can use to make a sextic.
+			 */
+			d = 6;
+			k = h / 3;
+			mpz_set_si(f[6], 1);
+			mpz_set_si(f[4], -36);
+			mpz_set_si(f[3], LM * 36);
+			mpz_set_si(f[2], 324);
+			mpz_set_si(f[1], -LM * 648);
+			mpz_set_si(f[0], 216);
+			mode = MODE_HALF;
+		}
+		else {
+			/* No algebraic, or sextic was not allowed. Octic or quartic? */
+			if (d == 0 || d == 4) {
+				/* Case 3: quartic */
+				d = 4;
+				mpz_set_si(f[4], a * a);
+				mpz_set_si(f[3], LM * 6 * a);
+				mpz_set_si(f[2], 18);
+				mpz_set_si(f[1], LM * 6 * b);
+				mpz_set_si(f[0], b * b);
+				mode = MODE_NATURAL;
+			}
+			else if (d == 8) {
+				/* Cases 4, 5: octic, expanded from quartic */
+				if (h % 4 == 1) {
+					mpz_set(f[8], x);
+					mpz_mul(f[8], f[8], x);
+					mpz_set(f[6], x);
+					mpz_set_si(f[4], 3);
+					mpz_mul(f[4], f[4], x);
+					mpz_mul(f[4], f[4], y);
+					mpz_set(f[2], y);
+					mpz_set(f[0], y);
+					mpz_mul(f[0], f[0], y);
+					exp_offset = -1;
+				}
+				else {
+					mpz_set(f[8], y);
+					mpz_mul(f[8], f[8], y);
+					mpz_set(f[6], y);
+					mpz_set_si(f[4], 3);
+					mpz_mul(f[4], f[4], x);
+					mpz_mul(f[4], f[4], y);
+					mpz_set(f[2], x);
+					mpz_set(f[0], x);
+					mpz_mul(f[0], f[0], x);
+					exp_offset = 1;
+				}
+				mpz_mul_si(f[6], f[6], LM * 6 * xsqr * ysqr);
+				mpz_mul_si(f[2], f[2], LM * 6 * xsqr * ysqr);
+				exp_factor = 2;
+				mode = MODE_EXPAND;
+			}
+			else {
+				goto exit;
+			}
+		}
+		break;
+	case 7:
+		/* 2 cases */
+		if (d != 0 && d != 6) goto exit;
+		d = 6;
+		if (h % 3 == 0) {
+			k = h / 3;
+			mpz_set_si(f[6], 1);
+			mpz_set_si(f[5], -LM * 7);
+			mpz_set_si(f[4], -14);
+			mpz_set_si(f[3], LM * 196);
+			mpz_set_si(f[2], -392);
+			mpz_set_si(f[0], 343);
+			mode = MODE_HALF;
+		}
+		else {
+			mpz_set_si(f[6], a * a * a);
+			mpz_set_si(f[5], LM * 7 * a * a);
+			mpz_set_si(f[4], 21 * a);
+			mpz_set_si(f[3], LM * 49);
+			mpz_set_si(f[2], 21 * b);
+			mpz_set_si(f[1], LM * 7 * b * b);
+			mpz_set_si(f[0], b * b * b);
+			mode = MODE_NATURAL;
+		}
+		break;
+	case 10:
+		/* 3 cases */
+		if ((d == 0 || d == 8) && h % 3 == 0) {
+			/* Use the algebraic factor */
+			if (d != 0 && d != 8) goto exit;
+			d = 8;
+			k = h / 3;
+			mpz_set_si(f[8], 1);
+			mpz_set_si(f[7], -LM * 10);
+			mpz_set_si(f[6], -30);
+			mpz_set_si(f[5], LM * 600);
+			mpz_set_si(f[4], -1200);
+			mpz_set_si(f[3], -LM * 7000);
+			mpz_set_si(f[2], 32000);
+			mpz_set_si(f[1], -LM * 40000);
+			mpz_set_si(f[0], 10000);
+			mode = MODE_HALF;
+		}
+		else {
+			/*
+			 * No algebraic factors, or a non-octic was requested.
+			 * Octic or quartic?
+			 */
+			if (d == 0 || d == 4) {
+				d = 4;
+				mpz_set_si(f[4], 1);
+				mpz_set_si(f[3], LM * 10);
+				mpz_set_si(f[2], 10);
+				mpz_set_si(f[1], -LM * 100);
+				mpz_set_si(f[0], -100);
+				mode = MODE_HALF;
+			}
+			else if (d == 8) {
+				d = 8;
+				mpz_set_si(f[8], a * a * a * a);
+				mpz_set_si(f[7], LM * 10 * a * a * a);
+				mpz_set_si(f[6], 50 * a * a);
+				mpz_set_si(f[5], LM * 200 * a);
+				mpz_set_si(f[4], 700);
+				mpz_set_si(f[3], LM * 200 * b);
+				mpz_set_si(f[2], 50 * b * b);
+				mpz_set_si(f[1], LM * 10 * b * b * b);
+				mpz_set_si(f[0], b * b * b * b);
+				mode = MODE_NATURAL;
+			}
+			else {
+				goto exit;
+			}
+		}
+		break;
+	case 11:
+		/* Single case, no algebraic factors */
+		if (d != 0 && d != 5) goto exit;
+		d = 5;
+		mpz_set_si(f[5], 1);
+		mpz_set_si(f[4], LM * 11);
+		mpz_set_si(f[2], -LM * 363);
+		mpz_set_si(f[1], -1331);
+		mpz_set_si(f[0], -LM * 1331);
+		mode = MODE_HALF;
+		break;
+	case 13:
+		/* Single case, no algebraic factors */
+		if (d != 0 && d != 6) goto exit;
+		d = 6;
+		mpz_set_si(f[6], 1);
+		mpz_set_si(f[5], LM * 13);
+		mpz_set_si(f[4], 13);
+		mpz_set_si(f[3], -LM * 338);
+		mpz_set_si(f[2], -676);
+		mpz_set_si(f[1], LM * 2197);
+		mpz_set_si(f[0], 2197);
+		mode = MODE_HALF;
+		break;
+	case 14:
+		/* Single case, no algebraic factors */
+		if (d != 0 && d != 6) goto exit;
+		d = 6;
+		mpz_set_si(f[6], 1);
+		mpz_set_si(f[5], LM * 14);
+		mpz_set_si(f[4], 14);
+		mpz_set_si(f[3], -LM * 588);
+		mpz_set_si(f[2], -3136);
+		mpz_set_si(f[1], -LM * 5488);
+		mpz_set_si(f[0], -2744);
+		mode = MODE_HALF;
+		break;
+	case 15:
+		/* 2 cases.  Octic or quartic (default to quartic) */
+		if (d == 0 || d == 4) {
+			d = 4;
+			mpz_set_si(f[4], 1);
+			mpz_set_si(f[3], LM * 15);
+			mpz_set_si(f[2], 60);
+			mpz_set_si(f[0], -225);
+			mode = MODE_HALF;
+		}
+		else if (d == 8) {
+			mpz_set_si(f[8], a * a * a * a);
+			mpz_set_si(f[7], LM * 15 * a * a * a);
+			mpz_set_si(f[6], 120 * a * a);
+			mpz_set_si(f[5], LM * 675 * a);
+			mpz_set_si(f[4], 2925);
+			mpz_set_si(f[3], LM * 675 * b);
+			mpz_set_si(f[2], 120 * b * b);
+			mpz_set_si(f[1], LM * 15 * b * b * b);
+			mpz_set_si(f[0], b * b * b * b);
+			mode = MODE_NATURAL;
+		}
+		else {
+			goto exit;
+		}
+		break;
+	case 17:
+		/* Single case, no algebraic factors */
+		if (d != 0 && d != 8) goto exit;
+		d = 8;
+		mpz_set_si(f[8], 1);
+		mpz_set_si(f[7], LM * 17);
+		mpz_set_si(f[6], 17);
+		mpz_set_si(f[5], -LM * 1156);
+		mpz_set_si(f[4], -6647);
+		mpz_set_si(f[2], 78608);
+		mpz_set_si(f[1], LM * 167042);
+		mpz_set_si(f[0], 83521);
+		mode = MODE_HALF;
+		break;
+	case 21:
+		/* Single case, no algebraic factors */
+		if (d != 0 && d != 6) goto exit;
+		d = 6;
+		mpz_set_si(f[6], 1);
+		mpz_set_si(f[5], LM * 21);
+		mpz_set_si(f[4], 84);
+		mpz_set_si(f[3], -LM * 882);
+		mpz_set_si(f[2], -7938);
+		mpz_set_si(f[1], -LM * 18522);
+		mpz_set_si(f[0], -9261);
+		mode = MODE_HALF;
+		break;
+	case 30:
+		/* Single case, no algebraic factors */
+		if (d != 0 && d != 8) goto exit;
+		d = 8;
+		mpz_set_si(f[8], 1);
+		mpz_set_si(f[7], LM * 30);
+		mpz_set_si(f[6], 210);
+		mpz_set_si(f[5], -LM * 1800);
+		mpz_set_si(f[4], -28800);
+		mpz_set_si(f[3], -LM * 81000);
+		mpz_set_si(f[2], 324000);
+		mpz_set_si(f[1], LM * 1620000);
+		mpz_set_si(f[0], 810000);
+		mode = MODE_HALF;
+		break;
+	default:
+		goto exit;
+	}
+
+	switch (mode) {
+	case MODE_HALF:
+		mpz_pow_ui(g[0], x, k);
+		mpz_pow_ui(r, y, k);
+		mpz_add(g[0], g[0], r);
+		mpz_pow_ui(g[1], x, (k - 1) / 2);
+		mpz_pow_ui(r, y, (k - 1) / 2);
+		mpz_mul(g[1], g[1], r);
+		mpz_mul_ui(g[1], g[1], xsqr * ysqr);
+		/*
+		 * Note the integer division here.  Usually d is even,
+		 * in which case (d+1)/2 is just d/2, so we're just
+		 * taking the square root of sbp.  But if d is odd
+		 * (currently only when sbp is 11), then the correct
+		 * exponent depends on d.
+		 */
+		*skewness = pow((double)sbp, (double)((d + 1) / 2) / d);
+		*difficulty = log10(dx) * d * k;
+		break;
+	case MODE_NATURAL:
+		mpz_pow_ui(g[0], x, (k - 1) / 2);
+		mpz_mul_ui(g[0], g[0], xsqr);
+		mpz_pow_ui(g[1], y, (k - 1) / 2);
+		mpz_mul_ui(g[1], g[1], ysqr);
+		*skewness = pow((double)b / a, 0.5);
+		*difficulty = log10(dx) * d / 2 * k;
+		break;
+	case MODE_EXPAND:
+		mpz_pow_ui(g[0], x, (k + exp_offset) / (2 * exp_factor));
+		mpz_pow_ui(g[1], y, (k + exp_offset) / (2 * exp_factor));
+		*skewness = pow(dy / dx, (double)(-exp_offset) / (2 * exp_factor));
+		if (exp_offset < 0) {
+			*difficulty = log10(dx) * (double)(d / (2 * exp_factor)) * k;
+		}
+		else {
+			*difficulty = (double)(d / (2 * exp_factor)) *
+				(log10(dx) * (k + exp_offset) + log10(dy) * exp_offset);
+		}
+		break;
+	}
+	mpz_neg(g[1], g[1]);
+	*degree = d;
+	*lm = LM;
+	success = 1;
+
+exit:
+	mpz_clear(r);
+	return success;
+}
+
+
+// ****************************************************************************************
+// end Phi functions
+// ****************************************************************************************
+
+
+void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
+{
+	int VFLAG = fobj->VFLAG;
+	int i, j, k;
+	mpz_t term, t, n;
+	mpz_init(t);
+	mpz_init(term);
+	mpz_init(n);
+
+	mpz_set(n, fobj->nfs_obj.gmp_n);
+
+	// if the base and exponent admit an Aurifeuillian form, add the two
+	// factors if they divide the input.  We don't have code to build SNFS polys for
+	// these, yet, but can still halve the size of the input and do qs/gnfs on those.
+#define NAURI 12
+	int auri_bases[NAURI] = { 2, 3, 5, 6, 7, 10, 11, 12, 13, 14, 15, 18 };
+	int auri_m[NAURI] = { 4, 6, 10, 12, 14, 20, 22, 6, 26, 28, 30, 4 };	// exponent multiplier
+	int auri_c[NAURI] = { 2, 3, 5, 6, 7, 10, 11, 3, 13, 14, 15, 2 };	// exponent constant
+	int auri_0[NAURI] = { 1, 1, -1, 1, 1, 1, 1, 1, -1, 1, 1, 1 };		// 0th order term
+	int base;
+	int do_check = 0;
+	mpz_t F, L, M, C, D, a, b;
+	mpz_init(F);
+	mpz_init(L);
+	mpz_init(M);
+	mpz_init(C);
+	mpz_init(D);
+	mpz_init(a);
+	mpz_init(b);
+
+	if (poly->form_type == SNFS_H_CUNNINGHAM)
+	{
+
+	//factor(a ^ 4 + 2 ^ 2 * b ^ 4)			2^(4k+2)+1
+	//	[a ^ 2 - 2 * b * a + 2 * b ^ 2 1]
+	//
+	//	[a ^ 2 + 2 * b * a + 2 * b ^ 2 1]
+	//
+	//factor(a ^ 6 + 3 ^ 3 * b ^ 6)			3^(6k+3)+1
+	//	[a ^ 2 + 3 * b ^ 2 1]
+	//
+	//	[a ^ 2 - 3 * b * a + 3 * b ^ 2 1]
+	//
+	//	[a ^ 2 + 3 * b * a + 3 * b ^ 2 1]
+	//
+	//factor(a ^ 10 - 5 ^ 5 * b ^ 10)		5^(10k+5)-1
+	//	[a ^ 2 - 5 * b ^ 2 1]
+	//
+	//	[a ^ 4 - 5 * b * a ^ 3 + 15 * b ^ 2 * a ^ 2 - 25 * b ^ 3 * a + 25 * b ^ 4 1]
+	//
+	//	[a ^ 4 + 5 * b * a ^ 3 + 15 * b ^ 2 * a ^ 2 + 25 * b ^ 3 * a + 25 * b ^ 4 1]
+	//
+	//factor(a^12+6^6*b^12)		6^(12k+6)+1
+	//	[a ^ 4 + 36 * b ^ 4 1]
+	//
+	//	[a ^ 4 - 6 * b * a ^ 3 + 18 * b ^ 2 * a ^ 2 - 36 * b ^ 3 * a + 36 * b ^ 4 1]
+	//
+	//	[a ^ 4 + 6 * b * a ^ 3 + 18 * b ^ 2 * a ^ 2 + 36 * b ^ 3 * a + 36 * b ^ 4 1]
+	//
+	//factor(a ^ 14 + 7 ^ 7 * b ^ 14)	7^(14k+7)+1
+	//	[a ^ 2 + 7 * b ^ 2 1]
+	//
+	//	[a ^ 6 - 7 * b * a ^ 5 + 21 * b ^ 2 * a ^ 4 - 49 * b ^ 3 * a ^ 3 + 147 * b ^ 4 * a ^ 2 - 343 * b ^ 5 * a + 343 * b ^ 6 1]
+	//
+	//	[a ^ 6 + 7 * b * a ^ 5 + 21 * b ^ 2 * a ^ 4 + 49 * b ^ 3 * a ^ 3 + 147 * b ^ 4 * a ^ 2 + 343 * b ^ 5 * a + 343 * b ^ 6 1]
+	//
+	//factor(a ^ 20 + 10 ^ 10 * b ^ 20)		10^(20k+10)+1
+	//	[a ^ 4 + 100 * b ^ 4 1]
+	//
+	//	[a ^ 8 - 10 * b * a ^ 7 + 50 * b ^ 2 * a ^ 6 - 200 * b ^ 3 * a ^ 5 + 700 * b ^ 4 * a ^ 4 - 2000 * b ^ 5 * a ^ 3 + 5000 * b ^ 6 * a ^ 2 - 10000 * b ^ 7 * a + 10000 * b ^ 8 1]
+	//
+	//	[a ^ 8 + 10 * b * a ^ 7 + 50 * b ^ 2 * a ^ 6 + 200 * b ^ 3 * a ^ 5 + 700 * b ^ 4 * a ^ 4 + 2000 * b ^ 5 * a ^ 3 + 5000 * b ^ 6 * a ^ 2 + 10000 * b ^ 7 * a + 10000 * b ^ 8 1]
+	//
+	//factor(a ^ 22 + 11 ^ 11 * b ^ 22)		11^(22k+11)+1
+	//	[a ^ 2 + 11 * b ^ 2 1]
+	//
+	//	[a ^ 10 - 11 * b * a ^ 9 + 55 * b ^ 2 * a ^ 8 - 121 * b ^ 3 * a ^ 7 - 121 * b ^ 4 * a ^ 6 + 1331 * b ^ 5 * a ^ 5 - 1331 * b ^ 6 * a ^ 4 - 14641 * b ^ 7 * a ^ 3 + 73205 * b ^ 8 * a ^ 2 - 161051 * b ^ 9 * a + 161051 * b ^ 10 1]
+	//
+	//	[a ^ 10 + 11 * b * a ^ 9 + 55 * b ^ 2 * a ^ 8 + 121 * b ^ 3 * a ^ 7 - 121 * b ^ 4 * a ^ 6 - 1331 * b ^ 5 * a ^ 5 - 1331 * b ^ 6 * a ^ 4 + 14641 * b ^ 7 * a ^ 3 + 73205 * b ^ 8 * a ^ 2 + 161051 * b ^ 9 * a + 161051 * b ^ 10 1]
+	//
+	//factor(a ^ 12 + 3 ^ 3 * b ^ 12)		12^(6k+3)+1
+	//	[a ^ 4 + 3 * b ^ 4 1]
+	//
+	//	[a ^ 4 - 3 * b ^ 2 * a ^ 2 + 3 * b ^ 4 1]
+	//
+	//	[a ^ 4 + 3 * b ^ 2 * a ^ 2 + 3 * b ^ 4 1]
+
+#define NUM_AURI_H_BASE 8
+#define NUM_AURI_H_TERMS 11
+		// up to 10th power terms
+		int num_fterms_h[NUM_AURI_H_BASE] = { 1, 3, 3, 5, 3, 5, 3, 5 };
+		int num_lterms_h[NUM_AURI_H_BASE] = { 3, 3, 5, 5, 7, 9, 11, 5 };
+		int num_mterms_h[NUM_AURI_H_BASE] = { 3, 3, 5, 5, 7, 9, 11, 5 };
+		int fcoeffs_h[NUM_AURI_H_BASE][NUM_AURI_H_TERMS] = {
+			{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},			 // base 2
+			{3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},			 // base 3
+			{-5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},			 // base 5
+			{36, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},			 // base 6
+			{7, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},			 // base 7
+			{100, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},		 // base 10
+			{11, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},			 // base 11
+			{3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0} };		 // base 12
+		int lcoeffs_h[NUM_AURI_H_BASE][NUM_AURI_H_TERMS] = {
+			{2, -2, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+			{3, -3, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+			{25, -25, 15, -5, 1, 0, 0, 0, 0, 0, 0},
+			{36, -36, 18, -6, 1, 0, 0, 0, 0, 0, 0},
+			{343, -343, 147, -49, 21, -7, 1, 0, 0, 0, 0},
+			{10000, -10000, 5000, -2000, 700, -200, 50, -10, 1, 0, 0},
+			{161051, -161051, 73205, -14641, -1331, 1331, -121, -121, 55, -11, 1},
+			{3, 0, -3, 0, 1, 0, 0, 0, 0, 0, 0} };
+		int mcoeffs_h[NUM_AURI_H_BASE][NUM_AURI_H_TERMS] = {
+			{2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+			{3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+			{25, 25, 15, 5, 1, 0, 0, 0, 0, 0, 0},
+			{36, 36, 18, 6, 1, 0, 0, 0, 0, 0, 0},
+			{343, 343, 147, 49, 21, 7, 1, 0, 0, 0, 0},
+			{10000, 10000, 5000, 2000, 700, 200, 50, 10, 1, 0, 0},
+			{161051, 161051, 73205, 14641, -1331, -1331, -121, 121, 55, 11, 1},
+			{3, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0} };
+
+		// Aurifeuillian forms for Cunningham numbers are usually p^(p*(2k+1)) +/- 1, 
+		// i.e., 2^(4k+2)+1 or 3^(6k+3)+1.
+		// For homogeneous Aurifeuillian forms, the same algebraic identities can be used if
+		// either base has additional square factors. 
+		// For example, form 2^(4k+2)+1 can become (2a^2)^(4k+2) + (b^2)^(4k+2), and,
+		// 3^(6k+3)+1 can become (3a^2)^(6k+3) + (b^2)^(6k+3), and so on.
+		// When the squarefree part of the base, p, and exponent satisfy p^(p*(2k+1)), then
+		// the sum of terms A^(2p) +/- p^p*B^(2p) will have the same Aurifeuillian factorization
+		// as the non-homogeneous form, with 
+		// A = (a*(p*a^2)^k) and
+		// B = (b*(b^2)^k)
+		// These factorizations up to squarefree part <= 12 were generated with pari-gp
+		// and the coefficients listed above.  run through and check if our input matches
+		// any of these forms, and if so, if it contains any factors in common with L or M.
+
+		for (i = 0; i < NUM_AURI_H_BASE; i++)
+		{
+			base = auri_bases[i];
+
+			if (((mpz_tdiv_ui(poly->base1, base) == 0) ||
+				(mpz_tdiv_ui(poly->base2, base) == 0)) &&
+				(poly->coeff2 == auri_0[i]))
+			{
+				int coeff1, coeff2;
+				if (mpz_tdiv_ui(poly->base1, base) == 0)
+				{
+					coeff1 = poly->coeff1;
+					coeff2 = poly->coeff2;
+					mpz_set(a, poly->base1);
+					mpz_set(b, poly->base2);
+					mpz_tdiv_q_ui(C, poly->base1, base);
+					mpz_set(D, poly->base2);
+				}
+				else
+				{
+					coeff1 = poly->coeff2;
+					coeff2 = poly->coeff1;
+					mpz_set(a, poly->base2);
+					mpz_set(b, poly->base1);
+					mpz_tdiv_q_ui(C, poly->base2, base);
+					mpz_set(D, poly->base1);
+				}
+
+				if (mpz_perfect_square_p(C) && mpz_perfect_square_p(D))
+				{
+					if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
+					{
+						uint64_t sq1, sq2;
+
+						mpz_sqrt(C, C);
+						sq1 = mpz_get_ui(C);
+						mpz_sqrt(D, D);
+						sq2 = mpz_get_ui(D);
+
+						// all constraints have been met, build F, L, and M factors from the table here:
+						// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
+						k = (poly->exp1 - auri_c[i]) / auri_m[i];
+
+						// check that we're on the right track
+						mpz_pow_ui(C, a, k);
+						mpz_pow_ui(D, b, k);
+						mpz_mul_ui(a, C, sq1);
+						mpz_mul_ui(b, D, sq2);
+						mpz_pow_ui(C, a, auri_m[i]);
+						mpz_pow_ui(D, b, auri_m[i]);
+						mpz_mul_ui(C, C, pow(auri_c[i], auri_c[i]));
+						if (coeff2 < 0)
+							mpz_sub(term, C, D);
+						else
+							mpz_add(term, C, D);
+						mpz_mod(term, term, fobj->nfs_obj.gmp_n);
+						if (mpz_cmp_ui(term, 0) != 0)
+						{
+							gmp_printf("error: input unexpectedly does not divide form: exp = %u, c = %d, m = %d, "
+								"k = %d, sq1 = %d, sq2 = %d, "
+								"b1 = %Zd, b2 = %Zd, n = %Zd, a = %Zd, b = %Zd\n",
+								poly->exp1, auri_c[i], auri_m[i], k, sq1, sq2, poly->base1, poly->base2,
+								fobj->nfs_obj.gmp_n, C, D);
+							break;
+						}
+						else
+						{
+							if (VFLAG > 0)
+								printf("gen: input has form a^%d + %d^%d*b^%d\n",
+									auri_m[i], auri_c[i], auri_c[i], auri_m[i]);
+						}
+
+						mpz_set_ui(F, 0);
+						for (j = 0; j < num_fterms_h[i]; j++)
+						{
+							mpz_pow_ui(D, a, num_fterms_h[i] - 1 - j);
+							mpz_pow_ui(C, b, j);
+							mpz_mul(term, C, D);
+							mpz_mul_si(term, term, fcoeffs_h[i][j]);
+							mpz_add(F, F, term);
+						}
+
+						mpz_set_ui(L, 0);
+						for (j = 0; j < num_lterms_h[i]; j++)
+						{
+							mpz_pow_ui(D, a, num_lterms_h[i] - 1 - j);
+							mpz_pow_ui(C, b, j);
+							mpz_mul(term, C, D);
+							mpz_mul_si(term, term, lcoeffs_h[i][j]);
+							mpz_add(L, L, term);
+						}
+						mpz_set_ui(M, 0);
+						for (j = 0; j < num_mterms_h[i]; j++)
+						{
+							mpz_pow_ui(D, a, num_mterms_h[i] - 1 - j);
+							mpz_pow_ui(C, b, j);
+							mpz_mul(term, C, D);
+							mpz_mul_si(term, term, mcoeffs_h[i][j]);
+							mpz_add(M, M, term);
+						}
+
+						do_check = 1;
+						break;
+					}
+				}
+			}
+		}
+
+		if (0) //(do_check == 0)
+		{
+			// Now look for Jon Becker's Aurifeuillian forms that he has
+			// figured out how to build polynomials for.  
+			int degree;
+			mpz_t f[MAXDEGREE + 1];	/* Coefficients on algebraic side, max degree = 8 */
+			mpz_t g[2];				/* Coefficients on rational side, max degree = 1 */
+			double difficulty, skewness;
+			int lm;
+
+			mpz_init(g[0]);
+			mpz_init(g[1]);
+			for (i = 0; i < MAXDEGREE + 1; i++)
+				mpz_init(f[i]);
+
+			int aurif = generate_aurif(fobj->nfs_obj.gmp_n, poly->base1, poly->base2, poly->exp1, poly->coeff2,
+				&degree, f, g, &difficulty, &skewness, &lm);
+
+			if (aurif)
+			{
+				mpz_neg(M, g[1]);
+				mpz_invert(M, M, fobj->nfs_obj.gmp_n);
+				mpz_mul(M, M, g[0]);
+				mpz_mod(M, M, fobj->nfs_obj.gmp_n);
+
+				/* Test polynomials (check that values vanish (mod N) at root M) */
+				mpz_set_ui(F, 0);
+				for (i = degree; i >= 0; i--) {
+					mpz_mul(F, F, M);
+					mpz_add(F, F, f[i]);
+					mpz_mod(F, F, fobj->nfs_obj.gmp_n);
+				}
+				if (mpz_sgn(F) != 0) {
+					gmp_fprintf(stderr, "Error: M=%Zd is not a root of f(x) % N\n", F);
+					fprintf(stderr, "f(x) = ");
+					for (i = degree; i >= 0; i--)
+						gmp_fprintf(stderr, "%Zd*x^%d +", f[i], i);
+					gmp_fprintf(stderr, "\n" "Remainder is %Zd\n", F);
+					gmp_fprintf(stderr, "%Zd^%d%c%Zd^%d\n", poly->base1, poly->exp1, poly->coeff2 < 0 ? '-' : '+',
+						poly->base2, poly->exp1);
+					fprintf(stderr, "Please report this bug.\n");
+					exit(EXIT_FAILURE);
+				}
+				else
+				{
+					printf("found poly:\n");
+					gmp_printf("n: %Zd\n", fobj->nfs_obj.gmp_n);
+					printf("skew: %lf\n", skewness);
+					printf("difficulty: %lf\n", difficulty);
+					for (i = degree; i >= 0; i--) {
+						gmp_printf("c%d: %Zd\n", i, f[i]);
+					}
+					gmp_printf("Y1: %Zd\n", g[1]);
+					gmp_printf("Y0: %Zd\n", g[0]);
+				}
+			}
+
+			// todo: actually use the generated poly
+			mpz_clear(g[0]);
+			mpz_clear(g[1]);
+			for (i = 0; i < MAXDEGREE + 1; i++)
+				mpz_clear(f[i]);
+		}
+
+	}
+	else
+	{
+		int fterm_em[NAURI] = { 0, 2, 2, 4, 2, 4, 2, 2, 2, 4, 0, 0 };		// f-term exponent multiplier
+		int fterm_ec[NAURI] = { 0, 1, 1, 2, 1, 2, 1, 1, 1, 2, 0, 0 };		// f-term exponent constant
+		int c_num_terms[NAURI] = { 2, 2, 3, 3, 4, 5, 6, 2, 7, 7, 5, 2 };	// number of C-terms
+		int d_num_terms[NAURI] = { 1, 1, 2, 2, 3, 4, 5, 1, 6, 6, 4, 1 };	// number of D-terms
+		int cterm_em[NAURI][7] = {				// C-term exponent multipliers
+			{ 2, 0, 0, 0, 0, 0, 0 },			// base 2
+			{ 2, 0, 0, 0, 0, 0, 0 },			// base 3
+			{ 4, 2, 0, 0, 0, 0, 0 },			// base 5
+			{ 4, 2, 0, 0, 0, 0, 0 },			// base 6
+			{ 6, 4, 2, 0, 0, 0, 0 },			// base 7
+			{ 8, 6, 4, 2, 0, 0, 0 },			// base 10
+			{ 10, 8, 6, 4, 2, 0, 0 },			// base 11
+			{ 2, 0, 0, 0, 0, 0, 0 },			// base 12
+			{ 12, 10, 8, 6, 4, 2, 0 },	 		// base 13
+			{ 12, 10, 8, 6, 4, 2, 0 },	 		// base 14
+			{ 8, 6, 4, 2, 0 },					// base 15
+			{ 2, 0 } };							// base 18
+		int cterm_ec[NAURI][7] = {				// C-term exponent constants
+			{ 1, 0, 0, 0, 0, 0, 0 },
+			{ 1, 0, 0, 0, 0, 0, 0 },
+			{ 2, 1, 0, 0, 0, 0, 0 },
+			{ 2, 1, 0, 0, 0, 0, 0 },
+			{ 3, 2, 1, 0, 0, 0, 0 },
+			{ 4, 3, 2, 1, 0, 0, 0 },
+			{ 5, 4, 3, 2, 1, 0, 0 },
+			{ 1, 0, 0, 0, 0, 0, 0 },
+			{ 6, 5, 4, 3, 2, 1, 0 },
+			{ 6, 5, 4, 3, 2, 1, 0 },
+			{ 4, 3, 2, 1, 0 },
+			{ 1, 0 } };
+		int cterm_m[NAURI][7] = {				// C-term constant coefficients
+			{ 1, 1, 0, 0, 0, 0, 0 },
+			{ 1, 1, 0, 0, 0, 0, 0 },
+			{ 1, 3, 1, 0, 0, 0, 0 },
+			{ 1, 3, 1, 0, 0, 0, 0 },
+			{ 1, 3, 3, 1, 0, 0, 0 },
+			{ 1, 5, 7, 5, 1, 0, 0 },
+			{ 1, 5, -1, -1, 5, 1, 0 },
+			{ 1, 1, 0, 0, 0, 0, 0 },
+			{ 1, 7, 15, 19, 15, 7, 1 },
+			{ 1, 7, 3, -7, 3, 7, 1 },
+			{ 1, 8, 13, 8, 1 },
+			{ 1, 1 } };
+		int dterm_em[NAURI][6] = {				// D-term exponent multipliers
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 3, 1, 0, 0, 0, 0 },
+			{ 3, 1, 0, 0, 0, 0 },
+			{ 5, 3, 1, 0, 0, 0 },
+			{ 7, 5, 3, 1, 0, 0 },
+			{ 9, 7, 5, 3, 1, 0 },
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 11, 9, 7, 5, 3, 1 },
+			{ 11, 9, 7, 5, 3, 1 },
+			{ 7, 5, 3, 1 },
+			{ 1 } };
+		int dterm_ec[NAURI][6] = {				// D-term exponent constants
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 2, 1, 0, 0, 0, 0 },
+			{ 2, 1, 0, 0, 0, 0 },
+			{ 3, 2, 1, 0, 0, 0 },
+			{ 4, 3, 2, 1, 0, 0 },
+			{ 5, 4, 3, 2, 1, 0 },
+			{ 0, 0, 0, 0, 0, 0 },
+			{ 6, 5, 4, 3, 2, 1 },
+			{ 6, 5, 4, 3, 2, 1 },
+			{ 4, 3, 2, 1 },
+			{ 0 } };
+		int dterm_m[NAURI][6] = {				// D-term constant coefficients
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 1, 0, 0, 0, 0, 0 },
+			{ 1, 1, 0, 0, 0, 0 },
+			{ 1, 1, 0, 0, 0, 0 },
+			{ 1, 1, 1, 0, 0, 0 },
+			{ 1, 2, 2, 1, 0, 0 },
+			{ 1, 1, -1, 1, 1, 0 },
+			{ 6, 0, 0, 0, 0, 0 },
+			{ 1, 3, 5, 5, 3, 1 },
+			{ 1, 2, -1, -1, 2, 1 },
+			{ 1, 3, 3, 1 },
+			{ 6 } };
+
+		for (i = 0; i < NAURI; i++)
+		{
+			base = auri_bases[i];
+			// printf("checking form %d^(%dk + %d)+1\n", base, auri_m[i], auri_c[i]);
+			if ((mpz_cmp_ui(poly->base1, base) == 0) && (poly->coeff2 == auri_0[i]))
+			{
+				if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
+				{
+					k = (poly->exp1 - auri_c[i]) / auri_m[i];
+					mpz_set_ui(term, base);
+					mpz_pow_ui(F, term, fterm_em[i] * k + fterm_ec[i]);
+					if (poly->coeff2 < 0)
+						mpz_sub_ui(F, F, 1);
+					else
+						mpz_add_ui(F, F, 1);
+
+					// build F, L, and M factors from the table here:
+					// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
+					mpz_set_ui(C, 0);
+					for (j = 0; j < c_num_terms[i]; j++)
+					{
+						mpz_set_ui(term, base);
+						mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
+						mpz_mul_si(term, term, cterm_m[i][j]);
+						mpz_add(C, C, term);
+					}
+					mpz_set_ui(D, 0);
+					for (j = 0; j < d_num_terms[i]; j++)
+					{
+						mpz_set_ui(term, base);
+						mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
+						mpz_mul_si(term, term, dterm_m[i][j]);
+						mpz_add(D, D, term);
+					}
+					mpz_add(M, C, D);
+					mpz_sub(L, C, D);
+					do_check = 1;
+					break;
+				}
+			}
+		}
+
+	}
+
+	if (do_check)
+	{
+		if (VFLAG > 2)
+		{
+			gmp_printf("gen: checking F-factor %Zd\n", F);
+		}
+
+		if (mpz_cmp_ui(F, 1) > 0)
+		{
+			mpz_gcd(t, fobj->nfs_obj.gmp_n, F);
+			if ((mpz_cmp_ui(t, 1) > 0) &&
+				(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+			{
+				if (VFLAG > 2)
+				{
+					gmp_printf("gen: adding Aurifeuillian F-factor %Zd of autofactor input %Zd to factor list\n",
+						t, fobj->nfs_obj.gmp_n);
+				}
+				else if (VFLAG >= 0)
+				{
+					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
+				}
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+			}
+		}
+
+		if (VFLAG > 2)
+		{
+			gmp_printf("gen: checking M-factor %Zd\n", M);
+		}
+
+		mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
+		if ((mpz_cmp_ui(t, 1) > 0) &&
+			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
+					t, fobj->nfs_obj.gmp_n);
+			}
+			else if (VFLAG >= 0)
+			{
+				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+		}
+
+		if (VFLAG > 2)
+		{
+			gmp_printf("gen: checking L-factor %Zd\n", L);
+		}
+
+		mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
+		if ((mpz_cmp_ui(t, 1) > 0) &&
+			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
+					t, fobj->nfs_obj.gmp_n);
+			}
+			else if (VFLAG >= 0)
+			{
+				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+		}
+
+	}
+
+	mpz_clear(F);
+	mpz_clear(L);
+	mpz_clear(M);
+	mpz_clear(C);
+	mpz_clear(D);
+	mpz_clear(n);
+	mpz_clear(a);
+	mpz_clear(b);
+
+	return;
+}
+
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
 void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
@@ -1297,7 +2897,8 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 	franks[0][0] = 1;
 	cranks[0] = 1;
 
-	if (VFLAG > 2) printf("gen: finding primitive factor of exponent %d\n", e);
+	if (VFLAG > 0) gmp_printf("gen: finding primitive factor of exponent %d, bases %Zd, %Zd, coeffs %d, %d\n", 
+		e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
 	// rank 1 is a list of the distinct odd factors.
 	j = 0;
 	if (VFLAG > 2) printf("gen: rank 1 terms: ");
@@ -1543,213 +3144,11 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 		gmp_printf("gen: after find_primitive_factor, nfs_obj.gmp_n is now %Zd\n", fobj->nfs_obj.gmp_n);
 	}
 
-	// finally, if the base and exponent admit an Aurifeuillian form, add the two
-	// factors if they divide the input.  We don't have code to build SNFS polys for
-	// these, yet, but can still halve the size of the input and do qs/gnfs on those.
-#define NAURI 10
-	int auri_bases[NAURI] = { 2, 3, 6, 7, 10, 11, 12, 14, 15, 18 };
-	int auri_m[NAURI] = { 4, 6, 12, 14, 20, 22, 6, 28, 30, 4 };
-	int auri_c[NAURI] = { 2, 3, 6, 7, 10, 11, 3, 14, 15, 2 };
-	int fterm_em[NAURI] = { 0, 2, 4, 2, 4, 2, 2, 4, 0, 0 };
-	int fterm_ec[NAURI] = { 0, 1, 2, 1, 2, 1, 1, 2, 0, 0 };
-	int c_num_terms[NAURI] = { 2, 2, 3, 4, 5, 6, 2, 7, 5, 2 };
-	int d_num_terms[NAURI] = { 1, 1, 2, 3, 4, 5, 1, 6, 4, 1 };
-	int cterm_em[NAURI][7] = {
-		{ 2, 0, 0, 0, 0, 0, 0 },			// base 2
-		{ 2, 0, 0, 0, 0, 0, 0 },			// base 3
-		{ 4, 2, 0, 0, 0, 0, 0 },			// base 6
-		{ 6, 4, 2, 0, 0, 0, 0 },			// base 7
-		{ 8, 6, 4, 2, 0, 0, 0 },			// base 10
-		{ 10, 8, 6, 4, 2, 0, 0 },			// base 11
-		{ 2, 0, 0, 0, 0, 0, 0 },			// base 12
-		{ 12, 10, 8, 6, 4, 2, 0 },	 		// base 14
-		{ 8, 6, 4, 2, 0 },
-		{ 2, 0 } };
-	int cterm_ec[NAURI][7] = {
-		{ 1, 0, 0, 0, 0, 0, 0 },
-		{ 1, 0, 0, 0, 0, 0, 0 },
-		{ 2, 1, 0, 0, 0, 0, 0 },
-		{ 3, 2, 1, 0, 0, 0, 0 },
-		{ 4, 3, 2, 1, 0, 0, 0 },
-		{ 5, 4, 3, 2, 1, 0, 0 },
-		{ 1, 0, 0, 0, 0, 0, 0 },
-		{ 6, 5, 4, 3, 2, 1, 0 },
-		{ 4, 3, 2, 1, 0 },
-		{ 1, 0 } };
-	int cterm_m[NAURI][7] = {
-		{ 1, 1, 0, 0, 0, 0, 0 },
-		{ 1, 1, 0, 0, 0, 0, 0 },
-		{ 1, 3, 1, 0, 0, 0, 0 },
-		{ 1, 3, 3, 1, 0, 0, 0 },
-		{ 1, 5, 7, 5, 1, 0, 0 },
-		{ 1, 5, -1, -1, 5, 1, 0 },
-		{ 1, 1, 0, 0, 0, 0, 0 },
-		{ 1, 7, 3, -7, 3, 7, 1 },
-		{ 1, 8, 13, 8, 1 },
-		{ 1, 1 } };
-	int dterm_em[NAURI][6] = {
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 3, 1, 0, 0, 0, 0 },
-		{ 5, 3, 1, 0, 0, 0 },
-		{ 7, 5, 3, 1, 0, 0 },
-		{ 9, 7, 5, 3, 1, 0 },
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 11, 9, 7, 5, 3, 1 },
-		{ 7, 5, 3, 1 },
-		{ 1 } };
-	int dterm_ec[NAURI][6] = {
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 2, 1, 0, 0, 0, 0 },
-		{ 3, 2, 1, 0, 0, 0 },
-		{ 4, 3, 2, 1, 0, 0 },
-		{ 5, 4, 3, 2, 1, 0 },
-		{ 0, 0, 0, 0, 0, 0 },
-		{ 6, 5, 4, 3, 2, 1 },
-		{ 4, 3, 2, 1 },
-		{ 0 } };
-	int dterm_m[NAURI][6] = {
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 1, 0, 0, 0, 0, 0 },
-		{ 1, 1, 0, 0, 0, 0 },
-		{ 1, 1, 1, 0, 0, 0 },
-		{ 1, 2, 2, 1, 0, 0 },
-		{ 1, 1, -1, 1, 1, 0 },
-		{ 6, 0, 0, 0, 0, 0 },
-		{ 1, 2, -1, -1, 2, 1 },
-		{ 1, 3, 3, 1 },
-		{ 6 } };
+	find_aurifeuillian_form(fobj, poly);
 
-	int base;
-	int do_check = 0;
-	mpz_t F, L, M, C, D;
-	mpz_init(F);
-	mpz_init(L);
-	mpz_init(M);
-	mpz_init(C);
-	mpz_init(D);
-
-	for (i = 0; i < NAURI; i++)
-	{
-		base = auri_bases[i];
-		// printf("checking form %d^(%dk + %d)+1\n", base, auri_m[i], auri_c[i]);
-		if (mpz_cmp_ui(poly->base1, base) == 0)
-		{
-			if (((poly->exp1 - auri_c[i]) % auri_m[i]) == 0)
-			{
-				k = (poly->exp1 - auri_c[i]) / auri_m[i];
-				mpz_set_ui(term, base);
-				mpz_pow_ui(F, term, fterm_em[i] * k + fterm_ec[i]);
-				mpz_add_ui(F, F, 1);
-
-				// build F, L, and M factors from the table here:
-				// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
-				mpz_set_ui(C, 0);
-				for (j = 0; j < c_num_terms[i]; j++)
-				{
-					mpz_set_ui(term, base);
-					mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
-					mpz_mul_si(term, term, cterm_m[i][j]);
-					mpz_add(C, C, term);
-				}
-				mpz_set_ui(D, 0);
-				for (j = 0; j < d_num_terms[i]; j++)
-				{
-					mpz_set_ui(term, base);
-					mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
-					mpz_mul_si(term, term, dterm_m[i][j]);
-					mpz_add(D, D, term);
-				}
-				mpz_add(M, C, D);
-				mpz_sub(L, C, D);
-				do_check = 1;
-				break;
-			}
-		}
-	}
-
-	if (do_check)
-	{
-		if (VFLAG > 2)
-		{
-			gmp_printf("gen: checking F-factor %Zd\n", F);
-		}
-
-		if (mpz_cmp_ui(F, 1) > 0)
-		{
-			mpz_gcd(t, fobj->nfs_obj.gmp_n, F);
-			if ((mpz_cmp_ui(t, 1) > 0) &&
-				(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
-			{
-				if (VFLAG > 2)
-				{
-					gmp_printf("gen: adding Aurifeuillian F-factor %Zd of autofactor input %Zd to factor list\n",
-						t, fobj->nfs_obj.gmp_n);
-				}
-				else if (VFLAG >= 0)
-				{
-					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
-				}
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
-			}
-		}
-
-		if (VFLAG > 2)
-		{
-			gmp_printf("gen: checking M-factor %Zd\n", M);
-		}
-
-		mpz_gcd(t, fobj->nfs_obj.gmp_n, M);
-		if ((mpz_cmp_ui(t, 1) > 0) &&
-			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
-		{
-			if (VFLAG > 2)
-			{
-				gmp_printf("gen: adding Aurifeuillian M-factor %Zd of autofactor input %Zd to factor list\n",
-					t, fobj->nfs_obj.gmp_n);
-			}
-			else if (VFLAG >= 0)
-			{
-				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
-			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
-		}
-
-		if (VFLAG > 2)
-		{
-			gmp_printf("gen: checking L-factor %Zd\n", L);
-		}
-
-		mpz_gcd(t, fobj->nfs_obj.gmp_n, L);
-		if ((mpz_cmp_ui(t, 1) > 0) &&
-			(mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
-		{
-			if (VFLAG > 2)
-			{
-				gmp_printf("gen: adding Aurifeuillian L-factor %Zd of autofactor input %Zd to factor list\n",
-					t, fobj->nfs_obj.gmp_n);
-			}
-			else if (VFLAG >= 0)
-			{
-				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
-			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
-		}
-
-	}
-
-	mpz_clear(F);
-	mpz_clear(L);
-	mpz_clear(M);
-	mpz_clear(C);
-	mpz_clear(D);
-	mpz_clear(n);
 	mpz_clear(term);
 	mpz_clear(t);
+	mpz_clear(n);
 	return;
 }
 
@@ -2236,7 +3635,6 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 	return;
 }
 
-
 // thanks to Alex Kruppa for his phi program, on which a lot
 // of this routine is based.
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
@@ -2287,7 +3685,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	{
 		find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
 	}
-
 
     if (mpz_cmp(poly->primitive, poly->n) == 0)
     {
@@ -2889,7 +4286,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		// a^(11k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 10.
 		// but the poly is symmetric and can be halved to degree 5... 
-		// see http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+		// see https://www.rieselprime.de/ziki/SNFS_polynomial_selection
 		polys->poly->alg.degree = 5;
 		fobj->nfs_obj.pref_degree = 5;
 		k = poly->exp1 / 11;
@@ -3144,9 +4541,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					npoly++;
 				}
 				else
-				{	// being explicit
-					snfs_clear(&polys[npoly]);
-					snfs_init(&polys[npoly]);
+				{
+					//snfs_clear(&polys[npoly]);
+					//snfs_init(&polys[npoly]);
 				}
 
 				// and decreasing the exponent
@@ -3225,9 +4622,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					npoly++;
 				}
 				else
-				{	// being explicit
-					snfs_clear(&polys[npoly]);
-					snfs_init(&polys[npoly]);
+				{
+					//snfs_clear(&polys[npoly]);
+					//snfs_init(&polys[npoly]);
 				}
 
 				// and playing with composite bases
@@ -3338,9 +4735,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							npoly++;
 						}
 						else
-						{	// being explicit
-							snfs_clear(&polys[npoly]);
-							snfs_init(&polys[npoly]);
+						{
+							//snfs_clear(&polys[npoly]);
+							//snfs_init(&polys[npoly]);
 						}
 
 						// move it down
@@ -3354,6 +4751,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 						// since we moved the current factor down, move the other factors up
 						// otherwise this would be the same as moving the whole composite base down.
+						// also move the second term down...
 						
 						//c0 = (int64)pow((double)b2, i1) * (int64)poly->coeff2;
 						mpz_set_si(c0, poly->coeff2);
@@ -3373,7 +4771,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							bb *= f[k];
 						}
 						// m is now a mix of powers of factors of b.
-						// here is the contribution of the factor we cecreased
+						// here is the contribution of the factor we decreased
 						me = (e-i1) / i;
 						mpz_set_si(m, f[j]);
 						mpz_pow_ui(m, m, me);
@@ -3400,7 +4798,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						{
 							mpz_set(polys[npoly].poly->rat.coeff[1], b2);		// signed?
 							mpz_pow_ui(polys[npoly].poly->rat.coeff[1],
-								   polys[npoly].poly->rat.coeff[1], (e+i1) / i);
+								   polys[npoly].poly->rat.coeff[1], (e-i1) / i);
 							mpz_set(polys[npoly].poly->rat.coeff[0], m);
 							mpz_set(polys[npoly].poly->m, m);
 							mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
@@ -3433,9 +4831,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							npoly++;
 						}
 						else
-						{	// being explicit
-							snfs_clear(&polys[npoly]);
-							snfs_init(&polys[npoly]);
+						{
+							//snfs_clear(&polys[npoly]);
+							//snfs_init(&polys[npoly]);
 						}
 					} // loop over factors of base
 				} // composite base?
@@ -3510,7 +4908,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		approx_norms(polys);
 
         if (!polys->valid)
-        {	// being explicit
+        {
             snfs_clear(polys);
             npoly = 0;
         }

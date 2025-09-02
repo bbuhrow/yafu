@@ -1236,7 +1236,7 @@ void compute_roots_work_fcn(void *vptr)
         mpz_t tmpz;
         mpz_init(tmpz);
 
-        mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
+        mpz_add_ui(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
         for (i = t->startid; i < t->stopid; i++)
         {
             uint32_t inv;
@@ -1249,6 +1249,7 @@ void compute_roots_work_fcn(void *vptr)
             t->sdata.lower_mod_prime[i] =
                 mpz_tdiv_ui(tmpz, prime);
         }
+        mpz_clear(tmpz);
     }
 
     free(last_root);
@@ -1302,12 +1303,12 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
         // This value is a constant, so compute it here in order to facilitate 
         // finding offsets later.
 
-        if (sdata->sieve_p[i] > blk_b_sqrt)
-        {
-            lblk_b = ublk_b + prodN;
-            ublk_b += sdata->blk_r;
-            blk_b_sqrt = (uint64_t)(sqrt((int64_t)(ublk_b + prodN))) + 1;
-        }
+        // if (sdata->sieve_p[i] > blk_b_sqrt)
+        // {
+        //     lblk_b = ublk_b + prodN;
+        //     ublk_b += sdata->blk_r;
+        //     blk_b_sqrt = (uint64_t)(sqrt((int64_t)(ublk_b + prodN))) + 1;
+        // }
 
         //solve prodN ^ -1 % p 
         inv = modinv1(prodN, prime);

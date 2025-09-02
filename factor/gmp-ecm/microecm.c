@@ -52,6 +52,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 #include "microecm.h"
+#include "ytools.h"
+
 //#include "arith.h"
 #include <stddef.h>
 #include <stdint.h>
@@ -65,15 +67,20 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #endif
 
 #if defined(_MSC_VER) && defined(__clang__)
+
+// MSVC's version of clang-cl will not allow AVX512-IFMA.
+// there are errors in the header files.
+//#define IFMA
+//#define __AVX512IFMA__
+//#define __AVX512VL__
+
 #include <x86intrin.h>
+
+
+
 #else
 #include <immintrin.h>
 #endif
-
-#ifdef USE_AVX512F
-#  include <immintrin.h>
-#endif
-
 
 // Using the inline asm in this file can increase performance by ~20-25%
 // (surprisingly).  Hence these macros are defined by default.
@@ -3412,8 +3419,8 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
     //following brent and montgomery's papers, and CP's book
     int result;
     uint8_t msk = 0;
-    uint64_t uarray[8], rarray[8], tarray[8], oarray[8];
-    uint64_t narray[8], carray[8], fivea[8], Rsqra[8];
+    ALIGNED_MEM uint64_t uarray[8], rarray[8], tarray[8], oarray[8];
+    ALIGNED_MEM uint64_t narray[8], carray[8], fivea[8], Rsqra[8];
     uint32_t stg1_max = B1;
     __m512i v_u, v_s, v_n, v_f, v_r, v_c, v_o;
     uecm_pt_x8 v_P;

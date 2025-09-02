@@ -1,27 +1,24 @@
-/*
-This source distribution is placed in the public domain by its author,
-Ben Buhrow. You may use it for any purpose, free of charge,
-without having to notify anyone. I disclaim any responsibility for any
-errors.
-
-Optionally, please be nice and tell me if you find this source to be
-useful. Again optionally, if you add to the functionality present here
-please consider making those additions public too, so that others may
-benefit from your work.
-
-Some parts of the code (and also this header), included in this
-distribution have been reused from other sources. In particular I
-have benefitted greatly from the work of Jason Papadopoulos's msieve @
-www.boo.net/~jasonp, Scott Contini's mpqs implementation, and Tom St.
-Denis Tom's Fast Math library.  Many thanks to their kind donation of
-code to the public domain.
---bbuhrow@gmail.com 11/24/09
-*/
-
-/* 
-I gratefully acknowledge Tom St. Denis's TomsFastMath library, on which
-many of the arithmetic routines here are based
-*/
+// MIT License
+// 
+// Copyright (c) 2025 Ben Buhrow
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 /*
 
@@ -52,12 +49,12 @@ SOFTWARE.
 */
 
 #include "common.h"
-//#include "ytools.h"
 #include "monty.h"
 #include "arith.h"
 #include "gmp.h"
 #include <stdint.h>
 #include <immintrin.h>
+#include <stdio.h>
 
 #ifdef __GNUC__
 #include <stdbool.h>
@@ -96,6 +93,9 @@ uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r) // uint64_t
 #endif
 
 /********************* arbitrary-precision Montgomery arith **********************/
+// generic Montgomery arithmetic using gmp
+// specialized things like mpz_powm will be much faster
+
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t rhat, mpz_t b);
 int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat);
 
@@ -105,28 +105,8 @@ void fp_montgomery_calc_normalization(mpz_t r, mpz_t r2modn, mpz_t n)
     int nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS + 
         ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0);
 
-    //printf("GMP_LIMB_BITS is %u\n", GMP_LIMB_BITS);
     mpz_set_ui(r, 1);
     mpz_mul_2exp(r, r, nfullwords * GMP_LIMB_BITS);
-
-    /*
-    mpz_set(r2modn, r);
-
-    // now compute r^2 % n so that we can do fast 
-    // conversions into montgomery representation.
-    bits = mpz_sizeinbase(r, 2) - 1;
-    while (mpz_cmp(r2modn, n) >= 0)
-    {
-        mpz_tdiv_q_2exp(r2modn, r2modn, 1);
-        bits++;
-    }
-
-    for (x = 0; x < bits; x++) {                
-        mpz_mul_2exp(r2modn, r2modn, 1);
-        if (mpz_cmp(r2modn, n) >= 0)
-            mpz_sub(r2modn, r2modn, n);
-    }
-    */
 
     return;
 }
@@ -141,16 +121,8 @@ int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat)
 
 void to_monty(monty_t *mdata, mpz_t x)
 {
-	//given a number x in normal (hexadecimal) representation, 
-	//find its montgomery representation
-
-	//this uses some precomputed monty constants
-	//xhat = (x * r) mod n
-    // = x * R^2 / R mod n
-    // = REDC(x * R^2)
-
-    //mpz_mul(x, x, mdata->rhat);
-    //monty_redc(mdata, x);
+	// given a number x in normal representation, 
+	// find its montgomery representation
 
     mpz_mul_2exp(x, x, mpz_sizeinbase(mdata->r,2));
     mpz_tdiv_r(x, x, mdata->n);
@@ -160,9 +132,9 @@ void to_monty(monty_t *mdata, mpz_t x)
 
 monty_t * monty_alloc()
 {
-	//for a input modulus n, initialize constants for 
-	//montogomery representation
-	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	// for a input modulus n, initialize constants for 
+	// montogomery representation
+	// this assumes that n is relatively prime to 2, i.e. is odd.	
 	monty_t *mdata;
 
 	mdata = (monty_t *)malloc(sizeof(monty_t));
@@ -186,9 +158,9 @@ monty_t * monty_alloc()
 
 void monty_init(mpz_t n, monty_t *mdata)
 {
-	//for a input modulus n, initialize constants for 
-	//montogomery representation
-	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	// for a input modulus n, initialize constants for 
+	// montogomery representation
+	// this assumes that n is relatively prime to 2, i.e. is odd.	
 
 	// initialize space such that we can use vectorized
     mpz_set(mdata->n, n);
@@ -263,16 +235,12 @@ void monty_redc(monty_t *mdata, mpz_t x)
         mpz_sub(x, x, mdata->n);
 }
 
+
 /********************* 128-bit Montgomery arith **********************/
 void to_monty128(monty128_t *mdata, uint64_t * x)
 {
-	//given a number x in normal (hexadecimal) representation, 
-	//find its montgomery representation
-
-	//this uses some precomputed monty constants
-	//xhat = (x * r) mod n
-	// = x * R^2 / R mod n
-	// = REDC(x * R^2)
+	// given a number x in normal representation, 
+	// find its montgomery representation
 	mpz_t m;
 	mpz_t n;
 
@@ -303,9 +271,9 @@ void to_monty128(monty128_t *mdata, uint64_t * x)
 
 void monty128_init(monty128_t * mdata, uint64_t * n)
 {
-	//for a input modulus n, initialize constants for 
-	//montogomery representation
-	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	// for a input modulus n, initialize constants for 
+	// montogomery representation
+	// this assumes that n is relatively prime to 2, i.e. is odd.	
 	uint64_t b = n[0];
 	uint64_t x;
 
@@ -428,18 +396,199 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 	return;
 }
 
-
 /********************* start of Perig's 128-bit code **********************/
 // Note: slightly modified modular subtract at the end
-#ifdef _MSC_VER
-
-#else
-#define USE_PERIG_128BIT
-#endif
-
 #ifdef USE_PERIG_128BIT
 
-typedef __uint128_t uint128_t;
+
+uint64_t my_ctz64(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#if defined(__BMI1__)
+	uint64_t t;
+	asm(" tzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_ctzll(n);
+	return 64;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_ctzll(n);
+	return 64;
+#else
+	if (n == 0)
+		return 64;
+	uint64_t r = 0;
+	if ((n & 0xFFFFFFFFull) == 0)
+		r += 32, n >>= 32;
+	if ((n & 0xFFFFull) == 0)
+		r += 16, n >>= 16;
+	if ((n & 0xFFull) == 0)
+		r += 8, n >>= 8;
+	if ((n & 0xFull) == 0)
+		r += 4, n >>= 4;
+	if ((n & 0x3ull) == 0)
+		r += 2, n >>= 2;
+	if ((n & 0x1ull) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+// count trailing zeroes in binary representation 
+uint64_t my_ctz52(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#if defined(__BMI1__)
+	uint64_t t;
+	asm(" tzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_ctzll(n);
+	return 52;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_ctzll(n);
+	return 52;
+#else
+	if (n == 0)
+		return 52;
+	uint64_t r = 0;
+	if ((n & 0xFFFFFFFFull) == 0)
+		r += 32, n >>= 32;
+	if ((n & 0xFFFFull) == 0)
+		r += 16, n >>= 16;
+	if ((n & 0xFFull) == 0)
+		r += 8, n >>= 8;
+	if ((n & 0xFull) == 0)
+		r += 4, n >>= 4;
+	if ((n & 0x3ull) == 0)
+		r += 2, n >>= 2;
+	if ((n & 0x1ull) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+// count trailing zeroes in binary representation 
+uint64_t my_ctz104(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_lo) {
+		return my_ctz52(n_lo);
+	}
+	return 52 + my_ctz52(n_hi);
+}
+
+uint64_t my_ctz128(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_lo) {
+		return my_ctz64(n_lo);
+	}
+	return 64 + my_ctz64(n_hi);
+}
+
+// count leading zeroes in binary representation
+uint64_t my_clz52(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#ifdef __BMI1__
+	uint64_t t;
+	asm(" lzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_clzll(n);
+	return 52;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_clzll(n);
+	return 52;
+#else
+	if (n == 0)
+		return 52;
+	uint64_t r = 0;
+	if ((n & (0xFFFFFFFFull << 32)) == 0)
+		r += 32, n <<= 32;
+	if ((n & (0xFFFFull << 48)) == 0)
+		r += 16, n <<= 16;
+	if ((n & (0xFFull << 56)) == 0)
+		r += 8, n <<= 8;
+	if ((n & (0xFull << 60)) == 0)
+		r += 4, n <<= 4;
+	if ((n & (0x3ull << 62)) == 0)
+		r += 2, n <<= 2;
+	if ((n & (0x1ull << 63)) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+// count leading zeroes in binary representation 
+uint64_t my_clz104(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_hi) {
+		return my_clz52(n_hi);
+	}
+	return 52 + my_clz52(n_lo);
+}
+
+// count leading zeroes in binary representation
+uint64_t my_clz64(uint64_t n)
+{
+#if (INLINE_ASM && defined(__x86_64__))
+#ifdef __BMI1__
+	uint64_t t;
+	asm(" lzcntq %1, %0\n": "=r"(t) : "r"(n) : "flags");
+	return t;
+#else
+	if (n)
+		return __builtin_clzll(n);
+	return 64;
+#endif
+#else
+#if defined(__GNUC__)
+	if (n)
+		return __builtin_clzll(n);
+	return 64;
+#else
+	if (n == 0)
+		return 64;
+	uint64_t r = 0;
+	if ((n & (0xFFFFFFFFull << 32)) == 0)
+		r += 32, n <<= 32;
+	if ((n & (0xFFFFull << 48)) == 0)
+		r += 16, n <<= 16;
+	if ((n & (0xFFull << 56)) == 0)
+		r += 8, n <<= 8;
+	if ((n & (0xFull << 60)) == 0)
+		r += 4, n <<= 4;
+	if ((n & (0x3ull << 62)) == 0)
+		r += 2, n <<= 2;
+	if ((n & (0x1ull << 63)) == 0)
+		r += 1;
+	return r;
+#endif
+#endif
+}
+
+uint64_t my_clz128(uint64_t n_lo, uint64_t n_hi)
+{
+	if (n_hi) {
+		return my_clz64(n_hi);
+	}
+	return 64 + my_clz64(n_lo);
+}
 
 // borrow::diff = a - b - borrow_in
 #define INLINE_ASM 1
@@ -518,7 +667,7 @@ static void ciosSubtract128(uint64_t* res_lo, uint64_t* res_hi, uint64_t carries
 	*res_hi = t_hi;
 }
 
-static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
+void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
 {
 
@@ -726,10 +875,10 @@ static void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uin
 /********************* end of Perig's 128-bit code **********************/
 
 // modSqr version I wrote based on the modMul
-static void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
+void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
 {
-#ifdef _MSC_VER
+#if 1 //def _MSC_VER
 	*res_lo = b_lo;
 	*res_hi = b_hi;
 	ciosModMul128(res_lo, res_hi, b_lo, b_hi, mod_lo, mod_hi, mmagic);
@@ -955,6 +1104,130 @@ void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 	return;
 }
 
+void mulmod128n(uint64_t* u, uint64_t* v, uint64_t* w, uint64_t* n, uint64_t rho)
+{
+#ifdef USE_PERIG_128BIT
+	uint64_t t[2];
+	t[0] = v[0];
+	t[1] = v[1];
+	ciosModMul128(&t[0], &t[1], u[0], u[1], n[0], n[1], rho);
+	w[0] = t[0];
+	w[1] = t[1];
+	return;
+
+#else
+
+
+	// integrate multiply and reduction steps, alternating
+	// between iterations of the outer loops.
+	uint64_t s[3];
+
+	s[0] = 0;
+	s[1] = 0;
+	s[2] = 0;
+
+#if defined( USE_AVX2 ) && defined(GCC_ASM64X)
+	// requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+	ciosFullMul128x(u, v, rho, n, s);
+
+	if ((s[2]) || (s[1] > n[1]) || ((s[1] == n[1]) && (s[0] > n[0])))
+	{
+		ASM_G(
+			"movq %4, %%r11 \n\t"
+			"movq %0, 0(%%r11) \n\t"
+			"movq %1, 8(%%r11) \n\t"
+			"subq %2, 0(%%r11) \n\t"
+			"sbbq %3, 8(%%r11) \n\t"
+			:
+		: "r"(s[0]), "r"(s[1]), "r"(n[0]), "r"(n[1]), "r"(w)
+			: "r11", "cc", "memory");
+	}
+	else
+	{
+		w[0] = s[0];
+		w[1] = s[1];
+	}
+#else
+	// TODO: implement portable u128 x u128 modular multiplication
+	uint64_t t[3], U, c2, c3;
+	uint8_t c1, c4;
+
+	// z = 0
+	// for (i = 0; i < t; i++)
+	// {
+	//     u = (z0 + xi * y0) * -m’ mod b
+	//     z = (z + xi * y + u * m) / b
+	// }
+	// if (x >= m) { x -= m; }
+
+	//printf("nhat = %" PRIx64 "\n", mdata->rho);
+	//printf("a = %" PRIx64 ",%" PRIx64 "\n", u[1], u[0]);
+	//printf("b = %" PRIx64 ",%" PRIx64 "\n", v[1], v[0]);
+	//printf("n = %" PRIx64 ",%" PRIx64 "\n", mdata->n[1], mdata->n[0]);
+
+	//i = 0;
+	//u = (z0 + x0 * y0) * nhat mod b;
+	t[0] = _umul128(u[0], v[0], &t[1]);
+	U = t[0] * rho;
+
+	//printf("t[0] = %" PRIx64 ", t[1] = %" PRIx64 ", u = %" PRIx64 "\n", t[0], t[1], U);
+
+	//j = 0;
+	//z = (z + x0 * y0 + u * m0) / b;
+	c1 = _addcarry_u64(0, _umul128(U, n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+	t[2] = _addcarry_u64(c1, t[1], c2, &t[1]);                              // c1 applies to t2
+
+	//j = 1;
+	//z = (z + x0 * y1 + u * m1) / b;
+	c1 = _addcarry_u64(0, _umul128(u[0], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+	c4 = _addcarry_u64(0, _umul128(U, n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+	c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+	t[0] = t[1];                                                            // divide by b
+	t[1] = t[2];
+	t[2] = c1 + c4;
+
+	//printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
+
+	//i = 0;
+	//u = (z + x1 * y0) * nhat mod b;
+	c1 = _addcarry_u64(0, _umul128(u[1], v[0], &c2), t[0], &t[0]);          // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+	t[2] += c1;
+	U = t[0] * rho;
+
+	//printf("t[0] = %" PRIx64 ", u = %" PRIx64 "\n", t[0], U);
+
+	//j = 0;
+	//z = (z + x1 * y0 + u * m0) / b;
+	c1 = _addcarry_u64(0, _umul128(U, n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+	t[2] += c1;
+
+	//j = 1;
+	//z = (z + x1 * y1 + u * m1) / b;
+	c1 = _addcarry_u64(0, _umul128(u[1], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+	c4 = _addcarry_u64(0, _umul128(U, n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+	c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+	c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+
+	//printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
+
+	w[0] = t[1];
+	w[1] = t[2];
+
+	//exit(1);
+
+	return;
+
+
+
+#endif
+
+#endif
+	return;
+}
+
 void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 {
 #ifdef USE_PERIG_128BIT
@@ -997,6 +1270,55 @@ void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 #else
 
     mulmod128(u, u, w, mdata);
+
+#endif
+
+#endif
+	return;
+}
+
+void sqrmod128n(uint64_t* u, uint64_t* w, uint64_t* n, uint64_t rho)
+{
+#ifdef USE_PERIG_128BIT
+	ciosModSqr128(&w[0], &w[1], u[0], u[1], n[0], n[1], rho);
+	return;
+
+#else
+
+
+	// integrate multiply and reduction steps, alternating
+	// between iterations of the outer loops.
+	uint64_t s[3];
+
+	s[0] = 0;
+	s[1] = 0;
+	s[2] = 0;
+
+#if defined( USE_AVX2 ) && defined(GCC_ASM64X)
+	// requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
+	ciosFullMul128x(u, u, rho, n, s);
+
+	if ((s[2]) || (s[1] > n[1]) || ((s[1] == n[1]) && (s[0] > n[0])))
+	{
+		ASM_G(
+			"movq %4, %%r11 \n\t"
+			"movq %0, 0(%%r11) \n\t"
+			"movq %1, 8(%%r11) \n\t"
+			"subq %2, 0(%%r11) \n\t"
+			"sbbq %3, 8(%%r11) \n\t"
+			:
+		: "r"(s[0]), "r"(s[1]), "r"(n[0]), "r"(n[1]), "r"(w)
+			: "r11", "cc", "memory");
+	}
+	else
+	{
+		w[0] = s[0];
+		w[1] = s[1];
+	}
+
+#else
+
+	mulmod128n(u, u, w, n, rho);
 
 #endif
 
@@ -1089,3 +1411,216 @@ void submod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 
 	return;
 }
+
+void dblmod128(uint64_t* a, uint64_t* n)
+{
+
+#if defined(__x86_64__) && defined(__unix__)
+	// requires GCC_ASM64 syntax
+	uint64_t t1, t0;
+
+	// do the 2-word variant of this:
+	//uint64_t r;
+	//uint64_t tmp = x - n;
+	//uint8_t c = _addcarry_u64(0, tmp, y, &r);
+	//return (c) ? r : x + y;
+	t1 = a[1];
+	t0 = a[0];
+
+	__asm__ volatile (
+		"movq %%rax, %%r8 \n\t"
+		"movq %%rdx, %%r9 \n\t"
+		"subq %4, %%r8 \n\t"		/* t = x - n */
+		"sbbq %5, %%r9 \n\t"
+		"addq %%rax, %0 \n\t"		/* x += x */
+		"adcq %%rdx, %1 \n\t"
+		"addq %%rax, %%r8 \n\t"		/* t = t + x */
+		"adcq %%rdx, %%r9 \n\t"
+		"cmovc %%r8, %0 \n\t"
+		"cmovc %%r9, %1 \n\t"
+		: "+&r"(a[0]), "+&r"(a[1])
+		: "a"(t0), "d"(t1), "r"(n[0]), "r"(n[1])
+		: "r8", "r9", "cc", "memory");
+
+#else
+
+#ifdef USE_PERIG_128BIT
+
+	uint128_t x = ((uint128_t)a[1] << 64) | a[0];
+	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
+	uint128_t r = (x >= n128 - x) ? x - (n128 - x) : x + x;
+	a[1] = (uint64_t)(r >> 64);
+	a[0] = (uint64_t)r;
+
+#else
+
+	addmod128(a, a, a, n);
+
+#endif
+
+#endif
+	return;
+}
+
+void chkmod128(uint64_t* a, uint64_t* n)
+{
+
+#if defined(__x86_64__) && defined(__unix__)
+
+	// not really faster than the branching version below
+	// but probably should be checked on more cpus.
+	uint64_t t0, t1;
+	t0 = a[0];
+	t1 = a[1];
+	__asm__ volatile (
+		"xorq %%r8, %%r8 \n\t"
+		"xorq %%r9, %%r9 \n\t"
+		"subq %2, %%r8 \n\t"		/* t = 0 - n */
+		"sbbq %3, %%r9 \n\t"
+		"addq %0, %%r8 \n\t"		/* t += x */
+		"adcq %1, %%r9 \n\t"
+		"cmovc %%r8, %0 \n\t"
+		"cmovc %%r9, %1 \n\t"
+		: "+&r"(t0), "+&r"(t1)
+		: "r"(n[0]), "r"(n[1])
+		: "r8", "r9", "cc", "memory");
+
+	a[0] = t0;
+	a[1] = t1;
+#else
+
+	if ((a[1] > n[1]) || ((a[1] == n[1]) && (a[0] >= n[0])))
+	{
+		uint8_t c1 = _subborrow_u64(0, a[0], n[0], &a[0]);
+		_subborrow_u64(c1, a[1], n[1], &a[1]);
+	}
+
+#endif
+	return;
+}
+
+/********************* 52-bit Vector Montgomery arith **********************/
+// speed critical functions are declared as static inline in the header
+#ifdef USE_AVX512F
+
+
+void printvec(char* msg, __m512i v)
+{
+	uint64_t m[8];
+	storeu64(m, v);
+	int i;
+	printf("%s: ", msg);
+	for (i = 0; i < 8; i++)
+		printf("%016lx ", m[i]);
+	printf("\n");
+	return;
+}
+
+void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0, __m512i n0, __m512i vrho)
+{
+	// CIOS modular multiplication with normal (negative) single-word nhat
+	__m512i m;
+	__m512i t0, t1, C1;
+
+#ifndef IFMA
+	__m512d prod1_hd, prod2_hd;
+	__m512d prod1_ld, prod2_ld;
+	__m512i i0, i1;
+#endif
+
+	__m512i zero = _mm512_set1_epi64(0);
+	__m512i one = _mm512_set1_epi64(1);
+	__mmask8 scarry2;
+	__mmask8 scarry;
+
+	t0 = t1 = C1 = zero;
+
+	VEC_MUL_ACCUM_LOHI_PD(a0, b0, t0, t1);
+
+	// m0
+	m = mul52lo(t0, vrho);
+
+	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, t1);
+
+	// propagate t0's carry before we throw it away.
+	// it is almost always exactly 1, but not always, for example when m = 0;
+	t0 = _mm512_add_epi64(t1, _mm512_srli_epi64(t0, 52));
+
+	__mmask8 bmsk = _mm512_cmpge_epu64_mask(t0, n0);
+	t0 = _mm512_mask_sub_epi64(t0, bmsk, t0, n0);
+
+	// conditional addmod (double result)
+	t0 = _mm512_mask_slli_epi64(t0, addmsk, t0, 1);
+	bmsk = _mm512_mask_cmpgt_epu64_mask(addmsk, t0, n0);
+	*c0 = _mm512_mask_sub_epi64(t0, bmsk & addmsk, t0, n0);
+	// _mm512_and_epi64(t0, lo52mask);
+
+	return;
+}
+
+
+/********************* 104-bit Vector Montgomery arith **********************/
+// speed critical functions are declared as static inline in the header
+
+uint64_t multiplicative_inverse(uint64_t a)
+{
+	// compute the 64-bit inverse of a mod 2^64
+	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+	uint64_t x0 = (3 * a) ^ 2;
+	uint64_t y = 1 - a * x0;
+	uint64_t x1 = x0 * (1 + y);
+	y *= y;
+	uint64_t x2 = x1 * (1 + y);
+	y *= y;
+	uint64_t x3 = x2 * (1 + y);
+	y *= y;
+	uint64_t x4 = x3 * (1 + y);
+	return x4;
+}
+
+__m512i multiplicative_inverse104_x8(uint64_t* a)
+{
+	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+	__m512i x0, x1, x2, x3, x4, x5, y, n, i0, i1;
+	__m512i three = _mm512_set1_epi64(3), two = _mm512_set1_epi64(2), one = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+
+	n = loadu64(a);
+	_mm512_mullo_epi52(x0, n, three);
+	x0 = _mm512_xor_epi64(x0, two);
+	_mm512_mullo_epi52(y, n, x0);
+	y = _mm512_sub_epi64(one, y);
+	y = _mm512_and_epi64(lo52mask, y);
+
+	x1 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x1, x0, x1);
+	_mm512_mullo_epi52(y, y, y);
+
+	x2 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x2, x1, x2);
+	_mm512_mullo_epi52(y, y, y);
+
+	x3 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x3, x2, x3);
+	_mm512_mullo_epi52(y, y, y);
+
+	x4 = _mm512_add_epi64(y, one);
+	_mm512_mullo_epi52(x4, x3, x4);
+
+	return x4;
+}
+
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+

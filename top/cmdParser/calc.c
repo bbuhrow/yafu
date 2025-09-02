@@ -50,12 +50,13 @@ SOFTWARE.
 #include "nfs.h"
 #include "arith.h"
 #include "microecm.h"
+#include "tinyprp.h"
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 80
+#define NUM_FUNC 81
 
 // symbols in calc
 #define EOE 1
@@ -157,9 +158,10 @@ static char function_names[NUM_FUNC][11] = {
     "hamdist", "snfs", "rsa", "factor", "pm1",
     "pp1", "rho", "trial", "shanks", "siqs",
     "primes", "torture", "ecm", "llt", "siqsbench",
-    "sigma", "totient", "smallmpqs", "testrange", "sieverange",
+    "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
-    "semiprimes", "fftmul", "vpm1", "toom3", "special"};
+    "semiprimes", "fftmul", "tinyprp", "toom3", "special",
+    "divisors"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -175,9 +177,10 @@ static int function_nargs[NUM_FUNC] = {
     2, 2, 1, 1, 1, 
     3, 1, 2, 1, 1, 
     3, 2, 2, 1, 0, 
-    2, 1, 1, 4, 4, 
+    2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
-    2, 4, 0, 3, 2};
+    2, 4, 0, 3, 2,
+    1};
 
 
 // =====================================================================
@@ -2034,6 +2037,34 @@ free:
 	return retval;
 }
 
+int generateDivisors(int curIndex, int currentCount, mpz_t curDivisor,
+    yfactor_list_t *flist)
+{
+    // Base case i.e. we do not have more
+    // primeFactors to include
+    if (curIndex == flist->num_factors) {
+        if (mpz_cmp_ui(curDivisor, 1) > 0)
+        {
+            gmp_printf("%Zd\n", curDivisor);
+            return currentCount + 1;
+        }
+        return currentCount;
+    }
+
+    mpz_t copy;
+    mpz_init(copy);
+    mpz_set(copy, curDivisor);
+
+    int i; 
+    for (i = 0; i <= flist->factors[curIndex].count; ++i) {
+        currentCount = generateDivisors(curIndex + 1, currentCount, copy, flist);
+        mpz_mul(copy, copy, flist->factors[curIndex].factor);
+    }
+    mpz_clear(copy);
+    return currentCount;
+}
+
+
 int getFunc(char *s, int *nargs)
 {
 	// return the opcode associated with the function, and
@@ -2829,71 +2860,17 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
     case 68:
         // testrange - 4 arguments (low, high, depth, witnesses)
-        if (check_args(funcnum, nargs)) break;
-
-        // move to soe library...
-        {
-            uint64_t num_found;
-            uint64_t* primes;
-            uint64_t range;
-            mpz_t lowz, highz;
-
-            primes = NULL;
-
-            mpz_init(lowz);
-            mpz_init(highz);
-            mpz_set(lowz, operands[0]);
-            mpz_set(highz, operands[1]);
-
-            uint64_t* sievep, nump, pmax, pmin;
-            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            sievep = soe_wrapper(sdata, 0, mpz_get_ui(operands[2]), 0, &nump, 0, 0);
-
-            if (sievep != NULL)
-            {
-                pmin = sievep[0];
-                pmax = sievep[nump - 1];
-            }
-
-            sdata->num_sp = nump;
-            sdata->sieve_p = (uint32_t*)xrealloc(sdata->sieve_p, nump * sizeof(uint32_t));
-            for (i = 0; i < nump; i++)
-            {
-                sdata->sieve_p[i] = sievep[i];
-            }
-
-            free(sievep);
-
-            primes = sieve_to_depth(sdata, lowz, highz,
-                0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
-                &num_found, metadata->pscreen, metadata->pfile);
-
-            if (metadata->pscreen)
-            {
-                for (i = 0; i < num_found; i++)
-                {
-                    mpz_add_ui(mp1, lowz, primes[i]);
-                    gmp_printf("%Zd\n", mp1);
-                }
-            }
-
-            if (!NULL)
-                free(primes);
-
-            mpz_clear(lowz);
-            mpz_clear(highz);
-            mpz_set_ui(operands[0], num_found);
-            soe_finalize(sdata);
-        }
+        printf("deprecated, please use function sieverange(low, high, sievedepth)\n");
 
         break;
 
     case 69:
-        // sieverange - 4 arguments
-        // range lo, range hi, sieve bound, count?
+        // bigprimes - 3 arguments
+        // range lo, range hi, sieve bound
+        // future: 4th argument = prp method
+        // for now we use 1 witness to a SPRP function.
         if (check_args(funcnum, nargs)) break;
 
-        // move to soe library...
         {
             uint64_t num_found;
             uint64_t* primes;
@@ -2907,11 +2884,24 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(lowz, operands[0]);
             mpz_set(highz, operands[1]);
 
+            gettimeofday(&tstart, NULL);
+
             soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
 
+            if (mpz_cmp_ui(operands[2], 2000000000ull) > 0)
+            {
+                printf("resetting sieve primes max to limit = 2e9\n");
+                mpz_set_ui(operands[2], 2000000000ull);
+            }
+
             primes = sieve_to_depth(sdata, lowz, highz,
-                0, 0, mpz_get_ui(operands[2]),
+                0, 1, mpz_get_ui(operands[2]),
                 &num_found, metadata->pscreen, metadata->pfile);
+
+            gettimeofday(&tstop, NULL);
+            t = ytools_difftime(&tstart, &tstop);
+
+            printf("elapsed time = %6.4f\n", t);
 
             if (!NULL)
                 free(primes);
@@ -3081,118 +3071,19 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         break;
     case 76:
-        // vpp1
+        // fftmul
 
         fftmul(operands[4], operands[0], operands[1], 
             mpz_get_ui(operands[2]), mpz_get_ui(operands[3]));
 
         mpz_set(operands[0], operands[4]);
 
-
-        if (0)
-        {
-            FILE* workfile;
-            char* line;
-            char* result;
-            int linesize;
-            int num = 0;
-
-            workfile = fopen(fobj->pp1_obj.vpp1_work_file, "r");
-            if (workfile == NULL)
-            {
-                printf("could not open %s\n", fobj->pp1_obj.vpp1_work_file);
-                break;
-            }
-
-            while (num < 8)
-            {
-                // read the next non-blank line
-                if ((line = get_full_line(NULL, &linesize, workfile)) == NULL)
-                {
-                    break;
-                }
-
-                //size_n = mpz_inp_str(N[k], workfile, 0);
-                // remember input string (? for logfile purposes ?)
-                // run it through the calculator to evaluate any expressions.
-                // make sure the expression doesn't contain vpp1 or vpm1 
-                // to prevent infinite loops.
-                if ((strstr(line, "vpm1") != NULL) || (strstr(line, "vpp1") != NULL))
-                {
-                    printf("vpm1 and vpp1 are illegal in p+1 work file\n");
-                    break;
-                }
-                result = process_expression(line, metadata, 0, 0);
-                mpz_init(fobj->pp1_obj.vecn[num]);
-                mpz_set_str(fobj->pp1_obj.vecn[num++], result, 0);
-                if (result != NULL)
-                {
-                    free(result);
-                }
-            }
-            fclose(workfile);
-            fobj->pp1_obj.vecnum = num;
-            printf("read %d inputs from %s\n", num, fobj->pp1_obj.vpp1_work_file);
-        }
-
-        //vecPP1(fobj);
-
-
-
         break;
 
     case 77:
-
-
-#if 0
-        // vpm1
-        {
-            FILE* workfile;
-            char* line;
-            char* result;
-            int linesize;
-            int num = 0;
-
-            workfile = fopen(fobj->pm1_obj.vpm1_work_file, "r");
-            if (workfile == NULL)
-            {
-                printf("could not open %s\n", fobj->pm1_obj.vpm1_work_file);
-                break;
-            }
-
-            while (num < 8)
-            {
-                // read the next non-blank line
-                if ((line = get_full_line(NULL, &linesize, workfile)) == NULL)
-                {
-                    break;
-                }
-
-                //size_n = mpz_inp_str(N[k], workfile, 0);
-                // remember input string (? for logfile purposes ?)
-                // run it through the calculator to evaluate any expressions.
-                // make sure the expression doesn't contain vpp1 or vpm1 
-                // to prevent infinite loops.
-                if ((strstr(line, "vpm1") != NULL) || (strstr(line, "vpp1") != NULL))
-                {
-                    printf("vpm1 and vpp1 are illegal in p+1 work file\n");
-                    break;
-                }
-                result = process_expression(line, metadata, 0, 0);
-                mpz_init(fobj->pm1_obj.vecn[num]);
-                mpz_set_str(fobj->pm1_obj.vecn[num++], result, 0);
-                if (result != NULL)
-                {
-                    free(result);
-                }
-            }
-            fclose(workfile);
-            fobj->pm1_obj.vecnum = num;
-            printf("read %d inputs from %s\n", num, fobj->pm1_obj.vpm1_work_file);
-        }
-
-        vecPM1(fobj);
-#endif
+        // test tiny prp
+    
+        test_tinyprp();
 
         break;
 
@@ -3954,6 +3845,32 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         break;
 
+
+    case 80:
+
+        // divisors
+        if (check_args(funcnum, nargs)) break;
+
+        {
+            int count = 0;
+            int m;
+
+            mpz_set(mp2, operands[0]);
+            mpz_set(fobj->N, operands[0]);
+            mpz_set(fobj->input_N, operands[0]);
+            factor(fobj);
+
+            print_factors(fobj, fobj->factors, fobj->input_N, 1, fobj->NUM_WITNESSES, fobj->OBASE);
+
+            printf("\n***divisors***\n");
+
+            mpz_set_ui(mp1, 1);
+            count = generateDivisors(0, 0, mp1, fobj->factors);
+            printf("found %d divisors\n", count);
+            mpz_set_ui(operands[0], count);
+        }
+
+        break;
 
 	default:
 		printf("unrecognized function code\n");

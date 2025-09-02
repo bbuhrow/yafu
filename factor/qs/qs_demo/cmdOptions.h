@@ -168,7 +168,7 @@ typedef struct
     uint32_t snfs_testsieve_threshold;
     double work;
     double qs_snfs_xover;
-    
+    char jsonlog[MAXARGLEN];
 
     // prime finding options
     uint32_t pfile;

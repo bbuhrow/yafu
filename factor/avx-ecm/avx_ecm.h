@@ -133,13 +133,13 @@ void print_regvechexrange(__m512i a, int v1, int v2, const char* pre);
 // ---------------------------------------------------------------------
 // emulated instructions
 // ---------------------------------------------------------------------
-__m512i _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout);
-__m512i _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout);
-__m512i _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout);
-__m512i _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout);
-__m512i _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout);
-__m512i _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout);
-__m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout);
+//__m512i _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout);
+//__m512i _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout);
+//__m512i _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout);
+//__m512i _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout);
+//__m512i _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout);
+//__m512i _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout);
+//__m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout);
 
 // ---------------------------------------------------------------------
 // emulated instructions

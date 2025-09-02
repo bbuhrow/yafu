@@ -117,7 +117,7 @@ __m512i rem_epu64_x8(__m512i n, __m512i d)
 	n1pd = _mm512_div_round_pd(n1pd, d1pd, ROUNDING_MODE);
 	q = _mm512_cvttpd_epu64(n1pd);
 	
-	__m512i qd = _mm512_mullox_epi64(q, d);
+	__m512i qd = _mm512_mullo_epi64(q, d);
 	r = _mm512_sub_epi64(n, qd);
 
 	// fix q too big by a little, with special check for
@@ -141,7 +141,7 @@ __m512i rem_epu64_x8(__m512i n, __m512i d)
 		q2 = _mm512_add_epi64(_mm512_set1_epi64(1), _mm512_cvttpd_epu64(n1pd));
 
 		q = _mm512_mask_sub_epi64(q, err, q, q2);
-		r = _mm512_mask_add_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+		r = _mm512_mask_add_epi64(r, err, r, _mm512_mullo_epi64(q2, d));
 	}
 
 	// fix q too small by a little bit
@@ -158,7 +158,7 @@ __m512i rem_epu64_x8(__m512i n, __m512i d)
 		q2 = _mm512_cvttpd_epu64(n1pd);
 
 		q = _mm512_mask_add_epi64(q, err, q, q2);
-		r = _mm512_mask_sub_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+		r = _mm512_mask_sub_epi64(r, err, r, _mm512_mullo_epi64(q2, d));
 	}
 
 	return r;
@@ -439,8 +439,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
@@ -470,7 +470,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -573,8 +573,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 					__m512i vb0 = _mm512_set1_epi32(b0_ul);
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
@@ -598,7 +598,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -725,8 +725,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
@@ -759,7 +759,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -857,8 +857,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 					__m512i vb0 = _mm512_set1_epi32(b0_ul);
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
@@ -882,7 +882,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -1014,8 +1014,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
@@ -1049,7 +1049,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -1148,8 +1148,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 					__m512i vb0 = _mm512_set1_epi32(b0_ul);
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
@@ -1173,7 +1173,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -1297,8 +1297,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
@@ -1335,7 +1335,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else
@@ -1436,8 +1436,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				for (; (fbi < (fbsz - 16)) && (fbsz >= 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
-					__m512i m32 = _mm512_loadu_epi32(&FB[fbi]);
-					__m512i pr = _mm512_loadu_epi32(&proots[fbi]);
+					__m512i m32 = _mm512_loadu_si512(&FB[fbi]);
+					__m512i pr = _mm512_loadu_si512(&proots[fbi]);
 					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 					__m512i vb0 = _mm512_set1_epi32(b0_ul);
 					__m512i vb1 = _mm512_set1_epi32(b1_ul);
@@ -1461,7 +1461,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 								xm[ii] = x32;
 							}
 						}
-						x = _mm512_loadu_epi32(xm);
+						x = _mm512_loadu_si512(xm);
 					}
 
 					// else

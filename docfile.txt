@@ -267,18 +267,18 @@ The following are all the supported functions:
 utility			factoring		arithmetic
 ------------------------------------------------------------------------------------------
 rsa			    factor			shift
-size			  siqs			  nroot
+size			siqs			nroot
 primes			smallmpqs		modexp
 nextprime		nfs			    sqrt
-rand			  squfof			lg2
-randb			  pm1			    log
+rand			squfof			lg2
+randb			pm1			    log
 isprime			pp1			    ln
-ispow			  rho			    gcd
-issquare		trial			  jacobi
-sieverange	ecm			    modinv
-testrange   fermat			fib
-bpsw        snfs			  luc
-aprcl                   llt
+ispow			rho			    gcd
+issquare		trial			jacobi
+bigprimes	    ecm			    modinv
+bpsw            fermat			fib
+aprcl           snfs			luc
+                                llt
 
 ----------
 Variables:
@@ -825,41 +825,20 @@ expression 1 and expression 2 should both evaluate to numbers less than 4e18.
 The condition expression 2 > expression 1 is also enforced.
 
 
-[sieverange]
-usage: sieverange(lower, upper, depth, count)
+[bigprimes]
+usage: bigprimes(lower, upper, depth)
 
 description:
 Sieve an arbitrary range of integers between 'lower' and 'upper' with primes up to a limit of
 'depth'.  'Lower' and 'upper' can be arbitrary precision integers, with lower < upper.  'Depth'
-is currently limited to values less than 4e9.
-The fourth parameter should evaluate to 1 if the range is to only be counted.  Otherwise,
-primes are actually computed.  Note that this value must be 0 if primes are to be output
-to the screen or to the file, as discussed below.
+is currently limited to values less than 2e9.  Candidates surviving the sieve are tested 
+with a PRP function and thus are only PROBABLE primes.
 If the PRIMES_TO_FILE environment variable is set to non-zero, the values that survive the 
-sieve will be output to a file called sieved_values.dat, in the same directory as the executable.
-If the PRIMES_TO_SCREEN environement variable is set to non-zero, the sieved values
+sieve will be output to a file called prp_values.dat, in the same directory as the executable.
+If the PRIMES_TO_SCREEN environement variable is set to non-zero, the prp values
 will be printed to the screen.  By default, PRIMES_TO_FILE and
 PRIMES_TO_SCREEN are inactive (equal to zero).  The -pfile and -pscreen command line flags
 enable the same behavior.  It could take a very long time to print if the range is large.
-
-
-[testrange]
-usage: testrange(lower, upper, depth, num_witnesses)
-
-description:
-Sieve an arbitrary range of integers between 'lower' and 'upper' with primes up to a limit of
-'depth'.  'Lower' and 'upper' can be arbitrary precision integers, with lower < upper.  'Depth'
-is currently limited to values less than 4e9.  Subject all surviving values to a PRP check
-using 'num_witnesses' witnesses in a Rabin-Miller strong pseudo-prime test.
-If the PRIMES_TO_FILE environment variable is set to non-zero, the values that survive the 
-sieve and prp checks will be output to a file called prp_values.dat, in the same directory 
-as the executable.
-If the PRIMES_TO_SCREEN environement variable is set to non-zero, the sieved values
-will be printed to the screen.  By default, PRIMES_TO_FILE and
-PRIMES_TO_SCREEN are inactive (equal to zero).  The -pfile and -pscreen command line flags
-enable the same behavior.  It could take a very long time to print if the range is large.
-If expression 4 is equal to zero, then no prp checks are run and behavior is similar to 
-sieverange() with count = 0.
 
 
 [nextprime]

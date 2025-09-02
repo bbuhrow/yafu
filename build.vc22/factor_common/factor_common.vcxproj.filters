@@ -54,6 +54,9 @@
     <ClCompile Include="..\..\arith\fftmul.c">
       <Filter>Source Files\arith</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\aprcl\tinyprp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -78,6 +81,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\factor\gmp-ecm\microecm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\top\aprcl\tinyprp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

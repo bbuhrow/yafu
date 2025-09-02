@@ -179,7 +179,7 @@ void get_offsets(thread_soedata_t *thread_data)
         mpz_t lowz, sqrtz;
         mpz_init(lowz);
         mpz_init(sqrtz);
-        mpz_set(lowz, *sdata->offset);
+        mpz_set(lowz, sdata->offset);
         mpz_add_ui(lowz, lowz, ddata->lblk_b);
 
         mpz_set(sqrtz, lowz);

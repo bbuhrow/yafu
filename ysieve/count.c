@@ -32,6 +32,8 @@ SOFTWARE.
 #include <immintrin.h>
 #endif
 #include "threadpool.h"
+#include "tinyprp.h"
+#include "mpz_aprcl.h"
 
 uint64_t count_8_bytes(soe_staticdata_t* sdata,
     uint64_t pcount, uint64_t byte_offset);
@@ -204,7 +206,7 @@ void count_twins_work_fcn(void* vptr)
 
 uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
 {
-	//extract stuff from the thread data structure
+	// extract stuff from the thread data structure
 	uint8_t *line = sdata->lines[current_line];
 	uint64_t numlinebytes = sdata->numlinebytes;
 	uint64_t lowlimit = sdata->lowlimit;
@@ -218,96 +220,298 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
     uint8_t* masks = sdata->masks;
     uint8_t* nmasks = sdata->nmasks;
 
+    if (sdata->sieve_range)
+    {
+        // if we are counting primes in a range with large offset 
+        // then we need to compute the actual values of candidate primes
+        // and run PRP tests on them.
+        mpz_t tmpz;
+        mpz_init(tmpz);
+        uint64_t* flagblock64 = (uint64_t*)line;
+        uint64_t next_report = 1000;
+        int num_cand = 0;
+        uint64_t numchunks = sdata->numlinebytes / 8;
+        
+        uint64_t candidates[64];   // space for worst-case 64 prime flags to test;
+        int j;
+        i = 0;
+
+        do
+        {
+            while ((num_cand < 8) && (i < numchunks))
+            {
+                uint64_t x = flagblock64[i];
+
+#ifdef USE_BMI2
+                while (x > 0)
+                {
+                    uint32_t idx = _trail_zcnt64(x);
+                    uint64_t value = (i * 64 + idx) * prodN + sdata->rclass[current_line];
+                    if ((value >= sdata->orig_llimit) && (value <= sdata->orig_hlimit))
+                    {
+                        candidates[num_cand++] = value;
+                    }
+                    x = _reset_lsb64(x);
+                }
+
+#else
+                for (j = 0; j < 64; j++)
+                {
+                    if (x & (1ull << j))
+                    {
+                        uint64_t value = (i * 64 + j) * prodN + sdata->rclass[current_line];
+
+                        if ((value >= sdata->orig_llimit) && (value <= sdata->orig_hlimit))
+                        {
+                            candidates[num_cand++] = value;
+                        }
+                    }
+                }
+
+#endif
+
+                if (num_cand >= 64)
+                {
+                    printf("WARNING: too many candidates\n\n");
+                }
+
+                // next chunk
+                i++;
+            }
+
+#ifdef USE_AVX512F
+
+            if (mpz_sizeinbase(sdata->offset, 2) <= 104)
+            {
+                ALIGNED_MEM uint64_t n8[16];
+                uint8_t loc_msk;
+                uint8_t gmp_msk = 0;
+
+                for (j = 0, loc_msk = 0; j < MIN(8, num_cand); j++)
+                {
+                    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+
+                    loc_msk |= (1ull << j);
+
+                    n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+                    mpz_tdiv_q_2exp(tmpz, tmpz, 52);
+                    n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+                }
+
+                if (num_cand > 0)
+                {
+                    // fill any remaining spots with repeats of the last one:
+                    // not sure what MR_2sprp will do with garbage in a slot.
+                    for (; j < 8; j++)
+                    {
+                        n8[j] = n8[0];
+                        n8[j + 8] = n8[8];
+                    }
+
+                    uint8_t prpmask = loc_msk;
+                    //switch (sdata->witnesses)
+                    //{
+                    //case 1: prpmask &= fermat_prp_104x8(n8); break;
+                    //case 2: prpmask &= MR_2sprp_104x8(n8); break;
+                    //default: prpmask &= MR_2sprp_104x8(n8); break;
+                    prpmask &= MR_2sprp_104x8(n8); break;
+                    //}
+
+                    for (j = 0; j < num_cand; j++)
+                    {
+                        if (prpmask & (1ull << j))
+                        {
+                            it++;
+                        }
+
+                        candidates[j] = candidates[j + MIN(8, num_cand)];
+                    }
+                    num_cand -= MIN(8, num_cand);
+
+                    if (num_cand < 0)
+                    {
+                        printf("WARNING: num_cand < 0\n");
+                    }
+                }
+            }
+            else if (mpz_sizeinbase(sdata->offset, 2) <= 128)
+            {
+                for (j = 0; j < num_cand; j++)
+                {
+                    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                    uint64_t n128[2];
+                    n128[0] = mpz_get_ui(tmpz);
+                    mpz_tdiv_q_2exp(tmpz, tmpz, 64);
+                    n128[1] = mpz_get_ui(tmpz);
+                    if (bpsw_prp_128x1(n128))
+                    {
+                        it++;
+                    }
+                }
+                num_cand = 0;
+
+
+                //for (j = 0; j < num_cand; j++)
+                //{
+                //    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                //    if (mpz_bpsw_prp(tmpz))
+                //    {
+                //        it++;
+                //    }
+                //}
+                //num_cand = 0;
+            }
+            else
+            {
+                for (j = 0; j < num_cand; j++)
+                {
+                    mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                    if (mpz_strongbpsw_prp(tmpz))
+                    {
+                        it++;
+                    }
+                }
+                num_cand = 0;
+            }
+#else
+
+            for (j = 0; j < num_cand; j++)
+            {
+                mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+
+                if (mpz_sizeinbase(tmpz, 2) <= 128)
+                {
+                    uint64_t n128[2];
+                    n128[0] = mpz_get_ui(tmpz);
+                    mpz_tdiv_q_2exp(tmpz, tmpz, 64);
+                    n128[1] = mpz_get_ui(tmpz);
+                    if (fermat_prp_128x1(n128))
+                    {
+                        it++;
+                    }
+                }
+                else
+                {
+                    if (mpz_strongbpsw_prp(tmpz))
+                    {
+                        it++;
+                    }
+                }
+            }
+
+            num_cand = 0;
+
+#endif
+
+
+            if ((i > next_report) && (sdata->VFLAG > 0))
+            {
+                printf("PRP progress: %d%%\r",
+                    (int)((double)(i) / (double)(numchunks) * 100.0));
+                fflush(stdout);
+                next_report = i + 1000;
+            }
+
+        } while (i < numchunks);
+
+        mpz_clear(tmpz);
+        
+    }
+    else
+    {
+
 #ifdef USE_AVX2
 
-    __m256i v5, v3, v0f, v3f;
-    uint32_t *tmp;
+        __m256i v5, v3, v0f, v3f;
+        uint32_t* tmp;
 
-    v5 = _mm256_set1_epi32(0x55555555);
-    v3 = _mm256_set1_epi32(0x33333333);
-    v0f = _mm256_set1_epi32(0x0F0F0F0F);
-    v3f = _mm256_set1_epi32(0x0000003F);
-    tmp = (uint32_t *)xmalloc_align(8 * sizeof(uint32_t));
+        v5 = _mm256_set1_epi32(0x55555555);
+        v3 = _mm256_set1_epi32(0x33333333);
+        v0f = _mm256_set1_epi32(0x0F0F0F0F);
+        v3f = _mm256_set1_epi32(0x0000003F);
+        tmp = (uint32_t*)xmalloc_align(8 * sizeof(uint32_t));
 
-	uint64_t numchunks = (sdata->orig_hlimit - lowlimit) / (512 * prodN) + 1;
+        uint64_t numchunks = (sdata->orig_hlimit - lowlimit) / (512 * prodN) + 1;
 
-	stopcount = numchunks * 2; // i / 32;
-    for (i = 0; i < stopcount; i += 2)
-    {
-        __m256i t1, t2, t3, t4;
-        __m256i x = _mm256_load_si256((__m256i *)(&flagblock[32 * i]));
-        __m256i y = _mm256_load_si256((__m256i *)(&flagblock[32 * i + 32]));
-        t1 = _mm256_srli_epi64(x, 1);
-        t3 = _mm256_srli_epi64(y, 1);
-        t1 = _mm256_and_si256(t1, v5);
-        t3 = _mm256_and_si256(t3, v5);
-        x = _mm256_sub_epi64(x, t1);
-        y = _mm256_sub_epi64(y, t3);
-        t1 = _mm256_and_si256(x, v3);
-        t3 = _mm256_and_si256(y, v3);
-        t2 = _mm256_srli_epi64(x, 2);
-        t4 = _mm256_srli_epi64(y, 2);
-        t2 = _mm256_and_si256(t2, v3);
-        t4 = _mm256_and_si256(t4, v3);
-        x = _mm256_add_epi64(t2, t1);
-        y = _mm256_add_epi64(t4, t3);
-        t1 = _mm256_srli_epi64(x, 4);
-        t3 = _mm256_srli_epi64(y, 4);
-        x = _mm256_add_epi64(x, t1);
-        y = _mm256_add_epi64(y, t3);
-        x = _mm256_and_si256(x, v0f);
-        y = _mm256_and_si256(y, v0f);
-        t1 = _mm256_srli_epi64(x, 8);
-        t3 = _mm256_srli_epi64(y, 8);
-        x = _mm256_add_epi64(x, t1);
-        y = _mm256_add_epi64(y, t3);
-        t1 = _mm256_srli_epi64(x, 16);
-        t3 = _mm256_srli_epi64(y, 16);
-        x = _mm256_add_epi64(x, t1);
-        y = _mm256_add_epi64(y, t3);
-        t1 = _mm256_srli_epi64(x, 32);
-        t3 = _mm256_srli_epi64(y, 32);
-        x = _mm256_add_epi64(x, t1);
-        y = _mm256_add_epi64(y, t3);
-        x = _mm256_and_si256(x, v3f);
-        y = _mm256_and_si256(y, v3f);
-        _mm256_store_si256((__m256i *)tmp, x);
-        it += tmp[0] + tmp[2] + tmp[4] + tmp[6];
-        _mm256_store_si256((__m256i *)tmp, y);
-        it += tmp[0] + tmp[2] + tmp[4] + tmp[6];
-       
-    }
+        stopcount = numchunks * 2; // i / 32;
+        for (i = 0; i < stopcount; i += 2)
+        {
+            __m256i t1, t2, t3, t4;
+            __m256i x = _mm256_load_si256((__m256i*)(&flagblock[32 * i]));
+            __m256i y = _mm256_load_si256((__m256i*)(&flagblock[32 * i + 32]));
+            t1 = _mm256_srli_epi64(x, 1);
+            t3 = _mm256_srli_epi64(y, 1);
+            t1 = _mm256_and_si256(t1, v5);
+            t3 = _mm256_and_si256(t3, v5);
+            x = _mm256_sub_epi64(x, t1);
+            y = _mm256_sub_epi64(y, t3);
+            t1 = _mm256_and_si256(x, v3);
+            t3 = _mm256_and_si256(y, v3);
+            t2 = _mm256_srli_epi64(x, 2);
+            t4 = _mm256_srli_epi64(y, 2);
+            t2 = _mm256_and_si256(t2, v3);
+            t4 = _mm256_and_si256(t4, v3);
+            x = _mm256_add_epi64(t2, t1);
+            y = _mm256_add_epi64(t4, t3);
+            t1 = _mm256_srli_epi64(x, 4);
+            t3 = _mm256_srli_epi64(y, 4);
+            x = _mm256_add_epi64(x, t1);
+            y = _mm256_add_epi64(y, t3);
+            x = _mm256_and_si256(x, v0f);
+            y = _mm256_and_si256(y, v0f);
+            t1 = _mm256_srli_epi64(x, 8);
+            t3 = _mm256_srli_epi64(y, 8);
+            x = _mm256_add_epi64(x, t1);
+            y = _mm256_add_epi64(y, t3);
+            t1 = _mm256_srli_epi64(x, 16);
+            t3 = _mm256_srli_epi64(y, 16);
+            x = _mm256_add_epi64(x, t1);
+            y = _mm256_add_epi64(y, t3);
+            t1 = _mm256_srli_epi64(x, 32);
+            t3 = _mm256_srli_epi64(y, 32);
+            x = _mm256_add_epi64(x, t1);
+            y = _mm256_add_epi64(y, t3);
+            x = _mm256_and_si256(x, v3f);
+            y = _mm256_and_si256(y, v3f);
+            _mm256_store_si256((__m256i*)tmp, x);
+            it += tmp[0] + tmp[2] + tmp[4] + tmp[6];
+            _mm256_store_si256((__m256i*)tmp, y);
+            it += tmp[0] + tmp[2] + tmp[4] + tmp[6];
 
-    align_free(tmp);
+        }
+
+        align_free(tmp);
 
 #else
 
-	// process 64 bits at a time by using Warren's algorithm
-	uint64_t numchunks = (sdata->orig_hlimit - lowlimit) / (64 * prodN) + 1;
-    uint64_t* flagblock64 = (uint64_t*)line;
+        // process 64 bits at a time by using Warren's algorithm
+        uint64_t numchunks = (sdata->orig_hlimit - lowlimit) / (64 * prodN) + 1;
+        uint64_t* flagblock64 = (uint64_t*)line;
 
-    for (i = 0; i < numchunks; i++)
-	{
-		/* Convert to 64-bit unsigned integer */    
-		uint64_t x = flagblock64[i];
-		    
-		/*  Employ bit population counter algorithm from Henry S. Warren's
-			*  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
-			*  to accomdate 64 bit values.
-			*/
-        
-		x = x - ((x >> 1) & 0x5555555555555555ULL);
-		x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
-		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
-		x = x + (x >> 8);
-		x = x + (x >> 16);
-		x = x + (x >> 32);
+        for (i = 0; i < numchunks; i++)
+        {
+            /* Convert to 64-bit unsigned integer */
+            uint64_t x = flagblock64[i];
 
-		it += (x & 0x000000000000003FULL);
-        
-	}
+            /*  Employ bit population counter algorithm from Henry S. Warren's
+                *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
+                *  to accomdate 64 bit values.
+                */
+
+            x = x - ((x >> 1) & 0x5555555555555555ULL);
+            x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+            x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
+            x = x + (x >> 8);
+            x = x + (x >> 16);
+            x = x + (x >> 32);
+
+            it += (x & 0x000000000000003FULL);
+
+        }
 
 #endif
+
+    }
 
 	return it;
 }

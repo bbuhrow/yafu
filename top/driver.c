@@ -30,6 +30,7 @@ code to the public domain.
 #include <ecm.h>
 #include <immintrin.h>
 #include <stdio.h>
+#include "tinyecm.h"
 
 #if defined(__unix__)
 #include <termios.h>
@@ -1711,8 +1712,18 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         printf("TLP Tdiv exponent should be between 2.0 and 3.0; setting MFBT = %1.2f\n",
             options->siqsMFBT);
     }
+    if ((options->siqsMFBQ < 3.0) || (options->siqsMFBQ > 4.0))
+    {
+        if (options->siqsMFBQ < 3.0)
+            options->siqsMFBQ = 3.0;
+        if (options->siqsMFBQ > 4.0)
+            options->siqsMFBQ = 4.0;
+        printf("QLP Tdiv exponent should be between 3.0 and 4.0; setting MFBQ = %1.2f\n",
+            options->siqsMFBQ);
+    }
     fobj->qs_obj.gbl_override_mfbd = options->siqsMFBD;
     fobj->qs_obj.gbl_override_mfbt = options->siqsMFBT;
+    fobj->qs_obj.gbl_override_mfbq = options->siqsMFBQ;
     fobj->qs_obj.gbl_override_lpb = options->siqsLPB;
     if (options->siqsBDiv < 1.0)
     {
@@ -1725,6 +1736,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.flags = 0;
     fobj->qs_obj.gbl_force_DLP = options->siqsForceDLP;
     fobj->qs_obj.gbl_force_TLP = options->siqsForceTLP;
+    fobj->qs_obj.gbl_force_QLP = options->siqsForceQLP;
     fobj->qs_obj.qs_exponent = 0;
     fobj->qs_obj.qs_multiplier = 0;
     fobj->qs_obj.qs_tune_freq = 0;
@@ -1749,6 +1761,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.td = options->td;
     fobj->nfs_obj.poly_percent_max = options->poly_percent_max;
     fobj->nfs_obj.poly_testsieve = options->poly_testsieve;
+    fobj->nfs_obj.batch_3lp = options->nfs_batch_3lp;
 
     // raise min_rels bounds by a percentage
     // on unsuccessful filtering

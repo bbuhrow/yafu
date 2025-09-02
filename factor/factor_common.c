@@ -137,6 +137,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.flags = 0;
     fobj->qs_obj.gbl_force_DLP = 0;
     fobj->qs_obj.gbl_force_TLP = 0;
+    fobj->qs_obj.gbl_force_QLP = 0;
     fobj->qs_obj.qs_exponent = 0;
     fobj->qs_obj.qs_multiplier = 0;
     fobj->qs_obj.qs_tune_freq = 0;
@@ -184,6 +185,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.poly_testsieve = 390;
     fobj->nfs_obj.poly_percent_max = 8;
     fobj->nfs_obj.td = 0;
+    fobj->nfs_obj.batch_3lp = 0;
 
     fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
@@ -536,6 +538,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->nfs_obj.poly_percent_max = src->nfs_obj.poly_percent_max;
     dest->nfs_obj.poly_testsieve = src->nfs_obj.poly_testsieve;
     dest->nfs_obj.td = src->nfs_obj.td;
+    dest->nfs_obj.batch_3lp = src->nfs_obj.batch_3lp;
 
     dest->nfs_obj.polybatch = src->nfs_obj.polybatch;
     strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);

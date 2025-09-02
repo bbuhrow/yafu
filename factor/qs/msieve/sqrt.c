@@ -166,7 +166,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				   into y until all of the sieve values
 				   for this relation have been processed */
 
-				for (k = 0; k < 3; k++) {
+				for (k = 0; k < MAXLP; k++) {
 					prime = relation->large_prime[k];
 					if (prime == 1)
 						continue;

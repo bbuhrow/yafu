@@ -52,11 +52,6 @@ typedef struct
 
 typedef struct
 {
-	ALIGNED_MEM uint64_t data[2][8];
-} vec_u104_t;
-
-typedef struct
-{
 	base_t X[base_digits];
 	base_t Z[base_digits];
 } tinyecm_pt;
@@ -2795,15 +2790,6 @@ static void tinypm1(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2)
 /********************* 104-bit Vector Montgomery arith **********************/
 #define VECLEN 8
 
-#define tecm_and64 _mm512_and_epi64
-#define tecm_storeu64 _mm512_store_epi64
-#define tecm_add64 _mm512_add_epi64
-#define tecm_sub64 _mm512_sub_epi64
-#define tecm_set64 _mm512_set1_epi64
-#define tecm_srli64 _mm512_srli_epi64
-#define tecm_loadu64 _mm512_load_epi64
-#define tecm_castpd _mm512_castsi512_pd
-#define tecm_castepu _mm512_castpd_si512
 #define tecm_DIGIT_SIZE 52
 #define tecm_DIGIT_MASK 0x000fffffffffffffULL
 #define tecm_MB_WIDTH 8
@@ -2839,6 +2825,10 @@ typedef struct
 #define _mm512_loadu_epi64 _mm512_load_epi64
 #define _mm512_storeu_epi64 _mm512_store_epi64
 #endif
+
+#define tecm_set64 _mm512_set1_epi64
+#define tecm_castpd _mm512_castsi512_pd
+#define tecm_castepu _mm512_castpd_si512
 
 #ifdef IFMA
 
@@ -2891,88 +2881,6 @@ __inline static void tecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h
 }
 
 #endif
-
-#define tecm_carryprop(lo, hi, mask) \
-	{ __m512i a0 = _mm512_srli_epi64(lo, 52);	\
-	hi = _mm512_add_epi64(hi, a0);		\
-	lo = _mm512_and_epi64(mask, lo); }
-
-__m512i tecm_mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_add_epi64(a, b);
-	*cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_mask_addsetc_epi52(__m512i c, __mmask8 mask, __m512i a, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_add_epi64(a, b);
-	*cout = _mm512_mask_cmpgt_epu64_mask(mask, t, _mm512_set1_epi64(0xfffffffffffffULL));
-	t = _mm512_mask_and_epi64(c, mask, t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_subsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_sub_epi64(a, b);
-	*cout = _mm512_cmpgt_epu64_mask(b, a);
-	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_mask_subsetc_epi52(__m512i c, __mmask8 mask, __m512i a, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_sub_epi64(a, b);
-	*cout = _mm512_mask_cmpgt_epu64_mask(mask, b, a);
-	t = _mm512_mask_and_epi64(c, mask, t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_add_epi64(a, b);
-	t = _mm512_add_epi64(t, _mm512_maskz_set1_epi64(c, 1));
-	*cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_add_epi64(a, b);
-	t = _mm512_mask_add_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
-	*cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout)
-{
-	__m512i t = _mm512_add_epi64(a, _mm512_maskz_set1_epi64(c, 1));
-	*cout = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL));
-	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout)
-{
-	__m512i t = _mm512_sub_epi64(a, _mm512_maskz_set1_epi64(c, 1));
-	*cout = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0));
-	t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t;
-}
-__m512i tecm_mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_sub_epi64(a, b);
-	*cout = _mm512_cmpgt_epu64_mask(b, a);
-	__m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));
-	*cout = _mm512_kor(*cout, _mm512_cmpgt_epu64_mask(t2, t));
-	t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t2;
-}
-__m512i tecm_mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
-{
-	__m512i t = _mm512_mask_sub_epi64(a, m, a, b);
-	*cout = _mm512_mask_cmpgt_epu64_mask(m, b, a);
-	__m512i t2 = _mm512_mask_sub_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
-	*cout = _mm512_kor(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
-	t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
-	return t2;
-}
 
 __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t* y, vec_u104_t* N, vec_u104_t* invN)
 {
@@ -3049,8 +2957,8 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 	T2 = _mm512_add_epi64(T2, t1);
 	T1 = _mm512_add_epi64(T1, t2);
 	T2 = _mm512_add_epi64(T2, t3);
-	tecm_carryprop(T1, T2, lomask52);
-	tecm_carryprop(T2, T3, lomask52);
+	carryprop(T1, T2, lomask52);
+	carryprop(T2, T3, lomask52);
 
 	// get the low 104 bits of m = Tlo * invN
 	//tecm_mul52lohi(T0, invN0, &m0, &m1);
@@ -3117,8 +3025,8 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 	mN2 = _mm512_add_epi64(mN2, t1);
 	mN1 = _mm512_add_epi64(mN1, t2);
 	mN2 = _mm512_add_epi64(mN2, t3);
-	tecm_carryprop(mN1, mN2, lomask52);
-	tecm_carryprop(mN2, mN3, lomask52);
+	carryprop(mN1, mN2, lomask52);
+	carryprop(mN2, mN3, lomask52);
 
 	// result is (T - mN) >> 104
 	// unless T_hi < mN_hi
@@ -3130,12 +3038,12 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 
 	// subtract
 	__mmask8 bmsk;
-	T2 = tecm_mm512_subsetc_epi52(T2, mN2, &bmsk);
-	T3 = tecm_mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
+	T2 = _mm512_subsetc_epi52(T2, mN2, &bmsk);
+	T3 = _mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
 
 	// conditionally add N
-	T2 = tecm_mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
-	T3 = tecm_mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
+	T2 = _mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
+	T3 = _mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
 
 	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
 	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
@@ -3156,16 +3064,16 @@ __inline static void tecm_addmod104_x8(vec_u104_t* z, vec_u104_t* x, vec_u104_t*
 
 	// add
 	__mmask8 bmsk;
-	x0 = tecm_mm512_addsetc_epi52(x0, y0, &bmsk);
-	x1 = tecm_mm512_adc_epi52(x1, bmsk, y1, &bmsk);
+	x0 = _mm512_addsetc_epi52(x0, y0, &bmsk);
+	x1 = _mm512_adc_epi52(x1, bmsk, y1, &bmsk);
 
 	// compare
 	__mmask8 msk = bmsk | _mm512_cmpgt_epu64_mask(x1, N1);
 	msk |= (_mm512_cmpeq_epu64_mask(x1, N1) & _mm512_cmpge_epu64_mask(x0, N0));
 
 	// conditionally subtract N
-	x0 = tecm_mm512_mask_subsetc_epi52(x0, msk, x0, N0, &bmsk);
-	x1 = tecm_mm512_mask_sbb_epi52(x1, msk, bmsk, N1, &bmsk);
+	x0 = _mm512_mask_subsetc_epi52(x0, msk, x0, N0, &bmsk);
+	x1 = _mm512_mask_sbb_epi52(x1, msk, bmsk, N1, &bmsk);
 
 	_mm512_store_si512(z->data[0], _mm512_and_epi64(x0, lo52mask));
 	_mm512_store_si512(z->data[1], _mm512_and_epi64(x1, lo52mask));
@@ -3186,12 +3094,12 @@ __inline static void tecm_submod104_x8(vec_u104_t* z, vec_u104_t* x, vec_u104_t*
 
 	// subtract
 	__mmask8 bmsk;
-	x0 = tecm_mm512_subsetc_epi52(x0, y0, &bmsk);
-	x1 = tecm_mm512_sbb_epi52(x1, bmsk, y1, &bmsk);
+	x0 = _mm512_subsetc_epi52(x0, y0, &bmsk);
+	x1 = _mm512_sbb_epi52(x1, bmsk, y1, &bmsk);
 
 	// conditionally add N
-	x0 = tecm_mm512_mask_addsetc_epi52(x0, msk, x0, N0, &bmsk);
-	x1 = tecm_mm512_mask_adc_epi52(x1, msk, bmsk, N1, &bmsk);
+	x0 = _mm512_mask_addsetc_epi52(x0, msk, x0, N0, &bmsk);
+	x1 = _mm512_mask_adc_epi52(x1, msk, bmsk, N1, &bmsk);
 
 	_mm512_store_si512(z->data[0], _mm512_and_epi64(x0, lo52mask));
 	_mm512_store_si512(z->data[1], _mm512_and_epi64(x1, lo52mask));
@@ -3233,12 +3141,12 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 
 	// subtract
 	__mmask8 bmsk;
-	x0 = tecm_mm512_subsetc_epi52(w0, x0, &bmsk);
-	x1 = tecm_mm512_sbb_epi52(w1, bmsk, x1, &bmsk);
+	x0 = _mm512_subsetc_epi52(w0, x0, &bmsk);
+	x1 = _mm512_sbb_epi52(w1, bmsk, x1, &bmsk);
 
 	// conditionally add N
-	x0 = tecm_mm512_mask_addsetc_epi52(x0, msk, x0, N0, &bmsk);
-	x1 = tecm_mm512_mask_adc_epi52(x1, msk, bmsk, N1, &bmsk);
+	x0 = _mm512_mask_addsetc_epi52(x0, msk, x0, N0, &bmsk);
+	x1 = _mm512_mask_adc_epi52(x1, msk, bmsk, N1, &bmsk);
 	x0 = _mm512_and_epi64(x0, lo52mask);
 	x1 = _mm512_and_epi64(x1, lo52mask);
 
@@ -3290,8 +3198,8 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	T2 = _mm512_add_epi64(T2, t1);
 	T1 = _mm512_add_epi64(T1, t2);
 	T2 = _mm512_add_epi64(T2, t3);
-	tecm_carryprop(T1, T2, lomask52);
-	tecm_carryprop(T2, T3, lomask52);
+	carryprop(T1, T2, lomask52);
+	carryprop(T2, T3, lomask52);
 
 	// get the low 104 bits of m = Tlo * invN
 	//tecm_mul52lohi(T0, invN0, &m0, &m1);
@@ -3358,8 +3266,8 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	mN2 = _mm512_add_epi64(mN2, t1);
 	mN1 = _mm512_add_epi64(mN1, t2);
 	mN2 = _mm512_add_epi64(mN2, t3);
-	tecm_carryprop(mN1, mN2, lomask52);
-	tecm_carryprop(mN2, mN3, lomask52);
+	carryprop(mN1, mN2, lomask52);
+	carryprop(mN2, mN3, lomask52);
 
 	// result is (T - mN) >> 104
 	// unless T_hi < mN_hi
@@ -3371,12 +3279,12 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 
 	// subtract
 	bmsk;
-	T2 = tecm_mm512_subsetc_epi52(T2, mN2, &bmsk);
-	T3 = tecm_mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
+	T2 = _mm512_subsetc_epi52(T2, mN2, &bmsk);
+	T3 = _mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
 
 	// conditionally add N
-	T2 = tecm_mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
-	T3 = tecm_mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
+	T2 = _mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
+	T3 = _mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
 
 	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
 	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
@@ -3414,16 +3322,16 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 
 	// add
 	__mmask8 bmsk;
-	x0 = tecm_mm512_addsetc_epi52(w0, x0, &bmsk);
-	x1 = tecm_mm512_adc_epi52(w1, bmsk, x1, &bmsk);
+	x0 = _mm512_addsetc_epi52(w0, x0, &bmsk);
+	x1 = _mm512_adc_epi52(w1, bmsk, x1, &bmsk);
 
 	// compare
 	__mmask8 msk = bmsk | _mm512_cmpgt_epu64_mask(x1, N1);
 	msk |= (_mm512_cmpeq_epu64_mask(x1, N1) & _mm512_cmpge_epu64_mask(x0, N0));
 
 	// conditionally subtract N
-	x0 = tecm_mm512_mask_subsetc_epi52(x0, msk, x0, N0, &bmsk);
-	x1 = tecm_mm512_mask_sbb_epi52(x1, msk, bmsk, N1, &bmsk);
+	x0 = _mm512_mask_subsetc_epi52(x0, msk, x0, N0, &bmsk);
+	x1 = _mm512_mask_sbb_epi52(x1, msk, bmsk, N1, &bmsk);
 	x0 = _mm512_and_epi64(x0, lo52mask);
 	x1 = _mm512_and_epi64(x1, lo52mask);
 
@@ -3475,8 +3383,8 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	T2 = _mm512_add_epi64(T2, t1);
 	T1 = _mm512_add_epi64(T1, t2);
 	T2 = _mm512_add_epi64(T2, t3);
-	tecm_carryprop(T1, T2, lomask52);
-	tecm_carryprop(T2, T3, lomask52);
+	carryprop(T1, T2, lomask52);
+	carryprop(T2, T3, lomask52);
 
 	// get the low 104 bits of m = Tlo * invN
 	//tecm_mul52lohi(T0, invN0, &m0, &m1);
@@ -3543,8 +3451,8 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	mN2 = _mm512_add_epi64(mN2, t1);
 	mN1 = _mm512_add_epi64(mN1, t2);
 	mN2 = _mm512_add_epi64(mN2, t3);
-	tecm_carryprop(mN1, mN2, lomask52);
-	tecm_carryprop(mN2, mN3, lomask52);
+	carryprop(mN1, mN2, lomask52);
+	carryprop(mN2, mN3, lomask52);
 
 	// result is (T - mN) >> 104
 	// unless T_hi < mN_hi
@@ -3556,12 +3464,12 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 
 	// subtract
 	bmsk;
-	T2 = tecm_mm512_subsetc_epi52(T2, mN2, &bmsk);
-	T3 = tecm_mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
+	T2 = _mm512_subsetc_epi52(T2, mN2, &bmsk);
+	T3 = _mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
 
 	// conditionally add N
-	T2 = tecm_mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
-	T3 = tecm_mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
+	T2 = _mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
+	T3 = _mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
 
 	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
 	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));

@@ -31,7 +31,7 @@ extern "C" {
    three large primes, though relations with any number of
    large primes will be batched and factored */
 
-#define MAX_LARGE_PRIMES 3
+#define MAX_LARGE_PRIMES 4
 
 //typedef void (*print_relation_t)(savefile_t *savefile, int64_t a, uint32_t b,
 //			uint32_t *factors_r, uint32_t num_factors_r, 
@@ -51,7 +51,7 @@ typedef void (*print_relation_t)(void);
    any of the factors may be trivial */
 
 typedef struct {
-    uint32_t a;               // for siqs, index of a-poly in master list (was an int64)
+    uint64_t a;               // for siqs, index of a-poly in master list (was an int64)
 	uint32_t b;               // for siqs, index of b-poly within the indicated a-poly
     int32_t signed_offset;    // for siqs, location of relation in the block (new to struct)
 	uint8_t num_factors_r;     /* doesn't include large primes */
@@ -61,7 +61,8 @@ typedef struct {
 	uint32_t factor_list_word;  /* offset in an array of factors where
 				            all of the above above appear, in order */
     uint8_t success;
-    uint32_t lp_r[3];
+    uint32_t lp_r[MAX_LARGE_PRIMES];
+	uint32_t lp_a[MAX_LARGE_PRIMES];
 } cofactor_t;
 
 /* main structure controlling batch factoring. The main goal
@@ -84,22 +85,37 @@ typedef struct {
 	mpz_t prime_product;  /* product of primes used in the gcd */
 
 	tiny_qs_params *params;
-	uint32_t num_uecm[4];		/* calls to uecm to split 2LP on the f1r and f2r sides */
-	uint32_t num_tecm;			/* calls to tecm to split 3LP on the f1r side */
-	uint32_t num_tecm2;			/* calls to tecm to split 3LP on the f2r side */
+	uint32_t num_uecm[4];		/* calls to uecm to:
+									(0) split 2LP on the f1r side
+									(1) split 2LP on the f2r side
+									(2) split 2LP on the small side of TLP residues
+									(3) split 2LP on the large side of TLP residues */
+	uint32_t num_uecm_a[4];		// same for the other side
+	uint32_t num_tecm;			/* calls to tecm to split 3LP on the r side */
+	uint32_t num_tecm_a;		/* calls to tecm to split 3LP on the a side */
+	uint32_t num_tecm2;			/* calls to tecm to split non-GCD 3LP on the r side */
+	uint32_t num_tecm2_a;		/* calls to tecm to split non-GCD 3LP on the a side */
 	uint32_t num_qs;			/* tecm failures (in the future, handled by qs) */
+	uint32_t num_qs_a;			/* tecm failures (in the future, handled by qs) */
 	uint32_t num_attempt;		/* number of calls to check_relation (possibly involving ecm) */
 	uint32_t num_success;       /* number of surviving relations */
-	uint32_t num_abort[8];		/* stop because 1) to large f1r, 2) too-large single-word f2r, 
-								   3) too-large double-word f2r, 4) too-large triple-word f2r,
-								   5) prime triple word f2r, 6) prime double-word f2r,
-								   7) unsuitable 2LP uecm split, 8) unsuitable 3LP tecm split */
+	uint32_t num_abort[8];		/* stop because:
+								0) f2r has one factor that's too big,
+								1) f2r has 2 factors, at least one of which is too big (residue > LPB^2),
+								2) f2r contains a large prime: residue is less than (max-GCD-prime)^2
+								3) f2r has more than 2 factors; is > 64 bits
+								4) prime double-word f2r
+								5) non-useful f1r double-word split (factor larger than LPB)
+								6) non-useful f2r double-word split (factor larger than LPB)
+								7) non-useful f1r TLP split (factor larger than LPB), at any point in the process */
+	uint32_t num_abort_a[8];	// same but for the other side
 	uint32_t target_relations;  /* number of relations to batch up */
-	uint32_t lp_cutoff_r;       /* maximum size of rational factors */
+	uint64_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
 	mpz_t lp_cutoff_r3;        /* cube of lp_cutoff_r */
-	uint32_t lp_cutoff_a;       /* maximum size of algebraic factors */
+	uint64_t lp_cutoff_a;       /* maximum size of algebraic factors */
     mpz_t lp_cutoff_a2         /* square of lp_cutoff_a */;
+	mpz_t lp_cutoff_a3         /* cube of lp_cutoff_a */;
 	mpz_t min_prime2;          /* the square of the smallest prime that occurs in prime_product */
     mpz_t max_prime2;          /* the square of the largest prime that occurs in prime_product */
 	mpz_t max_prime3;          /* the cube of the largest prime that occurs in prime_product */
@@ -136,8 +152,8 @@ typedef struct {
    be not worth the trouble to do so manually */
 
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
-    uint32_t min_prime, uint32_t max_prime,
-    uint32_t lp_cutoff_r, uint32_t lp_cutoff_a,
+    uint32_t min_prime, uint64_t max_prime,
+    uint64_t lp_cutoff_r, uint64_t lp_cutoff_a,
     print_relation_t print_relation,
     int do_prime_product);
 
@@ -150,12 +166,11 @@ void relation_batch_free(relation_batch_t *rb);
    just involves modifying the base case of the recursion; maybe 
    that should be made into a callback */
 
-void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
+void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
 			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r,
 			uint32_t *factors_a, uint32_t num_factors_a, 
 			mpz_t unfactored_a,
-            mpz_t tmp_in,
 			relation_batch_t *rb);
 
 void check_batch_relation(relation_batch_t *rb,

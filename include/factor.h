@@ -246,12 +246,14 @@ typedef struct
     float gbl_override_bdiv;        // override the lpmax divider for batch GCD
     uint32_t gbl_btarget;             // the target number of batch relations
     uint32_t gbl_override_lpb;		// override the large prime bound (specified in bits)
+    double gbl_override_mfbq;		// override the mfbq exponent
     double gbl_override_mfbt;		// override the mfbt exponent
     double gbl_override_mfbd;		// override the mfbd exponent
     uint32_t gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
     uint32_t inmem_cutoff;          // below X digits, don't use savefile
     int gbl_force_DLP;
     int gbl_force_TLP;
+    int gbl_force_QLP;
 
     int gbl_override_B_flag;
     int gbl_override_small_cutoff_flag;
@@ -338,6 +340,7 @@ typedef struct
     int td;
     int poly_testsieve;
     int poly_percent_max;
+    int batch_3lp;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;

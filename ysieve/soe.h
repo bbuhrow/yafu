@@ -115,7 +115,7 @@ typedef struct
 	int analysis;		// 1 == compute all primes, 2 == twins, 3 == gaps
 	int gapmin;			// minimum gap size to search for with analysis=3;
 	int primeconst;		// prime constellation size to search for (default 2 == twins)
-	mpz_t *offset;
+	mpz_t offset;
 	int sieve_range;
 	uint64_t min_sieved_val;
 

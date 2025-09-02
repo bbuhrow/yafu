@@ -3281,6 +3281,72 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     return curve;
 }
 
+
+int prp_uecm(uint64_t n)
+{
+    uint64_t rho = uecm_multiplicative_inverse(n);
+    uint64_t unityval = ((uint64_t)0 - n) % n;   // unityval == R  (mod n)
+    uint64_t result = unityval;
+    uint64_t e = (n - 1); // / 2;
+
+#if defined(USE_AVX2) || defined(USE_AVX512F)
+    // technically need to check the ABM flag, but I don't
+    // have that in place anywhere yet.  AVX2 is generally equivalent.
+
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint64_t m = 1ULL << (62 - __lzcnt64(n));   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#else
+    // these builtin functions will have an efficient implementation
+    // for the current processor architecture.
+#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
+
+    uint32_t pos;
+    if (_BitScanReverse64(&pos, n))
+        return pos;
+    else
+        return 64;
+
+    uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
+
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
+
+    uint64_t m = 1ULL << (62 - __builtin_clzll(n));
+
+#endif
+
+#endif
+
+    result = uecm_addmod(result, result, n);
+
+    while (m > 0)
+    {
+        result = uecm_mulredc(result, result, n, rho);
+        if (e & m) result = uecm_addmod(result, result, n);
+        m >>= 1;
+    }
+
+    // - Fermat primality check:
+    //   (2^(n-1) == 1) mod n
+    return (int)(result == unityval);
+    // 
+    // - Euler's criterion 2^(n>>1) == legendre_symbol(2,n) (https://en.wikipedia.org/wiki/Euler%27s_criterion)
+    // - Euler primality check:
+    //   (2^(n>>1) == 1) mod n
+    //   (2^(n>>1) == n-1) mod n
+    uint64_t legendre = ((n >> 1) ^ (n >> 2)) & 1;	// shortcut calculation of legendre symbol
+    uint64_t m1 = uecm_submod(n, unityval, n);
+    return ((result == (legendre ? m1 : unityval)));
+}
+
+
 #ifdef USE_AVX512F
 
 static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B2,

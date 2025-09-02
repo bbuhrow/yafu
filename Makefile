@@ -265,6 +265,7 @@ COMMON_SRCS = \
 	arith/arith.c \
 	arith/monty.c \
 	arith/fftmul.c \
+	top/aprcl/tinyprp.c \
 	factor/gmp-ecm/tinyecm.c \
 	factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c \
@@ -281,7 +282,7 @@ COMMON_SRCS = \
 	ysieve/worker.c \
 	ysieve/soe_util.c \
 	ysieve/wrapper.c \
-	top/aprcl/mpz_aprcl.c \
+	top/aprcl/mpz_aprcl.c
 
 ECM_SRCS = \
 	factor/gmp-ecm/ecm.c \
@@ -381,7 +382,8 @@ COMMON_HEAD = include/gmp_xface.h \
 	ytools/threadpool.h \
 	ysieve/soe.h  \
     ysieve/soe_impl.h \
-	top/aprcl/mpz_aprcl.h \
+	top/aprcl/tinyprp.h \
+	top/aprcl/mpz_aprcl.h
 	
 ECM_HEAD = include/yafu_ecm.h \
 	factor/avx-ecm/avx_ecm.h \

@@ -154,7 +154,7 @@ void *soe_worker_thread_main(void *thread_data) {
                 mpz_t tmpz;
                 mpz_init(tmpz);
 
-                mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
+                mpz_add_ui(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
                 for (i = t->startid; i < t->stopid; i++)
                 {
                     uint32_t inv;
@@ -344,7 +344,7 @@ void *soe_worker_thread_main(void *thread_data) {
 				mpz_t tmpz;
 				mpz_init(tmpz);
 
-				mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
+				mpz_add_ui(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
 				for (i = t->startid; i < t->stopid; i++)
 				{
 					uint32_t inv;
