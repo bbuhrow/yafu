@@ -158,7 +158,7 @@ static char function_names[NUM_FUNC][11] = {
     "hamdist", "snfs", "rsa", "factor", "pm1",
     "pp1", "rho", "trial", "shanks", "siqs",
     "primes", "torture", "ecm", "llt", "siqsbench",
-    "sigma", "totient", "smallmpqs", "testrange", "sieverange",
+    "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
     "divisors"};
@@ -177,7 +177,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 2, 1, 1, 1, 
     3, 1, 2, 1, 1, 
     3, 2, 2, 1, 0, 
-    2, 1, 1, 4, 4, 
+    2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 2,
     1};
@@ -2860,68 +2860,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
     case 68:
         // testrange - 4 arguments (low, high, depth, witnesses)
-        if (check_args(funcnum, nargs)) break;
-
-        // move to soe library...
-        {
-            uint64_t num_found;
-            uint64_t* primes;
-            uint64_t range;
-            mpz_t lowz, highz;
-
-            primes = NULL;
-
-            mpz_init(lowz);
-            mpz_init(highz);
-            mpz_set(lowz, operands[0]);
-            mpz_set(highz, operands[1]);
-
-            uint64_t* sievep, nump, pmax, pmin;
-            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            sievep = soe_wrapper(sdata, 0, mpz_get_ui(operands[2]), 0, &nump, 0, 0);
-
-            if (sievep != NULL)
-            {
-                pmin = sievep[0];
-                pmax = sievep[nump - 1];
-            }
-
-            sdata->num_sp = nump;
-            sdata->sieve_p = (uint32_t*)xrealloc(sdata->sieve_p, nump * sizeof(uint32_t));
-            for (i = 0; i < nump; i++)
-            {
-                sdata->sieve_p[i] = sievep[i];
-            }
-
-            free(sievep);
-
-            primes = sieve_to_depth(sdata, lowz, highz,
-                0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
-                &num_found, metadata->pscreen, metadata->pfile);
-
-            if (metadata->pscreen)
-            {
-                for (i = 0; i < num_found; i++)
-                {
-                    mpz_add_ui(mp1, lowz, primes[i]);
-                    gmp_printf("%Zd\n", mp1);
-                }
-            }
-
-            if (!NULL)
-                free(primes);
-
-            mpz_clear(lowz);
-            mpz_clear(highz);
-            mpz_set_ui(operands[0], num_found);
-            soe_finalize(sdata);
-        }
+        printf("deprecated, please use function sieverange(low, high, sievedepth)\n");
 
         break;
 
     case 69:
-        // sieverange - 4 arguments
-        // range lo, range hi, sieve bound, count
+        // bigprimes - 3 arguments
+        // range lo, range hi, sieve bound
+        // future: 4th argument = prp method
+        // for now we use 1 witness to a SPRP function.
         if (check_args(funcnum, nargs)) break;
 
         {
@@ -2948,7 +2895,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             }
 
             primes = sieve_to_depth(sdata, lowz, highz,
-                mpz_get_ui(operands[3]), 1, mpz_get_ui(operands[2]),
+                0, 1, mpz_get_ui(operands[2]),
                 &num_found, metadata->pscreen, metadata->pfile);
 
             gettimeofday(&tstop, NULL);

@@ -77,56 +77,67 @@ void compute_prps_work_fcn(void *vptr)
 	int witnesses = sdata->witnesses;
     int i;
 
+#if USE_AVX512F
+	// if we have avx512 functions
+	mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[t->stopid - 1]);
 
-
-    
-#if 0
+	// and maximum value is less than 104 bits,
+	// and standard prime detection is requested (not gaps or twins)
+	if ((mpz_sizeinbase(t->tmpz, 2) < 104) && (sdata->analysis == 1))
+	{
 
 #ifndef IFMA
-	dbias = _mm512_castsi512_pd(set64(0x4670000000000000ULL));
-	vbias1 = set64(0x4670000000000000ULL);
-	vbias2 = set64(0x4670000000000001ULL);
-	vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);
+		dbias = _mm512_castsi512_pd(set64(0x4670000000000000ULL));
+		vbias1 = set64(0x4670000000000000ULL);
+		vbias2 = set64(0x4670000000000001ULL);
+		vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);
 #endif
 
-    t->linecount = 0;
-	for (i = t->startid; i < t->stopid - 8; i += 8)
-	{
-		if ((((i - t->startid) & 8191) == 0) && (sdata->VFLAG > 0))
+		// use fast sprp functions
+		t->linecount = 0;
+		for (i = t->startid; i < t->stopid - 8; i += 8)
 		{
-			printf("thread %d progress: %d%%\r", tdata->tindex,
-				(int)((double)(i - t->startid) / (double)(t->stopid - t->startid) * 100.0));
-			fflush(stdout);
-		}
-
-		ALIGNED_MEM uint64_t n8[16];
-		int j;
-		uint8_t valid_msk = 0;
-
-		for (j = 0; j < 8; j++)
-		{
-			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i + j - t->startid]);
-
-			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+			if ((((i - t->startid) & 8191) == 0) && (sdata->VFLAG > 0))
 			{
-				n8[j] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
-				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 52);
-				n8[j + 8] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
-				valid_msk |= (1 << j);
+				printf("thread %d progress: %d%%\r", tdata->tindex,
+					(int)((double)(i - t->startid) / (double)(t->stopid - t->startid) * 100.0));
+				fflush(stdout);
 			}
+
+			ALIGNED_MEM uint64_t n8[16];
+			int j;
+			uint8_t valid_msk = 0;
+
+			for (j = 0; j < 8; j++)
+			{
+				mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i + j - t->startid]);
+
+				if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+				{
+					n8[j] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
+					mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 52);
+					n8[j + 8] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
+					valid_msk |= (1 << j);
+				}
+			}
+
+			uint8_t prpmask = valid_msk & MR_2sprp_104x8(n8);
+			t->linecount += _mm_popcnt_u32(prpmask);
+
+			//for (j = 0; j < 8; j++)
+			//{
+			//	if (prpmask & (1 << j))
+			//	{
+			//		t->ddata.primes[t->linecount++] = t->ddata.primes[i + j - t->startid];
+			//	}
+			//}
+
 		}
-
-		uint8_t prpmask = valid_msk & MR_2sprp_104x8(n8);
-		t->linecount += _mm_popcnt_u32(prpmask);
-
-		//for (j = 0; j < 8; j++)
-		//{
-		//	if (prpmask & (1 << j))
-		//	{
-		//		t->ddata.primes[t->linecount++] = t->ddata.primes[i + j - t->startid];
-		//	}
-		//}
-
+	}
+	else
+	{
+		// use GMP
+		i = 0;
 	}
 
 	for ( ; i < t->stopid; i++)
@@ -141,36 +152,67 @@ void compute_prps_work_fcn(void *vptr)
             fflush(stdout);
         }
 
-        mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
-        if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
-        {
-			//gmp_printf("candidate %Zd... ", t->tmpz);
-            //if (mpz_extrastrongbpsw_prp(t->tmpz))
-            if (mpz_probab_prime_p(t->tmpz, witnesses))
-            {
-				if (sdata->analysis == 2)
+		if (mpz_sizeinbase(t->tmpz, 2) < 128)
+		{
+			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
+			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+			{
+				//gmp_printf("candidate %Zd... ", t->tmpz);
+				//if (mpz_extrastrongbpsw_prp(t->tmpz))
+				uint64_t n64[2];
+				n64[0] = mpz_get_ui(t->tmpz);
+				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 64);
+				n64[1] = mpz_get_ui(t->tmpz);
+				if (MR_2sprp_128x1(n64))
 				{
-					// also need to check the twin
-					//gmp_printf("and twin %Zd is...", t->tmpz);
-					mpz_add_ui(t->tmpz, t->tmpz, 2);
-					if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
+					if (sdata->analysis == 2)
 					{
-						t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
-						//printf("prime!\n");
+						// also need to check the twin
+						//gmp_printf("and twin %Zd is...", t->tmpz);
+						mpz_add_ui(t->tmpz, t->tmpz, 2);
+						if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
+						{
+							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+							//printf("prime!\n");
+						}
+					}
+					else
+					{
+						//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+						t->linecount++;
 					}
 				}
-				else
-				{
-					//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
-					t->linecount++;
-				}
-				//printf("prime!\n");
-            }
-			else
-			{
-				//printf("not prime\n");
 			}
-        }
+		}
+		else
+		{
+			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
+			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+			{
+				//gmp_printf("candidate %Zd... ", t->tmpz);
+				//if (mpz_extrastrongbpsw_prp(t->tmpz))
+
+				if (mpz_probab_prime_p(t->tmpz, witnesses))
+				{
+					if (sdata->analysis == 2)
+					{
+						// also need to check the twin
+						//gmp_printf("and twin %Zd is...", t->tmpz);
+						mpz_add_ui(t->tmpz, t->tmpz, 2);
+						if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
+						{
+							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+							//printf("prime!\n");
+						}
+					}
+					else
+					{
+						//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+						t->linecount++;
+					}
+				}
+			}
+		}
     }
 
     return;
@@ -567,17 +609,19 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		if (num_witnesses > 0)
 		{
 			sdata->witnesses = num_witnesses;
-			//switch (num_witnesses)
-			//{
-			//case 1: printf("verifying candidates with base-2 Fermat PRP check\n"); break;
-			//default: printf("verifying candidates with base-2 strong PRP (MR) check\n"); break;
-			//}
+#if 0
+			switch (num_witnesses)
+			{
+			case 1: printf("verifying candidates with base-2 Fermat PRP check\n"); break;
+			default: printf("verifying candidates with base-2 strong PRP (MR) check\n"); break;
+			}
+#endif
 			
 		}
 	}
 	else
 	{
-		gmp_printf("generating prime in interval %Zd + (%" PRIu64 ":%" PRIu64 ") with %u sieve primes\n",
+		gmp_printf("generating primes in interval %Zd + (%" PRIu64 ":%" PRIu64 ") with %u sieve primes\n",
 			offset, 0, range, sdata->num_sp);
 	}
 
@@ -593,7 +637,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 		if (num_witnesses > 0)
 		{
-			thread_soedata_t *thread_data;		//an array of thread data objects
+			thread_soedata_t *thread_data;
 			uint32_t lastid;
 			int j;
 
@@ -601,7 +645,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
             tpool_t *tpool_data;
             soe_userdata_t udata;
 
-			//allocate thread data structure
+			// allocate thread data structure
 			thread_data = (thread_soedata_t *)malloc(sdata->THREADS * sizeof(thread_soedata_t));
 			
 			// conduct PRP tests on all surviving values
@@ -646,37 +690,52 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 				retval = 0;
 
-#if 0
-				for (i = 0; i < range - 8; i += 8)
+#if USE_AVX512F
+				// if we have avx512 functions
+				mpz_add_ui(tmpz, offset, values[range - 1]);
+
+				// and maximum value is less than 104 bits
+				// and standard prime detection is requested (not gaps or twins)
+				if ((mpz_sizeinbase(tmpz, 2) < 104) && (sdata->analysis == 1))
 				{
-					if (((i & 8191) == 0) && (sdata->VFLAG > 0))
+					// use fast sprp function
+					for (i = 0; i < range - 8; i += 8)
 					{
-						printf("progress: %d%%\r",
-							(int)((double)(i) / (double)(range) * 100.0));
-						fflush(stdout);
+						if (((i & 8191) == 0) && (sdata->VFLAG > 0))
+						{
+							printf("progress: %d%%\r",
+								(int)((double)(i) / (double)(range) * 100.0));
+							fflush(stdout);
+						}
+
+						ALIGNED_MEM uint64_t n8[16];
+						uint8_t loc_msk = 0;
+						int j;
+
+						for (j = 0; j < 8; j++)
+						{
+							mpz_add_ui(tmpz, offset, values[i + j]);
+
+							n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+							mpz_tdiv_q_2exp(tmpz, tmpz, 52);
+							n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+
+						}
+
+						uint8_t prpmask = MR_2sprp_104x8(n8);
+						retval += _mm_popcnt_u32(prpmask);
 					}
-
-					ALIGNED_MEM uint64_t n8[16];
-					uint8_t loc_msk = 0;
-					int j;
-
-					for (j = 0; j < 8; j++)
-					{
-						mpz_add_ui(tmpz, offset, values[i + j]);
-
-						n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
-						mpz_tdiv_q_2exp(tmpz, tmpz, 52);
-						n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
-
-					}
-
-					uint8_t prpmask = MR_2sprp_104x8(n8);
-					retval += _mm_popcnt_u32(prpmask);
+				}
+				else
+				{
+					// use GMP
+					i = 0;
 				}
 
 				for ( ; i < range; i++)
 #else
-				for (i = 0; i < range; i += 8)
+				// use GMP
+				for (i = 0; i < range; i++)
 #endif
 				{
 					if (((i & 8191) == 0) && (sdata->VFLAG > 0))
@@ -686,31 +745,58 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					    fflush(stdout);
 					}
 
-					mpz_add_ui(tmpz, offset, values[i]);
-					if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+					if (mpz_sizeinbase(tmpz, 2) < 128)
 					{
-						//gmp_printf("candidate %Zd is...", tmpz);
-						//if (mpz_extrastrongbpsw_prp(t->tmpz))
-						if (mpz_probab_prime_p(tmpz, num_witnesses))
+						mpz_add_ui(tmpz, offset, values[i]);
+						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 						{
-							if (sdata->analysis == 2)
+							//gmp_printf("candidate %Zd... ", t->tmpz);
+							//if (mpz_extrastrongbpsw_prp(t->tmpz))
+							uint64_t n64[2];
+							n64[0] = mpz_get_ui(tmpz);
+							mpz_tdiv_q_2exp(tmpz, tmpz, 64);
+							n64[1] = mpz_get_ui(tmpz);
+							if (MR_2sprp_128x1(n64))
 							{
-								// also need to check the twin
-								mpz_add_ui(tmpz, tmpz, 2);
-								if (mpz_probab_prime_p(tmpz, num_witnesses))
+								if (sdata->analysis == 2)
+								{
+									// also need to check the twin
+									mpz_add_ui(tmpz, tmpz, 2);
+									if (mpz_probab_prime_p(tmpz, num_witnesses))
+									{
+										values[retval++] = values[i];
+									}
+								}
+								else
 								{
 									values[retval++] = values[i];
 								}
 							}
-							else
-							{
-								values[retval++] = values[i];
-							}
-							//printf("prime!\n");
 						}
-						else
+					}
+					else
+					{
+						mpz_add_ui(tmpz, offset, values[i]);
+						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 						{
-							//printf("not prime\n");
+							//gmp_printf("candidate %Zd is...", tmpz);
+							//if (mpz_extrastrongbpsw_prp(t->tmpz))
+							if (mpz_probab_prime_p(tmpz, num_witnesses))
+							{
+								if (sdata->analysis == 2)
+								{
+									// also need to check the twin
+									mpz_add_ui(tmpz, tmpz, 2);
+									if (mpz_probab_prime_p(tmpz, num_witnesses))
+									{
+										values[retval++] = values[i];
+									}
+								}
+								else
+								{
+									values[retval++] = values[i];
+								}
+							}
 						}
 					}
 				}

@@ -576,21 +576,12 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     soffset *= -1;
                 }
 
-                //if (0) //dconf->num_alp == 1)
-                //{
-                //    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
-                //    {
-                //        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //    }
-                //    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                //    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //}
-
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
 
+                // batch factoring code is used on both GGNFS and SIQS relations.  GGNFS 
+                // use negative number to indicate factorization is needed.  We comply with
+                // that interface specification here: negate the Qval to be factored.
                 mpz_set_ui(dconf->gmptmp1, 0);
                 mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
                 relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
@@ -701,15 +692,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
-                            //c->extra_f = c->a >> 32;
-                            //c->a &= 0xffffffffull;
-                            //
-                            //if (c->extra_f > 0)
-                            //{
-                            //    //printf("buffering TLP + extra factor %u\n", c->extra_f);
-                            //    c->lp_r[c->success++] = c->extra_f;
-                            //}
-
                             if (c->success == 4)
                             {
                                 dconf->qlp_useful++;
@@ -798,24 +780,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                 {
                     soffset *= -1;
                 }
-
-                //if (dconf->num_alp == 1)
-                //{
-                //    printf("****** warning 4+1 LPs not supported yet\n");
-                //
-                //    //mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //    if (dconf->curr_poly->qlisort[dconf->curr_poly->s - 1] < sconf->pmax)
-                //    {
-                //        printf("last qli entry too small: %u\n", dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //    }
-                //    //mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
-                //    //    dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //    mpz_set_ui(dconf->gmptmp1, dconf->curr_poly->qlisort[dconf->curr_poly->s - 1]);
-                //}
-                //else
-                //{
-                //    mpz_set_ui(dconf->gmptmp1, 0);
-                //}
 
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
@@ -928,15 +892,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         if (c->success)
                         {
                             uint8_t parity = c->signed_offset < 0 ? 1 : 0;
-
-                            //c->extra_f = c->a >> 32;
-                            //c->a &= 0xffffffffull;
-                            //
-                            //if (c->extra_f > 0)
-                            //{
-                            //    //printf("buffering TLP + extra factor %u\n", c->extra_f);
-                            //    c->lp_r[c->success++] = c->extra_f;
-                            //}
 
                             if (c->success == 4)
                             {
