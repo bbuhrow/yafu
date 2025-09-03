@@ -186,13 +186,13 @@ void check_poly(snfs_t *poly, int VFLAG)
 		//if (VFLAG > 0) 
 		{
 			printf("nfs: checking degree %d poly\n", poly->poly->alg.degree);
-			gmp_fprintf(stdout, "Error: M=%Zd is not a root of f(x) % N\n"
+			gmp_printf("Error: M=%Zd is not a root of f(x) mod N\n"
 				"n = %Zd\n", poly->poly->m, poly->n);
-			fprintf (stderr, "f(x) = ");
+			printf("f(x) = ");
 			for (i = poly->poly->alg.degree; i >= 0; i--)
-				gmp_fprintf (stderr, "%c %Zd*x^%d ",
+				gmp_printf ("%c %Zd*x^%d ",
 				(mpz_cmp_ui(poly->c[i],0) < 0) ? '-' : '+', poly->poly->alg.coeff[i], i);
-			gmp_fprintf (stderr, "\n""Remainder is %Zd\n\n", t);
+			gmp_printf ("\n""Remainder is %Zd\n\n", t);
 		}
 	}
 	
@@ -203,7 +203,7 @@ void check_poly(snfs_t *poly, int VFLAG)
 	{
 		poly->valid = 0;
 		//if (VFLAG > 0)
-		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n",
+		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) mod N\n" "Remainder is %Zd\n\n",
 			poly->n, poly->poly->m, t);
 	}
 	
@@ -512,7 +512,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		maxb = MAX_SNFS_BITS / log((double)i) + 1;
 
 		if (fobj->VFLAG > 1)
-			printf("nfs: checking a*b^x +/- c for 32 <= x <= %d\n", maxb);
+			printf("nfs: checking a*b^x +/- c for b = %d and 32 <= x <= %d\n", i, maxb);
 
 		for (j=startb; j<maxb; j++)
 		{
@@ -522,7 +522,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_mod(r, r, p);		// r = (n + 2^30) % i^j
 
 			// now, if r is a single limb, then the input has a small coefficient
-			if (mpz_sizeinbase(r,2) <= 32)
+			if (mpz_sizeinbase(r,2) <= 31)
 			{
 				// get the second coefficient first
 				int sign, c1, c2;
@@ -626,7 +626,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_sub(q, n, r);
 
 			// now, if r is a single limb, then the input has a small coefficient
-			if ((mpz_sizeinbase(r,2) <= 32) || (mpz_sizeinbase(q,2) <= 32))
+			if ((mpz_sizeinbase(r,2) <= 31) || (mpz_sizeinbase(q,2) <= 31))
 			{
 				// get the second coefficient first
 				int sign, c1, c2;
@@ -4344,8 +4344,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_init(tmp);
 
 		mpz_set(m, b);
-		if (!mpz_probab_prime_p(m,10))
+		if (!mpz_probab_prime_p(m, 10))
+		{
 			numf = tdiv_mpz(b, f, fobj->primes, fobj->num_p);
+			gmp_printf("gen: composite base %Zd has %d factors\n", b, numf);
+		}
 
 		// initialize candidate polynomials now that we know how many we'll need.
 		// each factor of the base generates two, plus 2 for
@@ -4532,6 +4535,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_tdiv_q(polys[npoly].c[i], polys[npoly].c[i], tmp);
 				mpz_tdiv_q(polys[npoly].c[0], polys[npoly].c[0], tmp);
 
+				// printf("increasing exponent:\n");
+				// gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
+				// gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
+				// printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
+				// printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
+
 				check_poly(&polys[npoly], fobj->VFLAG);
 				approx_norms(&polys[npoly]);
 				
@@ -4569,10 +4578,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				//skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
 				skew = pow(fabs(mpz_get_d(c0)) / mpz_get_d(cd), 1./(double)i);
 
-                //gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
-                //gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
-                //printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
-                //printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
+				// printf("decreasing exponent:\n");
+                // gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
+                // gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
+                // printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
+                // printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
 
 				// leading coefficient contributes to the difficulty
 				d += log10(mpz_get_d(cd));
@@ -4636,7 +4646,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					// factor to a multiple of degree
 					for (j=0; j<numf; j++)
 					{
-						int k, i1, i2, bb;
+						int k, i1, i2;
 
 						// unique factor
 						if (j > 0)
@@ -4662,7 +4672,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						mpz_mul(cd, cd, tmp);
 
 
-						bb = 1;
+						mpz_set_ui(t, 1);
 						i2 = e % i;
 						for (k=0; k<numf; k++)
 						{
@@ -4672,7 +4682,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							mpz_pow_ui(tmp, tmp, i2);
 							mpz_mul(cd, cd, tmp);
 
-							bb *= f[k];
+							mpz_mul_ui(t, t, f[k]);
 						}
 						// m is now a mix of powers of factors of b.
 						// here is the contribution of the factor we increased
@@ -4681,7 +4691,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						mpz_pow_ui(m, m, me);
 						// here is the contribution of the factors we decreased
 						me = (e-i2) / i;
-						mpz_set_si(n, bb);
+						mpz_set(n, t);
 						mpz_pow_ui(n, n, me);
 						// combine them and compute the base difficulty
 						mpz_mul(m, m, n);
@@ -4758,9 +4768,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						mpz_pow_ui(tmp, b2, i1);
 						mpz_mul(c0, c0, tmp);
 
-						bb = 1;
+						mpz_set_ui(t, 1);
 						i2 = (i - e % i);
-						for (k=0; k<numf; k++)
+						for (k = 0; k < numf; k++)
 						{
 							if (k == j) continue;
 							//c0 *= (int64)pow((double)f[k], i2);
@@ -4768,7 +4778,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							mpz_pow_ui(tmp, tmp, i2);
 							mpz_mul(c0, c0, tmp);
 
-							bb *= f[k];
+							mpz_mul_ui(t, t, f[k]);
 						}
 						// m is now a mix of powers of factors of b.
 						// here is the contribution of the factor we decreased
@@ -4777,7 +4787,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						mpz_pow_ui(m, m, me);
 						// here is the contribution of the factors we increased
 						me = (e+i2) / i;
-						mpz_set_si(n, bb);
+						mpz_set(n, t);
 						mpz_pow_ui(n, n, me);
 						// combine them and compute the base difficulty
 						mpz_mul(m, m, n);
@@ -5112,6 +5122,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 						// otherwise this would be the same as moving the whole composite base up.
 						// also move the second term up...
 						cd = pow((double)b2, i1) * poly->coeff1;
+						
 						bb = 1;
 						i2 = e % deg;
 						for (k = 0; k < numf; k++)
@@ -5915,6 +5926,14 @@ int tdiv_mpz(mpz_t x, int *factors, uint64_t* primes, uint64_t num_p)
 			mpz_tdiv_q_ui(xx, xx, q);
 			factors[numf++] = q;
 		}
+	}
+
+	if (mpz_cmp_ui(xx, 1) > 0)
+	{
+		if (mpz_probab_prime_p(xx, 1))
+			factors[numf++] = mpz_get_ui(xx);
+		else
+			numf = 0;
 	}
 
 	return numf;
