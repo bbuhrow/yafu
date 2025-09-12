@@ -396,6 +396,22 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 	return;
 }
 
+uint64_t multiplicative_inverse(uint64_t a)
+{
+	// compute the 64-bit inverse of a mod 2^64
+	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+	uint64_t x0 = (3 * a) ^ 2;
+	uint64_t y = 1 - a * x0;
+	uint64_t x1 = x0 * (1 + y);
+	y *= y;
+	uint64_t x2 = x1 * (1 + y);
+	y *= y;
+	uint64_t x3 = x2 * (1 + y);
+	y *= y;
+	uint64_t x4 = x3 * (1 + y);
+	return x4;
+}
+
 /********************* start of Perig's 128-bit code **********************/
 // Note: slightly modified modular subtract at the end
 #ifdef USE_PERIG_128BIT
@@ -1561,22 +1577,6 @@ void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0
 
 /********************* 104-bit Vector Montgomery arith **********************/
 // speed critical functions are declared as static inline in the header
-
-uint64_t multiplicative_inverse(uint64_t a)
-{
-	// compute the 64-bit inverse of a mod 2^64
-	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
-	uint64_t x0 = (3 * a) ^ 2;
-	uint64_t y = 1 - a * x0;
-	uint64_t x1 = x0 * (1 + y);
-	y *= y;
-	uint64_t x2 = x1 * (1 + y);
-	y *= y;
-	uint64_t x3 = x2 * (1 + y);
-	y *= y;
-	uint64_t x4 = x3 * (1 + y);
-	return x4;
-}
 
 __m512i multiplicative_inverse104_x8(uint64_t* a)
 {
