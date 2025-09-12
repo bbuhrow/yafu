@@ -58,54 +58,6 @@ typedef struct
 
 typedef struct
 {
-	ALIGNED_MEM vec_u104_t X;
-	ALIGNED_MEM vec_u104_t Z;
-} tecm_pt_x8;
-
-typedef struct
-{
-	ALIGNED_MEM vec_u104_t sum1;
-	ALIGNED_MEM vec_u104_t diff1;
-	ALIGNED_MEM vec_u104_t sum2;
-	ALIGNED_MEM vec_u104_t diff2;
-	ALIGNED_MEM vec_u104_t tt1;
-	ALIGNED_MEM vec_u104_t tt2;
-	ALIGNED_MEM vec_u104_t tt3;
-	ALIGNED_MEM vec_u104_t tt4;
-	ALIGNED_MEM vec_u104_t tt5;
-	ALIGNED_MEM vec_u104_t s;
-	ALIGNED_MEM vec_u104_t n;
-	ALIGNED_MEM tecm_pt_x8 pt1;
-	ALIGNED_MEM tecm_pt_x8 pt2;
-	ALIGNED_MEM tecm_pt_x8 pt3;
-	ALIGNED_MEM tecm_pt_x8 pt4;
-	ALIGNED_MEM tecm_pt_x8 pt5;
-	ALIGNED_MEM uint32_t sigma[8];
-
-	ALIGNED_MEM tecm_pt_x8 Pa;
-	ALIGNED_MEM tecm_pt_x8 Pd;
-	ALIGNED_MEM tecm_pt_x8 Pad;
-	ALIGNED_MEM tecm_pt_x8 Pb[20];
-	ALIGNED_MEM vec_u104_t Paprod;
-	ALIGNED_MEM vec_u104_t Pbprod[20];
-
-	ALIGNED_MEM vec_u104_t stg2acc;
-	uint32_t stg1Add;
-	uint32_t stg1Doub;
-	uint32_t paired;
-	uint32_t ptadds;
-	uint64_t numprimes;
-	uint64_t A;
-	uint32_t last_pid;
-	uint32_t amin;
-
-	uint32_t stg1_max;
-	uint32_t stg2_max;
-
-} tinyecm_work_x8;
-
-typedef struct
-{
 	base_t sum1[base_digits];
 	base_t diff1[base_digits];
 	base_t sum2[base_digits];
@@ -171,7 +123,6 @@ double bench_stg1;
 double bench_stg2;
 
 static uint32_t total_curves_run = 0;
-
 
 void u128_to_mpz(uint64_t *in, mpz_t out)
 {
@@ -2799,6 +2750,54 @@ static __m512d dbias;
 static __m512i vbias1;
 static __m512i vbias2;
 static __m512i lo52mask;
+
+typedef struct
+{
+	ALIGNED_MEM vec_u104_t X;
+	ALIGNED_MEM vec_u104_t Z;
+} tecm_pt_x8;
+
+typedef struct
+{
+	ALIGNED_MEM vec_u104_t sum1;
+	ALIGNED_MEM vec_u104_t diff1;
+	ALIGNED_MEM vec_u104_t sum2;
+	ALIGNED_MEM vec_u104_t diff2;
+	ALIGNED_MEM vec_u104_t tt1;
+	ALIGNED_MEM vec_u104_t tt2;
+	ALIGNED_MEM vec_u104_t tt3;
+	ALIGNED_MEM vec_u104_t tt4;
+	ALIGNED_MEM vec_u104_t tt5;
+	ALIGNED_MEM vec_u104_t s;
+	ALIGNED_MEM vec_u104_t n;
+	ALIGNED_MEM tecm_pt_x8 pt1;
+	ALIGNED_MEM tecm_pt_x8 pt2;
+	ALIGNED_MEM tecm_pt_x8 pt3;
+	ALIGNED_MEM tecm_pt_x8 pt4;
+	ALIGNED_MEM tecm_pt_x8 pt5;
+	ALIGNED_MEM uint32_t sigma[8];
+
+	ALIGNED_MEM tecm_pt_x8 Pa;
+	ALIGNED_MEM tecm_pt_x8 Pd;
+	ALIGNED_MEM tecm_pt_x8 Pad;
+	ALIGNED_MEM tecm_pt_x8 Pb[20];
+	ALIGNED_MEM vec_u104_t Paprod;
+	ALIGNED_MEM vec_u104_t Pbprod[20];
+
+	ALIGNED_MEM vec_u104_t stg2acc;
+	uint32_t stg1Add;
+	uint32_t stg1Doub;
+	uint32_t paired;
+	uint32_t ptadds;
+	uint64_t numprimes;
+	uint64_t A;
+	uint32_t last_pid;
+	uint32_t amin;
+
+	uint32_t stg1_max;
+	uint32_t stg2_max;
+
+} tinyecm_work_x8;
 
 typedef struct
 {

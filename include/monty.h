@@ -125,7 +125,7 @@ typedef struct
 	uint64_t rho;
 } monty128_t;
 
-#ifdef _MSC_VER && (!defined(__clang__))
+#if defined(_MSC_VER) && (!defined(__clang__))
 
 #else
 #define USE_PERIG_128BIT
@@ -842,7 +842,11 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 
 #define and64 _mm512_and_epi64
 #define store64 _mm512_store_epi64
+#ifdef __clang__
+#define storeu64 _mm512_storeu_si512
+#else
 #define storeu64 _mm512_storeu_epi64
+#endif
 #define mstoreu64 _mm512_mask_storeu_epi64
 #define storeu512 _mm512_storeu_si512
 #define add64 _mm512_add_epi64
@@ -850,7 +854,11 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 #define set64 _mm512_set1_epi64
 #define srli64 _mm512_srli_epi64
 #define load64 _mm512_load_epi64
+#ifdef __clang__
+#define loadu64 _mm512_loadu_si512
+#else
 #define loadu64 _mm512_loadu_epi64
+#endif
 #define loadu512 _mm512_loadu_si512
 #define castpd _mm512_castsi512_pd
 #define castepu _mm512_castpd_si512
@@ -1081,6 +1089,8 @@ void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0
 //	__m512i a1, __m512i a0, __m512i n1, __m512i n0);
 //void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
 //	__m512i b1, __m512i b0, __m512i n1, __m512i n0);
+
+void init_monty104();
 
 __inline static void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
 	__m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0, __m512i vrho)
