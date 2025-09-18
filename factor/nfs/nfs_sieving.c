@@ -749,7 +749,7 @@ void nfs_sieve_sync(void* vptr)
 
 		double est_time;
 
-		est_time = ((double)(udata->rels_requested - udata->rels_found) *
+		est_time = (double)(udata->rels_requested - udata->rels_found) *
 			(t->test_time / (double)udata->thread_data[tid].job.current_rels);
 
 		est_time /= (double)fobj->THREADS;
