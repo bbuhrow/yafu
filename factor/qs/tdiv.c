@@ -375,7 +375,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     }
 
                     gettimeofday(&start, NULL);
-                    relation_batch_run(rb, &dconf->lcg_state);
+                    relation_batch_run(rb, rb->prime_product, &dconf->lcg_state);
                     gettimeofday(&stop, NULL);
 
                     ttime = ytools_difftime(&start, &stop);
@@ -642,7 +642,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     }
 
                     gettimeofday(&start, NULL);
-                    relation_batch_run(rb, &dconf->lcg_state);
+                    relation_batch_run(rb, rb->prime_product, &dconf->lcg_state);
                     gettimeofday(&stop, NULL);
 
                     ttime = ytools_difftime(&start, &stop);
@@ -843,7 +843,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     }
 
                     gettimeofday(&start, NULL);
-                    relation_batch_run(rb, &dconf->lcg_state);
+                    relation_batch_run(rb, rb->prime_product, &dconf->lcg_state);
                     gettimeofday(&stop, NULL);
 
                     ttime = ytools_difftime(&start, &stop);

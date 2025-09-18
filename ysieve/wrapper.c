@@ -33,7 +33,9 @@ SOFTWARE.
 #include <string.h>
 #include <math.h>
 #include "threadpool.h"
-
+#if USE_AVX512F
+#include "tinyprp.h"
+#endif
 
 
 // known issues:
@@ -85,14 +87,6 @@ void compute_prps_work_fcn(void *vptr)
 	// and standard prime detection is requested (not gaps or twins)
 	if ((mpz_sizeinbase(t->tmpz, 2) < 104) && (sdata->analysis == 1))
 	{
-
-#ifndef IFMA
-		dbias = _mm512_castsi512_pd(set64(0x4670000000000000ULL));
-		vbias1 = set64(0x4670000000000000ULL);
-		vbias2 = set64(0x4670000000000001ULL);
-		vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);
-#endif
-
 		// use fast sprp functions
 		t->linecount = 0;
 		for (i = t->startid; i < t->stopid - 8; i += 8)

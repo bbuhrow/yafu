@@ -103,13 +103,20 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 	a = strtoll(buf, &next_field, 10);
 	tmp = next_field;
 	if (tmp[0] != ',' || !isdigit(tmp[1]))
+	{
+		printf("error -1: did not find next field or next field not an integer after "
+			"reading 'a' = %ld: %s\n", a, buf);
 		return -1;
+	}
 
 	btmp = strtoull(tmp+1, &next_field, 10);
 	tmp = next_field;
 	b = (uint32)btmp;
 	if (btmp != (uint64)b)
+	{
+		printf("error -99: 'b' too large: %ld, expected < 32 bits\n", btmp);
 		return -99; /* cannot use large b */
+	}
 
 	num_factors_r = 0;
 	num_factors_a = 0;
@@ -129,17 +136,27 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 
 		p = (uint64)a;
 		if (p == 0 || p >= ((uint64)1 << 32))
+		{
+			printf("error -2: 'a' too large when b == 0: %ld, expected < 32 bits\n", p);
 			return -2;
+		}
 
 		if (test_primality && !mp_is_prime_1((uint32)p))
+		{
+			printf("error -98: 'a' is not prime\n", p);
 			return -98;
+		}
 
 		array_size = compress_p(factors, p, array_size);
 
 		num_roots = poly_get_zeros(roots, apoly,
 						(uint32)p, &high_coeff, 0);
 		if (num_roots != apoly->degree || high_coeff == 0)
+		{
+			printf("error -4: num_roots != apoly->degree || high_coeff == 0 (%u, %u, %u)\n", 
+				num_roots, apoly->degree, high_coeff);
 			return -4;
+		}
 		for (i = 0; i < num_roots; i++) {
 			array_size = compress_p(factors, (uint64)roots[i], 
 						array_size);
@@ -152,20 +169,30 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 	}
 
 	if (tmp[0] != ':')
+	{
+		printf("error -5: did not find ':' token in buf %s\n", buf);
 		return -5;
+	}
+		
 	
 	atmp = a % (int64)b;
 	if (atmp < 0)
 		atmp += b;
 
 	if (mp_gcd_1((uint32)atmp, b) != 1)
+	{
+		printf("error -6: mp_gcd_1((uint32)atmp, b) != 1 (%u, %u)\n", (uint32)atmp, b);
 		return -6;
+	}
 
 	/* handle a rational factor of -1 */
 
 	eval_poly(polyval, a, b, rpoly);
 	if (mpz_cmp_ui(polyval, 0) == 0)
+	{
+		gmp_printf("error -6: rational polyval == 0\n");
 		return -6;
+	}
 	if (mpz_cmp_ui(polyval, 0) < 0) {
 		array_size = compress_p(factors, 0, array_size);
 		num_factors_r++;
@@ -178,17 +205,21 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 		do {
 			p = strtoull(tmp + 1, &next_field, 16);
 
-			if (test_primality && 
-			    p > RELATION_TF_BOUND && 
-			    p < ((uint64)1 << 32) &&
-	    		    !mp_is_prime_1((uint32)p))
+			if (test_primality &&
+				p > RELATION_TF_BOUND &&
+				p < ((uint64)1 << 32) &&
+				!mp_is_prime_1((uint32)p))
+			{
+				printf("error -98: 'p' is > RELATION_TF_BOUND (%u) and not prime\n", RELATION_TF_BOUND, p);
 				return -98;
+			}
 
 			if (p > 1 && divide_factor_out(polyval, p, 
 						factors, &array_size,
 						&num_factors_r, compress,
 						rpoly->tmp1, rpoly->tmp2,
 						rpoly->tmp3)) {
+				printf("error -8: problem dividing factor %u out\n", p);
 				return -8;
 			}
 			tmp = next_field;
@@ -199,7 +230,10 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 	}
 
 	if (tmp[0] != ':')
+	{
+		printf("error -9: did not find ':' token in buf %s\n", buf);
 		return -9;
+	}
 
 	/* if there are rational factors still to be accounted
 	   for, assume they are small and find them by trial division */
@@ -212,18 +246,27 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 				&array_size, &num_factors_r, 
 				compress, rpoly->tmp1, 
 				rpoly->tmp2, rpoly->tmp3)) {
+			printf("error -10: problem dividing factor %u out\n", p);
 			return -10;
 		}
 	}
 
 	if (mpz_cmp_ui(polyval, 1) != 0)
+	{
+		gmp_printf("error -11: rational polyval not completely factored, residue = %Zd\n", polyval);
+		eval_poly(polyval, a, b, rpoly);
+		gmp_printf("polyval was evaluated as %Zd, buf: %s\n", polyval, buf);
 		return -11;
+	}
 
 	/* read the algebraic factors */
 
 	eval_poly(polyval, a, b, apoly);
 	if (mpz_cmp_ui(polyval, 0) == 0)
+	{
+		gmp_printf("error -6: algebraic polyval == 0\n");
 		return -12;
+	}
 	mpz_abs(polyval, polyval);
 
 	if (isxdigit(tmp[1])) {
@@ -231,16 +274,20 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 			p = strtoull(tmp + 1, &next_field, 16);
 
 			if (test_primality &&
-			    p > RELATION_TF_BOUND && 
-			    p < ((uint64)1 << 32) &&
-	    		    !mp_is_prime_1((uint32)p))
+				p > RELATION_TF_BOUND &&
+				p < ((uint64)1 << 32) &&
+				!mp_is_prime_1((uint32)p))
+			{
+				printf("error -98: 'p' is > RELATION_TF_BOUND (%u) and not prime\n", RELATION_TF_BOUND, p);
 				return -98;
+			}
 
 			if (p > 1 && divide_factor_out(polyval, p, 
 						factors, &array_size,
 						&num_factors_a, compress,
 						apoly->tmp1, apoly->tmp2,
 						apoly->tmp3)) {
+				printf("error -13: problem dividing factor %u out\n", p);
 				return -13;
 			}
 			tmp = next_field;
@@ -258,12 +305,18 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 				&array_size, &num_factors_a, 
 				compress, apoly->tmp1,
 				apoly->tmp2, apoly->tmp3)) {
+			printf("error -14: problem dividing factor %u out\n", p);
 			return -14;
 		}
 	}
 
 	if (mpz_cmp_ui(polyval, 1) != 0)
+	{
+		gmp_printf("error -15: algebraic polyval not completely factored, residue = %Zd\n", polyval);
+		eval_poly(polyval, a, b, apoly);
+		gmp_printf("polyval was evaluated as %Zd, buf: %s\n", polyval, buf);
 		return -15;
+	}
 	
 	r->num_factors_r = num_factors_r;
 	r->num_factors_a = num_factors_a;

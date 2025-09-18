@@ -3104,6 +3104,8 @@ nr= 1;
 nss+= n_strips;
 #endif
 #line 2103 "gnfs-lasieve4e.w"
+
+                    // begin loop over all subsieves
                     for(subsieve_nr= 0;subsieve_nr<n_strips;
                         subsieve_nr++,j_offset+= j_per_strip)
                     {
@@ -3143,6 +3145,11 @@ nss+= n_strips;
                         }
 #endif
 #line 2117 "gnfs-lasieve4e.w"
+
+                        // code is identical to sieve the two sides, distinguished by variable 's'.
+                        // all differences in the sieves are therefore in the setup (outside this loop).
+                        // except in some cases, e.g., search0 has an if/else on side 's'.  
+                        // maybe other places, need to check.
                         for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s)
                         {
                             clock_t new_clock, clock_diff;
@@ -4184,6 +4191,15 @@ nss+= n_strips;
                                     }
                                 }
 #endif
+
+
+                                // now we know the sieve locations that factor completely over one side, 
+                                // perhaps with a residual composite to submit to large-factor processing.
+                                // if we wanted to implement batch factoring of the other side's sieve area, 
+                                // wouldneed to gather the norms of the unprocessed side that correspond to
+                                // these survivors and batch factor them.
+
+
 #line 53 "size_t"
 #if 0
                                 {
@@ -4496,7 +4512,9 @@ tNow= sTime();
     }
     logbook(0,"%u Special q, %u reduction iterations\n",n_spq,n_iter);
 
-    if(n_spq_discard> 0)logbook(0,"%u Special q discarded\n",n_spq_discard);
+    if(n_spq_discard> 0)
+        logbook(0,"%u Special q discarded\n",n_spq_discard);
+
 /*22:*/
 #line 831 "gnfs-lasieve4e.w"
 
@@ -4532,7 +4550,7 @@ tNow= sTime();
 
         logbook(0, "\nTotal yield: %u\n", yield);
         if (do_batch_factor) {
-            logbook(0, "\nTotal raw yield: %u\n", raw_yield);
+            logbook(0, "Total raw yield: %u\n", raw_yield);
         }
         if (n_mpqsfail[0] != 0 || n_mpqsfail[1] != 0 ||
             n_mpqsvain[0] != 0 || n_mpqsvain[1] != 0) {

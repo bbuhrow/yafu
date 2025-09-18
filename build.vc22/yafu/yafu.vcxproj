@@ -41,7 +41,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -244,7 +244,7 @@
       <StructMemberAlignment>Default</StructMemberAlignment>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
       <FloatingPointModel>Precise</FloatingPointModel>
       <BrowseInformation>
       </BrowseInformation>
@@ -261,7 +261,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>advapi32.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\$(IntDir)libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
+      <AdditionalDependencies>clang_rt.builtins-x86_64.lib;advapi32.lib;mpqs.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\$(IntDir)libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>

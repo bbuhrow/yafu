@@ -48,7 +48,7 @@ typedef struct {
 	uint8 lp_a_num_words;     /* one number with this many words */
 	uint32 factor_list_word;  /* offset in an array of factors where
 				     all of the above above appear, in order */
-} cofactor_t;
+} ms_cofactor_t;
 
 /* main structure controlling batch factoring. The main goal
    of batch factoring is to compute gcd(each_relation, 
@@ -80,7 +80,7 @@ typedef struct {
 
 	uint32 num_relations;     /* number relations currently batched */
 	uint32 num_relations_alloc;     /* relations allocated */
-	cofactor_t *relations;    /* relations currently batched */
+	ms_cofactor_t *relations;    /* relations currently batched */
 
 	uint32 num_factors;       /* words for factors of batched relations */
 	uint32 num_factors_alloc; /* space for batched factors */
@@ -88,7 +88,7 @@ typedef struct {
 
 	savefile_t *savefile;
 	print_relation_t print_relation;
-} relation_batch_t;
+} ms_relation_batch_t;
 
 /* initialize the relation batch. Batch factoring uses all
    the primes from min_prime to max_prime. We assume min_prime
@@ -102,13 +102,13 @@ typedef struct {
    contain large primes, or at least prove most relations to 
    be not worth the trouble to do so manually */
 
-void relation_batch_init(msieve_obj *obj, relation_batch_t *rb,
+void ms_relation_batch_init(msieve_obj *obj, ms_relation_batch_t *rb,
 			uint32 min_prime, uint32 max_prime, 
 			uint32 lp_cutoff_r, uint32 lp_cutoff_a, 
 			savefile_t *savefile,
 			print_relation_t print_relation);
 
-void relation_batch_free(relation_batch_t *rb);
+void ms_relation_batch_free(ms_relation_batch_t *rb);
 
 /* add one relation to the batch. Note that the relation may
    contain any number of large primes, as long as the unfactored
@@ -117,18 +117,18 @@ void relation_batch_free(relation_batch_t *rb);
    just involves modifying the base case of the recursion; maybe 
    that should be made into a callback */
 
-void relation_batch_add(int64 a, uint32 b, 
+void ms_relation_batch_add(int64 a, uint32 b,
 			uint32 *factors_r, uint32 num_factors_r, 
 			mpz_t unfactored_r,
 			uint32 *factors_a, uint32 num_factors_a, 
 			mpz_t unfactored_a,
-			relation_batch_t *rb);
+	ms_relation_batch_t *rb);
 	
 /* factor all the batched relations, saving all the ones whose
    largest {rational|algebraic} factors are all less than
    lp_cutoff_[ra] */
 
-uint32 relation_batch_run(relation_batch_t *rb);
+uint32 ms_relation_batch_run(ms_relation_batch_t *rb);
 
 #ifdef __cplusplus
 }

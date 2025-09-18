@@ -5917,7 +5917,7 @@ int free_sieve(dynamic_conf_t* dconf)
 
     if (dconf->do_batch)
     {
-        relation_batch_free(&dconf->rb);
+        relation_batch_free(&dconf->rb, 0);
     }
 
 #ifdef USE_8X_MOD_ASM
@@ -5996,6 +5996,15 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->tinylist);
 	free(sconf->factor_base);
     align_free(sconf->sieve_primes);
+
+    if (sconf->do_batch)
+    {
+        for (i = 1; i < sconf->num_alloc_rb; i++)
+        {
+            relation_batch_free(&sconf->rb[i], 0);
+        }
+        relation_batch_free(&sconf->rb[0], 1);
+    }
 
     // list of a values used first to track all a coefficients
     // generated during sieving.

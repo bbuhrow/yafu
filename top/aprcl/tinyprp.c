@@ -890,9 +890,10 @@ static uint128_t my_random(void)
 	uint128_t x = seed ^ (seed >> 17) ^ (seed << 13);
 	return x;
 }
-static my_random_reset(void)
+static void my_random_reset(void)
 {
 	seed = ((uint128_t)0x123456789ull << 92) + ((uint128_t)0xabcdef << 36) + 0x987654321ull;
+	return;
 }
 
 static inline uint64_t my_rdtsc(void)

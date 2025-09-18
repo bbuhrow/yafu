@@ -37,7 +37,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
@@ -149,6 +149,7 @@
       <CompileAs>Default</CompileAs>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;VBITS=64;_WIN64;PTW32_STATIC_LIB;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
     </ClCompile>
     <Lib />
     <Lib>
@@ -157,7 +158,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\aprcl\mpz_aprcl32.c" />
-    <ClCompile Include="..\..\common\batch_factor.c" />
     <ClCompile Include="..\..\common\cuda_xface.c" />
     <ClCompile Include="..\..\common\driver.c" />
     <ClCompile Include="..\..\common\filter\clique.c" />
@@ -170,6 +170,7 @@
     <ClCompile Include="..\..\common\lanczos\cpu\lanczos_vv.c" />
     <ClCompile Include="..\..\common\lanczos\matmul_util.c" />
     <ClCompile Include="..\..\common\minimize_global.c" />
+    <ClCompile Include="..\..\common\ms_batch_factor.c" />
     <ClCompile Include="..\..\common\smallfact\gmp_ecm.c" />
     <ClCompile Include="..\..\common\hashtable.c" />
     <ClCompile Include="..\..\common\integrate.c" />

@@ -135,7 +135,7 @@ typedef struct {
 
 	resieve_t *resieve_array;
 
-	relation_batch_t relation_batch;
+	ms_relation_batch_t relation_batch;
 
 } sieve_job_t;
 
@@ -284,7 +284,7 @@ uint32 do_line_sieving(msieve_obj *obj, sieve_param_t *params, mpz_t n,
 	i = MAX(job.sieve_rfb.LP1_max, job.sieve_afb.LP1_max);
 	i = MIN(3 << 27, i / 4);
 	
-	relation_batch_init(job.obj, &job.relation_batch,
+	ms_relation_batch_init(job.obj, &job.relation_batch,
 			MIN(fb.rfb.max_prime, fb.afb.max_prime),
 			i,
 			job.sieve_rfb.LP1_max,
@@ -329,7 +329,7 @@ uint32 do_line_sieving(msieve_obj *obj, sieve_param_t *params, mpz_t n,
 			/* finish up any batch factoring that's left */
 
 			if (job.relation_batch.num_relations > 0) {
-				relations_found += relation_batch_run(
+				relations_found += ms_relation_batch_run(
 							&job.relation_batch);
 			}
 						
@@ -345,7 +345,7 @@ uint32 do_line_sieving(msieve_obj *obj, sieve_param_t *params, mpz_t n,
 	}
 	obj->flags &= ~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 
-	relation_batch_free(&job.relation_batch);
+	ms_relation_batch_free(&job.relation_batch);
 	savefile_flush(&obj->savefile);
 	free_one_sieve_fb(&job.sieve_rfb);
 	free_one_sieve_fb(&job.sieve_afb);
@@ -1302,7 +1302,7 @@ static uint32 do_one_factoring(sieve_job_t *job, resieve_t *sieve_value,
 
 	/* schedule the relation to be factored later */
 
-	relation_batch_add(a, b, factors_r, num_factors_r, rfb->res,
+	ms_relation_batch_add(a, b, factors_r, num_factors_r, rfb->res,
 				factors_a, num_factors_a, afb->res,
 				&job->relation_batch);
 
@@ -1311,7 +1311,7 @@ static uint32 do_one_factoring(sieve_job_t *job, resieve_t *sieve_value,
 
 	if (job->relation_batch.num_relations >= 
 			job->relation_batch.target_relations) {
-		return relation_batch_run(&job->relation_batch);
+		return ms_relation_batch_run(&job->relation_batch);
 	}
 	return 0;
 }

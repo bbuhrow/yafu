@@ -51,7 +51,7 @@ typedef void (*print_relation_t)(void);
    any of the factors may be trivial */
 
 typedef struct {
-    uint64_t a;               // for siqs, index of a-poly in master list (was an int64)
+    int64_t a;                // for siqs, index of a-poly in master list (was an int64)
 	uint32_t b;               // for siqs, index of b-poly within the indicated a-poly
     int32_t signed_offset;    // for siqs, location of relation in the block (new to struct)
 	uint8_t num_factors_r;     /* doesn't include large primes */
@@ -157,7 +157,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     print_relation_t print_relation,
     int do_prime_product);
 
-void relation_batch_free(relation_batch_t *rb);
+void relation_batch_free(relation_batch_t *rb, int has_prime_product);
 
 /* add one relation to the batch. Note that the relation may
    contain any number of large primes, as long as the unfactored
@@ -166,7 +166,7 @@ void relation_batch_free(relation_batch_t *rb);
    just involves modifying the base case of the recursion; maybe 
    that should be made into a callback */
 
-void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
+void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
 			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r,
 			uint32_t *factors_a, uint32_t num_factors_a, 
@@ -181,7 +181,7 @@ void check_batch_relation(relation_batch_t *rb,
    largest {rational|algebraic} factors are all less than
    lp_cutoff_[ra] */
 
-uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state);
+uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lcg_state);
 
 #ifdef __cplusplus
 }

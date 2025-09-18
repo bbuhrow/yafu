@@ -12,8 +12,8 @@ benefit from your work.
 $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 --------------------------------------------------------------------*/
 
-#include <batch_factor.h>
 #include <stdint.h>
+#include "batch_factor.h"
 #include "monty.h"
 #include "prime_sieve.h"
 #include "yafu_ecm.h"
@@ -21,6 +21,7 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "tinyecm.h"
 #include "mpz_aprcl.h"
 #include <math.h>
+#include "gmp.h"
 
 /*------------------------------------------------------------------
 
@@ -652,8 +653,8 @@ void check_batch_relation(relation_batch_t *rb,
     // the larger we make lp_cutoff_r, the more TLP's we will find, at
     // the cost of having to split more TLP candidates in f1r.
     c->success = 0;
-    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
-    c->lp_a[0] = c->lp_a[1] = c->lp_a[2] = c->lp_a[3] = 1;
+    //c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
+    //c->lp_a[0] = c->lp_a[1] = c->lp_a[2] = c->lp_a[3] = 1;
 
     if (do_r_first == 0)
         goto process_a;
@@ -2139,19 +2140,19 @@ done:
     {
         c->lp_r[i] = lp_r[i];
     }
-    for (; i < 4; i++)
-    {
-        c->lp_r[i] = 1;
-    }
+    //for (; i < 4; i++)
+    //{
+    //    c->lp_r[i] = 1;
+    //}
 
     for (i = 0; i < num_a; i++)
     {
         c->lp_a[i] = lp_a[i];
     }
-    for (; i < 4; i++)
-    {
-        c->lp_a[i] = 1;
-    }
+    //for (; i < 4; i++)
+    //{
+    //    c->lp_a[i] = 1;
+    //}
 
     c->success = num_r + num_a;
 
@@ -2220,29 +2221,31 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
         uint32_t num_primes, p;
 
         /* count the number of primes to multiply. Knowing this
-           in advance makes the recursion a lot easier, at the cost
-           of a small penalty in runtime */
+            in advance makes the recursion a lot easier, at the cost
+            of a small penalty in runtime */
 
         init_prime_sieve(&sieve, min_prime + 1, max_prime);
         p = min_prime;
         num_primes = 0;
         while (p < max_prime) {
-        	p = get_next_prime(&sieve);
-        	num_primes++;
+            p = get_next_prime(&sieve);
+            num_primes++;
         }
         free_prime_sieve(&sieve);
 
         ///* compute the product of primes */
 
         logprint(logfile, "multiplying %u primes from %u to %u\n",
-        		num_primes, min_prime, max_prime);
+            num_primes, min_prime, max_prime);
 
         init_prime_sieve(&sieve, min_prime, max_prime);
         multiply_primes(0, num_primes - 2, &sieve, rb->prime_product);
         free_prime_sieve(&sieve);
 
         logprint(logfile, "multiply complete, product has %u bits\n",
-        			(uint32_t)mpz_sizeinbase(rb->prime_product, 2));
+            (uint32_t)mpz_sizeinbase(rb->prime_product, 2));
+
+        printf("relation batch prime product is initialized\n");
     }
 					
 	rb->print_relation = print_relation;
@@ -2306,12 +2309,16 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->t1);
     mpz_init(rb->_small);
     mpz_init(rb->_large);
+    printf("relation batch is initialized\n");
 }
 
 /*------------------------------------------------------------------*/
-void relation_batch_free(relation_batch_t *rb) {
+void relation_batch_free(relation_batch_t *rb, int has_prime_prod) {
 
-	mpz_clear(rb->prime_product);
+    if (has_prime_prod)
+    {
+        mpz_clear(rb->prime_product);
+    }
     mpz_clear(rb->min_prime2);
     mpz_clear(rb->max_prime2);
     mpz_clear(rb->max_prime3);
@@ -2334,7 +2341,7 @@ void relation_batch_free(relation_batch_t *rb) {
 }
 
 /*------------------------------------------------------------------*/
-void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
+void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
 			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r_in,
 			uint32_t *factors_a, uint32_t num_factors_a, 
@@ -2361,8 +2368,8 @@ void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
 	c->lp_r_num_words = 0;
 	c->lp_a_num_words = 0;
 	c->factor_list_word = rb->num_factors;
-    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 0;
-    c->lp_a[0] = c->lp_a[1] = c->lp_a[2] = c->lp_a[3] = 0;
+    c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
+    c->lp_a[0] = c->lp_a[1] = c->lp_a[2] = c->lp_a[3] = 1;
     c->success = 0;
 
 	/* add its small factors */
@@ -2401,6 +2408,11 @@ void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
         rb->num_factors += i;
         c->lp_r_num_words = i;
     }
+    else if ((mpz_cmp_ui(unfactored_r_in, 1) > 0) &&
+        (mpz_sizeinbase(unfactored_r_in, 2) < 32))
+    {
+        c->lp_r[0] = mpz_get_ui(unfactored_r_in);
+    }
 
     if (mpz_cmp_si(unfactored_a_in, 0) < 0) {
         mpz_neg(rb->t0, unfactored_a_in);
@@ -2415,6 +2427,11 @@ void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
         rb->num_factors += i;
         c->lp_a_num_words = i;
     }
+    else if ((mpz_cmp_ui(unfactored_a_in, 1) > 0) &&
+        (mpz_sizeinbase(unfactored_a_in, 2) < 32))
+    {
+        c->lp_a[0] = mpz_get_ui(unfactored_a_in);
+    }
 
 }
 	
@@ -2422,7 +2439,7 @@ void relation_batch_add(uint64_t a, uint32_t b, int32_t offset,
 
 
 
-uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
+uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lcg_state) {
     // recursive batch GCD, with a tree storage enhancement
     // to avoid re-calculating many of the products, at a cost
     // of additional RAM.
@@ -2448,17 +2465,17 @@ uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
         tree.nodes[0].right_id = -1;
         tree.nodes[0].complete = 0;
 
-        printf("memory use for relations array is %u bytes\n", rb->num_relations_alloc *
-            sizeof(cofactor_t));
-
-        printf("memory use for factors array is %u bytes\n", rb->num_factors_alloc *
-            sizeof(uint32_t));
+        //printf("memory use for relations array is %u bytes\n", rb->num_relations_alloc *
+        //    sizeof(cofactor_t));
+        //
+        //printf("memory use for factors array is %u bytes\n", rb->num_factors_alloc *
+        //    sizeof(uint32_t));
 
         // this already traverses the tree... just build in
         // the capability to add and reuse nodes and we 
         // should be there.
 		compute_remainder_tree(&tree, 0, rb->num_relations - 1,
-					rb, lcg_state, rb->prime_product);
+					rb, lcg_state, prime_prod);
 
         uint32_t bytes = 0;
         for (i = 0; i < tree.size; i++)
@@ -2467,7 +2484,7 @@ uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
             mpz_clear(tree.nodes[i].prod);
         }
 
-        printf("final tree had %u nodes with products occupying %u total bytes\n", tree.size, bytes);
+        //printf("final tree had %u nodes with products occupying %u total bytes\n", tree.size, bytes);
         
         free(tree.nodes);
 	}

@@ -14,6 +14,9 @@ benefit from your work.
 
 #include <stdio.h>
 #include "nfs_impl.h"
+#include "batch_factor.h"
+#include "threadpool.h"
+
 #ifdef __INTEL_LLVM_COMPILER
 #include <pthread.h>
 #endif
@@ -21,20 +24,24 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-// potential enhancements:
+#define USE_THREADPOOL
 
-// 2)
-// run a series of test "refinements" based on difficulty.  The idea
-// being twofold: a) for lower difficulty even a 2k range of spq might
-// be overkill and b) for some polys the differences in sieve speed
-// is obvious after only a few hundred spq.  So run a very small range
-// first, and if we have a clear winner go with it.  if not, run more
-// tests depending on both the "closeness" of the testing and the
-// difficulty.
-// 3)
-// in windows, we count the number of ctrl-c's and force quit after 2.
-// this defeats ctrl-c'ing out of more than one test sieve.  while test
-// sieving, on windows, we need to allow more than two ctrl-c's
+typedef struct
+{
+	nfs_threaddata_t* thread_data;	// array of thread-local data
+	fact_obj_t* fobj;				// reference to the main fobj
+	nfs_job_t* main_job_ref;		// reference to the main nfs job structure
+	qrange_data_t* qrange_data;		// database of qranges completed.
+
+	int is_3lp;
+	
+	int requested_side;
+	uint32_t rels_requested;
+	uint32_t rels_found;
+	uint32_t ranges_completed;
+	uint32_t threads_sieving;
+
+} nfs_userdata_t;
 
 
 int qcomp_qrange(const void* x, const void* y)
@@ -54,7 +61,7 @@ void print_ranges(qrange_data_t* qrange_data)
 {
 	int i;
 	printf("rational side completed ranges:\n");
-	
+
 	if (qrange_data->num_r > 0)
 	{
 		printf("\t%u -> ", qrange_data->qranges_r[0].qrange_start);
@@ -65,7 +72,7 @@ void print_ranges(qrange_data_t* qrange_data)
 		if (qrange_data->qranges_r[i - 1].qrange_end !=
 			qrange_data->qranges_r[i].qrange_start)
 		{
-			printf("%u\n\t%u -> \n", qrange_data->qranges_r[i - 1].qrange_end,
+			printf("%u\n\t%u -> ", qrange_data->qranges_r[i - 1].qrange_end,
 				qrange_data->qranges_r[i].qrange_start);
 		}
 	}
@@ -86,7 +93,7 @@ void print_ranges(qrange_data_t* qrange_data)
 		if (qrange_data->qranges_a[i - 1].qrange_end !=
 			qrange_data->qranges_a[i].qrange_start)
 		{
-			printf("%u\n\t%u -> \n", qrange_data->qranges_a[i - 1].qrange_end,
+			printf("%u\n\t%u -> ", qrange_data->qranges_a[i - 1].qrange_end,
 				qrange_data->qranges_a[i].qrange_start);
 		}
 	}
@@ -98,7 +105,7 @@ void print_ranges(qrange_data_t* qrange_data)
 	return;
 }
 
-qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
+qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 {
 	qrange_data_t* qrange_data;
 	char buf[1024];
@@ -127,7 +134,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 
 		if (fobj->VFLAG > 0)
 		{
-			printf("nfs: parsing %s.ranges for previously completed special-q\n", 
+			printf("nfs: parsing %s.ranges for previously completed special-q\n",
 				fobj->nfs_obj.outputfile);
 		}
 
@@ -150,7 +157,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 				mpz_init(gmpn);
 				mpz_init(gmpd);
 				gmp_sscanf(buf, "%Zd", gmpn);
-				
+
 				mpz_tdiv_r(gmpd, gmpn, fobj->nfs_obj.gmp_n);
 				if (mpz_cmp_ui(gmpd, 0) != 0)
 				{
@@ -218,7 +225,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job)
 				printf("unrecognized side '%c' in completed range data\n", side);
 			}
 
-			
+
 		}
 		fclose(fid);
 	}
@@ -297,7 +304,7 @@ void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_
 
 qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 {
-	qrange_t* qrange = (qrange_t *)xmalloc(sizeof(qrange_t));
+	qrange_t* qrange = (qrange_t*)xmalloc(sizeof(qrange_t));
 	int i;
 
 	qrange->qrange_start = 0;
@@ -362,6 +369,586 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 
 	return qrange;
 }
+
+#ifdef USE_THREADPOOL
+void nfs_sieve_start(void* vptr)
+{
+	// unpack the userdata portion of the thread pool void pointer.
+	tpool_t* tdata = (tpool_t*)vptr;
+	nfs_userdata_t* udata = tdata->user_data;
+	fact_obj_t* fobj = udata->fobj;
+	nfs_job_t* job = udata->main_job_ref;
+	FILE* logfile;
+
+	int i;
+
+	int is_3lp = ((job->mfbr > (2.5 * job->lpbr)) ||
+		(job->mfba > (2.5 * job->lpba))) ? 1 : 0;
+
+	is_3lp = is_3lp && fobj->nfs_obj.batch_3lp;
+	udata->is_3lp = is_3lp;
+
+	if (is_3lp && !job->has_3lp_batch)
+	{
+		uint64_t max_prime = (job->mfbr > job->mfba) ? job->lpbr - 1 : job->lpba - 1;
+		uint32_t min_prime = MIN(job->alim, job->rlim) / 10;
+
+		// todo: need to free this at the end of sieving.
+		job->rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
+
+		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
+
+		relation_batch_init(stdout, job->rb, min_prime, 1ULL << max_prime,
+			1ull << job->lpbr, 1ull << job->lpba, NULL, 1);
+
+		logprint_oc(fobj->flogname, "a", "relation batch initialized\n");
+
+		for (i = 0; i < 4; i++)
+		{
+			job->rb->num_uecm[i] = 0;
+			job->rb->num_uecm_a[i] = 0;
+		}
+		job->rb->num_tecm = 0;
+		job->rb->num_tecm2 = 0;
+		job->rb->num_qs = 0;
+		job->rb->num_tecm_a = 0;
+		job->rb->num_tecm2_a = 0;
+		job->rb->num_qs_a = 0;
+		job->rb->num_attempt = 0;
+		job->rb->num_success = 0;
+		for (i = 0; i < 8; i++)
+		{
+			job->rb->num_abort[i] = 0;
+			job->rb->num_abort_a[i] = 0;
+		}
+
+		udata->is_3lp = 1;
+		job->has_3lp_batch = 1;		// prevents this block from being run again...
+	}
+
+	udata->requested_side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
+	int side = udata->requested_side;
+
+	udata->thread_data = (nfs_threaddata_t*)malloc(fobj->THREADS * sizeof(nfs_threaddata_t));
+
+	// initialize a database of q-ranges from the global .ranges file, if it exists,
+	// or prepare to start a new job with default/user input if not.
+	udata->qrange_data = sort_completed_ranges(fobj, job);
+
+	if (is_3lp)
+	{
+		// limit the q-range of 3LP jobs with batch factoring
+		// so the raw files don't get too big.  sieving may modify this value
+		// as it progresses to target around 1M raw relations per batch.
+		// what to do if this is a custom range?  traditionally we'd split the entire
+		// custom range into THREADS chunks, but now we'd like to do smaller portions.
+		// need to evaluate this...
+		udata->qrange_data->thread_qrange = MIN(1000, udata->qrange_data->thread_qrange);
+	}
+
+	for (i = 0; i < fobj->THREADS; i++)
+	{
+		// copy needed info to the thread's job structure.
+		sprintf(udata->thread_data[i].outfilename, "rels%d.dat", i);
+		sprintf(udata->thread_data[i].job_infile_name, "%s", fobj->nfs_obj.job_infile);
+		udata->thread_data[i].job.poly = job->poly;
+		udata->thread_data[i].job.rlim = job->rlim;
+		udata->thread_data[i].job.alim = job->alim;
+		udata->thread_data[i].job.rlambda = job->rlambda;
+		udata->thread_data[i].job.alambda = job->alambda;
+		udata->thread_data[i].job.lpbr = job->lpbr;
+		udata->thread_data[i].job.lpba = job->lpba;
+		udata->thread_data[i].job.mfbr = job->mfbr;
+		udata->thread_data[i].job.mfba = job->mfba;
+		udata->thread_data[i].est_inflight_rels = 0;
+		udata->thread_data[i].isactive = 0;		// not doing anything yet.
+
+		// will be filled in by nfs_sieve_dispatch
+		udata->thread_data[i].job.startq = 0;
+		udata->thread_data[i].job.qrange = 0;
+
+		udata->thread_data[i].job.min_rels = job->min_rels;
+		udata->thread_data[i].job.current_rels = 0; // job->current_rels;
+		udata->thread_data[i].siever = fobj->nfs_obj.siever;
+
+		strcpy(udata->thread_data[i].job.sievername, job->sievername);
+
+		udata->thread_data[i].tindex = i;
+		udata->thread_data[i].is_poly_select = 0;
+		udata->thread_data[i].fobj = fobj;
+
+
+		if (is_3lp)
+		{
+			int j;
+
+			udata->thread_data[i].rb_ref = job->rb;
+
+			udata->thread_data[i].job.rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
+
+			uint64_t max_prime = (job->mfbr > job->mfba) ? job->lpbr - 1 : job->lpba - 1;
+			uint32_t min_prime = MIN(job->alim, job->rlim) / 10;
+
+			relation_batch_init(stdout, udata->thread_data[i].job.rb, min_prime, 1ULL << max_prime,
+				1ull << job->lpbr, 1ull << job->lpba, NULL, 0);
+
+			for (j = 0; j < 4; j++)
+			{
+				udata->thread_data[i].job.rb->num_uecm[j] = 0;
+				udata->thread_data[i].job.rb->num_uecm_a[j] = 0;
+			}
+
+			udata->thread_data[i].job.rb->num_tecm = 0;
+			udata->thread_data[i].job.rb->num_tecm2 = 0;
+			udata->thread_data[i].job.rb->num_qs = 0;
+			udata->thread_data[i].job.rb->num_tecm_a = 0;
+			udata->thread_data[i].job.rb->num_tecm2_a = 0;
+			udata->thread_data[i].job.rb->num_qs_a = 0;
+			udata->thread_data[i].job.rb->num_attempt = 0;
+			udata->thread_data[i].job.rb->num_success = 0;
+
+			for (j = 0; j < 8; j++)
+			{
+				udata->thread_data[i].job.rb->num_abort[j] = 0;
+				udata->thread_data[i].job.rb->num_abort_a[j] = 0;
+			}
+		}
+
+	}
+
+	// set our rels goal
+	udata->rels_requested = (job->min_rels - job->current_rels);
+	udata->rels_found = 0;
+	udata->ranges_completed = 0;
+	udata->threads_sieving = 0;
+
+	if (fobj->LOGFLAG)
+	{
+		logfile = fopen(fobj->flogname, "a");
+		if (logfile == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("could not open yafu logfile for appending\n");
+		}
+		else
+		{
+			logprint(logfile, "nfs: commencing lattice sieving with %d threads\n", fobj->THREADS);
+			logprint(logfile, "nfs: attempting to gather %u rels\n", udata->rels_requested);
+			fclose(logfile);
+		}
+	}
+
+	
+	return;
+}
+
+void nfs_sieve_sync(void* vptr)
+{
+	// this sync function gets called by tpool whenever a thread
+	// finishes.  do any cleanup actions for the thread.
+	tpool_t* tdata = (tpool_t*)vptr;
+	nfs_userdata_t* udata = tdata->user_data;
+	fact_obj_t* fobj = udata->fobj;
+	nfs_job_t* job = udata->main_job_ref;
+	FILE* fid;
+	FILE* logfile;
+
+	int tid = tdata->tindex;
+	nfs_threaddata_t* t = &udata->thread_data[tid];
+
+	// nothing has been done, waiting for 1st dispatch
+	if (t->isactive == 0)
+	{
+		//printf("nfs_sieve_sync: thread %d is not active\n", tid);
+		return;
+	}
+	//printf("nfs_sieve_sync: thread %d is active, syncing data\n", tid);
+
+	// set last completed q, if we've finished a range.
+	uint32_t last_spq = t->job.qrange;
+
+	// handle user abort - will modify last_spq if found.
+	if (NFS_ABORT > 0)
+	{
+		// abort was pressed.
+		// try reading the lasieve5 ".last_spqX" file.  The 
+		// following is copied from gnfs-lasieve4e to duplicate
+		// the file naming convention.
+		char* ofn = xmalloc(256);
+		FILE* of;
+		char* hn = xmalloc(128);
+		int ret;
+
+#if defined(WIN32)
+
+		int sysname_sz = 128;
+		GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);
+		ret = 0;
+
+#else
+
+		ret = gethostname(hn, 127);
+
+#endif
+
+		if (ret == 0) sprintf(ofn, "%s.%s.last_spq%d", fobj->nfs_obj.job_infile, hn, tid);
+		else sprintf(ofn, "%s.unknown_host.last_spq%d", fobj->nfs_obj.job_infile, tid);
+		free(hn);
+
+		if ((of = fopen(ofn, "r")) != 0) {
+			fscanf(of, "%u", &last_spq);
+
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: parsed last_spq = %u in thread %d\n", last_spq, tid);
+			}
+			if (last_spq < t->job.startq)
+			{
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n",
+						t->job.startq, t->job.startq + t->job.qrange);
+				}
+				last_spq = t->job.qrange;
+			}
+			else if (last_spq > (t->job.startq + t->job.qrange))
+			{
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
+						t->job.startq, t->job.startq + t->job.qrange);
+				}
+				last_spq = t->job.qrange;
+			}
+			else
+			{
+				last_spq = last_spq - t->job.startq;
+			}
+			fclose(of);
+		}
+		else
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: could not find file %s to parse last_spq for thread %d\n", ofn, tid);
+				printf("nfs: commencing search of data file\n");
+			}
+			if (1)
+			{
+				// file didn't exist.  Try parsing the special-q from
+				// the data file, the lasieve4 way.
+				char** lines = (char**)malloc(4 * sizeof(char*));
+				char tmp[GSTR_MAXSIZE];
+				int line = 0;
+
+				for (line = 0; line < 4; line++)
+					lines[line] = (char*)malloc(GSTR_MAXSIZE * sizeof(char));
+
+				sprintf(ofn, "rels%d.dat", tid);
+
+				if ((of = fopen(ofn, "r")) != 0) {
+
+					while (1)
+					{
+						// read a line into the next position of the circular buffer
+						fgets(tmp, GSTR_MAXSIZE, of);
+
+						// quick check that it might be a valid line
+						if (strlen(tmp) > 30)
+						{
+							// wrap
+							if (++line > 3) line = 0;
+							// then copy
+							strcpy(lines[line], tmp);
+						}
+
+						if (feof(of))
+							break;
+					}
+					fclose(of);
+
+					// now we are done and we have a buffer with the last 4 valid lines
+					// throw away the last one, which may be malformed, and extract
+					// the special q from the other 3.
+					for (line = 0; line < 4; line++)
+					{
+						if (fobj->VFLAG > 0)
+						{
+							printf("nfs: parsed line %d = %s", line, lines[line]);
+						}
+					}
+
+					last_spq = get_spq(lines, line, fobj);
+
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: parsed last_spq = %u in thread %d\n", last_spq, tid);
+					}
+					if (last_spq < t->job.startq)
+					{
+						if (fobj->VFLAG > 0)
+						{
+							printf("nfs: last_spq is too small for range %u - %u, discarding.  Restarts may be incorrect.\n",
+								t->job.startq, t->job.startq + t->job.qrange);
+						}
+						last_spq = t->job.qrange;
+					}
+					else if (last_spq > (t->job.startq + t->job.qrange))
+					{
+						if (fobj->VFLAG > 0)
+						{
+							printf("nfs: last_spq is too big for range %u - %u.  Assuming range was completed. Restarts may be incorrect.\n",
+								t->job.startq, t->job.startq + t->job.qrange);
+						}
+						last_spq = t->job.qrange;
+					}
+					else
+					{
+						last_spq = last_spq - t->job.startq;
+					}
+				}
+
+				for (line = 0; line < 4; line++)
+					free(lines[line]);
+				free(lines);
+
+			}
+		}
+
+		free(ofn);
+
+
+		t->isactive = 2;
+	}
+
+	// merge relations if any
+	if (t->job.current_rels > 0)
+	{
+		savefile_concat(t->outfilename, fobj->nfs_obj.outputfile, fobj->nfs_obj.mobj);
+
+		// log the range as completed
+		char fname[1024];
+		sprintf(fname, "%s.ranges", fobj->nfs_obj.outputfile);
+		fid = fopen(fname, "a");
+		if (fid != NULL)
+		{
+			fprintf(fid, "%c,%u,%u,%u\n", udata->requested_side, t->job.startq,
+				last_spq, t->job.current_rels);
+			fclose(fid);
+		}
+		else
+		{
+			printf("nfs: could not open %s for modifying, "
+				"progress may not be tracked correctly\n", fname);
+		}
+
+		// accumulate relation counts
+		job->current_rels += udata->thread_data[tid].job.current_rels;
+		udata->rels_found += udata->thread_data[tid].job.current_rels;
+		udata->ranges_completed++;
+
+		double est_time;
+
+		est_time = ((double)(udata->rels_requested - udata->rels_found) *
+			(t->test_time / (double)udata->thread_data[tid].job.current_rels);
+
+		est_time /= (double)fobj->THREADS;
+
+		if (est_time < 0) est_time = 0.0;
+
+		uint32_t est_time_u = (uint32_t)est_time;
+
+		if (fobj->VFLAG > 0)
+		{
+			printf("nfs: tid %d returned %u rels in %1.3f sec; total %u of %u rels found (ETA: %uh %um)\n",
+				tid, udata->thread_data[tid].job.current_rels, t->test_time,
+				udata->rels_found, udata->rels_requested,
+				est_time_u / 3600, (est_time_u % 3600) / 60);
+		}
+
+		logprint_oc(fobj->flogname, "a", "nfs: tid %d returned %u rels in %1.3f sec; "
+			"total %u of %u rels found (ETA: %uh %um)\n",
+			tid, udata->thread_data[tid].job.current_rels, t->test_time,
+			udata->rels_found, udata->rels_requested, est_time_u / 3600,
+			(est_time_u % 3600) / 60);
+
+		if (udata->is_3lp)
+		{
+			// reset batch statistics
+			int j;
+
+			for (j = 0; j < 4; j++)
+			{
+				t->job.rb->num_uecm[j] = 0;
+				t->job.rb->num_uecm_a[j] = 0;
+			}
+
+			t->job.rb->num_tecm = 0;
+			t->job.rb->num_tecm2 = 0;
+			t->job.rb->num_qs = 0;
+			t->job.rb->num_tecm_a = 0;
+			t->job.rb->num_tecm2_a = 0;
+			t->job.rb->num_qs_a = 0;
+			t->job.rb->num_attempt = 0;
+			t->job.rb->num_success = 0;
+
+			for (j = 0; j < 8; j++)
+			{
+				t->job.rb->num_abort[j] = 0;
+				t->job.rb->num_abort_a[j] = 0;
+			}
+		}
+	}
+
+	// check for user-added rels files 
+	if ((fid = fopen("rels.add", "r")) != NULL)
+	{
+		char tmpstr[1024];
+		uint32_t count = 0;
+
+		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+			count++;
+		fclose(fid);
+
+		if (fobj->VFLAG > 0) printf("nfs: adding %u rels from rels.add\n", count);
+
+		if (fobj->LOGFLAG)
+		{
+			logfile = fopen(fobj->flogname, "a");
+			if (logfile == NULL)
+			{
+				printf("fopen error: %s\n", strerror(errno));
+				printf("could not open yafu logfile for appending\n");
+			}
+			else
+			{
+				logprint(logfile, "nfs: adding %u rels from rels.add\n", count);
+				fclose(logfile);
+			}
+		}
+
+		savefile_concat("rels.add", fobj->nfs_obj.outputfile, fobj->nfs_obj.mobj);
+		remove("rels.add");
+
+		job->current_rels += count;
+	}
+
+	// done with the temporary output file for this thread.
+	remove(udata->thread_data[tid].outfilename);
+
+	// not sieving any more, for now.
+	udata->threads_sieving--;
+
+	return;
+}
+
+void nfs_sieve_dispatch(void* vptr)
+{
+	// this dispatch function gets called by tpool whenever a thread
+	// becomes idle (after sync).  determine if there is more work
+	// to do and indicate what to do next if so.
+	tpool_t* tdata = (tpool_t*)vptr;
+	nfs_userdata_t* udata = tdata->user_data;
+	fact_obj_t* fobj = udata->fobj;
+	nfs_job_t* job = udata->main_job_ref;
+
+	int tid = tdata->tindex;
+
+	nfs_threaddata_t* t = &udata->thread_data[tid];
+
+	if (udata->ranges_completed > 0)
+	{
+		// compute how many relations we can expect the next range to produce
+		t->est_inflight_rels = udata->rels_found / udata->ranges_completed;
+	}
+	else
+	{
+		t->est_inflight_rels = 0;
+	}
+
+	// check whether to continue or not and dispatch another range if so.
+	uint32_t total_est_rels;
+	
+	if (t->est_inflight_rels > 0)
+	{
+		uint32_t total_inflight = udata->threads_sieving * t->est_inflight_rels;
+		total_est_rels = total_inflight + udata->rels_found;
+	}
+	else
+	{
+		total_est_rels = udata->rels_found;
+	}
+
+	if ((total_est_rels < udata->rels_requested) && (t->isactive != 2))
+	{
+		qrange_t* qrange = get_next_range(udata->qrange_data, udata->requested_side);
+		uint32_t custom_qstart = 0;
+		uint32_t custom_qrange = 0;
+
+		if (fobj->nfs_obj.rangeq > 0)
+		{
+			// if the nfs_obj.rangeq value is > 0, that means the user
+			// requested a custom sieving range.  fill in the info to our
+			// range data structure.
+			custom_qstart = fobj->nfs_obj.startq;
+			custom_qrange = udata->qrange_data->thread_qrange;
+		}
+
+		if (custom_qstart > 0)
+		{
+			t->job.startq = fobj->nfs_obj.startq + tid * custom_qrange;
+			t->job.qrange = custom_qrange;
+		}
+		else
+		{
+			if ((udata->qrange_data->num_a == 0) && (udata->qrange_data->num_r == 0))
+			{
+				t->job.startq = job->startq;
+				t->job.qrange = udata->qrange_data->thread_qrange;
+			}
+			else
+			{
+				t->job.startq = qrange->qrange_start;
+				t->job.qrange = qrange->qrange_end - qrange->qrange_start;
+			}
+		}
+
+		// make this range unavailable to other threads
+		insert_range(udata->qrange_data, udata->requested_side,
+			t->job.startq, t->job.qrange);
+		free(qrange);
+
+		t->job.current_rels = 0;
+
+		tdata->work_fcn_id = 0;
+		udata->threads_sieving++;
+		t->isactive = 1;
+
+		// if (fobj->VFLAG > 0)
+		// {
+		// 	printf("nfs: thread %d starting new range %u->%u with work_fcn %d of %d, #sieving: %d, #complete: %d\n", 
+		// 		tid, t->job.startq, t->job.startq + t->job.qrange, 
+		// 		tdata->work_fcn_id, tdata->num_work_fcn,
+		// 		udata->threads_sieving,	udata->ranges_completed);
+		// }
+	}
+	else
+	{
+		// this will kill the thread
+		tdata->work_fcn_id = tdata->num_work_fcn;
+
+		if (t->isactive != 2)
+		{
+			if (fobj->VFLAG > 0)
+				printf("nfs: thread %d halting, relations objective achieved\n", tid);
+		}
+	}
+
+
+	return;
+}
+
+#endif
 
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 /* if(are_files), then treat args as a char** list of (external) polys
@@ -802,17 +1389,343 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	return minscore_id;
 }
 
+uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, char *outfile, int vflag)
+{
+	char buf[1024], str1[1024], str2[1024];
+	uint32_t fr[32], fa[32], numr = 0, numa = 0;
+	mpz_t res1, res2;
+	struct timeval start;
+	struct timeval stop;
+	double ttime;
+	uint64_t lcg_state = 42;
+	int i;
+	uint32_t line = 0;
+	uint32_t numfull = 0;
+
+	mpz_init(res1);
+	mpz_init(res2);
+
+	if (vflag > 0)
+	{
+		printf("nfs: reading input file %s...\n", infile);
+	}
+
+	FILE* fid = fopen(infile, "r");
+	if (fid == NULL)
+	{
+		printf("could not open %s to read\n", infile);
+		exit(0);
+	}
+
+	FILE* fout;
+
+	gettimeofday(&start, NULL);
+
+	while (~feof(fid))
+	{
+		int64_t a;
+		uint32_t b;
+		char* thistok, *nexttok;
+
+		line++;
+		char* ptr = fgets(buf, 1024, fid);
+		if (ptr == NULL)
+			break;
+
+		strcpy(str1, buf);
+
+		thistok = buf;
+		nexttok = strchr(thistok, ':');
+		if (nexttok == NULL)
+		{
+			printf("could not read relation %u, no lfactors token in file %s\n", line, infile);
+			printf("line: %s\n", str1);
+			continue;
+		}
+		*nexttok = '\0';
+		nexttok++;
+
+		ptr = strchr(thistok, ',');		
+		*ptr = '\0';
+
+		mpz_set_str(res1, thistok, 10);
+		mpz_set_str(res2, ptr + 1, 10);
+
+		thistok = nexttok;
+		nexttok = strchr(thistok, ':');
+		if (nexttok == NULL)
+		{
+			printf("could not read relation %u, no a/b token in file %s\n", line, infile);
+			printf("line: %s\n", str1);
+			continue;
+		}
+		*nexttok = '\0';
+		nexttok++;
+
+		sscanf(thistok, "%ld,%u", &a, &b);
+
+		thistok = nexttok;
+		nexttok = strchr(thistok, ':');
+		if (nexttok == NULL)
+		{
+			printf("could not read relation %u, no rfactors token in file %s\n", line, infile);
+			printf("line: %s\n", str1);
+			continue;
+		}
+		*nexttok = '\0';
+		nexttok++;
+
+
+		numr = 0;
+		ptr = thistok;
+		while (strlen(ptr) > 0)
+		{
+			fr[numr++] = strtoul(ptr, NULL, 16);
+			ptr = strchr(ptr, ',');
+			if (ptr == NULL)
+				break;
+			ptr++;
+		}
+
+		thistok = nexttok;
+
+		numa = 0;
+		ptr = thistok;
+		while (strlen(ptr) > 0)
+		{
+			fa[numa++] = strtoul(ptr, NULL, 16);
+			ptr = strchr(ptr, ',');
+			if (ptr == NULL)
+				break;
+			ptr++;
+		}
+
+		if ((mpz_sgn(res1) > 0) && (mpz_sgn(res2) > 0))
+		{
+			numfull++;
+		}
+		else
+		{
+			relation_batch_add(a, b, 0, fr, numr, res1, fa, numa, res2, rb);
+		}
+	}
+	fclose(fid);
+
+	gettimeofday(&stop, NULL);
+	ttime = ytools_difftime(&start, &stop);
+
+	if (vflag > 0)
+	{
+		printf("nfs: file parsing took %1.2f sec, found %d fulls, batched %u rels "
+			"now running batch solve...\n",
+			ttime, numfull, rb->num_relations);
+	}
+
+	gettimeofday(&start, NULL);
+	relation_batch_run(rb, prime_prod, &lcg_state);
+	gettimeofday(&stop, NULL);
+
+	ttime = ytools_difftime(&start, &stop);
+
+	if (vflag >= 0)
+	{
+		printf("nfs: relation_batch_run on %u rels from file %s took %1.4f sec producing %u relations\n",
+			rb->num_relations, infile, ttime, rb->num_success);
+	}
+
+	fout = fopen(outfile, "a");
+
+	if (fout != NULL)
+	{
+		int num_success = 0;
+		int n = 0;
+		int nwrote = 0;
+		line = 0;
+		for (i = 0; i < rb->num_relations; i++)
+		{
+			if (rb->relations[i].success > 0)
+			{
+				int j, k;
+
+				uint32_t* f = rb->factors + rb->relations[i].factor_list_word;
+
+				fprintf(fout, "%ld,%u:", rb->relations[i].a, rb->relations[i].b);
+				for (j = 0; j < 3; j++)
+				{
+					if (rb->relations[i].lp_r[j] > 1)
+						fprintf(fout, "%x,", rb->relations[i].lp_r[j]);
+				}
+				for (k = 0; k < rb->relations[i].num_factors_r - 1; k++)
+				{
+					fprintf(fout, "%x,", f[k]);
+				}
+				fprintf(fout, "%x:", f[k]);
+				for (j = 0; j < 3; j++)
+				{
+					if (rb->relations[i].lp_a[j] > 1)
+						fprintf(fout, "%x,", rb->relations[i].lp_a[j]);
+				}
+
+				f = rb->factors + rb->relations[i].factor_list_word + rb->relations[i].num_factors_r;
+				for (k = 0; k < rb->relations[i].num_factors_a - 1; k++)
+				{
+					fprintf(fout, "%x,", f[k]);
+				}
+				fprintf(fout, "%x\n", f[k]);
+				nwrote++;
+			}
+		}
+		fclose(fout);
+		if (vflag > 0)
+		{
+			printf("nfs: wrote %d relations to %s\n", nwrote, outfile);
+		}
+	}
+	else
+	{
+		printf("could not open %s to append\n", outfile);
+	}
+
+	if (vflag > 1)
+	{
+		printf("ECM stats R:\n");
+		for (i = 0; i < 4; i++)
+		{
+			printf("%u;  ", rb->num_uecm[i]);
+		}
+		printf("%u;  ", rb->num_tecm);
+		printf("%u;  ", rb->num_tecm2);
+		printf("%u;  ", rb->num_qs);
+		printf("\nECM stats A:\n");
+		for (i = 0; i < 4; i++)
+		{
+			printf("%u;  ", rb->num_uecm_a[i]);
+		}
+		printf("%u;  ", rb->num_tecm_a);
+		printf("%u;  ", rb->num_tecm2_a);
+		printf("%u;  ", rb->num_qs_a);
+
+		printf("\nAbort stats R:\n");
+		for (i = 0; i < 8; i++)
+		{
+			printf("%u;  ", rb->num_abort[i]);
+		}
+		printf("\nAbort stats A:\n");
+		for (i = 0; i < 8; i++)
+		{
+			printf("%u;  ", rb->num_abort_a[i]);
+		}
+		printf("\n");
+	}
+
+	mpz_clear(res1);
+	mpz_clear(res2);
+
+	return rb->num_success;
+}
+
 void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 {
-	nfs_threaddata_t *thread_data;
+
+#ifdef USE_THREADPOOL
+
+	tpool_t* tpool_data;
+	nfs_userdata_t udata;
+
+	udata.fobj = fobj;
+	udata.main_job_ref = job;
+
+	tpool_data = tpool_setup(fobj->THREADS, NULL, NULL,
+		&nfs_sieve_sync, &nfs_sieve_dispatch, &udata);
+	tpool_add_work_fcn(tpool_data, &lasieve_launcher);		// work_fcn id = 0
+
+	// do nfs sieve initialization and startup
+	nfs_sieve_start(tpool_data);
+
+	if (fobj->THREADS == 1)
+	{
+		// it is noticably faster to remove the tpool overhead
+		// if we just have one thread.  This is basically what
+		// tpool_go() does without all of the threading overhead.
+		// todo: maybe this *should* be what tpool_go() does when
+		// num_threads == 1...
+		while (1)
+		{
+			nfs_sieve_sync(tpool_data);
+			nfs_sieve_dispatch(tpool_data);
+			if (tpool_data->work_fcn_id == 0)
+			{
+				//printf("recieved work function id = %d of %d, calling lasieve_launcher\n",
+				//	tpool_data->work_fcn_id, tpool_data->num_work_fcn);
+				//
+				lasieve_launcher(tpool_data);
+			}
+			else
+			{
+				//printf("recieved work function id = %d of %d, thread halting\n", 
+				//	tpool_data->work_fcn_id, tpool_data->num_work_fcn);
+				break;
+			}
+		}
+	}
+	else
+	{
+		tpool_go(tpool_data);
+	}
+
+
+#else
+
 	int i;
-	FILE *fid;
-	FILE *logfile;
-	char side;
-	uint32_t totalrels;
+	FILE* fid;
+	FILE* logfile;
 	uint32_t custom_qstart = 0;
 	uint32_t custom_qrange = 0;
-	int make_afb = 0;
+	char side;
+	int is_3lp;
+	nfs_threaddata_t* thread_data;
+
+	is_3lp = ((job->mfbr > (2.5 * job->lpbr)) ||
+		(job->mfba > (2.5 * job->lpba))) ? 1 : 0;
+
+	is_3lp = is_3lp && fobj->nfs_obj.batch_3lp;
+
+	if (is_3lp && !job->has_3lp_batch)
+	{
+		uint64_t max_prime = (job->mfbr > job->mfba) ? job->lpbr - 1 : job->lpba - 1;
+		uint32_t min_prime = MIN(job->alim, job->rlim) / 10;
+
+		// todo: need to free this at the end of sieving.
+		job->rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
+
+		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
+
+		relation_batch_init(stdout, job->rb, min_prime, 1ULL << max_prime,
+			1ull << job->lpbr, 1ull << job->lpba, NULL, 1);
+
+		logprint_oc(fobj->flogname, "a", "relation batch initialized\n");
+
+		for (i = 0; i < 4; i++)
+		{
+			job->rb->num_uecm[i] = 0;
+			job->rb->num_uecm_a[i] = 0;
+		}
+		job->rb->num_tecm = 0;
+		job->rb->num_tecm2 = 0;
+		job->rb->num_qs = 0;
+		job->rb->num_tecm_a = 0;
+		job->rb->num_tecm2_a = 0;
+		job->rb->num_qs_a = 0;
+		job->rb->num_attempt = 0;
+		job->rb->num_success = 0;
+		for (i = 0; i < 8; i++)
+		{
+			job->rb->num_abort[i] = 0;
+			job->rb->num_abort_a[i] = 0;
+		}
+
+		job->has_3lp_batch = 1;
+	}
 
 	side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
 
@@ -820,8 +1733,19 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 
 	qrange_data_t* qrange_data = sort_completed_ranges(fobj, job);	
 
+	if (is_3lp)
+	{
+		// limit the q-range of 3LP jobs with batch factoring
+		// so the raw files don't get too big.  sieving may modify this value
+		// as it progresses to target around 1M raw relations per batch.
+		qrange_data->thread_qrange = MIN(1000, qrange_data->thread_qrange);
+	}
+
 	if (fobj->nfs_obj.rangeq > 0)
 	{
+		// if the nfs_obj.rangeq value is > 0, that means the user
+		// requested a custom sieving range.  fill in the info to our
+		// range data structure.
 		custom_qstart = fobj->nfs_obj.startq;
 		custom_qrange = qrange_data->thread_qrange;
 	}
@@ -877,6 +1801,44 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 		thread_data[i].is_poly_select = 0;
 		thread_data[i].fobj = fobj;
 
+		if (is_3lp)
+		{
+			int j;
+
+			sprintf(thread_data[i].outfilename, "rels%d.dat", i);
+
+			thread_data[i].rb_ref = job->rb;
+
+			thread_data[i].job.rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
+
+			uint64_t max_prime = (job->mfbr > job->mfba) ? job->lpbr - 1 : job->lpba - 1;
+			uint32_t min_prime = MIN(job->alim, job->rlim) / 10;
+
+			relation_batch_init(stdout, thread_data[i].job.rb, min_prime, 1ULL << max_prime,
+				1ull << job->lpbr, 1ull << job->lpba, NULL, 0);
+
+			for (j = 0; j < 4; j++)
+			{
+				thread_data[i].job.rb->num_uecm[j] = 0;
+				thread_data[i].job.rb->num_uecm_a[j] = 0;
+			}
+
+			thread_data[i].job.rb->num_tecm = 0;
+			thread_data[i].job.rb->num_tecm2 = 0;
+			thread_data[i].job.rb->num_qs = 0;
+			thread_data[i].job.rb->num_tecm_a = 0;
+			thread_data[i].job.rb->num_tecm2_a = 0;
+			thread_data[i].job.rb->num_qs_a = 0;
+			thread_data[i].job.rb->num_attempt = 0;
+			thread_data[i].job.rb->num_success = 0;
+
+			for (j = 0; j < 8; j++)
+			{
+				thread_data[i].job.rb->num_abort[j] = 0;
+				thread_data[i].job.rb->num_abort_a[j] = 0;
+			}
+		}
+
 		// have all data assigned, thread is now in-flight
 		if (thread_data[i].job.qrange > 0)
 		{
@@ -895,7 +1857,6 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 				"thread %d is inactive\n", i);
 		}
 	}
-
 
     if (fobj->LOGFLAG)
     {
@@ -967,16 +1928,16 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 #endif
 		}
 	}
-		
+
 	// combine output and log the range
 	for (i = 0; i < fobj->THREADS; i++)
 	{
-		nfs_threaddata_t *t = thread_data + i;
+		nfs_threaddata_t* t = thread_data + i;
 
 		if (!t->inflight)
 			continue;
 
-		savefile_concat(t->outfilename,fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
+		savefile_concat(t->outfilename, fobj->nfs_obj.outputfile, fobj->nfs_obj.mobj);
 
 		uint32_t last_spq = t->job.qrange;
 		if (NFS_ABORT > 0)
@@ -986,7 +1947,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 			// the file naming convention.
 			char* ofn = xmalloc(256);
 			FILE* of;
-			char *hn = xmalloc(128);
+			char* hn = xmalloc(128);
 			int ret;
 
 #if defined(WIN32)
@@ -1057,11 +2018,11 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 					sprintf(ofn, "rels%d.dat", i);
 
 					if ((of = fopen(ofn, "r")) != 0) {
-						
+
 						while (1)
 						{
 							// read a line into the next position of the circular buffer
-							fgets(tmp, GSTR_MAXSIZE, of);	
+							fgets(tmp, GSTR_MAXSIZE, of);
 
 							// quick check that it might be a valid line
 							if (strlen(tmp) > 30)
@@ -1124,7 +2085,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 
 				}
 			}
-			
+
 			free(ofn);
 
 		}
@@ -1134,7 +2095,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 		fid = fopen(fname, "a");
 		if (fid != NULL)
 		{
-			fprintf(fid, "%c,%u,%u,%u\n", side, t->job.startq, 
+			fprintf(fid, "%c,%u,%u,%u\n", side, t->job.startq,
 				last_spq, t->job.current_rels);
 			fclose(fid);
 		}
@@ -1159,29 +2120,48 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 			count++;
 		fclose(fid);
 
-		if (fobj->VFLAG > 0) printf("nfs: adding %u rels from rels.add\n",count);
+		if (fobj->VFLAG > 0) printf("nfs: adding %u rels from rels.add\n", count);
 
-        if (fobj->LOGFLAG)
-        {
-            logfile = fopen(fobj->flogname, "a");
-            if (logfile == NULL)
-            {
-                printf("fopen error: %s\n", strerror(errno));
-                printf("could not open yafu logfile for appending\n");
-            }
-            else
-            {
-                logprint(logfile, "nfs: adding %u rels from rels.add\n", count);
-                fclose(logfile);
-            }
-        }
+		if (fobj->LOGFLAG)
+		{
+			logfile = fopen(fobj->flogname, "a");
+			if (logfile == NULL)
+			{
+				printf("fopen error: %s\n", strerror(errno));
+				printf("could not open yafu logfile for appending\n");
+			}
+			else
+			{
+				logprint(logfile, "nfs: adding %u rels from rels.add\n", count);
+				fclose(logfile);
+			}
+		}
 
-		savefile_concat("rels.add",fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
+		savefile_concat("rels.add", fobj->nfs_obj.outputfile, fobj->nfs_obj.mobj);
 		remove("rels.add");
 
-        job->current_rels += count;
+		job->current_rels += count;
 	}
 
+#endif
+
+#ifdef USE_THREADPOOL
+
+	if (udata.is_3lp)
+	{
+		int i;
+		for (i = 0; i < fobj->THREADS; i++) {
+			relation_batch_free(udata.thread_data[i].job.rb, 0);
+		}
+	}
+
+	free(udata.qrange_data->qranges_a);
+	free(udata.qrange_data->qranges_r);
+	free(udata.qrange_data);
+	free(udata.thread_data);
+	free(tpool_data);
+
+#else
 	//stop worker threads
 	for (i = 0; i < fobj->THREADS - 1; i++)
 	{
@@ -1192,31 +2172,59 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	}
 	nfs_stop_worker_thread(thread_data + i, 1);
 
+	if (is_3lp)
+	{
+		for (i = 0; i < fobj->THREADS; i++) {
+			relation_batch_free(thread_data[i].job.rb, 0);
+		}
+	}
+
 	//free the thread structure
 	free(thread_data);
 	free(qrange_data->qranges_a);
 	free(qrange_data->qranges_r);
 	free(qrange_data);
 
+#endif
+
 	return;
 }
 
+#ifdef USE_THREADPOOL
+void* lasieve_launcher(void* vptr) {
+	// unpack the userdata portion of the thread pool void pointer.
+	tpool_t* tdata = (tpool_t*)vptr;
+	nfs_userdata_t* udata = tdata->user_data;
+	fact_obj_t* fobj = udata->fobj;
+	nfs_job_t* job = udata->main_job_ref;
+	int tid = tdata->tindex;
+	nfs_threaddata_t* thread_data = &udata->thread_data[tid];
+	qrange_data_t* qrange_data = udata->qrange_data;
 
-void *lasieve_launcher(void *ptr)
-{
+#else
+void *lasieve_launcher(void *ptr) {
+	nfs_threaddata_t* thread_data = (nfs_threaddata_t*)ptr;
+	fact_obj_t* fobj = thread_data->fobj;
+
+#endif
+
 	// launch a gnfs-lasieve job
-	nfs_threaddata_t *thread_data = (nfs_threaddata_t *)ptr;
-	fact_obj_t *fobj = thread_data->fobj;
-	char syscmd[GSTR_MAXSIZE], tmpstr[GSTR_MAXSIZE], side[GSTR_MAXSIZE];	
+	char syscmd[GSTR_MAXSIZE], tmpstr[GSTR_MAXSIZE], side[GSTR_MAXSIZE], batch3lp[GSTR_MAXSIZE];
 	FILE *fid;
 	int cmdret;
+	struct timeval bstop;	// stop time of sieving batch
+	struct timeval bstart;	// start time of sieving batch
 
 	sprintf(side, (thread_data->job.poly->side == ALGEBRAIC_SPQ) ? 
 				"algebraic" : "rational"); // gotta love ?:
 
+	sprintf(batch3lp, fobj->nfs_obj.batch_3lp ? "-d" : "");
+
 	//remove any temporary relation files
 	remove(thread_data->outfilename);
 		
+	gettimeofday(&bstart, NULL);
+
 	//start ggnfs binary - new win64 ASM enabled binaries current have a problem with this:
 	//sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s -n %d",
 	//		thread_data->job.sievername, fobj->VFLAG>0?" -v":"", *side,
@@ -1225,9 +2233,9 @@ void *lasieve_launcher(void *ptr)
 
     // todo: add command line input of arbitrary argument string to append to this command
 	// but not this:
-	snprintf(syscmd, GSTR_MAXSIZE, "%s%s -f %u -c %u -o %s -n %d -%c %s ",
-			thread_data->job.sievername, fobj->VFLAG>0?" -v":"", thread_data->job.startq, 
-			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex,
+	snprintf(syscmd, GSTR_MAXSIZE, "%s%s -f %u -c %u -o %s -n %d %s -%c %s ",
+			thread_data->job.sievername, fobj->VFLAG>1?" -v":"", thread_data->job.startq, 
+			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex, batch3lp, 
 			*side, thread_data->job_infile_name);
 
 	if (fobj->VFLAG >= 0)
@@ -1266,6 +2274,37 @@ void *lasieve_launcher(void *ptr)
 		printf("nfs: could not open output file %s, possibly bad path to siever\n",
 			thread_data->outfilename);
 	}
+
+	int is_3lp = ((thread_data->job.mfbr > (2.5 * thread_data->job.lpbr)) ||
+		(thread_data->job.mfba > (2.5 * thread_data->job.lpba))) ? 1 : 0;
+
+	is_3lp = is_3lp && fobj->nfs_obj.batch_3lp;
+
+	if (is_3lp)
+	{
+		mpz_ptr prime_prod = thread_data->rb_ref->prime_product;
+
+		char infile[80];
+
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: now processing %u batched relations in file %s.raw\n",
+				thread_data->job.current_rels, thread_data->outfilename);
+		}
+
+		sprintf(infile, "%s.raw", thread_data->outfilename);
+		thread_data->job.current_rels += 
+			process_batch(thread_data->job.rb, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
+		remove(infile);
+
+		// clear rb for next use
+		thread_data->job.rb->num_relations = 0;
+		thread_data->job.rb->num_factors = 0;
+	}
+
+	gettimeofday(&bstop, NULL);
+	thread_data->test_time = ytools_difftime(&bstart, &bstop);
+
 
 	return 0;
 }

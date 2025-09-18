@@ -29,6 +29,7 @@ code to the public domain.
 #include "arith.h"
 #include "qs.h"
 #include <stdint.h>
+#include "batch_factor.h"
 
 /* used to place a deadline on how long polynomial
    selection will run. Note that the time budget is
@@ -64,6 +65,7 @@ enum nfs_thread_command {
     NFS_COMMAND_WAIT,
     NFS_COMMAND_RUN,
     NFS_COMMAND_RUN_POLY,
+    NFS_COMMAND_RUN_BATCH,
     NFS_COMMAND_END
 };
 
@@ -141,6 +143,9 @@ typedef struct
     uint32_t last_leading_coeff;
     uint32_t use_max_rels;
     double test_score;      // used to remember score if test-sieved.
+    int is_3lp;
+    int has_3lp_batch;
+    relation_batch_t* rb;
 
     snfs_t* snfs; // NULL if GNFS
 } nfs_job_t;
@@ -151,6 +156,7 @@ typedef struct {
     char job_infile_name[80];
     nfs_job_t job;
     uint32_t siever;
+    relation_batch_t* rb_ref;
 
     // stuff for parallel msieve poly select
     char* polyfilename, * logfilename, * fbfilename;
@@ -165,7 +171,9 @@ typedef struct {
 
     int tindex;
     int is_poly_select;
+    int isactive;
     int inflight;
+    uint32_t est_inflight_rels;
 
     enum nfs_thread_task task;
 
@@ -195,6 +203,7 @@ typedef struct {
 //----------------------- NFS FUNCTIONS -------------------------------------//
 void* lasieve_launcher(void* ptr);
 void* polyfind_launcher(void* ptr);
+void* batch_launcher(void* ptr);
 double find_best_msieve_poly(fact_obj_t* fobj, nfs_job_t* job, char *jobfile_name, int write_jobfile);
 void msieve_to_ggnfs(fact_obj_t* fobj, nfs_job_t* job);
 void ggnfs_to_msieve(fact_obj_t* fobj, nfs_job_t* job);
