@@ -22,7 +22,7 @@ WIN = 0
 WIN64 = 0
 VBITS = 64
 
-CC = gcc
+CC = icc
 CFLAGS = -fno-common -g -m64 -std=gnu99 -DUSE_SSE2 -fPIE -DUSE_NFS
 WARN_FLAGS = -Wall -Wconversion
 OPT_FLAGS = -O2 -D_FILE_OFFSET_BITS=64 -DNDEBUG -D_LARGEFILE64_SOURCE -DVBITS=$(VBITS)
@@ -34,20 +34,20 @@ OBJ_EXT = .o
 # standard search directories for headers/libraries within yafu.
 # These should normally not be modified.
 INC = -I. -Iinclude -Ims_include -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm \
-	-Iytools -Iysieve -Iaprcl -Ignfs -Ignfs/poly -Ignfs/poly/stage1
+	-Iytools -Iysieve -Iaprcl -Ignfs -Ignfs/poly -Ignfs/poly/stage1 -Ifactor/avx-ecm/
 LIBS = -L. 
 
 # we require additional search directories for gmp and gmp-ecm, 
 # for libraries and headers.  Change
 # these if your installation locations differ.
-INC += -I../gmp-install/6.2.1/include
-LIBS += -L../gmp-install/6.2.1/lib
+INC += -I../gmp-install/include
+LIBS += -L../gmp-install/lib
 
-INC += -I../ecm-install/7.0.6-wsl/include/
-LIBS += -L../ecm-install/7.0.6-wsl/lib/
+INC += -I../ecm-install/include/
+LIBS += -L../ecm-install/lib/
 
-# libs for building msieve 
-MSIEVE_LIBS = -L. -L../gmp_install/gmp_6.2.0/lib
+# libs for building msieve: should match the GMP lib path for yafu specified above
+MSIEVE_LIBS = -L. -L../gmp-install/lib
 
 # ===================== compiler options =========================
 
@@ -59,7 +59,6 @@ endif
 
 
 # ===================== msieve feature options =======================
-
 ifeq ($(OMP),1)
 	CFLAGS += -fopenmp -DHAVE_OMP
 endif
@@ -242,7 +241,6 @@ MSIEVE_YAFU_SRCS = \
 	factor/qs/msieve/lanczos_matmul2.c \
 	factor/qs/msieve/lanczos_pre.c \
 	factor/qs/msieve/sqrt.c \
-	factor/qs/msieve/savefile.c \
 	factor/qs/msieve/gf2.c
 
 MSIEVE_YAFU_OBJS = $(MSIEVE_YAFU_SRCS:.c=$(OBJ_EXT))
@@ -258,6 +256,7 @@ YAFU_SRCS = \
 	top/cmdParser/calc.c
 	
 COMMON_SRCS = \
+	factor/batch_factor.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -289,7 +288,6 @@ ECM_SRCS = \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
     factor/avx-ecm/avxecm.c \
-	factor/avx-ecm/avxppm1.c \
     factor/avx-ecm/avx_ecm_main.c \
     factor/avx-ecm/vec_common.c \
     factor/avx-ecm/vecarith.c \
@@ -311,8 +309,6 @@ YAFU_SIQS_SRCS = \
 	factor/qs/SIQS.c \
 	factor/qs/med_sieve_32k.c \
 	factor/qs/poly_roots_32k.c \
-	factor/prime_sieve.c \
-    factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c
 	
 SIQS_BIN_SRCS = factor/qs/qs_demo/siqs_demo.c \
@@ -383,22 +379,25 @@ COMMON_HEAD = include/gmp_xface.h \
 	ysieve/soe.h  \
     ysieve/soe_impl.h \
 	top/aprcl/tinyprp.h \
+	include/prime_sieve.h \
+    include/batch_factor.h \
 	top/aprcl/mpz_aprcl.h
 	
 ECM_HEAD = include/yafu_ecm.h \
 	factor/avx-ecm/avx_ecm.h \
+	factor/avx-ecm/avx_ecm_impl.h \
 	factor/gmp-ecm/microecm.h
 
-SIQS_HEAD = include/qs.h  \
+SIQS_HEAD = include/batch_factor.h \
+	include/qs.h  \
 	include/qs_impl.h \
 	factor/qs/poly_macros_32k.h \
 	factor/qs/poly_macros_common.h \
 	factor/qs/sieve_macros_32k.h \
 	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
-	include/prime_sieve.h \
-    include/batch_factor.h \
     include/cofactorize.h
+	
 	
 SIQS_BIN_HEAD = factor/qs_demo/siqs_demo.h \
 	factor/qs_demo/calc.h \
@@ -450,7 +449,7 @@ COMMON_HDR = \
 	ms_include/polyroot.h \
 	ms_include/thread.h \
 	ms_include/util.h \
-	aprcl/mpz_aprcl32.h \
+	aprcl/mpz_aprcl32.h
 
 COMMON_GPU_HDR = \
 	common/lanczos/gpu/lanczos_kernel.cu \
@@ -477,7 +476,6 @@ MSIEVE_COMMON_SRCS = \
 	common/smallfact/smallfact.c \
 	common/smallfact/squfof.c \
 	common/smallfact/tinyqs.c \
-	common/batch_factor.c \
 	common/cuda_xface.c \
 	common/cuda_xface_la.c \
 	common/dickman.c \
@@ -488,6 +486,7 @@ MSIEVE_COMMON_SRCS = \
 	common/minimize.c \
 	common/minimize_global.c \
 	common/mp.c \
+	common/ms_batch_factor.c \
 	common/polyroot.c \
 	common/prime_delta.c \
 	common/prime_sieve.c \
@@ -495,7 +494,7 @@ MSIEVE_COMMON_SRCS = \
 	common/strtoll.c \
 	common/thread.c \
 	common/util.c \
-	aprcl/mpz_aprcl32.c \
+	aprcl/mpz_aprcl32.c
 
 COMMON_GPU_SRCS = \
 		common/lanczos/gpu/lanczos_matmul_gpu.c \

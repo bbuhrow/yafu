@@ -166,6 +166,8 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
     extern int unlock_thread_from_core(void);
     extern char* time_from_secs(char* str, unsigned long time);
 
+    extern int portable_sleep(int sleep_time_ms);
+
 // ============================================================================
 // randomness
 // ============================================================================

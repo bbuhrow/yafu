@@ -13,6 +13,7 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include <stdio.h>
+#include "ytools.h"
 #include "nfs_impl.h"
 #include "batch_factor.h"
 #include "threadpool.h"
@@ -559,10 +560,10 @@ void nfs_sieve_sync(void* vptr)
 	// nothing has been done, waiting for 1st dispatch
 	if (t->isactive == 0)
 	{
-		//printf("nfs_sieve_sync: thread %d is not active\n", tid);
+		//printf("nfs: (sieve_sync) thread %d is not active\n", tid);
 		return;
 	}
-	//printf("nfs_sieve_sync: thread %d is active, syncing data\n", tid);
+	//printf("nfs: (sieve_sync) thread %d is active, syncing data\n", tid);
 
 	// set last completed q, if we've finished a range.
 	uint32_t last_spq = t->job.qrange;
@@ -754,7 +755,7 @@ void nfs_sieve_sync(void* vptr)
 
 		est_time /= (double)fobj->THREADS;
 
-		if (est_time < 0) est_time = 0.0;
+		if (est_time < 0) est_time = 0.000001;
 
 		uint32_t est_time_u = (uint32_t)est_time;
 
@@ -834,7 +835,27 @@ void nfs_sieve_sync(void* vptr)
 	}
 
 	// done with the temporary output file for this thread.
-	remove(udata->thread_data[tid].outfilename);
+	int i = 0;
+	while (1)
+	{
+		int status = remove(udata->thread_data[tid].outfilename);
+		if (status == 0)
+			break;
+
+		// if working with network mounted drives, sometimes it takes a while
+		// for the OS to remove the file, or for GGNFS to let go of it (?).  
+		// Anyway, I've seen that this is necessary for some of the systems I test on.
+		if (i > 9)
+		{
+			printf("now %d attempts to remove file %s, ", i, udata->thread_data[tid].outfilename);
+			perror("error was");
+		}
+		i++;
+		MySleep(100);
+	}
+
+	if (i > 9)
+		printf("nfs: finished with and removed file %s\n", udata->thread_data[tid].outfilename);
 
 	// not sieving any more, for now.
 	udata->threads_sieving--;
@@ -924,18 +945,23 @@ void nfs_sieve_dispatch(void* vptr)
 		udata->threads_sieving++;
 		t->isactive = 1;
 
-		// if (fobj->VFLAG > 0)
-		// {
-		// 	printf("nfs: thread %d starting new range %u->%u with work_fcn %d of %d, #sieving: %d, #complete: %d\n", 
-		// 		tid, t->job.startq, t->job.startq + t->job.qrange, 
-		// 		tdata->work_fcn_id, tdata->num_work_fcn,
-		// 		udata->threads_sieving,	udata->ranges_completed);
-		// }
+		//if (fobj->VFLAG > 0)
+		//{
+		//	printf("nfs: thread %d starting new range %u->%u with work_fcn %d of %d, #sieving: %d, #complete: %d\n", 
+		//		tid, t->job.startq, t->job.startq + t->job.qrange, 
+		//		tdata->work_fcn_id, tdata->num_work_fcn,
+		//		udata->threads_sieving,	udata->ranges_completed);
+		//}
 	}
 	else
 	{
 		// this will kill the thread
 		tdata->work_fcn_id = tdata->num_work_fcn;
+
+		//if (fobj->VFLAG > 0)
+		//{
+		//	printf("nfs: thread %d halting with isactive == %d\n", tid, t->isactive);
+		//}
 
 		if (t->isactive != 2)
 		{
@@ -1105,7 +1131,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 		if (fobj->VFLAG > 0) printf("test: fb generation took %6.4f seconds\n", t_time);
 		logprint(flog, "test: fb generation took %6.4f seconds\n", t_time);
-		MySleep(.1);
+		MySleep(100);
 
 		//start the test
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
@@ -2253,8 +2279,10 @@ void *lasieve_launcher(void *ptr) {
 	// we don't want to interpret as an abort.
     if (!((cmdret == 0) || cmdret == -1073741819))
     {
+		printf("\nnfs: ggnfs returned code %d\n", cmdret);
         if (NFS_ABORT < 1)
         {
+			printf("\nnfs: setting NFS_ABORT\n");
             NFS_ABORT = 1;
         }
     }

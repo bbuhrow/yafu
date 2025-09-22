@@ -898,9 +898,12 @@ static void my_random_reset(void)
 
 static inline uint64_t my_rdtsc(void)
 {
-#if defined(__x86_64__)
-	// supported by GCC and Clang for x86 platform
+#if defined(__x86_64__) && (defined(__clang__) || defined(__INTEL_COMPILER))
+	// supported by Clang and Intel in immintrin.h for x86 platform
 	return __rdtsc();
+#elif defined(__x86_64__) && defined(__GNUC__)
+	// supported by gcc in immintrin.h for x86 platform
+	return __builtin_ia32_rdtsc();
 #elif INLINE_ASM && defined(__aarch64__)
 	// should be a 64 bits wallclock counter
 	// document for old/recent architecture and/or BMC chipsets mention it
@@ -967,7 +970,7 @@ int test_tinyprp()
 	
 	printf("test of mpz_powm +/-1 on random 6k + 1 inputs\n");
 	my_random_reset();
-	for (bits = 80; bits <= 128; bits += 1)
+	for (bits = 80; bits <= 104; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1037,7 +1040,7 @@ int test_tinyprp()
 			totalnum += num;
 		} while (totalnum < 10000); // (0);  (elapsed < (1ull << 30));
 
-		printf("%013lx%013lx\n", prp[1], prp[0]);
+		printf("%013"PRIx64"%013"PRIx64"\n", prp[1], prp[0]);
 
 		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
 			elapsed, bits, (elapsed) / (k * num));
@@ -1047,9 +1050,10 @@ int test_tinyprp()
 	}
 	printf("\n");
 
+#ifdef USE_AVX512F
 	printf("test of modexp_104x8b +/-1 on random 6k + 1 inputs\n");
 	my_random_reset();
-	for (bits = 80; bits <= 0; bits += 1)
+	for (bits = 80; bits <= 104; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1101,7 +1105,7 @@ int test_tinyprp()
 				e[1] >>= 1;
 				e[0] &= 0xfffffffffffffull;
 
-#ifdef GMP_CHECK
+#if 0 //def GMP_CHECK
 				mpz_set_ui(gmpn, prp[1]);
 				mpz_mul_2exp(gmpn, gmpn, 52);
 				mpz_add_ui(gmpn, gmpn, prp[0]);
@@ -1118,7 +1122,7 @@ int test_tinyprp()
 					num1 += _mm_popcnt_u32(onemsk);
 					numm1 += _mm_popcnt_u32(monemsk);
 
-#ifdef GMP_CHECK
+#if 0 //def GMP_CHECK
 					uint8_t gonemsk = 0;
 					uint8_t gmonemsk = 0;
 
@@ -1189,7 +1193,7 @@ int test_tinyprp()
 			totalnum += num;
 		} while (totalnum < 10000); // (0);  (elapsed < (1ull << 30));
 
-		printf("%013lx%013lx\n", prp[1], prp[0]);
+		printf("%013"PRIx64"%013"PRIx64"\n", prp[1], prp[0]);
 
 		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
 			elapsed, bits, (elapsed) / (k * num));
@@ -1198,9 +1202,11 @@ int test_tinyprp()
 		printf("elapsed time: %1.4f sec, %1.4f us / input\n", telapsed, 1000000. * telapsed / (double)(k * num));
 	}
 	printf("\n");
+#endif
 
 	printf("test of modexp_128x1b on random 6k + 1 inputs\n");
-	for (bits = 80; bits <= 128; bits += 1)
+	my_random_reset();
+	for (bits = 80; bits <= 104; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1246,10 +1252,19 @@ int test_tinyprp()
 				e[0] = prp[0];
 				e[1] = prp[1];
 
+				// compute b^((e-1)/2)
 				e[0] -= 1;		// is odd: won't carry.
 				e[0] >>= 1;
 				e[0] |= (e[1] << 63);
 				e[1] >>= 1;
+
+#ifdef GMP_CHECK
+				mpz_set_ui(gmpn, prp[1]);
+				mpz_mul_2exp(gmpn, gmpn, 64);
+				mpz_add_ui(gmpn, gmpn, prp[0]);
+				mpz_sub_ui(gmpn1, gmpn, 1);
+				mpz_tdiv_q_2exp(gmpe, gmpn1, 1);
+#endif
 
 				for (j = 0; j < 168; j++)
 				{
@@ -1258,6 +1273,24 @@ int test_tinyprp()
 						num1++;
 					if (result == -1)
 						numm1++;
+
+#ifdef GMP_CHECK
+					mpz_set_ui(gmpb, sm_primes[j]);
+					mpz_powm(gmpa, gmpb, gmpe, gmpn);
+
+					if ((mpz_cmp_ui(gmpa, 1) == 0) && (result != 1))
+					{
+						gmp_printf("%Zd^%Zd mod %Zd = %d with mpz_powm but modexp_128x1b returned %d\n",
+							gmpb, gmpe, gmpn, mpz_get_ui(gmpa), result);
+						exit(0);
+					}
+					if ((mpz_cmp(gmpa, gmpn1) == 0) && (result != -1))
+					{
+						gmp_printf("%Zd^%Zd mod %Zd = %Zd with mpz_powm but modexp_128x1b returned %d\n",
+							gmpb, gmpe, gmpn, gmpa, result);
+						exit(0);
+					}
+#endif
 				}
 
 				prp[0] += inc;
@@ -1273,6 +1306,8 @@ int test_tinyprp()
 			totalnum += num;
 		} while (totalnum < 10000); // (0);  (elapsed < (1ull << 30));
 
+		printf("%013"PRIx64"%013"PRIx64"\n", prp[1], prp[0]);
+
 		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %u +1 and %u -1 tests out of %u %d-bit inputs: %1.2f%%\n",
@@ -1285,7 +1320,7 @@ int test_tinyprp()
 
 	printf("test of fermat_prp_64x1 on random 6k + 1 inputs\n");
 	my_random_reset();
-	for (bits = 20; bits <= 0; bits += 1)
+	for (bits = 20; bits <= 64; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1345,7 +1380,7 @@ int test_tinyprp()
 
 	printf("test of MR_2sprp_64x1 on random 6k + 1 inputs\n");
 	my_random_reset();
-	for (bits = 20; bits <= 0; bits += 1)
+	for (bits = 20; bits <= 64; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1405,7 +1440,7 @@ int test_tinyprp()
 
 	printf("test of mpz_probab_prime_p on random 6k + 1 inputs\n");
 	my_random_reset();
-	for (bits = 20; bits <= 0; bits += 1)
+	for (bits = 20; bits <= 64; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1469,7 +1504,7 @@ int test_tinyprp()
 	printf("\n");
 
 	printf("test of fermat_prp_128x1 on random 6k + 1 inputs\n");
-	for (bits = 100; bits <= 128; bits += 1)
+	for (bits = 80; bits <= 128; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1529,7 +1564,7 @@ int test_tinyprp()
 	printf("\n");
 
 	printf("test of MR_2sprp_128x1 on random 6k + 1 inputs\n");
-	for (bits = 100; bits <= 128; bits += 1)
+	for (bits = 80; bits <= 128; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1589,6 +1624,8 @@ int test_tinyprp()
 	printf("\n");
 
 	return 0;
+
+#ifdef USE_AVX512F
 	// test of fermat_prp_52x8 on random 6k+1 inputs
 	for (bits = 20; bits <= 52; bits += 1)
 	{
@@ -2191,6 +2228,8 @@ int test_tinyprp()
 	}
 	printf("\n");
 
+#endif
+
 #ifdef GMP_CHECK
 	mpz_clear(gmpn);
 	mpz_clear(gmpn1);
@@ -2215,7 +2254,7 @@ __m512i rem_epu64_x8(__m512i n, __m512i d)
 	n1pd = _mm512_div_round_pd(n1pd, d1pd, ROUNDING_MODE);
 	q = _mm512_cvttpd_epu64(n1pd);
 
-	__m512i qd = _mm512_mullox_epi64(q, d);
+	__m512i qd = _mm512_mullo_epi64(q, d);
 	r = _mm512_sub_epi64(n, qd);
 
 	// fix q too big by a little, with special check for
@@ -2239,7 +2278,7 @@ __m512i rem_epu64_x8(__m512i n, __m512i d)
 		q2 = _mm512_add_epi64(_mm512_set1_epi64(1), _mm512_cvttpd_epu64(n1pd));
 
 		q = _mm512_mask_sub_epi64(q, err, q, q2);
-		r = _mm512_mask_add_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+		r = _mm512_mask_add_epi64(r, err, r, _mm512_mullo_epi64(q2, d));
 	}
 
 	// fix q too small by a little bit
@@ -2256,7 +2295,7 @@ __m512i rem_epu64_x8(__m512i n, __m512i d)
 		q2 = _mm512_cvttpd_epu64(n1pd);
 
 		q = _mm512_mask_add_epi64(q, err, q, q2);
-		r = _mm512_mask_sub_epi64(r, err, r, _mm512_mullox_epi64(q2, d));
+		r = _mm512_mask_sub_epi64(r, err, r, _mm512_mullo_epi64(q2, d));
 	}
 
 	return r;

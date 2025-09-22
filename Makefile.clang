@@ -40,11 +40,14 @@ LIBS = -L.
 # we require additional search directories for gmp and gmp-ecm, 
 # for libraries and headers.  Change
 # these if your installation locations differ.
-INC += -I/users/buhrow/src/c/gmp_install/6.2.0-aocc/include
-LIBS += -L/users/buhrow/src/c/gmp_install/6.2.0-aocc/lib
+INC += -I../gmp-install/6.2.0-aocc/include
+LIBS += -L../gmp-install/6.2.0-aocc/lib
 
-INC += -I/users/buhrow/src/c/ecm_install/7.0.5-clang/include/
-LIBS += -L/users/buhrow/src/c/ecm_install/7.0.5-clang/lib/
+INC += -I../ecm-install/7.0.5-clang/include/
+LIBS += -L../ecm-install/7.0.5-clang/lib/
+
+# libs for building msieve: should match the GMP lib path for yafu specified above
+MSIEVE_LIBS = -L. -L../gmp-install/6.2.0-aocc/lib
 
 # ===================== compiler options =========================
 
@@ -56,8 +59,6 @@ endif
 
 
 # ===================== msieve feature options =======================
-MSIEVE_LIBS = -L. -L../gmp_install/gmp_6.2.0/lib
-
 ifeq ($(OMP),1)
 	CFLAGS += -fopenmp -DHAVE_OMP
 endif
@@ -255,6 +256,7 @@ YAFU_SRCS = \
 	top/cmdParser/calc.c
 	
 COMMON_SRCS = \
+	factor/batch_factor.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -307,8 +309,6 @@ YAFU_SIQS_SRCS = \
 	factor/qs/SIQS.c \
 	factor/qs/med_sieve_32k.c \
 	factor/qs/poly_roots_32k.c \
-	factor/prime_sieve.c \
-    factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c
 	
 SIQS_BIN_SRCS = factor/qs/qs_demo/siqs_demo.c \
@@ -379,6 +379,8 @@ COMMON_HEAD = include/gmp_xface.h \
 	ysieve/soe.h  \
     ysieve/soe_impl.h \
 	top/aprcl/tinyprp.h \
+	include/prime_sieve.h \
+    include/batch_factor.h \
 	top/aprcl/mpz_aprcl.h
 	
 ECM_HEAD = include/yafu_ecm.h \
@@ -386,16 +388,16 @@ ECM_HEAD = include/yafu_ecm.h \
 	factor/avx-ecm/avx_ecm_impl.h \
 	factor/gmp-ecm/microecm.h
 
-SIQS_HEAD = include/qs.h  \
+SIQS_HEAD = include/batch_factor.h \
+	include/qs.h  \
 	include/qs_impl.h \
 	factor/qs/poly_macros_32k.h \
 	factor/qs/poly_macros_common.h \
 	factor/qs/sieve_macros_32k.h \
 	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
-	include/prime_sieve.h \
-    include/batch_factor.h \
     include/cofactorize.h
+	
 	
 SIQS_BIN_HEAD = factor/qs_demo/siqs_demo.h \
 	factor/qs_demo/calc.h \
@@ -447,7 +449,7 @@ COMMON_HDR = \
 	ms_include/polyroot.h \
 	ms_include/thread.h \
 	ms_include/util.h \
-	aprcl/mpz_aprcl32.h \
+	aprcl/mpz_aprcl32.h
 
 COMMON_GPU_HDR = \
 	common/lanczos/gpu/lanczos_kernel.cu \
@@ -474,7 +476,6 @@ MSIEVE_COMMON_SRCS = \
 	common/smallfact/smallfact.c \
 	common/smallfact/squfof.c \
 	common/smallfact/tinyqs.c \
-	common/batch_factor.c \
 	common/cuda_xface.c \
 	common/cuda_xface_la.c \
 	common/dickman.c \
@@ -485,6 +486,7 @@ MSIEVE_COMMON_SRCS = \
 	common/minimize.c \
 	common/minimize_global.c \
 	common/mp.c \
+	common/ms_batch_factor.c \
 	common/polyroot.c \
 	common/prime_delta.c \
 	common/prime_sieve.c \
@@ -492,7 +494,7 @@ MSIEVE_COMMON_SRCS = \
 	common/strtoll.c \
 	common/thread.c \
 	common/util.c \
-	aprcl/mpz_aprcl32.c \
+	aprcl/mpz_aprcl32.c
 
 COMMON_GPU_SRCS = \
 		common/lanczos/gpu/lanczos_matmul_gpu.c \

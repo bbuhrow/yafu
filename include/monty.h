@@ -842,7 +842,7 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 
 #define and64 _mm512_and_epi64
 #define store64 _mm512_store_epi64
-#ifdef __clang__
+#if defined( __clang__)|| defined(__GNUC__)
 #define storeu64 _mm512_storeu_si512
 #else
 #define storeu64 _mm512_storeu_epi64
@@ -854,7 +854,7 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 #define set64 _mm512_set1_epi64
 #define srli64 _mm512_srli_epi64
 #define load64 _mm512_load_epi64
-#ifdef __clang__
+#if defined( __clang__)|| defined(__GNUC__)
 #define loadu64 _mm512_loadu_si512
 #else
 #define loadu64 _mm512_loadu_epi64

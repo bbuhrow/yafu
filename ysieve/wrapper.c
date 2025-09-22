@@ -117,15 +117,6 @@ void compute_prps_work_fcn(void *vptr)
 
 			uint8_t prpmask = valid_msk & MR_2sprp_104x8(n8);
 			t->linecount += _mm_popcnt_u32(prpmask);
-
-			//for (j = 0; j < 8; j++)
-			//{
-			//	if (prpmask & (1 << j))
-			//	{
-			//		t->ddata.primes[t->linecount++] = t->ddata.primes[i + j - t->startid];
-			//	}
-			//}
-
 		}
 	}
 	else
@@ -163,16 +154,19 @@ void compute_prps_work_fcn(void *vptr)
 					{
 						// also need to check the twin
 						//gmp_printf("and twin %Zd is...", t->tmpz);
-						mpz_add_ui(t->tmpz, t->tmpz, 2);
-						if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
+						if (n64[0] >= 0xfffffffffffffffeull)
+						{
+							n64[1]++;
+						}
+						n64[0] += 2;
+
+						if (MR_2sprp_128x1(n64))
 						{
 							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
-							//printf("prime!\n");
 						}
 					}
 					else
 					{
-						//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 						t->linecount++;
 					}
 				}
@@ -500,11 +494,10 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
     uint64_t sieve_limit, uint64_t *num_p,
     int PRIMES_TO_FILE, int PRIMES_TO_SCREEN)
 {
-	// public interface to a routine which will sieve a range of integers
-	// with the supplied primes and either count or compute the values
-	// that survive.  Basically, it is just the sieve, but with no
-	// guareentees that what survives the sieving is prime.  The idea is to 
-	// remove cheap composites.
+	// this is now called via the "bigprimes" command in calc.
+	// i.e., we always call it with count = 0 and witnesses = 1,
+	// so that PRP checks are used to return primes in the 
+	// range with large offset (> 64-bit).
 	uint64_t retval, i, range, tmpl, tmph, num_sp_needed;
 	uint64_t *values = NULL;
 	mpz_t tmpz;
@@ -755,8 +748,13 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 								if (sdata->analysis == 2)
 								{
 									// also need to check the twin
-									mpz_add_ui(tmpz, tmpz, 2);
-									if (mpz_probab_prime_p(tmpz, num_witnesses))
+									if (n64[0] >= 0xfffffffffffffffeull)
+									{
+										n64[1]++;
+									}
+									n64[0] += 2;
+
+									if (MR_2sprp_128x1(n64))
 									{
 										values[retval++] = values[i];
 									}

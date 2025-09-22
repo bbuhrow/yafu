@@ -48,7 +48,19 @@ SOFTWARE.
 // precision time
 // ============================================================================
 
+int portable_sleep(int sleep_time_ms)
+{
+#ifdef WIN32
+    Sleep(sleep_time_ms);
+#else
+    struct timespec sleep_time, sleep_remaining;
+    sleep_time.tv_sec = 0;         // 0 seconds
+    sleep_time.tv_nsec = sleep_time_ms * 1000000; // 500,000,000 nanoseconds (0.5 seconds)
 
+    nanosleep(&sleep_time, &sleep_remaining);
+#endif
+    return 0;
+}
 
 #if defined(_MSC_VER) // && !defined(__clang__)
 

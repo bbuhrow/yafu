@@ -2309,7 +2309,8 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->t1);
     mpz_init(rb->_small);
     mpz_init(rb->_large);
-    printf("relation batch is initialized\n");
+    //printf("relation batch is initialized\n");
+    return;
 }
 
 /*------------------------------------------------------------------*/

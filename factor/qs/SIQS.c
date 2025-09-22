@@ -5997,7 +5997,9 @@ int free_siqs(static_conf_t *sconf)
 	free(sconf->factor_base);
     align_free(sconf->sieve_primes);
 
-    if (sconf->do_batch)
+#if !defined( __MINGW64__)
+    // not sure why, but batch factoring completely fails when using mingw64.
+    if ((sconf->use_dlp >= 2) && (sconf->do_batch == 1))
     {
         for (i = 1; i < sconf->num_alloc_rb; i++)
         {
@@ -6005,6 +6007,7 @@ int free_siqs(static_conf_t *sconf)
         }
         relation_batch_free(&sconf->rb[0], 1);
     }
+#endif
 
     // list of a values used first to track all a coefficients
     // generated during sieving.
