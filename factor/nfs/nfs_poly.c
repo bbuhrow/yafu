@@ -271,7 +271,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 	if (fobj->VFLAG > 0 && npoly > 1)
 	{		
-		int np = MIN(npoly, NUM_SNFS_POLYS);
+		int np = MIN(npoly, 5); // NUM_SNFS_POLYS);
 
         if (fobj->LOGFLAG)
         {
@@ -312,6 +312,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	{
 		jobs[i].poly = polys[i].poly;
 		jobs[i].snfs = &polys[i];
+
 		get_ggnfs_params(fobj, &jobs[i]);
 		skew_snfs_params(fobj, &jobs[i]);
 	}
@@ -337,7 +338,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	}
 
 	// return best job, which contains the best poly
-	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly), jobs, 0);
+	best = snfs_test_sieve(fobj, polys, MIN(3,npoly), jobs, 0);
 
 	if (fobj->VFLAG > 0)
 	{

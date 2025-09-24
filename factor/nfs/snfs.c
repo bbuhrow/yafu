@@ -4352,14 +4352,14 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		// initialize candidate polynomials now that we know how many we'll need.
 		// each factor of the base generates two, plus 2 for
-		// the whole base raised and lowered, for each degree
+		// the whole base raised and lowered, for each degree (5 degrees 4 - 8 considered)
         if (numf > 1)
         {
-            apoly = (numf * 2 + 2) * 3;
+            apoly = (numf * 2 + 2) * 5;
         }
         else
         {
-            apoly = 6;
+            apoly = 2 * 5;
         }
 
 		polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
@@ -4412,6 +4412,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			start_deg = 5;
 			stop_deg = 6;
 		}
+
+		start_deg = 4;
+		stop_deg = 8;
 
 		fflush(stdout);
 
@@ -5851,33 +5854,34 @@ int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly)
 	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
 	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
 
-	// keep the first two polys of the preferred degree, and the top
-	// one from a competing degree, that haven't already been rejected.
-	for (i=0, j=0; i<npoly; i++)
-	{
-		if ((polys[i].poly->alg.degree == fobj->nfs_obj.pref_degree) &&
-			polys[i].poly->murphy > 1e-99)
-		{
-			pref_count++;
-			if (pref_count > 2)
-				polys[i].poly->murphy = 1e-99;
-		}
-		else if (polys[i].poly->alg.degree == fobj->nfs_obj.alt_degree)
-		{
-			alt_count++;
-			if (alt_count > 1)
-				polys[i].poly->murphy = 1e-99;
-		}
-		else
-			polys[i].poly->murphy = 1e-99;
-	}
-
-	// then sort again
-	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
-	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
-
-	j = MIN(pref_count,2) + MIN(alt_count,1);
-	return MIN(j,npoly);
+	// don't select by preferred degree, just use Murphy/difficulty
+	//// keep the first two polys of the preferred degree, and the top
+	//// one from a competing degree, that haven't already been rejected.
+	//for (i=0, j=0; i<npoly; i++)
+	//{
+	//	if ((polys[i].poly->alg.degree == fobj->nfs_obj.pref_degree) &&
+	//		polys[i].poly->murphy > 1e-99)
+	//	{
+	//		pref_count++;
+	//		if (pref_count > 2)
+	//			polys[i].poly->murphy = 1e-99;
+	//	}
+	//	else if (polys[i].poly->alg.degree == fobj->nfs_obj.alt_degree)
+	//	{
+	//		alt_count++;
+	//		if (alt_count > 1)
+	//			polys[i].poly->murphy = 1e-99;
+	//	}
+	//	else
+	//		polys[i].poly->murphy = 1e-99;
+	//}
+	//
+	//// then sort again
+	////qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
+	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
+	//
+	//j = MIN(pref_count,2) + MIN(alt_count,1);
+	return MIN(3, npoly);
 }
 
 int tdiv_int(int x, int *factors, uint64_t* primes, uint64_t num_p)

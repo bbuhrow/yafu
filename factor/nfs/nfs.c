@@ -244,6 +244,7 @@ void nfs(fact_obj_t *fobj)
 
 	// start a counter for the whole job
 	gettimeofday(&start, NULL);
+	gettimeofday(&job.jobstart, NULL);
 
 	// nfs state machine:
 	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
@@ -524,6 +525,7 @@ void nfs(fact_obj_t *fobj)
                 // logic below (including timeout!) and the logic of NFS_STATE_FILTCHECK 
                 // so that we can keep sieving until it is actually time to
                 // filter.
+
 				gettimeofday(&ustart, NULL);
                 do_sieving_nfs(fobj, &job);
 				gettimeofday(&ustop, NULL);
@@ -1095,12 +1097,23 @@ void nfs(fact_obj_t *fobj)
 				}
 			}
 
+			gettimeofday(&stop, NULL);
+			t_time = ytools_difftime(&start, &stop);
             if (fobj->VFLAG > 0)
             {
-                gettimeofday(&stop, NULL);
-                t_time = ytools_difftime(&start, &stop);
-                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+                printf("nfs: elapsed time is now %6.4f seconds.\n", t_time);
             }
+
+			if (t_time > fobj->nfs_obj.timeout)
+			{
+				if (fobj->VFLAG >= 0)
+				{
+					printf("nfs: elapsed time of %6.4f seconds exceeds specified "
+						"nfs timeout of %1.4f sec, exiting\n", t_time, fobj->nfs_obj.timeout);
+				}
+				nfs_state = NFS_STATE_EXIT;
+			}
+
 
 			break;
 

@@ -352,6 +352,9 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 
 		if (qrange_data->num_r > 0)
 		{
+			// didn't find an unfinished range and there was previous work
+			// recorded in the qranges database.  So we pick the next
+			// available range.
 			qrange->qrange_start = qrange_data->qranges_r[i].qrange_end;
 			qrange->qrange_end = qrange_data->qranges_r[i].qrange_end +
 				qrange_data->thread_qrange;
@@ -438,13 +441,22 @@ void nfs_sieve_start(void* vptr)
 
 	if (is_3lp)
 	{
-		// limit the q-range of 3LP jobs with batch factoring
-		// so the raw files don't get too big.  sieving may modify this value
-		// as it progresses to target around 1M raw relations per batch.
-		// what to do if this is a custom range?  traditionally we'd split the entire
-		// custom range into THREADS chunks, but now we'd like to do smaller portions.
-		// need to evaluate this...
-		udata->qrange_data->thread_qrange = MIN(1000, udata->qrange_data->thread_qrange);
+		if (fobj->nfs_obj.rangeq > 0)
+		{
+			// if the nfs_obj.rangeq value is > 0, that means the user
+			// requested a custom sieving range.  don't modify the 
+			// per-thread qrange in this case
+		}
+		else
+		{
+			// limit the q-range of 3LP jobs with batch factoring
+			// so the raw files don't get too big.  sieving may modify this value
+			// as it progresses to target around 1M raw relations per batch.
+			// what to do if this is a custom range?  traditionally we'd split the entire
+			// custom range into THREADS chunks, but now we'd like to do smaller portions.
+			// need to evaluate this...
+			udata->qrange_data->thread_qrange = MIN(1000, udata->qrange_data->thread_qrange);
+		}
 	}
 
 	for (i = 0; i < fobj->THREADS; i++)
@@ -733,6 +745,7 @@ void nfs_sieve_sync(void* vptr)
 		fid = fopen(fname, "a");
 		if (fid != NULL)
 		{
+			// at this point, last_spq should equal a delta from the startq
 			fprintf(fid, "%c,%u,%u,%u\n", udata->requested_side, t->job.startq,
 				last_spq, t->job.current_rels);
 			fclose(fid);
@@ -761,17 +774,39 @@ void nfs_sieve_sync(void* vptr)
 
 		if (fobj->VFLAG > 0)
 		{
-			printf("nfs: tid %d returned %u rels in %1.3f sec; total %u of %u rels found (ETA: %uh %um)\n",
-				tid, udata->thread_data[tid].job.current_rels, t->test_time,
-				udata->rels_found, udata->rels_requested,
-				est_time_u / 3600, (est_time_u % 3600) / 60);
+			if (udata->is_3lp)
+			{
+				printf("nfs: tid %d returned %u rels (%u from batch 3LP) in %1.3f sec; "
+					"total %u of %u rels found (ETA: %uh %um)\n",
+					tid, udata->thread_data[tid].job.current_rels, t->job.rb->num_success, t->test_time,
+					udata->rels_found, udata->rels_requested,
+					est_time_u / 3600, (est_time_u % 3600) / 60);
+			}
+			else
+			{
+				printf("nfs: tid %d returned %u rels in %1.3f sec; total %u of %u rels found (ETA: %uh %um)\n",
+					tid, udata->thread_data[tid].job.current_rels, t->test_time,
+					udata->rels_found, udata->rels_requested,
+					est_time_u / 3600, (est_time_u % 3600) / 60);
+			}
 		}
 
-		logprint_oc(fobj->flogname, "a", "nfs: tid %d returned %u rels in %1.3f sec; "
-			"total %u of %u rels found (ETA: %uh %um)\n",
-			tid, udata->thread_data[tid].job.current_rels, t->test_time,
-			udata->rels_found, udata->rels_requested, est_time_u / 3600,
-			(est_time_u % 3600) / 60);
+		if (udata->is_3lp)
+		{
+			logprint_oc(fobj->flogname, "a", "nfs: tid %d returned %u rels (%u from batch 3LP) in %1.3f sec; "
+				"total %u of %u rels found (ETA: %uh %um)\n",
+				tid, udata->thread_data[tid].job.current_rels, t->job.rb->num_success, t->test_time,
+				udata->rels_found, udata->rels_requested, est_time_u / 3600,
+				(est_time_u % 3600) / 60);
+		}
+		else
+		{
+			logprint_oc(fobj->flogname, "a", "nfs: tid %d returned %u rels in %1.3f sec; "
+				"total %u of %u rels found (ETA: %uh %um)\n",
+				tid, udata->thread_data[tid].job.current_rels, t->test_time,
+				udata->rels_found, udata->rels_requested, est_time_u / 3600,
+				(est_time_u % 3600) / 60);
+		}
 
 		if (udata->is_3lp)
 		{
@@ -798,6 +833,28 @@ void nfs_sieve_sync(void* vptr)
 				t->job.rb->num_abort[j] = 0;
 				t->job.rb->num_abort_a[j] = 0;
 			}
+
+			// see if the qrange should change based on
+			// the number of batched relations found in the current range.
+			double this_batched_per_q = (double)t->job.rb->num_relations / (double)t->job.qrange;
+			double est_next_batched_per_q = udata->qrange_data->thread_qrange * this_batched_per_q;
+
+			if (est_next_batched_per_q < 900000.0)
+			{
+				double mul = 1000000.0 / est_next_batched_per_q;
+				double newrange = (double)udata->qrange_data->thread_qrange * mul;
+				udata->qrange_data->thread_qrange = (uint32_t)newrange;
+
+				if (fobj->VFLAG >= 0)
+				{
+					printf("nfs: changing thread qrange to %u to target 1M rels per batch\n", 
+						udata->qrange_data->thread_qrange);
+				}
+			}
+
+			// clear rb for next use
+			t->job.rb->num_relations = 0;
+			t->job.rb->num_factors = 0;
 		}
 	}
 
@@ -872,6 +929,7 @@ void nfs_sieve_dispatch(void* vptr)
 	nfs_userdata_t* udata = tdata->user_data;
 	fact_obj_t* fobj = udata->fobj;
 	nfs_job_t* job = udata->main_job_ref;
+	struct timeval stop;
 
 	int tid = tdata->tindex;
 
@@ -900,6 +958,18 @@ void nfs_sieve_dispatch(void* vptr)
 		total_est_rels = udata->rels_found;
 	}
 
+	gettimeofday(&stop, NULL);
+	double t_time = ytools_difftime(&job->jobstart, &stop);
+	if (t_time > fobj->nfs_obj.timeout)
+	{
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: thread %d halting, nfs timeout of %1.4sec exceeded\n", tid, fobj->nfs_obj.timeout);
+		}
+		tdata->work_fcn_id = tdata->num_work_fcn;
+		return;
+	}
+
 	if ((total_est_rels < udata->rels_requested) && (t->isactive != 2))
 	{
 		qrange_t* qrange = get_next_range(udata->qrange_data, udata->requested_side);
@@ -913,6 +983,16 @@ void nfs_sieve_dispatch(void* vptr)
 			// range data structure.
 			custom_qstart = fobj->nfs_obj.startq;
 			custom_qrange = udata->qrange_data->thread_qrange;
+
+			if (udata->ranges_completed > 0)
+			{
+				// this will kill the thread
+				tdata->work_fcn_id = tdata->num_work_fcn;
+
+				if (fobj->VFLAG > 0)
+					printf("nfs: thread %d halting, custom q-range completed\n", tid);
+				return;
+			}
 		}
 
 		if (custom_qstart > 0)
@@ -1542,9 +1622,9 @@ uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, c
 
 	if (vflag > 0)
 	{
-		printf("nfs: file parsing took %1.2f sec, found %d fulls, batched %u rels "
+		printf("nfs: file parsing took %1.2f sec, batched %u rels "
 			"now running batch solve...\n",
-			ttime, numfull, rb->num_relations);
+			ttime, rb->num_relations);
 	}
 
 	gettimeofday(&start, NULL);
@@ -1965,7 +2045,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 
 		savefile_concat(t->outfilename, fobj->nfs_obj.outputfile, fobj->nfs_obj.mobj);
 
-		uint32_t last_spq = t->job.qrange;
+		uint32_t last_spq = t->job.startq + t->job.qrange;
 		if (NFS_ABORT > 0)
 		{
 			// try reading the lasieve5 ".last_spqX" file.  The 
@@ -2122,7 +2202,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 		if (fid != NULL)
 		{
 			fprintf(fid, "%c,%u,%u,%u\n", side, t->job.startq,
-				last_spq, t->job.current_rels);
+				t->job.qrange, t->job.current_rels);
 			fclose(fid);
 		}
 		else
@@ -2314,20 +2394,10 @@ void *lasieve_launcher(void *ptr) {
 
 		char infile[80];
 
-		if (fobj->VFLAG >= 0)
-		{
-			printf("nfs: now processing %u batched relations in file %s.raw\n",
-				thread_data->job.current_rels, thread_data->outfilename);
-		}
-
 		sprintf(infile, "%s.raw", thread_data->outfilename);
 		thread_data->job.current_rels += 
 			process_batch(thread_data->job.rb, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
 		remove(infile);
-
-		// clear rb for next use
-		thread_data->job.rb->num_relations = 0;
-		thread_data->job.rb->num_factors = 0;
 	}
 
 	gettimeofday(&bstop, NULL);

@@ -1389,7 +1389,7 @@ options_t* initOpt(void)
     strcpy(options->nfs_outfile, "nfs.dat");
     options->alg_side = 0;
     options->rat_side = 0;
-    options->nfs_timeout = 0;
+    options->nfs_timeout = 1 << 31;
     strcpy(options->nfs_jobfile, "nfs.job");
     strcpy(options->params_file, "");
     options->sieveQstart = 0;

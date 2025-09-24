@@ -146,7 +146,7 @@ typedef struct
     int is_3lp;
     int has_3lp_batch;
     relation_batch_t* rb;
-
+    struct timeval jobstart;
     snfs_t* snfs; // NULL if GNFS
 } nfs_job_t;
 
