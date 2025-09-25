@@ -343,12 +343,14 @@ void approx_norms(snfs_t *poly)
             found = 1;
         }
     }
+
+	if (siever < 11) siever = 11;
     
     // https://www.mersenneforum.org/showpost.php?p=571762&postcount=3
-	a = sqrt((double)(1ULL << (2 * siever - 1)) * 1000000.0 * poly->poly->skew);
-    b = sqrt((double)(1ULL << (2 * siever - 1)) * 1000000.0 / poly->poly->skew);
-    //a = sqrt(poly->poly->skew) * 1000000.;
-	//b = 1000000. / (sqrt(poly->poly->skew));
+	// https://www.mersenneforum.org/node/1087593?p=1088338#post1088338
+	double q = 10000.0 * pow(10.0, (double)(siever - 11));
+	a = sqrt((double)(1ULL << (2 * siever - 1)) * q * poly->poly->skew);
+    b = sqrt((double)(1ULL << (2 * siever - 1)) * q / poly->poly->skew);
 
     //printf("skew = %lf, a = %lf, b = %lf\n", poly->poly->skew, a, b);
 
@@ -4496,10 +4498,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_pow_ui(tmp, b, inc);
 				mpz_mul(c0, c0, tmp);
 
-                // leading coefficient contributes to the difficulty
-                d += log10(mpz_get_d(cd));
-
-				//skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
                 // leading coefficient contributes to the difficulty
                 d += log10(mpz_get_d(cd));
 
