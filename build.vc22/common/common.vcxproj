@@ -209,9 +209,9 @@
     <ClInclude Include="..\..\include\integrate.h" />
     <ClInclude Include="..\..\common\lanczos\lanczos.h" />
     <ClInclude Include="..\..\common\lanczos\cpu\lanczos_cpu.h" />
-    <ClInclude Include="..\..\include\mp.h" />
     <ClInclude Include="..\..\include\polyroot.h" />
     <ClInclude Include="..\..\include\thread.h" />
+    <ClInclude Include="..\..\ms_include\mp.h" />
     <ClInclude Include="..\..\ms_include\ms_batch_factor.h" />
     <ClInclude Include="..\..\ms_include\ms_common.h" />
     <ClInclude Include="..\..\ms_include\ms_gmp_xface.h" />

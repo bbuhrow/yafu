@@ -18,7 +18,7 @@ typedef unsigned int uint32;
 #define CUDA_TRY(func) \
 	{ 			 					\
 		cudaError_t status = func;				\
-		if (status != (cudaError_t) CUDA_SUCCESS) {		\
+		if (status != CUDA_SUCCESS) {				\
 			const char * str = cudaGetErrorString(status);	\
 			if (!str)					\
 				str = "Unknown";			\

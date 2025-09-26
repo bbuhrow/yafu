@@ -218,11 +218,15 @@ int modexp_128x1b(uint64_t* n, uint64_t* e, uint64_t b)
 	rho = 0ULL - rho;
 #endif
 
+#ifdef USE_PERIG_128BIT
 	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
 	uint128_t unity128 = (uint128_t)0 - n128;
 	unity128 = unity128 % n128;
 	one[1] = (uint64_t)(unity128 >> 64);
 	one[0] = (uint64_t)unity128;
+#else
+
+#endif
 
 	submod128(n, one, n1, n);
 
@@ -314,11 +318,16 @@ int fermat_prp_128x1(uint64_t* n)
 	rho = 0ULL - rho;
 #endif
 
+#ifdef USE_PERIG_128BIT
 	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
 	uint128_t unity128 = (uint128_t)0 - n128;
 	unity128 = unity128 % n128;
 	unityval[1] = (uint64_t)(unity128 >> 64);
 	unityval[0] = (uint64_t)unity128;
+
+#else
+
+#endif
 
 	e[1] = n[1];
 	e[0] = n[0] - 1;	// n odd: won't overflow
@@ -404,11 +413,15 @@ int MR_2sprp_128x1(uint64_t *n)
 	rho = 0ULL - rho;
 #endif
 
+#ifdef USE_PERIG_128BIT
 	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
 	uint128_t unity128 = (uint128_t)0 - n128;
 	unity128 = unity128 % n128;
 	one[1] = (uint64_t)(unity128 >> 64);
 	one[0] = (uint64_t)unity128;
+#else
+
+#endif
 
 	e[1] = n[1];
 	e[0] = n[0] - 1;	// n odd: won't overflow
@@ -716,6 +729,7 @@ int lucas_prp_128x1(uint64_t *n, long int p, long int q)
 }/* method mpz_lucas_prp */
 #endif
 
+#ifdef USE_PERIG_128BIT
 int pull_twos_128(int* n, int* j, uint128_t p)
 {
 	int c = 0;
@@ -896,6 +910,9 @@ static void my_random_reset(void)
 	return;
 }
 
+#endif
+
+
 static inline uint64_t my_rdtsc(void)
 {
 #if defined(__x86_64__) && (defined(__clang__) || defined(__INTEL_COMPILER))
@@ -904,6 +921,8 @@ static inline uint64_t my_rdtsc(void)
 #elif defined(__x86_64__) && defined(__GNUC__)
 	// supported by gcc in immintrin.h for x86 platform
 	return __builtin_ia32_rdtsc();
+#elif defined(_MSC_VER)
+	return __rdtsc();
 #elif INLINE_ASM && defined(__aarch64__)
 	// should be a 64 bits wallclock counter
 	// document for old/recent architecture and/or BMC chipsets mention it
@@ -935,6 +954,7 @@ static uint64_t sm_primes[168] = {
 	941,947,953,967,971,977,983,991,997
 };
 
+#ifdef USE_PERIG_128BIT
 int test_tinyprp()
 {
 	uint64_t prp[16];
@@ -2237,6 +2257,12 @@ int test_tinyprp()
 #endif
 	return 0;
 }
+#else
+int test_tinyprp()
+{
+	return 0;
+}
+#endif
 
 #ifdef USE_AVX512F
 
@@ -2378,6 +2404,7 @@ uint8_t fermat_prp_104x8(uint64_t* n)
 		nvec[1], nvec[0], zero, one, nvec[1], nvec[0]);
 
 	// the 128-bit division we do the slow way
+#ifdef USE_PERIG_128BIT
 	int i;
 	for (i = 0; i < 8; i++)
 	{
@@ -2388,6 +2415,9 @@ uint8_t fermat_prp_104x8(uint64_t* n)
 		unity.data[0][i] = (uint64_t)t & 0xfffffffffffffULL;
 		unity.data[1][i] = (uint64_t)(t >> 52);
 	}
+#else
+
+#endif
 
 	// penultimate-hi-bit mask
 	m = _mm512_sub_epi64(_mm512_set1_epi64(62), _mm512_lzcnt_epi64(evec[1]));
@@ -2562,6 +2592,7 @@ uint8_t MR_2sprp_104x8(uint64_t* n)
 	nv[1] = loadu64(&n[8]);
 
 	// the 128-bit division we do one at a time
+#ifdef USE_PERIG_128BIT
 	int i;
 	for (i = 0; i < 8; i++)
 	{
@@ -2572,6 +2603,9 @@ uint8_t MR_2sprp_104x8(uint64_t* n)
 		unity.data[0][i] = (uint64_t)one & 0xfffffffffffffULL;
 		unity.data[1][i] = (uint64_t)(one >> 52) & 0xfffffffffffffULL;
 	}
+#else
+
+#endif
 
 	mone[0] = loadu64(unity.data[0]);
 	mone[1] = loadu64(unity.data[1]);
@@ -2742,6 +2776,7 @@ uint8_t MR_sprp_104x8(uint64_t* n, uint64_t* bases)
 	nv[1] = loadu64(&n[8]);
 
 	// the 128-bit division we do one at a time
+#ifdef USE_PERIG_128BIT
 	int i;
 	for (i = 0; i < 8; i++)
 	{
@@ -2752,6 +2787,9 @@ uint8_t MR_sprp_104x8(uint64_t* n, uint64_t* bases)
 		unity.data[0][i] = (uint64_t)one & 0xfffffffffffffULL;
 		unity.data[1][i] = (uint64_t)(one >> 52);
 	}
+#else
+
+#endif
 
 	mone[0] = loadu64(unity.data[0]);
 	mone[1] = loadu64(unity.data[1]);
@@ -2906,6 +2944,7 @@ void modexp_104x8b(uint8_t *is1msk, uint8_t *ism1msk, uint64_t* n, uint64_t *e, 
 	// normal (negative) Montgomery mul
 	vrho = _mm512_and_epi64(_mm512_sub_epi64(zerov, vrho), lo52mask);
 
+#ifdef USE_PERIG_128BIT
 	// Monty 1
 	uint128_t mod = ((uint128_t)n[1] << 52) + n[0];
 	uint128_t one128 = (uint128_t)1 << 104;
@@ -2913,6 +2952,11 @@ void modexp_104x8b(uint8_t *is1msk, uint8_t *ism1msk, uint64_t* n, uint64_t *e, 
 
 	one[0] = set64((uint64_t)one128 & 0xfffffffffffffULL);
 	one[1] = set64((uint64_t)(one128 >> 52));
+
+#else
+
+
+#endif
 
 #ifdef DEBUG_THIS
 	printf("n = %013lx%013lx\n", n[1], n[0]);

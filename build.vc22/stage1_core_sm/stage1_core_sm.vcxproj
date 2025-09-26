@@ -53,7 +53,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.props" />
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\extras\visual_studio_integration\MSBuildExtensions\CUDA 12.8.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -180,10 +180,11 @@
     </Link>
     <CudaCompile>
       <NvccCompilation>ptx</NvccCompilation>
-      <CodeGeneration>
-      </CodeGeneration>
+      <CodeGeneration>compute_80,sm_80</CodeGeneration>
       <CompileOut>$(OutDir)$(TargetName).ptx</CompileOut>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <Runtime>MT</Runtime>
+      <RuntimeChecks>Default</RuntimeChecks>
     </CudaCompile>
     <PostBuildEvent>
       <Command>..\out_copy_rename "$(TargetPath).ptx" ..\..\bin\$(IntDir) $(TargetName)$(CC_major)$(CC_minor).ptx</Command>
@@ -194,6 +195,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.targets" />
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\extras\visual_studio_integration\MSBuildExtensions\CUDA 12.8.targets" />
   </ImportGroup>
 </Project>

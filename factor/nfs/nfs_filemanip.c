@@ -770,9 +770,15 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 	if (fobj->VFLAG > 0)
 		gmp_printf("n: %Zd\n",fobj->nfs_obj.gmp_n);
 
+	logfile = NULL;
 	if (fobj->LOGFLAG)
 	{
 		logfile = fopen(fobj->flogname, "a");
+		if (logfile == NULL)
+		{
+			printf("error could not open logfile %s to append, using stdout\n", fobj->flogname);
+			logfile = stdout;
+		}
 	}
 
 	// read and record the poly so we can do some analysis on it.

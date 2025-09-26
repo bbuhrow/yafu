@@ -49,7 +49,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.props" />
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\extras\visual_studio_integration\MSBuildExtensions\CUDA 12.8.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -96,7 +96,7 @@
       <AdditionalDependencies>$(CudaToolkitLibDir)\cuda.lib;$(CudaToolkitLibDir)\cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CudaCompile>
-      <CodeGeneration>compute_30,sm_30;compute_35,sm_35;compute_50,sm_50;compute_60,sm_60</CodeGeneration>
+      <CodeGeneration>compute_35,sm_35;compute_50,sm_50;compute_60,sm_60</CodeGeneration>
       <NvccCompilation>compile</NvccCompilation>
       <Include>..\..\cub</Include>
     </CudaCompile>
@@ -176,12 +176,13 @@
     <CudaLink>
       <AdditionalLibraryDirectories>
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\x64\cuda.lib</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\lib\x64\cuda.lib</AdditionalDependencies>
     </CudaLink>
     <CudaCompile>
       <NvccCompilation>compile</NvccCompilation>
-      <CodeGeneration>compute_30,sm_30;compute_35,sm_35;compute_50,sm_50;compute_60,sm_60;compute_80,sm_80</CodeGeneration>
-      <Include>..\..\cub</Include>
+      <CodeGeneration>compute_75,sm_75;compute_80,sm_80</CodeGeneration>
+      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include\cub</Include>
+      <Runtime>MT</Runtime>
     </CudaCompile>
     <PostBuildEvent>
       <Command>..\out_copy_rename "$(TargetPath)" ..\..\bin\$(IntDir)cub $(TargetName).dll
@@ -202,6 +203,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.targets" />
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\extras\visual_studio_integration\MSBuildExtensions\CUDA 12.8.targets" />
   </ImportGroup>
 </Project>

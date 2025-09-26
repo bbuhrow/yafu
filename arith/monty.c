@@ -414,9 +414,6 @@ uint64_t multiplicative_inverse(uint64_t a)
 
 /********************* start of Perig's 128-bit code **********************/
 // Note: slightly modified modular subtract at the end
-#ifdef USE_PERIG_128BIT
-
-
 uint64_t my_ctz64(uint64_t n)
 {
 #if (INLINE_ASM && defined(__x86_64__))
@@ -970,7 +967,6 @@ void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 #endif
 
 }
-#endif
 
 // already defined within mingw64/msys2
 #if 0 //defined( GCC_ASM64X ) && !defined(__MINGW32__)

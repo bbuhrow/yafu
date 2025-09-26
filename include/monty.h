@@ -1375,7 +1375,8 @@ __inline static void mask_sqrredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulm
 	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
 
 	// m0
-	t1 += sqr_lo;
+	//t1 += sqr_lo;
+	t1 = _mm512_add_epi64(t1, sqr_lo);
 	m = mul52lo(t0, vrho);
 
 	VEC_MUL_ACCUM_LOHI_PD(m, n0, t0, C1);
@@ -1462,7 +1463,8 @@ __inline static void mask_sqrredc104_vec_pos(__m512i* c1, __m512i* c0, __mmask8 
 	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
 
 	// m0
-	t1 += sqr_lo;
+	//t1 += sqr_lo;
+	t1 = _mm512_add_epi64(t1, sqr_lo);
 
 	// note, we leave rho = 0 - rho so that we get -m,
 	// and thus the muladd becomes mulsub, since there is
@@ -1747,7 +1749,9 @@ __inline static void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i 
 uint64_t multiplicative_inverse(uint64_t a);
 __m512i multiplicative_inverse104_x8(uint64_t* a);
 
-
+/*
+#ifdef USE_PERIG_128BIT
+// only needed, so far, for an eventual lucas_prp test
 static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 {
 	//w = gcd(u, v);
@@ -1808,6 +1812,8 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 	w[1] = u[1];
 	w[0] = u[0];
 }
+#endif
+*/
 
 
 #endif

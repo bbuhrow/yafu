@@ -279,9 +279,14 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
                 i++;
             }
 
-#ifdef USE_AVX512F
+#ifdef USE_AVX512F 
 
+#if defined(_MSC_VER) && !defined(__clang__)
+            // don't have a div128 yet so we can't use the vec prp functions here.
+            if (0)
+#else
             if (mpz_sizeinbase(sdata->offset, 2) <= 104)
+#endif
             {
                 ALIGNED_MEM uint64_t n8[16];
                 uint8_t loc_msk;
@@ -338,7 +343,13 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
             {
                 for (j = 0; j < num_cand; j++)
                 {
+#if defined( _MSC_VER) && (!defined(__clang__))
                     mpz_add_ui(tmpz, sdata->offset, candidates[j]);
+                    if (mpz_bpsw_prp(tmpz))
+                    {
+                        it++;
+                    }
+#else
                     uint64_t n128[2];
                     n128[0] = mpz_get_ui(tmpz);
                     mpz_tdiv_q_2exp(tmpz, tmpz, 64);
@@ -347,6 +358,7 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
                     {
                         it++;
                     }
+#endif
                 }
                 num_cand = 0;
 
@@ -381,6 +393,12 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
 
                 if (mpz_sizeinbase(tmpz, 2) <= 128)
                 {
+#if defined( _MSC_VER) && (!defined(__clang__))
+                    if (mpz_bpsw_prp(tmpz))
+                    {
+                        it++;
+                    }
+#else
                     uint64_t n128[2];
                     n128[0] = mpz_get_ui(tmpz);
                     mpz_tdiv_q_2exp(tmpz, tmpz, 64);
@@ -389,6 +407,7 @@ uint64_t count_line(soe_staticdata_t *sdata, uint32_t current_line)
                     {
                         it++;
                     }
+#endif
                 }
                 else
                 {

@@ -45,7 +45,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.props" />
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\extras\visual_studio_integration\MSBuildExtensions\CUDA 12.8.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -82,7 +82,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;_DEBUG;_CONSOLE;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -94,7 +94,7 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -114,7 +114,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;_WIN64;_DEBUG;_CONSOLE;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -126,7 +126,7 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -145,7 +145,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;NDEBUG;_CONSOLE;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
@@ -155,7 +155,7 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -178,7 +178,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\zlib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\;..\;..\..\ms_include;..\..\zlib;$(mp_dir);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;..\..\cub;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSIEVE_SVN_VERSION="998";WIN32;_WIN64;NDEBUG;_CONSOLE;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
@@ -188,7 +188,7 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>clang_rt.builtins-x86_64.lib;Advapi32.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\lib\$(Platform)\cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -231,6 +231,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\extras\visual_studio_integration\MSBuildExtensions\CUDA 10.1.targets" />
+    <Import Project="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\extras\visual_studio_integration\MSBuildExtensions\CUDA 12.8.targets" />
   </ImportGroup>
 </Project>

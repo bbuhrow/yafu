@@ -816,7 +816,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 	//set flags to do poly selection
 	flags = 0;
-	if (fobj->VFLAG > 1)
+	if (fobj->VFLAG > 0)
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 
 	if (fobj->nfs_obj.np1)
@@ -1549,7 +1549,7 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	uint32_t deadline, uint64_t start, uint64_t stop)
 {
 	fact_obj_t *fobj = t->fobj;
-	char *nfs_args = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+	char *nfs_args = (char *)xmalloc(1024 * sizeof(char));
 	// compute digits the same way msieve does.
     double digits = log(mpz_get_d(t->fobj->nfs_obj.gmp_n)) / log(10.0); //gmp_base10(t->fobj->nfs_obj.gmp_n);
     int deadline_per_coeff;
@@ -1609,6 +1609,9 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	// we want to make sure we actually find some polynomials when running on 
 	// really small inputs.  The default msieve values don't seem to allow
 	// enough polys to be found... here we tweak them a little bit.
+#ifdef HAVE_CUDA
+	strcpy(nfs_args, "");
+#else
 	if (digits < 115.0)
 	{
 		norm1 *= 0.8;
@@ -1632,6 +1635,7 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 		printf("nfs: min E score  = %0.4le\n", min_e);
 		printf("nfs: degree = %d\n", degree);
 	}
+#endif
 
 	sprintf(t->polyfilename,"%s.%d",fobj->nfs_obj.outputfile,tid);
 	sprintf(t->logfilename,"%s.%d",fobj->nfs_obj.logfile,tid);
@@ -1642,11 +1646,18 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 
 	//create an msieve_obj.  for poly select, the intermediate output file should be specified in
 	//the savefile field
+#ifdef HAVE_CUDA
+	printf("calling msieve_obj_new()\n");
+	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename,
+		fobj->seed1, fobj->seed2, (uint32_t)0,
+		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
+		(uint32_t)fobj->THREADS, (uint32_t)0, NULL);
+#else
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename, 
 		fobj->seed1, fobj->seed2, (uint32_t)0,
 		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
         (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
-
+#endif
 	//pointers to things that are static during poly select
 	t->mpN = mpN;
 	t->factor_list = factor_list;
@@ -1701,10 +1712,16 @@ void *polyfind_launcher(void *ptr)
 		if (t->fobj->VFLAG >= 0)
 		{
 			uint64_t start, stop; // one instance where the new msieve api is rather a pain
-			sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
-			printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
-				t->tindex, start, stop);
-			fflush(stdout);
+			if (t->obj->nfs_args != NULL)
+			{
+				if (strlen(t->obj->nfs_args) > 10)
+				{
+					sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
+					printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
+						t->tindex, start, stop);
+					fflush(stdout);
+				}
+			}
 		}
 
 		// start polyfind

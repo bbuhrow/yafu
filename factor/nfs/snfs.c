@@ -1404,6 +1404,7 @@ static int find_aurifeuillian(mpz_t N, mpz_t x, mpz_t y, int n, int sbp, int sp)
 	mpz_t num;
 	int sign;
 
+	highCoeffs = gAurifCoeffs2_3;
 	h = n / sbp;
 	switch (sbp) {
 	case 2:
