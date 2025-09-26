@@ -20,40 +20,39 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{59BB01C7-BDAD-4FB4-8C8C-125D4D76863A}</ProjectGuid>
-    <RootNamespace>factorcommon</RootNamespace>
+    <ProjectGuid>{94AC6180-9B6A-475C-8345-511555C74EF6}</ProjectGuid>
+    <RootNamespace>ecm</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="..\vsyasm.props" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -77,9 +76,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)..\lib\$(Platform)\$(Configuration)\</OutDir>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -88,17 +84,13 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\factor\gmp-ecm;..\..\include;..\..\ms_include;..\..\top\cmdParser;..\..\top\aprcl;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\ms_include;..\..\top\cmdParser;..\..\top\aprcl;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);$(ecm_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
-      <UseProcessorExtensions>CORE512</UseProcessorExtensions>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <OmitFramePointers>true</OmitFramePointers>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -106,6 +98,10 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib>
+      <AdditionalDependencies>libecm.lib</AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <AdditionalLibraryDirectories>$(ecm_dir)lib\$(IntDir)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>false</LinkTimeCodeGeneration>
     </Lib>
   </ItemDefinitionGroup>
@@ -123,18 +119,21 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\ms_include;..\..\top\cmdParser;..\..\top\aprcl;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
     </Link>
     <Lib>
+      <AdditionalDependencies>libecm.lib</AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <AdditionalLibraryDirectories>..\..\..\..\..\gmp-ecm\lib\$(IntDir)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>false</LinkTimeCodeGeneration>
     </Lib>
   </ItemDefinitionGroup>
@@ -154,38 +153,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\arith\arith.c" />
-    <ClCompile Include="..\..\arith\fftmul.c" />
-    <ClCompile Include="..\..\arith\monty.c" />
-    <ClCompile Include="..\..\factor\batch_factor.c" />
-    <ClCompile Include="..\..\factor\factor_common.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\micropm1.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
-    <ClCompile Include="..\..\factor\rho.c" />
-    <ClCompile Include="..\..\factor\squfof.c" />
-    <ClCompile Include="..\..\factor\trialdiv.c" />
-    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
-    <ClCompile Include="..\..\top\aprcl\tinyprp.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avxecm.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avxppm1.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avx_ecm_main.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith52_common.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith52_special.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vec_common.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\factor\gmp-ecm\microecm.h" />
-    <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />
-    <ClInclude Include="..\..\include\arith.h" />
-    <ClInclude Include="..\..\include\batch_factor.h" />
+    <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
-    <ClInclude Include="..\..\include\gmp_xface.h" />
-    <ClInclude Include="..\..\include\monty.h" />
-    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
-    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
-    <ClInclude Include="..\..\top\aprcl\tinyprp.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <YASM Include="..\..\arith\mod64.asm" />
+    <ClInclude Include="..\..\include\yafu_ecm.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="..\vsyasm.targets" />
   </ImportGroup>
 </Project>

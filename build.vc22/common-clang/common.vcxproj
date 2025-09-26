@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{AC786FD6-B405-40FB-BA5A-3AB68B33C81D}</ProjectGuid>
-    <RootNamespace>gnfs</RootNamespace>
+    <ProjectGuid>{0A0DE0B6-9A9A-4B77-9F83-AEF871CDAE66}</ProjectGuid>
+    <RootNamespace>common</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -37,16 +37,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
-    <!-- <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.props" /> -->
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -79,8 +77,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;VBITS=64;PTW32_STATIC_LIB;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -91,6 +89,9 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Midl>
@@ -98,8 +99,8 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;VBITS=64;PTW32_STATIC_LIB;_WIN64;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -110,13 +111,16 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\;..\;..\..\include;..\..\aprcl;..\..\zlib;..\..\..\pthreads;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;VBITS=64;PTW32_STATIC_LIB;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -125,6 +129,9 @@
       <CompileAs>Default</CompileAs>
     </ClCompile>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Midl>
@@ -133,74 +140,88 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\ms_include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.\;..\;..\..\ms_include;..\..\aprcl;..\..\zlib;..\..\..\pthreads-old;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <CompileAs>Default</CompileAs>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;VBITS=64;_WIN64;PTW32_STATIC_LIB;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
     </ClCompile>
     <Lib />
+    <Lib>
+      <AdditionalDependencies>..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\gnfs\fb.c" />
-    <ClCompile Include="..\..\gnfs\ffpoly.c" />
-    <ClCompile Include="..\..\gnfs\gf2.c" />
-    <ClCompile Include="..\..\gnfs\gnfs.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\optimize_deg6.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg45_x.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg5_xy.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_x.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xy.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xyz.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_line.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_util.c" />
-    <ClCompile Include="..\..\gnfs\relation.c" />
-    <ClCompile Include="..\..\gnfs\filter\duplicate.c" />
-    <ClCompile Include="..\..\gnfs\filter\filter.c" />
-    <ClCompile Include="..\..\gnfs\filter\singleton.c" />
-    <ClCompile Include="..\..\gnfs\poly\poly.c" />
-    <ClCompile Include="..\..\gnfs\poly\poly_param.c" />
-    <ClCompile Include="..\..\gnfs\poly\poly_skew.c" />
-    <ClCompile Include="..\..\gnfs\poly\polyutil.c" />
-    <ClCompile Include="..\..\gnfs\poly\root_score.c" />
-    <ClCompile Include="..\..\gnfs\poly\size_score.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage1\stage1.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_roots.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\optimize.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\stage2.c" />
-    <ClCompile Include="..\..\gnfs\sieve\sieve_line.c" />
-    <ClCompile Include="..\..\gnfs\sieve\sieve_util.c" />
-    <ClCompile Include="..\..\gnfs\sqrt\sqrt.c" />
-    <ClCompile Include="..\..\gnfs\sqrt\sqrt_a.c" />
+    <ClCompile Include="..\..\aprcl\mpz_aprcl32.c" />
+    <ClCompile Include="..\..\common\cuda_xface.c" />
+    <ClCompile Include="..\..\common\driver.c" />
+    <ClCompile Include="..\..\common\filter\clique.c" />
+    <ClCompile Include="..\..\common\dickman.c" />
+    <ClCompile Include="..\..\common\expr_eval.c" />
+    <ClCompile Include="..\..\common\filter\filter.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_matmul0.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_matmul1.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_matmul2.c" />
+    <ClCompile Include="..\..\common\lanczos\cpu\lanczos_vv.c" />
+    <ClCompile Include="..\..\common\lanczos\matmul_util.c" />
+    <ClCompile Include="..\..\common\minimize_global.c" />
+    <ClCompile Include="..\..\common\ms_batch_factor.c" />
+    <ClCompile Include="..\..\common\smallfact\gmp_ecm.c" />
+    <ClCompile Include="..\..\common\hashtable.c" />
+    <ClCompile Include="..\..\common\integrate.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos_io.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos_matmul.c" />
+    <ClCompile Include="..\..\common\lanczos\lanczos_pre.c" />
+    <ClCompile Include="..\..\common\filter\merge.c" />
+    <ClCompile Include="..\..\common\filter\merge_post.c" />
+    <ClCompile Include="..\..\common\filter\merge_pre.c" />
+    <ClCompile Include="..\..\common\filter\merge_util.c" />
+    <ClCompile Include="..\..\common\minimize.c" />
+    <ClCompile Include="..\..\common\mp.c" />
+    <ClCompile Include="..\..\common\polyroot.c" />
+    <ClCompile Include="..\..\common\prime_delta.c" />
+    <ClCompile Include="..\..\common\prime_sieve.c" />
+    <ClCompile Include="..\..\common\savefile.c" />
+    <ClCompile Include="..\..\common\filter\singleton.c" />
+    <ClCompile Include="..\..\common\smallfact\smallfact.c" />
+    <ClCompile Include="..\..\common\smallfact\squfof.c" />
+    <ClCompile Include="..\..\common\smallfact\tinyqs.c" />
+    <ClCompile Include="..\..\common\thread.c" />
+    <ClCompile Include="..\..\common\util.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\pthreads\config.h" />
-    <ClInclude Include="..\..\gnfs\filter\filter.h" />
-    <ClInclude Include="..\..\gnfs\sieve\sieve.h" />
+    <ClInclude Include="..\..\..\pthreads\pthread.h" />
+    <ClInclude Include="..\..\aprcl\jacobi_sum32.h" />
+    <ClInclude Include="..\..\aprcl\mpz_aprcl32.h" />
+    <ClInclude Include="..\..\common\filter\merge_util.h" />
+    <ClInclude Include="..\..\include\cuda_xface.h" />
     <ClInclude Include="..\..\include\dd.h" />
+    <ClInclude Include="..\..\include\ddcomplex.h" />
     <ClInclude Include="..\..\common\filter\filter.h" />
-    <ClInclude Include="..\..\gnfs\gnfs.h" />
+    <ClInclude Include="..\..\common\filter\filter_priv.h" />
+    <ClInclude Include="..\..\include\integrate.h" />
     <ClInclude Include="..\..\common\lanczos\lanczos.h" />
-    <ClInclude Include="..\..\gnfs\poly\poly.h" />
-    <ClInclude Include="..\..\gnfs\poly\poly_skew.h" />
-    <ClInclude Include="..\..\gnfs\sqrt\sqrt.h" />
-    <ClInclude Include="..\..\gnfs\poly\stage1\stage1.h" />
-    <ClInclude Include="..\..\gnfs\poly\stage2\stage2.h" />
-    <ClInclude Include="..\..\include\ms_msieve.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\x64_support_masm.asm" />
+    <ClInclude Include="..\..\common\lanczos\cpu\lanczos_cpu.h" />
+    <ClInclude Include="..\..\include\polyroot.h" />
+    <ClInclude Include="..\..\include\thread.h" />
+    <ClInclude Include="..\..\ms_include\mp.h" />
+    <ClInclude Include="..\..\ms_include\ms_batch_factor.h" />
+    <ClInclude Include="..\..\ms_include\ms_common.h" />
+    <ClInclude Include="..\..\ms_include\ms_gmp_xface.h" />
+    <ClInclude Include="..\..\ms_include\ms_msieve.h" />
+    <ClInclude Include="..\..\ms_include\savefile.h" />
+    <ClInclude Include="..\..\ms_include\util.h" />
+    <ClInclude Include="..\..\zlib\zconf.h" />
+    <ClInclude Include="..\..\zlib\zlib.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
-    <!-- <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.targets" /> -->
   </ImportGroup>
 </Project>

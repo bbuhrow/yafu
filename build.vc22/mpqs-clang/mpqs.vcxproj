@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{AC786FD6-B405-40FB-BA5A-3AB68B33C81D}</ProjectGuid>
-    <RootNamespace>gnfs</RootNamespace>
+    <ProjectGuid>{6CD73AB4-04F6-49B3-A45F-65D4F7A078F4}</ProjectGuid>
+    <RootNamespace>mpqs</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -37,16 +37,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
-    <!-- <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.props" /> -->
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -79,7 +77,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\;..\..\include;..\..\zlib;..\..\mpqs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -98,7 +96,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\;..\..\include;..\..\zlib;..\..\mpqs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -115,7 +113,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\;..\..\include;..\..\zlib;..\..\mpqs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
@@ -133,7 +131,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\ms_include;..\..\zlib;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\;..\..\ms_include;..\..\zlib;..\..\mpqs;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
@@ -147,60 +145,26 @@
     <Lib />
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\gnfs\fb.c" />
-    <ClCompile Include="..\..\gnfs\ffpoly.c" />
-    <ClCompile Include="..\..\gnfs\gf2.c" />
-    <ClCompile Include="..\..\gnfs\gnfs.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\optimize_deg6.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg45_x.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg5_xy.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_x.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xy.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg6_xyz.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_line.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_util.c" />
-    <ClCompile Include="..\..\gnfs\relation.c" />
-    <ClCompile Include="..\..\gnfs\filter\duplicate.c" />
-    <ClCompile Include="..\..\gnfs\filter\filter.c" />
-    <ClCompile Include="..\..\gnfs\filter\singleton.c" />
-    <ClCompile Include="..\..\gnfs\poly\poly.c" />
-    <ClCompile Include="..\..\gnfs\poly\poly_param.c" />
-    <ClCompile Include="..\..\gnfs\poly\poly_skew.c" />
-    <ClCompile Include="..\..\gnfs\poly\polyutil.c" />
-    <ClCompile Include="..\..\gnfs\poly\root_score.c" />
-    <ClCompile Include="..\..\gnfs\poly\size_score.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage1\stage1.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_roots.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\optimize.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve.c" />
-    <ClCompile Include="..\..\gnfs\poly\stage2\stage2.c" />
-    <ClCompile Include="..\..\gnfs\sieve\sieve_line.c" />
-    <ClCompile Include="..\..\gnfs\sieve\sieve_util.c" />
-    <ClCompile Include="..\..\gnfs\sqrt\sqrt.c" />
-    <ClCompile Include="..\..\gnfs\sqrt\sqrt_a.c" />
+    <ClCompile Include="..\..\mpqs\gf2.c" />
+    <ClCompile Include="..\..\mpqs\mpqs.c" />
+    <ClCompile Include="..\..\mpqs\poly.c" />
+    <ClCompile Include="..\..\mpqs\relation.c" />
+    <ClCompile Include="..\..\mpqs\sieve.c" />
+    <ClCompile Include="..\sieve_core_vc.c" />
+    <ClCompile Include="..\..\mpqs\sqrt.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\pthreads\config.h" />
-    <ClInclude Include="..\..\gnfs\filter\filter.h" />
-    <ClInclude Include="..\..\gnfs\sieve\sieve.h" />
-    <ClInclude Include="..\..\include\dd.h" />
-    <ClInclude Include="..\..\common\filter\filter.h" />
-    <ClInclude Include="..\..\gnfs\gnfs.h" />
-    <ClInclude Include="..\..\common\lanczos\lanczos.h" />
-    <ClInclude Include="..\..\gnfs\poly\poly.h" />
-    <ClInclude Include="..\..\gnfs\poly\poly_skew.h" />
-    <ClInclude Include="..\..\gnfs\sqrt\sqrt.h" />
-    <ClInclude Include="..\..\gnfs\poly\stage1\stage1.h" />
-    <ClInclude Include="..\..\gnfs\poly\stage2\stage2.h" />
-    <ClInclude Include="..\..\include\ms_msieve.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\x64_support_masm.asm" />
+    <ClInclude Include="..\..\include\mp.h" />
+    <ClInclude Include="..\..\mpqs\mpqs.h" />
+    <ClInclude Include="..\..\ms_include\ms_common.h" />
+    <ClInclude Include="..\..\ms_include\ms_gmp_xface.h" />
+    <ClInclude Include="..\..\ms_include\ms_msieve.h" />
+    <ClInclude Include="..\..\ms_include\util.h" />
+    <ClInclude Include="..\..\zlib\zconf.h" />
+    <ClInclude Include="..\..\zlib\zlib.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
-    <!-- <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.0.targets" /> -->
   </ImportGroup>
 </Project>

@@ -261,7 +261,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>clang_rt.builtins-x86_64.lib;advapi32.lib;mpqs.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\$(IntDir)libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\lib\$(Platform)\cuda.lib;clang_rt.builtins-x86_64.lib;advapi32.lib;mpqs.lib;siqs.lib;factor_common.lib;ecm.lib;nfs.lib;gnfs.lib;common.lib;zlib.lib;ysieve.lib;ytools.lib;$(mp_dir)mpir.lib;$(ecm_dir)lib\$(IntDir)libecm.lib;..\..\..\pthreads-old\lib\$(IntDir)pthreads.lib</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>

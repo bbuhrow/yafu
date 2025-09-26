@@ -16,7 +16,7 @@ benefit from your work.
 #include "arith.h"
 #include "factor.h"
 
-#ifdef USE_NFS
+#if 0 //def USE_NFS
 
 // windows builds need to supply the following functions because they 
 // are not available within gnfs.lib or common.lib, but are available
