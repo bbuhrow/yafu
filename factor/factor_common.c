@@ -186,6 +186,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.poly_percent_max = 8;
     fobj->nfs_obj.td = 0;
     fobj->nfs_obj.batch_3lp = 0;
+    mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
 
     fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
@@ -320,6 +321,8 @@ void alloc_factobj(fact_obj_t *fobj)
 	
 	mpz_init(fobj->N);
     mpz_init(fobj->input_N);
+    mpz_set_ui(fobj->N, 0);
+    mpz_set_ui(fobj->input_N, 0);
     fobj->input_str = (char*)xmalloc(1024 * sizeof(char));
     fobj->input_str_alloc = 1024;
 
@@ -330,27 +333,42 @@ void alloc_factobj(fact_obj_t *fobj)
 	fobj->rho_obj.polynomials[2] = 1;
 	mpz_init(fobj->rho_obj.gmp_n);
 	mpz_init(fobj->rho_obj.gmp_f);
+    mpz_set_ui(fobj->rho_obj.gmp_n, 0);
+    mpz_set_ui(fobj->rho_obj.gmp_f, 0);
 
 	mpz_init(fobj->pm1_obj.gmp_n);
 	mpz_init(fobj->pm1_obj.gmp_f);
+    mpz_set_ui(fobj->pm1_obj.gmp_n, 0);
+    mpz_set_ui(fobj->pm1_obj.gmp_f, 0);
 	
 	mpz_init(fobj->pp1_obj.gmp_n);
 	mpz_init(fobj->pp1_obj.gmp_f);
+    mpz_set_ui(fobj->pp1_obj.gmp_n, 0);
+    mpz_set_ui(fobj->pp1_obj.gmp_f, 0);
 
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
+    mpz_set_ui(fobj->ecm_obj.gmp_n, 0);
+    mpz_set_ui(fobj->ecm_obj.gmp_f, 0);
     fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(fobj->num_threads * sizeof(uint64_t));
 
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
+    mpz_set_ui(fobj->squfof_obj.gmp_n, 0);
+    mpz_set_ui(fobj->squfof_obj.gmp_f, 0);
 
 	mpz_init(fobj->qs_obj.gmp_n);
+    mpz_set_ui(fobj->qs_obj.gmp_n, 0);
 
 	mpz_init(fobj->div_obj.gmp_n);
 	mpz_init(fobj->div_obj.gmp_f);
+    mpz_set_ui(fobj->div_obj.gmp_n, 0);
+    mpz_set_ui(fobj->div_obj.gmp_f, 0);
 
 	mpz_init(fobj->nfs_obj.gmp_n);
 	mpz_init(fobj->nfs_obj.snfs_cofactor);
+    mpz_set_ui(fobj->nfs_obj.gmp_n, 0);
+    mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
 
     fobj->factors = (yfactor_list_t*)xmalloc(1 * sizeof(yfactor_list_t));
 	fobj->factors->aprcl_display_cutoff = 200;

@@ -1425,6 +1425,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	{
 		// parse the master .p file and find the best poly	
 		find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 1);
+		
 		// also create a .fb file
 		ggnfs_to_msieve(fobj, job);
 	}

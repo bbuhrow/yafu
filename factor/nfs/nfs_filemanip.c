@@ -47,6 +47,7 @@ void savefile_concat(char *filein, char *fileout, msieve_obj *mobj)
 			count++;
 		}
 	}
+	//printf("copied %u lines from %s to %s\n", count, filein, mobj->savefile.name);
 	fclose(in);
 
 	savefile_flush(&mobj->savefile);
@@ -591,7 +592,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 	char *jobfile_name,	int write_jobfile)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
-	// output this as a ggnfs polynomial file
+	// and optionally output this as a ggnfs polynomial file
 	FILE *in, *out, *logfile;
 	char line[GSTR_MAXSIZE + 2], *ptr;
 	double score, bestscore = 0;
@@ -724,6 +725,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 	}
 
 	// go to the bestline
+	char polyscore[256];
 	while (!feof(in))
 	{
 		ptr = fgets(line,GSTR_MAXSIZE,in);
@@ -737,6 +739,8 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 		{
 			if (fobj->VFLAG > 0)
 				printf("best poly: \n%s",line);
+
+			strncpy(polyscore, line, 256);
 
             if (fobj->LOGFLAG)
             {
@@ -760,6 +764,9 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 	// copy n into the job file
 	gmp_fprintf(out, "n: %Zd\n",fobj->nfs_obj.gmp_n);
 
+	// and the score info
+	fprintf(out, "%s", polyscore);
+
 	if (fobj->VFLAG > 0)
 		gmp_printf("n: %Zd\n",fobj->nfs_obj.gmp_n);
 
@@ -768,14 +775,18 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 		logfile = fopen(fobj->flogname, "a");
 	}
 
-	// copy out the poly
-	// in the future we might want to record the poly in job->poly
+	// read and record the poly so we can do some analysis on it.
+	int max_deg = 0;
+	snfs_t spoly;
+	snfs_init(&spoly);
+
 	while (!feof(in))
 	{
 		ptr = fgets(line,GSTR_MAXSIZE,in);
 		if (ptr == NULL)
 			break;
 
+		// stop when we get to the next poly
 		if (line[0] == '#')
 			break;
 
@@ -788,16 +799,74 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 				continue;
 		}
 
-		fputs(line,out);
+		switch (line[0])
+		{
+		case 's':
+			sscanf(line + 6, "%lf", &spoly.poly->skew);
+			break;
+		case 'c':
+			switch (line[1])
+			{
+			case '0': mpz_set_str(spoly.poly->alg.coeff[0], line + 3, 10); max_deg = 0; break;
+			case '1': mpz_set_str(spoly.poly->alg.coeff[1], line + 3, 10); max_deg = 1; break;
+			case '2': mpz_set_str(spoly.poly->alg.coeff[2], line + 3, 10); max_deg = 2; break;
+			case '3': mpz_set_str(spoly.poly->alg.coeff[3], line + 3, 10); max_deg = 3; break;
+			case '4': mpz_set_str(spoly.poly->alg.coeff[4], line + 3, 10); max_deg = 4; break;
+			case '5': mpz_set_str(spoly.poly->alg.coeff[5], line + 3, 10); max_deg = 5; break;
+			case '6': mpz_set_str(spoly.poly->alg.coeff[6], line + 3, 10); max_deg = 6; break;
+			default: break;
+			}
+			break;
+		case 'Y':
+			switch (line[1])
+			{
+			case '0': mpz_set_str(spoly.poly->rat.coeff[0], line + 3, 10); break;
+			case '1': mpz_set_str(spoly.poly->rat.coeff[1], line + 3, 10); break;
+			default: break;
+			}
+			break;
+		default:
+			break;
+		}
+
+		// don't write the poly here... we'll do that after
+		// the whole thing is parsed into the poly structure and analyzed.
+		//fputs(line, out);
 
 		if (fobj->VFLAG > 0)
 			printf("%s",line);
-
+		
 		if ((fobj->LOGFLAG) && (logfile != NULL))
 		{
 			logprint(logfile, "%s", line);
 		}
 	}
+
+	// now that we have the poly in a structure, 
+	// get norm estimates and print those too.
+	mpz_set(spoly.n, fobj->nfs_obj.gmp_n);
+	spoly.poly->alg.degree = max_deg;
+	spoly.poly->rat.degree = 1;
+	spoly.difficulty = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+	// reverse calculation to get equivalent snfs difficulty for approx_norms...
+	spoly.difficulty = (spoly.difficulty - 30) / 0.56;		
+	spoly.valid = 1;
+
+	approx_norms(&spoly);
+	fprintf(out, "# anorm: %1.2e, rnorm: %1.2e\n", spoly.anorm, spoly.rnorm);
+
+	// and print the poly to the file
+	fprintf(out, "skew: %1.2f\n", spoly.poly->skew);
+	for (i = 0; i <= max_deg; i++)
+	{
+		gmp_fprintf(out, "c%d: %Zd\n", i, spoly.poly->alg.coeff[i]);
+	}
+	gmp_fprintf(out, "Y0: %Zd\n", spoly.poly->rat.coeff[0]);
+	gmp_fprintf(out, "Y1: %Zd\n", spoly.poly->rat.coeff[1]);
+
+	// gnfs jobs don't need the poly info, it is all 
+	// contained in the .job file.
+	snfs_clear(&spoly);
 
 	// and copy in the job parameters
 	fprintf(out,"rlim: %u\n",job->rlim);
@@ -962,7 +1031,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
     int info1 = 0, info2 = 0, info3 = 0;
     int is_snfs = 0;
 	enum special_q_e side = NEITHER_SPQ;
-
+	
 	in = fopen(fobj->nfs_obj.job_infile, "r");
 	if (in == NULL)
 	{
