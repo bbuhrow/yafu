@@ -1026,6 +1026,38 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 	return;
 }
 
+int select_side_from_norms(double a, double r, FILE *flog, int VFLAG)
+{
+	int side;
+
+	logprint(flog, "anorm = %1.2e, rnorm = %1.2e\n", a, r);
+
+	if ((fabs(r / a) > 1e3)) // && (fobj->nfs_obj.sq_side == 0))
+	{
+		if (VFLAG > 0)
+		{
+			printf("nfs: found rnorm = %1.2e, anorm = %1.2e\n"
+				"nfs: setting rational side sieve based on abs norm ratio r/a = %1.2e\n",
+				r, a, fabs(r / a));
+		}
+		side = RATIONAL_SPQ;
+		logprint(flog, "choosing rational side based on abs norm ratio r/a = %1.2e\n", fabs(r / a));
+	}
+	else // if (fobj->nfs_obj.sq_side == 0)
+	{
+		if (VFLAG > 0)
+		{
+			printf("nfs: found rnorm = %1.2e, anorm = %1.2e\n"
+				"nfs: setting algebraic side sieve based on abs norm ratio a/r = %1.2e\n",
+				r, a, fabs(a / r));
+		}
+		logprint(flog, "choosing algebraic side based on abs norm ratio a/r = %1.2e\n", fabs(a / r));
+		side = ALGEBRAIC_SPQ;
+	}
+
+	return side;
+}
+
 uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 {
 	FILE *in;
@@ -1325,30 +1357,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 			}
 			else
 			{
-				logprint(flog, "anorm = %1.2e, rnorm = %1.2e\n", a, r);
-
-				if ((fabs(r / a) > 1e3)) // && (fobj->nfs_obj.sq_side == 0))
-				{
-					if (fobj->VFLAG > 0)
-					{
-						printf("nfs: found rnorm = %1.2e, anorm = %1.2e\n"
-							"nfs: setting rational side sieve based on abs norm ratio r/a = %1.2e\n",
-							r, a, fabs(r / a));
-					}
-					side = RATIONAL_SPQ;
-					logprint(flog, "choosing rational side based on abs norm ratio r/a = %1.2e\n", fabs(r / a));
-				}
-				else // if (fobj->nfs_obj.sq_side == 0)
-				{
-					if (fobj->VFLAG > 0)
-					{
-						printf("nfs: found rnorm = %1.2e, anorm = %1.2e\n"
-							"nfs: setting algebraic side sieve based on abs norm ratio a/r = %1.2e\n",
-							r, a, fabs(a / r));
-					}
-					logprint(flog, "choosing algebraic side based on abs norm ratio a/r = %1.2e\n", fabs(a / r));
-					side = ALGEBRAIC_SPQ;
-				}
+				side = select_side_from_norms(a, r, flog, fobj->VFLAG);
 			}
             info1 = 1;
             
@@ -1531,7 +1540,8 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		else
 		{
 			if (job->poly == NULL)
-			{ // always be sure we can choose which side to sieve
+			{ 
+				// always be sure we can choose which side to sieve
 				job->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 				if (job->poly == NULL)
 				{
@@ -1588,6 +1598,64 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params)
 			fprintf(out,"rlambda: %.4lf\n",job->rlambda);
 		if (missing_params & PARAM_FLAG_ALAMBDA)
 			fprintf(out,"alambda: %.4lf\n",job->alambda);
+
+		if (missing_params & PARAM_FLAG_INFO1)
+		{
+			if (job->snfs == NULL)
+			{
+				snfs_t spoly;
+
+				printf("filling info1: norms and side for gnfs deg %d,%d poly\n",
+					job->poly->alg.degree, job->poly->rat.degree); fflush(stdout);
+
+				snfs_init(&spoly);
+				mpz_set(spoly.n, fobj->nfs_obj.gmp_n);
+				copy_mpz_polys_t(job->poly, spoly.poly);
+				spoly.difficulty = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+				// reverse calculation to get equivalent snfs difficulty for approx_norms...
+				spoly.difficulty = (spoly.difficulty - 30) / 0.56;
+				spoly.valid = 1;
+
+				approx_norms(&spoly);
+				fprintf(out, "# anorm: %1.2e, rnorm: %1.2e\n", spoly.anorm, spoly.rnorm);
+
+				FILE* flog = fopen(fobj->flogname, "a");
+				if (flog == NULL)
+				{
+					flog = stdout;
+				}
+
+				job->poly->side = select_side_from_norms(spoly.anorm, spoly.rnorm, flog, fobj->VFLAG);
+
+				if (flog != stdout)
+				{
+					fclose(flog);
+				}
+
+				snfs_clear(&spoly);
+			}
+			else
+			{
+				printf("filling info1: norms and side for snfs deg %d,%d poly\n",
+					job->snfs->poly->alg.degree, job->snfs->poly->rat.degree); fflush(stdout);
+
+				approx_norms(job->snfs);
+
+				fprintf(out, "# anorm: %1.2e, rnorm: %1.2e\n", job->snfs->anorm, job->snfs->rnorm);
+
+				FILE* flog = fopen(fobj->flogname, "a");
+				if (flog == NULL)
+				{
+					flog = stdout;
+				}
+				job->poly->side = select_side_from_norms(job->snfs->anorm, job->snfs->rnorm, flog, fobj->VFLAG);
+				if (flog != stdout)
+				{
+					fclose(flog);
+				}
+			}
+
+		}
 		
 		fclose(out);
 	}

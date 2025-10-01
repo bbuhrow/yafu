@@ -1759,7 +1759,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	udata.fobj = fobj;
 	udata.main_job_ref = job;
 
-	tpool_data = tpool_setup(fobj->THREADS, &nfs_sieve_start, NULL,
+	tpool_data = tpool_setup(fobj->THREADS, NULL, NULL,
 		&nfs_sieve_sync, &nfs_sieve_dispatch, &udata);
 	tpool_add_work_fcn(tpool_data, &lasieve_launcher);		// work_fcn id = 0
 

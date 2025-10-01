@@ -1193,11 +1193,19 @@ void nfs(fact_obj_t *fobj)
                 }
                 mpz_polys_init(job.poly);
                 job.poly->rat.degree = 1; // maybe way off in the future this isn't true
-                // assume gnfs for now
-                job.poly->side = ALGEBRAIC_SPQ;
-                job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
-
+                
 				missing_params = parse_job_file(fobj, &job);
+
+				// job.poly->side = ALGEBRAIC_SPQ;
+				// job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+				if (job.poly->side == NEITHER_SPQ)
+				{
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: job file did not specify a sieve side or norms, will attempt to fill\n");
+					}
+					missing_params |= PARAM_FLAG_INFO1;
+				}
 
                 // if we read a snfs job, also put any poly info
                 // into the snfs poly.
@@ -2276,30 +2284,6 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->qrange = table[table_rows - 1][11];
 			job->min_rels = table[table_rows - 1][12];
 		}
-	}
-
-	// swap parameters if side is not algebraic.  This assumes the param table data
-	// was assembled for algebraic-side sieving.  
-	if (0) //job->poly->side == RATIONAL_SPQ)
-	{
-		uint32_t tmp;
-		double dtmp;
-
-		tmp = job->rlim;
-		job->rlim = job->alim;
-		job->alim = tmp;
-
-		tmp = job->lpbr;
-		job->lpbr = job->lpba;
-		job->lpba = tmp;
-
-		tmp = job->mfbr;
-		job->mfbr = job->mfba;
-		job->mfba = tmp;
-
-		dtmp = job->rlambda;
-		job->rlambda = job->alambda;
-		job->alambda = dtmp;
 	}
 
 	job->test_score = 9999999.0;		// haven't tested it yet.
