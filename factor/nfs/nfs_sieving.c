@@ -235,27 +235,15 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 	qsort(qrange_data->qranges_r, qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
 
 	job->current_rels = totalrels;
-	if (fobj->nfs_obj.rangeq > 0)
-	{
-		// user specified range: split threads over the entire range
-		// and put bounds on new assignments.
-		printf("nfs: configuring custom q-range %u-%u, splitting over %u threads\n",
-			job->startq, job->startq + fobj->nfs_obj.rangeq, fobj->THREADS);
-		qrange_data->thread_qrange =
-			ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
-		qrange_data->minq = job->startq;
-		qrange_data->maxq = job->startq + fobj->nfs_obj.rangeq;
-	}
-	else
-	{
-		qrange_data->thread_qrange = job->qrange;
-		qrange_data->maxq = 0xffffffff;
 
-		if (fobj->nfs_obj.startq > 0)
-			qrange_data->minq = fobj->nfs_obj.startq;
-		else
-			qrange_data->minq = 0;
-	}
+	qrange_data->thread_qrange = job->qrange;
+	qrange_data->maxq = 0xffffffff;
+
+	if (fobj->nfs_obj.startq > 0)
+		qrange_data->minq = fobj->nfs_obj.startq;
+	else
+		qrange_data->minq = 0;
+
 
 	if (fobj->VFLAG > 0)
 	{
@@ -545,8 +533,17 @@ void nfs_sieve_start(void* vptr)
 		}
 		else
 		{
-			logprint(logfile, "nfs: commencing lattice sieving with %d threads\n", fobj->THREADS);
-			logprint(logfile, "nfs: attempting to gather %u rels\n", udata->rels_requested);
+			if (fobj->nfs_obj.rangeq > 0)
+			{
+				logprint(logfile, "nfs: commencing lattice sieving with %d threads\n", fobj->THREADS);
+				logprint(logfile, "nfs: sieve directed to process Q-range %u - %u\n", 
+					fobj->nfs_obj.startq, fobj->nfs_obj.rangeq + fobj->nfs_obj.startq);
+			}
+			else
+			{
+				logprint(logfile, "nfs: commencing lattice sieving with %d threads\n", fobj->THREADS);
+				logprint(logfile, "nfs: sieve directed to gather %u rels\n", udata->rels_requested);
+			}
 			fclose(logfile);
 		}
 	}
@@ -972,49 +969,74 @@ void nfs_sieve_dispatch(void* vptr)
 
 	if ((total_est_rels < udata->rels_requested) && (t->isactive != 2))
 	{
+		// this is where we set what Q-range to sieve for the current thread.
+		// first see what the .ranges file says should be done.  This
+		// will drive a normal automated factorization.
 		qrange_t* qrange = get_next_range(udata->qrange_data, udata->requested_side);
-		uint32_t custom_qstart = 0;
-		uint32_t custom_qrange = 0;
+		
+		if ((udata->qrange_data->num_a == 0) && (udata->qrange_data->num_r == 0))
+		{
+			// nothing in file, start at specified job start and the default qrange.
+			t->job.startq = job->startq;
+			t->job.qrange = udata->qrange_data->thread_qrange;
+		}
+		else
+		{
+			// our start/stop comes from the file via get_next_range
+			t->job.startq = qrange->qrange_start;
+			t->job.qrange = qrange->qrange_end - qrange->qrange_start;
+		}
 
-		if (fobj->nfs_obj.rangeq > 0)
+		printf("new range info driven by .ranges file: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
+
+		// now change if there are any inputs that override the automated behavior.
+		if ((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0))
 		{
 			// if the nfs_obj.rangeq value is > 0, that means the user
 			// requested a custom sieving range.  fill in the info to our
 			// range data structure.
-			custom_qstart = fobj->nfs_obj.startq;
-			custom_qrange = udata->qrange_data->thread_qrange;
+			t->job.startq = fobj->nfs_obj.startq + udata->ranges_completed * udata->qrange_data->thread_qrange;
+			t->job.qrange = udata->qrange_data->thread_qrange;
 
-			if (udata->ranges_completed > 0)
+			if (fobj->nfs_obj.rangeq > 0)
 			{
-				// this will kill the thread
-				tdata->work_fcn_id = tdata->num_work_fcn;
+				// we have a specified end to the sieving, regardless of other completion metrics.
+				if (t->job.startq >= (fobj->nfs_obj.startq + fobj->nfs_obj.rangeq))
+				{
+					// this will kill the thread
+					tdata->work_fcn_id = tdata->num_work_fcn;
+					free(qrange);
 
-				if (fobj->VFLAG > 0)
-					printf("nfs: thread %d halting, custom q-range completed\n", tid);
-				return;
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: thread %d halting, custom q-range completed\n", tid);
+					}
+					return;
+				}
+				else if ((t->job.startq + t->job.qrange) > (fobj->nfs_obj.startq + fobj->nfs_obj.rangeq))
+				{
+					t->job.qrange = (fobj->nfs_obj.startq + fobj->nfs_obj.rangeq) - t->job.startq;
+				}
+
+				if (t->job.qrange == 0)
+				{
+					// this will kill the thread
+					tdata->work_fcn_id = tdata->num_work_fcn;
+					free(qrange);
+
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: thread %d halting, custom q-range completed\n", tid);
+					}
+					return;
+				}
 			}
+
+			printf("range info overridden by custom sieve range: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
 		}
 
-		if (custom_qstart > 0)
-		{
-			t->job.startq = fobj->nfs_obj.startq + tid * custom_qrange;
-			t->job.qrange = custom_qrange;
-		}
-		else
-		{
-			if ((udata->qrange_data->num_a == 0) && (udata->qrange_data->num_r == 0))
-			{
-				t->job.startq = job->startq;
-				t->job.qrange = udata->qrange_data->thread_qrange;
-			}
-			else
-			{
-				t->job.startq = qrange->qrange_start;
-				t->job.qrange = qrange->qrange_end - qrange->qrange_start;
-			}
-		}
-
-		// make this range unavailable to other threads
+		// regardless of how this range was selected, make it unavailable to other threads
+		// and record it in the ranges file.
 		insert_range(udata->qrange_data, udata->requested_side,
 			t->job.startq, t->job.qrange);
 		free(qrange);
@@ -1024,29 +1046,25 @@ void nfs_sieve_dispatch(void* vptr)
 		tdata->work_fcn_id = 0;
 		udata->threads_sieving++;
 		t->isactive = 1;
-
-		//if (fobj->VFLAG > 0)
-		//{
-		//	printf("nfs: thread %d starting new range %u->%u with work_fcn %d of %d, #sieving: %d, #complete: %d\n", 
-		//		tid, t->job.startq, t->job.startq + t->job.qrange, 
-		//		tdata->work_fcn_id, tdata->num_work_fcn,
-		//		udata->threads_sieving,	udata->ranges_completed);
-		//}
 	}
 	else
 	{
 		// this will kill the thread
 		tdata->work_fcn_id = tdata->num_work_fcn;
 
-		//if (fobj->VFLAG > 0)
-		//{
-		//	printf("nfs: thread %d halting with isactive == %d\n", tid, t->isactive);
-		//}
-
 		if (t->isactive != 2)
 		{
 			if (fobj->VFLAG > 0)
+			{
 				printf("nfs: thread %d halting, relations objective achieved\n", tid);
+			}
+		}
+		else
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: thread %d halting with isactive == %d\n", tid, t->isactive);
+			}
 		}
 	}
 
@@ -1741,7 +1759,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	udata.fobj = fobj;
 	udata.main_job_ref = job;
 
-	tpool_data = tpool_setup(fobj->THREADS, NULL, NULL,
+	tpool_data = tpool_setup(fobj->THREADS, &nfs_sieve_start, NULL,
 		&nfs_sieve_sync, &nfs_sieve_dispatch, &udata);
 	tpool_add_work_fcn(tpool_data, &lasieve_launcher);		// work_fcn id = 0
 
@@ -1761,15 +1779,10 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 			nfs_sieve_dispatch(tpool_data);
 			if (tpool_data->work_fcn_id == 0)
 			{
-				//printf("recieved work function id = %d of %d, calling lasieve_launcher\n",
-				//	tpool_data->work_fcn_id, tpool_data->num_work_fcn);
-				//
 				lasieve_launcher(tpool_data);
 			}
 			else
 			{
-				//printf("recieved work function id = %d of %d, thread halting\n", 
-				//	tpool_data->work_fcn_id, tpool_data->num_work_fcn);
 				break;
 			}
 		}

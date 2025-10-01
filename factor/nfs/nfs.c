@@ -220,7 +220,7 @@ void nfs(fact_obj_t *fobj)
 	int process_done;
 	enum nfs_state_e nfs_state;
 
-	// initialize some job parameters
+	// clear the job
 	memset(&job, 0, sizeof(nfs_job_t));
 
 	obj_ptr = NULL;
@@ -325,15 +325,19 @@ void nfs(fact_obj_t *fobj)
 			factor_list_init(&factor_list);
             factor_list_add(obj, &factor_list, &mpN);
 
-            if (fobj->nfs_obj.rangeq > 0)
-            {
-				// user specified a starting and stopping Q, so we sieve
-				// that Q-range only (rest of job is default).
-                job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
-            }
+            //if (fobj->nfs_obj.rangeq > 0)
+            //{
+			//	// user specified a starting and stopping Q, so we sieve
+			//	// that Q-range only (rest of job is default).
+            //    job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
+            //}
 
 			break;
 		case NFS_STATE_POLY:
+
+			logprint_oc(fobj->flogname, "a", "Entering nfs phase: NFS_STATE_POLY;  "
+				"nfs_phases = %u, gnfs flag = %u, snfs flag = %u\n", fobj->nfs_obj.nfs_phases,
+				fobj->nfs_obj.gnfs, fobj->nfs_obj.snfs);
 
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
@@ -505,6 +509,9 @@ void nfs(fact_obj_t *fobj)
 				nfs_state = NFS_STATE_CADO;
 				break;
 			}
+
+			logprint_oc(fobj->flogname, "a", "Entering nfs phase: NFS_STATE_SIEVE with "
+				"nfs_phases = %u\n", fobj->nfs_obj.nfs_phases);
 
 			pre_batch_rels = job.current_rels;
 			gettimeofday(&bstart, NULL);
@@ -1039,6 +1046,7 @@ void nfs(fact_obj_t *fobj)
 			break;
 
 		case NFS_STATE_FILTCHECK:
+
 			if (job.current_rels >= job.min_rels)
 			{
 				if (fobj->VFLAG >= 0)
@@ -1068,18 +1076,33 @@ void nfs(fact_obj_t *fobj)
 				if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 					(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE))
 				{
-					if (fobj->VFLAG >= 0)
+					if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
 					{
-						printf("nfs: found %u relations, need at least %u "
-							"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
+						if (fobj->VFLAG >= 0)
+						{
+							printf("nfs: found %u relations, sieving process flagged as finished\n",
+								job.current_rels);
+						}
+
+						logprint_oc(fobj->flogname, "a",
+							"nfs: found %u relations, sieving process flagged as finished\n",
+							job.current_rels);
+					}
+					else
+					{
+						if (fobj->VFLAG >= 0)
+						{
+							printf("nfs: found %u relations, need at least %u "
+								"(filtering ETA: %uh %um), continuing with sieving ...\n",
+								job.current_rels, job.min_rels, est_time / 3600,
+								(est_time % 3600) / 60);
+						}
+
+						logprint_oc(fobj->flogname, "a", "nfs: found %u relations, need at least %u "
+							"(filtering ETA: %uh %um), continuing with sieving ...\n",
 							job.current_rels, job.min_rels, est_time / 3600,
 							(est_time % 3600) / 60);
 					}
-
-					logprint_oc(fobj->flogname, "a", "nfs: found %u relations, need at least %u "
-						"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
-						job.current_rels, job.min_rels, est_time / 3600,
-						(est_time % 3600) / 60);
 
 					nfs_state = NFS_STATE_SIEVE;
 				}
@@ -1130,45 +1153,6 @@ void nfs(fact_obj_t *fobj)
 				fclose(fid);
 			}
 
-			// create a new directory for this job 
-//#ifdef _WIN32
-//			sprintf(tmpstr, "%s\%s", fobj->nfs_obj.ggnfs_dir, 
-//				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
-//			mkdir(tmpstr);
-//#else
-//			sprintf(tmpstr, "%s/%s", fobj->nfs_obj.ggnfs_dir, 
-//				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
-//			mkdir(tmpstr, S_IRWXU);
-//#endif
-			
-			// point msieve and ggnfs to the new directory
-//#ifdef _WIN32
-//			sprintf(fobj->nfs_obj.outputfile, "%s\%s", 
-//				tmpstr, fobj->nfs_obj.outputfile);
-//			sprintf(fobj->nfs_obj.logfile, "%s\%s", 
-//				tmpstr, fobj->nfs_obj.logfile);
-//			sprintf(fobj->nfs_obj.fbfile, "%s\%s", 
-//				tmpstr, fobj->nfs_obj.fbfile);
-//#else
-//			sprintf(fobj->nfs_obj.outputfile, "%s%s", 
-//				tmpstr, fobj->nfs_obj.outputfile);
-//			sprintf(fobj->nfs_obj.logfile, "%s%s", 
-//				tmpstr, fobj->nfs_obj.logfile);
-//			sprintf(fobj->nfs_obj.fbfile, "%s%s", 
-//				tmpstr, fobj->nfs_obj.fbfile);
-//
-//#endif
-//
-//			msieve_obj_free(fobj->nfs_obj.mobj);
-//			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-//				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
-//				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
-//			fobj->nfs_obj.mobj = obj;
-//
-//			printf("output: %s\n", fobj->nfs_obj.mobj->savefile.name);
-//			printf("log: %s\n", fobj->nfs_obj.mobj->logfile_name);
-//			printf("fb: %s\n", fobj->nfs_obj.mobj->nfs_fbfile_name);
-
 			break;
 
 			// should really be "resume_job", since we do more than just resume sieving...
@@ -1186,6 +1170,9 @@ void nfs(fact_obj_t *fobj)
 			// 6) it contains poly->time info (in which case we'll be in NFS_STATE_RESUMEPOLY)
             printf("nfs: resumesieve; last_spq = %u, nfs_phases = %u\n",
                 last_specialq, fobj->nfs_obj.nfs_phases);
+
+			logprint_oc(fobj->flogname, "a", "Entering nfs phase: NFS_STATE_RESUMESIEVE with "
+				"last_spq = %u and nfs_phases = %u\n", last_specialq, fobj->nfs_obj.nfs_phases);
 
 			strcpy(tmpstr, "");
 			if ((last_specialq == 0) &&
@@ -2100,6 +2087,8 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			// gnfs resume (any snfs job would have already been detected and poly
 			// properly set before calling this func)
 			job->poly->side = ALGEBRAIC_SPQ;
+			logprint_oc(fobj->flogname, "a", "no existing poly in get_ggnfs_params, "
+				"defaulting to algebraic side sieving\n");
 		}
 	}
 	else if ((job->snfs != NULL) && (job->poly != job->snfs->poly))
@@ -2113,7 +2102,9 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
     {
         // user override
         job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
-		printf("nfs: user override of special-q side: to %s\n",
+		printf("nfs: user override of special-q side to: %s\n",
+			job->poly->side == RATIONAL_SPQ ? "rational" : "algebraic");
+		logprint_oc(fobj->flogname, "a", "nfs: user override of special-q side to: %s\n",
 			job->poly->side == RATIONAL_SPQ ? "rational" : "algebraic");
     }
 

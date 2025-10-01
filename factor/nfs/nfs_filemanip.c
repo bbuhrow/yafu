@@ -1038,11 +1038,19 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
     int is_snfs = 0;
 	enum special_q_e side = NEITHER_SPQ;
 	
+	
 	in = fopen(fobj->nfs_obj.job_infile, "r");
 	if (in == NULL)
 	{
 		printf("nfs: couldn't open job file, using default min_rels\n");
 		return 0;
+	}
+
+	FILE* flog = fopen(fobj->flogname, "a");
+
+	if (flog != NULL)
+	{
+		logprint(flog, "parsed parameters from job file %s\n", fobj->nfs_obj.job_infile);
 	}
 
 	while (!feof(in))
@@ -1060,6 +1068,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			lpbr = strtoul(substr + 5, NULL, 10);
+			logprint(flog, "lpbr: %u\n", lpbr);
 			continue;
 		}
 
@@ -1068,6 +1077,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			lpba = strtoul(substr + 5, NULL, 10);
+			logprint(flog, "lpba: %u\n", lpba);
 			continue;
 		}
 
@@ -1088,6 +1098,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
                     printf("nfs: found type: snfs\n");
                     printf("nfs: initializing snfs poly\n");
                 }
+				logprint(flog, "type: snfs\n");
  				snfs_init(job->snfs);
  			}
 			continue;
@@ -1114,6 +1125,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
                     {
                         job->poly->alg.degree = coeff;
                     }
+					logprint(flog, "c%d: %s", coeff, line + 3);
                     break;
                 }
             }
@@ -1129,6 +1141,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             {
                 gmp_printf("nfs: found Y0: %Zd\n", job->poly->rat.coeff[0]);
             }
+			logprint(flog, "Y0: %s", line + 3);
             y0 = 1;
             continue;
         }
@@ -1141,6 +1154,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             {
                 gmp_printf("nfs: found Y1: %Zd\n", job->poly->rat.coeff[1]);
             }
+			logprint(flog, "Y1: %s", line + 3);
             job->poly->rat.degree = 1;
             y1 = 1;
             continue;
@@ -1154,6 +1168,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             {
                 gmp_printf("nfs: found m: %Zd\n", job->poly->m);
             }
+			logprint(flog, "m: %s", line + 2);
             has_m = 1;
             continue;
         }
@@ -1167,6 +1182,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             {
                 printf("nfs: found skew: %lf\n", job->poly->skew);
             }
+			logprint(flog, "skew: %1.2f\n", skew);
         }
 		
 		substr = strstr(line, "size:");
@@ -1188,6 +1204,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             {
                 printf("nfs: found size: %u\n", difficulty);
             }
+			logprint(flog, "size: %u\n", difficulty);
 
 			continue;
 		}
@@ -1196,6 +1213,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			mfbr = strtoul(substr + 5, NULL, 10);
+			logprint(flog, "mfbr: %u\n", mfbr);
 			continue;
 		}
 		
@@ -1203,6 +1221,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			mfba = strtoul(substr + 5, NULL, 10);
+			logprint(flog, "mfba: %u\n", mfba);
 			continue;
 		}
 		
@@ -1210,6 +1229,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			rlim = strtoul(substr + 5, NULL, 10);
+			logprint(flog, "rlim: %u\n", rlim);
 			continue;
 		}
 		
@@ -1217,6 +1237,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			alim = strtoul(substr + 5, NULL, 10);
+			logprint(flog, "alim: %u\n", alim);
 			continue;
 		}
 		
@@ -1224,6 +1245,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			sscanf(substr + 8, "%f", &rlambda); //strtof(substr + 8, NULL);
+			logprint(flog, "rlambda: %1.4f\n", rlambda);
 			continue;
 		}
 		
@@ -1231,6 +1253,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			sscanf(substr + 8, "%f", &alambda); //strtof(substr + 8, NULL);
+			logprint(flog, "alambda: %1.4f\n", alambda);
 			continue;
 		}
 
@@ -1240,6 +1263,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 			sscanf(substr + 9, "%u", &siever);
 			if (fobj->VFLAG > 0)
 				printf("nfs: found siever gnfs-lasieve4I%ue\n", siever);
+			logprint(flog, "siever: %u\n", siever);
 			continue;
 		}
 		
@@ -1250,6 +1274,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             info2 = 1;
 			if (fobj->VFLAG > 0)
 				printf("nfs: found side: algebraic\n");
+			logprint(flog, "side: algebraic\n");
 			continue;
 		}
 		
@@ -1260,27 +1285,80 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             info2 = 1;
 			if (fobj->VFLAG > 0)
 				printf("nfs: found side: rational\n");
+			logprint(flog, "side: rational\n");
 			continue;
 		}
 
         substr = strstr(line, "combined");
         if (substr != NULL)
         {
+			double e;
+			int nume = sscanf(substr + 9, "%lf", &e);
             info3 = 1;
+
             if (fobj->VFLAG > 0)
                 printf("nfs: found murphyE score\n");
+
+			if (nume == 1)
+				logprint(flog, "combined score (MurphyE): %1.4e\n", e);
             continue;
         }
 
         substr = strstr(line, "anorm");
         if (substr != NULL)
         {
-            side = RATIONAL_SPQ;
+			double a, r;
+			int numa, numr;
+			numa = sscanf(substr + 6, "%lf", &a);
+			
+			substr = strstr(line, "rnorm");
+			numr = sscanf(substr + 6, "%lf", &r);
+
+			if ((numa < 0) || (numr < 0))
+			{
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: found norm line but could not parse norm info\n"
+						"nfs: using default algebraic side sieve\n");
+				}
+				side = ALGEBRAIC_SPQ;
+			}
+			else
+			{
+				logprint(flog, "anorm = %1.2e, rnorm = %1.2e\n", a, r);
+
+				if ((fabs(r / a) > 1e3)) // && (fobj->nfs_obj.sq_side == 0))
+				{
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: found rnorm = %1.2e, anorm = %1.2e\n"
+							"nfs: setting rational side sieve based on abs norm ratio r/a = %1.2e\n",
+							r, a, fabs(r / a));
+					}
+					side = RATIONAL_SPQ;
+					logprint(flog, "choosing rational side based on abs norm ratio r/a = %1.2e\n", fabs(r / a));
+				}
+				else // if (fobj->nfs_obj.sq_side == 0)
+				{
+					if (fobj->VFLAG > 0)
+					{
+						printf("nfs: found rnorm = %1.2e, anorm = %1.2e\n"
+							"nfs: setting algebraic side sieve based on abs norm ratio a/r = %1.2e\n",
+							r, a, fabs(a / r));
+					}
+					logprint(flog, "choosing algebraic side based on abs norm ratio a/r = %1.2e\n", fabs(a / r));
+					side = ALGEBRAIC_SPQ;
+				}
+			}
             info1 = 1;
-            if (fobj->VFLAG > 0)
-                printf("nfs: found norm info\n");
+            
             continue;
         }
+	}
+
+	if (flog != NULL)
+	{
+		fclose(flog);
 	}
 
     if (has_m)
