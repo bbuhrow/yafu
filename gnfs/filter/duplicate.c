@@ -257,6 +257,7 @@ uint32 nfs_purge_duplicates(msieve_obj *obj, factor_base_t *fb,
 	uint32 num_relations;
 	uint32 num_collisions;
 	uint32 num_skipped_b;
+	uint32 num_error_rels;
 	uint32 num_composite;
 	uint8 *hashtable;
 	uint32 blob[2];
@@ -338,6 +339,7 @@ uint32 nfs_purge_duplicates(msieve_obj *obj, factor_base_t *fb,
 	num_collisions = 0;
 	num_skipped_b = 0;
 	num_composite = 0;
+	num_error_rels = 0;
 	mpz_init(scratch);
 	savefile_read_line(buf, sizeof(buf), savefile);
 	while (!savefile_eof(savefile)) {
@@ -365,7 +367,6 @@ uint32 nfs_purge_duplicates(msieve_obj *obj, factor_base_t *fb,
 
 			/* save the line number of bad relations (hopefully
 			   there are very few of them) */
-
 			fwrite(&curr_relation, (size_t)1, 
 					sizeof(uint32), bad_relation_fp);
 			if (status == -99)
@@ -376,6 +377,14 @@ uint32 nfs_purge_duplicates(msieve_obj *obj, factor_base_t *fb,
 			    logprintf(obj, "error %d reading relation %u\n",
 					status, curr_relation);
 			savefile_read_line(buf, sizeof(buf), savefile);
+
+			num_error_rels++;
+
+			if (num_error_rels > 10000)
+			{
+				printf("too many relation errors (> 10000), check your data file and try postprocessing again (-nc)\n");
+				exit(1);
+			}
 			continue;
 		}
 
