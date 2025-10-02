@@ -144,6 +144,7 @@ void snfs_copy_poly(snfs_t *src, snfs_t *dest)
 	dest->poly->rroots = src->poly->rroots;
 	mpz_set(dest->poly->m, src->poly->m);
 	dest->poly->side = src->poly->side;
+	dest->poly->alpha = src->poly->alpha;
 
 	dest->difficulty = src->difficulty;
 	dest->sdifficulty = src->sdifficulty;
@@ -289,7 +290,7 @@ void print_snfs(snfs_t *poly, FILE *out)
 	// msieve "analyze_one_poly" output, if known
     if (poly->poly->size > 0)
     {
-        fprintf(out, "# size = %1.3e, alpha = %1.3f, combined = %1.3e, rroots = %d\n",
+        fprintf(out, "# size = %1.3le, alpha = %1.3lf, combined = %1.3le, rroots = %d\n",
             poly->poly->size, poly->poly->alpha, poly->poly->murphy, poly->poly->rroots);
     }
 
@@ -711,9 +712,17 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		}
 	}
 
-
 	// this checks x^n +- p, p small, up to a larger exponent value
 	maxb = 1000;
+	//gmp_printf("checking input %Zd for forms x^n +- p, p small\n", n);
+
+	if (mpz_cmp_ui(n, 1) <= 0)
+	{
+		printf("nfs: input %Zd too small in find_brent_form\n", n);
+		exit(1);
+	}
+		
+
 	for (i = maxb; i>2; i--)
 	{
 		// now that we've reduced the exponent considerably, check for 
@@ -727,7 +736,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		mpz_add_ui(a, n, 1);
 		mpz_root(b, a, i);
 		mpz_pow_ui(p, b, i);
-		if (mpz_cmp(p, a) == 0)
+		if ((mpz_cmp(p, a) == 0) && (mpz_cmp_ui(b, 1) > 0))
 		{
 			char s[2048];
 
@@ -766,7 +775,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		mpz_sub_ui(a, n, 1);
 		mpz_root(b, a, i);
 		mpz_pow_ui(p, b, i);
-		if (mpz_cmp(p, a) == 0)
+		if ((mpz_cmp(p, a) == 0) && (mpz_cmp_ui(b, 1) > 0))
 		{
 			char s[2048];
 
@@ -2358,6 +2367,8 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 	mpz_init(term);
 	mpz_init(n);
 
+	// use the full input to check for aurifeullian forms.
+	// we check for divisibility with the cofactor, if any are found.
 	mpz_set(n, fobj->nfs_obj.gmp_n);
 
 	// if the base and exponent admit an Aurifeuillian form, add the two
@@ -2540,21 +2551,28 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 							mpz_sub(term, C, D);
 						else
 							mpz_add(term, C, D);
-						mpz_mod(term, term, fobj->nfs_obj.gmp_n);
+
+						mpz_mod(term, term, n);
 						if (mpz_cmp_ui(term, 0) != 0)
 						{
-							gmp_printf("error: input unexpectedly does not divide form: exp = %u, c = %d, m = %d, "
-								"k = %d, sq1 = %d, sq2 = %d, "
-								"b1 = %Zd, b2 = %Zd, n = %Zd, a = %Zd, b = %Zd\n",
-								poly->exp1, auri_c[i], auri_m[i], k, sq1, sq2, poly->base1, poly->base2,
-								fobj->nfs_obj.gmp_n, C, D);
+							if (VFLAG > 0)
+							{
+								gmp_printf("gen: term unexpected does not divide form: "
+									"exp = %u, c = %d, m = %d, "
+									"k = %d, sq1 = %d, sq2 = %d, "
+									"b1 = %Zd, b2 = %Zd, n = %Zd\na = %Zd\nb = %Zd\ncofactor %Zd\n",
+									poly->exp1, auri_c[i], auri_m[i], k, sq1, sq2, poly->base1, poly->base2,
+									n, C, D);
+							}
 							break;
 						}
 						else
 						{
 							if (VFLAG > 0)
-								printf("gen: input has form a^%d + %d^%d*b^%d\n",
-									auri_m[i], auri_c[i], auri_c[i], auri_m[i]);
+							{
+								gmp_printf("gen: full input has factor %Zd in common with form a^%d + %d^%d*b^%d\n",
+									term, auri_m[i], auri_c[i], auri_c[i], auri_m[i]);
+							}
 						}
 
 						mpz_set_ui(F, 0);
@@ -2784,7 +2802,6 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 				}
 			}
 		}
-
 	}
 
 	if (do_check)
@@ -3022,6 +3039,9 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 			}
 		}
 	}
+	// now 'n' should be the full input for this polynomial form.
+	// reduce by the known algebraic factors, and also see if these
+	// are factors of our input (which may be an already-reduced cofactor).
 	for (i = nr - 1; i >= 0; i--)
 	{
 		char c;
@@ -3059,18 +3079,24 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mod(t, n, term);
-				if (mpz_cmp_ui(t, 0) != 0) printf("gen: error, term doesn't divide n!\n");
-				mpz_tdiv_q(n, n, term);
+				if (mpz_cmp_ui(t, 0) != 0)
+				{
+					gmp_printf("gen: error, term %Zd doesn't divide n = %Zd\n", term, n);
+				}
+				else
+				{
+					mpz_tdiv_q(n, n, term);
+				}
 
 				if (fobj->autofact_obj.autofact_active)
 				{
-					// does this term divide the input we are trying to autofactor?
+					// is this term a nontrivial divisor of the input we are trying to autofactor?
 					mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
 					if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 					{
 						if (VFLAG > 2)
 						{
-							gmp_printf("gen: adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n",
+							gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd of term %Zd)\n",
 								t, fobj->nfs_obj.gmp_n, term);
 						}
 						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
@@ -3081,7 +3107,12 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 		}
 	}
 
+	// at the end of the process above, 'n' is the primitive factor of 
+	// the full input.  What we started with is stored in poly->n.  If
+	// there is a remainder after dividing out the primitive factor it
+	// could be a factor of the input.
 	mpz_tdiv_r(poly->primitive, poly->n, n);
+
 	if (mpz_cmp_ui(poly->primitive, 0) != 0)
 	{
 		// we found a primitive factor that doesn't divide our
@@ -3133,7 +3164,7 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 		{
 			if (VFLAG > 2)
 			{
-				gmp_printf("gen: adding primitive factor %Zd of autofactor input %Zd to factor list\n",
+				gmp_printf("gen: adding primitive factor %Zd of input %Zd to factor list\n",
 					poly->primitive, fobj->nfs_obj.gmp_n);
 			}
 			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
@@ -3771,7 +3802,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
     }
 	else if (mpz_cmp_ui(poly->primitive, 0) > 0)
 	{
-		// gmp_printf("found factor %Zd of input %Zd\n", poly->primitive, fobj->nfs_obj.gmp_n);
+		//gmp_printf("found factor %Zd of input %Zd\n", poly->primitive, fobj->nfs_obj.gmp_n);
 		// we found a factor of the input that isn't a primitive factor
 		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
 		if ((mpz_cmp_ui(t, 0) == 0) &&

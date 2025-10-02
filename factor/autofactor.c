@@ -259,9 +259,7 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	int digits = gmp_base10(b);
 
 	cpu = ytools_get_cpu_type();
-
 	estimate = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
-	estimate = estimate * fobj->qs_obj.qs_tune_freq / freq; 	
 
 	//adjust for multi-threaded qs
 	//if we assume threading is perfect, we'll get a smaller estimate for
@@ -309,9 +307,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	int digits = gmp_base10(b);
 
 	cpu = ytools_get_cpu_type();
-	
 	estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
-	estimate = estimate * fobj->nfs_obj.gnfs_tune_freq / freq; 
 
 	//adjust for multi-threaded nfs
 	//if we assume threading is perfect, we'll get a smaller estimate for
@@ -602,6 +598,8 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 	case state_nfs:
 		mpz_set(fobj->nfs_obj.gmp_n,b);
+		//mpz_set(fobj->nfs_obj.full_n, b);
+		//mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
 		nfs(fobj);
 		mpz_set(b,fobj->nfs_obj.gmp_n);
 
@@ -1219,6 +1217,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
     if ((numdigits >= fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
     {
         mpz_set(fobj->nfs_obj.gmp_n, b);
+		//mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
+		//mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
+
 #ifdef USE_NFS
 
 		if (fobj->nfs_obj.skip_snfs_check)
@@ -1232,7 +1233,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
         if (poly != NULL)
         {
-			printf("fac: found form %d\n", (int)poly->form_type);
+			//printf("fac: found form %d\n", (int)poly->form_type);
             fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
 
 			if (poly->form_type == SNFS_BRENT)
@@ -1316,6 +1317,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         //fobj->VFLAG = -1;
 
 		mpz_set(fobj->nfs_obj.gmp_n, b);
+		//mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
+		//mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
 		poly = snfs_find_form(fobj);
 
 		// with the form detected, create a good polynomial
@@ -1351,8 +1354,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			return next_state;
 		}
 
-		//gmp_printf("after polygen, b = %Zd, nfs->gmp_n = %Zd, primitive = %Zd\n",
-		//	b, fobj->nfs_obj.gmp_n, poly->primitive);
+		//gmp_printf("after polygen\n\tb = %Zd\n\tnfs->gmp_n = %Zd\n\tprimitive = %Zd\n\tcofactor = %Zd\n\tfull = %Zd\n",
+		//	b, fobj->nfs_obj.gmp_n, poly->primitive, fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.full_n);
 
 		// then scale and rank them
 		snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
@@ -1360,32 +1363,22 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
         fobj->VFLAG = tmpV;
 
-		// and test the best one, compared to gnfs or qs, depending on 
-        // which one will run.  
-		if (mpz_cmp_ui(poly->primitive, 0) > 0)
-		{
-			// if gen_brent_poly found a primitive factor, it is put into
-			// the factor list.  if what's left over is below the QS threshold
-			// then we can stop with the SNFS detection
-			gnfs_size = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
-			if (gnfs_size < fobj->autofact_obj.qs_snfs_xover)
-			{
-				// if the primitive factor size is small enough
-				// we don't need to bother with NFS at all (S or G).
-				// don't consider the qs/snfs cutoff any more
-				fobj->autofact_obj.has_snfs_form = 0;
-			}
-		}
-		else
-		{
-			gnfs_size = 999999;
-		}
+		// the gnfs size of the current input
+		gnfs_size = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+
+		// the equivalent gnfs size of the current best snfs poly found for this input
+		int equiv_gnfs_size = 999999;
 
 		if (npoly > 0)
 		{
 			// pick the smaller of the gnfs-equivalent SNFS size of the best
 			// polynomial or the size of the primitive factor, if one was found.
-			gnfs_size = MIN(gnfs_size, est_gnfs_size_via_poly(&polys[0]));
+			//gnfs_size = MIN(gnfs_size, est_gnfs_size_via_poly(&polys[0]));
+
+			equiv_gnfs_size = est_gnfs_size_via_poly(&polys[0]);
+
+			printf("nfs: gnfs size is %d, equivalent gnfs size of snfs poly is %d\n",
+				gnfs_size, equiv_gnfs_size);
 		}
 		else if (fobj->VFLAG >= 0)
 		{
@@ -1423,21 +1416,20 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			{
 				if (fobj->autofact_obj.only_pretest > 1)
 				{
-					printf("fac: ecm effort is %1.2f for primitive factor of size %d\n",
+					printf("fac: ecm effort is %1.2f for input of size %d that is targetted for SIQS\n",
 						target_digits, numdigits);
 					printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
 						target_digits);
 				}
 				else
 				{
-					printf("fac: ecm effort reset to %1.2f for primitive factor of size %d\n",
+					printf("fac: ecm effort reset to %1.2f for input of size %d that is targetted for SIQS\n",
 						target_digits, numdigits);
 				}
 			}
 
 		}
-		else if ((gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)) &&
-			(npoly > 0))
+		else if (equiv_gnfs_size <= (gnfs_size + 3))
 		{
 			// Finally - to the best of our knowledge this will be a SNFS job.
 			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
@@ -1446,14 +1438,14 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			{
 				if (fobj->autofact_obj.only_pretest > 1)
 				{
-					printf("fac: ecm effort is %1.2f: input has snfs form\n",
+					printf("fac: ecm effort is %1.2f: input has usable snfs form\n",
 						target_digits / 1.2857);
 					printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
 						target_digits);
 				}
 				else
 				{
-					printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
+					printf("fac: ecm effort reduced from %1.2f to %1.2f: input has usable snfs form\n",
 						target_digits, target_digits / 1.2857);
 				}
 			}
@@ -1469,7 +1461,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		}
         else
         {
-            if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+            if (gnfs_size < fobj->autofact_obj.qs_gnfs_xover)
             {
                 // don't consider the qs/snfs cutoff any more
                 fobj->autofact_obj.has_snfs_form = 0;
@@ -2342,6 +2334,8 @@ void factor(fact_obj_t *fobj)
             {
                 snfs_t *poly;
                 mpz_set(fobj->nfs_obj.gmp_n, b);
+				mpz_set(fobj->nfs_obj.full_n, b);
+				mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
 #ifdef USE_NFS
                 poly = snfs_find_form(fobj);
 

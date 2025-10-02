@@ -115,23 +115,36 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 	}
 	snfs_init(poly);
 
+	// if this is a factor() run, restore the original input number so that we 
+	// can detect these forms on the original input
+	if (fobj->autofact_obj.autofact_active)
+	{
+		mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
+		mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
+
+		// mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
+		// mpz_set(fobj->nfs_obj.gmp_n, fobj->input_N);
+		// mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
+		// 
+		// gmp_printf("fac: searching for forms using full input %Zd\n",
+		// 	fobj->nfs_obj.full_n);
+	}
+
+	// likewise, if this is a snfs() function call, use the full input 
+	// for poly detection.  We never use SNFS with autofactor, so
+	// the statement block above should not interfere with this.
+	// if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
+	// {
+	// 	gmp_printf("snfs cofactor is %Zd\nsearching for forms using full input %Zd\n",
+	// 		fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.full_n);
+	// 	mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
+	// 	mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.full_n);
+	// }
+
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
-		// if this is a factor() run, restore the original input number so that we 
-		// can detect these forms on the original input
-		if (fobj->autofact_obj.autofact_active)
-		{
-			mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
-			mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
-		}
-
 		find_brent_form(fobj, poly);
-
-		if (fobj->autofact_obj.autofact_active)
-		{
-			mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
-		}
 	}
 
 	if (poly->form_type == SNFS_NONE)
@@ -149,20 +162,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
     if (poly->form_type == SNFS_NONE)
     {
         if (fobj->VFLAG >= 0) printf("nfs: searching for direct special forms...\n");
-        // if this is a factor() run, restore the original input number so that we 
-        // can detect these forms
-        if (fobj->autofact_obj.autofact_active)
-        {
-            mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
-            mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
-        }
-
         find_direct_form(fobj, poly);
-
-        if (fobj->autofact_obj.autofact_active)
-        {
-            mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
-        }
     }
 
 	if (poly->form_type == SNFS_NONE)
@@ -170,6 +170,17 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 		//if (fobj->VFLAG >= 0) printf("nfs: searching for lucas special forms...\n");
 		//find_lucas_form(fobj, poly);
 	}
+
+	// restore the cofactor if applicable
+	if (fobj->autofact_obj.autofact_active)
+	{
+		mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
+	}
+
+	//if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
+	//{
+	//	mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
+	//}
 
     gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
@@ -416,16 +427,10 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 	// make the file and fill it
 	snfs_make_job_file(fobj, job);
-	fill_job_file(fobj, job, PARAM_FLAG_ALL);
+	fill_job_file(fobj, job, PARAM_FLAG_ALL & (~PARAM_FLAG_INFO1));
 
 	// also create a .fb file
 	ggnfs_to_msieve(fobj, job);
-
-	// set the starting q: no longer needed, set by get_ggnfs_params
-	// if (fobj->nfs_obj.startq > 0)
-	// 	job->startq = fobj->nfs_obj.startq;
-	// else
-	// 	job->startq = job->snfs->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
 cleanup:
     for (i = 0; i < npoly; i++)

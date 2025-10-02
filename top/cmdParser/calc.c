@@ -2950,6 +2950,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->N, operands[0]);
         mpz_set(fobj->input_N, operands[0]);
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
+        mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
         print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);

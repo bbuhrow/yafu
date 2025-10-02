@@ -365,8 +365,10 @@ void alloc_factobj(fact_obj_t *fobj)
     mpz_set_ui(fobj->div_obj.gmp_n, 0);
     mpz_set_ui(fobj->div_obj.gmp_f, 0);
 
+    mpz_init(fobj->nfs_obj.full_n);
 	mpz_init(fobj->nfs_obj.gmp_n);
 	mpz_init(fobj->nfs_obj.snfs_cofactor);
+    mpz_set_ui(fobj->nfs_obj.full_n, 0);
     mpz_set_ui(fobj->nfs_obj.gmp_n, 0);
     mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
 
@@ -423,6 +425,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->rho_obj.curr_poly = src->rho_obj.curr_poly;
 
     // initialize stuff for pm1	
+    mpz_set(dest->pm1_obj.gmp_n, src->pm1_obj.gmp_n);
     dest->pm1_obj.B1 = src->pm1_obj.B1;
     dest->pm1_obj.B2 = src->pm1_obj.B2;
     dest->pm1_obj.stg2_is_default = src->pm1_obj.stg2_is_default;
@@ -432,6 +435,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->pm1_obj.vecnum = src->pm1_obj.vecnum;
 
     // initialize stuff for pp1	
+    mpz_set(dest->pp1_obj.gmp_n, src->pp1_obj.gmp_n);
     dest->pp1_obj.B1 = src->pp1_obj.B1;
     dest->pp1_obj.B2 = src->pp1_obj.B2;
     dest->pp1_obj.stg2_is_default = src->pp1_obj.stg2_is_default;
@@ -441,6 +445,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->pp1_obj.vecnum = src->pp1_obj.vecnum;
 
     // initialize stuff for ecm	
+    mpz_set(dest->ecm_obj.gmp_n, src->ecm_obj.gmp_n);
     dest->ecm_obj.B1 = src->ecm_obj.B1;
     dest->ecm_obj.B2 = src->ecm_obj.B2;
     dest->ecm_obj.stg2_is_default = src->ecm_obj.stg2_is_default;
@@ -484,6 +489,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->squfof_obj.num_factors = src->squfof_obj.num_factors;
 
     // initialize stuff for qs	
+    mpz_set(dest->qs_obj.gmp_n, src->qs_obj.gmp_n);
     dest->qs_obj.gbl_override_B_flag = src->qs_obj.gbl_override_B_flag;
     dest->qs_obj.gbl_override_B = src->qs_obj.gbl_override_B;
     dest->qs_obj.gbl_override_small_cutoff_flag = src->qs_obj.gbl_override_small_cutoff_flag;
@@ -520,11 +526,15 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     init_lehman();
 
     // initialize stuff for trial division	
+    mpz_set(dest->div_obj.gmp_n, src->div_obj.gmp_n);
     dest->div_obj.print = src->div_obj.print;
     dest->div_obj.limit = src->div_obj.limit;
     dest->div_obj.fmtlimit = src->div_obj.fmtlimit;
 
     //initialize stuff for nfs
+    mpz_set(dest->nfs_obj.gmp_n, src->nfs_obj.gmp_n);
+    mpz_set(dest->nfs_obj.full_n, src->nfs_obj.full_n);
+    mpz_set(dest->nfs_obj.snfs_cofactor, src->nfs_obj.snfs_cofactor);
     dest->nfs_obj.snfs = src->nfs_obj.snfs;
     dest->nfs_obj.gnfs = src->nfs_obj.gnfs;
     dest->nfs_obj.gnfs_exponent = src->nfs_obj.gnfs_exponent;

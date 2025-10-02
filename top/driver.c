@@ -1768,11 +1768,21 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.filter_min_rels_nudge = 1.0 + options->filt_bump / 100.0;
 
     fobj->nfs_obj.siever = options->ggnfs_siever;
+
+    // Q-ranges: default state would be sieveQstart,stop = 0,0
+    // if ns is specified with no range then sieveQstart,stop = 1,1.
+    // else if ns is specified with only a start then sieveQstart,stop = start,0.
+    // else if ns is specified with a full range then sieveQstart,stop = start,stop.
+    // The only condition in which we'll stop NFS sieving early is with a full range.
+    // as a further complication, the rest of the code expect start/stop to be
+    // encoded as start,range, so that the end of the range would have to be computed as start+range.
+
     fobj->nfs_obj.startq = options->sieveQstart;
     fobj->nfs_obj.rangeq = options->sieveQstop;
     if ((fobj->nfs_obj.rangeq < fobj->nfs_obj.startq) && (fobj->nfs_obj.rangeq > 0))
     {
-        printf("ignoring sieve stop < sieve start\n");
+        printf("sieve stop cannot be < sieve start\n");
+        exit(1);
     }
     else
     {
@@ -1789,8 +1799,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
             // this is option -ns with no arguments.  Sieve only 
             // with default parameters.
             fobj->nfs_obj.startq = fobj->nfs_obj.rangeq = 0;
-            fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
         }
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
     }
 
     fobj->nfs_obj.polystart = options->polystart;

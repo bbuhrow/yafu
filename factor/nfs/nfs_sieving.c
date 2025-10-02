@@ -760,7 +760,7 @@ void nfs_sieve_sync(void* vptr)
 
 		double est_time;
 
-		est_time = (double)(udata->rels_requested - udata->rels_found) *
+		est_time = ((double)udata->rels_requested - (double)udata->rels_found) *
 			(t->test_time / (double)udata->thread_data[tid].job.current_rels);
 
 		est_time /= (double)fobj->THREADS;
@@ -987,7 +987,7 @@ void nfs_sieve_dispatch(void* vptr)
 			t->job.qrange = qrange->qrange_end - qrange->qrange_start;
 		}
 
-		printf("new range info driven by .ranges file: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
+		// printf("new range info driven by .ranges file: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
 
 		// now change if there are any inputs that override the automated behavior.
 		if ((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0))
@@ -1032,7 +1032,7 @@ void nfs_sieve_dispatch(void* vptr)
 				}
 			}
 
-			printf("range info overridden by custom sieve range: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
+			// printf("range info overridden by custom sieve range: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
 		}
 
 		// regardless of how this range was selected, make it unavailable to other threads

@@ -304,12 +304,12 @@ typedef struct
 
 typedef struct
 {
-	mpz_t gmp_n;
-	mpz_t N; // full form used for snfs
-
+	mpz_t gmp_n;            // the number to factor by NFS
+	mpz_t full_n;           // full form used for snfs
+    mpz_t snfs_cofactor;    // cofactor supplied to snfs function
 	int snfs; // if this is a snfs job
 	int gnfs; // user wants gnfs
-	mpz_t snfs_cofactor;
+	
 	int pref_degree;
 	int alt_degree;
 

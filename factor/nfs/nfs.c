@@ -251,6 +251,15 @@ void nfs(fact_obj_t *fobj)
 	nfs_state = NFS_STATE_INIT;
 	process_done = 0;
 
+	// if there is a supplied snfs cofactor, then that is our main input.  But we 
+	// need to keep the original input around because snfs poly generation usually
+	// needs to know the original (full) input.
+	//if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
+	//{
+	//	mpz_set(fobj->nfs_obj.full_n, fobj->nfs_obj.gmp_n);
+	//	mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
+	//}
+
 	// Used to predict CADO work file names
 	// https://gitlab.inria.fr/cado-nfs/cado-nfs/-/blob/master/scripts/cadofactor/toplevel.py?ref_type=heads#L169
 	int sizeOfN = gmp_base10(fobj->nfs_obj.gmp_n);
@@ -268,8 +277,6 @@ void nfs(fact_obj_t *fobj)
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
-			// write the input bigint as a string
-			//input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
 
             s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
             strcpy(input, s);
@@ -310,6 +317,11 @@ void nfs(fact_obj_t *fobj)
             {
                 gmp_printf("nfs: commencing nfs on c%d: %Zd\n",
                     gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
+				//if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
+				//{
+				//	gmp_printf("nfs: snfs full input is c%d: %Zd\n",
+				//		gmp_base10(fobj->nfs_obj.full_n), fobj->nfs_obj.full_n);
+				//}
             }
 
             if (nfs_state != NFS_STATE_DONE)
@@ -317,20 +329,23 @@ void nfs(fact_obj_t *fobj)
                 char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
                 logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
                     gmp_base10(fobj->nfs_obj.gmp_n), s);
-                free(s);
+
+				free(s);
+
+				//if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
+				//{
+				//	s = mpz_get_str(NULL, 10, fobj->nfs_obj.full_n);
+				//	logprint_oc(fobj->flogname, "a", "nfs: snfs full input is c%d: %Zd\n",
+				//		gmp_base10(fobj->nfs_obj.full_n), s);
+				//
+				//	free(s);
+				//}
             }
 
 			// convert input to msieve bigint notation and initialize a list of factors
 			gmp2mp_t(fobj->nfs_obj.gmp_n, &mpN);
 			factor_list_init(&factor_list);
             factor_list_add(obj, &factor_list, &mpN);
-
-            //if (fobj->nfs_obj.rangeq > 0)
-            //{
-			//	// user specified a starting and stopping Q, so we sieve
-			//	// that Q-range only (rest of job is default).
-            //    job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
-            //}
 
 			break;
 		case NFS_STATE_POLY:
@@ -348,6 +363,7 @@ void nfs(fact_obj_t *fobj)
 
 				mpz_init(orig_n);
 				mpz_set(orig_n, fobj->nfs_obj.gmp_n);
+				mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
 
 				// always check snfs forms (it is fast)
 				better_by_gnfs = snfs_choose_poly(fobj, &job);
@@ -389,10 +405,14 @@ void nfs(fact_obj_t *fobj)
 					{
 						// if the latter then bail with an error because the user 
 						// explicitly wants to run snfs...
-						printf("nfs: failed to find snfs polynomial!\n");
-						printf("nfs: removing the -snfs option could allow the number to be "
-							"completed by GNFS or SIQS\n");
-						exit(-1);
+						//if (job.snfs == NULL)
+						{
+							printf("nfs: failed to find snfs polynomial!\n");
+							printf("nfs: removing the -snfs option could allow the number to be "
+								"completed by GNFS or SIQS\n");
+							exit(-1);
+						}
+
 					}
 
 					// check if this is really a siqs job
