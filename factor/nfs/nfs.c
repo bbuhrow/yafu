@@ -518,6 +518,11 @@ void nfs(fact_obj_t *fobj)
 				{
 					fobj->nfs_obj.snfs = 1;
 					mpz_set(fobj->nfs_obj.gmp_n, job.snfs->n);
+
+					// copy snfs->n to the input string
+					s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+					strcpy(input, s);
+					free(s);
 				}
 			}
 

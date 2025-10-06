@@ -382,6 +382,8 @@ void alloc_factobj(fact_obj_t *fobj)
 		fobj->factors->factors[i].type = UNKNOWN;
 		fobj->factors->factors[i].count = 0;
 	}
+    fobj->factors->factorization_str = NULL;
+    fobj->factors->str_alloc = 0;
 
 	fobj->ecm_obj.num_factors = 0;	
 	fobj->qs_obj.num_factors = 0;	
@@ -419,6 +421,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->OUTPUT_TERSE = src->OUTPUT_TERSE;
     dest->THREADS = src->THREADS;
     dest->LATHREADS = src->LATHREADS;
+
+    copy_factor_list(dest->factors, src->factors);
 
     // initialize stuff for rho	
     dest->rho_obj.iterations = src->rho_obj.iterations;
@@ -807,6 +811,27 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
 	return;
 }
 
+void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src)
+{
+    // don't "add_to_factor_list" because it will re-run apr-cl or is_mpz_prp on the factors.
+
+    return;
+}
+
+char* append_factor(char* in, mpz_t factor)
+{
+    int numb = (strlen(in) + gmp_base10(factor) + 4);
+    char* out = (char*)xmalloc(numb * sizeof(char));
+    if (out == NULL)
+    {
+        printf("could not allocate %d bytes for output buffer\n", numb);
+        exit(1);
+    }
+    gmp_sprintf(out, "%s%Zd*", in, factor);
+    free(in);
+    return out;
+}
+
 void clear_factor_list(yfactor_list_t * flist)
 {
 	int i;
@@ -821,7 +846,99 @@ void clear_factor_list(yfactor_list_t * flist)
     flist->num_factors = 0;
     flist->total_factors = 0;
 
+    if ((flist->str_alloc > 0) && (flist->factorization_str != NULL))
+    {
+        free(flist->factorization_str);
+    }
+
 	return;
+}
+
+void generate_factorization_str(yfactor_list_t* flist)
+{
+    int i;
+    int j;
+    mpz_t prod;
+    char* tersebuf = NULL;
+    int maxlen = 0;
+
+    mpz_init(prod);
+
+    get_prod_of_factors(flist, prod);
+
+    maxlen = 3 * gmp_base10(prod) + 4;
+    tersebuf = (char*)xmalloc(maxlen);
+    strcpy(tersebuf, "");
+
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        for (j = 0; j < flist->factors[i].count; j++)
+        {
+            tersebuf = append_factor(tersebuf, flist->factors[i].factor);
+        }
+    }
+
+    tersebuf[strlen(tersebuf) - 1] = '\0';
+    if (flist->factorization_str != NULL)
+    {
+        free(flist->factorization_str);
+    }
+
+    flist->factorization_str = (char*)xmalloc((gmp_base10(prod) + strlen(tersebuf) + 10) * sizeof(char));
+    
+    flist->str_alloc = gmp_sprintf(flist->factorization_str, "%Zd=%s", prod, tersebuf) + 1;
+    free(tersebuf);
+
+    mpz_clear(prod);
+
+    return;
+}
+
+void get_prod_of_factors(yfactor_list_t* flist, mpz_t prod)
+{
+    int i;
+    mpz_set_ui(prod, 1);
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        int j;
+        for (j = 0; j < flist->factors[i].count; j++)
+        {
+            mpz_mul(prod, prod, flist->factors[i].factor);
+        }
+    }
+
+    return;
+}
+
+int contains_any_composite_factor(yfactor_list_t* flist, int num_witnesses)
+{
+    int p = 0;
+    int i;
+
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        if (flist->factors[i].type == UNKNOWN)
+        {
+            int status = is_mpz_prp(flist->factors[i].factor, num_witnesses);
+            if (status)
+            {
+                flist->factors[i].type = PRP;
+            }
+            else
+            {
+                flist->factors[i].type = COMPOSITE;
+                p = 1;
+                break;
+            }
+        }
+        else if (flist->factors[i].type == COMPOSITE)
+        {
+            p = 1;
+            break;
+        }
+    }
+
+    return p;
 }
 
 int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG)
@@ -895,19 +1012,7 @@ void print_factor(const char* prefix, mpz_t factor, int OBASE)
     return;
 }
 
-char* append_factor(char* in, mpz_t factor)
-{
-    int numb = (strlen(in) + gmp_base10(factor) + 4);
-    char* out = (char*)xmalloc(numb * sizeof(char));
-    if (out == NULL)
-    {
-        printf("could not allocate %d bytes for output buffer\n", numb);
-        exit(1);
-    }
-    gmp_sprintf(out, "%s%Zd*", in, factor);
-    free(in);
-    return out;
-}
+
 
 void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE)
 {

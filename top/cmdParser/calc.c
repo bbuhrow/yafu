@@ -2551,7 +2551,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 new_uvar(vname, operands[4]);
         }
 
-        reset_factobj(fobj);
+        //reset_factobj(fobj);
 
         break;
     case 54:

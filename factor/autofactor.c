@@ -597,11 +597,10 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		break;
 
 	case state_nfs:
-		mpz_set(fobj->nfs_obj.gmp_n,b);
-		//mpz_set(fobj->nfs_obj.full_n, b);
-		//mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
+		
+		mpz_set(fobj->nfs_obj.gmp_n, b);
 		nfs(fobj);
-		mpz_set(b,fobj->nfs_obj.gmp_n);
+		mpz_set(b, fobj->nfs_obj.gmp_n);
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
@@ -647,13 +646,62 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 		return done;
 	}
 
-	// check if the number is completely factorized
+	// check if the number is completely factorized and if all factors are PRP or PRIME
+#if 1
+	for (i = 0; i < fobj->factors->num_factors; i++)
+	{
+		int j;
+		for (j = 0; j < fobj->factors->factors[i].count; j++)
+			mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
+	}
+#else
+	// start on an alternate to recursive calls to factor...
 	for (i=0; i<fobj->factors->num_factors; i++)
 	{		
 		int j;
 		for (j=0; j<fobj->factors->factors[i].count; j++)
 			mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
+
+		if (fobj->factors->factors[i].type == UNKNOWN)
+		{
+			int status = is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES);
+			if (status)
+			{
+				fobj->factors->factors[i].type = PRP;
+			}
+			else
+			{
+				fobj->factors->factors[i].type = COMPOSITE;
+				done = 0;
+			}
+		}
+		else if (fobj->factors->factors[i].type == COMPOSITE)
+		{
+			done = 0;
+		}
 	}
+
+	if (done == 0)
+	{
+		// composite factor found.
+		if (fobj->autofact_obj.only_pretest > 1)
+		{
+			if (fobj->autofact_obj.ecm_total_work_performed >= fobj->autofact_obj.only_pretest)
+			{
+				printf("fac: completed work %1.2f > %d, composite refactorization skipped\n",
+					fobj->autofact_obj.ecm_total_work_performed, fobj->autofact_obj.only_pretest);
+				// if we are pretesting and have already done all of
+				// the ecm work specified then we are done.
+				done = 1;
+			}
+		}
+	}
+
+	done = done && (mpz_cmp(N, tmp) == 0);
+
+	mpz_clear(tmp);
+	return done;
+#endif
 
 	if (mpz_cmp(N,tmp) == 0)
 	{		
@@ -1290,6 +1338,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         target_digits = 4. * (double)numdigits / 13.;
     }
 
+	// if the input has an snfs form and the options allow for the job
+	// to proceed as an eventual SNFS factorization, then do some work
+	// to figure out if it actually will be an SNFS job and potentially
+	// scale back ECM effort as a result.
 #ifdef USE_NFS
 	if ((fobj->autofact_obj.has_snfs_form > 0) && (fobj->nfs_obj.gnfs == 0) && 
         (strcmp(fobj->autofact_obj.plan_str,"custom") != 0) &&
@@ -1387,9 +1439,15 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		
 		if (gnfs_size < fobj->autofact_obj.qs_snfs_xover)
 		{
-			// this is the case where we're keeping a small primitive 
-			// factor to continue working on.  reassess target_digits for ECM.
+			// this could be a case where we're keeping a small primitive 
+			// factor to continue working on, or maybe the input has just
+			// been significantly reduced by pretesting.  either way,
+			// reassess target_digits for ECM.
 			numdigits = gnfs_size;
+
+			// don't consider the qs/snfs cutoff any more for this input (?)
+			// needs some testing on whether this belongs here.
+			// fobj->autofact_obj.has_snfs_form = 0;
 			
 			if (fobj->autofact_obj.only_pretest > 1)
 			{
@@ -1461,11 +1519,12 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		}
         else
         {
+			// this is better by QS or GNFS.
+			// don't consider the qs/snfs cutoff any more
+			fobj->autofact_obj.has_snfs_form = 0;
+
             if (gnfs_size < fobj->autofact_obj.qs_gnfs_xover)
             {
-                // don't consider the qs/snfs cutoff any more
-                fobj->autofact_obj.has_snfs_form = 0;
-
                 if (fobj->VFLAG >= 0)
                 {
                     printf("fac: ecm effort maintained at %1.2f: input better by qs\n",

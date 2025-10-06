@@ -71,9 +71,11 @@ typedef struct
 typedef struct
 {
     yfactor_t* factors;
-    int num_factors;        // unique factors
-    int alloc_factors;      // allocated unique factors
-    int total_factors;      // all factors
+    int num_factors;            // unique factors
+    int alloc_factors;          // allocated unique factors
+    int total_factors;          // all factors
+    char* factorization_str;    // a string with the full known factorization
+    int str_alloc;              // allocated length of the factorization string
 
     // the primitude of factors can be proven by aprcl: these
     // determine when and what is displayed while proving.
@@ -511,19 +513,24 @@ typedef struct
 
 } fact_obj_t;
 
+// management of factor object structure
 void init_factobj(fact_obj_t *fobj);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src);
 void alloc_factobj(fact_obj_t *fobj);
 
-
+// functions involving factor list structure
 int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
     int VFLAG, int NUM_WITNESSES);
 void print_factors(fact_obj_t* fobj, yfactor_list_t* factorlist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE);
 void clear_factor_list(yfactor_list_t* fobj);
+void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 int find_in_factor_list(yfactor_list_t* flist, mpz_t n);
+void generate_factorization_str(yfactor_list_t* flist);
+int contains_any_composite_factor(yfactor_list_t* flist, int num_witnesses);
+void get_prod_of_factors(yfactor_list_t* flist, mpz_t prod);
 
 
 /* =============== interface to various small-factor-finding routines =========== */

@@ -485,9 +485,11 @@ int main(int argc, char *argv[])
             strcpy(fobj->input_str, input_str.s);
             firstline = 1;
             reset_preprocessor();
-            logprint(logfile, "Processing: %s\n", input_str.s);
+            logprint(logfile, "Processing   : %s\n", input_str.s);
             result = process_expression(input_str.s, &calc_metadata, fobj->VFLAG, 0);
-            logprint(logfile, "Result    : %s\n", result);
+            generate_factorization_str(fobj->factors);
+            logprint(logfile, "Factorization: %s\n", fobj->factors->factorization_str);
+            logprint(logfile, "Result       : %s\n", result);
             sClear(&input_str);
             if (result != NULL)
             {
@@ -1171,7 +1173,7 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
     }
     else
     {
-        logprint(logfile, "Parsed yafu.ini from %s\n\n", cwd);
+        logprint(logfile, "Parsed yafu.ini from %s\n", cwd);
     }
 
 	if (VFLAG > 0 || !is_cmdline_run)
