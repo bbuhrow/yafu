@@ -36,6 +36,8 @@ typedef struct
 
 	int is_3lp;
 	
+	struct timeval jobstart;		// start time of the requested sieve
+
 	int requested_side;
 	uint32_t rels_requested;
 	uint32_t rels_found;
@@ -548,6 +550,8 @@ void nfs_sieve_start(void* vptr)
 		}
 	}
 
+	gettimeofday(&udata->jobstart, NULL);
+
 	
 	return;
 }
@@ -562,6 +566,7 @@ void nfs_sieve_sync(void* vptr)
 	nfs_job_t* job = udata->main_job_ref;
 	FILE* fid;
 	FILE* logfile;
+	struct timeval tstop;	// stop time of sieving batch
 
 	int tid = tdata->tindex;
 	nfs_threaddata_t* t = &udata->thread_data[tid];
@@ -758,12 +763,17 @@ void nfs_sieve_sync(void* vptr)
 		udata->rels_found += udata->thread_data[tid].job.current_rels;
 		udata->ranges_completed++;
 
-		double est_time;
+		double rels_sec, est_time, elapsed_so_far;
 
-		est_time = ((double)udata->rels_requested - (double)udata->rels_found) *
-			(t->test_time / (double)udata->thread_data[tid].job.current_rels);
+		gettimeofday(&tstop, NULL);
+		elapsed_so_far = ytools_difftime(&udata->jobstart, &tstop);
 
-		est_time /= (double)fobj->THREADS;
+		rels_sec = (double)udata->rels_found / elapsed_so_far;
+		est_time = ((double)udata->rels_requested - (double)udata->rels_found) / rels_sec;
+
+		//est_time = ((double)udata->rels_requested - (double)udata->rels_found) *
+		//	(t->test_time / (double)udata->thread_data[tid].job.current_rels);
+		//est_time /= (double)fobj->THREADS;
 
 		if (est_time < 0) est_time = 0.000001;
 
@@ -890,6 +900,7 @@ void nfs_sieve_sync(void* vptr)
 
 	// done with the temporary output file for this thread.
 	int i = 0;
+	MySleep(100);
 	while (1)
 	{
 		int status = remove(udata->thread_data[tid].outfilename);
@@ -2395,6 +2406,7 @@ void *lasieve_launcher(void *ptr) {
 		printf("nfs: could not open output file %s, possibly bad path to siever\n",
 			thread_data->outfilename);
 	}
+	MySleep(100);
 
 	int is_3lp = ((thread_data->job.mfbr > (2.5 * thread_data->job.lpbr)) ||
 		(thread_data->job.mfba > (2.5 * thread_data->job.lpba))) ? 1 : 0;
@@ -2410,6 +2422,7 @@ void *lasieve_launcher(void *ptr) {
 		sprintf(infile, "%s.raw", thread_data->outfilename);
 		thread_data->job.current_rels += 
 			process_batch(thread_data->job.rb, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
+		MySleep(100);
 		remove(infile);
 	}
 
