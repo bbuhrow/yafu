@@ -488,7 +488,10 @@ int main(int argc, char *argv[])
             logprint(logfile, "Processing   : %s\n", input_str.s);
             result = process_expression(input_str.s, &calc_metadata, fobj->VFLAG, 0);
             generate_factorization_str(fobj->factors);
-            logprint(logfile, "Factorization: %s\n", fobj->factors->factorization_str);
+            if (strlen(fobj->factors->factorization_str) > 0)
+            {
+                logprint(logfile, "Factorization: %s\n", fobj->factors->factorization_str);
+            }
             logprint(logfile, "Result       : %s\n", result);
             sClear(&input_str);
             if (result != NULL)

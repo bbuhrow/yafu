@@ -1636,8 +1636,8 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params)
 			}
 			else
 			{
-				printf("filling info1: norms and side for snfs deg %d,%d poly\n",
-					job->snfs->poly->alg.degree, job->snfs->poly->rat.degree); fflush(stdout);
+				// printf("filling info1: norms and side for snfs deg %d,%d poly\n",
+				// 	job->snfs->poly->alg.degree, job->snfs->poly->rat.degree); fflush(stdout);
 
 				approx_norms(job->snfs);
 

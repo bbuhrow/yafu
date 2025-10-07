@@ -862,6 +862,18 @@ void generate_factorization_str(yfactor_list_t* flist)
     char* tersebuf = NULL;
     int maxlen = 0;
 
+    if (flist->num_factors == 0)
+    {
+        if (flist->factorization_str != NULL)
+        {
+            free(flist->factorization_str);
+        }
+
+        flist->factorization_str = (char*)xmalloc(2 * sizeof(char));
+        strcpy(flist->factorization_str, "");
+        return;
+    }
+
     mpz_init(prod);
 
     get_prod_of_factors(flist, prod);
@@ -878,7 +890,6 @@ void generate_factorization_str(yfactor_list_t* flist)
         }
     }
 
-    tersebuf[strlen(tersebuf) - 1] = '\0';
     if (flist->factorization_str != NULL)
     {
         free(flist->factorization_str);

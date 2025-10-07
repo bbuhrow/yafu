@@ -325,7 +325,11 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		jobs[i].snfs = &polys[i];
 
 		get_ggnfs_params(fobj, &jobs[i]);
+		// so that any parameter optimization applied in skew_snfs_params
+		// will actually update min_rels.  Thanks MarkW!
+		jobs[i].min_rels = 0;		
 		skew_snfs_params(fobj, &jobs[i]);
+		nfs_set_min_rels(&jobs[i]);
 	}
 
     //printf("gnfs size = %d, size n + 3 = %d, snfs = %d\n", est_gnfs_size(&jobs[0]),
