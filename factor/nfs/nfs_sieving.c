@@ -429,6 +429,27 @@ void nfs_sieve_start(void* vptr)
 	// or prepare to start a new job with default/user input if not.
 	udata->qrange_data = sort_completed_ranges(fobj, job);
 
+	// if we are starting on a custom range of Q values and the job's default qrange-per-thread 
+	// is too large for the number of threads, reduce the qrange per thread.
+	
+
+	if ((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0))
+	{
+		// custom start or both start,stop
+
+		if (fobj->nfs_obj.rangeq > 0)
+		{
+			// custom start and stop.
+			if ((udata->qrange_data->thread_qrange * fobj->THREADS) > fobj->nfs_obj.rangeq)
+			{
+				// adjust default q-per-range
+				udata->qrange_data->thread_qrange = 
+					(uint32_t)((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
+			}
+		}
+	}
+
+
 	if (is_3lp)
 	{
 		if (fobj->nfs_obj.rangeq > 0)
@@ -1006,7 +1027,9 @@ void nfs_sieve_dispatch(void* vptr)
 			// if the nfs_obj.rangeq value is > 0, that means the user
 			// requested a custom sieving range.  fill in the info to our
 			// range data structure.
-			t->job.startq = fobj->nfs_obj.startq + udata->ranges_completed * udata->qrange_data->thread_qrange;
+			t->job.startq = fobj->nfs_obj.startq + 
+				udata->ranges_completed * udata->qrange_data->thread_qrange +
+				udata->threads_sieving * udata->qrange_data->thread_qrange;
 			t->job.qrange = udata->qrange_data->thread_qrange;
 
 			if (fobj->nfs_obj.rangeq > 0)
@@ -1043,7 +1066,7 @@ void nfs_sieve_dispatch(void* vptr)
 				}
 			}
 
-			// printf("range info overridden by custom sieve range: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
+			//printf("range info overridden by custom sieve range: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
 		}
 
 		// regardless of how this range was selected, make it unavailable to other threads
