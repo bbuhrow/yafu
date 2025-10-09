@@ -73,36 +73,14 @@ void nfsexit(int sig)
 
 int nfs_check_special_case(fact_obj_t *fobj)
 {
-    int size = gmp_base10(fobj->nfs_obj.gmp_n);
-	// below a certain amount, revert to SIQS
+	// we no longer check sizes and do other things besides nfs.
+	// if nfs() is called then we have good reason to do nfs, either:
+	// 1) user called nfs() or snfs() function or
+	// 2) autofactor determined that nfs() is the right thing to do.
+	// in either case it doesn't make sense to do siqs()
 
-	//gmp_printf("checking special cases for nfs input (C%d): %Zd\n", size, fobj->nfs_obj.gmp_n);
-
-	if ((size < fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form > 0))
-	{
-		if (fobj->VFLAG >= 0)
-		{
-			printf("nfs: snfs size %u < qs_snfs_xover %1.2f (form %u), using SIQS\n",
-				size, fobj->autofact_obj.qs_snfs_xover, fobj->autofact_obj.has_snfs_form);
-		}
-		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-		SIQS(fobj);
-		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-		return 1;
-	}
-
-	if ((size < fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 1))
-	{
-		if (fobj->VFLAG >= 0)
-		{
-			printf("nfs: gnfs size %u < qs_gnfs_xover %1.2f, using SIQS\n",
-				size, fobj->autofact_obj.qs_gnfs_xover);
-		}
-		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-		SIQS(fobj);
-		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-		return 1;
-	}
+	// we look for the input being a prime or prime power, or having
+	// small divisors, any of which might cause nfs() to not function properly.
 
 	if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
@@ -169,6 +147,12 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		return 1;
 	}
 
+	// check for small factors
+	mpz_set(fobj->div_obj.gmp_n, fobj->nfs_obj.gmp_n);
+	zTrial(fobj);
+	// if trial division removed some factors, just proceed with the reduced input
+	mpz_set(fobj->nfs_obj.gmp_n, fobj->div_obj.gmp_n);
+
 	return 0;
 }
 
@@ -226,7 +210,9 @@ void nfs(fact_obj_t *fobj)
 	obj_ptr = NULL;
 
 	if (nfs_check_special_case(fobj))
+	{
 		return;
+	}
 
 	set_ggnfs_tables(fobj);
 
@@ -358,15 +344,18 @@ void nfs(fact_obj_t *fobj)
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
 			{
 				mpz_t orig_n;
-				int better_by_gnfs = 0;
+				int snfs_status = 0;
 				int check_gnfs = 0;
 
 				mpz_init(orig_n);
 				mpz_set(orig_n, fobj->nfs_obj.gmp_n);
-				mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
 
-				// always check snfs forms (it is fast)
-				better_by_gnfs = snfs_choose_poly(fobj, &job);
+				// if gnfs was not specifically called for
+				if (!fobj->nfs_obj.gnfs)
+				{
+					// try to build and optimize (if found) a SNFS poly
+					snfs_status = snfs_choose_poly(fobj, &job, NULL, 1);
+				}
 
 				if (mpz_cmp(orig_n, fobj->nfs_obj.gmp_n) != 0)
 				{
@@ -378,7 +367,7 @@ void nfs(fact_obj_t *fobj)
 
 				mpz_clear(orig_n);
 
-				if (better_by_gnfs == 2)
+				if (snfs_status == -2)
 				{
 					// primitive factor detection reduced the input
 					// to a (probable) prime number.  We are done.
@@ -386,38 +375,86 @@ void nfs(fact_obj_t *fobj)
 					break;
 				}
 
-				if (fobj->VFLAG > 1)
-				{
-					printf("nfs: snfs poly find flags are\n\tsnfs found = %d\n"
-						"\tgnfs specified = %d\n\tsnfs found, better by gnfs = %d\n"
-						"\tsnfs specified = %d\n\tsnfs algebraic factor removed, recheck xovers = %d\n",
-						(job.snfs == NULL), fobj->nfs_obj.gnfs, better_by_gnfs,
-						fobj->nfs_obj.snfs, check_gnfs);
-				}
+				//if (fobj->VFLAG > 1)
+				//{
+				//	printf("nfs: snfs poly find flags are\n\tsnfs found = %d\n"
+				//		"\tgnfs specified = %d\n\tsnfs found, better by gnfs = %d\n"
+				//		"\tsnfs specified = %d\n\tsnfs algebraic factor removed, recheck xovers = %d\n",
+				//		(job.snfs == NULL), fobj->nfs_obj.gnfs, snfs_status,
+				//		fobj->nfs_obj.snfs, check_gnfs);
+				//}
 
-				if ((job.snfs == NULL) || fobj->nfs_obj.gnfs ||
-					(better_by_gnfs && !fobj->nfs_obj.snfs) ||
-					check_gnfs)
-				{ 
-					// either we never were doing snfs, or the user selected gnfs,
-					// or snfs form detect failed.
+				// sort out what kind of job this is going to be.
+				if ((job.snfs == NULL) || (snfs_status == 0) || fobj->nfs_obj.gnfs)
+				{
+					// for sure not snfs.
 					if (fobj->nfs_obj.snfs)
 					{
-						// if the latter then bail with an error because the user 
-						// explicitly wants to run snfs...
-						//if (job.snfs == NULL)
+						// if the user explicitly wants to run snfs then this is an error.
 						{
 							printf("nfs: failed to find snfs polynomial!\n");
 							printf("nfs: removing the -snfs option could allow the number to be "
 								"completed by GNFS or SIQS\n");
 							exit(-1);
 						}
-
 					}
 
+					// for sure not snfs.  check if siqs or gnfs
+					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+					{
+						if (fobj->VFLAG >= 0)
+						{
+							printf("nfs: non-snfs input of size %d is better done by siqs\n",
+								(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+							fflush(stdout);
+						}
+
+						logprint_oc(fobj->flogname, "a",
+							"nfs: non-snfs input of size %d is better done by siqs\n",
+							(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+						mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+						SIQS(fobj);
+						mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+						nfs_state = NFS_STATE_CLEANUP;
+						break;
+					}
+				}
+				else if (snfs_status == -1)
+				{
+					// found snfs poly but gnfs seems better according to snfs_choose_poly.
+					if (fobj->VFLAG >= 0)
+					{
+						printf("nfs: input snfs form is better done by gnfs: "
+							"difficulty = %1.2f, size = %d, actual size = %d\n",
+							job.snfs->difficulty, est_gnfs_size(&job),
+							(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+						fflush(stdout);
+					}
+
+					logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
+						": difficulty = %1.2f, size = %d, actual size = %d\n",
+						job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+					// choose between qs and gnfs
+					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+					{
+						mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+						SIQS(fobj);
+						mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+						nfs_state = NFS_STATE_CLEANUP;
+						break;
+					}
+				}
+				else if (check_gnfs)
+				{
+					// found snfs polynomial but algebraic factors were removed.
+					// check if what's left is better by gnfs or siqs.
+
 					// check if this is really a siqs job
-					if ((!(job.snfs == NULL)) &&
-						(mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover))
+					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover)
 					{
 						if (fobj->VFLAG >= 0)
 						{
@@ -439,36 +476,15 @@ void nfs(fact_obj_t *fobj)
 						nfs_state = NFS_STATE_CLEANUP;
 						break;
 					}
-					else if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
-					{
-
-						if (fobj->VFLAG >= 0)
-						{
-							printf("nfs: non-snfs input of size %d is better done by siqs\n",
-								(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-							fflush(stdout);
-						}
-
-						logprint_oc(fobj->flogname, "a", 
-							"nfs: non-snfs input of size %d is better done by siqs\n",
-							(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-
-						mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-						SIQS(fobj);
-						mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-
-						nfs_state = NFS_STATE_CLEANUP;
-						break;
-					}
-					else if (better_by_gnfs)
+					else if ((est_gnfs_size(&job) > (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)))
 					{
 						if (fobj->VFLAG >= 0)
 						{
-							printf("nfs: input snfs form is better done by gnfs: "
+							printf("nfs: input snfs form is better done by gnfs after algebraic reduction: "
 								"difficulty = %1.2f, size = %d, actual size = %d\n",
 								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
 						}
-						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
+						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs after algebraic reduction"
 							": difficulty = %1.2f, size = %d, actual size = %d\n",
 							job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
 
@@ -477,7 +493,21 @@ void nfs(fact_obj_t *fobj)
 						free(job.snfs);
 						job.snfs = NULL;
 					}
+				}
+				else
+				{
+					// this will be a snfs job.
+					fobj->nfs_obj.snfs = 1;
+					mpz_set(fobj->nfs_obj.gmp_n, job.snfs->n);
 
+					// copy snfs->n to the input string
+					s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+					strcpy(input, s);
+					free(s);
+				}
+
+				if (fobj->nfs_obj.snfs == 0)
+				{
 					// prepare for gnfs polyselect
 					job.alambda = 0.0;
 					job.rlambda = 0.0;
@@ -506,23 +536,13 @@ void nfs(fact_obj_t *fobj)
 					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
 					// assume gnfs for now
 					job.poly->side = ALGEBRAIC_SPQ;
-                    job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+					job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 
 					gettimeofday(&ustart, NULL);
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 					gettimeofday(&ustop, NULL);
 					t_time = ytools_difftime(&ustart, &ustop);
 					fobj->nfs_obj.poly_time += t_time;
-				}
-				else
-				{
-					fobj->nfs_obj.snfs = 1;
-					mpz_set(fobj->nfs_obj.gmp_n, job.snfs->n);
-
-					// copy snfs->n to the input string
-					s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
-					strcpy(input, s);
-					free(s);
 				}
 			}
 
@@ -590,6 +610,9 @@ void nfs(fact_obj_t *fobj)
 			break;
 
 		case NFS_STATE_CADO: {
+
+			gmp_printf("nfs: commencing cado-msieve nfs on c%d: %s\n", strlen(input), input);
+
 #if defined(WIN32) || defined(_WIN64)
 			printf("cadoMsieve is not available on Windows! Bailing\n");
 			exit(-1);
@@ -978,6 +1001,11 @@ void nfs(fact_obj_t *fobj)
 
 				// try this hack - store a pointer to the msieve obj so that
 				// we can change a flag on abort in order to interrupt the sqrt.
+				gmp_printf("\tgmp_n         = %Zd\n", fobj->nfs_obj.gmp_n);
+				if (fobj->nfs_obj.snfs && (job.snfs != NULL))
+				{
+					gmp_printf("\tsnfs->n       = %Zd\n", job.snfs->n);
+				}
 				gmp_sprintf(obj->input, "%Zd", fobj->nfs_obj.gmp_n);
 				obj_ptr = obj;
 
@@ -1469,7 +1497,7 @@ void nfs(fact_obj_t *fobj)
 				free(job.poly);
 			}
 
-			print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+			print_factors(fobj);
 			exit(1);
 		}
 
@@ -1492,7 +1520,7 @@ void nfs(fact_obj_t *fobj)
 				free(job.poly);
 			}
 
-			print_factors(fobj, fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+			print_factors(fobj);
 			exit(0);
 		}
 	}
@@ -2443,10 +2471,12 @@ void nfs_set_min_rels(nfs_job_t *job)
 			job->min_rels += (uint32_t)(fudge * (
 				pow(2.0, (double)lpb) / log(pow(2.0, (double)lpb))));
 
-			//printf("nfs: lpb = %u, fudge = %lf, min_rels is now %u\n", lpb, fudge, job->min_rels);
+			
 		}
 	}
 	
+	printf("nfs: lpbr = %u, lpba = %u, min_rels is set to %u\n", job->lpbr, job->lpba, job->min_rels);
+
 }
 
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest)

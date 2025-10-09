@@ -112,6 +112,13 @@ double avx_ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
 /*t70, 260E+06,     {9.0E+99, 9.0E+99, 9.0E+99, 9.0E+99, 9.0E+99, 1.5e+10, 7.6E+08, 6.7E+07, 1.6E+07, 4880638, 1173260, 327240} */
 
 
+enum job_type_e {
+	job_snfs,
+	job_gnfs,
+	job_siqs,
+	job_ecm,
+	job_unknown
+};
 
 typedef struct
 {	
@@ -198,6 +205,9 @@ typedef struct
 	uint32_t  B1;
 	uint64_t  B2;
 	uint32_t  curves;
+
+	// target job type
+	enum job_type_e target_job_type;
 
 } factor_work_t;
 
@@ -344,6 +354,211 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	return estimate;
 }
 
+enum job_type_e determine_job_type(fact_obj_t* fobj)
+{
+	// intended to be called during autofactorization jobs.
+	// for the given input and user options, determine the appropriate
+	// end goal: snfs, gnfs, siqs, or none of these.
+	enum job_type_e target_job_type = job_unknown;
+	int numdigits = gmp_base10(fobj->N);
+
+	snfs_t* poly;
+
+#ifdef USE_NFS
+
+	if (fobj->nfs_obj.skip_snfs_check)
+	{
+		poly = NULL;
+	}
+	else
+	{
+		// this is a factor() run: restore the original input.  More
+		// forms are likely to be detected if small factors haven't been removed.
+		poly = snfs_find_form(fobj, fobj->input_N);
+	}
+
+	if (poly == NULL)
+	{
+		// change this to reflect the fact that we tried and failed to find
+		// a SNFS polynomial for this input. (or the user wants to skip
+		// the poly check and ignore any snfs-able inputs).
+		fobj->autofact_obj.has_snfs_form = 0;
+
+		if (fobj->autofact_obj.only_pretest > 1)
+		{
+			target_job_type = job_ecm;	// ecm only
+		}
+		else if (fobj->nfs_obj.gnfs == 1)
+		{
+			// user specifically requested gnfs
+			target_job_type = job_gnfs;
+		}
+		else if (fobj->nfs_obj.snfs == 1)
+		{
+			// user specifically requested snfs... but we found no snfs form.
+			// the .snfs flag is only set if the snfs() function is used,
+			// so we should never get here.  print a warning if we do.
+			printf("fac: should not see .snfs flag in autofactor\n");
+			target_job_type = job_snfs;
+		}
+		else
+		{
+			if (numdigits < fobj->autofact_obj.qs_gnfs_xover)
+			{
+				target_job_type = job_siqs;
+			}
+			else
+			{
+				target_job_type = job_gnfs;
+			}
+		}
+	}
+	else
+	{
+		nfs_job_t job;
+		int snfs_status = 0;
+		int gnfs_size;
+		int i;
+
+		// we found a SNFS form, which is now stored in poly->n.  Remember this
+		// so we don't have to keep finding it.
+		fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
+
+		// the fact that it has a SNFS form doesn't mean we will do snfs on it though.
+		// that depends on the quality of the snfs polynomial, the size of the
+		// input itself, and several user options.  To begin sorting it out, we
+		// first need to generate an actual polynomial for the form.  
+		mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
+		snfs_status = snfs_choose_poly(fobj, &job, poly, 0);
+		mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
+
+		// the gnfs size of the current input
+		gnfs_size = mpz_sizeinbase(fobj->N, 10);
+
+		// the equivalent gnfs size of the current best snfs poly found for this input
+		int equiv_gnfs_size = 999999;
+
+		if (snfs_status > 0)
+		{
+			equiv_gnfs_size = est_gnfs_size_via_poly(job.snfs);
+
+			printf("nfs: gnfs size is %d, equivalent gnfs size of snfs poly is %d\n",
+				gnfs_size, equiv_gnfs_size);
+
+			// choose between snfs, gnfs, and siqs based on their sizes and user options
+			if (fobj->autofact_obj.only_pretest > 1)
+			{
+				target_job_type = job_ecm;	// ecm only
+			}
+			else if (fobj->nfs_obj.gnfs == 1)
+			{
+				// user specifically requested gnfs
+				target_job_type = job_gnfs;
+			}
+			else if (fobj->nfs_obj.snfs == 1)
+			{
+				// user specifically requested snfs
+				printf("fac: should not see .snfs flag in autofactor\n");
+				target_job_type = job_snfs;
+			}
+			else if (equiv_gnfs_size <= (gnfs_size + 3))
+			{
+				if (equiv_gnfs_size < fobj->autofact_obj.qs_snfs_xover)
+				{
+					// snfs but below this crossover
+					target_job_type = job_siqs;
+				}
+				else
+				{
+					// if none of the above, target snfs on this input.
+					target_job_type = job_snfs;
+				}
+			}
+			else
+			{
+				if (gnfs_size < fobj->autofact_obj.qs_gnfs_xover)
+				{
+					// gnfs but below this crossover
+					target_job_type = job_siqs;
+				}
+				else
+				{
+					// if none of the above, target gnfs on this input.
+					target_job_type = job_gnfs;
+				}
+			}
+		}
+		else if (snfs_status < 0)
+		{
+			// choose poly made our decision
+			if (gnfs_size < fobj->autofact_obj.qs_gnfs_xover)
+			{
+				// gnfs but below this crossover
+				target_job_type = job_siqs;
+			}
+			else
+			{
+				// if none of the above, target gnfs on this input.
+				target_job_type = job_gnfs;
+			}
+		}
+		else if (snfs_status == 0)
+		{
+			printf("fac: unexpectedly found no SNFS polynomials\n");
+			// choose between snfs, gnfs, and siqs based on their sizes and user options
+			if (fobj->autofact_obj.only_pretest > 1)
+			{
+				target_job_type = job_ecm;	// ecm only
+			}
+			else if (fobj->nfs_obj.gnfs == 1)
+			{
+				// user specifically requested gnfs
+				target_job_type = job_gnfs;
+			}
+			else if (fobj->nfs_obj.snfs == 1)
+			{
+				// user specifically requested snfs... but we found no snfs form.
+				printf("fac: should not see .snfs flag in autofactor\n");
+				target_job_type = job_snfs;
+			}
+			else
+			{
+				if (gnfs_size < fobj->autofact_obj.qs_gnfs_xover)
+				{
+					// gnfs but below this crossover
+					target_job_type = job_siqs;
+				}
+				else
+				{
+					// if none of the above, target gnfs on this input.
+					target_job_type = job_gnfs;
+				}
+			}
+		}
+
+		// don't need the poly anymore.  If this ends up actually going
+		// go snfs, we redo all of the poly formation there.
+		snfs_clear(poly);
+		free(poly);
+	}
+
+#else
+	fobj->autofact_obj.has_snfs_form = 0;
+	if (fobj->autofact_obj.only_pretest > 1)
+	{
+		target_job_type = job_ecm;	// ecm only
+	}
+	else
+	{
+		target_job_type = job_siqs;		// only choice if we have no NFS
+	}
+#endif
+
+
+
+	return target_job_type;
+}
+
 void do_work(enum factorization_state method, factor_work_t *fwork, 
 	mpz_t b, fact_obj_t *fobj)
 {
@@ -352,12 +567,14 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	struct timeval tstart, tstop;
 	double t_time;
 	uint32_t  curves_done;
+	
+	mpz_set(fobj->N, b);
 
 	if (0) //mpz_cmp_ui(b, 1) <= 0)
 	{
 		gmp_printf("asked to do work on input = %Zd\n", b);
 		printf("here are the factors I know about:\n");
-		print_factors(fobj, fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+		print_factors(fobj);
 		gmp_printf("here was the original input: %Zd\n", fobj->N);
 		printf("please report this bug\n");
 		exit(1);
@@ -618,6 +835,15 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		break;
 	}
 
+	if (mpz_cmp(b, fobj->N) != 0)
+	{
+		// number has changed as a result of work done.
+		// The balance between ecm/nfs/siqs/snfs could therefore
+		// have change and we need to reevaluate the terminating job type
+		fwork->target_job_type = job_unknown;
+	}
+
+
 	return;
 }
 
@@ -749,14 +975,10 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 						if (fobj->VFLAG > 0)
 							printf("\nComposite result found, starting re-factorization\n");
 
-						//gmp_printf("current factorization input: N = %Zd\n", fobj->N);
-						//printf("here are the current factors of N I know about: \n");
-						//print_factors(fobj, fobj->factors, fobj->N, 1, 1, 10);
-
 						// load the new fobj with this number
 						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 						init_factobj(fobj_refactor);
-                        copy_factobj(fobj_refactor, fobj);
+                        copy_factobj(fobj_refactor, fobj, 0);
 
 						mpz_set(fobj_refactor->N, fobj->factors->factors[i].factor);
                         fobj_refactor->refactor_depth = fobj->refactor_depth + 1;
@@ -1258,65 +1480,30 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	// check to see if 'tune' has been run or not
 	have_tune = check_tune_params(fobj);		
 
-	// set target pretesting depth, depending on user selection and whether or not
-	// the input is both big enough and snfsable.  First we need to figure out
-	// if the input is SNFSable, if we haven't already (has_snfs_form < 0), and
-	// if large enough.
-    if ((numdigits >= fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
-    {
-        mpz_set(fobj->nfs_obj.gmp_n, b);
-		//mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
-		//mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
+	// determine the terminating job type
+	if (fwork->target_job_type == job_unknown)
+	{
+		mpz_set(fobj->N, b);
+		fwork->target_job_type = determine_job_type(fobj);
+		mpz_set(b, fobj->N);
 
-#ifdef USE_NFS
-
-		if (fobj->nfs_obj.skip_snfs_check)
+		if (fobj->VFLAG >= 0)
 		{
-			poly = NULL;
-		}
-		else
-		{
-			poly = snfs_find_form(fobj);
-		}
-
-        if (poly != NULL)
-        {
-			//printf("fac: found form %d\n", (int)poly->form_type);
-            fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
-
-			if (poly->form_type == SNFS_BRENT)
+			char jobtype[32];
+			switch (fwork->target_job_type)
 			{
-				// are there algebraic factors we can extract?
-				find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
-
-				// if we found any, set the autofactor target to whatever is left over.
-				mpz_set(b, fobj->nfs_obj.gmp_n);
-				gmp_printf("fac: continuing autofactor on residue %Zd\n", b);
+			case 0: strcpy(jobtype, "snfs"); break;
+			case 1: strcpy(jobtype, "gnfs"); break;
+			case 2: strcpy(jobtype, "siqs"); break;
+			case 3: strcpy(jobtype, "ecm"); break;
+			case 4: strcpy(jobtype, "unknown"); break;
 			}
-			else if (poly->form_type == SNFS_LUCAS)
-			{
-				// are there algebraic factors we can extract?
-				//find_primitive_factor_lucas(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
-
-				// if we found any, set the autofactor target to whatever is left over.
-				mpz_set(b, fobj->nfs_obj.gmp_n);
-				gmp_printf("fac: continuing autofactor on residue %Zd\n", b);
-			}
-
-            // The actual poly is not needed now, so just get rid of it.
-            snfs_clear(poly);
-            free(poly);
-        }
-        else
-        {
-            fobj->autofact_obj.has_snfs_form = 0;
-        }
-#else
-		fobj->autofact_obj.has_snfs_form = 0;
-#endif
+			printf("fac: job type determined to be %s\n", jobtype);
+		}
 	}
-	
-	// set an ECM target depth based on any user-supplied plan
+	numdigits = gmp_base10(b);
+
+	// set an initial ECM target depth based on any user-supplied plan
     if (fobj->autofact_obj.only_pretest > 1)
     {
         target_digits = fobj->autofact_obj.only_pretest;
@@ -1338,234 +1525,35 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         target_digits = 4. * (double)numdigits / 13.;
     }
 
-	// if the input has an snfs form and the options allow for the job
-	// to proceed as an eventual SNFS factorization, then do some work
-	// to figure out if it actually will be an SNFS job and potentially
+	// if the input has an snfs form and the stars align such that
+	// this will be an eventual SNFS factorization, then 
 	// scale back ECM effort as a result.
-#ifdef USE_NFS
-	if ((fobj->autofact_obj.has_snfs_form > 0) && (fobj->nfs_obj.gnfs == 0) && 
-        (strcmp(fobj->autofact_obj.plan_str,"custom") != 0) &&
-        (fobj->autofact_obj.only_pretest <= 1))
+	if (fwork->target_job_type == job_snfs)
 	{
-		// 1) we found a snfs polynomial for the input.
-		// 2) user has not specifically chosen gnfs.
-		// 3) user has not already adjusted the ECM plan.
-        // 4) user has not specified an only-pretest bound.
-		// So it's looking like this will be an SNFS job and we should scale back the ECM effort .
-		// however we also need to check if easier by gnfs... this involves a little more work.
-		// This work will be duplicated if we actually get to SNFS (i.e., we don't find an
-		// ECM factor), but this goes fast.
-		// temporarily set verbosity silent so we don't spam the screen.  
-		int tmpV = fobj->VFLAG;
-		snfs_t *polys = NULL;
-		int npoly;
-		int gnfs_size;
-
-		if (fobj->VFLAG > 0)
+		if (fobj->VFLAG >= 0)
 		{
-			printf("fac: generating an SNFS polynomial to assess ECM effort\n");
+			if (fobj->autofact_obj.only_pretest > 1)
+			{
+				printf("fac: input has usable snfs form\n");
+				printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
+					target_digits);
+			}
+			else
+			{
+				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has usable snfs form\n",
+					target_digits, target_digits / 1.2857);
+			}
 		}
 
-        //fobj->VFLAG = -1;
-
-		mpz_set(fobj->nfs_obj.gmp_n, b);
-		//mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
-		//mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
-		poly = snfs_find_form(fobj);
-
-		// with the form detected, create a good polynomial
-        if (poly->form_type == SNFS_XYYXF)
-        {
-            polys = gen_xyyxf_poly(fobj, poly, &npoly);
-        }
-		else if (poly->form_type == SNFS_LUCAS)
+		if (fobj->autofact_obj.only_pretest > 1)
 		{
-			polys = gen_lucas_poly(fobj, poly, &npoly);
+
 		}
 		else
-        {
-            polys = gen_brent_poly(fobj, poly, &npoly);
-        }
-
-		// it's possible that poly generation found a primitive factor
-		// so we need to update our input.  If not this should
-		// have no effect.
-		mpz_set(b, fobj->nfs_obj.gmp_n);
-
-		// it's also possible that a detected primitive factor is prime,
-		// and completes the factorization.  If so we are done.
-		if (mpz_cmp_ui(b, 1) == 0)
 		{
-			snfs_clear(poly);
-			free(poly);
-			for (i = 0; i < npoly; i++)
-			{
-				snfs_clear(&polys[i]);
-			}
-			free(polys);
-			return next_state;
+			target_digits /= 1.2857;
 		}
-
-		//gmp_printf("after polygen\n\tb = %Zd\n\tnfs->gmp_n = %Zd\n\tprimitive = %Zd\n\tcofactor = %Zd\n\tfull = %Zd\n",
-		//	b, fobj->nfs_obj.gmp_n, poly->primitive, fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.full_n);
-
-		// then scale and rank them
-		snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
-		npoly = snfs_rank_polys(fobj, polys, npoly);
-
-        fobj->VFLAG = tmpV;
-
-		// the gnfs size of the current input
-		gnfs_size = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
-
-		// the equivalent gnfs size of the current best snfs poly found for this input
-		int equiv_gnfs_size = 999999;
-
-		if (npoly > 0)
-		{
-			// pick the smaller of the gnfs-equivalent SNFS size of the best
-			// polynomial or the size of the primitive factor, if one was found.
-			//gnfs_size = MIN(gnfs_size, est_gnfs_size_via_poly(&polys[0]));
-
-			equiv_gnfs_size = est_gnfs_size_via_poly(&polys[0]);
-
-			printf("nfs: gnfs size is %d, equivalent gnfs size of snfs poly is %d\n",
-				gnfs_size, equiv_gnfs_size);
-		}
-		else if (fobj->VFLAG >= 0)
-		{
-			printf("fac: found no SNFS polynomials\n");
-		}
-		
-		if (gnfs_size < fobj->autofact_obj.qs_snfs_xover)
-		{
-			// this could be a case where we're keeping a small primitive 
-			// factor to continue working on, or maybe the input has just
-			// been significantly reduced by pretesting.  either way,
-			// reassess target_digits for ECM.
-			numdigits = gnfs_size;
-
-			// don't consider the qs/snfs cutoff any more for this input (?)
-			// needs some testing on whether this belongs here.
-			// fobj->autofact_obj.has_snfs_form = 0;
-			
-			if (fobj->autofact_obj.only_pretest > 1)
-			{
-
-			}
-			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
-			{
-				target_digits = 1. * (double)numdigits / 3.;
-			}
-			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
-			{
-				target_digits = 2. * (double)numdigits / 9.;
-			}
-			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-			{
-				target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
-			}
-			else
-			{
-				target_digits = 4. * (double)numdigits / 13.;
-			}
-
-			if (fobj->VFLAG >= 0)
-			{
-				if (fobj->autofact_obj.only_pretest > 1)
-				{
-					printf("fac: ecm effort is %1.2f for input of size %d that is targetted for SIQS\n",
-						target_digits, numdigits);
-					printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
-						target_digits);
-				}
-				else
-				{
-					printf("fac: ecm effort reset to %1.2f for input of size %d that is targetted for SIQS\n",
-						target_digits, numdigits);
-				}
-			}
-
-		}
-		else if (equiv_gnfs_size <= (gnfs_size + 3))
-		{
-			// Finally - to the best of our knowledge this will be a SNFS job.
-			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
-			// the plan ratio in accord with the snfs job.
-			if (fobj->VFLAG >= 0)
-			{
-				if (fobj->autofact_obj.only_pretest > 1)
-				{
-					printf("fac: ecm effort is %1.2f: input has usable snfs form\n",
-						target_digits / 1.2857);
-					printf("fac: ecm effort maintained at %1.2f due to pretest condition\n",
-						target_digits);
-				}
-				else
-				{
-					printf("fac: ecm effort reduced from %1.2f to %1.2f: input has usable snfs form\n",
-						target_digits, target_digits / 1.2857);
-				}
-			}
-
-			if (fobj->autofact_obj.only_pretest > 1)
-			{
-
-			}
-			else
-			{
-				target_digits /= 1.2857;
-			}
-		}
-        else
-        {
-			// this is better by QS or GNFS.
-			// don't consider the qs/snfs cutoff any more
-			fobj->autofact_obj.has_snfs_form = 0;
-
-            if (gnfs_size < fobj->autofact_obj.qs_gnfs_xover)
-            {
-                if (fobj->VFLAG >= 0)
-                {
-                    printf("fac: ecm effort maintained at %1.2f: input better by qs\n",
-                        target_digits);
-                }
-            }
-            else
-            {
-                if (fobj->VFLAG >= 0)
-                {
-                    printf("fac: ecm effort maintained at %1.2f: input better by gnfs\n",
-                        target_digits);
-                }
-            }
-        }
-
-        // don't need the poly anymore
-        snfs_clear(poly);
-        free(poly);
-
-        // or the list of best polys
-        for (i = 0; i<npoly; i++)
-        {
-            snfs_clear(&polys[i]);
-        }
-        free(polys);
 	}
-	else if (fobj->nfs_obj.gnfs == 1) 
-	{
-		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - GNFS specified\n");
-	}
-	else if (strcmp(fobj->autofact_obj.plan_str, "custom") == 0)
-	{
-		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - custom pretest plan specified\n");
-	}
-	else if (fobj->autofact_obj.only_pretest > 1)
-	{
-		if (fobj->VFLAG > 0) printf("fac: skipping SNFS polygen for ECM effort detection - pretest bound specified\n");
-	}
-
-#endif
 
 	// get the current amount of work done - only print status prior to 
 	// ecm steps
@@ -1819,6 +1807,9 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
 	enum factorization_state interp_state = state_idle;
+
+	fwork->target_job_type = job_unknown;
+
 	// initialize max allowed work fields (note: maybe this structure should
 	// be visible to the top level driver so that the user can edit values in it).
 	// default values taken from gmp-ecm README, version 6.3
@@ -2385,44 +2376,8 @@ void factor(fact_obj_t *fobj)
 
 		if (resume_check_input_match(tmpz, b, g, fobj->VFLAG))
 		{
-            // check if this is a snfsable number.  If the input is
-            // really small and we don't check this, the resume
-            // may default back to siqs.
-            if ((mpz_sizeinbase(b,10) >= fobj->autofact_obj.qs_snfs_xover) && 
-                (fobj->autofact_obj.has_snfs_form < 0))
-            {
-                snfs_t *poly;
-                mpz_set(fobj->nfs_obj.gmp_n, b);
-				mpz_set(fobj->nfs_obj.full_n, b);
-				mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
-#ifdef USE_NFS
-                poly = snfs_find_form(fobj);
-
-                if (poly != NULL)
-                {
-                    fobj->autofact_obj.has_snfs_form = (int)poly->form_type;
-                    // The actual poly is not needed now, so just get rid of it.
-                    snfs_clear(poly);
-                    free(poly);
-
-                    if (fobj->VFLAG > 0)
-                        printf("fac: found nfs job file and snfs form, resuming snfs\n");
-                }
-                else
-                {
-                    fobj->autofact_obj.has_snfs_form = 0;
-                    if (fobj->VFLAG > 0)
-                        printf("fac: found nfs job file, resuming nfs\n");
-                }
-#else
-                fobj->autofact_obj.has_snfs_form = 0;
-#endif
-            }
-            else
-            {
-                if (fobj->VFLAG > 0)
-                    printf("fac: found nfs job file, resuming nfs\n");
-            }		
+            if (fobj->VFLAG > 0)
+                printf("fac: found nfs job file, resuming nfs\n");
 
 			// remove any common factor so the input exactly matches
 			// the file
