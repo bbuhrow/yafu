@@ -63,7 +63,7 @@ int qcomp_qrange(const void* x, const void* y)
 void print_ranges(qrange_data_t* qrange_data)
 {
 	int i;
-	printf("rational side completed ranges:\n");
+	printf("nfs: rational side completed ranges:\n");
 
 	if (qrange_data->num_r > 0)
 	{
@@ -85,7 +85,7 @@ void print_ranges(qrange_data_t* qrange_data)
 		printf("%u\n", qrange_data->qranges_r[i - 1].qrange_end);
 	}
 
-	printf("algebraic side completed ranges:\n");
+	printf("nfs: algebraic side completed ranges:\n");
 
 	if (qrange_data->num_a > 0)
 	{
@@ -141,7 +141,6 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 				fobj->nfs_obj.outputfile);
 		}
 
-
 		while (~feof(fid))
 		{
 			fgets(buf, 1024, fid);
@@ -156,37 +155,46 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 
 			if (start)
 			{
-				mpz_t gmpn, gmpd;
-				mpz_init(gmpn);
-				mpz_init(gmpd);
-				gmp_sscanf(buf, "%Zd", gmpn);
-
-				mpz_tdiv_r(gmpd, gmpn, fobj->nfs_obj.gmp_n);
-				if (mpz_cmp_ui(gmpd, 0) != 0)
+				if ((buf[0] == 'a') || (buf[0] == 'r'))
 				{
-					printf("nfs: number in ranges file is not a divisor of the input\n");
-					gmp_printf("nfs: read:  %Zd\n", gmpn);
-					gmp_printf("nfs: input: %Zd\n", fobj->nfs_obj.gmp_n);
-					printf("nfs: resetting ranges file with current input\n");
-					fclose(fid);
+					printf("nfs: no input 'n' in ranges file\n");
+					sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
+					start = 0;
+				}
+				else
+				{
+					mpz_t gmpn, gmpd;
+					mpz_init(gmpn);
+					mpz_init(gmpd);
+					gmp_sscanf(buf, "%Zd", gmpn);
 
-					char newbuf[1024];
-					sprintf(newbuf, "%s.ranges.bkup", fobj->nfs_obj.outputfile);
-					rename(buf, newbuf);
+					mpz_tdiv_r(gmpd, gmpn, fobj->nfs_obj.gmp_n);
+					if (mpz_cmp_ui(gmpd, 0) != 0)
+					{
+						printf("nfs: number in ranges file is not a divisor of the input\n");
+						gmp_printf("nfs: read:  %Zd\n", gmpn);
+						gmp_printf("nfs: input: %Zd\n", fobj->nfs_obj.gmp_n);
+						printf("nfs: resetting ranges file with current input\n");
+						fclose(fid);
 
-					fid = fopen(buf, "w");
-					gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
-					fclose(fid);
+						char newbuf[1024];
+						sprintf(newbuf, "%s.ranges.bkup", fobj->nfs_obj.outputfile);
+						rename(buf, newbuf);
 
-					fid = fopen(buf, "r");
+						fid = fopen(buf, "w");
+						gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
+						fclose(fid);
+
+						fid = fopen(buf, "r");
+						mpz_clear(gmpn);
+						continue;
+					}
+
 					mpz_clear(gmpn);
+					mpz_clear(gmpd);
+					start = 0;
 					continue;
 				}
-
-				mpz_clear(gmpn);
-				mpz_clear(gmpd);
-				start = 0;
-				continue;
 			}
 			else
 			{
@@ -385,17 +393,57 @@ void nfs_sieve_start(void* vptr)
 	if (is_3lp && !job->has_3lp_batch)
 	{
 		uint64_t max_prime = (job->mfbr > job->mfba) ? job->lpbr - 1 : job->lpba - 1;
-		uint32_t min_prime = MIN(job->alim, job->rlim) / 10;
+		uint32_t min_prime = 1000000; // MIN(job->alim, job->rlim) / 10;
 
 		// todo: need to free this at the end of sieving.
 		job->rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
 
 		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
 
+		char fname[80];
+		sprintf(fname, "bgcd_lpb%d", max_prime);
+		FILE* fid = fopen(fname, "rb");
+		int compute_pproduct = 1;
+
+		if (fid != NULL)
+		{
+			compute_pproduct = 0;
+		}
+
+		// this initializes the prime product, regardless of whether it is computed or not.
 		relation_batch_init(stdout, job->rb, min_prime, 1ULL << max_prime,
-			1ull << job->lpbr, 1ull << job->lpba, NULL, 1);
+			1ull << job->lpbr, 1ull << job->lpba, NULL, compute_pproduct);
+
+		if (fid != NULL)
+		{
+			mpz_inp_raw(job->rb->prime_product, fid);
+
+			if (fobj->VFLAG >= 0)
+			{
+				printf("nfs: loaded prime product from file %s: product has %u bits\n",
+					fname, (uint32_t)mpz_sizeinbase(job->rb->prime_product, 2));
+			}
+
+			logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
+
+			fclose(fid);
+		}
 
 		logprint_oc(fobj->flogname, "a", "relation batch initialized\n");
+
+		if (compute_pproduct == 1)
+		{
+			if (fobj->VFLAG >= 0)
+			{
+				printf("nfs: exporting prime product to file %s; approx file size = %u MB\n", fname,
+					(uint32_t)mpz_sizeinbase(job->rb->prime_product, 2) / 8 / (1<<20));
+			}
+
+			// Make the file for future use.
+			fid = fopen(fname, "wb");
+			mpz_out_raw(fid, job->rb->prime_product);
+			fclose(fid);
+		}
 
 		for (i = 0; i < 4; i++)
 		{
@@ -431,11 +479,13 @@ void nfs_sieve_start(void* vptr)
 
 	// if we are starting on a custom range of Q values and the job's default qrange-per-thread 
 	// is too large for the number of threads, reduce the qrange per thread.
-	
-
 	if ((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0))
 	{
 		// custom start or both start,stop
+		if (fobj->nfs_obj.startq > 0)
+		{
+			job->startq = fobj->nfs_obj.startq;
+		}
 
 		if (fobj->nfs_obj.rangeq > 0)
 		{
@@ -445,6 +495,9 @@ void nfs_sieve_start(void* vptr)
 				// adjust default q-per-range
 				udata->qrange_data->thread_qrange = 
 					(uint32_t)((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
+
+				printf("nfs: overriding default qrange to %u for custom job range %u and %d threads\n",
+					udata->qrange_data->thread_qrange, fobj->nfs_obj.rangeq, fobj->THREADS);
 			}
 		}
 	}
@@ -1019,10 +1072,43 @@ void nfs_sieve_dispatch(void* vptr)
 			t->job.qrange = qrange->qrange_end - qrange->qrange_start;
 		}
 
-		// printf("new range info driven by .ranges file: %u - %u\n", t->job.startq, t->job.startq + t->job.qrange);
+		if (fobj->nfs_obj.rangeq > 0)
+		{
+			// we have a specified end to the sieving, regardless of other completion metrics.
+			if (t->job.startq >= (fobj->nfs_obj.startq + fobj->nfs_obj.rangeq))
+			{
+				// this will kill the thread
+				tdata->work_fcn_id = tdata->num_work_fcn;
+				free(qrange);
+
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: thread %d halting, custom q-range completed\n", tid);
+				}
+				return;
+			}
+			else if ((t->job.startq + t->job.qrange) > (fobj->nfs_obj.startq + fobj->nfs_obj.rangeq))
+			{
+				t->job.qrange = (fobj->nfs_obj.startq + fobj->nfs_obj.rangeq) - t->job.startq;
+			}
+
+			if (t->job.qrange == 0)
+			{
+				// this will kill the thread
+				tdata->work_fcn_id = tdata->num_work_fcn;
+				free(qrange);
+
+				if (fobj->VFLAG > 0)
+				{
+					printf("nfs: thread %d halting, custom q-range completed\n", tid);
+				}
+				return;
+			}
+		}
+
 
 		// now change if there are any inputs that override the automated behavior.
-		if ((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0))
+		if (0) //(fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0))
 		{
 			// if the nfs_obj.rangeq value is > 0, that means the user
 			// requested a custom sieving range.  fill in the info to our
