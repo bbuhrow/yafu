@@ -841,6 +841,8 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		fwork->target_job_type = job_unknown;
 	}
 
+	mpz_set(fobj->N, b);
+
 
 	return;
 }

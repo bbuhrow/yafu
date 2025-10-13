@@ -378,7 +378,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         poly.coeff1 = 1;
         poly.coeff2 = -isMersenne;
         poly.exp1 = size_n;
-        find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+        //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+        remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);

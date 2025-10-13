@@ -808,7 +808,8 @@ void vecPP1(fact_obj_t* fobj)
             poly.coeff1 = 1;
             poly.coeff2 = -1 * (int)visMersenne[k];
             poly.exp1 = vsize[k];
-            find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+            //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+            remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
             mpz_tdiv_q(g, N[k], poly.primitive);
             mpz_gcd(N[k], N[k], poly.primitive);
@@ -1507,7 +1508,8 @@ void vecPM1(fact_obj_t* fobj)
             poly.coeff1 = 1;
             poly.coeff2 = -1 * (int)visMersenne[k];
             poly.exp1 = vsize[k];
-            find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+            //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+            remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
             mpz_tdiv_q(g, N[k], poly.primitive);
             mpz_gcd(N[k], N[k], poly.primitive);
@@ -2172,7 +2174,8 @@ void vecPPM1_1N(fact_obj_t *fobj)
         poly.coeff1 = 1;
         poly.coeff2 = -isMersenne;
         poly.exp1 = size_n;
-        find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+        //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
+        remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);
