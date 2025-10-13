@@ -1352,8 +1352,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		MySleep(100);
 
 		//start the test
-		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
-			jobs[i].sievername, fobj->VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, spq_range, filenames[i]);
+		sprintf(syscmd,"%s%s -f %u -c %u -o %s.out -%c %s ",
+			jobs[i].sievername, fobj->VFLAG>0?" -v":"", jobs[i].startq, spq_range, filenames[i], side[0], filenames[i]);
 
 		if (fobj->VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + spq_range);
