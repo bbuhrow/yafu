@@ -473,10 +473,10 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	return;
 }
 
-void find_brent_form(fact_obj_t *fobj, snfs_t *form)
+void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 {
 	int i,j,maxa,maxb,startb;
-	mpz_t p, a, b, r, n, q;
+	mpz_t p, a, b, r, q;
 	uint32_t inc = 1<<30;
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
@@ -495,10 +495,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 	mpz_init(a);
 	mpz_init(b);
 	mpz_init(r);
-	mpz_init(n);
 	mpz_init(q);
-
-	mpz_set(n, fobj->nfs_obj.gmp_n);
 
 	for (i=2; i<maxa; i++)
 	{
@@ -514,7 +511,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 		maxb = MAX_SNFS_BITS / log((double)i) + 1;
 
-		if (fobj->VFLAG > 1)
+		if (verbose > 1)
 			printf("nfs: checking a*b^x +/- c for b = %d and 32 <= x <= %d\n", i, maxb);
 
 		for (j=startb; j<maxb; j++)
@@ -567,26 +564,26 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				{
 					if (sign == POSITIVE)
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
 					}
 					else
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
 					}
 				}
 				else
 				{
 					if (sign == POSITIVE)
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d\n", i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d^%d + %d\n", i, j, c2);
 					}
 					else
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - %d\n", i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d^%d - %d\n", i, j, c2);
 					}
 				}
 
@@ -605,22 +602,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_set_ui(form->base2, 1);
 				form->exp1 = j;
 				form->coeff2 = sign ? c2 : -c2;
-				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-				{
-                    if (fobj->LOGFLAG)
-                    {
-                        FILE* f = fopen(fobj->flogname, "a");
-                        if (f != NULL)
-                        {
-                            logprint(f, "nfs: using supplied cofactor: ");
-                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                            fclose(f);
-                        }
-                    }
-					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-				}
-				else
-					mpz_set(form->n, n);
+				mpz_set(form->n, n);
 				goto done;
 			}
 
@@ -658,26 +640,26 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				{
 					if (sign == POSITIVE)
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
 					}
 					else
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
 					}
 				}
 				else
 				{
 					if (sign == POSITIVE)
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d\n", i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d^%d + %d\n", i, j, c2);
 					}
 					else
 					{
-						if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
-						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - %d\n", i, j, c2);
+						if (verbose >= 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
+						logprint_oc(flogname, "a", "nfs: input divides %d^%d - %d\n", i, j, c2);
 					}
 				}
 
@@ -690,22 +672,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_set_ui(form->base2, 1);
 				form->exp1 = j;
 				form->coeff2 = sign ? c2 : -c2;
-				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-				{
-                    if (fobj->LOGFLAG)
-                    {
-                        FILE* f = fopen(fobj->flogname, "a");
-                        if (f != NULL)
-                        {
-                            logprint(f, "nfs: using supplied cofactor: ");
-                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                            fclose(f);
-                        }
-                    }
-					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-				}
-				else
-					mpz_set(form->n, n);
+				mpz_set(form->n, n);
 				goto done;
 			}
 
@@ -727,7 +694,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 	{
 		// now that we've reduced the exponent considerably, check for 
 		// large bases by looking at the remaining possible exponents.
-        if (fobj->VFLAG > 1)
+        if (verbose > 1)
         {
             printf("nfs: checking x^%d +/- 1\n", i);
         }
@@ -740,8 +707,8 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			char s[2048];
 
-			if (fobj->VFLAG >= 0) gmp_printf("nfs: input divides %Zd^%d - 1\n", b, i);
-			logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d - 1\n", mpz_get_str(s, 10, b), i);
+			if (verbose >= 0) gmp_printf("nfs: input divides %Zd^%d - 1\n", b, i);
+			logprint_oc(flogname, "a", "nfs: input divides %s^%d - 1\n", mpz_get_str(s, 10, b), i);
 			form->form_type = SNFS_BRENT;
 			form->coeff1 = 1;
 			mpz_set(form->base1, b);
@@ -752,22 +719,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			// as b^(2n) - 1 = (b^n + 1)(b^n - 1)
 			if ((i & 0x1) == 0)
 				form->exp1 /= 2;
-			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-			{
-                if (fobj->LOGFLAG)
-                {
-                    FILE* f = fopen(fobj->flogname, "a");
-                    if (f != NULL)
-                    {
-                        logprint(f, "nfs: using supplied cofactor: ");
-                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                        fclose(f);
-                    }
-                }
-				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-			}
-			else
-				mpz_set(form->n, n);
+			mpz_set(form->n, n);
 			goto done;
 		}
 
@@ -779,30 +731,15 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			char s[2048];
 
-			if (fobj->VFLAG >= 0) gmp_printf("nfs: input divides %Zd^%d + 1\n", b, i);
-			logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d + 1\n", mpz_get_str(s, 10, b), i);
+			if (verbose >= 0) gmp_printf("nfs: input divides %Zd^%d + 1\n", b, i);
+			logprint_oc(flogname, "a", "nfs: input divides %s^%d + 1\n", mpz_get_str(s, 10, b), i);
 			form->form_type = SNFS_BRENT;
 			form->coeff1 = 1;
 			mpz_set(form->base1, b);
 			form->exp1 = i;
 			mpz_set_ui(form->base2, 1);
 			form->coeff2 = 1;
-			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-			{
-                if (fobj->LOGFLAG)
-                {
-                    FILE* f = fopen(fobj->flogname, "a");
-                    if (f != NULL)
-                    {
-                        logprint(f, "nfs: using supplied cofactor: ");
-                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                        fclose(f);
-                    }
-                }
-				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-			}
-			else
-				mpz_set(form->n, n);
+			mpz_set(form->n, n);
 			goto done;
 		}
 
@@ -815,10 +752,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
         {
 			char* s = NULL; // [2048] ;
 			char* s2 = NULL; // [2048] ;
-			if (fobj->VFLAG >= 0)
+			if (verbose >= 0)
 				gmp_printf("nfs: input divides %Zd^%d + %Zd\n", b, i, p);
 
-            logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d + %s\n",
+            logprint_oc(flogname, "a", "nfs: input divides %s^%d + %s\n",
                 mpz_get_str(s, 10, b), i, mpz_get_str(s2, 10, p));
 
             form->form_type = SNFS_BRENT;
@@ -828,22 +765,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
             mpz_set_ui(form->base2, 1);
             form->coeff2 = mpz_get_ui(p);
             form->exp2 = 1;
-			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-			{
-				if (fobj->LOGFLAG)
-				{
-					FILE* f = fopen(fobj->flogname, "a");
-					if (f != NULL)
-					{
-						logprint(f, "nfs: using supplied cofactor: ");
-						gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-						fclose(f);
-					}
-				}
-				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-			}
-			else
-				mpz_set(form->n, n);
+			mpz_set(form->n, n);
 
 			free(s);
 			free(s2);
@@ -859,9 +781,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
         {
 			char* s = NULL; // [2048] ;
 			char* s2 = NULL; // [2048] ;
-            gmp_printf("nfs: input divides %Zd^%d - %Zd\n", b, i, p);
+			if (verbose >= 0)
+				gmp_printf("nfs: input divides %Zd^%d - %Zd\n", b, i, p);
 
-            logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d - %s\n", 
+            logprint_oc(flogname, "a", "nfs: input divides %s^%d - %s\n", 
                 mpz_get_str(s, 10, b), i, mpz_get_str(s2, 10, p));
             
 			form->form_type = SNFS_BRENT;
@@ -871,22 +794,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_set_ui(form->base2, 1);
 			form->coeff2 = -(int)mpz_get_ui(p);
 			form->exp2 = 1;
-			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-			{
-				if (fobj->LOGFLAG)
-				{
-					FILE* f = fopen(fobj->flogname, "a");
-					if (f != NULL)
-					{
-						logprint(f, "nfs: using supplied cofactor: ");
-						gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-						fclose(f);
-					}
-				}
-				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-			}
-			else
-				mpz_set(form->n, n);
+			mpz_set(form->n, n);
 
 			free(s);
 			free(s2);
@@ -903,15 +811,14 @@ done:
 	mpz_clear(b);
 	mpz_clear(r);
 	mpz_clear(q);
-	mpz_clear(n);
 
 	return;
 }
 
-void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
+void find_hcunn_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 {
 	int i,j,k,maxa,kmax;
-	mpz_t pa, pb, a, b, r, g, n;
+	mpz_t pa, pb, a, b, r, g;
 
 	// homogeneous cunninghams take the form a^n +/- b^n, where a,b <= 12 and gcd(a,b) == 1.
 	// this routine finds inputs of the hcunninghams form, and considers
@@ -926,9 +833,6 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 	mpz_init(g);
 	mpz_init(b);
 	mpz_init(r);
-	mpz_init(n);
-
-	mpz_set(n, fobj->nfs_obj.gmp_n);
 
 	for (i=3; i<maxa; i++)
 	{
@@ -944,7 +848,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 
 			// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 			kmax = MAX_SNFS_BITS / log((double)i) + 1;
-			if (fobj->VFLAG > 1)
+			if (verbose > 1)
 				printf("nfs: checking %d^x +/- %d^x for 20 <= x <= %d\n", i, j, kmax);
 
 			for (k=20; k<kmax; k++)
@@ -956,30 +860,15 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_mod(r, g, n);
 				if (mpz_cmp_ui(r, 0) == 0)
 				{
-					if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
-					logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
+					if (verbose >= 0) printf("nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
+					logprint_oc(flogname, "a", "nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
 					form->form_type = SNFS_H_CUNNINGHAM;
 					mpz_set_ui(form->base1, i);
 					mpz_set_ui(form->base2, j);
 					form->exp1 = k;
 					form->coeff1 = 1;
 					form->coeff2 = 1;
-					if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-					{
-                        if (fobj->LOGFLAG)
-                        {
-                            FILE* f = fopen(fobj->flogname, "a");
-                            if (f != NULL)
-                            {
-                                logprint(f, "nfs: using supplied cofactor: ");
-                                gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                                fclose(f);
-                            }
-                        }
-						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-					}
-					else
-						mpz_set(form->n, n);
+					mpz_set(form->n, n);
 					goto done;
 				}
 
@@ -987,30 +876,15 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_mod(r, g, n);
 				if (mpz_cmp_ui(r, 0) == 0)
 				{
-					if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
-					logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
+					if (verbose >= 0) printf("nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
+					logprint_oc(flogname, "a", "nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
 					form->form_type = SNFS_H_CUNNINGHAM;
 					mpz_set_ui(form->base1, i);
 					mpz_set_ui(form->base2, j);
 					form->exp1 = k;
 					form->coeff1 = 1;
 					form->coeff2 = -1;
-					if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-					{
-                        if (fobj->LOGFLAG)
-                        {
-                            FILE* f = fopen(fobj->flogname, "a");
-                            if (f != NULL)
-                            {
-                                logprint(f, "nfs: using supplied cofactor: ");
-                                gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                                fclose(f);
-                            }
-                        }
-						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-					}
-					else
-						mpz_set(form->n, n);
+					mpz_set(form->n, n);
 					goto done;
 				}
 
@@ -1025,14 +899,13 @@ done:
 	mpz_clear(a);
 	mpz_clear(b);
 	mpz_clear(r);
-	mpz_clear(n);
 	return;
 }
 
-void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
+void find_xyyxf_form(mpz_t n, snfs_t *form, int verbose, char *flogname)
 {
 	int x,y,maxx;
-	mpz_t xy, yx, r, g, n;
+	mpz_t xy, yx, r, g;
 
 	// xyyxf numbers take the form x^y + y^x, where 1<y<x<151
 	// this routine finds inputs of the xyyxf form, and considers
@@ -1045,14 +918,11 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 	mpz_init(yx);
 	mpz_init(g);
 	mpz_init(r);
-	mpz_init(n);
-
-	mpz_set(n, fobj->nfs_obj.gmp_n);
 
 	for (x=3; x<maxx; x++)
 	{
 		mpz_set_ui(xy, x);
-		if (fobj->VFLAG > 1)
+		if (verbose > 1)
 			printf("nfs: checking %d^y + y^%d\n", x, x);
 
 		for (y=2; y<x; y++)
@@ -1070,8 +940,8 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_mod(r, g, n);
 			if (mpz_cmp_ui(r, 0) == 0)
 			{
-				if (fobj->VFLAG >= 0) printf("nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
-				logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
+				if (verbose >= 0) printf("nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
+				logprint_oc(flogname, "a", "nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
 				form->form_type = SNFS_XYYXF;
 				mpz_set_ui(form->base1, x);
 				mpz_set_ui(form->base2, y);
@@ -1079,22 +949,7 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 				form->exp2 = x;
 				form->coeff1 = 1;
 				form->coeff2 = 1;
-				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-				{
-                    if (fobj->LOGFLAG)
-                    {
-                        FILE* f = fopen(fobj->flogname, "a");
-                        if (f != NULL)
-                        {
-                            logprint(f, "nfs: using supplied cofactor: ");
-                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                            fclose(f);
-                        }
-                    }
-					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-				}
-				else
-					mpz_set(form->n, n);
+				mpz_set(form->n, n);
 				goto done;
 			}
 		}
@@ -1105,15 +960,14 @@ done:
 	mpz_clear(yx);
 	mpz_clear(g);
 	mpz_clear(r);
-    mpz_clear(n);
 	return;
 }
 
-void find_direct_form(fact_obj_t* fobj, snfs_t* form)
+void find_direct_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 {
     int b, p, found = 0, i, deg;
     int c[10];
-    mpz_t t, r, g, n, m;
+    mpz_t t, r, g, m;
 
     // find the following forms:
     // c1*m^n + c2*m^(n-1) + c3*m^(n-2) ... + cn
@@ -1125,11 +979,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
     mpz_init(t);
     mpz_init(g);
     mpz_init(r);
-    mpz_init(n);
     mpz_init(m);
-
-    mpz_set(n, fobj->nfs_obj.gmp_n);
-    //mpz_set(n, fobj->N);
 
     for (b = 19; b > 1; b--)
     {
@@ -1137,7 +987,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
 
         int maxp = 75 * (log(10) / log(b));
 
-        if (fobj->VFLAG > 1)
+        if (verbose > 1)
             printf("nfs: checking m=%d^p forms, maxp = %d\n", b, maxp);
 
         for (p = maxp; p > 1; p--)
@@ -1145,7 +995,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
             mpz_set_ui(m, b);
             mpz_pow_ui(m, m, p);
 
-            if (fobj->VFLAG > 1)
+            if (verbose > 1)
                 gmp_printf("checking m = %Zd = %d^%d\n", m, b, p);
 
             // if the remainder of n by m is small, that is a coefficient.
@@ -1208,7 +1058,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                     mpz_set_si(form->c[i], c[i]);
                 }
 
-                if (fobj->VFLAG >= 0)
+                if (verbose >= 0)
                 {
                     printf("nfs: input divides ");
                     for (i = 6; i > 0; i--)
@@ -1224,26 +1074,9 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                     printf("%c%d\n", sign, abs(c[i]));
                     sprintf(nstr, "%s%c%d", nstr, sign, abs(c[i]));
                 }
-                logprint_oc(fobj->flogname, "a", "nfs: input divides %s\n", nstr);
+                logprint_oc(flogname, "a", "nfs: input divides %s\n", nstr);
 
-                if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
-                {
-                    if (fobj->LOGFLAG)
-                    {
-                        FILE* f = fopen(fobj->flogname, "a");
-                        if (f != NULL)
-                        {
-                            logprint(f, "nfs: using supplied cofactor: ");
-                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                            fclose(f);
-                        }
-                    }
-                    mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
-                }
-                else
-                {
-                    mpz_set(form->n, n);
-                }
+                mpz_set(form->n, n);
                 goto done;
             }
         }
@@ -1254,49 +1087,34 @@ done:
     mpz_clear(m);
     mpz_clear(g);
     mpz_clear(r);
-    mpz_clear(n);
 
     return;
 }
 
-void find_lucas_form(fact_obj_t* fobj, snfs_t* form)
+void find_lucas_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 {
 	// by brute force, detect if the input is a lucas or fibonacci number.
 	// we check up to fib(1500), about 1024 bits.
-	mpz_t F, L, r, n;
+	mpz_t F, L, r;
 	int i;
 
 	mpz_init(F);
 	mpz_init(L);
 	mpz_init(r);
-	mpz_init(n);
-
 
 	for (i = 3; i < 1500; i++)
 	{
 		mpz_fib_ui(F, i);
 		mpz_lucnum_ui(L, i);
 
-		mpz_gcd(r, F, fobj->nfs_obj.gmp_n);
+		mpz_gcd(r, F, n);
 
 		if (mpz_cmp_ui(r, 1) > 0)
 		{
-			if (mpz_cmp(r, fobj->nfs_obj.gmp_n) < 0)
-			{
-				if (fobj->VFLAG >= 0)
-				{
-					gmp_printf("gen: found algebraic factor fib(%d) = %Zd\n", i, r);
-				}
-
-				add_to_factor_list(fobj->factors, r, fobj->VFLAG, fobj->NUM_WITNESSES);
-				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, r);
-				continue;
-			}
-
 			form->form_type = SNFS_LUCAS;
 
-			if (fobj->VFLAG >= 0) gmp_printf("nfs: input divides fib(%d)\n", i);
-			logprint_oc(fobj->flogname, "a", "nfs: input divides fib(%d)\n", i);
+			if (verbose >= 0) gmp_printf("nfs: input divides fib(%d)\n", i);
+			logprint_oc(flogname, "a", "nfs: input divides fib(%d)\n", i);
 
 			form->coeff1 = 1;
 			mpz_set(form->base1, r);
@@ -1309,14 +1127,14 @@ void find_lucas_form(fact_obj_t* fobj, snfs_t* form)
 			break;
 		}
 
-		mpz_gcd(r, L, fobj->nfs_obj.gmp_n);
+		mpz_gcd(r, L, n);
 
 		if (mpz_cmp_ui(r, 1) > 0)
 		{
 			form->form_type = SNFS_LUCAS;
 
-			if (fobj->VFLAG >= 0) gmp_printf("nfs: input divides luc(%d)\n", i);
-			logprint_oc(fobj->flogname, "a", "nfs: input divides luc(%d)\n", i);
+			if (verbose >= 0) gmp_printf("nfs: input divides luc(%d)\n", i);
+			logprint_oc(flogname, "a", "nfs: input divides luc(%d)\n", i);
 
 			form->coeff1 = 1;
 			mpz_set(form->base1, r);
@@ -1332,7 +1150,6 @@ void find_lucas_form(fact_obj_t* fobj, snfs_t* form)
 	mpz_clear(F);
 	mpz_clear(L);
 	mpz_clear(r);
-	mpz_clear(n);
 
 	return;
 }
@@ -2869,7 +2686,7 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 			}
 			else if (VFLAG >= 0)
 			{
-				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
+				gmp_printf("gen: found Aurifeuillian L-factor %Zd\n", t);
 			}
 			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
@@ -2890,7 +2707,7 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 }
 
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
-void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
+void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
 	// factor the exponent.  The algebraic reductions yafu knows how to handle are
 	// for cunningham and homogenous cunningham inputs where the exponent is in
@@ -2917,8 +2734,12 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 	franks[0][0] = 1;
 	cranks[0] = 1;
 
-	if (VFLAG > 0) gmp_printf("gen: finding primitive factor of exponent %d, bases %Zd, %Zd, coeffs %d, %d\n", 
-		e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
+	if (VFLAG > 0)
+	{
+		gmp_printf("gen: searching for algebraic factors of exponent %d, bases %Zd, %Zd, coeffs %d, %d\n",
+			e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
+	}
+
 	// rank 1 is a list of the distinct odd factors.
 	j = 0;
 	if (VFLAG > 2) printf("gen: rank 1 terms: ");
@@ -3062,8 +2883,11 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n",
-						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
+					if (VFLAG > 2)
+					{
+						gmp_printf("gen: dividing by %Zd^%d %c %Zd^%d = %Zd\n",
+							poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
+					}
 				}
 				else
 				{
@@ -3075,8 +2899,11 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 2) gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n",
-						poly->base1, franks[i][j] * mult, c, term);
+					if (VFLAG > 2)
+					{
+						gmp_printf("gen: dividing by %Zd^%d %c 1 = %Zd\n",
+							poly->base1, franks[i][j] * mult, c, term);
+					}
 				}
 				mpz_mod(t, n, term);
 				if (mpz_cmp_ui(t, 0) != 0)
@@ -3088,95 +2915,47 @@ void find_primitive_factor(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uin
 					mpz_tdiv_q(n, n, term);
 				}
 
-				if (fobj->autofact_obj.autofact_active)
+
+				// is this term a nontrivial divisor of the input we are trying to autofactor?
+				mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
+				if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 				{
-					// is this term a nontrivial divisor of the input we are trying to autofactor?
-					mpz_gcd(t, fobj->nfs_obj.gmp_n, term);
-					if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+					if (VFLAG > 2)
 					{
-						if (VFLAG > 2)
-						{
-							gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd of term %Zd)\n",
-								t, fobj->nfs_obj.gmp_n, term);
-						}
-						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+						gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd of term %Zd)\n",
+							t, fobj->nfs_obj.gmp_n, term);
 					}
+					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 				}
+
 			}
 		}
 	}
 
 	// at the end of the process above, 'n' is the primitive factor of 
-	// the full input.  What we started with is stored in poly->n.  If
-	// there is a remainder after dividing out the primitive factor it
-	// could be a factor of the input.
-	mpz_tdiv_r(poly->primitive, poly->n, n);
-
-	if (mpz_cmp_ui(poly->primitive, 0) != 0)
+	// the full input.  
+	mpz_set(poly->primitive, n);
+	mpz_gcd(t, poly->primitive, fobj->nfs_obj.gmp_n);
+	if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
 	{
-		// we found a primitive factor that doesn't divide our
-		// input cofactor.  This primitive factor is therefore 
-		// a factor of some larger power of the target polynomial
-		// that we were supplied a smaller cofactor of.
-		// see if any part of the discovered primitive factor can 
-		// be used
-		mpz_gcd(t, poly->n, n);
-		if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		if (VFLAG > 2)
 		{
-			// GCD of the primitive factor we discovered and our input discovered
-			// a divisor.  Is it ever possible that this divisor is not useful?
-			// i.e., that if we divide it out, what we are left with is a no-longer-snfsable
-			// number that is more difficult than the original SNFS-able input?
-			// we can't know unless we *don't* divide it out and continue with SNFS
-			// poly generation, and then later compare everything.  
-			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor %Zd \n", n);
-			if (VFLAG > 0) gmp_printf("gen: found factor of input with GCD: %Zd\n", t);
-			// keep the discovered factor
-			mpz_set(poly->primitive, t);
-			// and don't reduce the input polynomial.
-			// this will cause gen_brent_poly (if that is our caller)
-			// to deal with the factor
+			gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd with primitive input %Zd)\n",
+				t, fobj->nfs_obj.gmp_n, poly->primitive);
 		}
-		else
-		{
-			mpz_set(poly->primitive, t);
-		}
-	}
-	else
-	{
-		mpz_set(poly->primitive, n);
-
-		if (mpz_cmp(n, poly->n) < 0)
-		{
-			if (VFLAG > 0) gmp_printf("gen: found primitive cofactor < input number:\ngen: %Zd\n", n);
-			mpz_set(poly->n, n);
-		}
+		add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 	}
 
-	if (fobj->autofact_obj.autofact_active)
-	{
-		// does this term divide the input we are trying to autofactor?
-		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
-		if ((mpz_cmp_ui(t, 0) == 0) &&
-			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) &&
-			(mpz_cmp_ui(poly->primitive, 1) > 0))
-		{
-			if (VFLAG > 2)
-			{
-				gmp_printf("gen: adding primitive factor %Zd of input %Zd to factor list\n",
-					poly->primitive, fobj->nfs_obj.gmp_n);
-			}
-			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
-
-		}
-	}
+	mpz_set(poly->n, fobj->nfs_obj.gmp_n);
 
 	if (VFLAG > 2)
 	{
-		gmp_printf("gen: after find_primitive_factor, nfs_obj.gmp_n is now %Zd\n", fobj->nfs_obj.gmp_n);
+		gmp_printf("gen: after remove_algebraic_factors(), nfs_obj.gmp_n is now %Zd\n", fobj->nfs_obj.gmp_n);
 	}
+
+
 
 	find_aurifeuillian_form(fobj, poly);
 
@@ -3708,136 +3487,14 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// we have (a/b)^n +/- 1.  This requires straightforward modifications to the polynomial 
 	// generation
 
-	// first test for algebraic factors - we look for several specific but common forms:
+	// look for algebraic factors - we look for several specific but common forms:
 	// 21*k, 15*k, 13*k, 11*k, 7*k, 5*k, 3*k
 	// if any of these are available we immediately use them, because dividing out an algebraic factor
 	// will always be lower difficulty then playing with exponents only, even if the degree
 	// is sub-optimal.  The possibility of simple algebraic reduction occurs only when the a,c 
-	// coefficients are 1.  More complex algebraic reductions like Aurifeuillian 
+	// coefficients are 1.  
+	// More complex algebraic reductions like Aurifeuillian 
 	// factorizations are not attempted here.
-	if ((poly->form_type != SNFS_DIRECT) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
-	{
-		find_primitive_factor(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
-	}
-
-    if (mpz_cmp(poly->primitive, poly->n) == 0)
-    {
-		// it's possible for this primitive factor to be prime, in which case we are done.
-		if (is_mpz_prp(poly->primitive, 1))
-		{
-
-			if (fobj->LOGFLAG)
-			{
-				FILE* f = fopen(fobj->flogname, "a");
-
-				if (f != NULL)
-				{
-					logprint(f, "nfs: snfs primitive factor is a probable prime\nnfs: ");
-					gmp_fprintf(f, "%Zd\n", poly->primitive);
-					fclose(f);
-				}
-			}
-
-			if (fobj->VFLAG > 0)
-			{
-				gmp_printf("nfs: snfs primitive factor %Zd is a probable prime\n", poly->primitive);
-			}
-
-			char c[4];
-
-			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
-			strncpy(c, "prp", 4);
-
-			if (fobj->LOGFLAG)
-			{
-				FILE *logfile = fopen(fobj->flogname, "a");
-				if (logfile == NULL)
-				{
-					printf("fopen error: %s\n", strerror(errno));
-					printf("could not open yafu logfile for appending\n");
-				}
-				else
-				{
-					char* s = mpz_get_str(NULL, 10, poly->primitive);
-					logprint(logfile, "%s%d = %s\n", c,
-						gmp_base10(poly->primitive), s);
-					fclose(logfile);
-					free(s);
-				}
-			}
-
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
-			gmp_printf("nfs: residue is %Zd\n", fobj->nfs_obj.gmp_n);
-			*npolys = 0;
-			return NULL;
-
-		}
-		else
-		{
-			// it's not prime.  If it has a non-trivial residue with the input
-			// number, add the residue to the factor list.
-			mpz_tdiv_r(t, fobj->nfs_obj.gmp_n, poly->primitive);
-			if ((mpz_cmp_ui(t, 0) == 0) && (mpz_cmp_ui(poly->primitive, 1) > 0) &&
-				(mpz_cmp(fobj->nfs_obj.gmp_n, poly->primitive) < 0))
-			{
-				mpz_tdiv_q(t, fobj->nfs_obj.gmp_n, poly->primitive);
-				//gmp_printf("fac: adding residue %Zd to the factor list\n", t);
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
-				mpz_set(fobj->nfs_obj.gmp_n, poly->primitive);
-			}
-
-			if (fobj->LOGFLAG)
-			{
-				FILE* f = fopen(fobj->flogname, "a");
-
-				if (f != NULL)
-				{
-					logprint(f, "nfs: commencing snfs on c%d primitive factor: ",
-						gmp_base10(poly->primitive));
-					gmp_fprintf(f, "%Zd\n", poly->primitive);
-					fclose(f);
-				}
-			}
-		}
-    }
-	else if (mpz_cmp_ui(poly->primitive, 0) > 0)
-	{
-		//gmp_printf("found factor %Zd of input %Zd\n", poly->primitive, fobj->nfs_obj.gmp_n);
-		// we found a factor of the input that isn't a primitive factor
-		mpz_mod(t, fobj->nfs_obj.gmp_n, poly->primitive);
-		if ((mpz_cmp_ui(t, 0) == 0) &&
-			(mpz_cmp(poly->primitive, fobj->nfs_obj.gmp_n) < 0) &&
-			(mpz_cmp_ui(poly->primitive, 1) > 0))
-		{
-			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
-
-			// reduce the input and keep going
-			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
-		}
-
-		if (fobj->VFLAG > 0)
-			gmp_printf("nfs: continuing with residue %Zd\n", fobj->nfs_obj.gmp_n);
-
-		*npolys = 0;
-		return NULL;
-	}
-    else
-    {
-		if (fobj->LOGFLAG)
-		{
-			FILE* f = fopen(fobj->flogname, "a");
-
-			if (f != NULL)
-			{
-				logprint(f, "nfs: commencing snfs on c%d: ",
-					gmp_base10(poly->n));
-				gmp_fprintf(f, "%Zd\n", poly->n);
-				fclose(f);
-			}
-		}
-    }
-
-
     if (poly->form_type == SNFS_DIRECT)
     {
         // the poly form directly gives a poly.

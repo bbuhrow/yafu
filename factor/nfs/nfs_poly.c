@@ -89,7 +89,7 @@ static const poly_deadline_t time_limits[] = {
 
 #define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
 
-snfs_t * snfs_find_form(fact_obj_t *fobj)
+snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 {
 	snfs_t* poly;
     struct timeval stopt;	// stop time of this job
@@ -97,15 +97,6 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
     double t_time;
 
     gettimeofday(&startt, NULL);
-
-	// allow larger one to come in, because some polynomials forms are significantly reduced
-	// (i.e., x^(2n))
-	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > 2*MAX_SNFS_BITS)
-	{
-		if (fobj->VFLAG >= 0)
-			printf("nfs: n is too large for snfs, skipping snfs poly select\n");
-		return NULL;
-	}	
 
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
 	if( !poly )
@@ -115,72 +106,35 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 	}
 	snfs_init(poly);
 
-	// if this is a factor() run, restore the original input number so that we 
-	// can detect these forms on the original input
-	if (fobj->autofact_obj.autofact_active)
-	{
-		mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
-		mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
-
-		// mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
-		// mpz_set(fobj->nfs_obj.gmp_n, fobj->input_N);
-		// mpz_set(fobj->nfs_obj.full_n, fobj->input_N);
-		// 
-		// gmp_printf("fac: searching for forms using full input %Zd\n",
-		// 	fobj->nfs_obj.full_n);
-	}
-
-	// likewise, if this is a snfs() function call, use the full input 
-	// for poly detection.  We never use SNFS with autofactor, so
-	// the statement block above should not interfere with this.
-	// if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
-	// {
-	// 	gmp_printf("snfs cofactor is %Zd\nsearching for forms using full input %Zd\n",
-	// 		fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.full_n);
-	// 	mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
-	// 	mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.full_n);
-	// }
-
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
-		find_brent_form(fobj, poly);
+		find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
 	}
 
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for homogeneous cunningham special forms...\n");
-		find_hcunn_form(fobj, poly);	
+		find_hcunn_form(n, poly, fobj->VFLAG, fobj->flogname);
 	}
 
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for XYYXF special forms...\n");
-		find_xyyxf_form(fobj, poly);
+		find_xyyxf_form(n, poly, fobj->VFLAG, fobj->flogname);
 	}
 
     if (poly->form_type == SNFS_NONE)
     {
         if (fobj->VFLAG >= 0) printf("nfs: searching for direct special forms...\n");
-        find_direct_form(fobj, poly);
+        find_direct_form(n, poly, fobj->VFLAG, fobj->flogname);
     }
 
 	if (poly->form_type == SNFS_NONE)
 	{
 		//if (fobj->VFLAG >= 0) printf("nfs: searching for lucas special forms...\n");
-		//find_lucas_form(fobj, poly);
+		//find_lucas_form(n, poly, fobj->VFLAG, fobj->flogname);
 	}
-
-	// restore the cofactor if applicable
-	if (fobj->autofact_obj.autofact_active)
-	{
-		mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
-	}
-
-	//if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
-	//{
-	//	mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
-	//}
 
     gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
@@ -198,7 +152,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 	return poly;
 }
 
-int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
+int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optimize_poly)
 {
 	snfs_t* poly, * polys = NULL;
 	int i, npoly;
@@ -206,19 +160,63 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	nfs_job_t *jobs, *best;
 	int retcode = 0;
 
-	if ((poly = snfs_find_form(fobj)) == NULL)
+	if (polyin == NULL)
+	{
+		if (fobj->autofact_obj.autofact_active)
+		{
+			// if this is a factor() run, restore the original input.  More
+			// forms are likely to be detected if small factors haven't been removed.
+			poly = snfs_find_form(fobj, fobj->input_N);
+		}
+		else if (fobj->nfs_obj.snfs)
+		{
+			// this input has been user specified as SNFS
+			poly = snfs_find_form(fobj, fobj->nfs_obj.snfs_fullinput);
+		}
+		else
+		{
+			poly = snfs_find_form(fobj, fobj->nfs_obj.gmp_n);
+		}
+	}
+	else
+	{
+		poly = (snfs_t*)malloc(sizeof(snfs_t));
+		snfs_init(poly);
+		snfs_copy_poly(polyin, poly);
+	}
+
+	if (poly == NULL)
 	{
 		// form detection failed
 		job->snfs = NULL;
 		return 0;
 	}
 
-	// once form detection is done, do some quick trial division
-	mpz_set(fobj->div_obj.gmp_n, poly->n);
-	zTrial(fobj);
-	mpz_set(poly->n, fobj->div_obj.gmp_n);
+	// todo: move this and subsequent dealing with primitive factors out of here.  
+	// if the user is calling snfs or nfs and we find primitive factors we should maybe
+	// just report them and exit; ask them to restart with the primitive portion.
+	// if the user is calling factor() then we are in a better position to remove factors
+	// we find and continue down the best path.
+	// AVX-ECM also uses this to help determine if it is better to do special reductions when possible.
+	if ((poly->form_type != SNFS_DIRECT) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	{
+		// see if there are algebraic factors we can remove from the input nfs_obj.gmp_n
+		remove_algebraic_factors(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);
 
-	// with the form detected, create a good polynomial
+		// check if what we have left still qualifies as NFS
+		int result = nfs_check_special_case(fobj);
+
+		if (result == 1)
+		{
+			// finished as a special case
+			job->snfs = NULL;
+			snfs_clear(poly);
+			free(poly);
+			return -2;
+		}
+	}
+
+	// with the form detected and algebraic factors removed, create a good polynomial
 	if (poly->form_type == SNFS_XYYXF)
 	{
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
@@ -238,20 +236,12 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		snfs_clear(poly);
 		free(poly);
 
-		if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
-		{
-			if (fobj->VFLAG >= 0)
-			{
-				printf("nfs: finishing with prp primitive poly\n");
-			}
-			return 2;
-		}
-		else
+		if (fobj->VFLAG >= 0)
 		{
 			printf("nfs: no snfs polynomial with small coefficients found\n");
 		}
 		
-		// better by gnfs - unable to construct a snfs poly.
+		// unable to construct a snfs poly.
 		return 0;
 	}
     else if (npoly == 1)
@@ -280,6 +270,31 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
         npoly = snfs_rank_polys(fobj, polys, npoly);
     }
 
+	if (!optimize_poly)
+	{
+		// autofactor sometimes just wants to know if this could be an snfs job,
+		// i.e., we don't need to fully optimize and output the best poly.
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: best MurphyE is %1.4e\n", polys[0].poly->murphy);
+		}
+
+		job->snfs = (snfs_t*)malloc(sizeof(snfs_t));
+		snfs_init(job->snfs);
+		snfs_copy_poly(&polys[0], job->snfs);
+
+		for (i = 0; i < npoly; i++)
+		{
+			snfs_clear(&polys[i]);
+		}
+		snfs_clear(poly);
+		free(poly);
+		free(polys);
+
+		return 1;
+	}
+
+	// print the best polys
 	if (fobj->VFLAG > 0 && npoly > 1)
 	{		
 		int np = MIN(npoly, 5); // NUM_SNFS_POLYS);
@@ -346,7 +361,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
         else
         {
             // faster by gnfs despite found snfs form, skip to gnfs processing.
-            retcode = 1;
+            retcode = -1;
             copy_job(&jobs[0], job);
             goto cleanup;
         }
@@ -446,7 +461,7 @@ cleanup:
 	free(polys);
 	free(jobs);
 
-	return retcode;
+	return npoly;
 }
 
 void split_file(int nthreads, char* base_filename, const char* file_extension)

@@ -478,7 +478,7 @@ void siqsbench(fact_obj_t* fobj)
 
 	fact_obj_t f;
 	init_factobj(&f);
-	copy_factobj(&f, fobj);
+	copy_factobj(&f, fobj, 1);
 
 	strcpy(f.flogname, "bench.log");
 	log = fopen(f.flogname, "a");

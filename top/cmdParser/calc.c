@@ -2207,20 +2207,30 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	case 11:
 		// isprime - one argument
         if (check_args(funcnum, nargs)) break;
-        i = mpz_probab_prime_p(operands[0], fobj->NUM_WITNESSES);
-        if (i==0)
+
+        i = compute_factor_type(fobj->factors, operands[0], fobj->VFLAG);
+
+        if (i == 0)
+        {
+            printf("input is prime\n");
             mpz_set_ui(operands[0], 0);
-        else if (i==1)
+        }
+        else if (i == 1)
+        {
+            printf("input is probably prime (bpsw)\n");
             mpz_set_ui(operands[0], 1);
-        else if (i==2)
-            mpz_set_ui(operands[0], 1);
+        }
+        else if (i == 2)
+        {
+            printf("input is composite\n");
+            mpz_set_ui(operands[0], 2);
+        }
         else
         {
-            printf("mpz_probab_prime_p returned unexpected result %d\n", i);
+            printf("unexpected result %d\n", i);
             mpz_set_ui(operands[0], i);
         }
-            
-		
+
 		break;
 	case 12:
 		// sqrt - one argument
@@ -2477,25 +2487,39 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         // the first argument is the full input form and the second is 
-        // the cofactor we use as the input.
-        // fill the job's 'n' parameter now, and nfs will detect the form (or 
-        // bail).
-        fobj->nfs_obj.snfs = 1;
-        mpz_set(fobj->N, operands[1]);
-        mpz_set(fobj->input_N, operands[1]);
-        mpz_set(fobj->nfs_obj.snfs_cofactor, operands[1]);
+        // the cofactor we use as the input to factor.
 
-        if (mpz_sizeinbase(fobj->nfs_obj.snfs_cofactor, 10) < fobj->nfs_obj.min_digits)
+        // set up a new factorization of the provided cofactor
+        new_factorization(fobj, operands[1]);
+
+        // customize for SNFS
+        mpz_set(fobj->nfs_obj.gmp_n, fobj->input_N);
+        fobj->nfs_obj.snfs = 1;
+
+        // let NFS know there is a full form
+        mpz_set(fobj->nfs_obj.snfs_fullinput, operands[0]);
+
+        if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->nfs_obj.min_digits)
         {
             printf("***** warning: possibly malformed co-factor (too small)!\n");
             printf("*****          co-factor expected to be input divided by known factors.\n");
             printf("*****          attempting snfs anyway.\n");
         }
 
-        mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
+        if (mpz_divisible_p(fobj->nfs_obj.snfs_fullinput, fobj->nfs_obj.gmp_n) == 0)
+        {
+            printf("***** warning: co-factor (argument 2) does not divide full input (argument 1)\n");
+            break;
+        }
+
+        // run SNFS
         nfs(fobj);
+
+        // return anything not factored
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+
+        // print results
+        print_factors(fobj);
 
         break;
     case 52:
@@ -2521,13 +2545,19 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // factor - one argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, fobj->N);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
+        fobj->autofact_obj.autofact_active = 1;
+
         factor(fobj);
+
+        // return anything not factored
         mpz_set(operands[0], fobj->N);
 
-        fobj->autofact_obj.autofact_active = 1;
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        // print results
+        print_factors(fobj);
         fobj->autofact_obj.autofact_active = 0;
 
         // someday will come back and work on the command/scripting interpreter
@@ -2551,75 +2581,92 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 new_uvar(vname, operands[4]);
         }
 
-        //reset_factobj(fobj);
-
         break;
     case 54:
         // pm1 - one argument
         if (check_args(funcnum, nargs)) break;
-        mpz_set(fobj->input_N, operands[0]);
-        mpz_set(fobj->N, operands[0]);
+
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->pm1_obj.gmp_n, operands[0]);
+
         pollard_loop(fobj);
+
         mpz_set(operands[0], fobj->pm1_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
     case 55:
         // pp1 - two arguments, one optional
-        mpz_set(fobj->input_N, operands[0]);
-        mpz_set(fobj->N, operands[0]);
+
         if (nargs == 2)
         {
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[0]);
+
+            // customize for this method
             mpz_set(fobj->pp1_obj.gmp_n, operands[0]);
             fobj->pp1_obj.numbases = mpz_get_ui(operands[1]);
             williams_loop(fobj);
-            mpz_set(operands[0], fobj->pp1_obj.gmp_n);
         }
         else if (nargs == 1)
         {
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[1]);
+
+            // customize for this method
             mpz_set(fobj->pp1_obj.gmp_n, operands[1]);
             fobj->pp1_obj.numbases = 1;
             williams_loop(fobj);
-            mpz_set(operands[0], fobj->pp1_obj.gmp_n);
         }
         else
         {
             printf("wrong number of arguments in pp1\n");
             break;
         }
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+
+        mpz_set(operands[0], fobj->pp1_obj.gmp_n);
+        print_factors(fobj);
         break;
     case 56:
         // rho - one argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->input_N, operands[0]);
-        mpz_set(fobj->N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->rho_obj.gmp_n, operands[0]);
         brent_loop(fobj);
         mpz_set(operands[0], fobj->rho_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
     case 57:
         // trial - two arguments
-        mpz_set(fobj->input_N, operands[0]);
-        mpz_set(fobj->N, operands[0]);
+
         if (nargs == 2)
         {
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[0]);
+
+            // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[0]);
             fobj->div_obj.print = 0;
             fobj->div_obj.limit = mpz_get_ui(operands[1]);
             zTrial(fobj);
-            mpz_set(operands[0], fobj->div_obj.gmp_n);
         }
         else if (nargs == 1)
         {
             printf("using default trial division bound of 10000\n");
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[0]);
+
+            // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[1]);
             fobj->div_obj.print = 0;
             fobj->div_obj.limit = 10000;
             zTrial(fobj);
-            mpz_set(operands[0], fobj->div_obj.gmp_n);
         }
         else
         {
@@ -2627,28 +2674,33 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        mpz_set(operands[0], fobj->div_obj.gmp_n);
+        print_factors(fobj);
         break;
     case 58:
         // shanks - one argument
         if (check_args(funcnum, nargs)) break;
-        mpz_init(gmpz);
+        
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
 
-        mpz_set(fobj->input_N, operands[0]);
+        // customize for this method
         n64 = sp_shanks_loop(operands[0], fobj);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         mpz_set_64(operands[0], n64);
         break;
     case 59:
         // siqs - one argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
 
     case 60:
@@ -2713,12 +2765,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         {
             printf("***********RUN %d***********\n", j + 1);
             mpz_urandomb(operands[2], gmp_randstate, k);
-            mpz_set(fobj->N, operands[2]);
-            mpz_set(fobj->input_N, operands[2]);
+            
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[2]);
+
+            // customize for this method
             factor(fobj);
             mpz_set(operands[0], fobj->N);
-            print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
-            reset_factobj(fobj);
+            print_factors(fobj);
+            // reset_factobj(fobj);
         }
 
         break;
@@ -2726,22 +2781,24 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // ecm - two arguments
         if (nargs == 2)
         {
-            mpz_set(fobj->N, operands[0]);
-            mpz_set(fobj->input_N, operands[0]);
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[0]);
+
+            // customize for this method
             mpz_set(fobj->ecm_obj.gmp_n, operands[0]);
             k = mpz_get_ui(operands[1]);
             fobj->ecm_obj.num_curves = k;
             ecm_loop(fobj);
-            mpz_set(operands[0], fobj->ecm_obj.gmp_n);
         }
         else if (nargs == 1)
         {
-            mpz_set(fobj->N, operands[1]);
-            mpz_set(fobj->input_N, operands[1]);
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[1]);
+
+            // customize for this method
             mpz_set(fobj->ecm_obj.gmp_n, operands[1]);
             fobj->ecm_obj.num_curves = 1;
             ecm_loop(fobj);
-            mpz_set(operands[0], fobj->ecm_obj.gmp_n);
         }
         else
         {
@@ -2749,7 +2806,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        mpz_set(operands[0], fobj->ecm_obj.gmp_n);
+        print_factors(fobj);
         break;
     case 63:
         // lucas lehmer test
@@ -2786,8 +2844,11 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         }
 
         mpz_set(mp2, operands[0]);
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, operands[0]);
+        
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         k = mpz_get_ui(operands[1]);
         factor(fobj);
 
@@ -2817,8 +2878,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         }
 
         mpz_set(mp2, operands[0]);
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         factor(fobj);
         mpz_set(operands[0], mp2);
         mpz_tdiv_q(mp1, mp2, fobj->factors->factors[0].factor);
@@ -2839,8 +2902,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // smallmpqs - 1 argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         if (strlen(fobj->flogname) > 0)
         {
@@ -2855,7 +2920,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 fclose(fobj->logfile);
         }
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
 
         break;
     case 68:
@@ -2918,16 +2983,20 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // fermat - three arguments
         if (nargs == 2)
         {
-            mpz_set(fobj->N, operands[1]);
-            mpz_set(fobj->input_N, operands[1]);
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[1]);
+
+            // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[1]);
             n64 = mpz_get_64(operands[2]);
             j = 1;
         }
         else if (nargs == 3)
         {
-            mpz_set(fobj->N, operands[0]);
-            mpz_set(fobj->input_N, operands[0]);
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[0]);
+
+            // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[0]);
             n64 = mpz_get_64(operands[1]);
             j = mpz_get_ui(operands[2]);
@@ -2940,20 +3009,22 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         zFermat(n64, j, fobj);
         mpz_set(operands[0], fobj->div_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
 
     case 71:
         // nfs - one argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->input_N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
-        mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
+        mpz_set_ui(fobj->nfs_obj.snfs_fullinput, 0);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
 
     case 72:
@@ -3857,11 +3928,17 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             int m;
 
             mpz_set(mp2, operands[0]);
-            mpz_set(fobj->N, operands[0]);
-            mpz_set(fobj->input_N, operands[0]);
+
+            // set up a new factorization of the provided input
+            new_factorization(fobj, operands[0]);
+
+            // customize for this method
             factor(fobj);
 
-            print_factors(fobj, fobj->factors, fobj->input_N, 1, fobj->NUM_WITNESSES, fobj->OBASE);
+            int v = fobj->VFLAG;
+            fobj->VFLAG = 1;
+            print_factors(fobj);
+            fobj->VFLAG = v;
 
             printf("\n***divisors***\n");
 

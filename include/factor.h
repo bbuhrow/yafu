@@ -56,7 +56,8 @@ typedef struct
 {
     mpz_t factor;
     int count;
-    int type;
+    int type;               // primality type (PRIME, PRP, COMPOSITE)
+
     // new parameters to support returning factors
     // from avx-ecm.  In general I think it makes sense
     // to have this structure contain information not
@@ -70,10 +71,11 @@ typedef struct
 
 typedef struct
 {
-    yfactor_t* factors;
-    int num_factors;            // unique factors
-    int alloc_factors;          // allocated unique factors
-    int total_factors;          // all factors
+    mpz_t N;                    // the input that we are going to track factors of
+    yfactor_t* factors;         // the factors.
+    int num_factors;            // # of unique factors
+    int alloc_factors;          // # of allocated unique factors
+    int total_factors;          // # of all factors
     char* factorization_str;    // a string with the full known factorization
     int str_alloc;              // allocated length of the factorization string
 
@@ -307,8 +309,7 @@ typedef struct
 typedef struct
 {
 	mpz_t gmp_n;            // the number to factor by NFS
-	mpz_t full_n;           // full form used for snfs
-    mpz_t snfs_cofactor;    // cofactor supplied to snfs function
+    mpz_t snfs_fullinput;   // cofactor supplied to snfs function
 	int snfs; // if this is a snfs job
 	int gnfs; // user wants gnfs
 	
@@ -513,25 +514,30 @@ typedef struct
 
 } fact_obj_t;
 
+
 // management of factor object structure
+fact_obj_t* new_default_factorization(mpz_t n);
+void new_factorization(fact_obj_t* fobj, mpz_t n);
 void init_factobj(fact_obj_t *fobj);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
-void copy_factobj(fact_obj_t* dest, fact_obj_t* src);
+void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int params_only);
 void alloc_factobj(fact_obj_t *fobj);
 
 // functions involving factor list structure
+void init_factor_list(yfactor_list_t* flist, mpz_t n);
 int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
     int VFLAG, int NUM_WITNESSES);
-void print_factors(fact_obj_t* fobj, yfactor_list_t* factorlist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE);
+void print_factors(fact_obj_t* fobj);
 void clear_factor_list(yfactor_list_t* fobj);
-void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src);
+void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 int find_in_factor_list(yfactor_list_t* flist, mpz_t n);
 void generate_factorization_str(yfactor_list_t* flist);
 int contains_any_composite_factor(yfactor_list_t* flist, int num_witnesses);
 void get_prod_of_factors(yfactor_list_t* flist, mpz_t prod);
-
+void compute_factor_types(yfactor_list_t* flist, int verbose, int force);
+int compute_factor_type(yfactor_list_t* flist, mpz_t n, int verbose);
 
 /* =============== interface to various small-factor-finding routines =========== */
 uint64_t spbrent(uint64_t N, uint64_t c, int imax);
@@ -549,7 +555,6 @@ int par_shanks_loop(uint64_t*N, uint64_t*f, int num_in);
 
 int sptestsqr(uint64_t n);
 uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n);
-
 
 // factoring related utility
 int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG);

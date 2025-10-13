@@ -220,6 +220,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t *job);
 qrange_t* get_next_range(qrange_data_t* qrange_data, char side);
 void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_t range);
 
+int nfs_check_special_case(fact_obj_t* fobj);
 enum nfs_state_e check_existing_files(fact_obj_t* fobj, uint32_t* last_spq, nfs_job_t* job);
 void extract_factors(factor_list_t* factor_list, fact_obj_t* fobj);
 uint32_t get_spq(char** lines, int last_line, fact_obj_t* fobj);
@@ -251,15 +252,15 @@ uint32_t mp_bits(mp_t* a);
 uint32_t factor_list_add(msieve_obj* obj, factor_list_t* list, mp_t* new_factor);
 
 //----------------------- SNFS FUNCTIONS -------------------------------------//
-void find_brent_form(fact_obj_t* fobj, snfs_t* poly);
-void find_hcunn_form(fact_obj_t* fobj, snfs_t* poly);
-void find_xyyxf_form(fact_obj_t* fobj, snfs_t* poly);
-void find_direct_form(fact_obj_t* fobj, snfs_t* poly);
-void find_lucas_form(fact_obj_t* fobj, snfs_t* poly);
+void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
+void find_hcunn_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
+void find_xyyxf_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
+void find_direct_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
+void find_lucas_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
 snfs_t* gen_brent_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys); // the workhorse
 snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys);
 snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys);
-int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
+int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t *polyin, int optimize_poly);
 void check_poly(snfs_t* poly, int VFLAG);
 void compute_difficulty_from_poly(snfs_t* poly, int VFLAG);
 void print_snfs(snfs_t* poly, FILE* out);

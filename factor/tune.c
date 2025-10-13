@@ -150,7 +150,7 @@ void factor_tune(fact_obj_t *inobj)
 	fact_obj_t fobj;
 
 	init_factobj(&fobj);
-	copy_factobj(&fobj, inobj);
+	copy_factobj(&fobj, inobj, 1);
 
 	//goto tune_ecm;
 
