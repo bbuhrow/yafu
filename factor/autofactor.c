@@ -382,8 +382,6 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
             logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
             factor_perfect_power(fobj, b);
-
-            mpz_set(fobj->N, b);
             break;
         }
 
@@ -618,6 +616,8 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		break;
 	}
 
+	mpz_set(fobj->N, b);
+
 	return;
 }
 
@@ -647,21 +647,14 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 	}
 
 	// check if the number is completely factorized and if all factors are PRP or PRIME
-#if 1
-	for (i = 0; i < fobj->factors->num_factors; i++)
-	{
-		int j;
-		for (j = 0; j < fobj->factors->factors[i].count; j++)
-			mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
-	}
+	get_prod_of_factors(fobj->factors, tmp);
+#if 0
+	
 #else
 	// start on an alternate to recursive calls to factor...
-	for (i=0; i<fobj->factors->num_factors; i++)
-	{		
-		int j;
-		for (j=0; j<fobj->factors->factors[i].count; j++)
-			mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
-
+	done = 1;
+	for (i = 0; i < fobj->factors->num_factors; i++)
+	{
 		if (fobj->factors->factors[i].type == UNKNOWN)
 		{
 			int status = is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES);
@@ -693,11 +686,21 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 				// if we are pretesting and have already done all of
 				// the ecm work specified then we are done.
 				done = 1;
+				mpz_clear(tmp);
+				return done;
 			}
 		}
 	}
 
-	done = done && (mpz_cmp(N, tmp) == 0);
+	if (done)
+	{
+		// everything is prime or PRP.
+		if (mpz_cmp(tmp, fobj->input_N) != 0)
+		{
+			// haven't found all of the factors yet
+			done = 0;
+		}
+	}
 
 	mpz_clear(tmp);
 	return done;
@@ -2490,6 +2493,51 @@ void factor(fact_obj_t *fobj)
         // if not done, figure out the next item of work.
         if (fact_state != state_done)
         {
+			if (mpz_cmp_ui(fobj->N, 1) == 0)
+			{
+				// not done, but N == 1, means there 
+				// must be a composite factor in our list.
+				// reset fwork and start on that.
+				int i;
+				for (i = 0; i < fobj->factors->num_factors; i++)
+				{
+					if (fobj->factors->factors[i].type == COMPOSITE)
+					{
+						mpz_set(fobj->N, fobj->factors->factors[i].factor);
+						mpz_set(b, fobj->factors->factors[i].factor);
+
+						if (fobj->factors->factors[i].count > 1)
+						{
+							fobj->factors->factors[i].count--;
+						}
+						else
+						{
+							delete_from_factor_list(fobj->factors, fobj->N);
+						}
+
+						if (fobj->VFLAG >= 1)
+						{
+							gmp_printf("fac: starting work on composite factor %Zd\n", fobj->N);
+						}
+					}					
+				}
+
+				// starting point of factorization effort.  composite factors are
+				// often the result of rho or ecm, where the factor is composed of
+				// two small primes.  fermat will sometimes split these, or rho/ecm
+				// again (with different modulus and sigmas)
+				init_factor_work(&fwork, fobj);
+				fact_state = state_trialdiv;
+
+				if (mpz_cmp_ui(fobj->N, 1) == 0)
+				{
+					// didn't find any composite factors, give up.
+					printf("fac: giving up with incomplete factorization\n");
+					fact_state = state_done;
+					continue;
+				}
+			}
+
             fact_state = schedule_work(&fwork, b, fobj);
         }
 	}
