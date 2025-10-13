@@ -22,6 +22,47 @@ code to the public domain.
 #include "mpz_aprcl.h"
 #include "soe.h"
 
+fact_obj_t* new_default_factorization(mpz_t n)
+{
+    fact_obj_t* fobj = (fact_obj_t*)xmalloc(sizeof(fact_obj_t));
+    init_factobj(fobj);
+
+    mpz_set(fobj->N, n);            // this one allowed to change if necessary throughout factorization process
+    mpz_set(fobj->input_N, n);      // this one remains constant
+    mpz_set(fobj->factors->N, n);   // this one too.
+}
+
+void new_factorization(fact_obj_t* fobj, mpz_t n)
+{
+    // set up the existing factor object for a new factorization of 'n'
+    clear_factor_list(fobj->factors);
+    init_factor_list(fobj->factors, n);
+
+    // set main input
+    mpz_set(fobj->N, n);            // this one allowed to change if necessary throughout factorization process
+    mpz_set(fobj->input_N, n);      // this one remains constant
+    
+    if (fobj->input_str_alloc > 0)
+    {
+        free(fobj->input_str);
+    }
+
+    fobj->input_str = mpz_get_str(NULL, 10, fobj->N);
+    fobj->input_str_alloc = strlen(fobj->input_str) + 1;
+
+    // reset specific inputs
+    mpz_set_ui(fobj->nfs_obj.gmp_n, 0);
+    mpz_set_ui(fobj->qs_obj.gmp_n, 0);
+    mpz_set_ui(fobj->ecm_obj.gmp_n, 0);
+    mpz_set_ui(fobj->div_obj.gmp_n, 0);
+    mpz_set_ui(fobj->rho_obj.gmp_n, 0);
+    mpz_set_ui(fobj->pm1_obj.gmp_n, 0);
+    mpz_set_ui(fobj->pp1_obj.gmp_n, 0);
+    mpz_set_ui(fobj->squfof_obj.gmp_n, 0);
+
+    return;
+}
+
 void init_factobj(fact_obj_t* fobj)
 {
     uint32_t seed1, seed2;
@@ -88,6 +129,12 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.use_gpudev = 0;
     fobj->ecm_obj.ttime = 0.0;
 
+    int i;
+    for (i = 0; i < (int)fobj->num_threads; i++)
+    {
+        fobj->ecm_obj.lcg_state[i] =
+            hash64(lcg_rand_64(&fobj->lcg_state));
+    }
 
     // unlike ggnfs, ecm does not *require* external binaries.  
     // an empty string indicates the use of the built-in GMP-ECM hooks, while
@@ -186,7 +233,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.poly_percent_max = 8;
     fobj->nfs_obj.td = 0;
     fobj->nfs_obj.batch_3lp = 0;
-    mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
+    mpz_set_ui(fobj->nfs_obj.snfs_fullinput, 0);
 
     fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
@@ -297,7 +344,7 @@ void free_factobj(fact_obj_t *fobj)
 
 	// then free other stuff in nfs
 	mpz_clear(fobj->nfs_obj.gmp_n);
-	mpz_clear(fobj->nfs_obj.snfs_cofactor);
+	mpz_clear(fobj->nfs_obj.snfs_fullinput);
 
 	//free general fobj stuff
 	mpz_clear(fobj->N);
@@ -365,25 +412,13 @@ void alloc_factobj(fact_obj_t *fobj)
     mpz_set_ui(fobj->div_obj.gmp_n, 0);
     mpz_set_ui(fobj->div_obj.gmp_f, 0);
 
-    mpz_init(fobj->nfs_obj.full_n);
 	mpz_init(fobj->nfs_obj.gmp_n);
-	mpz_init(fobj->nfs_obj.snfs_cofactor);
-    mpz_set_ui(fobj->nfs_obj.full_n, 0);
+	mpz_init(fobj->nfs_obj.snfs_fullinput);
     mpz_set_ui(fobj->nfs_obj.gmp_n, 0);
-    mpz_set_ui(fobj->nfs_obj.snfs_cofactor, 0);
+    mpz_set_ui(fobj->nfs_obj.snfs_fullinput, 0);
 
     fobj->factors = (yfactor_list_t*)xmalloc(1 * sizeof(yfactor_list_t));
-	fobj->factors->aprcl_display_cutoff = 200;
-	fobj->factors->aprcl_prove_cutoff = 500;
-	fobj->factors->alloc_factors = 256;
-	fobj->factors->factors = (yfactor_t *)xmalloc(256 * sizeof(yfactor_t));
-	for (i=0; i < fobj->factors->alloc_factors; i++)
-	{
-		fobj->factors->factors[i].type = UNKNOWN;
-		fobj->factors->factors[i].count = 0;
-	}
-    fobj->factors->factorization_str = NULL;
-    fobj->factors->str_alloc = 0;
+    init_factor_list(fobj->factors, fobj->N);
 
 	fobj->ecm_obj.num_factors = 0;	
 	fobj->qs_obj.num_factors = 0;	
@@ -403,7 +438,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	return;
 }
 
-void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
+void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
 {
     int i;
 
@@ -422,14 +457,20 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->THREADS = src->THREADS;
     dest->LATHREADS = src->LATHREADS;
 
-    copy_factor_list(dest->factors, src->factors);
+    if (!parameters_only)
+    {
+        copy_factor_list(dest->factors, src->factors, 0);
+    }
 
     // initialize stuff for rho	
     dest->rho_obj.iterations = src->rho_obj.iterations;
     dest->rho_obj.curr_poly = src->rho_obj.curr_poly;
 
     // initialize stuff for pm1	
-    mpz_set(dest->pm1_obj.gmp_n, src->pm1_obj.gmp_n);
+    if (!parameters_only)
+    {
+        mpz_set(dest->pm1_obj.gmp_n, src->pm1_obj.gmp_n);
+    }
     dest->pm1_obj.B1 = src->pm1_obj.B1;
     dest->pm1_obj.B2 = src->pm1_obj.B2;
     dest->pm1_obj.stg2_is_default = src->pm1_obj.stg2_is_default;
@@ -439,7 +480,10 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->pm1_obj.vecnum = src->pm1_obj.vecnum;
 
     // initialize stuff for pp1	
-    mpz_set(dest->pp1_obj.gmp_n, src->pp1_obj.gmp_n);
+    if (!parameters_only)
+    {
+        mpz_set(dest->pp1_obj.gmp_n, src->pp1_obj.gmp_n);
+    }
     dest->pp1_obj.B1 = src->pp1_obj.B1;
     dest->pp1_obj.B2 = src->pp1_obj.B2;
     dest->pp1_obj.stg2_is_default = src->pp1_obj.stg2_is_default;
@@ -449,7 +493,10 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->pp1_obj.vecnum = src->pp1_obj.vecnum;
 
     // initialize stuff for ecm	
-    mpz_set(dest->ecm_obj.gmp_n, src->ecm_obj.gmp_n);
+    if (!parameters_only)
+    {
+        mpz_set(dest->ecm_obj.gmp_n, src->ecm_obj.gmp_n);
+    }
     dest->ecm_obj.B1 = src->ecm_obj.B1;
     dest->ecm_obj.B2 = src->ecm_obj.B2;
     dest->ecm_obj.stg2_is_default = src->ecm_obj.stg2_is_default;
@@ -480,20 +527,25 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->ecm_obj.ecm_ext_xover = src->ecm_obj.ecm_ext_xover;
 #endif
 
-    dest->ecm_obj.lcg_state = (uint64_t*)xrealloc(dest->ecm_obj.lcg_state,
-        src->num_threads * sizeof(uint64_t));
-    for (i = 0; i < (int)src->num_threads; i++)
+    if (!parameters_only)
     {
-        dest->ecm_obj.lcg_state[i] =
-            hash64(lcg_rand_64(&dest->lcg_state));
+        dest->ecm_obj.lcg_state = (uint64_t*)xrealloc(dest->ecm_obj.lcg_state,
+            src->num_threads * sizeof(uint64_t));
+        for (i = 0; i < (int)src->num_threads; i++)
+        {
+            dest->ecm_obj.lcg_state[i] =
+                hash64(lcg_rand_64(&dest->lcg_state));
+        }
     }
-
 
     // initialize stuff for squfof
     dest->squfof_obj.num_factors = src->squfof_obj.num_factors;
 
     // initialize stuff for qs	
-    mpz_set(dest->qs_obj.gmp_n, src->qs_obj.gmp_n);
+    if (!parameters_only)
+    {
+        mpz_set(dest->qs_obj.gmp_n, src->qs_obj.gmp_n);
+    }
     dest->qs_obj.gbl_override_B_flag = src->qs_obj.gbl_override_B_flag;
     dest->qs_obj.gbl_override_B = src->qs_obj.gbl_override_B;
     dest->qs_obj.gbl_override_small_cutoff_flag = src->qs_obj.gbl_override_small_cutoff_flag;
@@ -527,18 +579,27 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->qs_obj.qs_tune_freq = src->qs_obj.qs_tune_freq;
     dest->qs_obj.no_small_cutoff_opt = src->qs_obj.no_small_cutoff_opt;
     strcpy(dest->qs_obj.siqs_savefile, src->qs_obj.siqs_savefile);
-    init_lehman();
+
+    if (!parameters_only)
+    {
+        init_lehman();
+    }
 
     // initialize stuff for trial division	
-    mpz_set(dest->div_obj.gmp_n, src->div_obj.gmp_n);
+    if (!parameters_only)
+    {
+        mpz_set(dest->div_obj.gmp_n, src->div_obj.gmp_n);
+    }
     dest->div_obj.print = src->div_obj.print;
     dest->div_obj.limit = src->div_obj.limit;
     dest->div_obj.fmtlimit = src->div_obj.fmtlimit;
 
     //initialize stuff for nfs
-    mpz_set(dest->nfs_obj.gmp_n, src->nfs_obj.gmp_n);
-    mpz_set(dest->nfs_obj.full_n, src->nfs_obj.full_n);
-    mpz_set(dest->nfs_obj.snfs_cofactor, src->nfs_obj.snfs_cofactor);
+    if (!parameters_only)
+    {
+        mpz_set(dest->nfs_obj.gmp_n, src->nfs_obj.gmp_n);
+        mpz_set(dest->nfs_obj.snfs_fullinput, src->nfs_obj.snfs_fullinput);
+    }
     dest->nfs_obj.snfs = src->nfs_obj.snfs;
     dest->nfs_obj.gnfs = src->nfs_obj.gnfs;
     dest->nfs_obj.gnfs_exponent = src->nfs_obj.gnfs_exponent;
@@ -779,61 +840,7 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
 	mpz_init(flist->factors[fid].factor);
 	mpz_set(flist->factors[fid].factor, n);
     flist->factors[fid].count = 1;
-    flist->factors[fid].type = UNKNOWN;
-
-	if (gmp_base10(n) <= flist->aprcl_prove_cutoff) /* prove primality of numbers <= aprcl_prove_cutoff digits */
-	{
-		int ret = 0;
-
-		if (VFLAG > 0)
-			v = (gmp_base10(n) < flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
-		else
-			v = APRTCLE_VERBOSE0;
-
-		if (v == APRTCLE_VERBOSE1)
-			printf("\n");
-
-		ret = mpz_aprtcle(n, v);
-
-        //printf("aprtcle returned %d\n", ret);
-
-		if (v == APRTCLE_VERBOSE1)
-			printf("\n");
-
-		if (ret == APRTCLE_PRIME)
-            flist->factors[fid].type = PRIME;
-		else
-		{
-			if (mpz_bpsw_prp(n) != PRP_COMPOSITE)
-			{
-				// if BPSW doesn't think this composite number is actually composite, then ask the user
-				// to report this fact to the YAFU sub-forum at mersenneforum.org
-				printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
-				printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
-				gmp_printf(" *** ATTENTION: n = %Zd\n", n);
-			}
-            flist->factors[fid].type = COMPOSITE;
-		}
-	}
-    else if (NUM_WITNESSES > 0)
-    {
-
-        if (is_mpz_prp(n, NUM_WITNESSES))
-        {
-            if (mpz_cmp_ui(n, 100000000) < 0)
-                flist->factors[fid].type = PRIME;
-            else
-                flist->factors[fid].type = PRP;
-        }
-        else
-        {
-            flist->factors[fid].type = COMPOSITE;
-        }
-    }
-    else
-    {
-        flist->factors[fid].type = UNKNOWN;
-    }
+    flist->factors[fid].type = compute_factor_type(flist, n, VFLAG);
 
     flist->num_factors++;
 	return fid;
@@ -871,9 +878,47 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
 	return;
 }
 
-void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src)
+void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
 {
-    // don't "add_to_factor_list" because it will re-run apr-cl or is_mpz_prp on the factors.
+    dest->alloc_factors = src->alloc_factors;
+    dest->aprcl_display_cutoff = src->aprcl_display_cutoff;
+    dest->aprcl_prove_cutoff = src->aprcl_prove_cutoff;
+    if (alloc_dest)
+    {
+        dest->factorization_str = (char*)xmalloc(src->str_alloc * sizeof(char));
+    }
+    strcpy(dest->factorization_str, src->factorization_str);
+
+    if (alloc_dest)
+    {
+        mpz_init(dest->N);
+    }
+    mpz_set(dest->N, src->N);
+    dest->num_factors = src->num_factors;
+    dest->str_alloc = src->str_alloc;
+    dest->total_factors = src->total_factors;
+
+    if (alloc_dest)
+    {
+        dest->factors = (yfactor_t*)xmalloc(src->alloc_factors * sizeof(yfactor_t));
+    }
+
+    int i;
+    for (i = 0; i < src->num_factors; i++)
+    {
+        if (alloc_dest)
+        {
+            mpz_init(dest->factors[i].factor);
+        }
+        mpz_set(dest->factors[i].factor, src->factors[i].factor);
+        dest->factors[i].count = src->factors[i].count;
+        dest->factors[i].curve_num = src->factors[i].curve_num;
+        dest->factors[i].method = src->factors[i].method;
+        dest->factors[i].sigma = src->factors[i].sigma;
+        dest->factors[i].tid = src->factors[i].tid;
+        dest->factors[i].type = src->factors[i].type;
+        dest->factors[i].vid = src->factors[i].vid;
+    }
 
     return;
 }
@@ -892,17 +937,41 @@ char* append_factor(char* in, mpz_t factor)
     return out;
 }
 
+void init_factor_list(yfactor_list_t* flist, mpz_t n)
+{
+    // allocate and prepare a factor list for a new input 'n'
+    mpz_init(flist->N);
+    mpz_set(flist->N, n);
+    flist->alloc_factors = 2;
+    flist->num_factors = 0;
+    flist->total_factors = 0;
+    flist->factors = (yfactor_t*)xmalloc(flist->alloc_factors * sizeof(yfactor_t));
+    int i;
+    for (i = 0; i < flist->alloc_factors; i++)
+    {
+        mpz_init(flist->factors[i].factor);
+        flist->factors[i].type = UNKNOWN;
+        flist->factors[i].count = 0;
+        flist->factors[i].method = -1;
+        flist->factors[i].curve_num = 0;
+        flist->factors[i].tid = -1;
+        flist->factors[i].vid = -1;
+    }
+    flist->factorization_str = NULL;
+    flist->str_alloc = 0;
+    return;
+}
+
 void clear_factor_list(yfactor_list_t * flist)
 {
 	int i;
 
-	//clear this info
     for (i = 0; i < flist->num_factors; i++)
     {
-        flist->factors[i].count = 0;
         mpz_clear(flist->factors[i].factor);
     }
     free(flist->factors);
+    flist->alloc_factors = 0;
     flist->num_factors = 0;
     flist->total_factors = 0;
 
@@ -910,6 +979,8 @@ void clear_factor_list(yfactor_list_t * flist)
     {
         free(flist->factorization_str);
     }
+
+    mpz_clear(flist->N);
 
 	return;
 }
@@ -949,6 +1020,9 @@ void generate_factorization_str(yfactor_list_t* flist)
             tersebuf = append_factor(tersebuf, flist->factors[i].factor);
         }
     }
+
+    // we know we have at least one factor... remove the last '*' symbol
+    tersebuf[strlen(tersebuf) - 1] = '\0';
 
     if (flist->factorization_str != NULL)
     {
@@ -1054,6 +1128,83 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 	return retval;
 }
 
+int compute_factor_type(yfactor_list_t* flist, mpz_t n, int verbose)
+{
+    if (gmp_base10(n) <= flist->aprcl_prove_cutoff) /* prove primality of numbers <= aprcl_prove_cutoff digits */
+    {
+        int ret = 0;
+        int v;
+
+        if (verbose > 0)
+            v = (gmp_base10(n) < flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+        else
+            v = APRTCLE_VERBOSE0;
+
+        if (v == APRTCLE_VERBOSE1)
+            printf("\n");
+
+        ret = mpz_aprtcle(n, v);
+
+        if (v == APRTCLE_VERBOSE1)
+            printf("\n");
+
+        if (ret == APRTCLE_PRIME)
+        {
+            return PRIME;
+        }
+        else if (ret == PRP_PRP)
+        {
+            return PRP;
+        }
+        else
+        {
+            return COMPOSITE;
+        }
+    }
+    else
+    {
+        if (mpz_bpsw_prp(n))
+        {
+            return PRP;
+        }
+        else
+        {
+            return COMPOSITE;
+        }
+    }
+    return UNKNOWN;
+}
+
+void compute_factor_types(yfactor_list_t* flist, int verbose, int force)
+{
+    int i;
+    int v;
+
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        switch (flist->factors[i].type)
+        {
+        case PRIME:
+        case PRP:
+        case COMPOSITE:
+            if (force)
+            {
+                // recompute the type
+            }
+            else
+            {
+                break;
+            }
+        case UNKNOWN:
+            // compute the type
+            flist->factors[i].type = compute_factor_type(flist, flist->factors[i].factor, verbose);
+
+            break;
+        }
+    }
+    return;
+}
+
 void print_factor(const char* prefix, mpz_t factor, int OBASE)
 {
     // print the size in base-10 digits and the factor in the requested base.
@@ -1083,326 +1234,81 @@ void print_factor(const char* prefix, mpz_t factor, int OBASE)
     return;
 }
 
-
-
-void print_factors(fact_obj_t *fobj, yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES, int OBASE)
+void print_factors(fact_obj_t *fobj)
 {
+    yfactor_list_t* flist = fobj->factors;
+    int VFLAG = fobj->VFLAG;
+    int NUM_WITNESSES = fobj->NUM_WITNESSES;
+    int OBASE = fobj->OBASE;
 	uint32_t i;
 	int j, v;
-	mpz_t tmp, tmp2;
-    char* tersebuf = NULL;
-    int maxlen = 0;
+	mpz_t prod, remainder;
     int print_terse = fobj->OUTPUT_TERSE;
 
-    if (print_terse)
-    {    
-        maxlen = MAX(gmp_base10(fobj->input_N) + 4, 1024);
-        tersebuf = (char*)xmalloc(maxlen * 4);
-        strcpy(tersebuf, "");
+    mpz_init(prod);
+    mpz_init(remainder);
+    get_prod_of_factors(flist, prod);
+    compute_factor_types(flist, VFLAG, 0);      // make sure everything has a type
+
+    mpz_tdiv_r(remainder, flist->N, prod);
+
+    if (mpz_cmp_ui(remainder, 0) != 0)
+    {
+        // what to do if the product of factors doesn't equal the input?
+        // clearly something went wrong somewhere, log the error.
+        printf("err: product of factors %Zd doesn't equal input %Zd\n", prod, flist->N);
+        logprint_oc(fobj->flogname, "a", "err: product of factors doesn't equal input\n");
+    }
+
+    mpz_tdiv_q(remainder, flist->N, prod);
+
+    // put anything left over in the list
+    if (mpz_cmp_ui(remainder, 1) > 0)
+    {
+        add_to_factor_list(flist, remainder, VFLAG, NUM_WITNESSES);
     }
 
 	// always print factors unless complete silence is requested
-	if ((VFLAG >= 0) || print_terse)
-	{
-		if (VFLAG >= 0) printf("\n\n***factors found***\n");
-		mpz_init(tmp);
-		mpz_set_ui(tmp, 1);
+    if (VFLAG >= 0)
+    {
+        if (VFLAG >= 0) printf("\n\n***factors found***\n");
 
-		for (i=0; i< flist->num_factors; i++)
-		{
-			if (flist->factors[i].type == PRIME)
-			{
-				// don't redo APR-CL calculations already performed by add_to_factor_list
-				for (j=0;j< flist->factors[i].count;j++)
-				{
-					mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    if (print_terse) {
-                        tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                    }
-                    print_factor("P", flist->factors[i].factor, OBASE);
-				}
-			}
-			else if (flist->factors[i].type == PRP)
+        char typestr[8];
+
+        for (i = 0; i < flist->num_factors; i++)
+        {
+            if (flist->factors[i].type == PRIME)
             {
-                // don't redo mpz_isprobab_prime calculations already performed by add_to_factor_list
-                for (j = 0; j < flist->factors[i].count; j++)
-                {
-                    mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    if (print_terse) {
-                        tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                    }
-                    print_factor("PRP", flist->factors[i].factor, OBASE);
-                }
+                strcpy(typestr, "P");
+            }
+            else if (flist->factors[i].type == PRP)
+            {
+                strcpy(typestr, "PRP");
             }
             else if (flist->factors[i].type == COMPOSITE)
             {
-                // don't redo mpz_isprobab_prime calculations already performed by add_to_factor_list
-                for (j = 0; j < flist->factors[i].count; j++)
-                {
-                    mpz_mul(tmp, tmp, flist->factors[i].factor);
-                    if (print_terse) {
-                        tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                    }
-                    print_factor("C", flist->factors[i].factor, OBASE);
-                }
+                strcpy(typestr, "C");
             }
             else
-			{
-				//type not set, determine it now
-				/* prove primality of numbers <= aprcl_prove_cutoff digits */
-				if (gmp_base10(flist->factors[i].factor) <=
-                    flist->aprcl_prove_cutoff)
-				{
-					int ret = 0;
-					if (VFLAG > 0)
-						v = (gmp_base10(flist->factors[i].factor) <
-                            flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
-					else
-						v = APRTCLE_VERBOSE0;
-
-					if (v == APRTCLE_VERBOSE1)
-						printf("\n");
-					ret = mpz_aprtcle(flist->factors[i].factor, v);
-
-                    //gmp_printf("in print_factors aprtcle returned status %d on input %Zd\n", ret, 
-                    //    flist->factors[i].factor);
-
-					if (v == APRTCLE_VERBOSE1)
-						printf("\n");
-
-					if (ret == APRTCLE_PRIME)
-					{
-						for (j=0;j< flist->factors[i].count;j++)
-						{
-							mpz_mul(tmp, tmp, flist->factors[i].factor);
-							//gmp_printf("P%d = %Zd\n", 
-                            //    gmp_base10(flist->factors[i].factor),
-                            //    flist->factors[i].factor);
-                            if (print_terse) {
-                                tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                            }
-                            print_factor("P", flist->factors[i].factor, OBASE);
-						}
-					}
-					else
-					{
-						if (mpz_bpsw_prp(flist->factors[i].factor) != PRP_COMPOSITE)
-						{
-							// if BPSW doesn't think this composite number is actually composite, then ask the user
-							// to report this fact to the YAFU sub-forum at mersenneforum.org
-							printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
-							printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
-							gmp_printf(" *** ATTENTION: n = %Zd\n", flist->factors[i].factor);
-						}
-						for (j=0;j< flist->factors[i].count;j++)
-						{
-							mpz_mul(tmp, tmp, flist->factors[i].factor);
-							//gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
-                            //    flist->factors[i].factor);
-                            if (print_terse) {
-                                tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                            }
-                            print_factor("C", flist->factors[i].factor, OBASE);
-						}
-					}
-				}
-                else if (NUM_WITNESSES > 0)
-                {
-                    if (is_mpz_prp(flist->factors[i].factor, NUM_WITNESSES))
-                    {
-                        for (j = 0; j < flist->factors[i].count; j++)
-                        {
-                            mpz_mul(tmp, tmp, flist->factors[i].factor);
-                            if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
-                            {
-                                if (print_terse) {
-                                    tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                                }
-                                print_factor("P", flist->factors[i].factor, OBASE);
-                            }
-                            else
-                            {
-                                if (print_terse) {
-                                    tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                                }
-                                print_factor("PRP", flist->factors[i].factor, OBASE);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        for (j = 0; j < flist->factors[i].count; j++)
-                        {
-                            mpz_mul(tmp, tmp, flist->factors[i].factor);
-                            if (print_terse) {
-                                tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                            }
-                            print_factor("C", flist->factors[i].factor, OBASE);
-                        }
-                    }
-                }
-                else
-                {
-                    for (j = 0; j < flist->factors[i].count; j++)
-                    {
-                        mpz_mul(tmp, tmp, flist->factors[i].factor);
-                        if (print_terse) {
-                            tersebuf = append_factor(tersebuf, flist->factors[i].factor);
-                        }
-                        print_factor("U", flist->factors[i].factor, OBASE);
-                    }
-                }
-			}
-		}
-
-        //printf("after processing factors, tersebuf = %s\n", tersebuf);
-
-		mpz_init(tmp2);
-		mpz_set(tmp2, N);
-		if (mpz_cmp_ui(tmp2, 1) > 0)
-		{
-			// non-trivial N remaining... compute and display the known co-factor
-			mpz_tdiv_q(tmp2, tmp2, tmp);
-			if (mpz_cmp_ui(tmp2, 1) > 0)
-			{
-				/* prove primality of numbers <= aprcl_prove_cutoff digits */
-				if (gmp_base10(tmp2) <= flist->aprcl_prove_cutoff)
-				{
-					int ret = 0;
-					if (VFLAG > 0)
-						v = (gmp_base10(tmp2) < flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
-					else
-						v = APRTCLE_VERBOSE0;
-
-					if (v == APRTCLE_VERBOSE1)
-						printf("\n");
-					ret = mpz_aprtcle(tmp2, v);
-					if (v == APRTCLE_VERBOSE1)
-						printf("\n");
-
-                    if (ret == APRTCLE_PRIME)
-                    {
-                        if (OBASE == 8)
-                        {
-                            gmp_printf("\n***co-factor***\nP%d = %Zo\n",
-                                mpz_sizeinbase(tmp2, 8), tmp2);
-                        }
-                        else if (OBASE == 10)
-                        {
-                            gmp_printf("\n***co-factor***\nP%d = %Zd\n",
-                                gmp_base10(tmp2), tmp2);
-                        }
-                        else if (OBASE == 16)
-                        {
-                            gmp_printf("\n***co-factor***\nP%d = %Zx\n",
-                                mpz_sizeinbase(tmp2, 16), tmp2);
-                        }
-                    }
-					else
-					{
-						if (mpz_bpsw_prp(tmp2) != PRP_COMPOSITE)
-						{
-							// if BPSW doesn't think this composite number is actually composite, then ask the user
-							// to report this fact to the YAFU sub-forum at mersenneforum.org
-							printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
-							printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
-							gmp_printf(" *** ATTENTION: n = %Zd\n", tmp2);
-						}
-                        if (OBASE == 8)
-                        {
-                            gmp_printf("\n***co-factor***\nC%d = %Zo\n",
-                                mpz_sizeinbase(tmp2, 8), tmp2);
-                        }
-                        else if (OBASE == 10)
-                        {
-                            gmp_printf("\n***co-factor***\nC%d = %Zd\n",
-                                gmp_base10(tmp2), tmp2);
-                        }
-                        else if (OBASE == 16)
-                        {
-                            gmp_printf("\n***co-factor***\nC%d = %Zx\n",
-                                mpz_sizeinbase(tmp2, 16), tmp2);
-                        }
-					}
-				}
-                else if (NUM_WITNESSES > 0)
-                {
-                    if (is_mpz_prp(tmp2, NUM_WITNESSES))
-                    {
-                        if (OBASE == 8)
-                        {
-                            gmp_printf("\n***co-factor***\nPRP%d = %Zo\n",
-                                mpz_sizeinbase(tmp2, 8), tmp2);
-                        }
-                        else if (OBASE == 10)
-                        {
-                            gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
-                                gmp_base10(tmp2), tmp2);
-                        }
-                        else if (OBASE == 16)
-                        {
-                            gmp_printf("\n***co-factor***\nPRP%d = %Zx\n",
-                                mpz_sizeinbase(tmp2, 16), tmp2);
-                        }
-                    }
-                    else
-                    {
-                        if (OBASE == 8)
-                        {
-                            gmp_printf("\n***co-factor***\nC%d = %Zo\n",
-                                mpz_sizeinbase(tmp2, 8), tmp2);
-                        }
-                        else if (OBASE == 10)
-                        {
-                            gmp_printf("\n***co-factor***\nC%d = %Zd\n",
-                                gmp_base10(tmp2), tmp2);
-                        }
-                        else if (OBASE == 16)
-                        {
-                            gmp_printf("\n***co-factor***\nC%d = %Zx\n",
-                                mpz_sizeinbase(tmp2, 16), tmp2);
-                        }
-                    }
-                }
-                else
-                {
-                    if (OBASE == 8)
-                    {
-                        gmp_printf("\n***co-factor***\nU%d = %Zo\n",
-                            mpz_sizeinbase(tmp2, 8), tmp2);
-                    }
-                    else if (OBASE == 10)
-                    {
-                        gmp_printf("\n***co-factor***\nU%d = %Zd\n",
-                            gmp_base10(tmp2), tmp2);
-                    }
-                    else if (OBASE == 16)
-                    {
-                        gmp_printf("\n***co-factor***\nU%d = %Zx\n",
-                            mpz_sizeinbase(tmp2, 16), tmp2);
-                    }
-                }
-			}			
-		}
-
-        //gmp_printf("after processing cofactors, tmp2 = %Zd\n", tmp2);
-        //printf("after processing cofactors, tersebuf = %s,maxlen = %d\n", tersebuf,maxlen);
-
-        if (print_terse)
-        {
-            if (mpz_cmp_ui(tmp2, 1) > 0)
             {
-                tersebuf = append_factor(tersebuf, tmp2);
+                strcpy(typestr, "U");
             }
 
-            tersebuf[strlen(tersebuf) - 1] = '\0';
-            gmp_printf("\n***factorization:***\n%Zd=%s\n", fobj->input_N, tersebuf);
-            free(tersebuf);
+            for (j = 0; j < flist->factors[i].count; j++)
+            {
+                print_factor(typestr, flist->factors[i].factor, OBASE);
+            }
         }
+    }
 
-		mpz_clear(tmp);
-		mpz_clear(tmp2);
-	}
+    if (print_terse)
+    {
+        generate_factorization_str(flist);
+        gmp_printf("\n***factorization:***\n%s\n", flist->factorization_str);
+    }
+
+    mpz_clear(prod);
+    mpz_clear(remainder);
 
 	return;
 }

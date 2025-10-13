@@ -160,7 +160,7 @@ void williams_loop(fact_obj_t *fobj)
             //watch for an abort
             if (PP1_ABORT)
             {
-                print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+                print_factors(fobj);
                 exit(1);
             }
 

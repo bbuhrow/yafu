@@ -2323,22 +2323,28 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // siqs - one argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
 
     case 41:
         // siqs - one argument
         if (check_args(funcnum, nargs)) break;
 
-        mpz_set(fobj->N, operands[0]);
+        // set up a new factorization of the provided input
+        new_factorization(fobj, operands[0]);
+
+        // customize for this method
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
         break;
 
     case 42:
@@ -2366,7 +2372,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 fclose(fobj->logfile);
         }
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj,fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES, fobj->OBASE);
+        print_factors(fobj);
 
         break;
 
