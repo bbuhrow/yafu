@@ -1706,7 +1706,9 @@ uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, c
 		*nexttok = '\0';
 		nexttok++;
 
-		sscanf(thistok, "%ld,%u", &a, &b);
+		//a = strtoll(thistok, &nexttok, 10);
+		//b = strtoul(nexttok + 1, &nexttok, 10);
+		sscanf(thistok, "%"PRId64",%u", &a, &b);
 
 		thistok = nexttok;
 		nexttok = strchr(thistok, ':');
@@ -1793,7 +1795,7 @@ uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, c
 
 				uint32_t* f = rb->factors + rb->relations[i].factor_list_word;
 
-				fprintf(fout, "%ld,%u:", rb->relations[i].a, rb->relations[i].b);
+				fprintf(fout, "%"PRId64",%u:", rb->relations[i].a, rb->relations[i].b);
 				for (j = 0; j < 3; j++)
 				{
 					if (rb->relations[i].lp_r[j] > 1)
