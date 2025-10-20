@@ -15,7 +15,7 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include <stdint.h>
 #include "batch_factor.h"
 #include "monty.h"
-#include "prime_sieve.h"
+#include "soe.h"
 #include "yafu_ecm.h"
 #include "microecm.h"
 #include "tinyecm.h"
@@ -219,7 +219,7 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
 #define BREAKOVER_WORDS 50
 
 void multiply_primes(uint32_t first, uint32_t last,
-    prime_sieve_t *sieve, mpz_t prod) {
+    uint64_t *primes, mpz_t prod) {
 
     /* recursive routine to multiply all the elements of a
        list of consecutive primes. The current invocation
@@ -232,10 +232,9 @@ void multiply_primes(uint32_t first, uint32_t last,
     /* base case; accumulate a few primes */
 
     if (last < first + BREAKOVER_WORDS) {
-        mpz_set_ui(prod, (unsigned long)get_next_prime(sieve));
-        while (++first <= last) {
-            mpz_mul_ui(prod, prod,
-                (unsigned long)get_next_prime(sieve));
+        mpz_set_ui(prod, primes[first]);
+        while (++first < last) {
+            mpz_mul_ui(prod, prod, primes[first]);
         }
         return;
     }
@@ -243,8 +242,8 @@ void multiply_primes(uint32_t first, uint32_t last,
     /* recursively handle the left and right halves of the list */
 
     mpz_init(half_prod);
-    multiply_primes(first, mid, sieve, prod);
-    multiply_primes(mid + 1, last, sieve, half_prod);
+    multiply_primes(first, mid, primes, prod);
+    multiply_primes(mid, last, primes, half_prod);
 
     /* multiply them together. We can take advantage of
        fast multiplication since in general the two half-
@@ -642,7 +641,7 @@ void check_batch_relation(relation_batch_t *rb,
 	uint32_t lp_r[MAX_LARGE_PRIMES];
 	uint32_t lp_a[MAX_LARGE_PRIMES];
 	uint32_t num_r = 0, num_a = 0;
-    int do_r_first = 1;
+    int do_r_first = 0;
 
 	/* first compute gcd(prime_product, rational large cofactor).
 	   The rational part will split into a cofactor with all 
@@ -2217,30 +2216,37 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 
     if (do_prime_product)
     {
-        prime_sieve_t sieve;
-        uint32_t num_primes, p;
+        // prime_sieve_t sieve;
+        uint32_t p;
 
         /* count the number of primes to multiply. Knowing this
             in advance makes the recursion a lot easier, at the cost
             of a small penalty in runtime */
 
-        init_prime_sieve(&sieve, min_prime + 1, max_prime);
-        p = min_prime;
-        num_primes = 0;
-        while (p < max_prime) {
-            p = get_next_prime(&sieve);
-            num_primes++;
-        }
-        free_prime_sieve(&sieve);
+        // init_prime_sieve(&sieve, min_prime + 1, max_prime);
+        // p = min_prime;
+        // num_primes = 0;
+        // while (p < max_prime) {
+        //     p = get_next_prime(&sieve);
+        //     num_primes++;
+        // }
+        // free_prime_sieve(&sieve);
+
+        soe_staticdata_t *sdata = soe_init(0, 1, 32768);
+        uint64_t num_primes;
+        uint64_t *primes = soe_wrapper(sdata, min_prime, max_prime, 0, &num_primes, 0, 0);
 
         ///* compute the product of primes */
 
-        logprint(logfile, "multiplying %u primes from %u to %u\n",
-            num_primes, min_prime, max_prime);
+        logprint(logfile, "multiplying %"PRIu64" primes from %u to %"PRIu64"\n",
+            num_primes, primes[0], primes[num_primes-1]);
 
-        init_prime_sieve(&sieve, min_prime, max_prime);
-        multiply_primes(0, num_primes - 2, &sieve, rb->prime_product);
-        free_prime_sieve(&sieve);
+        //init_prime_sieve(&sieve, min_prime, max_prime);
+        multiply_primes(0, num_primes, primes, rb->prime_product);
+        //free_prime_sieve(&sieve);
+
+        free(primes);
+        soe_finalize(sdata);
 
         logprint(logfile, "multiply complete, product has %u bits\n",
             (uint32_t)mpz_sizeinbase(rb->prime_product, 2));
