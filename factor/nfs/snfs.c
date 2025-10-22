@@ -207,6 +207,17 @@ void check_poly(snfs_t *poly, int VFLAG)
 		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) mod N\n" "Remainder is %Zd\n\n",
 			poly->n, poly->poly->m, t);
 	}
+
+	if (((poly->poly->skew > 0.0) && (poly->poly->skew < 1e-15)) ||
+		(poly->poly->skew > 1e15))
+	{
+		poly->valid = 0;
+		if (VFLAG > 0)
+		{
+			printf("nfs: poly has extremely skewed coefficients (skew = %1.6e), marking as invalid\n",
+				poly->poly->skew);
+		}
+	}
 	
 	//if (!isnormal(poly->anorm) || !isnormal(poly->rnorm)) // can they be negative?
 	//{
@@ -473,11 +484,12 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	return;
 }
 
-void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
+int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 {
 	int i,j,maxa,maxb,startb;
 	mpz_t p, a, b, r, q;
 	uint32_t inc = 1<<30;
+	int returncode = 0;
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
@@ -496,6 +508,8 @@ void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 	mpz_init(b);
 	mpz_init(r);
 	mpz_init(q);
+
+	//gmp_printf("find_brent_form on %Zd, form->n = %Zd\n", n, form->n);
 
 	for (i=2; i<maxa; i++)
 	{
@@ -520,9 +534,10 @@ void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 			mpz_mul(p, p, b);		// p = i^j
 			mpz_add_ui(r, n, inc);	// r = n + 2^30
 			mpz_mod(r, r, p);		// r = (n + 2^30) % i^j
+			//gmp_printf("base = %d, exp = %d, p = %Zd, r = %Zd, size(r) = %d\n", i, j, p, r, mpz_sizeinbase(r, 2));
 
 			// now, if r is a single limb, then the input has a small coefficient
-			if (mpz_sizeinbase(r,2) <= 31)
+			if (mpz_sizeinbase(r, 2) <= 31)
 			{
 				// get the second coefficient first
 				int sign, c1, c2;
@@ -593,7 +608,13 @@ void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 				{
 					// with no leading coefficients, a -1 constant term, and
 					// even exponent, the exponent can be divided by 2.
+					// but we have no ability to add the +1 term as a factor 
+					// in this routine.  return a code indicating this fact.
+					// printf("input has algebraic factorization (%d^%d - 1) * (%d^%d + 1)\n"
+					// 	"please use one of these forms\n", i, j/2, i, j/2);
+					// exit(0);
 					j /= 2;
+					returncode = 2;
 				}
 
 				form->form_type = SNFS_BRENT;
@@ -603,12 +624,15 @@ void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 				form->exp1 = j;
 				form->coeff2 = sign ? c2 : -c2;
 				mpz_set(form->n, n);
+				//printf("form brent: %d, %d, %d, %d, %d\n", c1, form->coeff2, i, 1, j);
 				goto done;
 			}
 
 			// now find any *divisors* of n = i^j + c, where c < 2^32
 			mpz_mod(r, p, n);
 			mpz_sub(q, n, r);
+
+			//gmp_printf("r = %Zd, q = %Zd\n", r, q);
 
 			// now, if r is a single limb, then the input has a small coefficient
 			if ((mpz_sizeinbase(r,2) <= 31) || (mpz_sizeinbase(q,2) <= 31))
@@ -673,6 +697,7 @@ void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 				form->exp1 = j;
 				form->coeff2 = sign ? c2 : -c2;
 				mpz_set(form->n, n);
+				//printf("form brent: %d, %d, %d, %d, %d\n", c1, form->coeff2, i, 1, j);
 				goto done;
 			}
 
@@ -812,7 +837,7 @@ done:
 	mpz_clear(r);
 	mpz_clear(q);
 
-	return;
+	return returncode;
 }
 
 void find_hcunn_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
@@ -2738,6 +2763,8 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 	{
 		gmp_printf("gen: searching for algebraic factors of exponent %d, bases %Zd, %Zd, coeffs %d, %d\n",
 			e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
+		//gmp_printf("gen: input n = %Zd\n", fobj->nfs_obj.gmp_n);
+		//gmp_printf("gen: input poly->n = %Zd\n", poly->n);
 	}
 
 	// rank 1 is a list of the distinct odd factors.
@@ -2948,14 +2975,17 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 	}
 
-	mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+	// the primitive factor divides poly->n; the current input fobj->nfs_obj.gmp_n may not.
+	// so it's not always correct to put fobj->nfs_obj.gmp_n into the poly input.
+	//mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+	mpz_set(poly->n, poly->primitive);
 
 	if (VFLAG > 2)
 	{
-		gmp_printf("gen: after remove_algebraic_factors(), nfs_obj.gmp_n is now %Zd\n", fobj->nfs_obj.gmp_n);
+		gmp_printf("gen: after remove_algebraic_factors()\n\tnfs_obj.gmp_n = %Zd\n", fobj->nfs_obj.gmp_n);
+		gmp_printf("\tpoly->primitive = %Zd\n", poly->primitive);
+		gmp_printf("\tpoly->n = %Zd\n", poly->n);
 	}
-
-
 
 	find_aurifeuillian_form(fobj, poly);
 
@@ -3473,6 +3503,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	mpz_set(b, poly->base1);
 	mpz_set(b2, poly->base2);
+
+	if (fobj->VFLAG > 0)
+	{
+		gmp_printf("gen: building brent poly for exponent %d, bases %Zd, %Zd, coeffs %d, %d\n",
+			e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
+	}
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
@@ -4038,7 +4074,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		if (!mpz_probab_prime_p(m, 10))
 		{
 			numf = tdiv_mpz(b, f, fobj->primes, fobj->num_p);
-			gmp_printf("gen: composite base %Zd has %d factors\n", b, numf);
+			//gmp_printf("gen: composite base %Zd has %d factors\n", b, numf);
 		}
 
 		// initialize candidate polynomials now that we know how many we'll need.
@@ -4225,11 +4261,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_tdiv_q(polys[npoly].c[i], polys[npoly].c[i], tmp);
 				mpz_tdiv_q(polys[npoly].c[0], polys[npoly].c[0], tmp);
 
-				// printf("increasing exponent:\n");
-				// gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
-				// gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
-				// printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
-				// printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
+				//printf("increasing exponent:\n");
+				//gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
+				//gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
+				//printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
+				//printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
 
 				check_poly(&polys[npoly], fobj->VFLAG);
 				approx_norms(&polys[npoly]);
@@ -4268,11 +4304,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				//skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
 				skew = pow(fabs(mpz_get_d(c0)) / mpz_get_d(cd), 1./(double)i);
 
-				// printf("decreasing exponent:\n");
-                // gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
-                // gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
-                // printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
-                // printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
+				//printf("decreasing exponent:\n");
+                //gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
+                //gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
+                //printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
+                //printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
 
 				// leading coefficient contributes to the difficulty
 				d += log10(mpz_get_d(cd));
@@ -4309,6 +4345,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_set(polys[npoly].poly->m, m);
 				}
 
+				// todo: if we remove a factor in common, m needs to be altered
 				mpz_gcd(tmp, polys[npoly].c[i], polys[npoly].c[0]);
 				mpz_tdiv_q(polys[npoly].c[i], polys[npoly].c[i], tmp);
 				mpz_tdiv_q(polys[npoly].c[0], polys[npoly].c[0], tmp);

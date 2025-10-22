@@ -109,7 +109,68 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
-		find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
+
+		int halved = find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
+		if (halved == 2)
+		{
+			mpz_t t, g;
+			mpz_init(t);
+			mpz_init(g);
+			if (fobj->autofact_obj.autofact_active)
+			{
+				// if we are autofactoring, we are proceeding with the -1 term.
+				// add the other half as a factor.
+				mpz_set(t, poly->base1);
+				mpz_pow_ui(t, t, poly->exp1);
+				mpz_add_ui(t, t, 1);
+				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				{
+					//gmp_printf("adding factor %Zd after gcd of +1 term %Zd\n", g, t);
+					add_to_factor_list(fobj->factors, g, 0, 0);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+				}
+
+				mpz_set(t, poly->base1);
+				mpz_pow_ui(t, t, poly->exp1);
+				mpz_sub_ui(t, t, 1);
+
+				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				{
+					//gmp_printf("adding factor %Zd after gcd of -1 term %Zd\n", g, t);
+					add_to_factor_list(fobj->factors, g, 0, 0);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+				}
+			}
+			else
+			{
+				// we've factored the input, which is good enough.
+				mpz_set(t, poly->base1);
+				mpz_pow_ui(t, t, poly->exp1);
+				mpz_add_ui(t, t, 1);
+
+				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				{
+					add_to_factor_list(fobj->factors, g, 0, 0);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+				}
+
+				mpz_set(t, poly->base1);
+				mpz_pow_ui(t, t, poly->exp1);
+				mpz_sub_ui(t, t, 1);
+				
+				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				{
+					add_to_factor_list(fobj->factors, g, 0, 0);
+					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+				}
+			}
+			mpz_clear(t);
+			mpz_clear(g);
+		}
 	}
 
 	if (poly->form_type == SNFS_NONE)
@@ -217,6 +278,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	}
 
 	// with the form detected and algebraic factors removed, create a good polynomial
+	
 	if (poly->form_type == SNFS_XYYXF)
 	{
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
@@ -361,9 +423,18 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
         else
         {
             // faster by gnfs despite found snfs form, skip to gnfs processing.
-            retcode = -1;
             copy_job(&jobs[0], job);
-            goto cleanup;
+
+			for (i = 0; i < npoly; i++)
+			{
+				snfs_clear(&polys[i]);
+			}
+			snfs_clear(poly);
+			free(poly);
+			free(polys);
+			free(jobs);
+
+            return -1;
         }
 	}
 
@@ -1774,7 +1845,7 @@ void *polyfind_launcher(void *ptr)
 
 			// run with default startq
 			gettimeofday(&startt, NULL);
-			lasieve_launcher((void*)t);
+			lasieve_launcher_tdata((void*)t);
 			gettimeofday(&stopt, NULL);
 
 			this_time = ytools_difftime(&startt, &stopt);
@@ -1798,7 +1869,7 @@ void *polyfind_launcher(void *ptr)
 			t->job.startq += num_ranges / 2 * 1000;
 			t->job.current_rels = 0;
 			gettimeofday(&startt, NULL);
-			lasieve_launcher((void*)t);
+			lasieve_launcher_tdata((void*)t);
 			gettimeofday(&stopt, NULL);
 
 			this_time = ytools_difftime(&startt, &stopt);
@@ -1812,7 +1883,7 @@ void *polyfind_launcher(void *ptr)
 			t->job.startq += num_ranges / 2 * 1000;
 			t->job.current_rels = 0;
 			gettimeofday(&startt, NULL);
-			lasieve_launcher((void*)t);
+			lasieve_launcher_tdata((void*)t);
 			gettimeofday(&stopt, NULL);
 
 			this_time = ytools_difftime(&startt, &stopt);

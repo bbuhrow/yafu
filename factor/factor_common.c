@@ -753,12 +753,15 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
     int fid;
 	int v = 0;
     mpz_t g, a, b;
+
+    if (mpz_cmp_ui(n, 1) == 0)
+        return -1;
+
     mpz_init(g);
     mpz_init(a);
     mpz_init(b);
 
     flist->total_factors++;
-
     //gmp_printf("adding %Zd to factor list\n", n);
 
 	// look to see if this factor is already in the list,
@@ -779,6 +782,12 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
         mpz_gcd(g, n, flist->factors[i].factor);
         if (mpz_cmp_ui(g, 1) > 0)
         {
+            if (VFLAG > 1)
+            {
+                gmp_printf("add_factor(%Zd): non-trivial factor %Zd in common with existing factor %Zd\n",
+                    n, g, flist->factors[i].factor);
+            }
+
             // input has a non-trivial factor in common with
             // another factor in the list. possible cases:
             // partial n == f
@@ -788,6 +797,8 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
                 flist->factors[i].count++;
                 // and the remainder
                 mpz_tdiv_q(a, n, g);
+
+                //gmp_printf("case partial n == f in add_to_factor_list, adding factor %Zd\n", a);
                 add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
                 mpz_clear(g);
                 mpz_clear(a);
@@ -810,6 +821,8 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
                 delete_from_factor_list(flist, flist->factors[i].factor);
                 for (j = 0; j < num; j++)
                 {
+                    //gmp_printf("case partial n == partial f or n == partial_f in add_to_factor_list with num = %d\n"
+                    //    "adding factors %Zd and %Zd\n", num, a, b);
                     add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
                     add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES);
                 }
@@ -817,8 +830,16 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
                 mpz_tdiv_q(a, n, g);
                 mpz_tdiv_q(b, n, a);
 
-                if (mpz_cmp_ui(a, 1) > 0) add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
-                if (mpz_cmp_ui(b, 1) > 0) add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES);
+                if (mpz_cmp_ui(a, 1) > 0) {
+                    //gmp_printf("case partial n == partial f or n == partial_f in add_to_factor_list\n"
+                    //    "adding last a-factor %Zd\n", a);
+                    add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
+                }
+                if (mpz_cmp_ui(b, 1) > 0) {
+                    //gmp_printf("case partial n == partial f or n == partial_f in add_to_factor_list\n"
+                    //    "adding last b-factor %Zd\n", b);
+                    add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES);
+                }
 
                 mpz_clear(g);
                 mpz_clear(a);

@@ -420,11 +420,12 @@ void nfs_sieve_start(void* vptr)
 
 			if (fobj->VFLAG >= 0)
 			{
-				printf("nfs: loaded prime product from file %s: product has %u bits\n",
-					fname, (uint32_t)mpz_sizeinbase(job->rb->prime_product, 2));
+				printf("nfs: loaded prime product from file %s: product has %"PRIu64" bits\n",
+					fname, (uint64_t)mpz_sizeinbase(job->rb->prime_product, 2));
 			}
 
-			logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
+			logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %"PRIu64"\n", 
+				2, 1ULL << max_prime);
 
 			fclose(fid);
 		}
@@ -436,7 +437,7 @@ void nfs_sieve_start(void* vptr)
 			if (fobj->VFLAG >= 0)
 			{
 				printf("nfs: exporting prime product to file %s; approx file size = %u MB\n", fname,
-					(uint32_t)mpz_sizeinbase(job->rb->prime_product, 2) / 8 / (1<<20));
+					(uint32_t)(mpz_sizeinbase(job->rb->prime_product, 2) / 8 / (1<<20)));
 			}
 
 			// Make the file for future use.
@@ -2532,6 +2533,107 @@ void *lasieve_launcher(void *ptr) {
 
 		sprintf(infile, "%s.raw", thread_data->outfilename);
 		thread_data->job.current_rels += 
+			process_batch(thread_data->job.rb, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
+		MySleep(100);
+		remove(infile);
+	}
+
+	gettimeofday(&bstop, NULL);
+	thread_data->test_time = ytools_difftime(&bstart, &bstop);
+
+
+	return 0;
+}
+
+// the old non-tpool interface, for test sieving during poly select.
+// until the poly select tpool gets implemented.
+void* lasieve_launcher_tdata(void* ptr) {
+	nfs_threaddata_t* thread_data = (nfs_threaddata_t*)ptr;
+	fact_obj_t* fobj = thread_data->fobj;
+
+	// launch a gnfs-lasieve job
+	char syscmd[GSTR_MAXSIZE], tmpstr[GSTR_MAXSIZE], side[GSTR_MAXSIZE], batch3lp[GSTR_MAXSIZE];
+	FILE* fid;
+	int cmdret;
+	struct timeval bstop;	// stop time of sieving batch
+	struct timeval bstart;	// start time of sieving batch
+
+	sprintf(side, (thread_data->job.poly->side == ALGEBRAIC_SPQ) ?
+		"algebraic" : "rational"); // gotta love ?:
+
+	sprintf(batch3lp, fobj->nfs_obj.batch_3lp ? "-d" : "");
+
+	//remove any temporary relation files
+	remove(thread_data->outfilename);
+
+	gettimeofday(&bstart, NULL);
+
+	//start ggnfs binary - new win64 ASM enabled binaries current have a problem with this:
+	//sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s -n %d",
+	//		thread_data->job.sievername, fobj->VFLAG>0?" -v":"", *side,
+	//		fobj->nfs_obj.job_infile, thread_data->job.startq, 
+	//		thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
+
+	// todo: add command line input of arbitrary argument string to append to this command
+	// but not this:
+	snprintf(syscmd, GSTR_MAXSIZE, "%s%s -f %u -c %u -o %s -n %d %s -%c %s ",
+		thread_data->job.sievername, fobj->VFLAG > 1 ? " -v" : "", thread_data->job.startq,
+		thread_data->job.qrange, thread_data->outfilename, thread_data->tindex, batch3lp,
+		*side, thread_data->job_infile_name);
+
+	if (fobj->VFLAG >= 0)
+	{
+		printf("nfs: commencing %s side lattice sieving over range: %u - %u\n",
+			side, thread_data->job.startq, thread_data->job.startq + thread_data->job.qrange);
+	}
+	if (fobj->VFLAG > 1) printf("syscmd: %s\n", syscmd);
+	if (fobj->VFLAG > 1) fflush(stdout);
+	cmdret = system(syscmd);
+
+	// a ctrl-c abort signal is caught by the system command, and nfsexit never gets called.
+	// so check for abnormal exit from the system command.
+	// -1073741819 is apparently what ggnfs returns when it crashes, which
+	// we don't want to interpret as an abort.
+	if (!((cmdret == 0) || cmdret == -1073741819))
+	{
+		printf("\nnfs: ggnfs returned code %d\n", cmdret);
+		if (NFS_ABORT < 1)
+		{
+			printf("\nnfs: setting NFS_ABORT\n");
+			NFS_ABORT = 1;
+		}
+	}
+
+	// count the relations produced
+	MySleep(100);
+	fid = fopen(thread_data->outfilename, "r");
+	if (fid != NULL)
+	{
+		thread_data->job.current_rels = 0;
+		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+			thread_data->job.current_rels++;
+		fclose(fid);
+	}
+	else
+	{
+		printf("nfs: could not open output file %s, possibly bad path to siever\n",
+			thread_data->outfilename);
+	}
+	MySleep(100);
+
+	int is_3lp = ((thread_data->job.mfbr > (2.5 * thread_data->job.lpbr)) ||
+		(thread_data->job.mfba > (2.5 * thread_data->job.lpba))) ? 1 : 0;
+
+	is_3lp = is_3lp && fobj->nfs_obj.batch_3lp;
+
+	if (is_3lp)
+	{
+		mpz_ptr prime_prod = thread_data->rb_ref->prime_product;
+
+		char infile[80];
+
+		sprintf(infile, "%s.raw", thread_data->outfilename);
+		thread_data->job.current_rels +=
 			process_batch(thread_data->job.rb, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
 		MySleep(100);
 		remove(infile);

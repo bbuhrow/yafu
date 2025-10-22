@@ -49,14 +49,6 @@ LIBS += -L../ecm-install/7.0.5-clang/lib/
 # libs for building msieve: should match the GMP lib path for yafu specified above
 MSIEVE_LIBS = -L. -L../gmp-install/6.2.0-aocc/lib
 
-# ===================== compiler options =========================
-
-ifeq ($(COMPILER),icc)
-	CC = icc
-	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
-	CFLAGS += -qopt-report=5
-endif
-
 
 # ===================== msieve feature options =======================
 ifeq ($(OMP),1)
@@ -135,13 +127,7 @@ endif
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
-
-ifeq ($(COMPILER),icc)
-	CFLAGS += -march=core-avx2  
-else
 	CFLAGS += -mavx2 
-endif
-
 endif
 
 ifeq ($(ICELAKE),1)
@@ -155,26 +141,102 @@ endif
 	
 endif
 
+ifeq ($(TARGET),icelake)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=icelake-client
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),skylakex)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=skylake-avx512 
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),cascadelake)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=cascadelake
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),cooperlake)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=cooperlake
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),cannonlake)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=cannonlake
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),tigerlake)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=tigerlake
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),rocketlake)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=rocketlake
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),sapphirerapids)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=sapphirerapids
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),zen4)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=znver4
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+ifeq ($(TARGET),zen5)
+	CFLAGS += -DUSE_SSE41 -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=znver5
+	# set these variables to trigger inclusion of the appropriate files below
+	SKYLAKEX = 1
+	USE_BMI2 = 1
+	USE_AVX2 = 1
+	USE_SSE41 = 1
+endif
+
+
 ifeq ($(USE_BMI2),1)
 # -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
   CFLAGS += -mbmi2 -mbmi -DUSE_BMI2
 endif
 
-ifeq ($(KNL),1)
-ifneq ($(USE_AVX2),1)
-    CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
-endif
-
-CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS 
-BINNAME = yafu_knl
-
-ifeq ($(COMPILER),icc)
-    CFLAGS += -xMIC-AVX512 
-else
-    CFLAGS += -march=knl
-endif
-
-endif
 
 # ===================== feature options =========================
 ifeq ($(SMALLINT),1)
@@ -225,13 +287,7 @@ else
 	LIBS += -ldl
 endif
 
-ifeq ($(COMPILER),icc)
-	LIBS +=  -lsvml
-endif
-
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
-
-x86: CFLAGS += -m32
 
 #---------------------------Msieve/yafu file lists --------------------
 MSIEVE_YAFU_SRCS = \
@@ -318,6 +374,10 @@ SIQS_BIN_SRCS = factor/qs/qs_demo/siqs_demo.c \
 ECM_BIN_SRCS = factor/ecm_demo/ecm_demo.c \
 	factor/ecm_demo/cmdOptions.c \
 	factor/ecm_demo/calc.c
+	
+YSIEVE_BIN_SRCS = ysieve/demo/ysieve.c \
+	ysieve/demo/cmdOptions.c \
+	ysieve/demo/calc.c
 
 ifeq ($(USE_AVX2),1)
 
@@ -352,6 +412,7 @@ YAFU_SIQS_OBJS = $(YAFU_SIQS_SRCS:.c=$(OBJ_EXT))
 YAFU_ECM_OBJS = $(ECM_SRCS:.c=$(OBJ_EXT))
 YAFU_COMMON_OBJS = $(COMMON_SRCS:.c=$(OBJ_EXT))
 SIQS_BIN_OBJS = $(SIQS_BIN_SRCS:.c=$(OBJ_EXT))
+YSIEVE_BIN_OBJS = $(YSIEVE_BIN_SRCS:.c=$(OBJ_EXT))
 
 #---------------------------YAFU NFS file lists -----------------------
 
@@ -402,6 +463,9 @@ SIQS_HEAD = include/batch_factor.h \
 SIQS_BIN_HEAD = factor/qs_demo/siqs_demo.h \
 	factor/qs_demo/calc.h \
 	factor/qs_demo/cmdOptions.h
+	
+YSIEVE_BIN_HEAD = ysieve/demo/calc.h \
+	ysieve/demo/cmdOptions.h
 
 YAFU_HEAD = include/yafu.h \
 	top/cmdParser/cmdOptions.h \
@@ -646,7 +710,6 @@ help:
 	@echo "add 'SKYLAKEX=1' to include AVX512F,VL,DQ,BW vectorization instruction support"
 	@echo "add 'ICELAKE=1' to include SKYLAKEX + AVX512IFMA vectorization instruction support"
 	@echo ""
-	@echo "For either build, add COMPILER=icc to build with the icc compiler (if installed)"
 
 
 msieve: $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
@@ -677,6 +740,9 @@ siqs: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS)
 	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS) 
 	ranlib libysiqs.a
 	$(CC) $(CFLAGS) $(SIQS_BIN_OBJS) -o siqs_demo -lysiqs  $(LIBS)
+	
+ysieve: $(YAFU_COMMON_OBJS) $(YSIEVE_BIN_OBJS) 
+	$(CC) $(CFLAGS) $(YAFU_COMMON_OBJS) $(YSIEVE_BIN_OBJS) $(LIBS)
 	
 ecm: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS) 
 	rm -f libyecm.a
@@ -715,6 +781,9 @@ clean:
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %$(OBJ_EXT): %.c $(SIQS_BIN_HEAD)
+	$(CC) $(CFLAGS) -c -o $@ $<
+	
+%$(OBJ_EXT): %.c $(YSIEVE_BIN_HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
 	
 # QS build rules

@@ -2216,34 +2216,16 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 
     if (do_prime_product)
     {
-        // prime_sieve_t sieve;
-        uint32_t p;
-
-        /* count the number of primes to multiply. Knowing this
-            in advance makes the recursion a lot easier, at the cost
-            of a small penalty in runtime */
-
-        // init_prime_sieve(&sieve, min_prime + 1, max_prime);
-        // p = min_prime;
-        // num_primes = 0;
-        // while (p < max_prime) {
-        //     p = get_next_prime(&sieve);
-        //     num_primes++;
-        // }
-        // free_prime_sieve(&sieve);
-
         soe_staticdata_t *sdata = soe_init(0, 1, 32768);
         uint64_t num_primes;
         uint64_t *primes = soe_wrapper(sdata, min_prime, max_prime, 0, &num_primes, 0, 0);
 
-        ///* compute the product of primes */
+        // compute the product of primes
 
         logprint(logfile, "multiplying %"PRIu64" primes from %u to %"PRIu64"\n",
             num_primes, primes[0], primes[num_primes-1]);
 
-        //init_prime_sieve(&sieve, min_prime, max_prime);
         multiply_primes(0, num_primes, primes, rb->prime_product);
-        //free_prime_sieve(&sieve);
 
         free(primes);
         soe_finalize(sdata);

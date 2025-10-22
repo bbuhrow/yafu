@@ -374,7 +374,16 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 	{
 		// this is a factor() run: restore the original input.  More
 		// forms are likely to be detected if small factors haven't been removed.
+		// snfs_find_form is an nfs function, so we first need to put the current input
+		// into nfs_obj's copy of the current input.
+		mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
+
+		// now find the form
 		poly = snfs_find_form(fobj, fobj->input_N);
+
+		// snfs_find_form can discover factors!  if it did, it will reduce nfs's copy of 
+		// the current input, so copy that back to autofactor's current input.
+		mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
 	}
 
 	if (poly == NULL)
@@ -429,7 +438,11 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 		// input itself, and several user options.  To begin sorting it out, we
 		// first need to generate an actual polynomial for the form.  
 		mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
+
 		snfs_status = snfs_choose_poly(fobj, &job, poly, 0);
+
+		// snfs_choose_poly can discover factors!  if it did, it will reduce nfs's copy of 
+		// the current input, so copy that back to autofactor's current input.
 		mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
 
 		// the gnfs size of the current input
@@ -2474,6 +2487,8 @@ void factor(fact_obj_t *fobj)
 						{
 							gmp_printf("fac: starting work on composite factor %Zd\n", fobj->N);
 						}
+
+						break;
 					}					
 				}
 
@@ -2484,6 +2499,9 @@ void factor(fact_obj_t *fobj)
 				init_factor_work(&fwork, fobj);
 				fact_state = state_trialdiv;
 
+				// if the state is not done, but N=1 and we didn't
+				// find any composites in the factor list to work on, 
+				// then something failed to factor and we give up.
 				if (mpz_cmp_ui(fobj->N, 1) == 0)
 				{
 					// didn't find any composite factors, give up.

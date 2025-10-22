@@ -202,6 +202,7 @@ typedef struct {
 
 //----------------------- NFS FUNCTIONS -------------------------------------//
 void* lasieve_launcher(void* ptr);
+void *lasieve_launcher_tdata(void *ptr);
 void* polyfind_launcher(void* ptr);
 void* batch_launcher(void* ptr);
 double find_best_msieve_poly(fact_obj_t* fobj, nfs_job_t* job, char *jobfile_name, int write_jobfile);
@@ -252,7 +253,7 @@ uint32_t mp_bits(mp_t* a);
 uint32_t factor_list_add(msieve_obj* obj, factor_list_t* list, mp_t* new_factor);
 
 //----------------------- SNFS FUNCTIONS -------------------------------------//
-void find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
+int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
 void find_hcunn_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
 void find_xyyxf_form(mpz_t n, snfs_t* form, int verbose, char* flogname);
 void find_direct_form(mpz_t n, snfs_t* form, int verbose, char* flogname);

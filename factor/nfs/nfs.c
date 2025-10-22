@@ -88,8 +88,10 @@ int nfs_check_special_case(fact_obj_t *fobj)
             fobj->VFLAG, fobj->NUM_WITNESSES);
 		
 		if (fobj->VFLAG >= 0)
-			gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->nfs_obj.gmp_n),
-				fobj->nfs_obj.gmp_n);
+		{
+			gmp_printf("nfs: input %Zd is a prp%d\n", 
+				fobj->nfs_obj.gmp_n, gmp_base10(fobj->nfs_obj.gmp_n));
+		}
 		
         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "PRP%d = %s\n",
@@ -126,7 +128,7 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		uint32_t j;
 
 		if (fobj->VFLAG > 0)
-			printf("input is a perfect power\n");
+			printf("nfs: input is a perfect power\n");
 		
 		factor_perfect_power(fobj, fobj->nfs_obj.gmp_n);
 
@@ -375,14 +377,14 @@ void nfs(fact_obj_t *fobj)
 					break;
 				}
 
-				//if (fobj->VFLAG > 1)
-				//{
-				//	printf("nfs: snfs poly find flags are\n\tsnfs found = %d\n"
-				//		"\tgnfs specified = %d\n\tsnfs found, better by gnfs = %d\n"
-				//		"\tsnfs specified = %d\n\tsnfs algebraic factor removed, recheck xovers = %d\n",
-				//		(job.snfs == NULL), fobj->nfs_obj.gnfs, snfs_status,
-				//		fobj->nfs_obj.snfs, check_gnfs);
-				//}
+				if (fobj->VFLAG > 1)
+				{
+					printf("nfs: snfs poly find flags are\n\tsnfs found = %d\n"
+						"\tgnfs specified = %d\n\tsnfs found, better by gnfs = %d\n"
+						"\tsnfs specified = %d\n\tsnfs algebraic factor removed, recheck xovers = %d\n",
+						(job.snfs != NULL), fobj->nfs_obj.gnfs, snfs_status == -1,
+						fobj->nfs_obj.snfs, check_gnfs);
+				}
 
 				// sort out what kind of job this is going to be.
 				if ((job.snfs == NULL) || (snfs_status == 0) || fobj->nfs_obj.gnfs)
@@ -436,6 +438,11 @@ void nfs(fact_obj_t *fobj)
 					logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
 						": difficulty = %1.2f, size = %d, actual size = %d\n",
 						job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+					// get rid of the snfs poly since we'll be proceeding with gnfs.
+					snfs_clear(job.snfs);
+					free(job.snfs);
+					job.snfs = NULL;
 
 					// choose between qs and gnfs
 					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
@@ -1001,11 +1008,11 @@ void nfs(fact_obj_t *fobj)
 
 				// try this hack - store a pointer to the msieve obj so that
 				// we can change a flag on abort in order to interrupt the sqrt.
-				gmp_printf("\tgmp_n         = %Zd\n", fobj->nfs_obj.gmp_n);
-				if (fobj->nfs_obj.snfs && (job.snfs != NULL))
-				{
-					gmp_printf("\tsnfs->n       = %Zd\n", job.snfs->n);
-				}
+				//gmp_printf("\tgmp_n         = %Zd\n", fobj->nfs_obj.gmp_n);
+				//if (fobj->nfs_obj.snfs && (job.snfs != NULL))
+				//{
+				//	gmp_printf("\tsnfs->n       = %Zd\n", job.snfs->n);
+				//}
 				gmp_sprintf(obj->input, "%Zd", fobj->nfs_obj.gmp_n);
 				obj_ptr = obj;
 
