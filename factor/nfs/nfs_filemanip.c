@@ -167,6 +167,40 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 		}
 	}
 
+	// 1b) same thing with .ranges file
+	char buf[1024];
+	sprintf(buf, "%s.ranges", fobj->nfs_obj.outputfile);
+	FILE *fid = fopen(buf, "r");
+	if (fid != NULL)
+	{
+		fclose(fid);
+		if (!fobj->nfs_obj.restart_flag)
+		{
+			printf("A data ranges file (.ranges) exists in the current directory.  Ensure it is"
+				" in sync with any data files and add -R to command line to resume nfs\n");
+
+			if (fobj->LOGFLAG)
+			{
+				logfile = fopen(fobj->flogname, "a");
+				if (logfile == NULL)
+				{
+					printf("fopen error: %s\n", strerror(errno));
+					printf("could not open yafu logfile for appending\n");
+				}
+				else
+				{
+					logprint(logfile, "nfs: refusing to resume without -R option\n");
+					fclose(logfile);
+				}
+			}
+
+			// if we are inside factor, don't try to continue past this error
+			fobj->flags |= FACTOR_INTERRUPT;
+			*last_spq = 0;
+			return NFS_STATE_DONE;
+		}
+	}
+
 	do_data_check = 0;
 	do_poly_check = 0;
 	ans = NFS_STATE_STARTNEW;
@@ -214,7 +248,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 						// divide out any common factor and copy the result to
 						// other data structures
 						if (mpz_cmp_ui(g, 1) > 0)
-							add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
+							add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
                         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
@@ -296,7 +330,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 						// divide out any common factor and copy the result to
 						// other data structures
 						if (mpz_cmp_ui(g, 1) > 0)
-							add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
+							add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
                         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);

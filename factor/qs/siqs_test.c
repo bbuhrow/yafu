@@ -122,7 +122,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 	{
 		char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
 		add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
-			fobj->VFLAG, fobj->NUM_WITNESSES);
+			fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		if (sieve_log != NULL)
 			logprint(sieve_log, "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
 		mpz_set_ui(fobj->qs_obj.gmp_n, 1);
@@ -136,11 +136,11 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 
 		char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
 		add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
-			fobj->VFLAG, fobj->NUM_WITNESSES);
+			fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		if (sieve_log != NULL)
 			logprint(sieve_log, "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
 		add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
-			fobj->VFLAG, fobj->NUM_WITNESSES);
+			fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		if (sieve_log != NULL)
 			logprint(sieve_log, "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
 		free(s);
@@ -221,7 +221,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 				if (j == 0)
 				{
 					add_to_factor_list(fobj->factors, f1,
-						fobj->VFLAG, fobj->NUM_WITNESSES);
+						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 					if (fobj->qs_obj.flags != 12345)
 					{
@@ -239,7 +239,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 				else
 				{
 					add_to_factor_list(fobj->factors, f2,
-						fobj->VFLAG, fobj->NUM_WITNESSES);
+						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 					if (fobj->qs_obj.flags != 12345)
 					{
@@ -261,7 +261,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 				if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
 				{
 					add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
-						fobj->VFLAG, fobj->NUM_WITNESSES);
+						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 					if (fobj->qs_obj.flags != 12345)
 					{
@@ -305,7 +305,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 				if (found)
 				{
 					add_to_factor_list(fobj->factors, f1,
-						fobj->VFLAG, fobj->NUM_WITNESSES);
+						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 					if (fobj->qs_obj.flags != 12345)
 					{
@@ -325,7 +325,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 						if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
 						{
 							add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
-								fobj->VFLAG, fobj->NUM_WITNESSES);
+								fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 							if (fobj->qs_obj.flags != 12345)
 							{

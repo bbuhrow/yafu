@@ -525,7 +525,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 		// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 		maxb = MAX_SNFS_BITS / log((double)i) + 1;
 
-		if (verbose > 1)
+		if (verbose > 3)
 			printf("nfs: checking a*b^x +/- c for b = %d and 32 <= x <= %d\n", i, maxb);
 
 		for (j=startb; j<maxb; j++)
@@ -537,7 +537,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 			//gmp_printf("base = %d, exp = %d, p = %Zd, r = %Zd, size(r) = %d\n", i, j, p, r, mpz_sizeinbase(r, 2));
 
 			// now, if r is a single limb, then the input has a small coefficient
-			if (mpz_sizeinbase(r, 2) <= 31)
+			if ((mpz_cmp_ui(r, 0) > 0) && (mpz_sizeinbase(r, 2) <= 31))
 			{
 				// get the second coefficient first
 				int sign, c1, c2;
@@ -635,7 +635,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 			//gmp_printf("r = %Zd, q = %Zd\n", r, q);
 
 			// now, if r is a single limb, then the input has a small coefficient
-			if ((mpz_sizeinbase(r,2) <= 31) || (mpz_sizeinbase(q,2) <= 31))
+			if ((mpz_cmp_ui(r, 0) > 0) && ((mpz_sizeinbase(r,2) <= 31) || (mpz_sizeinbase(q,2) <= 31)))
 			{
 				// get the second coefficient first
 				int sign, c1, c2;
@@ -719,7 +719,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 	{
 		// now that we've reduced the exponent considerably, check for 
 		// large bases by looking at the remaining possible exponents.
-        if (verbose > 1)
+        if (verbose > 3)
         {
             printf("nfs: checking x^%d +/- 1\n", i);
         }
@@ -773,7 +773,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
         mpz_pow_ui(p, b, i);
         mpz_sub(p, n, p);       // and see if n - b^i is "small"
 
-        if (mpz_sizeinbase(p, 2) < 31)
+        if ((mpz_cmp_ui(p, 0) > 0) && (mpz_sizeinbase(p, 2) < 31))
         {
 			char* s = NULL; // [2048] ;
 			char* s2 = NULL; // [2048] ;
@@ -802,7 +802,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
         mpz_pow_ui(p, b, i);
         mpz_sub(p, p, n);       // and see if (b+1)^i - n is "small"
 
-        if (mpz_sizeinbase(p, 2) < 31)
+        if ((mpz_cmp_ui(p, 0) > 0) && (mpz_sizeinbase(p, 2) < 31))
         {
 			char* s = NULL; // [2048] ;
 			char* s2 = NULL; // [2048] ;
@@ -873,7 +873,7 @@ void find_hcunn_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 
 			// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 			kmax = MAX_SNFS_BITS / log((double)i) + 1;
-			if (verbose > 1)
+			if (verbose > 3)
 				printf("nfs: checking %d^x +/- %d^x for 20 <= x <= %d\n", i, j, kmax);
 
 			for (k=20; k<kmax; k++)
@@ -947,7 +947,7 @@ void find_xyyxf_form(mpz_t n, snfs_t *form, int verbose, char *flogname)
 	for (x=3; x<maxx; x++)
 	{
 		mpz_set_ui(xy, x);
-		if (verbose > 1)
+		if (verbose > 3)
 			printf("nfs: checking %d^y + y^%d\n", x, x);
 
 		for (y=2; y<x; y++)
@@ -1012,7 +1012,7 @@ void find_direct_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 
         int maxp = 75 * (log(10) / log(b));
 
-        if (verbose > 1)
+        if (verbose > 3)
             printf("nfs: checking m=%d^p forms, maxp = %d\n", b, maxp);
 
         for (p = maxp; p > 1; p--)
@@ -1020,7 +1020,7 @@ void find_direct_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
             mpz_set_ui(m, b);
             mpz_pow_ui(m, m, p);
 
-            if (verbose > 1)
+            if (verbose > 3)
                 gmp_printf("checking m = %Zd = %d^%d\n", m, b, p);
 
             // if the remainder of n by m is small, that is a coefficient.
@@ -2668,7 +2668,7 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 				{
 					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
 				}
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
 		}
@@ -2691,7 +2691,7 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 			{
 				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
 			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
 
@@ -2713,7 +2713,7 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 			{
 				gmp_printf("gen: found Aurifeuillian L-factor %Zd\n", t);
 			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
 
@@ -2952,7 +2952,7 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 						gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd of term %Zd)\n",
 							t, fobj->nfs_obj.gmp_n, term);
 					}
-					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+					add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 				}
 
@@ -2971,7 +2971,7 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 			gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd with primitive input %Zd)\n",
 				t, fobj->nfs_obj.gmp_n, poly->primitive);
 		}
-		add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 	}
 
@@ -3194,7 +3194,7 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 							gmp_printf("gen: adding factor %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n",
 								t, fobj->nfs_obj.gmp_n, term);
 						}
-						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 					}
 				}
@@ -3257,7 +3257,7 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 				gmp_printf("gen: adding primitive factor %Zd of autofactor input %Zd to factor list\n",
 					poly->primitive, fobj->nfs_obj.gmp_n);
 			}
-			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, poly->primitive);
 
 		}
@@ -3416,7 +3416,7 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 				{
 					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
 				}
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
 		}
@@ -3439,7 +3439,7 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 			{
 				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
 			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
 
@@ -3461,7 +3461,7 @@ void find_primitive_factor_lucas(fact_obj_t* fobj, snfs_t* poly, uint64_t* prime
 			{
 				gmp_printf("gen: found Aurifeuillian l-factor %Zd\n", t);
 			}
-			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
 
@@ -5227,7 +5227,7 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 					gmp_printf("gen: found algebraic factor fib(%d) = %Zd\n", f[k], t);
 				}
 
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES);
+				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
 		}

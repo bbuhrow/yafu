@@ -2553,6 +2553,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         factor(fobj);
 
+        get_prod_of_factors(fobj->factors, mp1);
+
+        if (mpz_cmp(mp1, operands[0]) != 0)
+        {
+            printf("warning: factor() may not have completely factored the requested input\n");
+        }
+
         // return anything not factored
         mpz_set(operands[0], fobj->N);
 

@@ -387,7 +387,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         if (mpz_cmp_ui(g, 1) > 0)
         {
             add_to_factor_list(fobj->factors, g,
-                fobj->VFLAG, fobj->NUM_WITNESSES);
+                fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
             int fid = fobj->factors->num_factors - 1;
 
@@ -961,7 +961,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
             //tdata[i].factors[j].factor, 
             fid = add_to_factor_list(fobj->factors, g, 
-                fobj->VFLAG, fobj->NUM_WITNESSES);
+                fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
             total_factors++;
             //fid = fobj->factors->num_factors - 1;
@@ -1040,7 +1040,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         if (is_mpz_prp(fobj->ecm_obj.gmp_n, fobj->NUM_WITNESSES))
         {
             add_to_factor_list(fobj->factors, fobj->ecm_obj.gmp_n,
-                fobj->VFLAG, fobj->NUM_WITNESSES);
+                fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
             if (fobj->VFLAG > 0)
                 gmp_printf("\necm: found prp%d (co)factor = %Zd\n",

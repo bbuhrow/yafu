@@ -153,50 +153,50 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 			if (strlen(buf) < 10)
 				continue;
 
-			if (start)
-			{
-				if ((buf[0] == 'a') || (buf[0] == 'r'))
-				{
-					printf("nfs: no input 'n' in ranges file\n");
-					sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
-					start = 0;
-				}
-				else
-				{
-					mpz_t gmpn, gmpd;
-					mpz_init(gmpn);
-					mpz_init(gmpd);
-					gmp_sscanf(buf, "%Zd", gmpn);
-
-					mpz_tdiv_r(gmpd, gmpn, fobj->nfs_obj.gmp_n);
-					if (mpz_cmp_ui(gmpd, 0) != 0)
-					{
-						printf("nfs: number in ranges file is not a divisor of the input\n");
-						gmp_printf("nfs: read:  %Zd\n", gmpn);
-						gmp_printf("nfs: input: %Zd\n", fobj->nfs_obj.gmp_n);
-						printf("nfs: resetting ranges file with current input\n");
-						fclose(fid);
-
-						char newbuf[1024];
-						sprintf(newbuf, "%s.ranges.bkup", fobj->nfs_obj.outputfile);
-						rename(buf, newbuf);
-
-						fid = fopen(buf, "w");
-						gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
-						fclose(fid);
-
-						fid = fopen(buf, "r");
-						mpz_clear(gmpn);
-						continue;
-					}
-
-					mpz_clear(gmpn);
-					mpz_clear(gmpd);
-					start = 0;
-					continue;
-				}
-			}
-			else
+			//if (start)
+			//{
+			//	if ((buf[0] == 'a') || (buf[0] == 'r'))
+			//	{
+			//		printf("nfs: no input 'n' in ranges file\n");
+			//		sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
+			//		start = 0;
+			//	}
+			//	else
+			//	{
+			//		mpz_t gmpn, gmpd;
+			//		mpz_init(gmpn);
+			//		mpz_init(gmpd);
+			//		gmp_sscanf(buf, "%Zd", gmpn);
+			//
+			//		mpz_tdiv_r(gmpd, gmpn, fobj->nfs_obj.gmp_n);
+			//		if (mpz_cmp_ui(gmpd, 0) != 0)
+			//		{
+			//			printf("nfs: number in ranges file is not a divisor of the input\n");
+			//			gmp_printf("nfs: read:  %Zd\n", gmpn);
+			//			gmp_printf("nfs: input: %Zd\n", fobj->nfs_obj.gmp_n);
+			//			printf("nfs: resetting ranges file with current input\n");
+			//			fclose(fid);
+			//
+			//			char newbuf[1024];
+			//			sprintf(newbuf, "%s.ranges.bkup", fobj->nfs_obj.outputfile);
+			//			rename(buf, newbuf);
+			//
+			//			fid = fopen(buf, "w");
+			//			gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
+			//			fclose(fid);
+			//
+			//			fid = fopen(buf, "r");
+			//			mpz_clear(gmpn);
+			//			continue;
+			//		}
+			//
+			//		mpz_clear(gmpn);
+			//		mpz_clear(gmpd);
+			//		start = 0;
+			//		continue;
+			//	}
+			//}
+			//else
 			{
 				sscanf(buf, "%c,%u,%u,%u", &side, &startq, &rangeq, &rels);
 			}

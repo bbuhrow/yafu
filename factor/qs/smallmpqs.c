@@ -1912,7 +1912,7 @@ void smallmpqs(fact_obj_t *fobj)
 		if (j > 1)
 		{
 			mpz_set_64(ztmp, j);
-			add_to_factor_list(fobj->factors, ztmp, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, ztmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -1921,7 +1921,7 @@ void smallmpqs(fact_obj_t *fobj)
 			}
 
 			mpz_tdiv_q_ui(n,n,j);
-			add_to_factor_list(fobj->factors, n, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -2191,7 +2191,7 @@ done:
 
 		for(i=0;i<num_factors;i++)
 		{
-			add_to_factor_list(fobj->factors, factors[i], fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, factors[i], fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 			if (fobj->qs_obj.flags != 12345)
 			{

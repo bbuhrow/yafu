@@ -2183,7 +2183,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
         if (mpz_cmp_ui(g, 1) > 0)
         {
             add_to_factor_list(fobj->factors, g,
-                fobj->VFLAG, fobj->NUM_WITNESSES);
+                fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
             int fid = fobj->factors->num_factors - 1;
 
@@ -2538,7 +2538,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
             if (is_mpz_prp(fobj->pp1_obj.gmp_f, fobj->NUM_WITNESSES))
             {
                 add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
+                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                 if (fobj->VFLAG > 0)
                     gmp_printf("pp1: found prp%d factor = %Zd in p+/-1 stage 1, lane %d\n",
@@ -2552,7 +2552,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
             else
             {
                 add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
+                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                 if (fobj->VFLAG > 0)
                     gmp_printf("pp1: found c%d factor = %Zd in p+/-1 stage 1, lane %d\n",
@@ -2637,7 +2637,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
             if (is_mpz_prp(fobj->pp1_obj.gmp_f, fobj->NUM_WITNESSES))
             {
                 add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
+                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                 if (fobj->VFLAG > 0)
                     gmp_printf("pp1: found prp%d factor = %Zd in p+/-1 stage 2, lane %d\n",
@@ -2651,7 +2651,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
             else
             {
                 add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
+                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                 if (fobj->VFLAG > 0)
                     gmp_printf("pp1: found c%d factor = %Zd in p+/-1 stage 2, lane %d\n",

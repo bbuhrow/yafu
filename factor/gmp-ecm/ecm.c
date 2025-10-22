@@ -717,7 +717,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	if (is_mpz_prp(thread_data->gmp_factor, fobj->NUM_WITNESSES))
 	{
 		add_to_factor_list(fobj->factors, thread_data->gmp_factor, 
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
         if (fobj->VFLAG >= 0)
         {
@@ -736,7 +736,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	else
 	{
 		add_to_factor_list(fobj->factors, thread_data->gmp_factor, 
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		
         if (fobj->VFLAG >= 0)
         {
@@ -806,7 +806,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		mpz_set_ui(tmp, 3);
 		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3);
 		add_to_factor_list(fobj->factors, tmp,
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		logprint_oc(fobj->flogname, "a","Trivial factor of 3 found in ECM\n");
 		mpz_clear(tmp);
 		return 0;
@@ -819,7 +819,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		mpz_set_ui(tmp, 2);
 		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2);
 		add_to_factor_list(fobj->factors, tmp,
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		logprint_oc(fobj->flogname, "a","Trivial factor of 2 found in ECM\n");
 		mpz_clear(tmp);
 		return 0;
@@ -830,7 +830,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
 		add_to_factor_list(fobj->factors, fobj->ecm_obj.gmp_n,
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
         char* s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), s);		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);

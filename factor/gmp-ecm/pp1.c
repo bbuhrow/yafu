@@ -171,7 +171,7 @@ void williams_loop(fact_obj_t *fobj)
                 logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n), s);
                 free(s);
                 add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_n,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
+                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                 stop = clock();
                 tt = (double)(stop - start) / (double)CLOCKS_PER_SEC;
@@ -197,7 +197,7 @@ void williams_loop(fact_obj_t *fobj)
                 if (is_mpz_prp(fobj->pp1_obj.gmp_f, fobj->NUM_WITNESSES))
                 {
                     add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                        fobj->VFLAG, fobj->NUM_WITNESSES);
+                        fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                     if (fobj->VFLAG >= 0)
                         gmp_printf("pp1: found prp%d factor = %Zd\n",
@@ -211,7 +211,7 @@ void williams_loop(fact_obj_t *fobj)
                 else
                 {
                     add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                        fobj->VFLAG, fobj->NUM_WITNESSES);
+                        fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
                     if (fobj->VFLAG >= 0)
                         gmp_printf("pp1: found c%d factor = %Zd\n",
@@ -246,7 +246,7 @@ void williams_loop(fact_obj_t *fobj)
             logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n), s);
             free(s);
             add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_n,
-                fobj->VFLAG, fobj->NUM_WITNESSES);
+                fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
             stop = clock();
             tt = (double)(stop - start) / (double)CLOCKS_PER_SEC;

@@ -708,7 +708,7 @@ void SIQS(fact_obj_t *fobj)
 			// qs-resumed bit.
 			if (mpz_cmp_ui(g, 1) > 0)
 			{
-				add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
+				add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			}
 			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, g);
 			//mpz_set(fobj->N, fobj->gmp_n);
@@ -3961,7 +3961,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			//i is already divided out of n.  record the factor we found
 			uint64_2gmp(i, tmpz);
 			add_to_factor_list(sconf->obj->factors, tmpz, sconf->obj->VFLAG, 
-                sconf->obj->NUM_WITNESSES);
+                sconf->obj->NUM_WITNESSES, 0);
 			mpz_clear(tmpz);
 
 			//and remove the multiplier we may have added, so that
@@ -6031,7 +6031,7 @@ int free_siqs(static_conf_t *sconf)
 
 		//log it
 		add_to_factor_list(sconf->obj->factors, tmp, 
-            sconf->obj->VFLAG, sconf->obj->NUM_WITNESSES);
+            sconf->obj->VFLAG, sconf->obj->NUM_WITNESSES, 0);
 		
 		mpz_clear(tmp);
 		free(sconf->factor_list.final_factors[i]);

@@ -527,14 +527,16 @@ void alloc_factobj(fact_obj_t *fobj);
 // functions involving factor list structure
 void init_factor_list(yfactor_list_t* flist, mpz_t n);
 int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
-    int VFLAG, int NUM_WITNESSES);
+    int VFLAG, int NUM_WITNESSES, int force_add);
 void print_factors(fact_obj_t* fobj);
+void print_current_factors(yfactor_list_t* flist, int verbose, int base);
 void clear_factor_list(yfactor_list_t* fobj);
 void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 int find_in_factor_list(yfactor_list_t* flist, mpz_t n);
 void generate_factorization_str(yfactor_list_t* flist);
 int contains_any_composite_factor(yfactor_list_t* flist, int num_witnesses);
+int get_composite(yfactor_list_t* flist, mpz_t n);
 void get_prod_of_factors(yfactor_list_t* flist, mpz_t prod);
 void compute_factor_types(yfactor_list_t* flist, int verbose, int force);
 int compute_factor_type(yfactor_list_t* flist, mpz_t n, int verbose);

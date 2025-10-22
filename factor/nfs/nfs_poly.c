@@ -127,7 +127,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
 				{
 					//gmp_printf("adding factor %Zd after gcd of +1 term %Zd\n", g, t);
-					add_to_factor_list(fobj->factors, g, 0, 0);
+					add_to_factor_list(fobj->factors, g, 0, 0, 0);
 					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 				}
 
@@ -139,7 +139,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
 				{
 					//gmp_printf("adding factor %Zd after gcd of -1 term %Zd\n", g, t);
-					add_to_factor_list(fobj->factors, g, 0, 0);
+					add_to_factor_list(fobj->factors, g, 0, 0, 0);
 					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 				}
 			}
@@ -153,7 +153,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
 				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
 				{
-					add_to_factor_list(fobj->factors, g, 0, 0);
+					add_to_factor_list(fobj->factors, g, 0, 0, 0);
 					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 				}
 
@@ -164,7 +164,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
 				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
 				{
-					add_to_factor_list(fobj->factors, g, 0, 0);
+					add_to_factor_list(fobj->factors, g, 0, 0, 0);
 					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 				}
 			}

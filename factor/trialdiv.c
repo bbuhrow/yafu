@@ -76,7 +76,7 @@ void zTrial(fact_obj_t *fobj)
 			mpz_tdiv_q_ui(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, q);
 			mpz_set_64(tmp, q);
 
-			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
+			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 #if BITS_PER_DIGIT == 64
 			logprint(flog,"div: found prime factor = %" PRIu64 "\n",q);
@@ -150,7 +150,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 				//gmp_printf("\nAdding prime base %Zd to factor list...\n", base);
 				for (j=0; j<i; j++)
 				{
-					add_to_factor_list(fobj->factors, base, fobj->VFLAG, fobj->NUM_WITNESSES);
+					add_to_factor_list(fobj->factors, base, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 					mpz_tdiv_q(b, b, base);
 					logprint(flog,"prp%d = %s\n",
 						gmp_base10(base), s);
@@ -165,7 +165,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 				for (c = 0; c < i; c++)
 				{
 					add_to_factor_list(fobj->factors, base,
-						fobj->VFLAG, fobj->NUM_WITNESSES);
+						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 					mpz_tdiv_q(b, b, base);
 					logprint(flog, "c%d = %s\n", gmp_base10(base), s);
 				}
@@ -215,7 +215,7 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 2);
 		mpz_tdiv_q_2exp(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, 1);
-		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		mpz_clear(tmp);
 		return;
 	}
@@ -255,8 +255,8 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 		}
         free(s);
 
-		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
-		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		mpz_set_ui(fobj->div_obj.gmp_n, 1);
         
         if (fobj->LOGFLAG)
@@ -465,7 +465,7 @@ found:
             logprint(flog, "Fermat method found factors:\n");
         }
 
-		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
         char* s = mpz_get_str(NULL, 10, tmp);
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{			
@@ -486,7 +486,7 @@ found:
 		mpz_sub(tmp, a, tmp);
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
-		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
         s = mpz_get_str(NULL, 10, tmp);
 
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))

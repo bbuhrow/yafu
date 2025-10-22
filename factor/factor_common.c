@@ -60,6 +60,10 @@ void new_factorization(fact_obj_t* fobj, mpz_t n)
     mpz_set_ui(fobj->pp1_obj.gmp_n, 0);
     mpz_set_ui(fobj->squfof_obj.gmp_n, 0);
 
+    // put the input into the factor list.  It will get reduced as factors are
+    // found and added to the list.  
+    add_to_factor_list(fobj->factors, n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+
     return;
 }
 
@@ -745,14 +749,14 @@ int find_in_factor_list(yfactor_list_t* flist, mpz_t n)
     return -1;
 }
 
-int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES)
+int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES, int force)
 {
 	// stick the number n into the provided factor list.
     // return the index into which the factor was added.
 	int i;
     int fid;
 	int v = 0;
-    mpz_t g, a, b;
+    mpz_t g, a, b, t;
 
     if (mpz_cmp_ui(n, 1) == 0)
         return -1;
@@ -760,20 +764,40 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
     mpz_init(g);
     mpz_init(a);
     mpz_init(b);
+    mpz_init(t);
 
     flist->total_factors++;
-    //gmp_printf("adding %Zd to factor list\n", n);
+    if (VFLAG > 2)
+    {
+        gmp_printf("adding %Zd to factor list\n", n);
+    }
 
 	// look to see if this factor is already in the list,
     // or if it shares a factor with anything in the list
     for (i = 0; i < flist->num_factors; i++)
     {
-        if (mpz_cmp(n, flist->factors[i].factor) == 0)
+        if ((mpz_cmp(n, flist->factors[i].factor) == 0) && (force == 1))
         {
             flist->factors[i].count++;
             mpz_clear(g);
             mpz_clear(a);
             mpz_clear(b);
+            mpz_clear(t);
+        
+            if (VFLAG > 2)
+            {
+                gmp_printf("forced increased count of existing factor %Zd\n", n);
+                print_current_factors(flist, VFLAG, 10);
+            }
+            return i;
+        }
+        else if (mpz_cmp(n, flist->factors[i].factor) == 0)
+        {
+            if (VFLAG > 2)
+            {
+                gmp_printf("ignoring addition of existing factor %Zd\n", n);
+                print_current_factors(flist, VFLAG, 10);
+            }
             return i;
         }
 
@@ -782,68 +806,84 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
         mpz_gcd(g, n, flist->factors[i].factor);
         if (mpz_cmp_ui(g, 1) > 0)
         {
-            if (VFLAG > 1)
+            if (VFLAG > 2)
             {
                 gmp_printf("add_factor(%Zd): non-trivial factor %Zd in common with existing factor %Zd\n",
                     n, g, flist->factors[i].factor);
             }
 
             // input has a non-trivial factor in common with
-            // another factor in the list. possible cases:
-            // partial n == f
+            // a factor already in the list. possible cases:
+            // partial input == this factor
             if (mpz_cmp(g, flist->factors[i].factor) == 0)
             {
-                // add the pieces of n, one equal to the current factor
-                flist->factors[i].count++;
+                // add the pieces of the input, one equal to the current factor
+                if (force)
+                {
+                    flist->factors[i].count++;
+                }
                 // and the remainder
                 mpz_tdiv_q(a, n, g);
 
-                //gmp_printf("case partial n == f in add_to_factor_list, adding factor %Zd\n", a);
-                add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
+                if (VFLAG > 2)
+                {
+                    gmp_printf("case partial n == f in add_to_factor_list, adding factor %Zd\n", a);
+                }
+                add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES, 1);
                 mpz_clear(g);
                 mpz_clear(a);
                 mpz_clear(b);
+                mpz_clear(t);
+
+                if (VFLAG > 2)
+                {
+                    print_current_factors(flist, VFLAG, 10);
+                }
                 return i;
             }
             else
             {
-                // n == partial f
-                // partial n == partial f
+                // input == partial f
+                // partial input == partial f
                 // 
                 // current (apparently composite) factor has been
-                // factored.  remove it, add all of its pieces,
-                // then add n.
+                // factored by the input.  remove the composite
+                // factor and add its pieces
                 mpz_tdiv_q(a, flist->factors[i].factor, g);
                 mpz_tdiv_q(b, flist->factors[i].factor, a);
+                mpz_set(t, flist->factors[i].factor);
 
                 int num = flist->factors[i].count;
                 int j;
                 delete_from_factor_list(flist, flist->factors[i].factor);
                 for (j = 0; j < num; j++)
                 {
-                    //gmp_printf("case partial n == partial f or n == partial_f in add_to_factor_list with num = %d\n"
-                    //    "adding factors %Zd and %Zd\n", num, a, b);
-                    add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
-                    add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES);
-                }
-
-                mpz_tdiv_q(a, n, g);
-                mpz_tdiv_q(b, n, a);
-
-                if (mpz_cmp_ui(a, 1) > 0) {
-                    //gmp_printf("case partial n == partial f or n == partial_f in add_to_factor_list\n"
-                    //    "adding last a-factor %Zd\n", a);
-                    add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES);
-                }
-                if (mpz_cmp_ui(b, 1) > 0) {
-                    //gmp_printf("case partial n == partial f or n == partial_f in add_to_factor_list\n"
-                    //    "adding last b-factor %Zd\n", b);
-                    add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES);
+                    if (VFLAG > 2)
+                    {
+                        gmp_printf("current factor %Zd with count = %d has been factored by input %Zd\n"
+                            "adding factors %Zd and %Zd\n", t, num, n, a, b);
+                    }
+                    if (mpz_cmp(a, b) > 0)
+                    {
+                        add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES, 1);
+                        add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES, 1);
+                    }
+                    else
+                    {
+                        add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES, 1);
+                        add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES, 1);
+                    }
                 }
 
                 mpz_clear(g);
                 mpz_clear(a);
                 mpz_clear(b);
+                mpz_clear(t);
+
+                if (VFLAG > 2)
+                {
+                    print_current_factors(flist, VFLAG, 10);
+                }
                 return i;
             }
         }
@@ -864,6 +904,18 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
     flist->factors[fid].type = compute_factor_type(flist, n, VFLAG);
 
     flist->num_factors++;
+
+    if (VFLAG > 2)
+    {
+        gmp_printf("added new factor %Zd\n", n);
+        print_current_factors(flist, VFLAG, 10);
+    }
+
+    mpz_clear(g);
+    mpz_clear(a);
+    mpz_clear(b);
+    mpz_clear(t);
+
 	return fid;
 }
 
@@ -1107,6 +1159,42 @@ int contains_any_composite_factor(yfactor_list_t* flist, int num_witnesses)
     return p;
 }
 
+int get_composite(yfactor_list_t* flist, mpz_t n)
+{
+    int p = 0;
+    int i;
+
+    mpz_set_ui(n, 1);
+
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        if (flist->factors[i].type == UNKNOWN)
+        {
+            int status = is_mpz_prp(flist->factors[i].factor, 1);
+            if (status)
+            {
+                flist->factors[i].type = PRP;
+            }
+            else
+            {
+                flist->factors[i].type = COMPOSITE;
+                mpz_set(n, flist->factors[i].factor);
+                p = 1;
+                break;
+            }
+        }
+        else if (flist->factors[i].type == COMPOSITE)
+        {
+            mpz_set(n, flist->factors[i].factor);
+            p = 1;
+            break;
+        }
+    }
+
+    return p;
+
+}
+
 int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG)
 {
 	// see if the value we
@@ -1286,7 +1374,7 @@ void print_factors(fact_obj_t *fobj)
     // put anything left over in the list
     if (mpz_cmp_ui(remainder, 1) > 0)
     {
-        add_to_factor_list(flist, remainder, VFLAG, NUM_WITNESSES);
+        add_to_factor_list(flist, remainder, VFLAG, NUM_WITNESSES, 0);
     }
 
 	// always print factors unless complete silence is requested
@@ -1334,4 +1422,45 @@ void print_factors(fact_obj_t *fobj)
 	return;
 }
 
+void print_current_factors(yfactor_list_t* flist, int verbose, int base)
+{
+    int VFLAG = verbose;
+    int OBASE = base;
+    uint32_t i;
+    int j, v;
 
+    // always print factors unless complete silence is requested
+    if (VFLAG >= 0)
+    {
+        if (VFLAG >= 0) printf("\n\n***factors found***\n");
+
+        char typestr[8];
+
+        for (i = 0; i < flist->num_factors; i++)
+        {
+            if (flist->factors[i].type == PRIME)
+            {
+                strcpy(typestr, "P");
+            }
+            else if (flist->factors[i].type == PRP)
+            {
+                strcpy(typestr, "PRP");
+            }
+            else if (flist->factors[i].type == COMPOSITE)
+            {
+                strcpy(typestr, "C");
+            }
+            else
+            {
+                strcpy(typestr, "U");
+            }
+
+            for (j = 0; j < flist->factors[i].count; j++)
+            {
+                print_factor(typestr, flist->factors[i].factor, OBASE);
+            }
+        }
+    }
+
+    return;
+}

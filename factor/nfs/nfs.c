@@ -85,7 +85,7 @@ int nfs_check_special_case(fact_obj_t *fobj)
 	if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
 		add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n,
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		
 		if (fobj->VFLAG >= 0)
 		{
@@ -107,13 +107,10 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		mpz_sqrt(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 
 		add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, 
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n), s);
-
-		add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, 
-            fobj->VFLAG, fobj->NUM_WITNESSES);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n), s);
         free(s);
@@ -1204,14 +1201,14 @@ void nfs(fact_obj_t *fobj)
 
 			nfs_state = NFS_STATE_POLY;		
 
-			char fname[1024];
-			sprintf(fname, "%s.ranges", fobj->nfs_obj.outputfile);
-			FILE *fid = fopen(fname, "w");
-			if (fid != NULL)
-			{
-				gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
-				fclose(fid);
-			}
+			//char fname[1024];
+			//sprintf(fname, "%s.ranges", fobj->nfs_obj.outputfile);
+			//FILE *fid = fopen(fname, "w");
+			//if (fid != NULL)
+			//{
+			//	gmp_fprintf(fid, "%Zd\n", fobj->nfs_obj.gmp_n);
+			//	fclose(fid);
+			//}
 
 			break;
 
