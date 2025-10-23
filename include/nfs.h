@@ -73,7 +73,7 @@ typedef struct
     int coeff2;
     // type of form
     enum snfs_form_e form_type;
-
+    int LM;     // 1: M, -1: L, 0: neither
 
     mpz_polys_t* poly;
     mpz_t c[MAX_POLY_DEGREE + 1]; // scratch space -- converted to mpz_poly_t

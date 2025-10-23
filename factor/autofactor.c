@@ -462,30 +462,41 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			if (fobj->autofact_obj.only_pretest > 1)
 			{
 				target_job_type = job_ecm;	// ecm only
+				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+					"chosing ecm based on pretest option\n", gnfs_size, equiv_gnfs_size);
 			}
 			else if (fobj->nfs_obj.gnfs == 1)
 			{
 				// user specifically requested gnfs
 				target_job_type = job_gnfs;
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+					"chosing gnfs based on user selection\n", gnfs_size, equiv_gnfs_size);
 			}
 			else if (fobj->nfs_obj.snfs == 1)
 			{
 				// user specifically requested snfs
-				printf("fac: should not see .snfs flag in autofactor\n");
+				//printf("fac: should not see .snfs flag in autofactor\n");
 				target_job_type = job_snfs;
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+					"chosing snfs based on user selection\n", gnfs_size, equiv_gnfs_size);
 			}
-			else if (equiv_gnfs_size <= (gnfs_size + 3))
+			else if ((equiv_gnfs_size <= (gnfs_size + 3)) &&
+				(gnfs_size < fobj->autofact_obj.qs_snfs_xover))
 			{
-				if (equiv_gnfs_size < fobj->autofact_obj.qs_snfs_xover)
-				{
-					// snfs but below this crossover
-					target_job_type = job_siqs;
-				}
-				else
-				{
-					// if none of the above, target snfs on this input.
-					target_job_type = job_snfs;
-				}
+				// snfs easier than gnfs but siqs size below siqs xover
+				target_job_type = job_siqs;
+				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+					"chosing siqs based on qs/snfs crossover %1.2f\n",
+					gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_snfs_xover);
+			}
+			else if ((equiv_gnfs_size <= (gnfs_size + 3)) &&
+				(gnfs_size >= fobj->autofact_obj.qs_snfs_xover))
+			{
+				// snfs easier than gnfs and siqs
+				target_job_type = job_snfs;
+				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+					"chosing snfs based on qs/snfs crossover %1.2f\n",
+					gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_snfs_xover);
 			}
 			else
 			{
@@ -493,11 +504,17 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 				{
 					// gnfs but below this crossover
 					target_job_type = job_siqs;
+					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+						"chosing siqs based on qs/gnfs crossover %1.2f\n",
+						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				}
 				else
 				{
 					// if none of the above, target gnfs on this input.
 					target_job_type = job_gnfs;
+					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
+						"chosing gnfs based on qs/gnfs crossover %1.2f\n",
+						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				}
 			}
 		}
@@ -508,11 +525,16 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			{
 				// gnfs but below this crossover
 				target_job_type = job_siqs;
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, snfs job flagged as better by gnfs, "
+					"chosing siqs based on qs/gnfs crossover %1.2f\n",
+					gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 			}
 			else
 			{
 				// if none of the above, target gnfs on this input.
 				target_job_type = job_gnfs;
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, snfs job flagged as better by gnfs, "
+					"chosing gnfs\n", gnfs_size);
 			}
 		}
 		else if (snfs_status == 0)
@@ -522,17 +544,23 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			if (fobj->autofact_obj.only_pretest > 1)
 			{
 				target_job_type = job_ecm;	// ecm only
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
+					"chosing ecm based on pretest option\n", gnfs_size);
 			}
 			else if (fobj->nfs_obj.gnfs == 1)
 			{
 				// user specifically requested gnfs
 				target_job_type = job_gnfs;
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
+					"chosing gnfs based on user selection\n", gnfs_size);
 			}
 			else if (fobj->nfs_obj.snfs == 1)
 			{
 				// user specifically requested snfs... but we found no snfs form.
 				printf("fac: should not see .snfs flag in autofactor\n");
 				target_job_type = job_snfs;
+				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
+					"chosing snfs based on user selection\n", gnfs_size);
 			}
 			else
 			{
@@ -540,11 +568,17 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 				{
 					// gnfs but below this crossover
 					target_job_type = job_siqs;
+					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
+						"chosing siqs based on qs/gnfs crossover %1.2f\n",
+						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				}
 				else
 				{
 					// if none of the above, target gnfs on this input.
 					target_job_type = job_gnfs;
+					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
+						"chosing gnfs based on qs/gnfs crossover %1.2f\n",
+						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				}
 			}
 		}
@@ -566,8 +600,6 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 		target_job_type = job_siqs;		// only choice if we have no NFS
 	}
 #endif
-
-
 
 	return target_job_type;
 }
@@ -647,10 +679,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 			mpz_sqrt(b, b);
 
 			add_to_factor_list(fobj->factors, b,
-				fobj->VFLAG, fobj->NUM_WITNESSES);
-
-			add_to_factor_list(fobj->factors, b,
-				fobj->VFLAG, fobj->NUM_WITNESSES);
+				fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 			mpz_set_ui(b, 1);
 
@@ -658,6 +687,8 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 			gettimeofday(&tstop, NULL);
 			t_time = ytools_difftime(&tstart, &tstop);
 
+			fwork->rho_bases = fwork->rho_max_bases;
+			fwork->rho_iterations = fwork->rho_max_iterations;
 			fwork->rho_time = t_time;
 			fwork->total_time += t_time;
 			break;
@@ -674,6 +705,8 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 			gettimeofday(&tstop, NULL);
 			t_time = ytools_difftime(&tstart, &tstop);
 
+			fwork->rho_bases = fwork->rho_max_bases;
+			fwork->rho_iterations = fwork->rho_max_iterations;
 			fwork->rho_time = t_time;
 			fwork->total_time += t_time;
 			break;
@@ -820,7 +853,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		fwork->qs_time = t_time;
 		if (fobj->VFLAG > 0)
-			printf("pretesting / qs ratio was %1.2f\n", 
+			printf("fac: pretesting / qs ratio was %1.2f\n", 
 				fwork->total_time / t_time); 
 		break;
 
@@ -836,13 +869,13 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		fwork->nfs_time = t_time;
 		if (fobj->VFLAG > 0)
-			printf("pretesting / nfs ratio was %1.2f\n", 
+			printf("fac: pretesting / nfs ratio was %1.2f\n", 
 				fwork->total_time / t_time); 
 
 		break;
 
 	default:
-		printf("nothing to do for method %d\n", method);
+		printf("fac: nothing to do for work method %d\n", method);
 		break;
 	}
 
@@ -933,14 +966,17 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 
 	if (done)
 	{
+		//printf("everything is prime or prp\n");
 		// everything is prime or PRP.
-		if (mpz_cmp(tmp, fobj->input_N) != 0)
+		if (mpz_cmp_ui(N, 1) > 0)
 		{
-			// haven't found all of the factors yet
+			// input still has work to be done
+			//gmp_printf("still have work to do on input %Zd\n", N);
 			done = 0;
 		}
 	}
 
+	//printf("check if done returning %d\n", done);
 	mpz_clear(tmp);
 	return done;
 #endif
@@ -1027,7 +1063,7 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 							for (k=0; k < fobj_refactor->factors->factors[j].count * ocount; k++)
 								add_to_factor_list(fobj->factors, 
                                     fobj_refactor->factors->factors[j].factor,
-                                    fobj->VFLAG, fobj->NUM_WITNESSES);
+                                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 						}
 
 						// free temps
@@ -1603,6 +1639,13 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			break;
 	}
 
+	if (mpz_cmp_ui(b, 1) == 0)
+	{
+		if (fobj->VFLAG > 0)
+			printf("fac: factorization completed while analyzing input\n");
+		return state_idle;
+	}
+
 	// if there is a trivial amount of ecm to do, skip directly to a sieve method
 	int is_trivial = 0;
 	if ((target_digits < 15) && (numdigits <= 45))
@@ -1649,6 +1692,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			double qs_time_est, gnfs_time_est;
 		
 			// compute the time to factor using estimates derived during 'tune'.
+			// if we know of a preferable SNFS poly, use its equivalent gnfs
+			// size to predict the job duration.
+
 			qs_time_est = get_qs_time_estimate(fobj, b);
 			gnfs_time_est = get_gnfs_time_estimate(fobj, b);
 
@@ -1840,10 +1886,12 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_max_55digit_curves = 17769;	//110M
 	fwork->ecm_max_60digit_curves = 42017;	//260M
 	fwork->ecm_max_65digit_curves = 69408;	//850M
+	fwork->tdiv_limit = 0;
 	fwork->tdiv_max_limit = fobj->div_obj.limit;
     fwork->fermat_iterations = 0;
 	fwork->fermat_max_iterations = fobj->div_obj.fmtlimit;
 	fwork->rho_max_bases = 3;
+	fwork->rho_bases = 0;
 	fwork->rho_max_iterations = fobj->rho_obj.iterations;
 	fwork->pp1_max_lvl1_curves = 0;
 	fwork->pp1_max_lvl2_curves = 0;
@@ -2179,6 +2227,7 @@ void factor(fact_obj_t *fobj)
 	char tmpstr[GSTR_MAXSIZE];
 	int quit_after_sieve_method = 0;
     double initial_work = fobj->autofact_obj.initial_work;
+	int override_fact_state = 0;
 
 	//factor() always ignores user specified B2 values
 	fobj->ecm_obj.stg2_is_default = 1;
@@ -2328,10 +2377,10 @@ void factor(fact_obj_t *fobj)
 
 	init_factor_work(&fwork, fobj);
 
-	//starting point of factorization effort
-	fact_state = state_trialdiv;
+	// starting point of factorization effort
+	fact_state = state_idle;
 
-	//check to see if a siqs savefile exists for this input	
+	// check to see if a siqs savefile exists for this input	
 	data = fopen(fobj->qs_obj.siqs_savefile,"r");
 
 	if (data != NULL)
@@ -2356,12 +2405,13 @@ void factor(fact_obj_t *fobj)
             // if the inputs don't match exactly, resume siqs on the exact
             // number in the savefile and put the cofactor (prime or composite)
             // into the factor list.  If composite it will get refactored.
-            add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
+            add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
             mpz_set(b, tmpz);
 
-			//override default choice
+			// override starting point
 			fact_state = state_qs;
+			override_fact_state = 1;
 
 			// if for some reason qs doesn't find factors (such as
 			// a user specified time out), don't continue ecm-ing, etc.
@@ -2372,7 +2422,7 @@ void factor(fact_obj_t *fobj)
 		fclose(data);
 	}
 
-	//check to see if a nfs job file exists for this input	
+	// check to see if a nfs job file exists for this input	
 	data = fopen(fobj->nfs_obj.job_infile,"r");
 
 	if (data != NULL)
@@ -2402,8 +2452,9 @@ void factor(fact_obj_t *fobj)
 			mpz_set(origN, b);
 			mpz_set(copyN, b);
 
-			//override default choice
+			// override starting point
 			fact_state = state_nfs;
+			override_fact_state = 1;
 
 			// if for some reason nfs doesn't find factors (such as
 			// a user specified time out or -ns, -nc, etc.), 
@@ -2418,14 +2469,31 @@ void factor(fact_obj_t *fobj)
 	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
 	{	
-        // do the next item of work
+		if (!override_fact_state)
+		{
+			// schedule work to be done on this input
+			fact_state = schedule_work(&fwork, b, fobj);
+		}
+
+		//gmp_printf("fac: commencing state %d on current work item %Zd\n", fact_state, b);
+
+        // do the scheduled work
 		do_work(fact_state, &fwork, b, fobj);
+
+		// get the next item of work
+		int more_work = get_composite(fobj->factors, b);
+
+		if (more_work)
+		{
+			mpz_set(fobj->input_N, b);
+			//gmp_printf("fac: next item of work is %Zd\n", b);
+		}
 
         // check if we are done:
         // * number is completely factored
         // * sieve method was performed and either finished or was interrupted.
 		// * one of the exit-on-factor-found conditions is met
-        if (check_if_done(fobj, &fwork, origN) || check_for_exit_on_factor(fobj) ||
+        if (check_if_done(fobj, &fwork, b) || check_for_exit_on_factor(fobj) ||
             (quit_after_sieve_method &&
             ((fact_state == state_qs) ||
             (fact_state == state_nfs))) ||
@@ -2456,62 +2524,6 @@ void factor(fact_obj_t *fobj)
                 }
                 fact_state = state_done;
             }
-        }
-
-        // if not done, figure out the next item of work.
-        if (fact_state != state_done)
-        {
-			if (mpz_cmp_ui(fobj->N, 1) == 0)
-			{
-				// not done, but N == 1, means there 
-				// must be a composite factor in our list.
-				// reset fwork and start on that.
-				int i;
-				for (i = 0; i < fobj->factors->num_factors; i++)
-				{
-					if (fobj->factors->factors[i].type == COMPOSITE)
-					{
-						mpz_set(fobj->N, fobj->factors->factors[i].factor);
-						mpz_set(b, fobj->factors->factors[i].factor);
-
-						if (fobj->factors->factors[i].count > 1)
-						{
-							fobj->factors->factors[i].count--;
-						}
-						else
-						{
-							delete_from_factor_list(fobj->factors, fobj->N);
-						}
-
-						if (fobj->VFLAG >= 1)
-						{
-							gmp_printf("fac: starting work on composite factor %Zd\n", fobj->N);
-						}
-
-						break;
-					}					
-				}
-
-				// starting point of factorization effort.  composite factors are
-				// often the result of rho or ecm, where the factor is composed of
-				// two small primes.  fermat will sometimes split these, or rho/ecm
-				// again (with different modulus and sigmas)
-				init_factor_work(&fwork, fobj);
-				fact_state = state_trialdiv;
-
-				// if the state is not done, but N=1 and we didn't
-				// find any composites in the factor list to work on, 
-				// then something failed to factor and we give up.
-				if (mpz_cmp_ui(fobj->N, 1) == 0)
-				{
-					// didn't find any composite factors, give up.
-					printf("fac: giving up with incomplete factorization\n");
-					fact_state = state_done;
-					continue;
-				}
-			}
-
-            fact_state = schedule_work(&fwork, b, fobj);
         }
 	}
 
@@ -2582,10 +2594,9 @@ void factor(fact_obj_t *fobj)
 		}
 	}
 
-		
 	if (mpz_cmp_ui(b, 1) != 0)
 	{
-		add_to_factor_list(fobj->factors, b, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, b, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 
 		int fid = find_in_factor_list(fobj->factors, b);
 

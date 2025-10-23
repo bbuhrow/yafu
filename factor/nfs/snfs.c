@@ -82,6 +82,7 @@ void snfs_init(snfs_t* poly)
 	int i;
 	memset(poly, 0, sizeof(snfs_t));
 	poly->form_type = SNFS_NONE;
+	poly->LM = 0;		// neither type (1: M, -1: L)
 	poly->siever = 0;
 	poly->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 	if( !poly->poly )
@@ -127,6 +128,7 @@ void snfs_copy_poly(snfs_t *src, snfs_t *dest)
 	dest->coeff1 = src->coeff1;
 	dest->coeff2 = src->coeff2;
 	dest->form_type = src->form_type;
+	dest->LM = src->LM;
 	dest->siever = src->siever;
 
 	for (i=0; i<MAX_POLY_DEGREE + 1; i++)
@@ -258,8 +260,17 @@ void print_snfs(snfs_t *poly, FILE *out)
 
 	if (poly->form_type == SNFS_H_CUNNINGHAM)
 	{
-		gmp_fprintf(out, "# %Zd^%d%c%Zd^%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
-			poly->base1, poly->exp1, c, poly->base2, poly->exp1, poly->difficulty,
+		char auri_str[80];
+		switch (poly->LM)
+		{
+		case 1: strcpy(auri_str, " Aurifeuillian M"); break;
+		case -1: strcpy(auri_str, " Aurifeuillian L"); break;
+		case 0:
+		default: strcpy(auri_str, ""); break;
+		}
+
+		gmp_fprintf(out, "# %Zd^%d%c%Zd^%d%s, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
+			poly->base1, poly->exp1, c, poly->base2, poly->exp1, auri_str, poly->difficulty,
 			poly->anorm, poly->rnorm);
 	}
 	else if (poly->form_type == SNFS_XYYXF)
@@ -276,13 +287,22 @@ void print_snfs(snfs_t *poly, FILE *out)
     }
 	else if (poly->form_type == SNFS_BRENT)
 	{
+		char auri_str[80];
+		switch (poly->LM)
+		{
+		case 1: strcpy(auri_str, " Aurifeuillian M"); break;
+		case -1: strcpy(auri_str, " Aurifeuillian L"); break;
+		case 0:
+		default: strcpy(auri_str, ""); break;
+		}
+
 		if (poly->coeff1 == 1)
-			gmp_fprintf(out, "# %Zd^%d%c%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
-				poly->base1, poly->exp1, c, abs(poly->coeff2), poly->difficulty,
+			gmp_fprintf(out, "# %Zd^%d%c%d%s, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
+				poly->base1, poly->exp1, c, abs(poly->coeff2), auri_str, poly->difficulty,
 				poly->anorm, poly->rnorm);
 		else
-			gmp_fprintf(out, "# %d*%Zd^%d%c%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
-				abs(poly->coeff1), poly->base1, poly->exp1, c, abs(poly->coeff2), poly->difficulty,
+			gmp_fprintf(out, "# %d*%Zd^%d%c%d%s, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
+				abs(poly->coeff1), poly->base1, poly->exp1, c, abs(poly->coeff2), auri_str, poly->difficulty,
 				poly->anorm, poly->rnorm);
 	}
     else
@@ -364,7 +384,7 @@ void approx_norms(snfs_t *poly)
 	a = sqrt((double)(1ULL << (2 * siever - 1)) * q * poly->poly->skew);
     b = sqrt((double)(1ULL << (2 * siever - 1)) * q / poly->poly->skew);
 
-    //printf("skew = %lf, a = %lf, b = %lf\n", poly->poly->skew, a, b);
+    //printf("skew = %lf, difficulty = %lf, a = %lf, b = %lf\n", poly->poly->skew, d, a, b);
 
 	mpz_init(tmp);
 	mpz_init(res);
@@ -375,7 +395,7 @@ void approx_norms(snfs_t *poly)
     //printf("alg degree: %d\n", poly->poly->alg.degree);
     //for (i = 0; i < 9; i++)
     //    gmp_printf("%Zd\n", poly->poly->alg.coeff[i]);
-
+	//
     //printf("rat degree: %d\n", poly->poly->rat.degree);
     //for (i = 0; i < 9; i++)
     //    gmp_printf("%Zd\n", poly->poly->rat.coeff[i]);
@@ -2195,10 +2215,98 @@ exit:
 }
 
 
+
 // ****************************************************************************************
 // end Phi functions
 // ****************************************************************************************
 
+static int check_aurif(mpz_t N, mpz_t x, mpz_t y, int n, int sign)
+{
+	// do the beginning part of generate_aurif to see if 
+	// an Aurifeuillian poly is possible.
+	int sbp;
+	int a, b;
+	int xsqr;
+	int ysqr;
+	int i;
+	mpz_t r;
+	int primes[6];
+	int exps[6];
+	int nprimes;
+	int success = 1;
+	int LM;  /* -1 for L, 1 for M, 0 for error */
+
+	mpz_init(r);
+
+	if (sign > 0)
+		gmp_printf("check_aurif on %Zd^%d + %Zd^%d mod %Zd: ", x, n, y, n, N);
+	else
+		gmp_printf("check_aurif on %Zd^%d - %Zd^%d mod %Zd: ", x, n, y, n, N);
+
+	/* Find the squarefree base product (sbp) and extract the square parts */
+	mpz_set(r, x);
+	nprimes = trialdiv(r, primes, exps, 31, 6);
+	if (mpz_cmp_ui(r, 1) != 0) {
+		/* Too many prime factors of bases.  Bailing out. */
+		success = 0;
+		goto exit;
+	}
+	a = b = xsqr = ysqr = 1;
+	for (i = 0; i < nprimes; i++) {
+		if (exps[i] % 2 == 1) {
+			a *= primes[i];
+		}
+		xsqr *= ipwr(primes[i], exps[i] / 2);	/* May truncate */
+	}
+	mpz_set(r, y);
+	nprimes = trialdiv(r, primes, exps, 31, 6);
+	if (mpz_cmp_ui(r, 1) != 0) {
+		/* Too many prime factors of bases.  Bailing out. */
+		success = 0;
+		goto exit;
+	}
+	for (i = 0; i < nprimes; i++) {
+		if (exps[i] % 2 == 1) {
+			b *= primes[i];
+		}
+		ysqr *= ipwr(primes[i], exps[i] / 2);	/* May truncate */
+	}
+	sbp = a * b;
+	printf("sbp = %d, ", sbp);
+
+	/* Got the SBP.  Is there an Aurifeuillian factorization? */
+	if ((sbp % 4 == 1 && sign > 0) || (sbp % 4 != 1 && sign < 0)) {
+		/* We're on the wrong side. */
+		success = 0;
+		goto exit;
+	}
+	if (n % sbp != 0 || (n / sbp) % 2 != 1) {
+		/* Exponent isn't an odd multiple of SBP. */
+		success = 0;
+		goto exit;
+	}
+	if (sbp == 19 || sbp == 22 || sbp == 23 || sbp == 26 || sbp == 29 || sbp > 30) {
+		/* We can't make a polynomial with a reasonable degree. */
+		success = 0;
+		goto exit;
+	}
+
+	/*
+	 * We now know there should be an Aurifeuillian factorization.
+	 * Let's see if we can use it.
+	 */
+	LM = find_aurifeuillian(N, x, y, n, sbp, xsqr * ysqr);
+	if (LM == 0) {
+		/* N didn't divide either form, bail out. */
+		success = 0;
+		goto exit;
+	}
+
+exit:
+	printf("result = %d\n", success);
+	mpz_clear(r);
+	return success;
+}
 
 void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 {
@@ -2622,16 +2730,26 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 					// build F, L, and M factors from the table here:
 					// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
 					mpz_set_ui(C, 0);
+					//printf("Auri base: %d, %d C terms:\n", base, c_num_terms[i]);
 					for (j = 0; j < c_num_terms[i]; j++)
 					{
+						//if (cterm_m[i][j] > 0)
+						//{
+						//	printf("%d*%d^(%d*%d+%d)\n", cterm_m[i][j], base, cterm_em[i][j], k, cterm_ec[i][j]);
+						//}
 						mpz_set_ui(term, base);
 						mpz_pow_ui(term, term, cterm_em[i][j] * k + cterm_ec[i][j]);
 						mpz_mul_si(term, term, cterm_m[i][j]);
 						mpz_add(C, C, term);
 					}
 					mpz_set_ui(D, 0);
+					//printf("Auri base: %d, %d D terms:\n", base, c_num_terms[i]);
 					for (j = 0; j < d_num_terms[i]; j++)
 					{
+						//if (dterm_m[i][j] > 0)
+						//{
+						//	printf("%d*%d^(%d*%d+%d)\n", dterm_m[i][j], base, dterm_em[i][j], k, dterm_ec[i][j]);
+						//}
 						mpz_set_ui(term, base);
 						mpz_pow_ui(term, term, dterm_em[i][j] * k + dterm_ec[i][j]);
 						mpz_mul_si(term, term, dterm_m[i][j]);
@@ -3529,70 +3647,43 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// will always be lower difficulty then playing with exponents only, even if the degree
 	// is sub-optimal.  The possibility of simple algebraic reduction occurs only when the a,c 
 	// coefficients are 1.  
-	// More complex algebraic reductions like Aurifeuillian 
-	// factorizations are not attempted here.
-    if (poly->form_type == SNFS_DIRECT)
-    {
-        // the poly form directly gives a poly.
-        int deg = 0;
-        double d;
+	int is_aurif = 0;
+	int lm;
 
-        mpz_set(m, poly->base1);
-        mpz_pow_ui(m, m, poly->exp1);
+	if (check_aurif(fobj->nfs_obj.gmp_n, poly->base1, poly->base2, poly->exp1, poly->coeff2))
+	{
+		polys = (snfs_t*)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
-        for (i = 6; i >= 0; i--)
-        {
-            if ((mpz_cmp_ui(poly->c[i],0) > 0) && (deg == 0))
-            {
-                deg = i;
-            }
-            mpz_set(poly->poly->alg.coeff[i], poly->c[i]);
-        }
-        d = mpz_get_d(m);
-        d = log10(d) * (double)deg;
+		mpz_set(polys->n, fobj->nfs_obj.gmp_n);
+		is_aurif = generate_aurif(fobj->nfs_obj.gmp_n, polys->base1, polys->base2,
+			polys->exp1, polys->coeff2, &polys->poly->alg.degree, polys->c,
+			polys->poly->rat.coeff, &polys->difficulty, &polys->poly->skew, &polys->LM);
 
-        // leading coefficient contributes to the difficulty
-        d += log10(mpz_get_d(poly->c[deg]));
+		fobj->nfs_obj.pref_degree = polys->poly->alg.degree;
+		polys->poly->rat.degree = 1;
 
-        // compute skew
-        skew = pow(fabs(mpz_get_d(poly->c[0])) / mpz_get_d(poly->c[deg]), 1. / (double)deg);
+		mpz_neg(polys->poly->m, polys->poly->rat.coeff[1]);
+		mpz_invert(polys->poly->m, polys->poly->m, fobj->nfs_obj.gmp_n);
+		mpz_mul(polys->poly->m, polys->poly->m, polys->poly->rat.coeff[0]);
+		mpz_mod(polys->poly->m, polys->poly->m, fobj->nfs_obj.gmp_n);
 
-        //printf("degree is %d\n", deg);
-        //printf("skew is %lf\n", skew);
-        //printf("difficulty is %lf\n", d);
+		check_poly(&polys[0], fobj->VFLAG);
+		approx_norms(&polys[0]);
 
-        poly->difficulty = d;
-        mpz_set(poly->poly->m, m);
-        poly->poly->skew = skew;
-        poly->poly->alg.degree = deg;
+		if (fobj->VFLAG > 0) print_snfs(&polys[0], stdout);
 
-        mpz_set_si(poly->poly->rat.coeff[1], -1);
-        mpz_set(poly->poly->rat.coeff[0], m);
- 
-        algebraic = 0;
+		if (!polys->valid)
+		{
+			snfs_clear(polys);
+			npoly = 0;
+		}
 
-        polys = (snfs_t*)malloc(sizeof(snfs_t));
-        snfs_init(polys);
-        npoly = 1;
-        snfs_copy_poly(poly, polys);		// copy algebraic form
+		goto done;
 
-        if (fobj->VFLAG > 1)
-        {
-            printf("gen: ========================================================\n"
-                "gen: considering the following polynomials:\n"
-                "gen: ========================================================\n\n");
-        }
-        logprint_oc(fobj->nfs_obj.logfile, "a", "gen: considering the following polynomials:\n");
-
-        check_poly(&polys[0], fobj->VFLAG);
-        approx_norms(&polys[0]);
-
-        if (polys[0].valid)
-        {
-            if (fobj->VFLAG > 1) print_snfs(&polys[0], stdout);
-        }
-
-    }
+	}
 	else if ((poly->exp1 % 15 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
@@ -4058,6 +4149,68 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		
 		algebraic = 1;
 		halved = 1;
+	}
+	else if (poly->form_type == SNFS_DIRECT)
+	{
+		// the poly form directly gives a poly.
+		int deg = 0;
+		double d;
+
+		mpz_set(m, poly->base1);
+		mpz_pow_ui(m, m, poly->exp1);
+
+		for (i = 6; i >= 0; i--)
+		{
+			if ((mpz_cmp_ui(poly->c[i], 0) > 0) && (deg == 0))
+			{
+				deg = i;
+			}
+			mpz_set(poly->poly->alg.coeff[i], poly->c[i]);
+		}
+		d = mpz_get_d(m);
+		d = log10(d) * (double)deg;
+
+		// leading coefficient contributes to the difficulty
+		d += log10(mpz_get_d(poly->c[deg]));
+
+		// compute skew
+		skew = pow(fabs(mpz_get_d(poly->c[0])) / mpz_get_d(poly->c[deg]), 1. / (double)deg);
+
+		//printf("degree is %d\n", deg);
+		//printf("skew is %lf\n", skew);
+		//printf("difficulty is %lf\n", d);
+
+		poly->difficulty = d;
+		mpz_set(poly->poly->m, m);
+		poly->poly->skew = skew;
+		poly->poly->alg.degree = deg;
+
+		mpz_set_si(poly->poly->rat.coeff[1], -1);
+		mpz_set(poly->poly->rat.coeff[0], m);
+
+		algebraic = 0;
+
+		polys = (snfs_t*)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
+
+		if (fobj->VFLAG > 1)
+		{
+			printf("gen: ========================================================\n"
+				"gen: considering the following polynomials:\n"
+				"gen: ========================================================\n\n");
+		}
+		logprint_oc(fobj->nfs_obj.logfile, "a", "gen: considering the following polynomials:\n");
+
+		check_poly(&polys[0], fobj->VFLAG);
+		approx_norms(&polys[0]);
+
+		if (polys[0].valid)
+		{
+			if (fobj->VFLAG > 1) print_snfs(&polys[0], stdout);
+		}
+
 	}
 	else 
 	{
@@ -4651,6 +4804,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         }
 	}
 
+
+done:
 	mpz_clear(m);
 	mpz_clear(n);
 	mpz_clear(t);

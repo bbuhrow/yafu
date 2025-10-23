@@ -1271,8 +1271,10 @@ void nfs(fact_obj_t *fobj)
                     int i;
                     copy_mpz_polys_t(job.poly, job.snfs->poly);
                     mpz_set(job.snfs->n, fobj->nfs_obj.gmp_n);
-                    for (i = job.poly->alg.degree; i >= 0; i--)
-                        mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
+					for (i = job.poly->alg.degree; i >= 0; i--)
+					{
+						mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
+					}
                 }
 				
 				// set min_rels and other parameters.
@@ -2004,15 +2006,15 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
         {
             if (fobj->VFLAG > 0)
             {
-                //printf("nfs: detected snfs job but no snfs difficulty; "
-                //    "assuming size of number is the snfs difficulty\n");
-
                 printf("nfs: detected snfs job but no snfs difficulty\n");
                 printf("nfs: using m and poly coefficients to compute difficulty\n");
+				gmp_printf("nfs: degree %d, coefficient %Zd\n", job->snfs->poly->alg.degree,
+					job->snfs->c[job->snfs->poly->alg.degree]);
             }
 
-            job->snfs->difficulty = log10(fabs(mpz_get_d(job->snfs->poly->m))) +
-                log10(mpz_get_d(job->snfs->poly->alg.coeff[job->snfs->poly->alg.degree]));
+            job->snfs->difficulty = job->snfs->poly->alg.degree *
+				(log10(fabs(mpz_get_d(job->snfs->poly->m))) +
+                log10(mpz_get_d(job->snfs->c[job->snfs->poly->alg.degree])));
 
             if (fobj->VFLAG > 0)
             {
