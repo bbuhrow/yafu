@@ -212,9 +212,9 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			int j;
 
 			// todo: need to define alternate routines if this isn't defined...
-			params = init_tinyqs();
-			i = tinyqs(params, fobj->qs_obj.gmp_n, f1, f2);
-			params = free_tinyqs(params);
+			params = init_tinysiqs();
+			i = tinysiqs(params, fobj->qs_obj.gmp_n, f1, f2);
+			params = free_tinysiqs(params);
 
 			for (j = 0; j < i; j++)
 			{

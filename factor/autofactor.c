@@ -366,7 +366,7 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 
 #ifdef USE_NFS
 
-	if (fobj->nfs_obj.skip_snfs_check)
+	if ((fobj->nfs_obj.skip_snfs_check) || (numdigits < 60))
 	{
 		poly = NULL;
 	}

@@ -692,8 +692,9 @@ endif
 #---------------------------Make Targets -------------------------
 
 help:
+	@echo ""
 	@echo "to build msieve:"
-	@echo "make msieve"
+	@echo "make -f Makefile.clang msieve"
 	@echo "add 'WIN=1 if building on windows"
 	@echo "add 'WIN64=1 if building on 64-bit windows"
 	@echo "add 'ECM=1' if GMP-ECM is available (enables ECM)"
@@ -702,14 +703,36 @@ help:
 	@echo "add 'BOINC=1' to add BOINC wrapper"
 	@echo "add 'NO_ZLIB=1' if you don't have zlib"
 	@echo "add 'VBITS=X' for linear algebra with X-bit vectors (64, 128, 256)"
+	@echo ""
 	@echo "to build yafu:"
-	@echo "make yafu"
+	@echo "make -f Makefile.clang yafu"
+	@echo "add 'TARGET=cpu-arch' to optimize for cpu-architecture "
+	@echo "supported architectures: "
+	@echo "icelake, skylakex, cascadelake, cooperlake, cannonlake, tigerlake, rocketlake, sapphirerapids,"
+	@echo "zen4, zen5"
+	@echo "OR, add the following for specific instruction set support"
 	@echo "add 'USE_SSE41=1' to include sse4.1 vectorization instruction support"
 	@echo "add 'USE_AVX2=1' to include AVX2 vectorization instruction support"
 	@echo "add 'USE_BMI2=1' to include BMI2 instruction support"
 	@echo "add 'SKYLAKEX=1' to include AVX512F,VL,DQ,BW vectorization instruction support"
 	@echo "add 'ICELAKE=1' to include SKYLAKEX + AVX512IFMA vectorization instruction support"
 	@echo ""
+	@echo "building yafu will automatically build msieve if necessary.  Include any desired"
+	@echo "msieve build options when building yafu"
+	@echo ""
+	@echo "to build ysieve:"
+	@echo "make -f Makefile.clang ysieve"
+	@echo "add 'USE_AVX2=1' to include AVX2 vectorization instruction support"
+	@echo ""
+	@echo "to build siqs:"
+	@echo "make -f Makefile.clang siqs"
+	@echo "add build options identically to yafu instructions above"
+	@echo ""
+	@echo "to build ecm:"
+	@echo "make -f Makefile.clang ecm"
+	@echo "add build options identically to yafu instructions above"
+	@echo ""
+	
 
 
 msieve: $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
@@ -735,9 +758,9 @@ yafu: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU
 	ranlib libynfs.a
 	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu -lysiqs  -lyecm  -lynfs -lmsieve $(LIBS)
 
-siqs: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
+siqs: $(MSIEVE_COMMON_OBJS) $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
 	rm -f libysiqs.a
-	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS) 
+	ar r libysiqs.a $(MSIEVE_COMMON_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS) 
 	ranlib libysiqs.a
 	$(CC) $(CFLAGS) $(SIQS_BIN_OBJS) -o siqs_demo -lysiqs  $(LIBS)
 	

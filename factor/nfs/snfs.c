@@ -2238,11 +2238,6 @@ static int check_aurif(mpz_t N, mpz_t x, mpz_t y, int n, int sign)
 
 	mpz_init(r);
 
-	if (sign > 0)
-		gmp_printf("check_aurif on %Zd^%d + %Zd^%d mod %Zd: ", x, n, y, n, N);
-	else
-		gmp_printf("check_aurif on %Zd^%d - %Zd^%d mod %Zd: ", x, n, y, n, N);
-
 	/* Find the squarefree base product (sbp) and extract the square parts */
 	mpz_set(r, x);
 	nprimes = trialdiv(r, primes, exps, 31, 6);
@@ -2272,7 +2267,7 @@ static int check_aurif(mpz_t N, mpz_t x, mpz_t y, int n, int sign)
 		ysqr *= ipwr(primes[i], exps[i] / 2);	/* May truncate */
 	}
 	sbp = a * b;
-	printf("sbp = %d, ", sbp);
+	//printf("sbp = %d, ", sbp);
 
 	/* Got the SBP.  Is there an Aurifeuillian factorization? */
 	if ((sbp % 4 == 1 && sign > 0) || (sbp % 4 != 1 && sign < 0)) {
@@ -2303,7 +2298,13 @@ static int check_aurif(mpz_t N, mpz_t x, mpz_t y, int n, int sign)
 	}
 
 exit:
-	printf("result = %d\n", success);
+	if (success)
+	{
+		if (LM > 0)
+			gmp_printf("gen: Aurifeuillian M-polynomial is possible for input %Zd^%d + %Zd^%d\n", x, n, y, n);
+		else
+			gmp_printf("gen: Aurifeuillian L-polynomial is possible for input %Zd^%d - %Zd^%d\n", x, n, y, n);
+	}
 	mpz_clear(r);
 	return success;
 }
@@ -2313,13 +2314,16 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 	int VFLAG = fobj->VFLAG;
 	int i, j, k;
 	mpz_t term, t, n;
+	
 	mpz_init(t);
 	mpz_init(term);
 	mpz_init(n);
 
 	// use the full input to check for aurifeullian forms.
 	// we check for divisibility with the cofactor, if any are found.
-	mpz_set(n, fobj->nfs_obj.gmp_n);
+	//mpz_set(n, fobj->nfs_obj.gmp_n);
+	mpz_set(n, poly->n);
+
 
 	// if the base and exponent admit an Aurifeuillian form, add the two
 	// factors if they divide the input.  We don't have code to build SNFS polys for
@@ -2332,6 +2336,7 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 	int base;
 	int do_check = 0;
 	mpz_t F, L, M, C, D, a, b;
+
 	mpz_init(F);
 	mpz_init(L);
 	mpz_init(M);
@@ -2560,71 +2565,6 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 				}
 			}
 		}
-
-		if (0) //(do_check == 0)
-		{
-			// Now look for Jon Becker's Aurifeuillian forms that he has
-			// figured out how to build polynomials for.  
-			int degree;
-			mpz_t f[MAXDEGREE + 1];	/* Coefficients on algebraic side, max degree = 8 */
-			mpz_t g[2];				/* Coefficients on rational side, max degree = 1 */
-			double difficulty, skewness;
-			int lm;
-
-			mpz_init(g[0]);
-			mpz_init(g[1]);
-			for (i = 0; i < MAXDEGREE + 1; i++)
-				mpz_init(f[i]);
-
-			int aurif = generate_aurif(fobj->nfs_obj.gmp_n, poly->base1, poly->base2, poly->exp1, poly->coeff2,
-				&degree, f, g, &difficulty, &skewness, &lm);
-
-			if (aurif)
-			{
-				mpz_neg(M, g[1]);
-				mpz_invert(M, M, fobj->nfs_obj.gmp_n);
-				mpz_mul(M, M, g[0]);
-				mpz_mod(M, M, fobj->nfs_obj.gmp_n);
-
-				/* Test polynomials (check that values vanish (mod N) at root M) */
-				mpz_set_ui(F, 0);
-				for (i = degree; i >= 0; i--) {
-					mpz_mul(F, F, M);
-					mpz_add(F, F, f[i]);
-					mpz_mod(F, F, fobj->nfs_obj.gmp_n);
-				}
-				if (mpz_sgn(F) != 0) {
-					gmp_fprintf(stderr, "Error: M=%Zd is not a root of f(x) % N\n", F);
-					fprintf(stderr, "f(x) = ");
-					for (i = degree; i >= 0; i--)
-						gmp_fprintf(stderr, "%Zd*x^%d +", f[i], i);
-					gmp_fprintf(stderr, "\n" "Remainder is %Zd\n", F);
-					gmp_fprintf(stderr, "%Zd^%d%c%Zd^%d\n", poly->base1, poly->exp1, poly->coeff2 < 0 ? '-' : '+',
-						poly->base2, poly->exp1);
-					fprintf(stderr, "Please report this bug.\n");
-					exit(EXIT_FAILURE);
-				}
-				else
-				{
-					printf("found poly:\n");
-					gmp_printf("n: %Zd\n", fobj->nfs_obj.gmp_n);
-					printf("skew: %lf\n", skewness);
-					printf("difficulty: %lf\n", difficulty);
-					for (i = degree; i >= 0; i--) {
-						gmp_printf("c%d: %Zd\n", i, f[i]);
-					}
-					gmp_printf("Y1: %Zd\n", g[1]);
-					gmp_printf("Y0: %Zd\n", g[0]);
-				}
-			}
-
-			// todo: actually use the generated poly
-			mpz_clear(g[0]);
-			mpz_clear(g[1]);
-			for (i = 0; i < MAXDEGREE + 1; i++)
-				mpz_clear(f[i]);
-		}
-
 	}
 	else
 	{
@@ -2784,8 +2724,9 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 				}
 				else if (VFLAG >= 0)
 				{
-					gmp_printf("gen: found Aurifeuillian F-factor %Zd\n", t);
+					gmp_printf("gen: found %d-digit Aurifeuillian F-factor\n", gmp_base10(t));
 				}
+				logprint_oc(fobj->flogname, "a", "gen: found %d-digit Aurifeuillian F-factor\n", gmp_base10(t));
 				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 			}
@@ -2807,8 +2748,9 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 			}
 			else if (VFLAG >= 0)
 			{
-				gmp_printf("gen: found Aurifeuillian M-factor %Zd\n", t);
+				gmp_printf("gen: found %d-digit Aurifeuillian M-factor\n", gmp_base10(t));
 			}
+			logprint_oc(fobj->flogname, "a", "gen: found %d-digit Aurifeuillian M-factor\n", gmp_base10(t));
 			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
@@ -2829,8 +2771,9 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 			}
 			else if (VFLAG >= 0)
 			{
-				gmp_printf("gen: found Aurifeuillian L-factor %Zd\n", t);
+				gmp_printf("gen: found %d-digit Aurifeuillian L-factor\n", gmp_base10(t));
 			}
+			logprint_oc(fobj->flogname, "a", "gen: found %d-digit Aurifeuillian L-factor\n", gmp_base10(t));
 			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 		}
@@ -2845,6 +2788,8 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 	mpz_clear(n);
 	mpz_clear(a);
 	mpz_clear(b);
+	mpz_clear(t);
+	mpz_clear(term);
 
 	return;
 }
@@ -3661,6 +3606,14 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		is_aurif = generate_aurif(fobj->nfs_obj.gmp_n, polys->base1, polys->base2,
 			polys->exp1, polys->coeff2, &polys->poly->alg.degree, polys->c,
 			polys->poly->rat.coeff, &polys->difficulty, &polys->poly->skew, &polys->LM);
+
+		if (!is_aurif)
+		{
+			printf("gen: unexpectedly failed to generate Aurifeuillian polynomial\n");
+			snfs_clear(polys);
+			npoly = 0;
+			goto done;
+		}
 
 		fobj->nfs_obj.pref_degree = polys->poly->alg.degree;
 		polys->poly->rat.degree = 1;

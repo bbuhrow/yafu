@@ -241,7 +241,7 @@ Perspective"
 }
 
 /***********************************/
-func_static tiny_qs_params * init_tinyqs(void)
+func_static tiny_qs_params * init_tinysiqs(void)
 /***********************************/
 {
   s32 i, j, k, rem;
@@ -297,7 +297,7 @@ func_static tiny_qs_params * init_tinyqs(void)
   return p;
 }
 
-func_static tiny_qs_params * free_tinyqs(tiny_qs_params *params)
+func_static tiny_qs_params * free_tinysiqs(tiny_qs_params *params)
 {
     int j;
     mpz_clear(params->gmptmp1);
@@ -2488,7 +2488,7 @@ tiny_qs_config static_config[] = {
 };
 
 /***********************************/
-u32 tinyqs(tiny_qs_params *params, mpz_t n, mpz_t factor1, mpz_t factor2)
+u32 tinysiqs(tiny_qs_params *params, mpz_t n, mpz_t factor1, mpz_t factor2)
 /***********************************
 Main driver for MPQS factorization
 Returns 1 and sets factor1 and factor2 if

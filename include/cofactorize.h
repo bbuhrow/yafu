@@ -220,9 +220,9 @@ typedef struct {
 
 
 // top level routines
-tiny_qs_params * init_tinyqs(void);
-u32 tinyqs(tiny_qs_params *g_params, mpz_t n, mpz_t factor1, mpz_t factor2);
-tiny_qs_params *free_tinyqs(tiny_qs_params *g_params);
+tiny_qs_params * init_tinysiqs(void);
+u32 tinysiqs(tiny_qs_params *g_params, mpz_t n, mpz_t factor1, mpz_t factor2);
+tiny_qs_params *free_tinysiqs(tiny_qs_params *g_params);
 
 #endif /* !_COFACTORIZE_H_ */
 
