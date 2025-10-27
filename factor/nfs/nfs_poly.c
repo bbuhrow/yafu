@@ -406,7 +406,38 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 		// will actually update min_rels.  Thanks MarkW!
 		jobs[i].min_rels = 0;		
 		skew_snfs_params(fobj, &jobs[i]);
+
 		nfs_set_min_rels(&jobs[i]);
+
+		// command line switch override
+		if (fobj->nfs_obj.minrels > 0)
+		{
+			if (fobj->VFLAG > 0)
+			{
+				logprint_oc(fobj->flogname, "a",
+					"nfs: overriding default min_rels = %u with user supplied min_rels = %u\n",
+					jobs[i].min_rels, fobj->nfs_obj.minrels);
+				printf("nfs: overriding default min_rels = %u with user supplied min_rels = %u\n",
+					jobs[i].min_rels, fobj->nfs_obj.minrels);
+			}
+			jobs[i].min_rels = fobj->nfs_obj.minrels;
+		}
+
+		// command line switch override
+		if (fobj->nfs_obj.startq > 0)
+		{
+			// user specified startq, either by itself or as part of
+			// a custom range.  override the table start-q
+			if (fobj->VFLAG > 0)
+			{
+				logprint_oc(fobj->flogname, "a",
+					"nfs: overriding default startq = %u with user supplied startq = %u\n",
+					jobs[i].startq, fobj->nfs_obj.startq);
+				printf("nfs: overriding default startq = %u with user supplied startq = %u\n",
+					jobs[i].startq, fobj->nfs_obj.startq);
+			}
+			jobs[i].startq = fobj->nfs_obj.startq;
+		}
 	}
 
     //printf("gnfs size = %d, size n + 3 = %d, snfs = %d\n", est_gnfs_size(&jobs[0]),

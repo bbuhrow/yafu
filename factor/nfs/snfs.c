@@ -3024,7 +3024,7 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 	}
 
 	// at the end of the process above, 'n' is the primitive factor of 
-	// the full input.  
+	// the full input.  check our input against this.
 	mpz_set(poly->primitive, n);
 	mpz_gcd(t, poly->primitive, fobj->nfs_obj.gmp_n);
 	if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
@@ -3038,16 +3038,50 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
 	}
 
-	// the primitive factor divides poly->n; the current input fobj->nfs_obj.gmp_n may not.
-	// so it's not always correct to put fobj->nfs_obj.gmp_n into the poly input.
-	//mpz_set(poly->n, fobj->nfs_obj.gmp_n);
-	mpz_set(poly->n, poly->primitive);
+	if (mpz_cmp(poly->primitive, poly->n) < 0)
+	{
+		// if the primitive factor is less than the input, i.e.,
+		// we found algebraic factors, then check our input against
+		// those algebraic factors as well.
+		mpz_tdiv_q(n, poly->n, poly->primitive);
+		mpz_gcd(t, n, fobj->nfs_obj.gmp_n);
+		if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+		{
+			if (VFLAG > 2)
+			{
+				gmp_printf("gen: adding factor %Zd of input %Zd to factor list (gcd with primitive factor(s) %Zd)\n",
+					t, fobj->nfs_obj.gmp_n, n);
+			}
+			add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+			mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+		}
+	}
 
 	if (VFLAG > 2)
 	{
 		gmp_printf("gen: after remove_algebraic_factors()\n\tnfs_obj.gmp_n = %Zd\n", fobj->nfs_obj.gmp_n);
 		gmp_printf("\tpoly->primitive = %Zd\n", poly->primitive);
 		gmp_printf("\tpoly->n = %Zd\n", poly->n);
+	}
+
+	// poly->n is what gets put into the job file and what will get factored.
+	// coming in to the routine, poly->n is typically the full input, which in the case
+	// of snfs is not usually what we are trying to factor but is necessary to have 
+	// to detect special forms.  nfs_obj.gmp_n is the current integer that factor()
+	// is working on, and is the cofactor for snfs().
+	// the primitive factor will be the full input (poly->n) less any algebraic factors
+	// that this routine discovers.  Sometimes the primitive factor will be the smallest
+	// of these, for example if algebraic factorization discovers a factor that factor()
+	// hasn't yet.  But in the case of a properly set up snfs(), or factor() where it 
+	// has discovered all of the algebriac factors already, and perhaps more, then 
+	// we want to use nfs_obj.gmp_n.
+	if (mpz_divisible_p(poly->primitive, fobj->nfs_obj.gmp_n))
+	{
+		mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+	}
+	else
+	{
+		mpz_set(poly->n, poly->primitive);
 	}
 
 	find_aurifeuillian_form(fobj, poly);

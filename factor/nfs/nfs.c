@@ -939,7 +939,8 @@ void nfs(fact_obj_t *fobj)
 								parse_job_file(fobj, &job);
 								nfs_set_min_rels(&job);
 							}
-							job.use_max_rels = job.min_rels * 1.5;
+							
+							job.use_max_rels = job.current_rels * 0.8; // job.min_rels * 1.5;
 							printf("nfs: no dependency file found - trying again with %u relations\n",
 								job.use_max_rels);
 							nfs_state = NFS_STATE_FILTER;
@@ -2124,8 +2125,11 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
 		i = est_gnfs_size(job);
 		if (fobj->VFLAG > 0)
+		{
 			printf("nfs: guessing snfs difficulty %d is roughly equal to "
 				"gnfs difficulty %d\n", d, i);
+		}
+
 		d = i;
 	}
     else if (fobj->nfs_obj.snfs)

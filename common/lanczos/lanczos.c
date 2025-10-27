@@ -1501,7 +1501,8 @@ uint64 * block_lanczos(msieve_obj *obj,
 	if (max_ncols <= max_nrows) {
 		logprintf(obj, "matrix needs more columns than rows; "
                  "try adding 2-3%% more relations\n");
-		exit(-1);
+		// this is a recoverable issue when run from yafu.
+		//exit(-1);
 	}
 
 	/* optionally remove the densest rows of the matrix, and
