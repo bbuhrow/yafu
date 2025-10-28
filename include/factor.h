@@ -32,6 +32,7 @@ code to the public domain.
 #endif
 
 #define GSTR_MAXSIZE 1024
+#define NUM_ECM_LEVELS 12
 
 //#define NO_ZLIB
 
@@ -104,7 +105,6 @@ typedef struct {
 
 /*--------------DECLARATIONS FOR MANAGING FACTORS FOUND  and factor I/O -----------------*/
 
-
 typedef struct
 {
 	mpz_t gmp_n;
@@ -176,6 +176,19 @@ typedef struct
     int use_gpudev;
     int use_gpuecm;
     int use_cgbn;
+
+    // record curves run at particular b1/b2/param values
+    int num_records;
+    uint64_t *curve_b1_rec;
+    uint64_t *curve_b2_rec;
+    int *param_rec;
+    int *num_rec;
+
+    // record the standard tlevels completed
+    double tlevels[NUM_ECM_LEVELS];
+
+    // record the total work completed
+    double total_work;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;

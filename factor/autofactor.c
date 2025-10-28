@@ -37,81 +37,6 @@ code to the public domain.
 
 #include <math.h>
 
-/* produced using ecm -v -v -v for the various B1 bounds (default B2).
-/	Thanks A. Schindel !
-/
-/					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-#define NUM_ECM_LEVELS 12
-static int ecm_levels[NUM_ECM_LEVELS] = {
-	15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65 };
-double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
-	/*t15, 2000,	*/	{30,		12,			7,			5,			3,			2,			2,			2,			2,		1,		1},
-	/*t20, 11000,	*/	{844,		74,			21,			8,			5,			3,			2,			2,			2,		2,		1},
-	/*t25, 50000,	*/	{58129,		1539,		214,		50,			20,			11,			7,			5,			4,		3,		3},
-	/*t30, 250000,	*/	{6711967,	49962,		3288,		430,		118,		54,			26,			14,			10,		8,		6},
-	/*t35, 1E+06,	*/	{1.20E+09,	2292278,	68422,		4914,		904,		322,		122,		54,			34,		23,		15},
-	/*t40, 3E+06,	*/	{2.90E+12,	1.40E+08,	1849287,	70293,		8613,		2350,		681,		242,		135,	82,		47},
-	/*t45, 11E+06,	*/	{9.00E+99,	1.10E+10,	6.10E+07,	1214949,	97057,		20265,		4480,		1263,		613,	333,	168},
-	/*t50, 44E+06,	*/	{9.00E+99,	9.00E+99,	2.50E+09,	2.50E+07,	1270662,	199745,		33652,		7404,		3133,	1512,	661},
-	/*t55, 110E+06,	*/	{9.00E+99,	9.00E+99,	1.30E+11,	5.90E+08,	1.90E+07,	2246256,	283939,		48714,		17769,	7643,	2865},
-	/*t60, 260E+06,	*/	{9.00E+99,	9.00E+99,	5.80E+16,	1.60E+10,	3.20E+08,	2.80E+07,	2655154,	350439,		111196,	42017,	13611},
-	/*t65, 850E+06,	*/	{9.00E+99,	9.00E+99,	8.20E+21,	2.70E+13,	6.10E+09,	4.00E+08,	2.70E+07,	2768535,	751771,	250214,	69408} };
-
-/* produced using ecm -v -v -v for the various B1 bounds using param 0 (default B2).
-/ version 7.0.5
-/					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-double ecm_data_param0[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
-	/*t15, 2000,	*/	{34,		7,			3,			2,			2,			1,			1,			1,			1,		1,		1},
-	/*t20, 11000,	*/	{1282,		86,		    21,			8,			5,			3,			2,			2,			2,		2,		1},
-	/*t25, 50000,	*/	{95034,	    1864,		214,		50,			20,			11,			7,			5,			4,		3,		3},
-	/*t30, 250000,	*/	{1.2e+07,	62295,		3283,		430,		118,		54,			26,			14,			10,		8,		6},
-	/*t35, 1E+06,	*/	{2.20E+09,	2924742,	69076,		4911,		910,		324,		122,		55,			34,		23,		15},
-	/*t40, 3E+06,	*/	{9.00E+99,	1.80E+08,	1847472,	70940,		8615,		2351,		686,		246,		135,	82,		47},
-	/*t45, 11E+06,	*/	{9.00E+99,	1.50E+10,	6.20E+07,	1226976,	97096,		20272,		4482,		1286,		614,	335,	168},
-	/*t50, 44E+06,	*/	{9.00E+99,	9.00E+99,	2.50E+09,	2.50E+07,	1281819,	201449,		33676,		7557,		3135,	1521,	661},
-	/*t55, 110E+06,	*/	{9.00E+99,	9.00E+99,	1.30E+11,	5.80E+08,	1.90E+07,	2247436,	284176,		49831,		17884,	7650,	2867},
-	/*t60, 260E+06,	*/	{9.00E+99,	9.00E+99,	5.90E+16,	1.60E+10,	3.10E+08,	2.80E+07,	2657998,	361851,		111314,	42057,	13623},
-	/*t65, 850E+06,	*/	{9.00E+99,	9.00E+99,	8.40E+21,	2.70E+13,	6.20E+09,	3.90E+08,	2.70E+07,	2844041,	752662,	250476,	69471} };
-
-
-
-/* produced using ecm -v -v -v for the various B1 bounds using param 1 (default B2).
-/ version 7.0.5
-/					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-double ecm_data_param1[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
-	/*t15, 2000,	*/	{43,		8,			4,			2,			2,			1,			1,			1,			1,		1,		1},
-	/*t20, 11000,	*/	{1743,		107,		24,			9,			5,			4,			3,			2,			2,		2,		1},
-	/*t25, 50000,	*/	{134769,	2402,		261,		58,			22,			13,			8,			5,			4,		3,		3},
-	/*t30, 250000,	*/	{1.7e+07,	82576,		4108,		513,		137,		61,			29,			16,			11,		8,		6},
-	/*t35, 1E+06,	*/	{3.30E+09,	3967858,	88265,		6022,		1071,		374,		138,		61,			38,		25,		17},
-	/*t40, 3E+06,	*/	{9.00E+99,	2.50E+08,	2402639,	87544,		10283,		2753,		788,		278,		151,	91,		52},
-	/*t45, 11E+06,	*/	{9.00E+99,	2.0E+10,	8.10E+07,	1534319,	118226,		24017,		5208,		1459,		692,	373,	185},
-	/*t50, 44E+06,	*/	{9.00E+99,	9.00E+99,	3.30E+09,	3.10E+07,	1565171,	241048,		39497,		8704,		3583,	1709,	737},
-	/*t55, 110E+06,	*/	{9.00E+99,	9.00E+99,	2.30E+11,	7.50E+08,	2.40E+07,	2713723,	336066,		57844,		20479,	8656,	3220},
-	/*t60, 260E+06,	*/	{9.00E+99,	9.00E+99,	1.50E+17,	2.00E+10,	3.90E+08,	3.40E+07,	3167410,	419970,		128305,	47888,	15391},
-	/*t65, 850E+06,	*/	{9.00E+99,	9.00E+99,	2.10E+22,	6.70E+13,	7.70E+09,	4.80E+08,	3.20E+07,	3346252,	872747,	288516,	78923} };
-
-
-
-/* produced using ecm -v -power 1 -param 0 for the various B1 bounds (B2=B1*100).
-/  Thanks tbusby!
-/
-/                          2k       11k      50k      250k     1M       3M       11M      43M      110M     260M     850M     2900M */
-double avx_ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
-	/*t15, 2000,    */    {32,      8,       4,       3,       2,       2,       2,       1,       1,       1,       1,       1     },
-	/*t20, 11000,   */    {1203,    98,      26,      11,      7,       5,       4,       3,       3,       2,       2,       2     },
-	/*t25, 50000,   */    {88933,   2174,    281,     74,      32,      20,      12,      8,       7,       5,       4,       4     },
-	/*t30, 250000,  */    {1.1E+07, 73653,   4455,    671,     206,     100,     50,      28,      20,      15,      11,      8     },
-	/*t35, 1E+06,   */    {2.0E+09, 3495192, 95330,   7965,    1676,    635,     250,     115,     73,      51,      33,      23    },
-	/*t40, 3E+06,   */    {9.0E+99, 2.2E+08, 2610023, 117616,  16589,   4858,    1492,    550,     308,     194,     111,     68    },
-	/*t45, 11E+06,  */    {9.0E+99, 1.8E+10, 8.8e+07, 2088438, 194098,  43492,   10273,   3014,    1481,    835,     419,     228   },
-	/*t50, 44E+06,  */    {9.0E+99, 9.0E+99, 3.7E+09, 4.4E+07, 2626303, 445887,  80191,   18579,   7942,    3995,    1748,    838   },
-	/*t55, 110E+06, */    {9.0E+99, 9.0E+99, 2.7E+11, 1.0E+09, 4.1E+07, 5150239, 699132,  126904,  46946,   20992,   7961,    3352  },
-	/*t60, 260E+06, */    {9.0E+99, 9.0E+99, 9.0E+99, 2.9E+10, 6.7E+08, 6.6e+07, 6727121, 949988,  302925,  119976,  39223,   14455 },
-	/*t65, 850E+06, */    {9.0E+99, 9.0E+99, 9.0E+99, 9.0E+99, 1.4E+10, 9.7e+08, 7.1E+07, 7721832, 2115419, 739454,  207648,  66688 } };
-/*t70, 260E+06,     {9.0E+99, 9.0E+99, 9.0E+99, 9.0E+99, 9.0E+99, 1.5e+10, 7.6E+08, 6.7E+07, 1.6E+07, 4880638, 1173260, 327240} */
-
-
 enum job_type_e {
 	job_snfs,
 	job_gnfs,
@@ -174,8 +99,6 @@ typedef struct
 	uint32_t  ecm_60digit_curves;
 	uint32_t  ecm_65digit_curves;
 	int min_pretest_done;
-
-	double tlevels[NUM_ECM_LEVELS];
 
 	// max amount of work we'll allow in various areas.
 	// to be filled in during init, or overriden by user
@@ -246,11 +169,11 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N);
 uint32_t  get_ecm_curves_done(factor_work_t *fwork, enum factorization_state state);
 uint32_t  set_ecm_curves_done(factor_work_t *fwork, enum factorization_state state, uint32_t  curves_done);
-uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
+//uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
 void set_work_params(factor_work_t *fwork, enum factorization_state state);
 int check_tune_params(fact_obj_t *fobj);
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
-double compute_ecm_work_done(factor_work_t *fwork, int disp, FILE *log, int VFLAG, int LOGFLAG);
+//double compute_ecm_work_done(factor_work_t *fwork, int disp, FILE *log, int VFLAG, int LOGFLAG);
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
 void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
 	enum factorization_state state, double work_done,
@@ -1400,6 +1323,7 @@ uint32_t  set_ecm_curves_done(factor_work_t *fwork, enum factorization_state sta
 	return curves_done;
 }
 
+#if 0
 uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state)
 {
 	uint32_t  max_curves;
@@ -1446,66 +1370,7 @@ uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state stat
 
 	return max_curves;
 }
-
-double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log, 
-    int VFLAG, int LOGFLAG)
-{
-	// there is probably a more elegant way to do this involving dickman's function
-	// or something, but we can get a reasonable estimate using empirical data
-	// for our fixed set of B1/B2 values.
-	double *tlevels = fwork->tlevels;
-	uint32_t  curves_done;
-	int i, j;
-
-    if (LOGFLAG && (log != NULL))
-    {
-        logprint(log, "ecm work completed:\n");
-    }
-
-	// compute the %done of each tlevel
-	for (i=0; i < NUM_ECM_LEVELS; i++)
-	{
-		enum factorization_state k;
-		tlevels[i] = 0;
-		
-		for (k=state_ecm_15digit, j=0; k <= state_ecm_65digit; k++, j++)
-		{            
-			curves_done = get_ecm_curves_done(fwork, k);			
-			tlevels[i] += (double)curves_done / ecm_data[i][j];
-		}
-
-        if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
-        {
-            printf("\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
-        }
-
-        if (LOGFLAG && (log != NULL) && (tlevels[i] > 0.01))
-        {
-            logprint(log, "\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
-        }
-	}
-
-	// find the first one less than 1
-    for (i = 0; i < NUM_ECM_LEVELS; i++)
-    {
-        if (tlevels[i] < 1)
-        {
-            break;
-        }
-    }
-
-	// estimate the t level done by extrapolating between this and the previous one
-	// assuming they are all spaced 5 digits apart.
-    if (i == 0)
-    {
-        return 0;
-    }
-    else
-    {
-        return ecm_levels[i - 1] + 5 * tlevels[i];
-    }
-
-}
+#endif
 
 enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
 {
@@ -1609,6 +1474,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 	// get the current amount of work done - only print status prior to 
 	// ecm steps
+	uint32_t curves;
+	int b1_method, b2_method;
+
 	switch (next_state)
 	{
 		case state_ecm_15digit:
@@ -1625,19 +1493,31 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			if (fobj->VFLAG >= 1)
 				printf("fac: setting target pretesting digits to %1.6f\n", target_digits);
 			
-			work_done = compute_ecm_work_done(fwork, 1, NULL, fobj->VFLAG, fobj->LOGFLAG);
-			fobj->autofact_obj.ecm_total_work_performed = work_done;
+			print_std_ecm_work_done(&fobj->ecm_obj, 1, NULL, fobj->VFLAG, fobj->LOGFLAG);
+			fobj->autofact_obj.ecm_total_work_performed = fobj->ecm_obj.total_work;
 			
 			if (fobj->VFLAG >= 1)
-				printf("fac: estimated sum of completed work is t%1.6f\n", work_done);
+				printf("fac: estimated sum of completed work is t%1.6f\n", fobj->ecm_obj.total_work);
+
+			get_ecm_method(fobj, ecm_std_b1[next_state - state_ecm_15digit], &b1_method, &b2_method);
+			curves = get_curves_required(&fobj->ecm_obj, target_digits,
+				ecm_std_b1[next_state - state_ecm_15digit], b1_method, b2_method);
+
+			if ((fobj->ecm_obj.total_work > target_digits) ||
+				(curves == 0))
+			{
+				next_state = state_nfs;
+			}
 
 			break;
 
 		default:
-			work_done = compute_ecm_work_done(fwork, 0, NULL, fobj->VFLAG, fobj->LOGFLAG);
-			fobj->autofact_obj.ecm_total_work_performed = work_done;
+			print_std_ecm_work_done(&fobj->ecm_obj, 0, NULL, fobj->VFLAG, fobj->LOGFLAG);
+			fobj->autofact_obj.ecm_total_work_performed = fobj->ecm_obj.total_work;
 			break;
 	}
+
+	
 
 	if (mpz_cmp_ui(b, 1) == 0)
 	{
@@ -1657,12 +1537,12 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	}
 
 	// handle the case where the next state is a sieve method
-	if ((next_state == state_nfs) || (work_done > target_digits) ||
-		((work_done > fobj->autofact_obj.only_pretest) && 
+	if ((next_state == state_nfs) || (fobj->ecm_obj.total_work > target_digits) ||
+		((fobj->ecm_obj.total_work > fobj->autofact_obj.only_pretest) &&
 		(fobj->autofact_obj.only_pretest > 1)) ||
 		is_trivial)
 	{
-		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.6f\n", work_done);
+		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.6f\n", fobj->ecm_obj.total_work);
 
 		// if the user specified -pretest, with or without arguments,
 		// we should stop factoring now that ecm is done.  this covers the
@@ -1773,7 +1653,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_65digit:
 			// figure out how many curves at this level need to be done 
 			// to get to the target level
-			interp_and_set_curves(fwork, fobj, next_state, work_done,
+			interp_and_set_curves(fwork, fobj, next_state, fobj->ecm_obj.total_work,
 				target_digits, fobj->LOGFLAG);
 
 			break;
@@ -1793,56 +1673,36 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	// do a binary search on the target state's amount of work.
 	// probably there is a more elegant way to compute this, but this seems
 	// to work.
-	double work_low, work_high, work;
-	uint32_t  tmp_curves;
+	uint32_t work_low, work_high, work;
+	int b1_method, b2_method;
+	uint64_t b1 = ecm_std_b1[state - state_ecm_15digit];
 
 	// if there is a user specified pretest value, use it, regardless if it
     // means over or under ecm'ing something.
     if (fobj->autofact_obj.only_pretest > 1)
     {
-        //target_digits = MIN(target_digits, fobj->autofact_obj.only_pretest);
         target_digits = fobj->autofact_obj.only_pretest;
     }
 
-
 	work_low = get_ecm_curves_done(fwork, state);
-	work_high = get_max_ecm_curves(fwork, state);		
-	work = (work_low + work_high) / 2;
+	get_ecm_method(fobj, b1, &b1_method, &b2_method);
+	work_high = get_curves_for_tlevel(state - state_ecm_15digit, b1_method, b2_method);
 
     if (fobj->VFLAG >= 1)
     {
-        printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n",
+        printf("fac: work done at B1=%u: %u curves, max work = %u curves\n",
             fwork->B1, work_low, work_high);
     }
 
-	tmp_curves = work_low;		
-	while ((work_high - work_low) > 1)
+	work = get_curves_required(&fobj->ecm_obj, target_digits, b1, b1_method, b2_method);
+
+	set_ecm_curves_done(fwork, state, work_low);
+	fwork->curves = (uint32_t)ceil(work);
+
+	if ((work_low + fwork->curves) > work_high)
 	{
-        double compute;
-
-		set_ecm_curves_done(fwork, state, (uint32_t )work);       
-        compute = compute_ecm_work_done(fwork, 0, NULL, fobj->VFLAG, fobj->LOGFLAG);
-
-		if (compute > target_digits)
-		{
-			work_high = work;
-			work = (work_high + work_low) / 2;							
-		}
-		else					
-		{
-			work_low = work;
-			work = (work_high + work_low) / 2;							
-		}
+		fwork->curves = work_high - work_low;
 	}
-
-	
-    set_ecm_curves_done(fwork, state, tmp_curves);    
-	fwork->curves = (uint32_t )ceil(work);
-
-    if ((tmp_curves + fwork->curves) > get_max_ecm_curves(fwork, state))
-    {
-        fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
-    }
 
     if ((fobj->VFLAG >= 1) && fobj->LOGFLAG)
     {
@@ -1869,23 +1729,44 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
 	enum factorization_state interp_state = state_idle;
+	int b1_method, b2_method, tlevel;
 
 	fwork->target_job_type = job_unknown;
 
-	// initialize max allowed work fields (note: maybe this structure should
-	// be visible to the top level driver so that the user can edit values in it).
-	// default values taken from gmp-ecm README, version 6.3
-	fwork->ecm_max_15digit_curves = 30;		//2k
-	fwork->ecm_max_20digit_curves = 74;		//11k
-	fwork->ecm_max_25digit_curves = 214;	//50k
-	fwork->ecm_max_30digit_curves = 430;	//250k
-	fwork->ecm_max_35digit_curves = 904;	//1M
-	fwork->ecm_max_40digit_curves = 2350;	//3M
-	fwork->ecm_max_45digit_curves = 4480;	//11M
-	fwork->ecm_max_50digit_curves = 7553;	//43M
-	fwork->ecm_max_55digit_curves = 17769;	//110M
-	fwork->ecm_max_60digit_curves = 42017;	//260M
-	fwork->ecm_max_65digit_curves = 69408;	//850M
+	// initialize max allowed work fields 
+	get_ecm_method(fobj, ecm_std_b1[0], &b1_method, &b2_method);
+	fwork->ecm_max_15digit_curves = get_curves_for_tlevel(0, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[1], &b1_method, &b2_method);
+	fwork->ecm_max_20digit_curves = get_curves_for_tlevel(1, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[2], &b1_method, &b2_method);
+	fwork->ecm_max_25digit_curves = get_curves_for_tlevel(2, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[3], &b1_method, &b2_method);
+	fwork->ecm_max_30digit_curves = get_curves_for_tlevel(3, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[4], &b1_method, &b2_method);
+	fwork->ecm_max_35digit_curves = get_curves_for_tlevel(4, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[5], &b1_method, &b2_method);
+	fwork->ecm_max_40digit_curves = get_curves_for_tlevel(5, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[6], &b1_method, &b2_method);
+	fwork->ecm_max_45digit_curves = get_curves_for_tlevel(6, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[7], &b1_method, &b2_method);
+	fwork->ecm_max_50digit_curves = get_curves_for_tlevel(7, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[8], &b1_method, &b2_method);
+	fwork->ecm_max_55digit_curves = get_curves_for_tlevel(8, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[9], &b1_method, &b2_method);
+	fwork->ecm_max_60digit_curves = get_curves_for_tlevel(9, b1_method, b2_method);
+
+	get_ecm_method(fobj, ecm_std_b1[10], &b1_method, &b2_method);
+	fwork->ecm_max_65digit_curves = get_curves_for_tlevel(10, b1_method, b2_method);
+
 	fwork->tdiv_limit = 0;
 	fwork->tdiv_max_limit = fobj->div_obj.limit;
     fwork->fermat_iterations = 0;
@@ -1930,186 +1811,43 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_60digit_curves = 0;
 	fwork->ecm_65digit_curves = 0;
 
-	int i;
-	for (i = 0; i < NUM_ECM_LEVELS; i++)
-	{
-		fwork->tlevels[i] = 0.0;
-	}
-    
 	// preload work structure with curves appropriate to the amount
 	// of specified initial work
-	if (fwork->initial_work >= 60.0)
+	if (fwork->initial_work > 0.0)
 	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pp1_max_lvl3_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl3_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;		
-		fwork->ecm_max_30digit_curves = 0;
-		fwork->ecm_max_35digit_curves = 0;
-		fwork->ecm_max_40digit_curves = 0;
-		fwork->ecm_max_45digit_curves = 0;
-		fwork->ecm_max_50digit_curves = 0;
-		fwork->ecm_max_55digit_curves = 0;
-		fwork->ecm_60digit_curves = get_max_ecm_curves(fwork, state_ecm_60digit);				
-		interp_state = state_ecm_65digit;
-	}
-    else if (fwork->initial_work >= 55.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pp1_max_lvl3_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl3_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;		
-		fwork->ecm_max_30digit_curves = 0;
-		fwork->ecm_max_35digit_curves = 0;
-		fwork->ecm_max_40digit_curves = 0;
-		fwork->ecm_max_45digit_curves = 0;
-		fwork->ecm_max_50digit_curves = 0;
-		fwork->ecm_55digit_curves = get_max_ecm_curves(fwork, state_ecm_55digit);				
-		interp_state = state_ecm_60digit;
-	}
-    else if (fwork->initial_work >= 50.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pp1_max_lvl3_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl3_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;		
-		fwork->ecm_max_30digit_curves = 0;
-		fwork->ecm_max_35digit_curves = 0;
-		fwork->ecm_max_40digit_curves = 0;
-		fwork->ecm_max_45digit_curves = 0;
-		fwork->ecm_50digit_curves = get_max_ecm_curves(fwork, state_ecm_50digit);			
-		interp_state = state_ecm_55digit;
-	}
-    else if (fwork->initial_work >= 45.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pp1_max_lvl3_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl3_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;		
-		fwork->ecm_max_30digit_curves = 0;
-		fwork->ecm_max_35digit_curves = 0;
-		fwork->ecm_max_40digit_curves = 0;
-		fwork->ecm_45digit_curves = get_max_ecm_curves(fwork, state_ecm_45digit);				
-		interp_state = state_ecm_50digit;
-	}
-    else if (fwork->initial_work >= 40.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pp1_max_lvl3_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl3_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;		
-		fwork->ecm_max_30digit_curves = 0;
-		fwork->ecm_max_35digit_curves = 0;
-		fwork->ecm_40digit_curves = get_max_ecm_curves(fwork, state_ecm_40digit);		
-		interp_state = state_ecm_45digit;
-	}
-    else if (fwork->initial_work >= 35.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pp1_max_lvl3_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl3_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;		
-		fwork->ecm_max_30digit_curves = 0;
-		fwork->ecm_35digit_curves = get_max_ecm_curves(fwork, state_ecm_35digit);
-		interp_state = state_ecm_40digit;
-	}
-    else if (fwork->initial_work >= 30.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pp1_max_lvl2_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl2_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_max_25digit_curves = 0;
-		fwork->ecm_30digit_curves = get_max_ecm_curves(fwork, state_ecm_30digit);
-		interp_state = state_ecm_35digit;
-	}
-    else if (fwork->initial_work >= 25.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_max_20digit_curves = 0;
-		fwork->ecm_25digit_curves = get_max_ecm_curves(fwork, state_ecm_25digit);
-		interp_state = state_ecm_30digit;
-	}
-    else if (fwork->initial_work >= 20.0)
-	{
-		fwork->pp1_max_lvl1_curves = 0;
-		fwork->pm1_max_lvl1_curves = 0;
-		fwork->ecm_max_15digit_curves = 0;
-		fwork->ecm_20digit_curves = get_max_ecm_curves(fwork, state_ecm_20digit);
-		interp_state = state_ecm_25digit;
-	}
-    else
-    {
-        interp_state = state_idle;
-    }
+		tlevel = 0;
+		while ((fobj->ecm_obj.total_work < fwork->initial_work) && (tlevel < (NUM_ECM_LEVELS - 1)))
+		{
+			uint64_t b1 = ecm_std_b1[tlevel];
+			get_ecm_method(fobj, b1, &b1_method, &b2_method);
+			uint32_t curves = get_curves_required(&fobj->ecm_obj, fwork->initial_work, b1, b1_method, b2_method) + 1;
+			//printf("%u curves required at tlevel %d for method %d,%d\n", curves, tlevel, b1_method, b2_method);
+			curves = MIN(curves, get_curves_for_tlevel(tlevel, b1_method, b2_method));
+			//printf("recording %u of max %u curves for tlevel %d\n", 
+			//	curves, get_curves_for_tlevel(tlevel, b1_method, b2_method), tlevel);
+			record_curves_completed(&fobj->ecm_obj, curves, b1, b1_method, b2_method);
+			//printf("total work is now %1.4lf\n", fobj->ecm_obj.total_work);
 
-    if (interp_state != state_idle)
-    {
+			switch (tlevel)
+			{
+			case 0: fwork->ecm_15digit_curves = curves; fwork->pm1_lvl1_curves = 1; break;
+			case 1: fwork->ecm_20digit_curves = curves; break;
+			case 2: fwork->ecm_25digit_curves = curves; break;
+			case 3: fwork->ecm_30digit_curves = curves; fwork->pm1_lvl2_curves = 1; break;
+			case 4: fwork->ecm_35digit_curves = curves; fwork->pm1_lvl3_curves = 1; break;
+			case 5: fwork->ecm_40digit_curves = curves; break;
+			case 6: fwork->ecm_45digit_curves = curves; break;
+			case 7: fwork->ecm_50digit_curves = curves; break;
+			case 8: fwork->ecm_55digit_curves = curves; break;
+			case 9: fwork->ecm_60digit_curves = curves; break;
+			case 10: fwork->ecm_65digit_curves = curves; break;
+			}
 
-        // initializing with an indicated amount of work.  we are using this function
-        // to try to figure out how many curves at the current level this is
-        // equivalent too.  But the function is normally used to compute the number
-        // of curves left toward the target, which could be either a digit level or
-        // a pretest value.  Conclusion: temporarily set any pretest value to zero,
-        // so that this function finds the equivalent curves to the indicated work.
-        double tmp_pretest = fobj->autofact_obj.only_pretest;
+			tlevel++;
+		}
 
-        fobj->autofact_obj.only_pretest = 0;
-        interp_and_set_curves(fwork, fobj, interp_state, fwork->initial_work,
-            fwork->initial_work, 0);
-            
-        // restore any pretest value
-        fobj->autofact_obj.only_pretest = tmp_pretest;
-            
-        // then fill in the equivalent curves to the indicated work amount.
-        switch (interp_state)
-        {
-        case state_ecm_25digit: fwork->ecm_25digit_curves = fwork->curves; break;
-        case state_ecm_30digit: fwork->ecm_30digit_curves = fwork->curves; break;
-        case state_ecm_35digit: fwork->ecm_35digit_curves = fwork->curves; break;
-        case state_ecm_40digit: fwork->ecm_40digit_curves = fwork->curves; break;
-        case state_ecm_45digit: fwork->ecm_45digit_curves = fwork->curves; break;
-        case state_ecm_50digit: fwork->ecm_50digit_curves = fwork->curves; break;
-        case state_ecm_55digit: fwork->ecm_55digit_curves = fwork->curves; break;
-        case state_ecm_60digit: fwork->ecm_60digit_curves = fwork->curves; break;
-        case state_ecm_65digit: fwork->ecm_65digit_curves = fwork->curves; break;
-        }
-
-    }
+		print_std_ecm_work_done(&fobj->ecm_obj, 1, NULL, fobj->VFLAG, 0);
+	}
 	
 	return;
 }
@@ -2509,17 +2247,16 @@ void factor(fact_obj_t *fobj)
             if (fobj->ecm_obj.exit_cond == ECM_EXIT_ABORT)
             {
                 FILE *flog;
-                double work_done;
 
                 if (fobj->LOGFLAG)
                 {
                     flog = fopen(fobj->flogname, "a");
                 }
-                work_done = compute_ecm_work_done(&fwork, 1, flog, fobj->VFLAG, fobj->LOGFLAG);
-				fobj->autofact_obj.ecm_total_work_performed = work_done;
+				print_std_ecm_work_done(&fobj->ecm_obj, 1, flog, fobj->VFLAG, fobj->LOGFLAG);
+				fobj->autofact_obj.ecm_total_work_performed = fobj->ecm_obj.total_work;
                 if (fobj->LOGFLAG)
                 {
-                    logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
+                    logprint(flog, "\testimated sum of completed work is t%1.2f\n", fobj->ecm_obj.total_work);
                     if (flog != NULL) fclose(flog);
                 }
                 fact_state = state_done;
@@ -3324,46 +3061,41 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 		if (fwork->pp1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
 
 
-		if (fwork->tlevels[0] > 0.01)
+		if (fobj->ecm_obj.tlevels[0] > 0.01)
 		{
 			fprintf(fid, "\t\"ecm-curves\" : {");
-			if (fwork->ecm_15digit_curves > 0) fprintf(fid, "\"2000\":%d", fwork->ecm_15digit_curves);
-			if (fwork->ecm_20digit_curves > 0) fprintf(fid, ",\"11000\":%d", fwork->ecm_20digit_curves);
-			if (fwork->ecm_25digit_curves > 0) fprintf(fid, ",\"50000\":%d", fwork->ecm_25digit_curves);
-			if (fwork->ecm_30digit_curves > 0) fprintf(fid, ",\"250000\":%d", fwork->ecm_30digit_curves);
-			if (fwork->ecm_35digit_curves > 0) fprintf(fid, ",\"1000000\":%d", fwork->ecm_35digit_curves);
-			if (fwork->ecm_40digit_curves > 0) fprintf(fid, ",\"3000000\":%d", fwork->ecm_40digit_curves);
-			if (fwork->ecm_45digit_curves > 0) fprintf(fid, ",\"11000000\":%d", fwork->ecm_45digit_curves);
-			if (fwork->ecm_50digit_curves > 0) fprintf(fid, ",\"43000000\":%d", fwork->ecm_50digit_curves);
-			if (fwork->ecm_55digit_curves > 0) fprintf(fid, ",\"110000000\":%d", fwork->ecm_55digit_curves);
-			if (fwork->ecm_60digit_curves > 0) fprintf(fid, ",\"260000000\":%d", fwork->ecm_60digit_curves);
-			if (fwork->ecm_65digit_curves > 0) fprintf(fid, ",\"850000000\":%d", fwork->ecm_65digit_curves);
+
+			for (i = 0; i < fobj->ecm_obj.num_records; i++)
+			{
+				fprintf(fid, "\"%"PRIu64"\":%d", fobj->ecm_obj.curve_b1_rec[i], fobj->ecm_obj.num_rec[i]);
+			}
+
 			fprintf(fid, "},%c", lf);
 
 			fprintf(fid, "\t\"ecm-levels\" : {");
+
 			int level = 15;
 			for (i = 0; i < NUM_ECM_LEVELS - 1; i++)
 			{
-				if ((fwork->tlevels[i] > 0.01) && (fwork->tlevels[i + 1] > 0.01))
+				if ((fobj->ecm_obj.tlevels[i] > 0.01) && (fobj->ecm_obj.tlevels[i + 1] > 0.01))
 				{
-					fprintf(fid, "\"t%d\":%1.2f,", level, fwork->tlevels[i]);
+					fprintf(fid, "\"t%d\":%1.2f,", level, fobj->ecm_obj.tlevels[i]);
 				}
-				else if (fwork->tlevels[i] > 0.01)
+				else if (fobj->ecm_obj.tlevels[i] > 0.01)
 				{
-					fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
+					fprintf(fid, "\"t%d\":%1.2f},%c", level, fobj->ecm_obj.tlevels[i], lf);
 				}
 				level += 5;
 			}
-			if (fwork->tlevels[i] > 0.01)
+
+			if (fobj->ecm_obj.tlevels[i] > 0.01)
 			{
-				fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
+				fprintf(fid, "\"t%d\":%1.2f},%c", level, fobj->ecm_obj.tlevels[i], lf);
 			}
 
-			double work_done = compute_ecm_work_done(fwork, 0, NULL, -1, 0);
-
-			if (work_done > 0.0)
+			if (fobj->ecm_obj.total_work > 0.0)
 			{
-				fprintf(fid, "\"ecm-sum\":%1.2f,%c", work_done, lf);
+				fprintf(fid, "\"ecm-sum\":%1.2f,%c", fobj->ecm_obj.total_work, lf);
 			}
 		}
 

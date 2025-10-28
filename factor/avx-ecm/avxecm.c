@@ -2450,9 +2450,35 @@ void vececm(thread_data_t* tdata)
 
         if (verbose >= 0)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
+            double curve_time;
+            double avg_curve_time;
+            double est_time;
+            double curves_left;
+
+            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX); fflush(stdout);
+
+            gettimeofday(&stopt, NULL);
+            curve_time = ytools_difftime(&fullstartt, &stopt);
+
+            avg_curve_time = curve_time / (double)((curve) * threads);
+            curves_left = (double)tdata[0].curves * threads - (double)(curve) * threads;
+            if (curves_left < 0) curves_left = 0.;
+            est_time = (double)curves_left * avg_curve_time;
+
+            if (curve > 0)
+            {
+                if (est_time > 3600)
+                    printf(", ETA: %1.2f hrs ", est_time / 3600);
+                else if (est_time > 60)
+                    printf(", ETA: %1.1f min ", est_time / 60);
+                else
+                    printf(", ETA: %1.0f sec ", est_time);
+            }
+
+            printf("\r");
+            fflush(stdout);
         }
 
         // get a new batch of primes if:

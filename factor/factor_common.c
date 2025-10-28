@@ -132,8 +132,17 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.use_gpuecm = 0;
     fobj->ecm_obj.use_gpudev = 0;
     fobj->ecm_obj.ttime = 0.0;
+    fobj->ecm_obj.num_records = 0;
 
     int i;
+
+    printf("initializing tlevels in ecm_obj\n");
+    for (i = 0; i < NUM_ECM_LEVELS; i++)
+    {
+        fobj->ecm_obj.tlevels[i] = 0.0;
+    }
+    fobj->ecm_obj.total_work = 0.0;
+
     for (i = 0; i < (int)fobj->num_threads; i++)
     {
         fobj->ecm_obj.lcg_state[i] =
@@ -334,6 +343,14 @@ void free_factobj(fact_obj_t *fobj)
 	mpz_clear(fobj->ecm_obj.gmp_n);
 	mpz_clear(fobj->ecm_obj.gmp_f);
     free(fobj->ecm_obj.lcg_state);
+
+    if (fobj->ecm_obj.num_records > 0)
+    {
+        free(fobj->ecm_obj.curve_b1_rec);
+        free(fobj->ecm_obj.curve_b2_rec);
+        free(fobj->ecm_obj.param_rec);
+        free(fobj->ecm_obj.num_rec);
+    }
 
 	// then free other stuff in squfof
 	mpz_clear(fobj->squfof_obj.gmp_n);
