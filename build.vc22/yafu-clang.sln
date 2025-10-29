@@ -67,6 +67,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ysieve", "ysieve-clang\ysie
 		{59BB01C7-BDAD-4FB4-8C8C-125D4D76863A} = {59BB01C7-BDAD-4FB4-8C8C-125D4D76863A}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ecm_demo", "ecm_demo-clang\ecm_demo.vcxproj", "{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -195,6 +197,14 @@ Global
 		{9DD9FB53-8851-4C2F-BA2E-D84615CEB61D}.Release|Win32.Build.0 = Release|Win32
 		{9DD9FB53-8851-4C2F-BA2E-D84615CEB61D}.Release|x64.ActiveCfg = Release|x64
 		{9DD9FB53-8851-4C2F-BA2E-D84615CEB61D}.Release|x64.Build.0 = Release|x64
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Debug|Win32.Build.0 = Debug|Win32
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Debug|x64.ActiveCfg = Debug|x64
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Debug|x64.Build.0 = Debug|x64
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|Win32.ActiveCfg = Release|Win32
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|Win32.Build.0 = Release|Win32
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|x64.ActiveCfg = Release|x64
+		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

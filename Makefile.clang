@@ -412,6 +412,7 @@ YAFU_SIQS_OBJS = $(YAFU_SIQS_SRCS:.c=$(OBJ_EXT))
 YAFU_ECM_OBJS = $(ECM_SRCS:.c=$(OBJ_EXT))
 YAFU_COMMON_OBJS = $(COMMON_SRCS:.c=$(OBJ_EXT))
 SIQS_BIN_OBJS = $(SIQS_BIN_SRCS:.c=$(OBJ_EXT))
+ECM_BIN_OBJS = $(ECM_BIN_SRCS:.c=$(OBJ_EXT))
 YSIEVE_BIN_OBJS = $(YSIEVE_BIN_SRCS:.c=$(OBJ_EXT))
 
 #---------------------------YAFU NFS file lists -----------------------
@@ -771,7 +772,7 @@ ecm: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
 	rm -f libyecm.a
 	ar r libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
 	ranlib libyecm.a
-	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo -libyecm.a  $(LIBS)
+	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo  -lyecm  $(LIBS)
 
 clean:
 	rm -f $(MSIEVE_YAFU_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
