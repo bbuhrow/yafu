@@ -34,8 +34,10 @@ OBJ_EXT = .o
 # standard search directories for headers/libraries within yafu.
 # These should normally not be modified.
 INC = -I. -Iinclude -Ims_include -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm \
-	-Iytools -Iysieve -Iaprcl -Ignfs -Ignfs/poly -Ignfs/poly/stage1 -Ifactor/avx-ecm/
+	-Iytools -Iysieve -Iaprcl -Ignfs -Ignfs/poly -Ignfs/poly/stage1 -Ifactor/avx-ecm/ \
+	-Ifactor
 LIBS = -L. 
+
 
 # we require additional search directories for gmp and gmp-ecm, 
 # for libraries and headers.  Change
@@ -58,6 +60,23 @@ ifeq ($(COMPILER),icc)
 endif
 
 
+ifdef BATCH_CUDA
+	CUDA_PATH = /usr/local/cuda-12
+	INC += -I$(CUDA_PATH)/include
+	LIBS += -L$(CUDA_PATH)/lib64
+#  -lcudart -lcuda
+	CFLAGS += -DHAVE_CUDA_BATCH_FACTOR
+	NVCC = nvcc
+	
+	ifeq ($(BATCH_CUDA),1)
+		SM = 80
+	else
+		SM = $(BATCH_CUDA)
+		BATCH_CUDA = 1
+	endif
+
+endif
+
 # ===================== msieve feature options =======================
 ifeq ($(OMP),1)
 	CFLAGS += -fopenmp -DHAVE_OMP
@@ -76,6 +95,7 @@ ifeq ($(CUDA),1)
 	SM = 80
 else
 	SM = $(CUDA)
+	CUDA = 1
 endif
 
 ifeq ($(WIN),1)
@@ -281,7 +301,12 @@ COMMON_SRCS = \
 	ysieve/worker.c \
 	ysieve/soe_util.c \
 	ysieve/wrapper.c \
-	top/aprcl/mpz_aprcl.c
+	top/aprcl/mpz_aprcl.c \
+	factor/gpu_cofactorization.c
+	
+COMMON_BATCH_GPU_SRCS = \
+	factor/cuda_tinyecm.cu \
+	factor/cuda_intrinsics.h
 
 ECM_SRCS = \
 	factor/gmp-ecm/ecm.c \
@@ -353,6 +378,11 @@ YAFU_ECM_OBJS = $(ECM_SRCS:.c=$(OBJ_EXT))
 YAFU_COMMON_OBJS = $(COMMON_SRCS:.c=$(OBJ_EXT))
 SIQS_BIN_OBJS = $(SIQS_BIN_SRCS:.c=$(OBJ_EXT))
 
+ifdef BATCH_CUDA
+	BATCH_GPU_OBJS += \
+		cuda_ecm$(SM).ptx
+endif
+
 #---------------------------YAFU NFS file lists -----------------------
 
 YAFU_NFS_SRCS = \
@@ -363,6 +393,11 @@ YAFU_NFS_SRCS = \
 	factor/nfs/nfs_threading.c \
 	factor/nfs/snfs.c \
 	factor/nfs/nfs.c
+	
+ifdef BATCH_CUDA
+	YAFU_NFS_SRCS += \
+		common/cuda_xface.c
+endif
 
 YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=$(OBJ_EXT))
 
@@ -381,8 +416,9 @@ COMMON_HEAD = include/gmp_xface.h \
 	top/aprcl/tinyprp.h \
 	include/prime_sieve.h \
     include/batch_factor.h \
-	top/aprcl/mpz_aprcl.h
-	
+	top/aprcl/mpz_aprcl.h \
+	factor/gpu_cofactorization.h
+
 ECM_HEAD = include/yafu_ecm.h \
 	factor/avx-ecm/avx_ecm.h \
 	factor/avx-ecm/avx_ecm_impl.h \
@@ -495,18 +531,18 @@ MSIEVE_COMMON_SRCS = \
 	common/thread.c \
 	common/util.c \
 	aprcl/mpz_aprcl32.c
-
+		
 COMMON_GPU_SRCS = \
-		common/lanczos/gpu/lanczos_matmul_gpu.c \
-		common/lanczos/gpu/lanczos_vv.c
+	common/lanczos/gpu/lanczos_matmul_gpu.c \
+	common/lanczos/gpu/lanczos_vv.c
 
 COMMON_NOGPU_SRCS = \
-		common/lanczos/cpu/lanczos_matmul0.c \
-		common/lanczos/cpu/lanczos_matmul1.c \
-		common/lanczos/cpu/lanczos_matmul2.c \
-		common/lanczos/cpu/lanczos_vv.c
+	common/lanczos/cpu/lanczos_matmul0.c \
+	common/lanczos/cpu/lanczos_matmul1.c \
+	common/lanczos/cpu/lanczos_matmul2.c \
+	common/lanczos/cpu/lanczos_vv.c
 
-ifdef CUDA
+ifdef CUDA_LA
 	MSIEVE_COMMON_SRCS += $(COMMON_GPU_SRCS)
 	COMMON_HDR += $(COMMON_GPU_HDR)
 	GPU_OBJS += \
@@ -645,6 +681,7 @@ help:
 	@echo "add 'USE_BMI2=1' to include BMI2 instruction support"
 	@echo "add 'SKYLAKEX=1' to include AVX512F,VL,DQ,BW vectorization instruction support"
 	@echo "add 'ICELAKE=1' to include SKYLAKEX + AVX512IFMA vectorization instruction support"
+	@echo "add 'BATCH_CUDA=1' to include gpu cofactorization code for splitting 3LP in nfs and siqs"
 	@echo ""
 	@echo "For either build, add COMPILER=icc to build with the icc compiler (if installed)"
 
@@ -657,7 +694,7 @@ msieve: $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
 			libmsieve.a $(MSIEVE_LIBS)
 
 yafu: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
-	$(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	$(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(BATCH_GPU_OBJS) 
 	rm -f libmsieve.a
 	ar r libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
 	ranlib libmsieve.a
@@ -668,9 +705,9 @@ yafu: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU
 	ar r libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
 	ranlib libyecm.a
 	rm -f libynfs.a
-	ar r libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS)
+	ar r libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS) 
 	ranlib libynfs.a
-	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu -lysiqs  -lyecm  -lynfs -lmsieve $(LIBS)
+	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu -lysiqs -lcuda -lcudart -lyecm  -lynfs -lmsieve $(LIBS)
 
 siqs: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
 	rm -f libysiqs.a
@@ -744,6 +781,10 @@ stage1_core.ptx: $(NFS_GPU_HDR)
 
 lanczos_kernel.ptx: $(COMMON_GPU_HDR)
 	$(NVCC) -arch sm_$(SM) -ptx -DVBITS=$(VBITS) -o $@ $<
+	
+cuda_ecm$(SM).ptx: $(COMMON_BATCH_GPU_SRCS)
+	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
+
 
 cub/built:
 	cd cub && make WIN=$(WIN) WIN64=$(WIN64) VBITS=$(VBITS) sm=$(SM)0 && cd ..

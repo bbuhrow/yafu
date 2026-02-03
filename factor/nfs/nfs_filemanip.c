@@ -1652,6 +1652,7 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params)
 
 				approx_norms(&spoly);
 				fprintf(out, "# anorm: %1.2e, rnorm: %1.2e\n", spoly.anorm, spoly.rnorm);
+				fprintf(out, "# Murphy-E: %1.4e\n", spoly.poly->murphy);
 
 				FILE* flog = fopen(fobj->flogname, "a");
 				if (flog == NULL)

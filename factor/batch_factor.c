@@ -638,8 +638,8 @@ void check_batch_relation(relation_batch_t *rb,
     mpz_ptr _small = rb->_small;     // rpcndr.h defines "small" as "char", problem for msvc
     mpz_ptr _large = rb->_large;
     mpz_ptr n = rb->n;
-	uint32_t lp_r[MAX_LARGE_PRIMES];
-	uint32_t lp_a[MAX_LARGE_PRIMES];
+	uint64_t lp_r[MAX_LARGE_PRIMES];
+	uint64_t lp_a[MAX_LARGE_PRIMES];
 	uint32_t num_r = 0, num_a = 0;
     int do_r_first = 0;
 
@@ -780,7 +780,7 @@ process_r:
     for (i = num_r = 0; i < MAX_LARGE_PRIMES; i++)
         lp_r[i] = 1;
 
-    // between 32- and 64-bit f2r that are less than LPB^2 are worth attempting
+    // between lpr_cutoff and 64-bit f2r that are less than LPB^2 are worth attempting
     // to factor but we must check for primality first.
     if ((mpz_get_ui(f2r) > rb->lp_cutoff_r) && (mpz_sizeinbase(f2r, 2) <= 64))
     {
@@ -809,7 +809,7 @@ process_r:
     {
         if (mpz_get_ui(f1r) > 1)
         {
-            lp_r[num_r++] = (uint32_t)mpz_get_ui(f1r);
+            lp_r[num_r++] = mpz_get_ui(f1r);
         }
     }
     else if (mpz_sizeinbase(f1r, 2) <= 64)
@@ -842,7 +842,7 @@ process_r:
             }
         }
 
-        lp_r[num_r++] = (uint32_t)f64;
+        lp_r[num_r++] = f64;
         mpz_tdiv_q_ui(f1r, f1r, f64);
 
         if (mpz_get_ui(f1r) > rb->lp_cutoff_r)
@@ -851,7 +851,7 @@ process_r:
             return;
         }
 
-        lp_r[num_r++] = (uint32_t)mpz_get_ui(f1r);
+        lp_r[num_r++] = mpz_get_ui(f1r);
     }
 
     if (mpz_sizeinbase(f2r, 2) <= 32)
@@ -860,7 +860,7 @@ process_r:
         // wasn't found by GCD
         if ((mpz_get_ui(f2r) > 1) && (mpz_get_ui(f2r) < rb->lp_cutoff_r))
         {
-            lp_r[num_r++] = (uint32_t)mpz_get_ui(f2r);
+            lp_r[num_r++] = mpz_get_ui(f2r);
         }
 
         // if f2r == 1, don't abort but also don't add that as a large prime factor.
@@ -868,32 +868,40 @@ process_r:
     }
     else if (mpz_sizeinbase(f2r, 2) <= 64)
     {
-        uint64_t f64 = getfactor_uecm(mpz_get_ui(f2r), 0, lcg_state);
-        rb->num_uecm[1]++;
-
-        if (f64 == mpz_get_ui(f2r))
+        if (mpz_get_ui(f2r) < rb->lp_cutoff_r)
         {
-            gmp_printf("uecm found both factors of f2r = %Zd\n", f2r);
+            // anything here will be prime and good to go as a factor
+            lp_r[num_r++] = mpz_get_ui(f2r);
         }
-
-        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+        else
         {
-            if (f64 == 1) printf("failed to find factor of %d-bit f2r %lu\n",
-                mpz_sizeinbase(f2r, 2), mpz_get_ui(f2r));
-            rb->num_abort[6]++;
-            return;
+            uint64_t f64 = getfactor_uecm(mpz_get_ui(f2r), 0, lcg_state);
+            rb->num_uecm[1]++;
+
+            if (f64 == mpz_get_ui(f2r))
+            {
+                gmp_printf("uecm found both factors of f2r = %Zd\n", f2r);
+            }
+
+            if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+            {
+                if (f64 == 1) printf("failed to find factor of %d-bit f2r %lu\n",
+                    mpz_sizeinbase(f2r, 2), mpz_get_ui(f2r));
+                rb->num_abort[6]++;
+                return;
+            }
+
+            lp_r[num_r++] = f64;
+            mpz_tdiv_q_ui(f2r, f2r, f64);
+
+            if (mpz_get_ui(f2r) > rb->lp_cutoff_r)
+            {
+                rb->num_abort[6]++;
+                return;
+            }
+
+            lp_r[num_r++] = mpz_get_ui(f2r);
         }
-
-        lp_r[num_r++] = (uint32_t)f64;
-        mpz_tdiv_q_ui(f2r, f2r, f64);
-
-        if (mpz_get_ui(f2r) > rb->lp_cutoff_r)
-        {
-            rb->num_abort[6]++;
-            return;
-        }
-
-        lp_r[num_r++] = (uint32_t)mpz_get_ui(f2r);
     }
 
     /* only use expensive factoring methods when we know
@@ -1069,7 +1077,7 @@ process_r:
                             return;
                         }
 
-                        lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                        lp_r[num_r++] = mpz_get_ui(_large);
                     }
                     else
                     {
@@ -1079,7 +1087,7 @@ process_r:
                             return;
                         }
 
-                        lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                        lp_r[num_r++] = mpz_get_ui(_large);
                     }
                 }
                 else
@@ -1109,7 +1117,7 @@ process_r:
                     return;
                 }
 
-                lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                lp_r[num_r++] = mpz_get_ui(_large);
             }
             else
             {
@@ -1119,10 +1127,10 @@ process_r:
                     return;
                 }
 
-                uint32_t f32 = (uint32_t)mpz_get_ui(_large);
-                if (f32 > 1)
+                uint64_t f64 = mpz_get_ui(_large);
+                if (f64 > 1)
                 {
-                    lp_r[num_r++] = f32;
+                    lp_r[num_r++] = f64;
                 }
             }
         }
@@ -1143,8 +1151,8 @@ process_r:
         // or it could be prime.  None of these scenarios is cost-benficial to pursue.
         // Note: we should never actually get here, because size-based checks on f2r
         // should eliminate this residue right away, rather than waste time on f1r first.
-        //rb->num_abort[7]++;
-        //return;
+        rb->num_abort[7]++;
+        return;
 
         // if it isn't prime, maybe try to do a little work on it.
         //mpz_set_ui(f1r, 2);
@@ -1320,7 +1328,7 @@ process_r:
                             return;
                         }
 
-                        lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                        lp_r[num_r++] = mpz_get_ui(_large);
                     }
                     else
                     {
@@ -1330,7 +1338,7 @@ process_r:
                             return;
                         }
 
-                        lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                        lp_r[num_r++] = mpz_get_ui(_large);
                     }
                 }
                 else
@@ -1367,7 +1375,7 @@ process_r:
                     return;
                 }
 
-                lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                lp_r[num_r++] = mpz_get_ui(_large);
             }
             else
             {
@@ -1377,7 +1385,7 @@ process_r:
                     return;
                 }
 
-                lp_r[num_r++] = (uint32_t)mpz_get_ui(_large);
+                lp_r[num_r++] = mpz_get_ui(_large);
             }
         }
         else
@@ -1545,7 +1553,7 @@ process_a:
     {
         if (mpz_get_ui(f1a) > 1)
         {
-            lp_a[num_a++] = (uint32_t)mpz_get_ui(f1a);
+            lp_a[num_a++] = mpz_get_ui(f1a);
         }
     }
     else if (mpz_sizeinbase(f1a, 2) <= 64)
@@ -1581,7 +1589,7 @@ process_a:
             }
         }
 
-        lp_a[num_a++] = (uint32_t)f64;
+        lp_a[num_a++] = f64;
         mpz_tdiv_q_ui(f1a, f1a, f64);
 
         if (mpz_get_ui(f1a) > rb->lp_cutoff_a)
@@ -1590,7 +1598,7 @@ process_a:
             return;
         }
 
-        lp_a[num_a++] = (uint32_t)mpz_get_ui(f1a);
+        lp_a[num_a++] = mpz_get_ui(f1a);
     }
 
     if (mpz_sizeinbase(f2a, 2) <= 32)
@@ -1599,7 +1607,7 @@ process_a:
         // wasn't found by GCD
         if ((mpz_get_ui(f2a) > 1) && (mpz_get_ui(f2a) < rb->lp_cutoff_a))
         {
-            lp_a[num_a++] = (uint32_t)mpz_get_ui(f2a);
+            lp_a[num_a++] = mpz_get_ui(f2a);
         }
 
         // if f2a == 1, don't abort but also don't add that as a large prime factor.
@@ -1607,32 +1615,40 @@ process_a:
     }
     else if (mpz_sizeinbase(f2a, 2) <= 64)
     {
-        uint64_t f64 = getfactor_uecm(mpz_get_ui(f2a), 0, lcg_state);
-        rb->num_uecm_a[1]++;
-
-        if (f64 == mpz_get_ui(f2a))
+        if (mpz_get_ui(f2a) < rb->lp_cutoff_a)
         {
-            gmp_printf("uecm found both factors of f2a = %Zd\n", f2a);
+            // anything here will be prime and good to go as a factor
+            lp_a[num_a++] = mpz_get_ui(f2a);
         }
-
-        if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+        else
         {
-            // if (f64 == 1) printf("failed to find factor of %d-bit f2a %lu\n",
-            //     mpz_sizeinbase(f2a, 2), mpz_get_ui(f2a));
-            rb->num_abort_a[6]++;
-            return;
+            uint64_t f64 = getfactor_uecm(mpz_get_ui(f2a), 0, lcg_state);
+            rb->num_uecm_a[1]++;
+
+            if (f64 == mpz_get_ui(f2a))
+            {
+                gmp_printf("uecm found both factors of f2a = %Zd\n", f2a);
+            }
+
+            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+            {
+                // if (f64 == 1) printf("failed to find factor of %d-bit f2a %lu\n",
+                //     mpz_sizeinbase(f2a, 2), mpz_get_ui(f2a));
+                rb->num_abort_a[6]++;
+                return;
+            }
+
+            lp_a[num_a++] = f64;
+            mpz_tdiv_q_ui(f2a, f2a, f64);
+
+            if (mpz_get_ui(f2a) > rb->lp_cutoff_a)
+            {
+                rb->num_abort_a[6]++;
+                return;
+            }
+
+            lp_a[num_a++] = mpz_get_ui(f2a);
         }
-
-        lp_a[num_a++] = (uint32_t)f64;
-        mpz_tdiv_q_ui(f2a, f2a, f64);
-
-        if (mpz_get_ui(f2a) > rb->lp_cutoff_a)
-        {
-            rb->num_abort_a[6]++;
-            return;
-        }
-
-        lp_a[num_a++] = (uint32_t)mpz_get_ui(f2a);
     }
 
     /* only use expensive factoring methods when we know
@@ -1805,7 +1821,7 @@ process_a:
                             return;
                         }
 
-                        lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                        lp_a[num_a++] = mpz_get_ui(_large);
                     }
                     else
                     {
@@ -1815,7 +1831,7 @@ process_a:
                             return;
                         }
 
-                        lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                        lp_a[num_a++] = mpz_get_ui(_large);
                     }
                 }
                 else
@@ -1845,7 +1861,7 @@ process_a:
                     return;
                 }
 
-                lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                lp_a[num_a++] = mpz_get_ui(_large);
             }
             else
             {
@@ -1855,10 +1871,10 @@ process_a:
                     return;
                 }
 
-                uint32_t f32 = (uint32_t)mpz_get_ui(_large);
-                if (f32 > 1)
+                uint64_t f64 = mpz_get_ui(_large);
+                if (f64 > 1)
                 {
-                    lp_a[num_a++] = f32;
+                    lp_a[num_a++] = f64;
                 }
             }
         }
@@ -2053,7 +2069,7 @@ process_a:
                             return;
                         }
 
-                        lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                        lp_a[num_a++] = mpz_get_ui(_large);
                     }
                     else
                     {
@@ -2063,7 +2079,7 @@ process_a:
                             return;
                         }
 
-                        lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                        lp_a[num_a++] = mpz_get_ui(_large);
                     }
                 }
                 else
@@ -2100,7 +2116,7 @@ process_a:
                     return;
                 }
 
-                lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                lp_a[num_a++] = mpz_get_ui(_large);
             }
             else
             {
@@ -2110,7 +2126,7 @@ process_a:
                     return;
                 }
 
-                lp_a[num_a++] = (uint32_t)mpz_get_ui(_large);
+                lp_a[num_a++] = mpz_get_ui(_large);
             }
         }
         else

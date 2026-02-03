@@ -21,6 +21,10 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "cofactorize.h"
 #include "gmp.h"
 
+#ifdef HAVE_CUDA
+#include "cuda_xface.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,8 +65,8 @@ typedef struct {
 	uint32_t factor_list_word;  /* offset in an array of factors where
 				            all of the above above appear, in order */
     uint8_t success;
-    uint32_t lp_r[MAX_LARGE_PRIMES];
-	uint32_t lp_a[MAX_LARGE_PRIMES];
+    uint64_t lp_r[MAX_LARGE_PRIMES];
+	uint64_t lp_a[MAX_LARGE_PRIMES];
 } cofactor_t;
 
 /* main structure controlling batch factoring. The main goal
@@ -182,6 +186,9 @@ void check_batch_relation(relation_batch_t *rb,
    lp_cutoff_[ra] */
 
 uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lcg_state);
+
+
+uint32_t relation_batch_run_gpu(relation_batch_t* rb, uint64_t* lcg_state);
 
 #ifdef __cplusplus
 }

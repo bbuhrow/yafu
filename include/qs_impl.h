@@ -24,6 +24,10 @@
 #include "msieve_common.h"
 #include "savefile.h"
 
+#ifdef HAVE_CUDA_BATCH_FACTOR
+#include "gpu_cofactorization.h"
+#endif
+
 // I've been unable to get this to run any faster, for
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
@@ -677,6 +681,10 @@ typedef struct {
 #endif
 
     uint64_t lcg_state;
+
+#ifdef HAVE_CUDA_BATCH_FACTOR
+    device_thread_ctx_t* gpu_cofactor_ctx;
+#endif
 
 } dynamic_conf_t;
 

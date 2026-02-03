@@ -31,6 +31,10 @@ code to the public domain.
 #include <stdint.h>
 #include "batch_factor.h"
 
+#ifdef HAVE_CUDA_BATCH_FACTOR
+#include "gpu_cofactorization.h"
+#endif
+
 /* used to place a deadline on how long polynomial
    selection will run. Note that the time budget is
    independent of CPU speed; faster CPUs will simply
@@ -157,6 +161,11 @@ typedef struct {
     nfs_job_t job;
     uint32_t siever;
     relation_batch_t* rb_ref;
+
+#ifdef HAVE_CUDA_BATCH_FACTOR
+    device_ctx_t* gpu_dev_ctx;
+    device_thread_ctx_t* gpu_cofactor_ctx;
+#endif
 
     // stuff for parallel msieve poly select
     char* polyfilename, * logfilename, * fbfilename;

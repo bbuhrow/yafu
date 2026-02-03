@@ -18,6 +18,10 @@ benefit from your work.
 #include "batch_factor.h"
 #include "threadpool.h"
 
+#ifdef HAVE_CUDA_BATCH_FACTOR
+#include "gpu_cofactorization.h"
+#endif
+
 #ifdef __INTEL_LLVM_COMPILER
 #include <pthread.h>
 #endif
@@ -522,7 +526,14 @@ void nfs_sieve_start(void* vptr)
 			// need to evaluate this...
 			udata->qrange_data->thread_qrange = MIN(1000, udata->qrange_data->thread_qrange);
 		}
+
+
 	}
+
+#ifdef HAVE_CUDA_BATCH_FACTOR
+	printf("creating gpu device context\n");
+	device_ctx_t* dev = gpu_device_init(0);
+#endif
 
 	for (i = 0; i < fobj->THREADS; i++)
 	{
@@ -569,6 +580,20 @@ void nfs_sieve_start(void* vptr)
 
 			relation_batch_init(stdout, udata->thread_data[i].job.rb, min_prime, 1ULL << max_prime,
 				1ull << job->lpbr, 1ull << job->lpba, NULL, 0);
+
+#ifdef HAVE_CUDA_BATCH_FACTOR
+			// prepare a gpu context in this thread and point it to 
+			// this threads' relation batch.
+			// perhaps the context needs to be created in the thread
+			// in which it is run... if the gpu folds the thread
+			// id into the context somehow.
+
+			//printf("creating gpu cofactorization context in thread %d\n", i);
+			//udata->thread_data[i].gpu_cofactor_ctx = 
+			//	gpu_ctx_init(dev, udata->thread_data[i].job.rb);
+
+			udata->thread_data[i].gpu_dev_ctx = dev;
+#endif
 
 			for (j = 0; j < 4; j++)
 			{
@@ -1634,8 +1659,9 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	return minscore_id;
 }
 
-uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, char *outfile, int vflag)
+uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *infile, char *outfile, int vflag)
 {
+	relation_batch_t* rb = thread_data->job.rb;
 	char buf[1024], str1[1024], str2[1024];
 	uint32_t fr[32], fa[32], numr = 0, numa = 0;
 	mpz_t res1, res2;
@@ -1761,9 +1787,52 @@ uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, c
 	gettimeofday(&stop, NULL);
 	ttime = ytools_difftime(&start, &stop);
 
-	if (vflag > 0)
+	
+
+#ifdef HAVE_CUDA_BATCH_FACTOR
+
+	if (vflag >= 0)
 	{
-		printf("nfs: file parsing took %1.2f sec, batched %u rels "
+		printf("nfs: file parsing took %1.2f sec, batched %u rels. "
+			"now running gpu cofactorization in thread %d...\n",
+			ttime, rb->num_relations, thread_data->tindex);
+	}
+
+	gettimeofday(&start, NULL);
+
+	// we must create the thread context here... the cuda context
+	// init method must fold in the current thread info. 
+	printf("creating gpu cofactorization context in thread %d\n", i);
+	thread_data->gpu_cofactor_ctx =
+		gpu_ctx_init(thread_data->gpu_dev_ctx, thread_data->job.rb);
+
+	thread_data->gpu_cofactor_ctx->lpba = thread_data->job.lpba;
+	thread_data->gpu_cofactor_ctx->lpbr = thread_data->job.lpbr;
+	thread_data->gpu_cofactor_ctx->mfba = thread_data->job.mfba;
+	thread_data->gpu_cofactor_ctx->mfbr = thread_data->job.mfbr;
+	thread_data->gpu_cofactor_ctx->verbose = vflag;
+	do_gpu_cofactorization(thread_data->gpu_cofactor_ctx, &lcg_state);
+
+	// perhaps we can make the context persistent after we create it 
+	// once in the thread?
+	gpu_ctx_free(thread_data->gpu_cofactor_ctx);
+
+	gettimeofday(&stop, NULL);
+
+	ttime = ytools_difftime(&start, &stop);
+
+	if (vflag >= 0)
+	{
+		printf("nfs: CUDA cofactorization on %u rels from file "
+			"%s took %1.4f sec producing %u relations\n",
+			rb->num_relations, infile, ttime, rb->num_success);
+	}
+
+#else
+
+	if (vflag >= 0)
+	{
+		printf("nfs: file parsing took %1.2f sec, batched %u rels. "
 			"now running batch solve...\n",
 			ttime, rb->num_relations);
 	}
@@ -1776,9 +1845,11 @@ uint32_t process_batch(relation_batch_t *rb, mpz_ptr prime_prod, char *infile, c
 
 	if (vflag >= 0)
 	{
-		printf("nfs: relation_batch_run on %u rels from file %s took %1.4f sec producing %u relations\n",
+		printf("nfs: relation_batch_run on %u rels from file "
+			"%s took %1.4f sec producing %u relations\n",
 			rb->num_relations, infile, ttime, rb->num_success);
 	}
+#endif
 
 	fout = fopen(outfile, "a");
 
@@ -2419,6 +2490,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 		for (i = 0; i < fobj->THREADS; i++) {
 			relation_batch_free(thread_data[i].job.rb, 0);
 		}
+		gpu_dev_free(thread_data[0].gpu_dev_ctx);
 	}
 
 	//free the thread structure
@@ -2533,7 +2605,7 @@ void *lasieve_launcher(void *ptr) {
 
 		sprintf(infile, "%s.raw", thread_data->outfilename);
 		thread_data->job.current_rels += 
-			process_batch(thread_data->job.rb, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
+			process_batch(thread_data, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
 		MySleep(100);
 		remove(infile);
 	}

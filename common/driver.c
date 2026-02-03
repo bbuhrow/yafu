@@ -486,6 +486,11 @@ static void factor_list_add_core(msieve_obj *obj,
 	mp_t tmp1, tmp2, common, q, r;
 	uint32 num_factors = list->num_factors;
 
+	//printf("factor_list_add_core new_factor = ");
+	//char scratch[2048];
+	//char *buf = mp_print(new_factor, 10, NULL, scratch);
+	//printf("%s\n", buf);
+
 	mp_clear(&tmp1); tmp1.nwords = tmp1.val[0] = 1;
 	mp_clear(&tmp2); tmp2.nwords = tmp2.val[0] = 1;
 	mp_clear(&common);
@@ -537,6 +542,7 @@ static void factor_list_add_core(msieve_obj *obj,
 		/* there is overlap between new_factor and one
 		   of the factors previously found. In the worst
 		   case there are three new factors to deal with */
+		//printf("overlap case with existing factor %d\n", i);	
 
 		if (!mp_is_one(&tmp1))
 			factor_list_add_core(obj, list, &tmp1);

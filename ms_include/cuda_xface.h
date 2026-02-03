@@ -15,9 +15,9 @@ $Id$
 #ifndef _GPU_XFACE_H
 #define _GPU_XFACE_H
 
-#if defined(HAVE_CUDA)
+#if defined(HAVE_CUDA) || defined(HAVE_CUDA_BATCH_FACTOR)
 
-#include <util.h>
+#include <stdint.h>
 #include <cuda.h>
 
 #ifdef __cplusplus
@@ -28,25 +28,25 @@ extern "C" {
 
 typedef struct {
 	char name[32];
-	int32 compute_version_major;
-	int32 compute_version_minor;
-	int32 clock_speed; /* in kHz */
-	int32 num_compute_units;
-	int32 constant_mem_size;
-	int32 shared_mem_size;
+	int32_t compute_version_major;
+	int32_t compute_version_minor;
+	int32_t clock_speed; /* in kHz */
+	int32_t num_compute_units;
+	int32_t constant_mem_size;
+	int32_t shared_mem_size;
 	size_t global_mem_size;
-	int32 registers_per_block;
-	int32 max_threads_per_block;
-	int32 can_overlap;
-	int32 warp_size;
-	int32 max_thread_dim[3];
-	int32 max_grid_size[3];
-	int32 has_timeout;
+	int32_t registers_per_block;
+	int32_t max_threads_per_block;
+	int32_t can_overlap;
+	int32_t warp_size;
+	int32_t max_thread_dim[3];
+	int32_t max_grid_size[3];
+	int32_t has_timeout;
 	CUdevice device_handle;
 } gpu_info_t;
 
 typedef struct {
-	int32 num_gpu;
+	int32_t num_gpu;
 	gpu_info_t info[MAX_GPU];
 } gpu_config_t;
 
@@ -81,22 +81,22 @@ typedef enum {
 #define GPU_MAX_KERNEL_ARGS 15
 
 typedef struct {
-	uint32 num_args;
+	uint32_t num_args;
 	gpu_arg_type_t arg_type[GPU_MAX_KERNEL_ARGS];
 } gpu_arg_type_list_t;
 
 typedef union {
 	void * ptr_arg;
-	int32 int32_arg;
-	uint32 uint32_arg;
-	int64 int64_arg;
-	uint64 uint64_arg;
+	int32_t int32_arg;
+	uint32_t uint32_arg;
+	int64_t int64_arg;
+	uint64_t uint64_arg;
 } gpu_arg_t;
 
 typedef struct {
 	CUfunction kernel_func;
-	int32 threads_per_block;
-	int32 arg_offsets[GPU_MAX_KERNEL_ARGS];
+	int32_t threads_per_block;
+	int32_t arg_offsets[GPU_MAX_KERNEL_ARGS];
 	gpu_arg_type_list_t arg_desc;
 } gpu_launch_t;
 

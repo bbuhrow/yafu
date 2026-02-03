@@ -13,6 +13,7 @@ $Id$
 --------------------------------------------------------------------*/
 
 #include <cuda_xface.h>
+#include <stdint.h>
 
 #ifdef  HAVE_CUDA
 
@@ -56,7 +57,7 @@ cuGetErrorMessage(CUresult result)
 void
 gpu_init(gpu_config_t *config)
 {
-	int32 i, j;
+	int32_t i, j;
 
 	/* determine the specifics of CUDA GPUs using the 14 different
 	   methods in the Nvidia documentation */
@@ -68,7 +69,7 @@ gpu_init(gpu_config_t *config)
 	if (config->num_gpu == 0)
 		return;
 
-	for (i = 0; i < (int32)config->num_gpu; i++) {
+	for (i = 0; i < (int32_t)config->num_gpu; i++) {
 		CUdevice device;
 		CUdevprop prop;
 		gpu_info_t *info = config->info + i;
@@ -116,8 +117,8 @@ void gpu_launch_init(CUmodule gpu_module, const char *func_name,
 			const gpu_arg_type_list_t *arg_desc,
 			gpu_launch_t *launch)
 {
-	uint32 i;
-	int32 j;
+	uint32_t i;
+	int32_t j;
 
 	memset(launch, 0, sizeof(gpu_launch_t));
 
@@ -141,16 +142,16 @@ void gpu_launch_init(CUmodule gpu_module, const char *func_name,
 
 		case GPU_ARG_INT32: 
 		case GPU_ARG_UINT32: 
-			CUDA_ALIGN_PARAM(j, __alignof(uint32));
+			CUDA_ALIGN_PARAM(j, __alignof(uint32_t));
 			launch->arg_offsets[i] = j;
-			j += sizeof(uint32);
+			j += sizeof(uint32_t);
 			break;
 
 		case GPU_ARG_INT64:
 		case GPU_ARG_UINT64:
-			CUDA_ALIGN_PARAM(j, __alignof(uint64));
+			CUDA_ALIGN_PARAM(j, __alignof(uint64_t));
 			launch->arg_offsets[i] = j;
-			j += sizeof(uint64);
+			j += sizeof(uint64_t);
 			break;
 
 		default:
@@ -165,7 +166,7 @@ void gpu_launch_init(CUmodule gpu_module, const char *func_name,
 /*------------------------------------------------------------------------*/
 void gpu_launch_set(gpu_launch_t *launch, gpu_arg_t *args)
 {
-	uint32 i;
+	uint32_t i;
 
 	for (i = 0; i < launch->arg_desc.num_args; i++) {
 

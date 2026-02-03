@@ -903,11 +903,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
         else if (strlen(arg) < MAXARGLEN)
         {
-            printf("*** argument to nt too long, ignoring ***\n");
+            strcpy(options->testsieve, arg);
         }
         else
         {
-            strcpy(options->testsieve, arg);
+            printf("*** argument to nt too long, ignoring ***\n");
         }
     }
     else if (strcmp(opt, OptionArray[63]) == 0)
