@@ -15,7 +15,7 @@ $Id$
 #include <cuda_xface.h>
 #include <stdint.h>
 
-#ifdef  HAVE_CUDA
+#if defined(HAVE_CUDA_POLY) || defined(HAVE_CUDA_LA) || defined(HAVE_CUDA_BATCH_FACTOR)
 
 /*------------------------------------------------------------------------*/
 char *

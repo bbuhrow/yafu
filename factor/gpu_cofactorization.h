@@ -3,8 +3,12 @@
 #include "batch_factor.h"
 #include "cuda_xface.h"
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#ifdef _MSC_VER
+// so I can browse the code in visual studio
+#define HAVE_CUDA_BATCH_FACTOR
+#endif
 
+#ifdef HAVE_CUDA_BATCH_FACTOR
 typedef struct {
 	int gpunum;
 	gpu_info_t* gpu_info;
@@ -26,10 +30,13 @@ typedef struct {
 	int lpb_3lp;
 	int first_side;			// first side is the 2LP side, so we
 							// can skip some of the more expensive 3LPs
-	uint32_t b1_2lp;			
+	uint32_t b1_2lp;		
+	uint32_t b2_2lp;
 	uint32_t curves_2lp;
 	uint32_t b1_3lp;
+	uint32_t b2_3lp;
 	uint32_t curves_3lp;
+	uint32_t stop_nofactor;
 
 	// threads need their own context and stream
 	CUcontext gpu_context;
@@ -98,7 +105,9 @@ void gpu_dev_free(device_ctx_t* d);
 void gpu_ctx_free(device_thread_ctx_t* t);
 
 // do gpu cofactorization work
-int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t* lcg);
+int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t* lcg,
+	int b1_3lp_ovr, int b2_3lp_ovr, int b1_2lp_ovr, int b2_2lp_ovr,
+	int curves_3lp_ovr, int curves_2lp_ovr);
 
 #endif
 

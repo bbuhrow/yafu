@@ -14,7 +14,7 @@ $Id$
 
 #include <cuda_xface_la.h>
 
-#ifdef  HAVE_CUDA
+#ifdef  HAVE_LA_CUDA
 
 /*------------------------------------------------------------------------*/
 void

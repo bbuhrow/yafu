@@ -25,6 +25,7 @@ SOFTWARE.
 #include <stdint.h>
 #include <stdio.h>
 #include "threadpool.h"
+#include "ytools.h"
 
 
 #if (defined(_WIN32) || defined(_WIN64))  // && (!defined(__clang__))
@@ -133,7 +134,7 @@ void tpool_stop(tpool_t* t)
             // don't sleep and hope for the best?
 
 #else
-            usleep(1);
+            portable_sleep(100);
 #endif
 
             if (count > 100)

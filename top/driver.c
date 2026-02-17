@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 7/28/10
 ----------------------------------------------------------------------*/
 
+#define _POSIX_C_SOURCE 200112L
 #include "yafu.h"
 #include "soe.h"
 #include "calc.h"
@@ -39,7 +40,10 @@ code to the public domain.
 #include <direct.h>     // _getcwd
 #endif
 
-#ifdef __INTEL_LLVM_COMPILER
+#if defined(__INTEL_LLVM_COMPILER) || defined(__GNUC__)
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include <ctype.h>
 #endif
 
@@ -1246,7 +1250,9 @@ void yafu_set_idle_priority(void) {
 	SetPriorityClass(GetCurrentProcess(),
 			IDLE_PRIORITY_CLASS);
 #else
-	nice(100);
+#if __GNUC__ < 14
+    nice(100);
+#endif
 #endif
 }
 

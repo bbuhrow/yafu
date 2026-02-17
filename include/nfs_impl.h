@@ -35,6 +35,10 @@ code to the public domain.
 #include "gpu_cofactorization.h"
 #endif
 
+#ifdef __GNUC__
+#include <pthread.h>
+#endif
+
 /* used to place a deadline on how long polynomial
    selection will run. Note that the time budget is
    independent of CPU speed; faster CPUs will simply

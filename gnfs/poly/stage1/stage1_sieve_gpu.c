@@ -16,6 +16,12 @@ $Id: stage1_sieve_gpu.c 1003 2016-10-19 13:11:43Z brgladman $
 #include <stage1.h>
 #include <stage1_core_gpu/stage1_core.h>
 
+#ifndef TOOLKIT_VERSION
+#define toolkit_version 13
+#else
+#define toolkit_version TOOLKIT_VERSION
+#endif
+
 /* GPU collision search; this code looks for self-collisions
    among arithmetic progressions, by finding k1 and k2 such that
    for two arithmetic progressions r1+k*p1^2 and r2+k*p2^2 we
@@ -1097,9 +1103,18 @@ gpu_thread_data_init(void *data, int threadid)
 	   with the sort engine, because apparently it
 	   changes the GPU cache size on the fly */
 
+#if toolkit_version >= 13
+	CUctxCreateParams* ctxCreateParams;
+
+	CUDA_TRY(cuCtxCreate(&t->gpu_context,
+		ctxCreateParams,
+		CU_CTX_BLOCKING_SYNC,
+		d->gpu_info->device_handle))
+#else
 	CUDA_TRY(cuCtxCreate(&t->gpu_context, 
 			CU_CTX_BLOCKING_SYNC,
 			d->gpu_info->device_handle))
+#endif
 
 	/* load GPU kernels */
 

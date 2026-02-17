@@ -273,13 +273,13 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
         // save this slp (single large prime)
-		uint32_t large_prime[4];
+		uint64_t large_prime[4];
 		
-		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
+		large_prime[0] = mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
 		//if (dconf->num_alp == 1)
         //    large_prime[1] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
         //else
-            large_prime[1] = 1;
+        large_prime[1] = 1;
 		large_prime[2] = 1;
         large_prime[3] = 1;
 
@@ -486,14 +486,14 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 			
 			if ((f64 > 1) && (f64 != q64) && ((q64 % f64) == 0))
 			{
-				uint32_t large_prime[4];
+				uint64_t large_prime[4];
 
-                if ((f64 < (uint64_t)sconf->large_prime_max) && 
-                    ((q64 / f64) < (uint64_t)sconf->large_prime_max))
+                if ((f64 < sconf->large_prime_max) && 
+                    ((q64 / f64) < sconf->large_prime_max))
 				{
 					//add this one
-                    large_prime[0] = (uint32_t)f64;
-                    large_prime[1] = (uint32_t)(q64 / f64);
+                    large_prime[0] = f64;
+                    large_prime[1] = (q64 / f64);
                     if (dconf->num_alp == 1)
                     {
                         large_prime[2] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
@@ -943,7 +943,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	return;
 }
 
-void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factors,
+void buffer_relation(uint32_t offset, uint64_t *large_prime, uint32_t num_factors,
     uint32_t *fb_offsets, uint32_t apoly_id, uint32_t bpoly_id, uint32_t parity,
     dynamic_conf_t *conf, uint32_t *polya_factors,
     uint32_t num_polya_factors, uint64_t unfactored_residue)

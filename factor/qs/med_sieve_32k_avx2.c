@@ -179,7 +179,7 @@ code to the public domain.
 	"vmovdqa    %%xmm5, (%3) \n\t"				/* write new root2's */
 
 #define _INIT_AVX2_SMALL_PRIME_SIEVE \
-	asm (	\
+	ASM_G (	\
 		"movl	$0x7fff7fff, %%ecx \n\t"		/* load 2 copies of blocksize-1 in a 32bit reg */ \
 		"movl	$0x80008000, %%edi \n\t"		/* load 2 copies of blocksize in a 32bit reg */ \
 		"vmovd	%%ecx, %%xmm3 \n\t"				/* we need 32k-1 because we do signed comparisons */ \
@@ -194,7 +194,7 @@ code to the public domain.
 
 #define _AVX2_SMALL_PRIME_SIEVE \
 	for (; i < med_B; i += 8) \
-		asm (			\
+		ASM_G (			\
 			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
 			"movq	$15, %%rsi \n\t"				/* logp's range from 15 to 16... call 'em = 15 */ \
 			"vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \

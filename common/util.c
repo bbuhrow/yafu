@@ -193,7 +193,9 @@ void set_idle_priority(void) {
 	SetPriorityClass(GetCurrentProcess(),
 			IDLE_PRIORITY_CLASS);
 #else
+#if __GNUC__ < 14
 	nice(100);
+#endif
 #endif
 }
 

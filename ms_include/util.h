@@ -25,6 +25,7 @@ $Id: util.h 1005 2016-11-11 15:43:21Z jasonp_sf $
 	#include <windows.h>
 	#include <process.h>
 #else
+#define _POSIX_C_SOURCE 200112L
 	#include <fcntl.h>
 	#include <unistd.h>
 	#include <errno.h>

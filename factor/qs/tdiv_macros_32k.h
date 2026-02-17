@@ -128,7 +128,7 @@
 		"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */
 
 	#define RESIEVE_8X_14BIT_MAX \
-		asm ( \
+		ASM_G ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -142,7 +142,7 @@
 			);
 
 	#define RESIEVE_8X_15BIT_MAX \
-		asm ( \
+		ASM_G ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -154,7 +154,7 @@
 			);
 
 	#define RESIEVE_8X_16BIT_MAX \
-		asm ( \
+		ASM_G ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			"por	%%xmm0, %%xmm7 \n\t" \

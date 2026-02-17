@@ -707,7 +707,7 @@ Core sieving routine
 #define PACKED_SIEVE_MASK ((u64)0x80808080 << 32 | 0x80808080)
 
 #define SM_SIEVE_SCAN_64_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"vmovdqu (%1), %%ymm0   \n\t"		\
 			"vpor 32(%1), %%ymm0, %%ymm0    \n\t"		\
 			"vpmovmskb %%ymm0, %%r11   \n\t"	/* output results to 64 bit register */		\
@@ -1657,7 +1657,7 @@ B values
 #ifdef USE_ASM
       
 #define COMPUTE_16X_SMALL_PROOTS_AVX2	\
-		asm (	\
+		__asm__ (	\
 			"movl   $2, %%eax \n\t"	/* eax = start */	\
 			"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t" \
 			"cmpl	%0, %%eax \n\t"	\
@@ -1709,7 +1709,7 @@ B values
 
   
 #define COMPUTE_16X_SMALL_NROOTS_AVX2	\
-		asm (	\
+		__asm__ (	\
 			"movl   $2, %%eax \n\t"	/* eax = start */	\
 			"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t" \
 			"cmpl	%0, %%eax \n\t"	\
@@ -1761,7 +1761,7 @@ B values
       
 
 #define FLIP_ROOTS_AVX2	\
-		asm (	\
+		__asm__ (	\
 			"movl   $2, %%eax \n\t"	/* eax = start */	\
 			"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t" \
 			"cmpl	%0, %%eax \n\t"	\

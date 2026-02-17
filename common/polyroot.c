@@ -13,6 +13,8 @@ $Id: polyroot.c 23 2009-07-20 02:59:07Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <polyroot.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
 
 /* This rootfinder uses a simplified version of the all-complex
    Jenkins-Traub algorithm, then switches to Newton's method
@@ -36,7 +38,12 @@ typedef struct {
 } complex_t;
 
 static const double are = DBL_EPSILON;
+#ifndef M_SQRT2
+#define M_SQRT1_2 0.70710678118654752440
+#define M_SQRT2 1.41421356237309504880
+#endif
 static const double mre = 2.0 * M_SQRT2 * DBL_EPSILON;
+
 static const complex_t czero = { 0, 0 };
 
 typedef struct {

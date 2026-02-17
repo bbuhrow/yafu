@@ -3,10 +3,15 @@
 #include "gmp.h"
 #include "microecm.h"
 #include "batch_factor.h"
+#include "gpu_cofactorization.h"
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 
-#include "gpu_cofactorization.h"
+#ifndef TOOLKIT_VERSION
+#define toolkit_version 13
+#else
+#define toolkit_version TOOLKIT_VERSION
+#endif
 
 #define MAX_RESIDUE_WORDS 3
 
@@ -201,8 +206,8 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 		gpu_args[4].ptr_arg = (void*)(t->gpu_rsq_array);	// Rsq
 		gpu_args[5].ptr_arg = (void*)(t->gpu_u32_array);	// sigma
 		gpu_args[6].ptr_arg = (void*)(t->gpu_a_array);		// f
-		gpu_args[7].uint32_arg = t->b1_2lp;
-		gpu_args[8].int32_arg = curve;
+		gpu_args[7].uint32_arg = 205;		// fixed B1, for now, need more stage 1 work.
+		gpu_args[8].int32_arg = curve;		// variable curves
 
 		gpu_launch_set(launch, gpu_args);
 
@@ -402,7 +407,8 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 	int num_blocks = t->array_sz / threads_per_block +
 		((t->array_sz % threads_per_block) > 0);
 
-	printf("commencing gpu 96-bit ecm on %d inputs\n", t->array_sz);
+	printf("commencing gpu 96-bit ecm on %d inputs (b1 = %d, b2 = %d, curves = %d)\n", 
+		t->array_sz, t->b1_3lp, t->b2_3lp * t->b1_3lp, t->curves_3lp);
 	fflush(stdout);
 
 	// copy sigma into device memory
@@ -472,10 +478,11 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 
 	uint64_t lcg = 0xbaddecafbaddecafull;
 
+	int total_curves = 0;
 	int num2lp_retest = 0;
 	int orig_size = t->array_sz;
 	int no_factors = 0;
-	int max_no_factors = 8;
+	int max_no_factors = t->stop_nofactor;
 	int max_curves = t->curves_3lp;
 	int curve = 0;
 	while ((curve < max_curves) && (total_factors < orig_size)) {
@@ -488,7 +495,7 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 		gpu_args[5].ptr_arg = (void*)(t->gpu_u32_array);	// sigma
 		gpu_args[6].ptr_arg = (void*)(t->gpu_res32_array);	// f
 		gpu_args[7].uint32_arg = t->b1_3lp;
-		gpu_args[8].uint32_arg = 100 * t->b1_3lp;
+		gpu_args[8].uint32_arg = t->b2_3lp * t->b1_3lp;
 		gpu_args[9].int32_arg = curve;
 
 		gpu_launch_set(launch, gpu_args);
@@ -511,6 +518,8 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 		// copy factors back to host
 		CUDA_TRY(cuMemcpyDtoHAsync(t->factors96, t->gpu_res32_array,
 			t->array_sz * 3 * sizeof(uint32_t), t->stream))
+
+		total_curves += threads_per_block * num_blocks;
 
 		// swap factored inputs to the end of the list
 		int n = t->array_sz;
@@ -632,10 +641,10 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 		// run at least 40 curves and keep running curves until 
 		// we get to max curves or we stop finding valid factors.
 		if (no_factors >= max_no_factors)
-		{
+		{			
+			printf("halting after %d curves after not finding any valid factors in the "
+				"last %d curves\n", curve + 1, max_no_factors);
 			curve = max_curves;
-			printf("halting after not finding any valid factors in the "
-				"last %d curves\n", max_no_factors);
 		}
 		else if (curve == (max_curves - 1))
 		{
@@ -683,8 +692,8 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 	CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
 		t->start_event, t->end_event))
 
-	printf("found %d total factors of 3LP inputs in %1.4f ms\n", 
-		total_factors, elapsed_ms);
+	printf("found %d total factors of 3LP inputs with %d total curves in %1.4f ms\n", 
+		total_factors, total_curves, elapsed_ms);
 	t->array_sz = total_factors;
 
 	/* we have to synchronize now */
@@ -832,6 +841,7 @@ uint32_t gpu_cofactorization(device_thread_ctx_t* t)
 			t->rb->relations[i].success = 0;
 		}
 	}
+	t->rb->num_success = t->num_factors_3lp;
 	printf("%d relations have been flagged as completely factored\n", t->num_factors_3lp);
 
 	return quit;
@@ -899,9 +909,18 @@ device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
 	   threads share the same context causes problems
 	   with the sort engine, because apparently it
 	   changes the GPU cache size on the fly */
-	CUDA_TRY(cuCtxCreate(&t->gpu_context,
-		CU_CTX_BLOCKING_SYNC,
-		d->gpu_info->device_handle))
+#if toolkit_version >= 13
+		CUctxCreateParams* ctxCreateParams;
+
+		CUDA_TRY(cuCtxCreate(&t->gpu_context,
+			ctxCreateParams,
+			CU_CTX_BLOCKING_SYNC,
+			d->gpu_info->device_handle))
+#else
+		CUDA_TRY(cuCtxCreate(&t->gpu_context,
+			CU_CTX_BLOCKING_SYNC,
+			d->gpu_info->device_handle))
+#endif
 
 	/* load GPU kernels */
 	char ptxfile[80];
@@ -929,6 +948,8 @@ device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
 		exit(-1);
 	}
 
+	printf("loading kernel code from %s\n",	ptxfile);
+
 	CUDA_TRY(cuModuleLoad(&t->gpu_module, ptxfile))
 
 	printf("successfully loaded kernel code from %s\n",
@@ -937,6 +958,7 @@ device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
 	t->launch = (gpu_launch_t*)xmalloc(NUM_GPU_FUNCTIONS *
 		sizeof(gpu_launch_t));
 
+	printf("initializing kernels\n");
 	int i;
 	for (i = 0; i < NUM_GPU_FUNCTIONS; i++) {
 		gpu_launch_t* launch = t->launch + i;
@@ -945,9 +967,11 @@ device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
 			gpu_kernel_args + i, launch);
 	}
 
+	printf("creating stream\n");
 	/* threads each send a stream of kernel calls */
 	CUDA_TRY(cuStreamCreate(&t->stream, 0))
 
+		printf("creating events\n");
 	// for measuring elapsed time
 	CUDA_TRY(cuEventCreate(&t->start_event, CU_EVENT_BLOCKING_SYNC))
 	CUDA_TRY(cuEventCreate(&t->end_event, CU_EVENT_BLOCKING_SYNC))
@@ -965,7 +989,9 @@ void gpu_ctx_free(device_thread_ctx_t* d)
 }
 
 /* external entry point */
-int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg)
+int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg, 
+	int b1_3lp_ovr, int b2_3lp_ovr, int b1_2lp_ovr, int b2_2lp_ovr,
+	int curves_3lp_ovr, int curves_2lp_ovr)
 {
 	uint32_t i;
 	relation_batch_t* rb = t->rb;
@@ -1109,6 +1135,13 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg)
 		t->curves_3lp = 80;
 	}
 
+	if (b1_3lp_ovr > 0) t->b1_3lp = b1_3lp_ovr;
+	if (b1_2lp_ovr > 0) t->b1_2lp = b1_2lp_ovr;
+	if (b2_3lp_ovr > 0) t->b2_3lp = b2_3lp_ovr;
+	if (b2_2lp_ovr > 0) t->b2_2lp = b2_2lp_ovr;
+	if (curves_3lp_ovr > 0) t->curves_3lp = curves_3lp_ovr;
+	if (curves_2lp_ovr > 0) t->curves_2lp = curves_2lp_ovr;
+
 	/* set up device arrays */
 
 	// ecm
@@ -1144,22 +1177,6 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg)
 	for (i = 0; i < t->array_sz; i++) {
 		t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, lcg);
 	}
-
-	// copy over the moduli to factor
-	// printf("setting up gpu to factor %d r-side 2LPs\n", t->numres_r);
-	// // 2LP
-	// for (i = 0; i < t->numres_r; i++) {
-	// 	t->modulus_in[i] = ((uint64_t)t->residues_r_in[i * 2 + 1] << 32) |
-	// 		(uint64_t)t->residues_r_in[i * 2 + 0];
-	// }
-	// 
-	// printf("setting up gpu to factor %d a-side 3LPs\n", t->numres_a);
-	// // 3LP
-	// for (i = 0; i < t->numres_a; i++) {
-	// 	t->modulus96_in[3 * i + 0] = t->residues_a_in[i * 3 + 0];
-	// 	t->modulus96_in[3 * i + 1] = t->residues_a_in[i * 3 + 1];
-	// 	t->modulus96_in[3 * i + 2] = t->residues_a_in[i * 3 + 2];
-	// }
 
 	gpu_cofactorization(t);
 

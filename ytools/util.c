@@ -39,10 +39,12 @@ SOFTWARE.
 #include <Windows.h>
 #endif
 
+#define _POSIX_C_SOURCE 200112L
 #include "ytools.h"
 #include <stdlib.h>
 #include <malloc.h>
 #include <math.h>
+#include <time.h>
 
 // ============================================================================
 // precision time
@@ -1911,7 +1913,7 @@ uint64_t combinations(int** c, int n, int p, int x) {
     uint64_t k = choose(n, p);
     for (j = 0; j < k; j++)
     {
-        combination(&c[j], n, p, j);
+        combination(c[j], n, p, j);
     }
     return k;
 }

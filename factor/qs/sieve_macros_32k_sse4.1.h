@@ -13,7 +13,7 @@
 
 #define _SSE41_SMALL_PRIME_SIEVE \
 	for (; i < med_B; i += 8) \
-		asm (			\
+		ASM_G (			\
 			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
 			"movq	$15, %%rsi \n\t"				/* logp's range from 15 to 16... call 'em = 15 */ \
 			"movdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \

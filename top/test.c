@@ -86,161 +86,8 @@ void test_dlp_composites()
 		5682546780292609LL
 	};
 
-
-	if (0)
-	{
-		mpz_t gmp_comp, gmp_f, gmp_f2;
-		char buf[1024];
-		ecm_params my_ecm_params;
-		tiny_qs_params *cosiqs = init_tinyqs();
-		monty128_t mdata;
-		int curves;
-		int B1;
-		int natt = 0;
-		correct = 0;
-
-
-		ecm_init(my_ecm_params);
-		num = 0;
-		minBits = 9999;
-		maxBits = 0;
-		totBits = 0;
-
-		in = fopen("tlp_attempts_c95.txt", "r");
-
-		mpz_init(gmp_comp);
-		mpz_init(gmp_f);
-		mpz_init(gmp_f2);
-
-		goto cosiqs_start;
-		goto tinyecm_start;
-
-		gettimeofday(&gstart, NULL);
-
-		while (!feof(in))
-		{
-			fgets(buf, 1024, in);
-			gmp_sscanf(buf, "%Zd", gmp_comp);
-			num++;
-
-			B1 = 300;
-			curves = 16;
-
-			if (mpz_probab_prime_p(gmp_comp, 1))
-				continue;
-
-			natt++;
-			bits = mpz_sizeinbase(gmp_comp, 2);
-			if (bits < minBits)
-				minBits = bits;
-			if (bits > maxBits)
-				maxBits = bits;
-			totBits += bits;
-
-			for (k = 0; k < curves; k++)
-			{
-                uint64_t sigma;
-                while ((sigma = lcg_rand_64(&lcg_state)) < 6);
-				my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
-				//mpz_set_ui(my_ecm_params->B2, 0);
-				mpz_set_ui(my_ecm_params->x, (unsigned long)0);
-				mpz_set_ui(my_ecm_params->sigma, sigma);
-				my_ecm_params->method = ECM_ECM;
-				ecm_factor(gmp_f, gmp_comp, B1, my_ecm_params);
-				if ((mpz_cmp_ui(gmp_f, 1) > 0) &&
-				    (mpz_cmp(gmp_f, gmp_comp) < 0))
-				{
-					correct++;
-					break;
-				}
-			}
-		}
-
-		fclose(in);
-
-		gettimeofday(&gstop, NULL);
-		t_time = ytools_difftime(&gstart, &gstop);
-
-		printf("ecm found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
-		printf("attempts had an average of %1.2f bits, %d min, %d max\n", 
-			(double)totBits / natt, minBits, maxBits);
-		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
-
-cosiqs_start:
-
-		in = fopen("tlp_attempts_c95.txt", "r");
-
-		gettimeofday(&gstart, NULL);
-		correct = 0;
-		num = 0;
-
-		while (!feof(in))
-		{
-			fgets(buf, 1024, in);
-			gmp_sscanf(buf, "%Zd", gmp_comp);
-			num++;
-
-			if (mpz_probab_prime_p(gmp_comp, 1))
-				continue;
-
-			tinyqs(cosiqs, gmp_comp, gmp_f, gmp_f2);
-			if ((mpz_cmp_ui(gmp_f, 1) > 0) &&
-				(mpz_cmp(gmp_f, gmp_comp) < 0))
-			{
-				correct++;
-			}
-		}
-
-		fclose(in);
-
-		gettimeofday(&gstop, NULL);
-		t_time = ytools_difftime(&gstart, &gstop);
-
-		printf("cosiqs found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
-		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
-
-tinyecm_start:
-		in = fopen("tlp_attempts_c95.txt", "r");
-
-		gettimeofday(&gstart, NULL);
-		correct = 0;
-		num = 0;
-
-		while (!feof(in))
-		{
-			fgets(buf, 1024, in);
-			gmp_sscanf(buf, "%Zd", gmp_comp);
-			num++;
-
-			if (mpz_probab_prime_p(gmp_comp, 1))
-				continue;
-
-			tinyecm(gmp_comp, gmp_f, 200, 10000, 8, &lcg_state, 0);
-
-			if ((mpz_cmp_ui(gmp_f, 1) > 0) &&
-				(mpz_cmp(gmp_f, gmp_comp) < 0) &&
-				(mpz_tdiv_ui(gmp_comp, mpz_get_ui(gmp_f)) == 0))
-			{
-				correct++;
-			}
-		}
-
-		fclose(in);
-
-		gettimeofday(&gstop, NULL);
-		t_time = ytools_difftime(&gstart, &gstop);
-
-		printf("tinyecm found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
-		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
-
-		mpz_clear(gmp_comp);
-		mpz_clear(gmp_f);
-		mpz_clear(gmp_f2);
-	}
-
 	fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj2);
-
 
 	mpz_init(gmptmp);
 	comp = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
@@ -538,7 +385,7 @@ tinyqs_marker:
         mpz_init(fact1);
         mpz_init(fact2);
         mpz_init(gmp_comp);
-        params = init_tinyqs();
+        params = init_tinysiqs();
 
         for (nf = 0; nf < num_files; nf++)
         {
@@ -564,7 +411,7 @@ tinyqs_marker:
                 
                 mpz_set(fobj2->qs_obj.gmp_n, gmp_comp);
                 
-                k = tinyqs(params, gmp_comp, fact1, fact2);
+                k = tinysiqs(params, gmp_comp, fact1, fact2);
 
                 if (k > 0)
                 {
@@ -582,7 +429,7 @@ tinyqs_marker:
             printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
         }
 
-        params = free_tinyqs(params);
+        params = free_tinysiqs(params);
         mpz_clear(gmp_comp);
         mpz_clear(fact1);
         mpz_clear(fact2);

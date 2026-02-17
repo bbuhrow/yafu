@@ -315,7 +315,7 @@
 	"movdqa %%xmm2, (%3) \n\t"				/* write new root2's */
 
 #define _INIT_SSE2_SMALL_PRIME_SIEVE \
-	asm (	\
+	__asm__ (	\
 		"movl	$0x7fff7fff, %%ecx \n\t"		/* load 2 copies of blocksize-1 in a 32bit reg */ \
 		"movl	$0x80008000, %%edi \n\t"		/* load 2 copies of blocksize in a 32bit reg */ \
 		"movd	%%ecx, %%xmm3 \n\t"				/* we need 32k-1 because we do signed comparisons */ \
@@ -329,7 +329,7 @@
 
 #define _SSE2_SMALL_PRIME_SIEVE_32k_DIV3 \
 	for (; i < full_fb->fb_32k_div3-8; i += 8) \
-		asm ( \
+		__asm__ ( \
 			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
 			"movq	$13, %%rsi \n\t"				/* logps = 13 in this range */ \
 			"movdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \
@@ -348,7 +348,7 @@
 	
 #define _SSE2_SMALL_PRIME_SIEVE_14b \
 	for (; i < full_fb->fb_14bit_B-8; i += 8) \
-		asm ( \
+		__asm__ ( \
 			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
 			"movq	$14, %%rsi \n\t"				/* logp's range from 13 to 14... call 'em = 14 */ \
 			"movdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \
@@ -366,7 +366,7 @@
 
 #define _SSE2_SMALL_PRIME_SIEVE_15b \
 	for (; i < full_fb->fb_15bit_B-8; i += 8) \
-		asm ( \
+		__asm__ ( \
 			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
 			"movq	$15, %%rsi \n\t"				/* logp's range from 14 to 15... call 'em = 15 */ \
 			"movdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \

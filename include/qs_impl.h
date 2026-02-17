@@ -769,7 +769,7 @@ void trial_divide_Q_siqs(uint32_t report_num,
     uint8_t parity, uint32_t poly_id, uint32_t blocknum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 
-void buffer_relation(uint32_t offset, uint32_t* large_prime, uint32_t num_factors,
+void buffer_relation(uint32_t offset, uint64_t* large_prime, uint32_t num_factors,
     uint32_t* fb_offsets, uint32_t apoly_id, uint32_t poly_id, uint32_t parity,
     dynamic_conf_t* conf, uint32_t* polya_factors,
     uint32_t num_polya_factors, uint64_t unfactored_residue);

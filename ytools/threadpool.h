@@ -25,7 +25,6 @@ SOFTWARE.
 #ifndef _THREADPOOL_H
 #define _THREADPOOL_H
 
-
 #include <stdlib.h>
 #include <malloc.h>
 
@@ -38,7 +37,7 @@ extern "C" {
 #ifdef USE_TPOOL_AFFINITY
 #define __USE_GNU
 #include <sched.h>
-#include <unistd.h>
+
 #endif
 
 #if (defined(_WIN32) || defined(_WIN64))  // && (!defined(__clang__))
@@ -50,6 +49,7 @@ extern "C" {
 #else /* !WIN32 */
 
 #include <pthread.h>
+#include <unistd.h>
 
 #endif /* WIN32 */
 

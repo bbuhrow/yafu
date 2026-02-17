@@ -192,7 +192,7 @@ static uint32 scan_sieve_block(sieve_conf_t *conf,
 
 #if defined(SCAN_SSE2)
 		uint32 compare_result = 0;
-		asm volatile (
+		ASM_G volatile (
 			"movdqa (%1), %%xmm0          \n\t"
 			"orpd 16(%1), %%xmm0          \n\t"
 			"orpd 32(%1), %%xmm0          \n\t"
@@ -207,7 +207,7 @@ static uint32 scan_sieve_block(sieve_conf_t *conf,
 
 #elif defined(SCAN_MMX)
 		uint32 compare_result = 0;
-		asm volatile (
+		ASM_G volatile (
 			"movq (%1), %%mm0         \n\t"
 			"por 8(%1), %%mm0        \n\t"
 			"por 16(%1), %%mm0        \n\t"
@@ -227,7 +227,7 @@ static uint32 scan_sieve_block(sieve_conf_t *conf,
 		/* make it safe to perform floating point
 		   again (required, since SQUFOF uses it) */
 
-		asm volatile("emms");
+		ASM_G volatile("emms");
 
 #else
 		if (((packed_sieve[i] | packed_sieve[i+1] |

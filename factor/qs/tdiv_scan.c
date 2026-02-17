@@ -53,13 +53,13 @@ this file contains code implementing 1)
 */
 
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
-	#define SCAN_CLEAN asm volatile("emms");	
+	#define SCAN_CLEAN __asm__ volatile("emms");	
 
 #if defined(USE_AVX2)
 
 
     #define SIEVE_SCAN_32_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"vmovdqa (%1), %%ymm0   \n\t"		\
 			"vpmovmskb %%ymm0, %%r11   \n\t"		/* output results to 64 bit register */		\
             "movq %%r11, %%r8   \n\t"		\
@@ -83,7 +83,7 @@ this file contains code implementing 1)
 			: "xmm0", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
 
     #define SIEVE_SCAN_64_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"vmovdqa (%1), %%ymm0   \n\t"		\
 			"vpor 32(%1), %%ymm0, %%ymm0    \n\t"		\
 			"vpmovmskb %%ymm0, %%r11   \n\t"	/* output results to 64 bit register */		\
@@ -118,7 +118,7 @@ this file contains code implementing 1)
 
 	//top level sieve scanning with SSE2
 	#define SIEVE_SCAN_32_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"por 16(%1), %%xmm0    \n\t"		\
 			"pmovmskb %%xmm0, %%r11   \n\t"		/* output results to 64 bit register */		\
@@ -149,7 +149,7 @@ this file contains code implementing 1)
 			: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
 
 	#define SIEVE_SCAN_64_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"por 16(%1), %%xmm0    \n\t"		\
 			"por 32(%1), %%xmm0    \n\t"		\
@@ -192,7 +192,7 @@ this file contains code implementing 1)
 #endif
 
 	#define SIEVE_SCAN_32	\
-		asm volatile (		\
+		__asm__ volatile (		\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"orpd 16(%1), %%xmm0    \n\t"		\
 			"pmovmskb %%xmm0, %0   \n\t"		\
@@ -201,7 +201,7 @@ this file contains code implementing 1)
 			: "%xmm0");
 
 	#define SIEVE_SCAN_64		\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"orpd 16(%1), %%xmm0    \n\t"		\
 			"orpd 32(%1), %%xmm0    \n\t"		\
@@ -212,7 +212,7 @@ this file contains code implementing 1)
 			: "%xmm0");
 
 	#define SIEVE_SCAN_128		\
-		asm volatile (			\
+		__asm__ volatile (			\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"orpd 16(%1), %%xmm0    \n\t"		\
 			"orpd 32(%1), %%xmm0    \n\t"		\

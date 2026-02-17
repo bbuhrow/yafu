@@ -43,9 +43,17 @@ code to the public domain.
 
 #else
 
+#if __GNUC__ < 14
+
 #include <unistd.h> // usleep
 //sleep in milliseconds
 #define MySleep(x) usleep((x)*1000)	
+
+#else
+
+#define MySleep(x) portable_sleep(x)
+
+#endif
 
 #endif
 

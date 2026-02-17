@@ -785,7 +785,7 @@ static uint64_t uecm_multiplicative_inverse52(uint64_t a)
 MICRO_ECM_FORCE_INLINE uint64_t uecm_submod52(uint64_t a, uint64_t b, uint64_t n)
 {
     uint64_t r0;
-    if (_subborrow_u64(0, a, b, &r0))
+    if (_subborrow_u64(0, a, b, (unsigned long long *)(&r0)))
         r0 += n;
     return r0;
 }

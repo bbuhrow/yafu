@@ -33,7 +33,7 @@ SOFTWARE.
         calc_finalize();                                    // free internal storage
 */
 
-
+#define _POSIX_C_SOURCE 200809L
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -2933,6 +2933,114 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 68:
         // testrange - 4 arguments (low, high, depth, witnesses)
         printf("deprecated, please use function sieverange(low, high, sievedepth)\n");
+
+        // build curve
+        {
+            mpz_t t1, t2, t3, t4, t5;
+            mpz_t u, v, x, z;
+            mpz_t n, s, rsq, r;
+            int bits = mpz_get_ui(operands[2]);
+
+            mpz_init(t1);
+            mpz_init(t2);
+            mpz_init(t3);
+            mpz_init(t4);
+            mpz_init(t5);
+            mpz_init(u);
+            mpz_init(v);
+            mpz_init(x);
+            mpz_init(z);
+            mpz_init(n);
+            mpz_init(s);
+            mpz_init(rsq);
+            mpz_init(r);
+
+            mpz_set(n, operands[0]);
+            mpz_set(s, operands[1]);
+            mpz_set_ui(r, 1);
+            mpz_mul_2exp(r, r, bits);
+            mpz_mul_2exp(rsq, r, bits);
+            mpz_tdiv_r(rsq, rsq, n);
+
+            // v = 4*sigma
+            mpz_mul_ui(v, s, 4);
+
+            // u = sigma^2 - 5
+            mpz_mul(u, s, s);
+            mpz_sub_ui(u, u, 5);
+
+            // x = u^3
+            mpz_mul(x, u, u);
+            mpz_mul(x, x, u);
+
+            // z = v^3
+            mpz_mul(z, v, v);
+            mpz_mul(z, z, v);
+
+            // t5 = 16*u^3*v
+            mpz_mul(t5, x, v);
+            mpz_mul_ui(t5, t5, 16);
+            mpz_tdiv_r(t5, t5, n);
+
+            gmp_printf("d: %Zx\n", t5);
+
+            mpz_mul(x, x, r);
+            mpz_tdiv_r(x, x, n);
+
+            mpz_mul(z, z, r);
+            mpz_tdiv_r(z, z, n);
+
+            mpz_tdiv_r(v, v, n);
+            mpz_tdiv_r(u, u, n);
+
+            if (mpz_cmp(v, u) >= 0)
+            {
+                mpz_sub(t1, v, u);
+            }
+            else
+            {
+                mpz_sub(t1, v, u);
+                mpz_add(t1, t1, n); // (v - u)
+            }
+     
+            mpz_mul(t2, t1, t1);
+            mpz_mul(t2, t2, t1);    // (v - u)^3
+            mpz_tdiv_r(t2, t2, n);
+
+            gmp_printf("(v - u)^3 mod n: %Zx\n", t2);
+
+            mpz_mul_ui(t3, u, 3);
+            mpz_add(t3, t3, v);
+
+            gmp_printf("3u + v: %Zx\n", t3);
+
+            mpz_mul(t1, t2, t3);    // a = (v-u)^3 * (3u + v)
+            mpz_tdiv_r(t1, t1, n);
+
+            gmp_printf("a: %Zx\n", t1);
+
+            mpz_invert(t4, t5, n);
+            mpz_mul(t4, t1, t4);    // s = a / 16*u^3*v
+            mpz_mul(t4, t4, r);
+            mpz_tdiv_r(t1, t4, n);  // monty
+
+            gmp_printf("n: %Zx\nsigma: %Zx\nX: %Zx\nZ: %Zx\ns: %Zx\n", n, s, x, z, t1);
+
+            mpz_clear(t1);
+            mpz_clear(t2);
+            mpz_clear(t3);
+            mpz_clear(t4);
+            mpz_clear(t5);
+            mpz_clear(u);
+            mpz_clear(v);
+            mpz_clear(x);
+            mpz_clear(z);
+            mpz_clear(n);
+            mpz_clear(s);
+            mpz_clear(rsq);
+            mpz_clear(r);
+        }
+
 
         break;
 

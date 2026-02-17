@@ -30,7 +30,7 @@ code to the public domain.
 
 #if defined(GCC_ASM64X)
 
-#define TDIV_MED_CLEAN asm volatile("emms");
+#define TDIV_MED_CLEAN __asm__ volatile("emms");
 
 
 #define MOD_CMP_8X_vec(xtra_bits)																		\

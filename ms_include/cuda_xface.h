@@ -19,6 +19,8 @@ $Id$
 
 #include <stdint.h>
 #include <cuda.h>
+#include <string.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {

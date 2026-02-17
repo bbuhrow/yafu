@@ -13,7 +13,7 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include "nfs_impl.h"
-#ifdef __INTEL_LLVM_COMPILER
+#if defined(__INTEL_LLVM_COMPILER) || defined(__GNUC__)
 #include <pthread.h>
 #endif
 

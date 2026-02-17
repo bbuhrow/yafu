@@ -139,7 +139,7 @@ u32_t nss= 0,nzss[3]= {0,0,0};
 #line 154 "gnfs-lasieve4e.w"
 
 static float
-FB_bound[2],sieve_report_multiplier[2];
+FB_bound[2],sieve_report_multiplier[2], sieve_report_multiplier_FB[2];
 static u16_t sieve_min[2],max_primebits[2],max_factorbits[2];
 static u32_t*(FB[2]),*(proots[2]),FBsize[2];
 
@@ -1223,20 +1223,9 @@ int main(int argc, char** argv)
 #line 1195 "gnfs-lasieve4e.w"
         }
 
-        if (sieve_count != 0) {
-            if (sigma == 0)complain("Please set a skewness\n");
-            if (special_q_side == NO_SIDE) {
-                errprintf("Please use -a or -r\n");
-                Usage(argv[0]);
-            }
-            if ((u64_t)(FB_bound[special_q_side]) > first_spq) {
-                FB_bound[special_q_side] = (float)first_spq - 1;
-
-                if (verbose)printf("Warning:  lowering FB_bound to "UL_FMTSTR"\n", first_spq - 1);
-
-
-            }
-        }
+        // note: moved the blocks computing FB_maxlog and truncating the
+        // FBbound on the sieve side from here, to after the computation of
+        // poly_norm b/c maxlog depends on poly_norm.
 
         if (poldeg[0] < poldeg[1])poldeg_max = poldeg[1];
         else poldeg_max = poldeg[0];
@@ -1253,6 +1242,9 @@ int main(int argc, char** argv)
         /*24:*/
 #line 1227 "gnfs-lasieve4e.w"
 
+        // compute non-special-q-adjusted poly norms.
+        // later during the sieve these are adjusted for the 
+        // current special-q.
         {
             u32_t i, j;
             double x, y, z;
@@ -1269,7 +1261,71 @@ int main(int argc, char** argv)
                     z *= x;
                 }
             }
+
         }
+
+        // the trial division sieve bounds are defined in terms
+        // of the FBbounds.  lowering the FBbound here on the sieve-side
+        // can therefore perhaps throw off the lambda specification.
+        // defining this value fixes the maximum logarithm
+        // of the sieved values per side to the log of the defined lims.
+        // So, if we sieve below the FB lim and lim is reduced, the FB_maxlog
+        // won't change.  The hope is that this results in faster jobs overall.
+//#define FIXED_MAXLOG
+
+        if (1)
+        {
+            u32_t j;
+            for (j = 0; j < 2; j++) {
+                // the value that is used in the guts of the sieve is
+                // sieve_report_multiplier[side] * FB_maxlog[side].  
+                // sieve_report_multiplier[side] is just lambda_a and lambda_r.
+                // FB_maxlog[side] are logs of the max FB values sieved, per side.
+                // the code to determine the FB_maxlog[side]
+                // value is more complicated that it seems it needs to be,
+                // done in a loop below starting around line 1750.  It always
+                // seems to end up equal to the log of the largest prime
+                // sieved on each side times a sieve_multiplier that is
+                // defined as:
+                // sieve_multiplier[side] = (UCHAR_MAX - 50) / log(poly_norm[side])
+                // 
+                // if FIXED_MAXLOG is defined, we override this calculation (here,
+                // and below in the loop) to use the original input lims.
+                // note that poly_norm[side] is computed in the block just above this.
+                // this block and the FB-lowereing block (below) had to be 
+                // rearranged slightly so the poly_norms could be computed.
+
+#ifdef FIXED_MAXLOG
+                FB_maxlog[j] = (UCHAR_MAX - 50) / log(poly_norm[j]) *
+                    log(FB_bound[j]);
+
+                sieve_report_multiplier_FB[j] = (sieve_report_multiplier[j] *
+                    log(FB_bound[j]));
+#endif
+            }
+
+            //printf("FB_maxlog[0] = %1.6e, FB_maxlog[1] = %1.6e\n",
+            //    FB_maxlog[0], FB_maxlog[1]);
+            //printf("sieve_report_multiplier_FB[0] = %1.6e, sieve_report_multiplier_FB[1] = %1.6e\n",
+            //    sieve_report_multiplier_FB[0], sieve_report_multiplier_FB[1]);
+
+        }
+
+        // now lower the FB_bounds if needed.
+        if (sieve_count != 0) {
+            if (sigma == 0)complain("Please set a skewness\n");
+            if (special_q_side == NO_SIDE) {
+                errprintf("Please use -a or -r\n");
+                Usage(argv[0]);
+            }
+            if ((u64_t)(FB_bound[special_q_side]) > first_spq) {
+
+                FB_bound[special_q_side] = (float)first_spq - 1;
+
+                if (verbose)printf("Warning:  lowering FB_bound to "UL_FMTSTR"\n", first_spq - 1);
+            }
+        }
+
 
         /*:24*/
 #line 1223 "gnfs-lasieve4e.w"
@@ -1747,7 +1803,13 @@ int main(int argc, char** argv)
                 double l;
 
                 l = log(FB[side][i]);
-                if (l > FB_maxlog[side])FB_maxlog[side] = l;
+                if (l > FB_maxlog[side]) {
+#ifndef FIXED_MAXLOG
+                    // if we are using the FB lims to set maxlog, don't 
+                    // overwrite it here.
+                    FB_maxlog[side] = l;
+#endif
+                }
                 FB_logss[side][i] = rint(sieve_multiplier_small[side] * l);
                 FB_logs[side][i++] = rint(sieve_multiplier[side] * l);
             }
@@ -1767,7 +1829,13 @@ int main(int argc, char** argv)
                         double ln;
 
                         ln = log(FB[side][deg_fbibounds[side][d] - 1]);
-                        if (ln > FB_maxlog[side])FB_maxlog[side] = ln;
+                        if (ln > FB_maxlog[side]) {
+#ifndef FIXED_MAXLOG
+                            // if we are using the FB lims to set maxlog, don't 
+                            // overwrite it here.
+                            FB_maxlog[side] = ln;
+#endif
+                        }
                     }
                     ub = deg_fbibounds[side][d - 1];
                     fbi_logbounds[side][d][0] = ub;
@@ -1791,8 +1859,18 @@ int main(int argc, char** argv)
             /*:37*/
 #line 1650 "gnfs-lasieve4e.w"
 
+            // this is the original way to set FB_maxlog
+#ifndef FIXED_MAXLOG
+            // if we are using the FB lims to set maxlog, don't 
+            // overwrite it here.
             FB_maxlog[side] *= sieve_multiplier[side];
+#endif
         }
+
+#ifndef FIXED_MAXLOG
+        //printf("FB_maxlog[0] = %1.6e, FB_maxlog[1] = %1.6e\n",
+        //    FB_maxlog[0], FB_maxlog[1]);
+#endif
     }
 
 /*:36*/
@@ -1834,11 +1912,6 @@ close(fd);
     jps_bits= L1_BITS-i_bits;
 #endif
 #line 1801 "gnfs-lasieve4e.w"
-
-
-
-
-
 
     if(j_per_strip!=1<<jps_bits)
         Schlendrian("Expected %u j per strip, calculated %u\n",
@@ -2322,17 +2395,26 @@ close(fd);
         if (cmdline_first_sieve_side == USHRT_MAX) 
         {
 #if 1
+            // nn is not used anywhere else, just this snippet to
+            // determine which side to sieve first.
             double nn[2];
             u32_t s;
             for (s = 0; s < 2; s++) {
+                
                 nn[s] = log(poly_norm[s] * (special_q_side == s ? 1 : special_q));
+                
+#ifdef FIXED_MAXLOG
+                // BRB: sieve_report_multiplier_FB incorporates log(FB_bound[s])
+                // prior to it being reduced (potentially) for Q below the FB lim.
+                nn[s] = nn[s] / (sieve_report_multiplier_FB[s]);
+#else
                 nn[s] = nn[s] / (sieve_report_multiplier[s] * log(FB_bound[s]));
+#endif
             }
 
 
             if (nn[0] < nn[1])first_sieve_side = 1;
             else first_sieve_side = 0;
-
 
 #else
 #line 605 "gnfs-lasieve4e.w"
@@ -2755,10 +2837,15 @@ nr= 1;
                             large_primes_summand = sieve_report_multiplier[i] * FB_maxlog[i];
                             if (i == special_q_side)
                                 large_primes_summand += sieve_multiplier[i] * log(special_q);
+
+                            //printf("root %d, (%lu), q %u, report bounds:\n",
+                            //    root_no, r[root_no], special_q);
+
                             get_sieve_report_bounds(sieve_report_bounds[i], tpoly_f[i], poldeg[i],
                                 n_srb_i, n_srb_j, 2 * CANDIDATE_SEARCH_STEPS,
                                 sieve_multiplier[i], large_primes_summand);
                         }
+
                     }
 
                     /*:53*/
@@ -4438,7 +4525,7 @@ nss+= n_strips;
 #line 2260 "gnfs-lasieve4e.w"
 
             }
-            // close oddness type code block
+            // close roots code block
 
 /*:48*/
 #line 687 "gnfs-lasieve4e.w"

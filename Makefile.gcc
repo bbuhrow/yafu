@@ -23,7 +23,7 @@ WIN64 = 0
 VBITS = 64
 
 CC = gcc
-CFLAGS = -fno-common -g -m64 -std=gnu99 -DUSE_SSE2 -fPIE -DUSE_NFS
+CFLAGS = -fno-common -g -m64 -std=c11 -DUSE_SSE2 -fPIE -DUSE_NFS
 WARN_FLAGS = -Wall -Wconversion
 OPT_FLAGS = -O2 -D_FILE_OFFSET_BITS=64 -DNDEBUG -D_LARGEFILE64_SOURCE -DVBITS=$(VBITS)
 OBJ_EXT = .o
@@ -61,11 +61,12 @@ endif
 
 
 ifdef BATCH_CUDA
+	TOOLKIT_VERSION=12
 	CUDA_PATH = /usr/local/cuda-12
 	INC += -I$(CUDA_PATH)/include
-	LIBS += -L$(CUDA_PATH)/lib64
+	LIBS += -L$(CUDA_PATH)/lib64 -lcuda -lcudart 
 #  -lcudart -lcuda
-	CFLAGS += -DHAVE_CUDA_BATCH_FACTOR
+	CFLAGS += -DHAVE_CUDA_BATCH_FACTOR -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
 	NVCC = nvcc
 	
 	ifeq ($(BATCH_CUDA),1)
@@ -90,12 +91,12 @@ ifeq ($(WIN),1)
 else
 	MSIEVE_LIBS += -ldl
 endif
-ifdef CUDA
-ifeq ($(CUDA),1)
-	SM = 80
+ifdef CUDA_POLY
+ifeq ($(CUDA_POLY),1)
+	SM = 90
 else
-	SM = $(CUDA)
-	CUDA = 1
+	SM = $(CUDA_POLY)
+	CUDA_POLY = 1
 endif
 
 ifeq ($(WIN),1)
@@ -111,9 +112,9 @@ endif
 else
 	NVCC = "$(shell which nvcc)"
 	CUDA_ROOT = $(shell dirname $(NVCC))/../
-	CUDA_LIBS = -lcuda
+	CUDA_LIBS = -lcuda -lcudart 
 endif
-	CFLAGS += -I"$(CUDA_ROOT)/include" -Icub -DHAVE_CUDA
+	CFLAGS += -I"$(CUDA_ROOT)/include" -Icub -DHAVE_CUDA_POLY
 	MSIEVE_LIBS += $(CUDA_LIBS)
 
 ifeq ($(CUDAAWARE),1)
@@ -650,7 +651,7 @@ NFS_NOGPU_SRCS = \
 
 NFS_NOGPU_OBJS = $(NFS_NOGPU_SRCS:.c=.no)
 
-ifeq ($(CUDA),1)
+ifeq ($(CUDA_POLY),1)
 	NFS_HDR += $(NFS_GPU_HDR)
 	NFS_SRCS += $(NFS_GPU_SRCS)
 	NFS_OBJS += $(NFS_GPU_OBJS)
@@ -669,7 +670,9 @@ help:
 	@echo "add 'WIN=1 if building on windows"
 	@echo "add 'WIN64=1 if building on 64-bit windows"
 	@echo "add 'ECM=1' if GMP-ECM is available (enables ECM)"
-	@echo "add 'CUDA=1' for Nvidia graphics card support"
+	@echo "add 'BATCH_CUDA=1' for Nvidia graphics card support with NFS cofactorization"
+	@echo "add 'CUDA_POLY=1' for Nvidia graphics card support with NFS poly selection"
+	@echo "add 'CUDA_LA=1' for Nvidia graphics card support with NFS linear algebra"
 	@echo "add 'MPI=1' for parallel processing using MPI"
 	@echo "add 'BOINC=1' to add BOINC wrapper"
 	@echo "add 'NO_ZLIB=1' if you don't have zlib"
@@ -707,7 +710,7 @@ yafu: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU
 	rm -f libynfs.a
 	ar r libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS) 
 	ranlib libynfs.a
-	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu -lysiqs -lcuda -lcudart -lyecm  -lynfs -lmsieve $(LIBS)
+	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu -lysiqs -lyecm  -lynfs -lmsieve $(LIBS)
 
 siqs: $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) 
 	rm -f libysiqs.a

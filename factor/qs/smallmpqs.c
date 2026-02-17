@@ -1202,7 +1202,7 @@ uint8_t small_sqrt_tab[54][256] = { { 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC)
-	#define SM_SCAN_CLEAN asm volatile("emms");	
+	#define SM_SCAN_CLEAN __asm__ volatile("emms");	
 	#define SM_SIMD_SIEVE_SCAN_VEC 1
 
 
@@ -1240,7 +1240,7 @@ uint32_t u32div(uint32_t c, uint32_t n)
 #ifdef USE_AVX2
 
 #define SM_SIEVE_SCAN_64_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"vmovdqa (%1), %%ymm0   \n\t"		\
 			"vpor 32(%1), %%ymm0, %%ymm0    \n\t"		\
 			"vpmovmskb %%ymm0, %%r11   \n\t"	/* output results to 64 bit register */		\
@@ -1273,7 +1273,7 @@ uint32_t u32div(uint32_t c, uint32_t n)
 #else
 
 	#define SM_SIEVE_SCAN_64_VEC					\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"por 16(%1), %%xmm0    \n\t"		\
 			"por 32(%1), %%xmm0    \n\t"		\
@@ -1320,7 +1320,7 @@ uint32_t u32div(uint32_t c, uint32_t n)
 	#define SM_SIMD_SIEVE_SCAN 1
 
 	#define SM_SIEVE_SCAN_64		\
-		asm volatile (							\
+		__asm__ volatile (							\
 			"movdqa (%1), %%xmm0   \n\t"		\
 			"orpd 16(%1), %%xmm0    \n\t"		\
 			"orpd 32(%1), %%xmm0    \n\t"		\

@@ -41,7 +41,7 @@ SOFTWARE.
 #include <inttypes.h>
 #include <math.h>
 
-#ifdef __INTEL_LLVM_COMPILER
+#if defined(__INTEL_LLVM_COMPILER) || defined(__GNUC__)
 #include <ctype.h>
 #endif
 
@@ -1371,7 +1371,7 @@ options_t* initOpt(void)
     strcpy(options->fact_plan, "normal");
     options->pretest = 0;
     options->want_output_expr = 1;
-    strcpy(options->tune_info, "");
+    options->num_tune_info = 0;
     options->stopbase = 10;
     options->stopeq = -1;
     options->stople = -1;
