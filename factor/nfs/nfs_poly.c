@@ -259,7 +259,8 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	// if the user is calling factor() then we are in a better position to remove factors
 	// we find and continue down the best path.
 	// AVX-ECM also uses this to help determine if it is better to do special reductions when possible.
-	if ((poly->form_type != SNFS_DIRECT) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	if ((poly->form_type != SNFS_DIRECT) && (poly->form_type != SNFS_XYYXF) &&
+		(poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		// see if there are algebraic factors we can remove from the input nfs_obj.gmp_n
 		remove_algebraic_factors(fobj, poly, fobj->primes, fobj->num_p, fobj->VFLAG);

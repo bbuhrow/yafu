@@ -1809,6 +1809,9 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 	// we must create the thread context here... the cuda context
 	// init method must fold in the current thread info. 
 	printf("creating gpu cofactorization context in thread %d\n", i);
+	thread_data->job.rb->lpba = thread_data->job.lpba;
+	thread_data->job.rb->lpbr = thread_data->job.lpbr;
+
 	thread_data->gpu_cofactor_ctx =
 		gpu_ctx_init(thread_data->gpu_dev_ctx, thread_data->job.rb);
 
