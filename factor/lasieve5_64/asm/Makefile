@@ -7,38 +7,32 @@
 # Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 # 02111-1307, USA.
 
+# for people that have custom gmp locations or are evaluating a new
+# gmp build in a custom location, fill in these fields to point to
+# the include and lib locations.  Relative locations should be relative
+# to this makefile location.  I have several to support various build
+# environments.  Just comment them out or remove them as you wish.
+CUSTOM_GMP_INC=../../../../gmp-install/6.2.0-gcc/include
+#CUSTOM_GMP_INC=../../../../gmp-install/mingw/include
+#CUSTOM_GMP_INC=../../../../gmp-install/6.2.0-aocc/include
 
-#gcc on osx
-#CFLAGS= -m64 -Ofast -march=native -I/users/buhrow/src/c/gmp_install/gmp-6.2.0/include -Wa,-q
-#CFLAGS= -m64 -Ofast -march=native -I/usr/local/Cellar/gmp4/4.3.2/include -Wa,-q
+CC=gcc 
 
-#windows
-#CFLAGS= -Wall  -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable  -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -I. -Ic:/users/steve/progs/local/include
-#CFLAGS= -Wimplicit-function-declaration -m64 -Ofast -march=native -Ic:/users/steve/progs/local/include
 
-# mingw
+# mingw windows
 # BRB: ULL_NO_UL didn't quite do the job by itself, because gmp ./configure set ulong to be 4 bytes
 # but ulong is set to 8 bytes in siever_config.h when compiling lasieve.  Changing the siever_config
 # definition breaks the montgomery asm code.  An easier solution is to set the following new definition:
 # BITS_PER_GMP_ULONG, and a few relevant lines of code in mpz-ull.c
-#CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/mingw/include -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
+#CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
 
+# clang linux
+# CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -fcommon
 
-
-#clang
-#CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -m64 -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
-#CFLAGS= -m64 -Ofast -march=corei7 -I/Users/searle/progs/ensc-dependencies/include 
-#clang for profiling
-#CFLAGS= -O1 -g -march=native -I/Users/searle/progs/ensc-dependencies/include
-
-#linux
-CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/6.2.0-gcc/include -fcommon
+# gcc linux
+CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -fcommon
 
 include ../paths
-
-CC=gcc $(CFLAGS)
-#CC=gcc-4.9 $(CFLAGS)
-#CC=clang $(CFLAGS)
 
 ifeq ($(AVX512_LASCHED),1)
 	CFLAGS += -DAVX512_LASCHED
@@ -49,7 +43,6 @@ ifeq ($(AVX512_TD),1)
 endif
 
 CTANGLE=../../../../cweb-master/ctangle
-#CTANGLE='c:/progra~2/cweb/bin/ctangle'
 
 SRCFILES=gcd32.c 32bit.h modinv32.c psp.c Makefile \
 	64bit.h asm_64bit.asm \
@@ -97,10 +90,10 @@ SRCFILES=gcd32.c 32bit.h modinv32.c psp.c Makefile \
 	m4 -g  -Dn_i_bits=0 ls-defs.asm $^ > $@
 
 %.o: %.S
-	$(CC) -c $^
+	$(CC) $(CFLAGS) -c $^
 
 %.o: %.s
-	$(CC) -c $^
+	$(CC) $(CFLAGS) -c $^
 
 .SECONDARY:  *.s *.S
 

@@ -124,11 +124,11 @@
 #line 140 "gnfs-lasieve4e.w"
 
 #define GCD_SIEVE_BOUND 10
-#include "athlon64/siever-config.c"
+#include "asm/siever-config.c"
 
-#include "athlon64/lasched.h"
-#include "athlon64/medsched.h"
-#include "athlon64/MMX-TD.h"
+#include "asm/lasched.h"
+#include "asm/medsched.h"
+#include "asm/MMX-TD.h"
 
 #define L1_SIZE (1UL<<L1_BITS)
 
