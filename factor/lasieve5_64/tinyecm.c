@@ -33,6 +33,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "microecm.h"
 #include "if.h"
 #include "gmp-aux.h"
+#include <stdlib.h>
 //#include "ytools.h"
 
 #define D 120
@@ -5361,9 +5362,14 @@ int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
 	//return;
 
 	if (mpz_sizeinbase(n, 2) > 104)
-		printf("warning: n is too large (%d bits)\n", mpz_sizeinbase(n, 2));
-
-	return tecm_dispatch_x8_list(n, f, target_bits, pran);
+	{
+		//printf("warning: n is too large (%d bits)\n", mpz_sizeinbase(n, 2));
+		return tecm_dispatch(n, f, target_bits, pran);
+	}
+	else
+	{
+		return tecm_dispatch_x8_list(n, f, target_bits, pran);
+	}
 	//return tecm_dispatch(n, f, target_bits, pran);
 }
 

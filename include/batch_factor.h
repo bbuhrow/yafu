@@ -17,9 +17,8 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 
 #include <stdint.h>
 #include "ytools.h"
-#include "common.h"
-#include "cofactorize.h"
 #include "gmp.h"
+#include "cofactorize.h"
 
 #ifdef HAVE_CUDA
 #include "cuda_xface.h"
@@ -87,8 +86,8 @@ typedef struct {
 
 typedef struct {
 	mpz_t prime_product;  /* product of primes used in the gcd */
+	tiny_qs_params* params;
 
-	tiny_qs_params *params;
 	uint32_t num_uecm[4];		/* calls to uecm to:
 									(0) split 2LP on the f1r side
 									(1) split 2LP on the f2r side
@@ -114,6 +113,8 @@ typedef struct {
 								7) non-useful f1r TLP split (factor larger than LPB), at any point in the process */
 	uint32_t num_abort_a[8];	// same but for the other side
 	uint32_t target_relations;  /* number of relations to batch up */
+	int lpba;
+	int lpbr;
 	uint64_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
 	mpz_t lp_cutoff_r3;        /* cube of lp_cutoff_r */
@@ -138,7 +139,7 @@ typedef struct {
     //mpz_t small, large;
     mpz_t _large;
     mpz_t _small;
-    mpz_t n, f1r, f2r, f1a, f2a, t0, t1;
+    mpz_t n, f1r, f2r, f1a, f2a, t0, t1, t2;
 
     double conversion_ratio;
 } relation_batch_t;
@@ -186,9 +187,6 @@ void check_batch_relation(relation_batch_t *rb,
    lp_cutoff_[ra] */
 
 uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lcg_state);
-
-
-uint32_t relation_batch_run_gpu(relation_batch_t* rb, uint64_t* lcg_state);
 
 #ifdef __cplusplus
 }

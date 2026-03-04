@@ -792,9 +792,10 @@ int main(int argc, char** argv)
     u16_t catch_signals;
     u32_t all_spq_done;
     u32_t n_spq, n_spq_discard;
-    double tStart, tNow, lastReport;
+    double tStart, tQstart, tNow, lastReport;
     u32_t avg_ntds;
     u32_t num_tds_mpqs_calls = 0;
+    u64_t totalmem = 0;
 
 #ifdef HAVE_BOINC
     double pct;
@@ -1261,7 +1262,6 @@ int main(int argc, char** argv)
                     z *= x;
                 }
             }
-
         }
 
         // the trial division sieve bounds are defined in terms
@@ -1449,6 +1449,7 @@ int main(int argc, char** argv)
 
                 FB[side] = xmalloc(FBS_alloc * sizeof(u32_t));
                 proots[side] = xmalloc(FBS_alloc * sizeof(u32_t));
+
                 prime = firstprime32(&ps);
                 for (prime = nextprime32(&ps), fbi1[side] = 0, FBsize[side] = 0;
                     prime < FB_bound[side]; prime = nextprime32(&ps)) {
@@ -1473,6 +1474,9 @@ int main(int argc, char** argv)
 
                 proots[side] = xrealloc(proots[side], FBsize[side] * sizeof(u32_t));
                 FB[side] = xrealloc(FB[side], FBsize[side] * sizeof(u32_t));
+
+                totalmem += 2 * FBS_alloc * sizeof(u32_t);
+
                 fbi1[side]++;
                 fbis[side]++;
                 if (fbi1[side] < fbis[side])fbi1[side] = fbis[side];
@@ -1491,6 +1495,7 @@ int main(int argc, char** argv)
                     aFB_alloc = 4096;
                     FB[side] = xmalloc(aFB_alloc * sizeof(**FB));
                     proots[side] = xmalloc(aFB_alloc * sizeof(**proots));
+
                     for (prime = firstprime32(&ps), FBsize[side] = 0;
                         prime < FB_bound[side]; prime = nextprime32(&ps)) {
                         u32_t i, nr;
@@ -1509,6 +1514,10 @@ int main(int argc, char** argv)
                     }
                     FB[side] = xrealloc(FB[side], FBsize[side] * sizeof(**FB));
                     proots[side] = xrealloc(proots[side], FBsize[side] * sizeof(**proots));
+
+                    totalmem += FBsize[side] * sizeof(**FB);
+                    totalmem += FBsize[side] * sizeof(**proots);
+
                     free(root_buffer);
 
                     /*:27*/
@@ -1548,6 +1557,10 @@ int main(int argc, char** argv)
 
                     FB[side] = xmalloc(FBsize[side] * sizeof(u32_t));
                     proots[side] = xmalloc(FBsize[side] * sizeof(u32_t));
+
+                    totalmem += FBsize[side] * sizeof(u32_t);
+                    totalmem += FBsize[side] * sizeof(u32_t);
+
                     if (read_u32(afbfile, FB[side], FBsize[side]) != FBsize[side] ||
                         read_u32(afbfile, proots[side], FBsize[side]) != FBsize[side]) {
                         complain("Cannot read aFB from %s: %m\n", afbname);
@@ -1590,6 +1603,8 @@ int main(int argc, char** argv)
             }
             logbook(0, "FBsize %u+%u (deg %u), %u+%u (deg %u)\n",
                 FBsize[0], safbs, poldeg[0], FBsize[1], srfbs, poldeg[1]);
+
+            //printf("after fb generation, totalmem is %lu bytes\n", totalmem);
         }
 
 
@@ -1705,24 +1720,24 @@ int main(int argc, char** argv)
                 do {
                     j++;
                     d++;
-            }while (j < FBsize[side] && FB[side][j] == p);
+                } while (j < FBsize[side] && FB[side][j] == p);
 #ifdef MAX_FB_PER_P
-            while (j > i + MAX_FB_PER_P) {
-                u32_t k;
-                k = i + MAX_FB_PER_P;
-                while (i < k) {
-                    FB1[fbsz[MAX_FB_PER_P]] = p;
-                    pr1[fbsz[MAX_FB_PER_P]++] = proots[side][i++];
+                while (j > i + MAX_FB_PER_P) {
+                    u32_t k;
+                    k = i + MAX_FB_PER_P;
+                    while (i < k) {
+                        FB1[fbsz[MAX_FB_PER_P]] = p;
+                        pr1[fbsz[MAX_FB_PER_P]++] = proots[side][i++];
+                    }
+                    d = d - MAX_FB_PER_P;
+                    i = k;
                 }
-                d = d - MAX_FB_PER_P;
-                i = k;
-            }
 #endif
 #line 1556 "gnfs-lasieve4e.w"
-            while (i < j) {
-                FB1[fbsz[d]] = p;
-                pr1[fbsz[d]++] = proots[side][i++];
-            }
+                while (i < j) {
+                    FB1[fbsz[d]] = p;
+                    pr1[fbsz[d]++] = proots[side][i++];
+                }
             }
             free(FB[side]);
             free(proots[side]);
@@ -1759,6 +1774,9 @@ int main(int argc, char** argv)
             size_t xaFB_alloc = 0;
             FB_logs[side] = xmalloc(fbi1[side]);
             FB_logss[side] = xmalloc(fbi1[side]);
+
+            totalmem += 2 * fbi1[side];
+
             sieve_multiplier[side] = (UCHAR_MAX - 50) / log(poly_norm[side]);
             sieve_multiplier_small[side] = sieve_multiplier[side];
             for (i = 0; i < rescale[side]; i++)sieve_multiplier_small[side] *= 2.;
@@ -1814,6 +1832,7 @@ int main(int argc, char** argv)
                 FB_logs[side][i++] = rint(sieve_multiplier[side] * l);
             }
             qsort(xFB[side], xFBs[side], sizeof(*(xFB[side])), xFBcmp);
+
             /*37:*/
 #line 1656 "gnfs-lasieve4e.w"
 
@@ -1859,7 +1878,6 @@ int main(int argc, char** argv)
             /*:37*/
 #line 1650 "gnfs-lasieve4e.w"
 
-            // this is the original way to set FB_maxlog
 #ifndef FIXED_MAXLOG
             // if we are using the FB lims to set maxlog, don't 
             // overwrite it here.
@@ -1873,6 +1891,8 @@ int main(int argc, char** argv)
 #endif
     }
 
+    //printf("after fblogs, totalmem is %lu\n", totalmem);
+
 /*:36*/
 #line 548 "gnfs-lasieve4e.w"
 
@@ -1882,6 +1902,10 @@ int main(int argc, char** argv)
 #ifndef SI_MALLOC_DEBUG
 
     sieve_interval= xvalloc(L1_SIZE);
+
+    totalmem += L1_SIZE;
+
+    //printf("after sieve interval, totalmem is %lu\n", totalmem);
 
 #else
 #line 1778 "gnfs-lasieve4e.w"
@@ -1906,6 +1930,9 @@ close(fd);
     if(n_i> L1_SIZE)
     complain("Strip length %u exceeds L1 size %u\n",n_i,L1_SIZE);
 
+    totalmem += L1_SIZE * sizeof(*cand);
+    totalmem += 2 * L1_SIZE;
+    totalmem += TINY_SIEVEBUFFER_SIZE;
 
 #if I_bits<=L1_BITS
     j_per_strip= L1_SIZE/n_i;
@@ -1930,20 +1957,35 @@ close(fd);
         else s = poldeg[0];
         tinysieve_curpos = xmalloc(TINY_SIEVE_MIN * s * sizeof(*tinysieve_curpos));
         horizontal_sievesums = xmalloc(j_per_strip * sizeof(*horizontal_sievesums));
+
+        totalmem += TINY_SIEVE_MIN * s * sizeof(*tinysieve_curpos);
+        totalmem += j_per_strip * sizeof(*horizontal_sievesums);
+
         for (s = 0; s < 2; s++) {
             u32_t fbi;
             size_t maxent;
 
             smallsieve_aux[s] = xmalloc(4 * fbis[s] * sizeof(*(smallsieve_aux[s])));
+
+            totalmem += 4 * fbis[s] * sizeof(*(smallsieve_aux[s]));
+
 #ifndef MMX_TD
 #ifdef PREINVERT
             smalltd_pi[s] = xmalloc(fbis[s] * sizeof(*(smalltd_pi[s])));
+
+            totalmem += fbis[s] * sizeof(*(smalltd_pi[s]));
+
 #endif
 #line 2561 "gnfs-lasieve4e.w"
             smalltdsieve_aux[s] = xmalloc(j_per_strip * sizeof(*(smalltdsieve_aux[s])));
             for (fbi = 0; fbi < j_per_strip; fbi++)
+            {
                 smalltdsieve_aux[s][fbi] =
-                xmalloc(fbis[s] * sizeof(**(smalltdsieve_aux[s])));
+                    xmalloc(fbis[s] * sizeof(**(smalltdsieve_aux[s])));
+
+                totalmem += fbis[s] * sizeof(**(smalltdsieve_aux[s]));
+            }
+
 #else
 #line 2566 "gnfs-lasieve4e.w"
 
@@ -1952,10 +1994,14 @@ close(fd);
 #line 2569 "gnfs-lasieve4e.w"
             smallsieve_aux1[s] = xmalloc(6 * xFBs[s] * sizeof(*(smallsieve_aux1[s])));
 
+            totalmem += 6 * xFBs[s] * sizeof(*(smallsieve_aux1[s]));
 
             maxent = fbis[s];
             maxent += xFBs[s];
             smallpsieve_aux[s] = xmalloc(3 * maxent * sizeof(*(smallpsieve_aux[s])));
+
+            totalmem += 3 * maxent * sizeof(*(smallpsieve_aux[s]));
+
             maxent = 0;
             for (fbi = 0; fbi < xFBs[s]; fbi++) {
                 if (xFB[s][fbi].p == 2)
@@ -1963,8 +2009,13 @@ close(fd);
             }
             smallsieve_aux2[s] = xmalloc(4 * maxent * sizeof(*(smallsieve_aux2[s])));
             x2FB[s] = xmalloc(maxent * 6 * sizeof(*(x2FB[s])));
+
+            totalmem += 4 * maxent * sizeof(*(smallsieve_aux2[s]));
+            totalmem += maxent * 6 * sizeof(*(x2FB[s]));
         }
     }
+
+    //printf("after smallsieve and MMX_Td allocate, totalmem is %lu bytes\n", totalmem);
 
 /*:65*//*66:*/
 #line 2586 "gnfs-lasieve4e.w"
@@ -2000,8 +2051,13 @@ close(fd);
             }
             current_ij[s] = xmalloc((FBsize[s] + FB_RAS) * sizeof(*current_ij[s]));
             LPri[s] = xmalloc((FBsize[s] + FB_RAS) * sizeof(**LPri) * RI_SIZE);
+
+            totalmem += (FBsize[s] + FB_RAS) * sizeof(*current_ij[s]);
+            totalmem += (FBsize[s] + FB_RAS) * sizeof(**LPri) * RI_SIZE;
         }
     }
+
+    //printf("after smallsieve and MMX_Td allocate, totalmem is %lu bytes\n", totalmem);
 
 /*:42*//*43:*/
 #line 1839 "gnfs-lasieve4e.w"
@@ -2222,6 +2278,11 @@ close(fd);
             }
         }
 
+        totalmem += (total_alloc + 65536 * SE_SIZE * j_per_strip) *
+            sizeof(***((**schedules).schedule));
+
+        //printf("after scheduling, totalmem is %lu bytes\n", totalmem);
+
         /*:44*/
 #line 1993 "gnfs-lasieve4e.w"
 
@@ -2250,6 +2311,11 @@ close(fd);
                         xmalloc((1 + n_medsched_pieces[s]) * sizeof(**medsched_fbi_bounds));
                     medsched_logs[s] = xmalloc(n_medsched_pieces[s]);
 
+                    totalmem += (1 + n_medsched_pieces[s]) * sizeof(**med_sched);
+                    totalmem += medsched_alloc[s] * sizeof(***med_sched);
+                    totalmem += (1 + n_medsched_pieces[s]) * sizeof(**medsched_fbi_bounds);
+                    totalmem += n_medsched_pieces[s];
+
                     for (n = 0, fbi = fbis[s], oldlog = UCHAR_MAX; fbi < fbi1[s]; fbi++) {
                         if (FB_logs[s][fbi] != oldlog) {
                             medsched_fbi_bounds[s][n] = fbi;
@@ -2268,6 +2334,9 @@ close(fd);
                 }
             }
         }
+
+        //printf("after medsched, totalmem is %lu bytes\n", totalmem);
+
 #endif
 #line 2078 "gnfs-lasieve4e.w"
 
@@ -2291,6 +2360,9 @@ close(fd);
                     schedbuf_alloc = schedules[s][i].n_pieces;
         }
         schedbuf = xmalloc((1 + schedbuf_alloc) * sizeof(*schedbuf));
+
+        totalmem += (1 + schedbuf_alloc) * sizeof(*schedbuf);
+        //printf("after schedbuf, totalmem is %lu bytes\n", totalmem);
     }
 
 /*:103*/
@@ -2305,6 +2377,10 @@ close(fd);
     td_buf[0]= xmalloc(td_buf_alloc[0]*sizeof(**td_buf));
     td_buf[1]= xmalloc(td_buf_alloc[1]*sizeof(**td_buf));
 
+    totalmem += (1 + L1_SIZE) * sizeof(*td_buf1);
+    totalmem += td_buf_alloc[0] * sizeof(**td_buf);
+    totalmem += td_buf_alloc[1] * sizeof(**td_buf);
+
 /*:122*//*127:*/
 #line 4129 "gnfs-lasieve4e.w"
 
@@ -2313,10 +2389,19 @@ close(fd);
         if (tds_fbi == NULL) {
             tds_fbi = xmalloc(UCHAR_MAX * sizeof(*tds_fbi));
             tds_fbi_curpos = xmalloc(UCHAR_MAX * sizeof(*tds_fbi));
+
+            totalmem += 2 * UCHAR_MAX * sizeof(*tds_fbi);
+
             for (i = 0; i < UCHAR_MAX; i++)
+            {
                 tds_fbi[i] = xmalloc(tds_fbi_alloc * sizeof(**tds_fbi));
+                totalmem += tds_fbi_alloc * sizeof(**tds_fbi);
+            }
         }
     }
+
+    //printf("after tdbuf, totalmem is %lu bytes\n", totalmem);
+    //printf("totalmem is %lu bytes\n", totalmem);
 
 /*:127*//*147:*/
 #line 4710 "gnfs-lasieve4e.w"
@@ -2353,7 +2438,7 @@ close(fd);
     read_strategy(&strat,max_factorbits,las_basename,max_primebits);
 
 
-
+    
 
     all_spq_done= 1;
 
@@ -2391,6 +2476,8 @@ close(fd);
 
         u32_t nr;
 
+        tQstart = sTime();
+
         special_q_log = log(special_q);
         if (cmdline_first_sieve_side == USHRT_MAX) 
         {
@@ -2421,7 +2508,7 @@ close(fd);
         if (poly_norm[0] * (special_q_side == 0 ? 1 : special_q)
             < poly_norm[1] * (special_q_side == 1 ? 1 : special_q)) {
             first_sieve_side = 1;
-    }
+        }
         else {
             first_sieve_side = 0;
         }
@@ -2489,8 +2576,8 @@ nr= 1;
 
 #else
 #line 659 "gnfs-lasieve4e.w"
-        if ((termination_condition = setjmp(termination_jb)) != 0)
-        {
+            if ((termination_condition = setjmp(termination_jb)) != 0)
+            {
 #endif
 #line 661 "gnfs-lasieve4e.w"
 
@@ -2548,7 +2635,10 @@ nr= 1;
                     longjmp(termination_jb, USER_INTERRUPT);
                 }
             }
-            if (reduce2(&a0, &b0, &a1, &b1, (i64_t)special_q, 0, (i64_t)r[root_no], 1, (double)(sigma * sigma))) {
+
+            if (reduce2(&a0, &b0, &a1, &b1, (i64_t)special_q, 0,
+                (i64_t)r[root_no], 1, (double)(sigma * sigma))) 
+            {
                 n_spq_discard++;
                 continue;
             }
@@ -2808,6 +2898,7 @@ nr= 1;
 
                             lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], fbi1[s] - fbis[s],
                                 a0, a1, b0, b1, LPri[s], 1);
+
 #ifndef SCHEDULING_FUNCTION_CALCULATES_RI
                             for (d = 1; d <= poldeg[s]; d++) {
                                 if (deg_fbibounds[s][d - 1] < deg_fbibounds[s][d])
@@ -2868,6 +2959,7 @@ nr= 1;
 /*72:*/
 #line 2779 "gnfs-lasieve4e.w"
 
+                    // small sieve
                     {
                         u32_t s;
                         for (s = 0; s < 2; s++) {
@@ -4544,7 +4636,7 @@ nss+= n_strips;
         }
 
 tNow= sTime();
-        if (tNow > lastReport + 5.0) {
+        if (1) { //tNow > lastReport + 5.0) {
             lastReport = tNow;
 #ifdef HAVE_BOINC
 
@@ -4557,8 +4649,13 @@ tNow= sTime();
                 int eta = (int)(((double)last_spq - special_q) *
                     (tNow - tStart) / ((double)special_q - first_spq + 1) / 60);
 
-                fprintf(stderr, "\rtotal yield: %u, q=%u (%1.5lf sec/rel; ETA %dh%02dm)  ",
-                    (unsigned int)yield, (unsigned int)special_q, (tNow - tStart) / yield,
+                //fprintf(stderr, "\rtotal yield: %u, q=%u (%1.5lf sec/rel; ETA %dh%02dm)  ",
+                //    (unsigned int)yield, (unsigned int)special_q, (tNow - tStart) / yield,
+                //    eta / 60, eta % 60);
+
+                fprintf(stderr, "\rq=%u took %1.2f sec, total yield: %u (%1.5lf sec/rel; ETA %dh%02dm)  ",
+                    (unsigned int)special_q, (tNow - tQstart), 
+                    (unsigned int)yield, (tNow - tStart) / yield,
                     eta / 60, eta % 60);
 
                 fflush(stderr);
@@ -6502,7 +6599,7 @@ mpz_t lf0,lf1;
         cferr = cofactorisation(&strat, large_primes, large_factors, max_primebits, nlp, FBb_sq, FBb_cu);
         mpqs_clock += clock() - cl;
         if (cferr < 0) {
-            fprintf(stderr, "cofactorisation failed for ");
+            fprintf(stderr, "cofactorisation failed with err: %d for ", cferr);
             mpz_out_str(stderr, 10, large_factors[0]);
             fprintf(stderr, ",");
             mpz_out_str(stderr, 10, large_factors[1]);

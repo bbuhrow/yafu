@@ -20,29 +20,30 @@
 # windows one
 #CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -funroll-loops -Ic:/users/steve/progs/local/include 
 
-# linux
-#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
-#	-I../../../gmp-install/6.2.1/include -I../../include -L../../../gmp-install/6.2.1/lib -fcommon
+# gcc linux
+CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
+	-I../../../gmp-install/6.2.0-gcc/include -I../../include -L../../../gmp-install/6.2.0-gcc/lib -fcommon
 
 # mingw
 # BRB: ULL_NO_UL didn't quite do the job by itself, because gmp ./configure set ulong to be 4 bytes
 # but ulong is set to 8 bytes in siever_config.h when compiling lasieve.  Changing the siever_config
 # definition breaks the montgomery asm code.  An easier solution is to set the following new definition:
 # BITS_PER_GMP_ULONG, and a few relevant lines of code in mpz-ull.c
-CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -O2 -Ofast -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fomit-frame-pointer -march=native -funroll-loops  \
-	-I. -I../../../gmp-install/mingw/include -L../../../gmp-install/mingw/lib -lgmp -I../../include -fcommon
+#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -O2 -Ofast -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fomit-frame-pointer -march=native -funroll-loops  \
+#	-I. -I../../../gmp-install/mingw/include -L../../../gmp-install/mingw/lib -lgmp -I../../include -fcommon
 	
-#clang
-#CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
+# clang linux
+#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -ffp-model=precise -funroll-loops  \
+#	-I../../../gmp-install/6.2.0-aocc/include -I../../include -L../../../gmp-install/6.2.0-aocc/lib -fcommon
 #clang for profiling
 #CFLAGS= -O1 -g -march=native -I/Users/searle/progs/ensc-dependencies/include
 
 #endif
 
 
-GMP_LIB=../../../gmp-install/mingw/lib/libgmp.a
+GMP_LIB=../../../gmp-install/6.2.0-aocc/lib/libgmp.a
 #For windows
-#GMP_LIB=-Lc:/Users/steve/progs/local/lib -lgmp -lws2_32
+#GMP_LIB=../../../gmp-install/mingw/lib/libgmp.a
 #Using brew installed gmp
 #GMP_LIB=-L/usr/local/Cellar/gmp4/4.3.2/lib -lgmp
 #orig
@@ -55,7 +56,7 @@ CC=gcc  $(CFLAGS)
 #CC=clang  $(CFLAGS)
 
 #CTANGLE=ctangle
-CTANGLE=../../../cweb-master/ctangle
+CTANGLE=~/src/c/cweb-master/ctangle
 
 
 ifeq ($(AVX512_ECM),1)
@@ -186,8 +187,8 @@ fbgen.o: gmp-aux.h
 
 fbgen.o lasieve-prepn.o: asm/32bit.h
 
-recurrence6.o: recurrence6.c recurrence6.h if.h asm/siever-config.h
-	$(CC)  $(CFLAGS) -c -o $@ $<
+recurrence6I%.o: recurrence6.c recurrence6.h if.h asm/siever-config.h
+	$(CC)  $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 redu2.o: redu2.h
 
@@ -229,7 +230,7 @@ mpqs3.o: mpqs3.c asm/mpqs-config.h asm/siever-config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
-	recurrence6.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
+	recurrence6I%.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o microecm.o micropm1.o tinyecm.o \
 	asm/liblasieve.a asm/liblasieveI%.a

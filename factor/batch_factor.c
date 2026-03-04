@@ -16,12 +16,18 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "batch_factor.h"
 #include "monty.h"
 #include "soe.h"
-#include "yafu_ecm.h"
 #include "microecm.h"
 #include "tinyecm.h"
 #include "mpz_aprcl.h"
 #include <math.h>
 #include "gmp.h"
+#ifdef HAVE_LASIEVE_MPQS
+#include "../factor/lasieve5_64/mpqs.h"
+#include "../factor/lasieve5_64/mpqs3.h"
+#include "../factor/lasieve5_64/if.h"
+#include "../factor/lasieve5_64/gmp-aux.h"
+#endif
+#include "ytools.h"
 
 /*------------------------------------------------------------------
 
@@ -524,6 +530,17 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 
 /*------------------------------------------------------------------*/
 
+// Function to check for BMI1 support
+int check_bmi1_support() {
+    info_t comp_info;
+
+    ytools_get_computer_info(&comp_info, 0);
+
+    return (int)comp_info.BMI1;
+}
+
+static int has_bmi1 = -1;
+
 uint64_t pow2m(uint64_t b, uint64_t n)
 {
     // compute 2^b mod n
@@ -532,14 +549,36 @@ uint64_t pow2m(uint64_t b, uint64_t n)
     int j;
     int bstr;
     
+    if (has_bmi1 < 0)
+    {
+        has_bmi1 = check_bmi1_support();
+    }
 
+    int bits;
+
+    if (has_bmi1)
+    {
 #ifdef __INTEL_COMPILER
-    int bits = 64 - _lead_zcnt64(b);
+        int bits = 64 - _lead_zcnt64(b);
 #elif defined(__GNUC__)
-    int bits = 64 - __builtin_clzll(b);
+        int bits = 64 - __builtin_clzll(b);
 #elif defined _MSC_VER
-    int bits = 64 - _lead_zcnt64(b);
+        int bits = 64 - _lead_zcnt64(b);
 #endif
+    }
+    else
+    {
+        unsigned int count = 0;
+        for (int i = 63; i >= 0; --i) {
+            if (!((b >> i) & 1)) {
+                count++;
+            }
+            else {
+                break;
+            }
+        }
+        bits = 64 - count;
+    }
 
     x = (((n + 2) & 4) << 1) + n;   // here x*a==1 mod 2**4
     x *= 2 - n * x;                 // here x*a==1 mod 2**8
@@ -668,12 +707,9 @@ process_r:
             mpz_add_ui(n, n, lp1[j]);
         }
 
-        if (mpz_sizeinbase(n, 2) < 32) {
-            // this input is already small, assign it to the
-            // "all factors <= the largest prime" side, and the other side 
-            // has no factors.  
-            // todo: this actually might not be true (it could be larger and
-            // therefore technically belong in f2r), but does it matter?
+        if (mpz_cmp_ui(n, rb->lp_cutoff_r)) {
+            // less than the cutoff: it goes in the gcd side
+            // and we'll check it out more below
             mpz_set(f1r, n);
             mpz_set_ui(f2r, 1);
         }
@@ -694,66 +730,28 @@ process_r:
             }
         }
 
-        /* give up on this relation if
-             - f1r has a single factor, and that factor
-               exceeds the rational large prime cutoff
-             - f1r is more than 3 words long
-
-             but, the first condition will never happen because
-             if there is a single factor found by GCD it will always
-             be less than the LPB because BDiv is always > 1.
-
-             and the 2nd condition is no longer valid with potential
-             4lp residues
-
-             so these checks are now ignored.
-             */
-
-             /* give up on this relation if
-                  - f2r has a single factor, and that factor
-                    exceeds the rational large prime cutoff
-                  - f2r has two words and exceeds the square of the
-                    cutoff (meaning at least one of the two factors in
-                    f2r would exceed the large prime cutoff)
-                  - f2r has two words and is smaller than the square
-                    of the largest prime in rb->prime_product, meaning
-                    that f2r is prime and way too large
-                  - f2r has 3+ words. We don't know anything about
-                    f2r in this case, except that all factors exceed the
-                    largest prime in rb->prime_product, and it would be
-                    much too expensive to find out anything more */
-
-        if ((mpz_sizeinbase(f2r, 2) < 32) && (mpz_get_ui(f2r) < rb->lp_cutoff_r))
+        if (mpz_cmp_ui(f2r, rb->lp_cutoff_r) <= 0)
         {
             // f2r is good.  case if equal to 1 is caught below.
         }
         else
         {
             // size-based checks on the residue of unknown composition: f2r
-            if (mpz_get_ui(f2r) > 1)
+            // f2r is composed of primes > max_prime.
+            // so if this is larger than the lpb cutoff but less than max_prime^2,
+            // then this is prime and we don't have to waste a prp check on it.
+            if ((mpz_cmp_ui(f2r, rb->lp_cutoff_r) > 0) && (mpz_cmp(f2r, rb->max_prime2) < 0))
             {
-                // single factor that's too big.
-                if ((mpz_sizeinbase(f2r, 2) < 32) && (mpz_get_ui(f2r) > rb->lp_cutoff_r))
-                {
-                    rb->num_abort[0]++;
-                    return;
-                }
+                rb->num_abort[0]++;
+                return;
+            }
 
-                // 2 factors, at least one of which is too big (residue > LPB^2)
-                if ((mpz_sizeinbase(f2r, 2) < 64) && (mpz_cmp(f2r, rb->lp_cutoff_r2) > 0))
-                {
-                    rb->num_abort[1]++;
-                    return;
-                }
-
-                // more than 2 factors.
-                if (1 && (mpz_sizeinbase(f2r, 2) > 64))
-                {
-                    // it's never worth checking residues of unknown composition
-                    // with more than 2 words.
-                    rb->num_abort[3]++;
-                    return;
-                }
+            // we don't try to factor anything bigger than lpb^2 on the non-gcd side.
+            // the whole point of the gcd is to eliminate these cases
+            if ((mpz_cmp(f2r, rb->lp_cutoff_r2) > 0))
+            {
+                rb->num_abort[1]++;
+                return;
             }
         }
     }
@@ -782,7 +780,7 @@ process_r:
 
     // between lpr_cutoff and 64-bit f2r that are less than LPB^2 are worth attempting
     // to factor but we must check for primality first.
-    if ((mpz_get_ui(f2r) > rb->lp_cutoff_r) && (mpz_sizeinbase(f2r, 2) <= 64))
+    if ((mpz_cmp(f2r, rb->max_prime2) > 0) && (mpz_cmp(f2r, rb->lp_cutoff_r2) <= 0))
     {
         // check if the non-gcd portion is prime.  
         // don't need to do this for f1r because that portion
@@ -805,10 +803,11 @@ process_r:
        for relations with three large primes then at most
        two of the four choices need factoring */
 
-    if (mpz_sizeinbase(f1r, 2) <= 32)
+    if (mpz_cmp_ui(f1r, rb->lp_cutoff_r) <= 0) 
     {
-        if (mpz_get_ui(f1r) > 1)
+        if (mpz_cmp_ui(f1r, 1) > 0)
         {
+            // if f1r == 1, don't abort but also don't add it as a large prime factor.
             lp_r[num_r++] = mpz_get_ui(f1r);
         }
     }
@@ -854,54 +853,42 @@ process_r:
         lp_r[num_r++] = mpz_get_ui(f1r);
     }
 
-    if (mpz_sizeinbase(f2r, 2) <= 32)
+    if (mpz_cmp_ui(f2r, rb->lp_cutoff_r) <= 0)
     {
-        // f2r is not guaranteed to be inside the LPB limit because it 
-        // wasn't found by GCD
-        if ((mpz_get_ui(f2r) > 1) && (mpz_get_ui(f2r) < rb->lp_cutoff_r))
+        if (mpz_cmp_ui(f2r, 1) > 0)
         {
+            // if f2r == 1, don't abort but also don't add it as a large prime factor.
             lp_r[num_r++] = mpz_get_ui(f2r);
         }
-
-        // if f2r == 1, don't abort but also don't add that as a large prime factor.
-        // f2r > lp_cutoff is handled by pre-checks.
     }
     else if (mpz_sizeinbase(f2r, 2) <= 64)
     {
-        if (mpz_get_ui(f2r) < rb->lp_cutoff_r)
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(f2r), 0, lcg_state);
+        rb->num_uecm[1]++;
+
+        if (f64 == mpz_get_ui(f2r))
         {
-            // anything here will be prime and good to go as a factor
-            lp_r[num_r++] = mpz_get_ui(f2r);
+            gmp_printf("uecm found both factors of f2r = %Zd\n", f2r);
         }
-        else
+
+        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            uint64_t f64 = getfactor_uecm(mpz_get_ui(f2r), 0, lcg_state);
-            rb->num_uecm[1]++;
-
-            if (f64 == mpz_get_ui(f2r))
-            {
-                gmp_printf("uecm found both factors of f2r = %Zd\n", f2r);
-            }
-
-            if (f64 <= 1 || f64 > rb->lp_cutoff_r)
-            {
-                if (f64 == 1) printf("failed to find factor of %d-bit f2r %lu\n",
-                    mpz_sizeinbase(f2r, 2), mpz_get_ui(f2r));
-                rb->num_abort[6]++;
-                return;
-            }
-
-            lp_r[num_r++] = f64;
-            mpz_tdiv_q_ui(f2r, f2r, f64);
-
-            if (mpz_get_ui(f2r) > rb->lp_cutoff_r)
-            {
-                rb->num_abort[6]++;
-                return;
-            }
-
-            lp_r[num_r++] = mpz_get_ui(f2r);
+            if (f64 == 1) printf("failed to find factor of %d-bit f2r %lu\n",
+                mpz_sizeinbase(f2r, 2), mpz_get_ui(f2r));
+            rb->num_abort[6]++;
+            return;
         }
+
+        lp_r[num_r++] = f64;
+        mpz_tdiv_q_ui(f2r, f2r, f64);
+
+        if (mpz_get_ui(f2r) > rb->lp_cutoff_r)
+        {
+            rb->num_abort[6]++;
+            return;
+        }
+
+        lp_r[num_r++] = mpz_get_ui(f2r);
     }
 
     /* only use expensive factoring methods when we know
@@ -959,30 +946,40 @@ process_r:
             }
             else if (mpz_sizeinbase(_small, 2) > 32)
             {
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                rb->num_uecm[2]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                if (mpz_cmp_ui(_small, rb->lp_cutoff_r) <= 0)
                 {
-                    // either we failed to factor it or the factor isn't useful
-                    rb->num_abort[7]++;
-                    return;
+                    // lpb's can be larger than 32 bits
+                    lp_r[num_r++] = mpz_get_ui(_small);
                 }
-
-                mpz_tdiv_q_ui(_small, _small, f64);
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                else
                 {
-                    if (q64 == 1) gmp_printf("ecm found factor %lu == input, residue is 1\n", f64);
-                    rb->num_abort[7]++;
-                    return;
+                    // if it's larger than the lpb, ECM may have
+                    // found a composite factor.  Try to split it.
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                    rb->num_uecm[2]++;
+
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                    {
+                        // either we failed to factor it or the factor isn't useful
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    mpz_tdiv_q_ui(_small, _small, f64);
+                    uint64_t q64 = mpz_get_ui(_small);
+
+                    if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                    {
+                        if (q64 == 1) gmp_printf("ecm found factor %lu == input, residue is 1\n", f64);
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    lp_r[num_r++] = f64;
+                    lp_r[num_r++] = q64;
+
+                    mpz_set_ui(_small, 1);
                 }
-
-                lp_r[num_r++] = f64;
-                lp_r[num_r++] = q64;
-
-                mpz_set_ui(_small, 1);
             }
             else
             {
@@ -990,7 +987,6 @@ process_r:
 
                 if (q64 <= 1 || q64 > rb->lp_cutoff_r)
                 {
-                    if (q64 == 1) gmp_printf("ecm failed to find factor (%lu) but returned success\n", q64);
                     rb->num_abort[7]++;
                     return;
                 }
@@ -1099,25 +1095,33 @@ process_r:
             }
             else if (mpz_sizeinbase(_large, 2) > 32)
             {
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                rb->num_uecm[3]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                if (mpz_cmp_ui(_large, rb->lp_cutoff_r) <= 0)
                 {
-                    rb->num_abort[7]++;
-                    return;
+                    // lpb's can be larger than 32 bits
+                    lp_r[num_r++] = mpz_get_ui(_large);
                 }
-
-                lp_r[num_r++] = f64;
-                mpz_tdiv_q_ui(_large, _large, f64);
-
-                if (mpz_get_ui(_large) > rb->lp_cutoff_r)
+                else
                 {
-                    rb->num_abort[7]++;
-                    return;
-                }
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                    rb->num_uecm[3]++;
 
-                lp_r[num_r++] = mpz_get_ui(_large);
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    lp_r[num_r++] = f64;
+                    mpz_tdiv_q_ui(_large, _large, f64);
+
+                    if (mpz_get_ui(_large) > rb->lp_cutoff_r)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    lp_r[num_r++] = mpz_get_ui(_large);
+                }
             }
             else
             {
@@ -1411,12 +1415,10 @@ process_a:
             mpz_add_ui(n, n, lp2[j]);
         }
 
-        if (mpz_sizeinbase(n, 2) < 32) {
+        if (mpz_cmp_ui(n, rb->lp_cutoff_a) <= 0) {
             // this input is already small, assign it to the
             // "all factors <= the largest prime" side, and the other side 
             // has no factors.  
-            // todo: this actually might not be true (it could be larger and
-            // therefore technically belong in f2r), but does it matter?
             mpz_set(f1a, n);
             mpz_set_ui(f2a, 1);
         }
@@ -1467,41 +1469,33 @@ process_a:
                     largest prime in rb->prime_product, and it would be
                     much too expensive to find out anything more */
 
-        if ((mpz_sizeinbase(f2a, 2) < 32) && (mpz_get_ui(f2a) < rb->lp_cutoff_a))
+        if (mpz_cmp_ui(f2a, rb->lp_cutoff_a) <= 0)
         {
-            // f2r is good.  case if equal to 1 is caught below.
+            // f2a is good.  case if equal to 1 is caught below.
         }
         else
         {
-            // size-based checks on the residue of unknown composition: f2r
-            if (mpz_get_ui(f2a) > 1)
+            // size-based checks on the residue of unknown composition: f2a.
+            // f2a is composed of primes > max_prime.
+            // so if this is larger than the lpb cutoff but less than max_prime^2,
+            // then this is prime and we don't have to waste a prp check on it.
+            if ((mpz_cmp_ui(f2a, rb->lp_cutoff_a) > 0) && (mpz_cmp(f2a, rb->max_prime2) < 0))
             {
-                // single factor that's too big.
-                if ((mpz_sizeinbase(f2a, 2) < 32) && (mpz_get_ui(f2a) > rb->lp_cutoff_a))
-                {
-                    rb->num_abort_a[0]++;
-                    return;
-                }
+                rb->num_abort_a[0]++;
+                return;
+            }
 
-                // 2 factors, at least one of which is too big (residue > LPB^2)
-                if ((mpz_sizeinbase(f2a, 2) < 64) && (mpz_cmp(f2a, rb->lp_cutoff_a2) > 0))
-                {
-                    rb->num_abort_a[1]++;
-                    return;
-                }
-
-                // more than 2 factors.
-                if (1 && (mpz_sizeinbase(f2a, 2) > 64))
-                {
-                    // it's never worth checking residues of unknown composition
-                    // with more than 2 words.
-                    rb->num_abort_a[3]++;
-                    return;
-                }
+            // we don't try to factor anything bigger than lpb^2 on the non-gcd side.
+            // the whole point of the gcd is to eliminate these cases.
+            if ((mpz_cmp(f2a, rb->lp_cutoff_a2) > 0))
+            {
+                rb->num_abort_a[1]++;
+                return;
             }
         }
     }
-    else {
+    else 
+    {
         mpz_set_ui(f1a, 0);
         mpz_set_ui(f2a, 0);
 
@@ -1524,9 +1518,9 @@ process_a:
     for (i = num_a = 0; i < MAX_LARGE_PRIMES; i++)
         lp_a[i] = 1;
 
-    // between 32- and 64-bit f2a that are less than LPB^2 are worth attempting
+    // residues less than LPB^2 are worth attempting
     // to factor but we must check for primality first.
-    if ((mpz_get_ui(f2a) > rb->lp_cutoff_a) && (mpz_sizeinbase(f2a, 2) <= 64))
+    if ((mpz_cmp(f2a, rb->max_prime2) > 0) && (mpz_cmp(f2a, rb->lp_cutoff_a2) <= 0))
     {
         // check if the non-gcd portion is prime.  
         // don't need to do this for f1a because that portion
@@ -1549,10 +1543,11 @@ process_a:
         for relations with three large primes then at most
         two of the four choices need factoring */
 
-    if (mpz_sizeinbase(f1a, 2) <= 32)
+    if (mpz_cmp_ui(f1a, rb->lp_cutoff_a) <= 0)
     {
-        if (mpz_get_ui(f1a) > 1)
+        if (mpz_cmp_ui(f1a, 1) > 0)
         {
+            // if f1a == 1, don't abort but also don't add it as a large prime factor.
             lp_a[num_a++] = mpz_get_ui(f1a);
         }
     }
@@ -1601,54 +1596,46 @@ process_a:
         lp_a[num_a++] = mpz_get_ui(f1a);
     }
 
-    if (mpz_sizeinbase(f2a, 2) <= 32)
+    if (mpz_cmp_ui(f2a, rb->lp_cutoff_a) <= 0)
     {
         // f2a is not guaranteed to be inside the LPB limit because it 
         // wasn't found by GCD
-        if ((mpz_get_ui(f2a) > 1) && (mpz_get_ui(f2a) < rb->lp_cutoff_a))
+        if (mpz_cmp_ui(f2a, 1) > 0)
         {
+            // if f2a == 1, don't abort but also don't add it as a large prime factor.
             lp_a[num_a++] = mpz_get_ui(f2a);
         }
-
-        // if f2a == 1, don't abort but also don't add that as a large prime factor.
-        // f2a > lp_cutoff is handled by pre-checks.
     }
     else if (mpz_sizeinbase(f2a, 2) <= 64)
     {
-        if (mpz_get_ui(f2a) < rb->lp_cutoff_a)
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(f2a), 0, lcg_state);
+        rb->num_uecm_a[1]++;
+
+        if (f64 == mpz_get_ui(f2a))
         {
-            // anything here will be prime and good to go as a factor
-            lp_a[num_a++] = mpz_get_ui(f2a);
+            gmp_printf("uecm found both factors of f2a = %Zd\n", f2a);
         }
-        else
+
+        if (f64 <= 1 || f64 > rb->lp_cutoff_a)
         {
-            uint64_t f64 = getfactor_uecm(mpz_get_ui(f2a), 0, lcg_state);
-            rb->num_uecm_a[1]++;
-
-            if (f64 == mpz_get_ui(f2a))
+            if (f64 == 1)
             {
-                gmp_printf("uecm found both factors of f2a = %Zd\n", f2a);
+                printf("uecm failed on %"PRIu64"\n", mpz_get_ui(f2a));
             }
-
-            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
-            {
-                // if (f64 == 1) printf("failed to find factor of %d-bit f2a %lu\n",
-                //     mpz_sizeinbase(f2a, 2), mpz_get_ui(f2a));
-                rb->num_abort_a[6]++;
-                return;
-            }
-
-            lp_a[num_a++] = f64;
-            mpz_tdiv_q_ui(f2a, f2a, f64);
-
-            if (mpz_get_ui(f2a) > rb->lp_cutoff_a)
-            {
-                rb->num_abort_a[6]++;
-                return;
-            }
-
-            lp_a[num_a++] = mpz_get_ui(f2a);
+            rb->num_abort_a[6]++;
+            return;
         }
+
+        lp_a[num_a++] = f64;
+        mpz_tdiv_q_ui(f2a, f2a, f64);
+
+        if (mpz_get_ui(f2a) > rb->lp_cutoff_a)
+        {
+            rb->num_abort_a[6]++;
+            return;
+        }
+
+        lp_a[num_a++] = mpz_get_ui(f2a);
     }
 
     /* only use expensive factoring methods when we know
@@ -1680,8 +1667,8 @@ process_a:
             // process _small, which might need to be split again.
             if (mpz_sizeinbase(_small, 2) > 64)
             {
-                // very unlikely that tecm found 3 valid factors simultaneously.
-                // it is either wrong, or we can swap it with _large to process further.
+                // likely found 2 factors whos' product is greater than 64 bits.
+                // swap this with _large to process further.
                 if (mpz_divisible_p(f1a, _small))
                 {
                     // it was correct, swap it.
@@ -1705,29 +1692,37 @@ process_a:
             }
             else if (mpz_sizeinbase(_small, 2) > 32)
             {
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                rb->num_uecm_a[2]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                if (mpz_cmp_ui(_small, rb->lp_cutoff_a) <= 0)
                 {
-                    // either we failed to factor it or the factor isn't useful
-                    rb->num_abort_a[7]++;
-                    return;
+                    // lpb's can be larger than 32 bits
+                    lp_a[num_a++] = mpz_get_ui(_small);
                 }
-
-                mpz_tdiv_q_ui(_small, _small, f64);
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                else
                 {
-                    rb->num_abort_a[7]++;
-                    return;
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                    rb->num_uecm_a[2]++;
+
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                    {
+                        // either we failed to factor it or the factor isn't useful
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    mpz_tdiv_q_ui(_small, _small, f64);
+                    uint64_t q64 = mpz_get_ui(_small);
+
+                    if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    lp_a[num_a++] = f64;
+                    lp_a[num_a++] = q64;
+
+                    mpz_set_ui(_small, 1);
                 }
-
-                lp_a[num_a++] = f64;
-                lp_a[num_a++] = q64;
-
-                mpz_set_ui(_small, 1);
             }
             else
             {
@@ -1766,26 +1761,34 @@ process_a:
                     }
                     else if (mpz_sizeinbase(_small, 2) > 32)
                     {
-                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                        rb->num_uecm_a[3]++;
-
-                        if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                        if (mpz_cmp_ui(_small, rb->lp_cutoff_a) <= 0)
                         {
-                            rb->num_abort_a[7]++;
-                            return;
+                            // lpb's can be larger than 32 bits
+                            lp_a[num_a++] = mpz_get_ui(_small);
                         }
-
-                        mpz_tdiv_q_ui(_small, _small, f64);
-                        uint64_t q64 = mpz_get_ui(_small);
-
-                        if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                        else
                         {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
+                            uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                            rb->num_uecm_a[3]++;
 
-                        lp_a[num_a++] = f64;
-                        lp_a[num_a++] = q64;
+                            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            mpz_tdiv_q_ui(_small, _small, f64);
+                            uint64_t q64 = mpz_get_ui(_small);
+
+                            if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            lp_a[num_a++] = f64;
+                            lp_a[num_a++] = q64;
+                        }
                     }
                     else
                     {
@@ -1803,25 +1806,33 @@ process_a:
                     // process _large, which might need to be split again.
                     if (mpz_sizeinbase(_large, 2) > 32)
                     {
-                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                        rb->num_uecm_a[3]++;
-
-                        if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                        if (mpz_cmp_ui(_large, rb->lp_cutoff_a) <= 0)
                         {
-                            rb->num_abort_a[7]++;
-                            return;
+                            // lpb's can be larger than 32 bits
+                            lp_a[num_a++] = mpz_get_ui(_large);
                         }
-
-                        lp_a[num_a++] = f64;
-                        mpz_tdiv_q_ui(_large, _large, f64);
-
-                        if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                        else
                         {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
+                            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                            rb->num_uecm_a[3]++;
 
-                        lp_a[num_a++] = mpz_get_ui(_large);
+                            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            lp_a[num_a++] = f64;
+                            mpz_tdiv_q_ui(_large, _large, f64);
+
+                            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            lp_a[num_a++] = mpz_get_ui(_large);
+                        }
                     }
                     else
                     {
@@ -1837,7 +1848,339 @@ process_a:
                 else
                 {
                     rb->num_qs_a++;
+
+#ifdef HAVE_LASIEVE_MPQS
+                    mpz_t flist[3];
+                    mpz_init(flist[0]);
+                    mpz_init(flist[1]);
+                    mpz_init(flist[2]);
+
+                    mpz_t* fac = flist;
+                    
+                    int nf = mpqs_factor(_large, rb->lp_cutoff_a, &fac);
+
+                    while (nf > 0)
+                    {
+                        lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
+                        nf--;
+                    }
+
+                    mpz_clear(flist[0]);
+                    mpz_clear(flist[1]);
+                    mpz_clear(flist[2]);
+#endif
+                }
+
+            }
+            else if (mpz_sizeinbase(_large, 2) > 32)
+            {
+                if (mpz_cmp_ui(_large, rb->lp_cutoff_a) <= 0)
+                {
+                    // lpb's can be larger than 32 bits
+                    lp_a[num_a++] = mpz_get_ui(_large);
+                }
+                else
+                {
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                    rb->num_uecm_a[3]++;
+
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    lp_a[num_a++] = f64;
+                    mpz_tdiv_q_ui(_large, _large, f64);
+
+                    if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    lp_a[num_a++] = mpz_get_ui(_large);
+                }
+            }
+            else
+            {
+                if (mpz_get_ui(_large) > rb->lp_cutoff_a)
+                {
+                    rb->num_abort_a[7]++;
                     return;
+                }
+
+                uint64_t f64 = mpz_get_ui(_large);
+                if (f64 > 1)
+                {
+                    lp_a[num_a++] = f64;
+                }
+            }
+        }
+        else
+        {
+            // need to run MPQS here.  until we get that going, record how
+            // many relations we are missing...
+            rb->num_qs_a++;
+            
+#ifdef HAVE_LASIEVE_MPQS
+            mpz_t flist[3];
+            mpz_init(flist[0]);
+            mpz_init(flist[1]);
+            mpz_init(flist[2]);
+
+            mpz_t* fac = flist;
+
+            int nf = mpqs_factor(f1a, rb->lp_cutoff_a, &fac);
+
+            while (nf > 0)
+            {
+                lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
+                nf--;
+            }
+
+            mpz_clear(flist[0]);
+            mpz_clear(flist[1]);
+            mpz_clear(flist[2]);
+#endif
+        }
+    }
+
+    if (mpz_sizeinbase(f2a, 2) > 64) {
+        // gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f2a, 2), f2a);
+
+        // we don't really know anything about f2a in this case other than that
+        // it either has several factors not in the GCD, any of which could be too big,
+        // or it could be prime.  None of these scenarios is cost-benficial to pursue.
+        // Note: we should never actually get here, because size-based checks on f2a
+        // should eliminate this residue right away, rather than waste time on f1a first.
+        //rb->num_abort[7]++;
+        //return;
+
+        // if it isn't prime, maybe try to do a little work on it.
+        if (mpz_probab_prime_p(f2a, 1))
+        {
+            rb->num_abort_a[7]++;
+            return;
+        }
+
+        // run the smallest amount of ecm we can on this
+#ifdef USE_AVX512F
+        int success = getfactor_tecm_x8(f2a, _small, mpz_sizeinbase(f2a, 2) / 3, lcg_state);
+#else
+        int success = getfactor_tecm(f2a, _small, mpz_sizeinbase(f2a, 2) / 3, lcg_state);
+#endif
+        rb->num_tecm2_a++;
+
+        if (success)
+        {
+            mpz_tdiv_q(_large, f2a, _small);
+
+            // process _small, which might need to be split again.
+            if (mpz_sizeinbase(_small, 2) > 64)
+            {
+                // likely found 2 factors whos' product is greater than 64 bits.
+                // swap this with _large to process further.
+                if (mpz_divisible_p(f2a, _small))
+                {
+                    // it was correct, swap it.
+                    mpz_set(_large, _small);
+                    mpz_tdiv_q(_small, f2a, _large);
+                }
+
+                uint64_t q64 = mpz_get_ui(_small);
+
+                if (q64 > rb->lp_cutoff_a)
+                {
+                    rb->num_abort_a[7]++;
+                    return;
+                }
+
+                if (q64 > 1)
+                {
+                    lp_a[num_a++] = q64;
+                }
+
+            }
+            else if (mpz_sizeinbase(_small, 2) > 32)
+            {
+                if (mpz_cmp_ui(_small, rb->lp_cutoff_a) <= 0)
+                {
+                    // lpb's can be larger than 32 bits
+                    lp_a[num_a++] = mpz_get_ui(_small);
+                }
+                else
+                {
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                    rb->num_uecm_a[2]++;
+
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                    {
+                        // either we failed to factor it or the factor isn't useful
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    mpz_tdiv_q_ui(_small, _small, f64);
+                    uint64_t q64 = mpz_get_ui(_small);
+
+                    if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    lp_a[num_a++] = f64;
+                    lp_a[num_a++] = q64;
+
+                    mpz_set_ui(_small, 1);
+                }
+            }
+            else
+            {
+                uint64_t q64 = mpz_get_ui(_small);
+
+                if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                {
+                    rb->num_abort_a[7]++;
+                    return;
+                }
+
+                lp_a[num_a++] = q64;
+            }
+
+            // process _large, which could need to be split again
+            if ((mpz_sizeinbase(_large, 2) > 64) && ((mpz_probab_prime_p(_large, 1) == 0)))
+            {
+#ifdef USE_AVX512F
+                success = getfactor_tecm_x8(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+#else
+                success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+#endif
+                rb->num_tecm_a++;
+
+                if (success)
+                {
+                    mpz_tdiv_q(_large, _large, _small);
+
+                    // process _small, which might need to be split again.
+                    if (mpz_sizeinbase(_small, 2) > 64)
+                    {
+                        // found all 3 factors?
+                        // give up
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+                    else if (mpz_sizeinbase(_small, 2) > 32)
+                    {
+                        if (mpz_cmp_ui(_small, rb->lp_cutoff_a) <= 0)
+                        {
+                            // lpb's can be larger than 32 bits
+                            lp_a[num_a++] = mpz_get_ui(_small);
+                        }
+                        else
+                        {
+                            uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                            rb->num_uecm_a[3]++;
+
+                            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            mpz_tdiv_q_ui(_small, _small, f64);
+                            uint64_t q64 = mpz_get_ui(_small);
+
+                            if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            lp_a[num_a++] = f64;
+                            lp_a[num_a++] = q64;
+                        }
+                    }
+                    else
+                    {
+                        uint64_t q64 = mpz_get_ui(_small);
+
+                        if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                        {
+                            rb->num_abort_a[7]++;
+                            return;
+                        }
+
+                        lp_a[num_a++] = q64;
+                    }
+
+                    // process _large, which might need to be split again.
+                    if (mpz_sizeinbase(_large, 2) > 32)
+                    {
+                        if (mpz_cmp_ui(_large, rb->lp_cutoff_a) <= 0)
+                        {
+                            // lpb's can be larger than 32 bits
+                            lp_a[num_a++] = mpz_get_ui(_large);
+                        }
+                        else
+                        {
+                            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                            rb->num_uecm_a[3]++;
+
+                            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            lp_a[num_a++] = f64;
+                            mpz_tdiv_q_ui(_large, _large, f64);
+
+                            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                            {
+                                rb->num_abort_a[7]++;
+                                return;
+                            }
+
+                            lp_a[num_a++] = mpz_get_ui(_large);
+                        }
+                    }
+                    else
+                    {
+                        if (mpz_get_ui(_large) > rb->lp_cutoff_a)
+                        {
+                            rb->num_abort_a[7]++;
+                            return;
+                        }
+
+                        lp_a[num_a++] = mpz_get_ui(_large);
+                    }
+                }
+                else
+                {
+                    rb->num_qs_a++;
+
+#ifdef HAVE_LASIEVE_MPQS
+                    mpz_t flist[3];
+                    mpz_init(flist[0]);
+                    mpz_init(flist[1]);
+                    mpz_init(flist[2]);
+
+                    mpz_t* fac = flist;
+
+                    int nf = mpqs_factor(_large, rb->lp_cutoff_a, &fac);
+
+                    while (nf > 0)
+                    {
+                        lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
+                        nf--;
+                    }
+
+                    mpz_clear(flist[0]);
+                    mpz_clear(flist[1]);
+                    mpz_clear(flist[2]);
+#endif
                 }
 
             }
@@ -1880,260 +2223,7 @@ process_a:
         }
         else
         {
-            // need to run MPQS here.  until we get that going, record how
-            // many relations we are missing...
-            rb->num_qs_a++;
-            return;
-        }
-    }
-
-    if (mpz_sizeinbase(f2a, 2) > 64) {
-        // gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f2a, 2), f2a);
-
-        // we don't really know anything about f2a in this case other than that
-        // it either has several factors not in the GCD, any of which could be too big,
-        // or it could be prime.  None of these scenarios is cost-benficial to pursue.
-        // Note: we should never actually get here, because size-based checks on f2a
-        // should eliminate this residue right away, rather than waste time on f1a first.
-        //rb->num_abort[7]++;
-        //return;
-
-        // if it isn't prime, maybe try to do a little work on it.
-        if (mpz_probab_prime_p(f2a, 1))
-        {
-            rb->num_abort_a[7]++;
-            return;
-        }
-
-        // run the smallest amount of ecm we can on this
-#ifdef USE_AVX512F
-        int success = getfactor_tecm_x8(f2a, _small, mpz_sizeinbase(f2a, 2) / 3, lcg_state);
-#else
-        int success = getfactor_tecm(f2a, _small, mpz_sizeinbase(f2a, 2) / 3, lcg_state);
-#endif
-        rb->num_tecm2_a++;
-
-        if (success)
-        {
-            mpz_tdiv_q(_large, f2a, _small);
-
-            // process _small, which might need to be split again.
-            if (mpz_sizeinbase(_small, 2) > 64)
-            {
-                // very unlikely that tecm found 3 valid factors simultaneously.
-                // it is either wrong, or we can swap it with large to process further.
-                if (mpz_divisible_p(f2a, _small))
-                {
-                    // it was correct, swap it.
-                    mpz_set(_large, _small);
-                    mpz_tdiv_q(_small, f2a, _large);
-                }
-
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 <= 1 || q64 > rb->lp_cutoff_a)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                lp_a[num_a++] = q64;
-            }
-            else if (mpz_sizeinbase(_small, 2) > 32)
-            {
-                uint64_t n64 = mpz_get_ui(_small);
-                if (prp_uecm(n64) == 1)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                rb->num_uecm[2]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_a)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                mpz_tdiv_q_ui(_small, _small, f64);
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 <= 1 || q64 > rb->lp_cutoff_a)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                lp_a[num_a++] = f64;
-                lp_a[num_a++] = q64;
-            }
-            else
-            {
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 <= 1 || q64 > rb->lp_cutoff_a)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                lp_a[num_a++] = q64;
-            }
-
-            // process _large, which could need to be split again
-            if (mpz_sizeinbase(_large, 2) > 64)
-            {
-                // run the smallest amount of ecm we can on this
-#ifdef USE_AVX512F
-                success = getfactor_tecm_x8(_large, _small, 1, lcg_state);
-#else
-                success = getfactor_tecm(_large, _small, 1, lcg_state);
-#endif
-                rb->num_tecm2_a++;
-
-                if (success)
-                {
-                    // process _small, which might need to be split again.
-                    if (mpz_sizeinbase(_small, 2) > 32)
-                    {
-                        uint64_t n64 = mpz_get_ui(_small);
-                        if (prp_uecm(n64) == 1)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                        rb->num_uecm[2]++;
-
-                        if (f64 <= 1 || f64 > rb->lp_cutoff_a)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        mpz_tdiv_q_ui(_small, _small, f64);
-                        uint64_t q64 = mpz_get_ui(_small);
-
-                        if (q64 <= 1 || q64 > rb->lp_cutoff_a)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        lp_a[num_a++] = f64;
-                        lp_a[num_a++] = q64;
-                    }
-                    else
-                    {
-                        uint64_t q64 = mpz_get_ui(_small);
-
-                        if (q64 <= 1 || q64 > rb->lp_cutoff_a)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        lp_a[num_a++] = q64;
-                    }
-
-                    mpz_tdiv_q(_large, _large, _small);
-
-                    // process _large, which might need to be split again.
-                    if (mpz_sizeinbase(_large, 2) > 32)
-                    {
-                        uint64_t n64 = mpz_get_ui(_large);
-                        if (prp_uecm(n64) == 1)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                        rb->num_uecm[2]++;
-
-                        if (f64 <= 1 || f64 > rb->lp_cutoff_a)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        lp_a[num_a++] = f64;
-                        mpz_tdiv_q_ui(_large, _large, f64);
-
-                        if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        lp_a[num_a++] = mpz_get_ui(_large);
-                    }
-                    else
-                    {
-                        if (mpz_get_ui(_large) > rb->lp_cutoff_a)
-                        {
-                            rb->num_abort_a[7]++;
-                            return;
-                        }
-
-                        lp_a[num_a++] = mpz_get_ui(_large);
-                    }
-                }
-                else
-                {
-                    rb->num_qs_a++;
-                    return;
-                }
-
-            }
-            else if (mpz_sizeinbase(_large, 2) > 32)
-            {
-                uint64_t n64 = mpz_get_ui(_large);
-                if (prp_uecm(n64) == 1)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                rb->num_uecm[2]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_a)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                lp_a[num_a++] = f64;
-                mpz_tdiv_q_ui(_large, _large, f64);
-
-                if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                lp_a[num_a++] = mpz_get_ui(_large);
-            }
-            else
-            {
-                if (mpz_get_ui(_large) > rb->lp_cutoff_a)
-                {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
-
-                lp_a[num_a++] = mpz_get_ui(_large);
-            }
-        }
-        else
-        {
-            // could run QS, but this happens so rarely when tecm is given
-            // a 3LP with 3 known factors < lp_cutoff that instead we
-            // just give up and record this failure.
+            // if our "quick" ecm didn't find anything, give up.
             rb->num_qs_a++;
             return;
         }
@@ -2155,19 +2245,11 @@ done:
     {
         c->lp_r[i] = lp_r[i];
     }
-    //for (; i < 4; i++)
-    //{
-    //    c->lp_r[i] = 1;
-    //}
 
     for (i = 0; i < num_a; i++)
     {
         c->lp_a[i] = lp_a[i];
     }
-    //for (; i < 4; i++)
-    //{
-    //    c->lp_a[i] = 1;
-    //}
 
     c->success = num_r + num_a;
 
@@ -2189,7 +2271,7 @@ void compute_remainder_tree(bintree_t* tree, uint32_t first, uint32_t last,
 	   an mp_t, so manually compute the remainder and
 	   postprocess each relation */
 
-	if (mpz_sizeinbase(numerator, 2) <= (MAX_MP_WORDS * 32)) {
+	if (mpz_sizeinbase(numerator, 2) <= (1024)) {
 		if (mpz_sgn(numerator) > 0) {
 			while (first <= last)
                 check_batch_relation(rb, first++, lcg_state, numerator);
@@ -2237,8 +2319,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
         uint64_t *primes = soe_wrapper(sdata, min_prime, max_prime, 0, &num_primes, 0, 0);
 
         // compute the product of primes
-
-        logprint(logfile, "multiplying %"PRIu64" primes from %u to %"PRIu64"\n",
+        printf("multiplying %"PRIu64" primes from %u to %"PRIu64"\n",
             num_primes, primes[0], primes[num_primes-1]);
 
         multiply_primes(0, num_primes, primes, rb->prime_product);
@@ -2267,6 +2348,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 	mpz_init(rb->lp_cutoff_r2);
     mpz_set_ui(rb->lp_cutoff_r2, lp_cutoff_r);
     mpz_mul_ui(rb->lp_cutoff_r2, rb->lp_cutoff_r2, lp_cutoff_r);
+    //gmp_printf("lp_cutoff_r = %"PRIu64", lp_cutoff_r^2 = %Zd\n", rb->lp_cutoff_r, rb->lp_cutoff_r2);
     mpz_init(rb->lp_cutoff_r3);
     mpz_mul_ui(rb->lp_cutoff_r3, rb->lp_cutoff_r2, lp_cutoff_r);
 
@@ -2276,6 +2358,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->lp_cutoff_a2);
     mpz_set_ui(rb->lp_cutoff_a2, lp_cutoff_a);
     mpz_mul_ui(rb->lp_cutoff_a2, rb->lp_cutoff_a2, lp_cutoff_a);
+    //gmp_printf("lp_cutoff_a = %"PRIu64", lp_cutoff_a^2 = %Zd\n", rb->lp_cutoff_a, rb->lp_cutoff_a2);
     mpz_init(rb->lp_cutoff_a3);
     mpz_mul_ui(rb->lp_cutoff_a3, rb->lp_cutoff_a2, lp_cutoff_a);
 
@@ -2289,7 +2372,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     // min_prime is the largest prime in the FB
     mpz_init(rb->min_prime2);
     mpz_set_ui(rb->min_prime2, min_prime);
-    //mpz_mul_ui(rb->min_prime2, rb->min_prime2, min_prime);
+    mpz_mul_ui(rb->min_prime2, rb->min_prime2, min_prime);
 
 	/* allocate lists for relations and their factors */
 
@@ -2311,6 +2394,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->f2a);
     mpz_init(rb->t0);
     mpz_init(rb->t1);
+    mpz_init(rb->t2);
     mpz_init(rb->_small);
     mpz_init(rb->_large);
     //printf("relation batch is initialized\n");
@@ -2341,6 +2425,7 @@ void relation_batch_free(relation_batch_t *rb, int has_prime_prod) {
     mpz_clear(rb->f2a);
     mpz_clear(rb->t0);
     mpz_clear(rb->t1);
+    mpz_clear(rb->t2);
     mpz_clear(rb->_small);
     mpz_clear(rb->_large);
 }
@@ -2414,7 +2499,7 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
         c->lp_r_num_words = i;
     }
     else if ((mpz_cmp_ui(unfactored_r_in, 1) > 0) &&
-        (mpz_sizeinbase(unfactored_r_in, 2) < 32))
+        (mpz_sizeinbase(unfactored_r_in, 2) < 64))
     {
         c->lp_r[0] = mpz_get_ui(unfactored_r_in);
     }
@@ -2433,7 +2518,7 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
         c->lp_a_num_words = i;
     }
     else if ((mpz_cmp_ui(unfactored_a_in, 1) > 0) &&
-        (mpz_sizeinbase(unfactored_a_in, 2) < 32))
+        (mpz_sizeinbase(unfactored_a_in, 2) < 64))
     {
         c->lp_a[0] = mpz_get_ui(unfactored_a_in);
     }
@@ -2470,11 +2555,11 @@ uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lc
         tree.nodes[0].right_id = -1;
         tree.nodes[0].complete = 0;
 
-        //printf("memory use for relations array is %u bytes\n", rb->num_relations_alloc *
-        //    sizeof(cofactor_t));
-        //
-        //printf("memory use for factors array is %u bytes\n", rb->num_factors_alloc *
-        //    sizeof(uint32_t));
+        printf("memory use for relations array is %u MB\n", rb->num_relations_alloc *
+            sizeof(cofactor_t) / (1<<20));
+        
+        printf("memory use for factors array is %u MB\n", rb->num_factors_alloc *
+            sizeof(uint32_t) / (1 << 20));
 
         // this already traverses the tree... just build in
         // the capability to add and reuse nodes and we 
@@ -2489,7 +2574,8 @@ uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lc
             mpz_clear(tree.nodes[i].prod);
         }
 
-        //printf("final tree had %u nodes with products occupying %u total bytes\n", tree.size, bytes);
+        printf("final tree had %u nodes with products occupying %u total MB\n", 
+            tree.size, bytes / (1<<20));
         
         free(tree.nodes);
 	}

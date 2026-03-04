@@ -60,7 +60,7 @@ ifeq ($(COMPILER),icc)
 endif
 
 
-ifdef BATCH_CUDA
+ifeq ($(BATCH_CUDA),1)
 	TOOLKIT_VERSION=12
 	CUDA_PATH = /usr/local/cuda-12
 	INC += -I$(CUDA_PATH)/include

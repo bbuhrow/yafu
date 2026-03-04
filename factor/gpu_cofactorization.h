@@ -3,10 +3,10 @@
 #include "batch_factor.h"
 #include "cuda_xface.h"
 
-#ifdef _MSC_VER
-// so I can browse the code in visual studio
-#define HAVE_CUDA_BATCH_FACTOR
-#endif
+// #ifdef _MSC_VER
+// // so I can browse the code in visual studio
+// #define HAVE_CUDA
+// #endif
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 typedef struct {

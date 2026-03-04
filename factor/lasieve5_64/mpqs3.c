@@ -60,7 +60,7 @@ extern u32_t stat_size[15];
 #define MPQS3_MAX_NCRELS      1024  /* ??? */
 #define MPQS3_MAX_NRELS_BUF   256  /* ??? */
 #define MPQS3_MIN_RELBUFFER   16
-#define MPQS3_GAUSS_MAX       1024
+#define MPQS3_GAUSS_MAX       1024      // was 1024, lots of -6 errors with MFB=107
 #define MPQS3_MAX_FACTORS     6
 #define MPQS3_MAX_NPRIMES     2048   /* largest prime MUST be <16384 (final) */
 #define MPQS3_HASH_OVERFLOW   65535
@@ -2716,7 +2716,7 @@ static void mpqs3_rowechelon()
 {
   u32_t i, j, k, l, t, k64, col, row, r0, c0, zz;
   u64_t tmp, tab[16];
-  uchar ucm[1024], mm[4], m, z;  /* TODO replace 1024 */
+  uchar ucm[MPQS3_GAUSS_MAX], mm[4], m, z;  /* TODO replace 1024 */
 
 #ifdef MPQS3_ZEIT
 zeitA(8);

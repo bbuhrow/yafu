@@ -209,7 +209,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 				vij = _mm512_mask_add_epi32(vij, mib, vij, vri1);
 				vij = _mm512_mask_add_epi32(vij, mia, vij, vri2);
-				mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+				mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 			}
 #endif
 			while (mij > 0) {

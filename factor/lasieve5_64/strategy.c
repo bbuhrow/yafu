@@ -458,9 +458,15 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 #ifdef GGNFS_MPQS
 
 			if (mpz_sizeinbase(large_factors[s], 2) > 96)
+			{
 				nf = mpqs3_factor(large_factors[s], max_primebits[s], &fac);
+				cf_nauxmpqs3++;
+			}
 			else
+			{
 				nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
+				cf_nauxmpqs++;
+			}
 
 #else
 			nf = 0;
@@ -502,13 +508,57 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 			else
 			{
 
-#if defined(AVX512_ECM)
+#if 1 // defined(AVX512_ECM)
 
-				if (mpz_sizeinbase(large_factors[s], 2) > 104)
+				// we have been observing problems with mpqs3 when MFB gets
+				// too big; anecdotally, above about 104 bits.  Although that
+				// is also the point at which AVX-ECM kicked in, in the past,
+				// so the 104-bit boundary may be coincidental.  Should search it
+				// out a little better.
+				// In any case, for large MFB that for now we call > 104 bits, we
+				// want to run ECM, even though there is no AVX enhancement to it.
+				// Only if this fails to find a factor do we fall back to mpqs3.
+				
+				// When MFB is above 104, we run ECM regardless of acceleration and 
+				// mpqs3 as a failover.
+				// When MFB is between 97 and 104 inclusive, we run AVXECM if we 
+				// have it and mpqs3 as a failover, or mpqs3 if we don't have AVXECM.
+				// When MFB is 96 or below we run AVXECM if we 
+				// have it and mpqs as a failover, or mpqs if we don't have AVXECM.
+				// these cases change the logic a bit.
+
+				//if (mpz_sizeinbase(large_factors[s], 2) > 104)
+				//{
+				//	nf = mpqs3_factor(large_factors[s], max_primebits[s], &fac);
+				//	cf_nauxmpqs3++;
+				//} else
+
+				// these handle the cases where we don't have AVXECM and the
+				// inputs are small enough to trust mpqs.
+#if !defined(AVX512_ECM)
+				if (mpz_sizeinbase(large_factors[s], 2) <= 96)
+				{
+					nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
+					cf_nauxmpqs++;
+				}
+				else if (mpz_sizeinbase(large_factors[s], 2) < 101)
+				{
 					nf = mpqs3_factor(large_factors[s], max_primebits[s], &fac);
-				else if (getfactor_tecm(large_factors[s], fac[0],
+					cf_nauxmpqs3++;
+				}
+#endif
+
+				// getfactor_tecm will point to the AVXECM version if it is 
+				// supported and the normal one if not.  The AVXECM version will
+				// now revert to the normal one above 104 bits.
+				if ((nf == 0) && getfactor_tecm(large_factors[s], fac[0],
 					mpz_sizeinbase(large_factors[s], 2) / 3 - 2, &pran) > 0)
 				{
+					// if we don't already have factors (a case where mpqs has already
+					// found them, see above) and ECM tried found one.  Continue
+					// splitting the cofactor or factor
+					cf_necm++;
+
 					if (mpz_sizeinbase(fac[0], 2) <= max_primebits[s])
 					{
 						mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
@@ -552,6 +602,9 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 							// we have a composite residue > 64 bits.  
 							// use ecm first with high effort.
 							getfactor_tecm(fac[1], fac[2], 32, &pran);
+							cf_necm++;
+							// go straight to mpqs
+							mpz_set_ull(fac[2], 1);
 						}
 						f64 = mpz_get_ull(fac[2]);
 
@@ -583,6 +636,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						{
 							// uecm/tecm failed, which does sometimes happen
 							nf = mpqs_factor(fac[1], max_primebits[s], &fac);
+							cf_nauxmpqs++;
 							if (nf == 2)
 							{
 								// fac is now set to mpqs's statically allocated
@@ -639,6 +693,9 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 								// we have a composite residue > 64 bits.  
 								// use ecm with high effort first
 								getfactor_tecm(fac[0], fac[2], 32, &pran);
+								cf_necm++;
+								// go straight to mpqs
+								//mpz_set_ull(fac[2], 1);
 							}
 							f64 = mpz_get_ull(fac[2]);
 
@@ -671,6 +728,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 							{
 								// uecm/tecm failed, which does sometimes happen
 								nf = mpqs_factor(fac[0], max_primebits[s], &fac);
+								cf_nauxmpqs++;
 								if (nf == 2)
 								{
 									// fac is now set to mpqs's statically allocated
@@ -686,9 +744,9 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						}
 					}
 				}
-				else
+				else if (nf == 0)
 				{
-					// if ecm can't find a factor, give up.  
+					// (potentially mpqs) and ecm can't find a factor, give up.  
 					// unless this is a DLP with lpbr/a > 32... i.e., if the
 					// large factor size is greater than 64 bits but less than
 					// lpbr/a * 2.  In that case run mpqs... or tecm with
@@ -736,6 +794,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 					if (mpz_sizeinbase(large_factors[s], 2) <= (max_primebits[s] * 2))
 					{
 						nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
+						cf_nauxmpqs++;
 					}
 					else
 					{
@@ -778,9 +837,15 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 #else
 
 				if (mpz_sizeinbase(large_factors[s], 2) > 96)
+				{
 					nf = mpqs3_factor(large_factors[s], max_primebits[s], &fac);
+					cf_nauxmpqs3++;
+				}
 				else
+				{
 					nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
+					cf_nauxmpqs++;
+				}
 #endif
 
 				
@@ -796,7 +861,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 
 #endif
 
-			if (nf < 0)return-2;
+			if (nf < 0)return nf;
 			if (!nf)return 1;
 			for (i = 0; i < nf; i++)
 				mpz_set(large_primes[s][nlp[s] + i], fac[i]);

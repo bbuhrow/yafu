@@ -21,7 +21,7 @@
 # but ulong is set to 8 bytes in siever_config.h when compiling lasieve.  Changing the siever_config
 # definition breaks the montgomery asm code.  An easier solution is to set the following new definition:
 # BITS_PER_GMP_ULONG, and a few relevant lines of code in mpz-ull.c
-CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/mingw/include -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
+#CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/mingw/include -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
 
 
 
@@ -32,7 +32,7 @@ CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/mingw/include
 #CFLAGS= -O1 -g -march=native -I/Users/searle/progs/ensc-dependencies/include
 
 #linux
-#CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/6.2.1/include -fcommon
+CFLAGS= -m64 -g -Ofast -march=native -I. -I../../../../gmp-install/6.2.0-gcc/include -fcommon
 
 include ../paths
 

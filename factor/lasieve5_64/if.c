@@ -173,30 +173,30 @@ boinc_finish(1);
 #line 267 "if.w"
 
 #define NEW_NUMBER -0x10000
-void logbook(int l,char*fmt,...)
+void logbook(int l, char* fmt, ...)
 {
-if(l==NEW_NUMBER){
-used_cols= 0;
-return;
-}
-if(l<verbose){
-va_list arglist;
-char*output_str;
-unsigned int sl;
-va_start(arglist,fmt);
-vasprintf(&output_str,fmt,arglist);
-sl= strlen(output_str);
-if(used_cols+sl> ncol){
-fprintf(stderr,"\n");
-if(logfile!=NULL)fprintf(logfile,"\n");
-used_cols= 0;
-}
-fputs(output_str,stderr);
-if(logfile!=NULL)fputs(output_str,logfile);
-if(output_str[sl-1]=='\n')used_cols= 0;
-else used_cols+= sl;
-free(output_str);
-}
+    if (l == NEW_NUMBER) {
+        used_cols = 0;
+        return;
+    }
+    if (l < verbose) {
+        va_list arglist;
+        char* output_str;
+        unsigned int sl;
+        va_start(arglist, fmt);
+        vasprintf(&output_str, fmt, arglist);
+        sl = strlen(output_str);
+        if (used_cols + sl > ncol) {
+            fprintf(stderr, "\n");
+            if (logfile != NULL)fprintf(logfile, "\n");
+            used_cols = 0;
+        }
+        fputs(output_str, stderr);
+        if (logfile != NULL)fputs(output_str, logfile);
+        if (output_str[sl - 1] == '\n')used_cols = 0;
+        else used_cols += sl;
+        free(output_str);
+    }
 }
 
 /*:9*//*10:*/
