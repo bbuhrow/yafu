@@ -72,7 +72,7 @@
 #include <signal.h> 
 #include <setjmp.h> 
 
-#include "athlon64/siever-config.h"
+#include "asm/siever-config.h"
 #ifndef TDS_MPQS
 #define TDS_MPQS TDS_SPECIAL_Q
 #endif
@@ -92,8 +92,8 @@
 
 #include "if.h"
 #include "primgen32.h"
-#include "athlon64/32bit.h"
-#include "athlon64/64bit.h"
+#include "asm/32bit.h"
+#include "asm/64bit.h"
 #include "redu2.h"
 #include "recurrence6.h"
 #include "fbgen.h"
