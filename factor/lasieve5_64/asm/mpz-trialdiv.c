@@ -57,8 +57,11 @@ mpz_trialdiv(mpz_t N,u32_t *pbuf,u32_t ncp,char *errmsg)
     x=2*x-p*x*x;
     r=mpz_asm_td(p,x,lbuf,nlimb);
     if(r!=0) {
-      if(errmsg != NULL)
-	Schlendrian("%s : %u does not divide\n",errmsg,pbuf[i]);
+        if (errmsg != NULL)
+        {
+            //Schlendrian("%s : %u does not divide\n", errmsg, pbuf[i]);
+            printf("%s : %u does not divide\n", errmsg, pbuf[i]);
+        }
       memcpy(lbuf,N[0]._mp_d,nlimb*sizeof(*lbuf));
       continue;
     }

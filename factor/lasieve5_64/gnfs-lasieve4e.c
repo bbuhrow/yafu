@@ -4635,7 +4635,7 @@ nss+= n_strips;
             break;
         }
 
-tNow= sTime();
+        tNow= sTime();
         if (1) { //tNow > lastReport + 5.0) {
             lastReport = tNow;
 #ifdef HAVE_BOINC
@@ -5590,60 +5590,62 @@ nzss[2]++;
 
 #else
 #line 4334 "gnfs-lasieve4e.w"
-    for (x = smalltdsieve_auxbound;
-        x < smallsieve_auxbound[side][4]; x = x + 4) {
-        u32_t p, r, pr;
-        unsigned char* y;
 
-        p = x[0];
-        pr = x[1];
-        r = x[3];
-        modulo32 = p;
-        for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-            unsigned char* yy, * yy_ub;
+        for (x = smalltdsieve_auxbound;
+            x < smallsieve_auxbound[side][4]; x = x + 4) {
+            u32_t p, r, pr;
+            unsigned char* y;
 
-            yy_ub = y + n_i - 3 * p;
-            yy = y + r;
-            while (yy < yy_ub) {
-                unsigned char o;
-                o = (*yy) | (*(yy + p));
-                yy += 2 * p;
-                if ((o | (*yy) | (*(yy + p))) != 0) {
-                    yy = yy - 2 * p;
-                    if (*yy != 0)
-                        *(tds_fbi_curpos[*yy - 1]++) = p;
-                    if (*(yy + p) != 0)
-                        *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+            p = x[0];
+            pr = x[1];
+            r = x[3];
+            modulo32 = p;
+            for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+                unsigned char* yy, * yy_ub;
+
+                yy_ub = y + n_i - 3 * p;
+                yy = y + r;
+                while (yy < yy_ub) {
+                    unsigned char o;
+                    o = (*yy) | (*(yy + p));
                     yy += 2 * p;
+                    if ((o | (*yy) | (*(yy + p))) != 0) {
+                        yy = yy - 2 * p;
+                        if (*yy != 0)
+                            *(tds_fbi_curpos[*yy - 1]++) = p;
+                        if (*(yy + p) != 0)
+                            *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+                        yy += 2 * p;
+                        if (*yy != 0)
+                            *(tds_fbi_curpos[*yy - 1]++) = p;
+                        if (*(yy + p) != 0)
+                            *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+                    }
+                    yy += 2 * p;
+                }
+                yy_ub += 2 * p;
+                if (yy < yy_ub) {
+                    if (((*yy) | (*(yy + p))) != 0) {
+                        if (*yy != 0)
+                            *(tds_fbi_curpos[*yy - 1]++) = p;
+                        if (*(yy + p) != 0)
+                            *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+                    }
+                    yy += 2 * p;
+                }
+                yy_ub += p;
+                if (yy < yy_ub) {
                     if (*yy != 0)
                         *(tds_fbi_curpos[*yy - 1]++) = p;
-                    if (*(yy + p) != 0)
-                        *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
                 }
-                yy += 2 * p;
+                r = modadd32(r, pr);
             }
-            yy_ub += 2 * p;
-            if (yy < yy_ub) {
-                if (((*yy) | (*(yy + p))) != 0) {
-                    if (*yy != 0)
-                        *(tds_fbi_curpos[*yy - 1]++) = p;
-                    if (*(yy + p) != 0)
-                        *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
-                }
-                yy += 2 * p;
-            }
-            yy_ub += p;
-            if (yy < yy_ub) {
-                if (*yy != 0)
-                    *(tds_fbi_curpos[*yy - 1]++) = p;
-            }
-            r = modadd32(r, pr);
+            x[3] = r;
         }
-        x[3] = r;
-    }
 #endif
 #line 4386 "gnfs-lasieve4e.w"
 #ifdef ASM_TDSLINIE3
+
         if (x < smallsieve_auxbound[side][3]) {
             tdslinie3(x, smallsieve_auxbound[side][3], sieve_interval, tds_fbi_curpos);
             x = smallsieve_auxbound[side][3];
@@ -5651,33 +5653,33 @@ nzss[2]++;
 
 #else
 #line 4392 "gnfs-lasieve4e.w"
-    for (; x < smallsieve_auxbound[side][3]; x = x + 4) {
-        u32_t p, r, pr;
-        unsigned char* y;
+        for (; x < smallsieve_auxbound[side][3]; x = x + 4) {
+            u32_t p, r, pr;
+            unsigned char* y;
 
-        p = x[0];
-        pr = x[1];
-        r = x[3];
-        modulo32 = p;
-        for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-            unsigned char* yy, * yy_ub;
+            p = x[0];
+            pr = x[1];
+            r = x[3];
+            modulo32 = p;
+            for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+                unsigned char* yy, * yy_ub;
 
-            yy_ub = y + n_i;
-            yy = y + r;
-            if (((*yy) | (*(yy + p)) | (*(yy + 2 * p))) != 0) {
-                if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
-                if (*(yy + p) != 0)*(tds_fbi_curpos[*(yy + p) - 1]++) = p;
-                if (*(yy + 2 * p) != 0)*(tds_fbi_curpos[*(yy + 2 * p) - 1]++) = p;
+                yy_ub = y + n_i;
+                yy = y + r;
+                if (((*yy) | (*(yy + p)) | (*(yy + 2 * p))) != 0) {
+                    if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
+                    if (*(yy + p) != 0)*(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+                    if (*(yy + 2 * p) != 0)*(tds_fbi_curpos[*(yy + 2 * p) - 1]++) = p;
+                }
+                yy += 3 * p;
+                if (yy < yy_ub) {
+                    if (*yy != 0)
+                        *(tds_fbi_curpos[*yy - 1]++) = p;
+                }
+                r = modadd32(r, pr);
             }
-            yy += 3 * p;
-            if (yy < yy_ub) {
-                if (*yy != 0)
-                    *(tds_fbi_curpos[*yy - 1]++) = p;
-            }
-            r = modadd32(r, pr);
+            x[3] = r;
         }
-        x[3] = r;
-    }
 #endif
 #line 4420 "gnfs-lasieve4e.w"
 #ifdef ASM_TDSLINIE2
@@ -5688,32 +5690,32 @@ nzss[2]++;
 
 #else
 #line 4426 "gnfs-lasieve4e.w"
-    for (; x < smallsieve_auxbound[side][2]; x = x + 4) {
-        u32_t p, r, pr;
-        unsigned char* y;
+        for (; x < smallsieve_auxbound[side][2]; x = x + 4) {
+            u32_t p, r, pr;
+            unsigned char* y;
 
-        p = x[0];
-        pr = x[1];
-        r = x[3];
-        modulo32 = p;
-        for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-            unsigned char* yy, * yy_ub;
+            p = x[0];
+            pr = x[1];
+            r = x[3];
+            modulo32 = p;
+            for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+                unsigned char* yy, * yy_ub;
 
-            yy_ub = y + n_i;
-            yy = y + r;
-            if (((*yy) | (*(yy + p))) != 0) {
-                if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
-                if (*(yy + p) != 0)*(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+                yy_ub = y + n_i;
+                yy = y + r;
+                if (((*yy) | (*(yy + p))) != 0) {
+                    if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
+                    if (*(yy + p) != 0)*(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+                }
+                yy += 2 * p;
+                if (yy < yy_ub) {
+                    if (*yy != 0)
+                        *(tds_fbi_curpos[*yy - 1]++) = p;
+                }
+                r = modadd32(r, pr);
             }
-            yy += 2 * p;
-            if (yy < yy_ub) {
-                if (*yy != 0)
-                    *(tds_fbi_curpos[*yy - 1]++) = p;
-            }
-            r = modadd32(r, pr);
+            x[3] = r;
         }
-        x[3] = r;
-    }
 #endif
 #line 4453 "gnfs-lasieve4e.w"
 #ifdef ASM_TDSLINIE1
@@ -5724,37 +5726,37 @@ nzss[2]++;
 
 #else
 #line 4459 "gnfs-lasieve4e.w"
-    for (; x < smallsieve_auxbound[side][1]; x = x + 4) {
-        u32_t p, r, pr;
-        unsigned char* y;
+        for (; x < smallsieve_auxbound[side][1]; x = x + 4) {
+            u32_t p, r, pr;
+            unsigned char* y;
 
-        p = x[0];
-        pr = x[1];
-        r = x[3];
-        modulo32 = p;
-        for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-            unsigned char* yy, * yy_ub;
+            p = x[0];
+            pr = x[1];
+            r = x[3];
+            modulo32 = p;
+            for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+                unsigned char* yy, * yy_ub;
 
-            yy_ub = y + n_i;
-            yy = y + r;
-            if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
-            yy += p;
-            if (yy < yy_ub) {
-                if (*yy != 0)
-                    *(tds_fbi_curpos[*yy - 1]++) = p;
+                yy_ub = y + n_i;
+                yy = y + r;
+                if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
+                yy += p;
+                if (yy < yy_ub) {
+                    if (*yy != 0)
+                        *(tds_fbi_curpos[*yy - 1]++) = p;
+                }
+                r = modadd32(r, pr);
             }
-            r = modadd32(r, pr);
+            x[3] = r;
         }
-        x[3] = r;
-    }
 #endif
 #line 4483 "gnfs-lasieve4e.w"
 
 #if defined( ASM_TDSLINIE0) && !defined(AVX512_TDS0)
-    if (x < smallsieve_auxbound[side][0]) {
-        tdslinie0(x, smallsieve_auxbound[side][0], sieve_interval, tds_fbi_curpos);
-        x = smallsieve_auxbound[side][0];
-    }
+        if (x < smallsieve_auxbound[side][0]) {
+            tdslinie0(x, smallsieve_auxbound[side][0], sieve_interval, tds_fbi_curpos);
+            x = smallsieve_auxbound[side][0];
+        }
 #else
 #line 4489 "gnfs-lasieve4e.w"
 
@@ -5892,48 +5894,48 @@ nzss[2]++;
 #if defined(CONTIGUOUS_SMALLSIEVE)
     for (; x < smallsieve_auxbound[side][0]; x = x + 1) {
 #else
-    for (; x < smallsieve_auxbound[side][0]; x = x + 4)
-    {
+        for (; x < smallsieve_auxbound[side][0]; x = x + 4)
+        {
 #endif
-        u32_t p, r, pr;
-        unsigned char* y;
+            u32_t p, r, pr;
+            unsigned char* y;
 
 #if defined(CONTIGUOUS_SMALLSIEVE)
         p = x[0];
         pr = x[1 * fbis[side]];
         r = x[3 * fbis[side]];
 #else
-        p = x[0];
-        pr = x[1];
-        r = x[3];
+            p = x[0];
+            pr = x[1];
+            r = x[3];
 #endif
-        modulo32 = p;
-        for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-            unsigned char* yy, * yy_ub;
+            modulo32 = p;
+            for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+                unsigned char* yy, * yy_ub;
 
-            yy_ub = y + n_i;
-            yy = y + r;
-            if (yy < yy_ub) {
-                if (*yy != 0)
-                    *(tds_fbi_curpos[*yy - 1]++) = p;
+                yy_ub = y + n_i;
+                yy = y + r;
+                if (yy < yy_ub) {
+                    if (*yy != 0)
+                        *(tds_fbi_curpos[*yy - 1]++) = p;
+                }
+                r = modadd32(r, pr);
             }
-            r = modadd32(r, pr);
-        }
 #if defined(CONTIGUOUS_SMALLSIEVE)
         x[3 * fbis[side]] = r;
 #else
-        x[3] = r;
+            x[3] = r;
 #endif
-    }
+        }
 
 #endif
 
 #endif
 #line 4511 "gnfs-lasieve4e.w"
 #ifndef NO_TD_CLOCK
-    newclock = clock();
-    tds1_clock[side] += newclock - last_tdclock;
-    last_tdclock = newclock;
+        newclock = clock();
+        tds1_clock[side] += newclock - last_tdclock;
+        last_tdclock = newclock;
 #endif
 #line 4516 "gnfs-lasieve4e.w"
     }
@@ -5942,6 +5944,8 @@ nzss[2]++;
 #line 3982 "gnfs-lasieve4e.w"
 
     last_j= 0;
+    // process each candidate discovered by searching
+    // the sieve region for smooths
     for (ci = 0, nc1 = 0; ci < ncand; ci++) 
     {
         u32_t* fbp_buf;
@@ -5950,33 +5954,36 @@ nzss[2]++;
         i32_t true_i;
 
         u32_t coll;
+
     /*120:*/
 #line 3919 "gnfs-lasieve4e.w"
 
-    {
-        u16_t jj;
+        {
+            u16_t jj;
 
-        strip_j = cand[ci] >> i_bits;
-        jj = j_offset + strip_j;
-        strip_i = cand[ci] & (n_i - 1);
-        st_i = 2 * strip_i + (oddness_type == 2 ? 0 : 1);
-        true_j = 2 * jj + (oddness_type == 1 ? 0 : 1);
-    }
+            strip_j = cand[ci] >> i_bits;
+            jj = j_offset + strip_j;
+            strip_i = cand[ci] & (n_i - 1);
+            st_i = 2 * strip_i + (oddness_type == 2 ? 0 : 1);
+            true_j = 2 * jj + (oddness_type == 1 ? 0 : 1);
+        }
 
     /*:120*/
 #line 3991 "gnfs-lasieve4e.w"
 
-    if (strip_j != last_j) {
-        u16_t j_step;
-        if (strip_j <= last_j)
-            Schlendrian("TD: Not sorted\n");
-        j_step = strip_j - last_j;
-        last_j = strip_j;
+        if (strip_j != last_j) {
+            u16_t j_step;
+            if (strip_j <= last_j)
+                Schlendrian("TD: Not sorted\n");
+            j_step = strip_j - last_j;
+            last_j = strip_j;
+
+
         /*134:*/
 #line 4520 "gnfs-lasieve4e.w"
 
 #ifdef MMX_TD
-        MMX_TdUpdate(side, j_step);
+            MMX_TdUpdate(side, j_step);
 #else
 #line 4524 "gnfs-lasieve4e.w"
         {
@@ -5992,47 +5999,48 @@ nzss[2]++;
         }
 #endif
 #line 4536 "gnfs-lasieve4e.w"
-        {
-            u16_t* x;
 
-            for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub[side]; x += 3) {
-                modulo32 = x[0];
-                x[2] = modsub32(x[2], (j_step) % modulo32);
+            {
+                u16_t* x;
+
+                for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub[side]; x += 3) {
+                    modulo32 = x[0];
+                    x[2] = modsub32(x[2], (j_step) % modulo32);
+                }
             }
-        }
 
         /*:134*/
 #line 3998 "gnfs-lasieve4e.w"
 
-    }
+        }
 
 
-    true_i = (i32_t)st_i - (i32_t)i_shift;
+        true_i = (i32_t)st_i - (i32_t)i_shift;
     /*135:*/
 #line 4545 "gnfs-lasieve4e.w"
 
-    mpz_set_si(aux1, true_i);
-    mpz_mul_si(aux1, aux1, a0);
-    mpz_set_si(aux2, a1);
-    mpz_mul_ui(aux2, aux2, (u32_t)true_j);
-    mpz_add(sr_a, aux1, aux2);
+        mpz_set_si(aux1, true_i);
+        mpz_mul_si(aux1, aux1, a0);
+        mpz_set_si(aux2, a1);
+        mpz_mul_ui(aux2, aux2, (u32_t)true_j);
+        mpz_add(sr_a, aux1, aux2);
 
     /*:135*//*136:*/
 #line 4554 "gnfs-lasieve4e.w"
 
-    mpz_set_si(aux1, true_i);
-    mpz_mul_si(aux1, aux1, b0);
-    mpz_set_si(aux2, b1);
-    mpz_mul_ui(aux2, aux2, (u32_t)true_j);
-    mpz_add(sr_b, aux1, aux2);
+        mpz_set_si(aux1, true_i);
+        mpz_mul_si(aux1, aux1, b0);
+        mpz_set_si(aux2, b1);
+        mpz_mul_ui(aux2, aux2, (u32_t)true_j);
+        mpz_add(sr_b, aux1, aux2);
 
     /*:136*//*137:*/
 #line 4562 "gnfs-lasieve4e.w"
 
-    if (mpz_sgn(sr_b) < 0) {
-        mpz_neg(sr_b, sr_b);
-        mpz_neg(sr_a, sr_a);
-    }
+        if (mpz_sgn(sr_b) < 0) {
+            mpz_neg(sr_b, sr_b);
+            mpz_neg(sr_a, sr_a);
+        }
 
     /*:137*/
 #line 4001 "gnfs-lasieve4e.w"
@@ -6040,56 +6048,56 @@ nzss[2]++;
 /*138:*/
 #line 4569 "gnfs-lasieve4e.w"
 
-    {
-        u32_t i;
-        i = 1;
-        mpz_set(aux2, sr_a);
-        mpz_set(aux1, poly[side][0]);
-        for (;;) {
+        {
+            u32_t i;
+            i = 1;
+            mpz_set(aux2, sr_a);
+            mpz_set(aux1, poly[side][0]);
+            for (;;) {
 
-            mpz_mul(aux1, aux1, sr_b);
-            mpz_mul(aux3, aux2, poly[side][i]);
-            mpz_add(aux1, aux1, aux3);
-            if (++i > poldeg[side])break;
+                mpz_mul(aux1, aux1, sr_b);
+                mpz_mul(aux3, aux2, poly[side][i]);
+                mpz_add(aux1, aux1, aux3);
+                if (++i > poldeg[side])break;
 
-            mpz_mul(aux2, aux2, sr_a);
+                mpz_mul(aux2, aux2, sr_a);
+            }
         }
-    }
 
     /*:138*/
 #line 4002 "gnfs-lasieve4e.w"
 
-    if (td_buf_alloc[side] < nfbp + mpz_sizeinbase(aux1, 2)) {
+        if (td_buf_alloc[side] < nfbp + mpz_sizeinbase(aux1, 2)) {
 
-        td_buf_alloc[side] += 1024;
-        while (td_buf_alloc[side] < nfbp + mpz_sizeinbase(aux1, 2)) {
             td_buf_alloc[side] += 1024;
-        }
-        td_buf[side] = xrealloc(td_buf[side], td_buf_alloc[side] * sizeof(**td_buf));
-        if (side == first_td_side) {
-            u32_t i, * oldptr;
+            while (td_buf_alloc[side] < nfbp + mpz_sizeinbase(aux1, 2)) {
+                td_buf_alloc[side] += 1024;
+            }
+            td_buf[side] = xrealloc(td_buf[side], td_buf_alloc[side] * sizeof(**td_buf));
+            if (side == first_td_side) {
+                u32_t i, * oldptr;
 
-            oldptr = td_buf1[0];
-            for (i = 0; i <= nc1; i++)
-                td_buf1[i] = td_buf[side] + (td_buf1[i] - oldptr);
+                oldptr = td_buf1[0];
+                for (i = 0; i <= nc1; i++)
+                    td_buf1[i] = td_buf[side] + (td_buf1[i] - oldptr);
+            }
         }
-    }
 
-    if (side == first_td_side)fbp_buf = td_buf1[nc1];
-    else fbp_buf = td_buf[side];
-    fbp_ptr = fbp_buf;
+        if (side == first_td_side)fbp_buf = td_buf1[nc1];
+        else fbp_buf = td_buf[side];
+        fbp_ptr = fbp_buf;
 
     /*139:*/
 #line 4587 "gnfs-lasieve4e.w"
 
-    {
-        int np, x;
+        {
+            int np, x;
 
-        x = fss_sv[ci];
-        np = tds_fbi_curpos[x] - tds_fbi[x];
-        memcpy(fbp_ptr, tds_fbi[x], np * sizeof(*fbp_ptr));
-        fbp_ptr += np;
-    }
+            x = fss_sv[ci];
+            np = tds_fbi_curpos[x] - tds_fbi[x];
+            memcpy(fbp_ptr, tds_fbi[x], np * sizeof(*fbp_ptr));
+            fbp_ptr += np;
+        }
 
     /*:139*/
 #line 4021 "gnfs-lasieve4e.w"
@@ -6097,8 +6105,8 @@ nzss[2]++;
 /*140:*/
 #line 4598 "gnfs-lasieve4e.w"
 
-    {
-        u16_t* x;
+        {
+            u16_t* x;
 
 #ifndef MMX_TD
 #ifdef PREINVERT
@@ -6136,16 +6144,17 @@ nzss[2]++;
 #line 4615 "gnfs-lasieve4e.w"
 #else
 #line 4616 "gnfs-lasieve4e.w"
-        fbp_ptr = MMX_Td(fbp_ptr, side, strip_i);
+        
+            fbp_ptr = MMX_Td(fbp_ptr, side, strip_i);
 #endif
 #line 4618 "gnfs-lasieve4e.w"
 
-        for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub_pow1[side]; x += 3) {
-            if (x[2] == 0) {
-                *(fbp_ptr++) = *x;
+            for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub_pow1[side]; x += 3) {
+                if (x[2] == 0) {
+                    *(fbp_ptr++) = *x;
+                }
             }
         }
-    }
 
     /*:140*/
 #line 4022 "gnfs-lasieve4e.w"
@@ -6153,10 +6162,10 @@ nzss[2]++;
 /*142:*/
 #line 4642 "gnfs-lasieve4e.w"
 
-    if (side == special_q_side) {
-        if (special_q < U32_MAX)
-            *(fbp_ptr++) = special_q;
-    }
+        if (side == special_q_side) {
+            if (special_q < U32_MAX)
+                *(fbp_ptr++) = special_q;
+        }
 
     /*:142*/
 #line 4023 "gnfs-lasieve4e.w"
@@ -6164,8 +6173,10 @@ nzss[2]++;
 /*143:*/
 #line 4649 "gnfs-lasieve4e.w"
 
-    fbp_ptr = mpz_trialdiv(aux1, fbp_buf, fbp_ptr - fbp_buf,
-        tds_coll[fss_sv[ci]] == 0 ? "td error" : NULL);
+        // aux1 holds the value of the polynomial on the current side
+        fbp_ptr = mpz_trialdiv(aux1, fbp_buf, fbp_ptr - fbp_buf,
+            tds_coll[fss_sv[ci]] == 0 ? "td error" : NULL);
+
 
     /*:143*/
 #line 4024 "gnfs-lasieve4e.w"
@@ -6173,15 +6184,15 @@ nzss[2]++;
 /*144:*/
 #line 4656 "gnfs-lasieve4e.w"
 
-    if (side == special_q_side) {
-        if (special_q >> 32) {
-            mpz_set_ull(aux3, special_q);
-            mpz_fdiv_qr(aux2, aux3, aux1, aux3);
-            if (mpz_sgn(aux3))
-                Schlendrian("Special q divisor does not divide value of polynomial\n");
-            mpz_set(aux1, aux2);
+        if (side == special_q_side) {
+            if (special_q >> 32) {
+                mpz_set_ull(aux3, special_q);
+                mpz_fdiv_qr(aux2, aux3, aux1, aux3);
+                if (mpz_sgn(aux3))
+                    Schlendrian("Special q divisor does not divide value of polynomial\n");
+                mpz_set(aux1, aux2);
+            }
         }
-    }
 
     /*:144*/
 #line 4025 "gnfs-lasieve4e.w"
@@ -6189,20 +6200,21 @@ nzss[2]++;
 /*145:*/
 #line 4669 "gnfs-lasieve4e.w"
 
-    if (mpz_sizeinbase(aux1, 2) <= max_factorbits[side]) 
-    {
-        n_tdsurvivors[side]++;
-        if (side == first_td_side) {
-            if (mpz_sgn(aux1) > 0)
-                mpz_set(td_rests[nc1], aux1);
-            else
-                mpz_neg(td_rests[nc1], aux1);
-            cand[nc1++] = cand[ci];
-            td_buf1[nc1] = fbp_ptr;
-            nfbp = fbp_ptr - td_buf[side];
-            continue;
-        }
-        if (mpz_sgn(aux1) < 0)mpz_neg(aux1, aux1);
+        if (mpz_sizeinbase(aux1, 2) <= max_factorbits[side]) 
+        {
+            n_tdsurvivors[side]++;
+            if (side == first_td_side) {
+                if (mpz_sgn(aux1) > 0)
+                    mpz_set(td_rests[nc1], aux1);
+                else
+                    mpz_neg(td_rests[nc1], aux1);
+                cand[nc1++] = cand[ci];
+                td_buf1[nc1] = fbp_ptr;
+                nfbp = fbp_ptr - td_buf[side];
+                continue;
+            }
+            if (mpz_sgn(aux1) < 0)mpz_neg(aux1, aux1);
+
 #if TDS_MPQS == TDS_IMMEDIATELY
         output_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
             td_rests[ci], aux1);
@@ -6210,13 +6222,15 @@ nzss[2]++;
 
 #line 4687 "gnfs-lasieve4e.w"
 #if TDS_PRIMALITY_TEST == TDS_IMMEDIATELY
-        mpz_set(large_factors[first_td_side], td_rests[ci]);
-        mpz_set(large_factors[1 - first_td_side], aux1);
-        if (primality_tests() == 1) {
-            store_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
-                large_factors[first_td_side],
-                large_factors[1 - first_td_side]);
-        }
+
+            mpz_set(large_factors[first_td_side], td_rests[ci]);
+            mpz_set(large_factors[1 - first_td_side], aux1);
+            if (primality_tests() == 1) {
+                store_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
+                    large_factors[first_td_side],
+                    large_factors[1 - first_td_side]);
+            }
+
 #else
 #line 4696 "gnfs-lasieve4e.w"
         store_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
@@ -6329,7 +6343,11 @@ mpz_trialdiv(mpz_t N, u32_t* pbuf, u32_t ncp, char* errmsg)
     if (errmsg != NULL) {
         for (i = 0, np = 0; i < ncp; i++) {
             if (mpz_fdiv_q_ui(N, N, pbuf[i]) != 0)
-                Schlendrian("%s : %u does not divide\n", errmsg, pbuf[i]);
+            {
+                //Schlendrian("%s : %u does not divide\n", errmsg, pbuf[i]);
+                printf("warning! %s : %u does not divide\n", errmsg, pbuf[i]);
+                continue;
+            }
             pbuf[np++] = pbuf[i];
         }
     }
