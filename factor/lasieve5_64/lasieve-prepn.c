@@ -455,6 +455,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 					if (m1 > 0)
 					{
+						// if a proot == p (rare), fall back to unvectorized code
+						// to handle it.
 						int ii;
 						for (ii = 0; ii < 16; ii++)
 						{
@@ -473,19 +475,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, vabsa0, t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -601,19 +607,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, _mm512_set1_epi32(absa0), t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_set1_epi32(absa1), m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -762,19 +772,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, vabsa0, t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -885,19 +899,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, _mm512_set1_epi32(absa0), t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_sub_epi32(m32, _mm512_set1_epi32(absa1)), m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -1052,19 +1070,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, vabsa0, t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -1176,19 +1198,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, _mm512_sub_epi32(m32, _mm512_set1_epi32(absa0)), t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_set1_epi32(absa1), m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -1338,19 +1364,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, vabsa0, t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
@@ -1464,19 +1494,23 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_loadu_si512(xm);
 					}
 
-					// else
+					// else:
+					// most of the time there will be no proots == 0, but
+					// when there are, mask them so we don't overwrite 
+					// the computation above.
 					m1 = ~m1;
 					{
 						__m512i t = zero;
 						t = modmul32_16(t, m1, pr, vb0, m32);
 						x = modsub32_16(x, m1, _mm512_sub_epi32(m32, _mm512_set1_epi32(absa0)), t, m32);
 						__mmask16 m2 = _mm512_cmpgt_epu32_mask(x, zero);
+						__mmask16 m1_nonzero = m1;
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_sub_epi32(m32, _mm512_set1_epi32(absa1)), m32);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
-						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
+						x = _mm512_mask_mov_epi32(x, m1_nonzero & ~m2, m32);
 					}
 
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
