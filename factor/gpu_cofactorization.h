@@ -1,12 +1,37 @@
+/*
+MIT License
+
+Copyright (c) 2026 Ben Buhrow
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #pragma once
 #include <stdint.h>
 #include "batch_factor.h"
 #include "cuda_xface.h"
+#include "cofactorize.h"
 
-// #ifdef _MSC_VER
-// // so I can browse the code in visual studio
-// #define HAVE_CUDA
-// #endif
+#ifdef _MSC_VER
+// so I can browse the code in visual studio
+#define HAVE_CUDA_BATCH_FACTOR
+#endif
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 typedef struct {
@@ -29,14 +54,15 @@ typedef struct {
 	int lpb_2lp;
 	int lpb_3lp;
 	int first_side;			// first side is the 2LP side, so we
-							// can skip some of the more expensive 3LPs
-	uint32_t b1_2lp;		
+	// can skip some of the more expensive 3LPs
+	uint32_t b1_2lp;
 	uint32_t b2_2lp;
 	uint32_t curves_2lp;
 	uint32_t b1_3lp;
 	uint32_t b2_3lp;
 	uint32_t curves_3lp;
 	uint32_t stop_nofactor;
+	tiny_qs_params* params;
 
 	// threads need their own context and stream
 	CUcontext gpu_context;
@@ -99,13 +125,13 @@ typedef struct {
 } device_thread_ctx_t;
 
 // create and destroy gpu context info
-device_ctx_t* gpu_device_init(int which_gpu);
-device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t* rb);
+device_ctx_t* gpu_device_init(int which_gpu, int verbose);
+device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d);
 void gpu_dev_free(device_ctx_t* d);
 void gpu_ctx_free(device_thread_ctx_t* t);
 
 // do gpu cofactorization work
-int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t* lcg,
+int do_gpu_cofactorization(device_thread_ctx_t* t, relation_batch_t* rb, uint64_t* lcg,
 	int b1_3lp_ovr, int b2_3lp_ovr, int b1_2lp_ovr, int b2_2lp_ovr,
 	int curves_3lp_ovr, int curves_2lp_ovr);
 

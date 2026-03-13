@@ -2395,7 +2395,7 @@ void* process_poly(void* vptr)
                                     sconf->tlp_useful + dconf->tlp_useful;
 
                                 printf("tid %d: %u full, (%u,%u,%u) lp, "
-                                    "(%1.1f%c raw-GCD), B = %u of %u, (%1.2f r/sec) \r",
+                                    "(%1.1f%c raw), B = %u of %u, (%1.2f r/sec) \r",
                                     tdata->tindex,
                                     sconf->num_full + dconf->num_full, sconf->num_slp + dconf->num_slp,
                                     sconf->dlp_useful + dconf->dlp_useful,
@@ -2413,7 +2413,7 @@ void* process_poly(void* vptr)
                                     sconf->qlp_useful + dconf->qlp_useful;
 
                                 printf("tid %d: %u full, (%u,%u,%u,%u) lp, "
-                                    "(%1.1f%c raw-GCD), B = %u of %u, (%1.2f r/sec) \r",
+                                    "(%1.1f%c raw), B = %u of %u, (%1.2f r/sec) \r",
                                     tdata->tindex, 
                                     sconf->num_full + dconf->num_full, sconf->num_slp + dconf->num_slp,
                                     sconf->dlp_useful + dconf->dlp_useful,
@@ -3528,7 +3528,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->do_batch = 1;
         relation_batch_init(NULL, &dconf->rb, sconf->pmax, 
             pmax, sconf->large_prime_max, sconf->large_prime_max,
-            NULL, 0);
+            NULL, 0, 0);
 
         dconf->batch_run_override = 0;
     }
@@ -4501,17 +4501,40 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         uint32_t memuse = 0;
         struct timeval locstart, locstop;
 
+        // create a relation batch for each thread.
         sconf->rb = (relation_batch_t *)xmalloc(obj->THREADS * sizeof(relation_batch_t));
         sconf->num_alloc_rb = obj->THREADS;
         sconf->num_active_rb = 0;
         memuse += obj->THREADS * sizeof(relation_batch_t);
 
-        //relation_batch_init(stdout, &sconf->rb, sconf->pmax, sconf->large_prime_max,
-        //    sconf->large_prime_max, sconf->large_prime_max, NULL, (print_relation_t)NULL, 1);
+#ifdef HAVE_CUDA_BATCH_FACTOR
 
-        // compute the product of primes only with one thread.
+        // create a device context with the specified gpu.
+        sconf->which_gpu = 0;       // todo: get from cmdline options
+        sconf->gpu_dev_ctx = gpu_device_init(sconf->which_gpu, obj->VFLAG > 0);
+
+        // still need to initialize the relation batch, but there
+        // is no prime product
+        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, pmax,
+            sconf->large_prime_max, sconf->large_prime_max, NULL, 0, 0);
+        memuse += sconf->rb[0].num_relations_alloc * sizeof(cofactor_t);
+        memuse += sconf->rb[0].num_factors_alloc * sizeof(uint32_t);
+
+#else
+        // compute the product of primes only with one thread.  All threads will
+        // use this one instance of the product.
         gettimeofday(&locstart, NULL);
 
+        // compute the largest prime to use in the prime product.
+        // this value should be carefully chosen to maximize splitting of 
+        // cofactors with the GCD.  Too large, and too many of the cofactors
+        // will have all factors inside the GCD and will need to be processed
+        // with 128-bit ecm or mpqs.  Too small, and too many of the cofactors
+        // will have no factors inside the GCD and will be discarded.
+        // the default value lpmax / 3 is a decent choice, but can be overrridden by
+        // command line option.
+        
         //uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
         uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         sconf->rb[0].num_uecm[0] = 0;
@@ -4529,7 +4552,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         }
 
         relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, pmax,
-            sconf->large_prime_max, sconf->large_prime_max, NULL, 1);
+            sconf->large_prime_max, sconf->large_prime_max, NULL, 1, 0);
         memuse += sconf->rb[0].num_relations_alloc * sizeof(cofactor_t);
         memuse += sconf->rb[0].num_factors_alloc * sizeof(uint32_t);
         memuse += mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8;
@@ -4539,6 +4562,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         {
             printf("batch init took %1.4f sec\n", ytools_difftime(&locstart, &locstop));
         }
+#endif
 
         sconf->rb[0].target_relations = sconf->obj->qs_obj.gbl_btarget;
 
@@ -4546,16 +4570,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         {
             // allocate space for each thread to buffer relations.
             relation_batch_init(stdout, &sconf->rb[i], sconf->pmax, pmax,
-                sconf->large_prime_max, sconf->large_prime_max, NULL, 0);
+                sconf->large_prime_max, sconf->large_prime_max, NULL, 0, 0);
             memuse += sconf->rb[i].num_relations_alloc * sizeof(cofactor_t);
             memuse += sconf->rb[i].num_factors_alloc * sizeof(uint32_t);
 
-            // copy the prime product from the first thread.
-            // to save memory, we could maybe defer this to when a relation buffer is
-            // first used?  We should only ever need a fraction of the threads
-            // to act a merged relation buffers.
-            //mpz_set(sconf->rb[i].prime_product, sconf->rb[0].prime_product);
-            //memuse += mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8;
+            // the prime product in each dynamic thread is unused.  when
+            // a batch GCD is executed it will refer to the main relation_batch
+            // prime product.
             mpz_set_ui(sconf->rb[i].prime_product, 0);
 
             sconf->rb[i].target_relations = sconf->obj->qs_obj.gbl_btarget;
@@ -4982,7 +5003,7 @@ int update_check(static_conf_t *sconf)
                     if ((sconf->num_lp + NUM_ALP) == 4)
                     {
                         printf("%u full + %u partial from (%u,%u,%u,%u) lp, "
-                            "(%1.1f%c raw-GCD), filt in %u (%1.2f r/sec)\r",
+                            "(%1.1f%c raw), filt in %u (%1.2f r/sec)\r",
                             sconf->num_full, sconf->last_numpartial, sconf->num_slp,
                             sconf->dlp_useful, sconf->tlp_useful, sconf->qlp_useful, 
                             (float)batched, suffix, rels_left,
@@ -4992,7 +5013,7 @@ int update_check(static_conf_t *sconf)
                     else if((sconf->num_lp + NUM_ALP) == 3)
                     {
                         printf("%u full + %u partial from (%u,%u,%u) lp, "
-                            "(%1.1f%c raw-GCD), filt in %u (%1.2f r/sec)\r",
+                            "(%1.1f%c raw), filt in %u (%1.2f r/sec)\r",
                             sconf->num_full, sconf->last_numpartial, sconf->num_slp,
                             sconf->dlp_useful, sconf->tlp_useful, (float)batched, suffix,
                             rels_left,

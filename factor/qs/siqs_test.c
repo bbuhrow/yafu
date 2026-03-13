@@ -179,10 +179,11 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 	{
 		// run MPQS, as the main SIQS doesn't work for smaller inputs
 		int i;
-		mpz_t f1, f2;
+		mpz_t f1, f2, f3;
 
 		mpz_init(f1);
 		mpz_init(f2);
+		mpz_init(f3);
 
 		// we've verified that the input is not even or prime.  also, if
 		// autofactoring is not active then do some very quick trial division 
@@ -213,7 +214,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 
 			// todo: need to define alternate routines if this isn't defined...
 			params = init_tinysiqs();
-			i = tinysiqs(params, fobj->qs_obj.gmp_n, f1, f2);
+			i = tinysiqs(params, fobj->qs_obj.gmp_n, f1, f2, f3, 0);
 			params = free_tinysiqs(params);
 
 			for (j = 0; j < i; j++)
@@ -349,6 +350,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 
 		mpz_clear(f1);
 		mpz_clear(f2);
+		mpz_clear(f3);
 
 		return 1;
 	}

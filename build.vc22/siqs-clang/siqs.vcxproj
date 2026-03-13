@@ -147,7 +147,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c" />
     <ClCompile Include="..\..\factor\qs\filter.c" />
     <ClCompile Include="..\..\factor\qs\large_sieve.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
@@ -165,7 +164,6 @@
     <ClCompile Include="..\..\factor\qs\SIQS.c" />
     <ClCompile Include="..\..\factor\qs\siqs_aux.c" />
     <ClCompile Include="..\..\factor\qs\siqs_test.c" />
-    <ClCompile Include="..\..\factor\qs\smallmpqs.c" />
     <ClCompile Include="..\..\factor\qs\tdiv.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_large.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
@@ -194,7 +192,6 @@
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
-    <ClInclude Include="..\..\include\cofactorize.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\qs_impl.h" />

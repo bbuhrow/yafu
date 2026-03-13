@@ -301,6 +301,7 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
 // searching
 // ============================================================================
 
+    extern int bin_search_uint16(int idp, int idm, uint16_t q, uint16_t* input);
     extern int bin_search_uint32(int idp, int idm, uint32_t q, uint32_t* input);
     extern int bin_search_uint64(int idp, int idm, uint64_t q, uint64_t* input);
 

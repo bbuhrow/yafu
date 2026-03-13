@@ -624,48 +624,77 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     else
                         rb = &sconf->rb[dconf->batch_run_override - 1];
 
-#if 0 //def HAVE_CUDA_BATCH_FACTOR
+#ifdef HAVE_CUDA_BATCH_FACTOR
 
                     gettimeofday(&start, NULL);
 
                     // we must create the thread context here... the cuda context
                     // init method must fold in the current thread info. 
-                    printf("creating gpu cofactorization context in thread %d\n", i);
+                    if (VFLAG > 0)
+                    {
+                        if (THREADS == 1)
+                            printf("creating gpu cofactorization context "
+                                "using batch instance %d\n", 0);
+                        else
+                            printf("creating gpu cofactorization context "
+                                "using batch instance %d\n", dconf->batch_run_override - 1);
+                    }
 
-                    thread_data->gpu_cofactor_ctx =
-                        gpu_ctx_init(thread_data->gpu_dev_ctx, rb);
+                    // create a thread-local gpu context.
+                    device_thread_ctx_t* gpu_cofactor_ctx =
+                        gpu_ctx_init(sconf->gpu_dev_ctx);
 
-                    thread_data->gpu_cofactor_ctx->lpba = thread_data->job.lpba;
-                    thread_data->gpu_cofactor_ctx->lpbr = thread_data->job.lpbr;
-                    thread_data->gpu_cofactor_ctx->mfba = thread_data->job.mfba;
-                    thread_data->gpu_cofactor_ctx->mfbr = thread_data->job.mfbr;
-                    thread_data->gpu_cofactor_ctx->verbose = vflag;
-                    thread_data->gpu_cofactor_ctx->stop_nofactor = 12;
+                    // tlp jobs will typically specify a bit-level LPB, but the
+                    // expanded number is stored here: sconf->large_prime_max
+                    int lpb = 0;
+                    uint64_t lpn = (uint64_t)sconf->large_prime_max;
+                    while (lpn > 1) { lpn >>= 1; lpb++; }
 
-                    printf("commencing gpu cofactorization\n");
-                    do_gpu_cofactorization(thread_data->gpu_cofactor_ctx, &lcg_state,
-                        500, 50, 0, 0, 100, 0);
+                    gpu_cofactor_ctx->lpba = lpb;
+                    gpu_cofactor_ctx->lpbr = lpb;
+                    gpu_cofactor_ctx->verbose = VFLAG;
+                    gpu_cofactor_ctx->stop_nofactor = 12;
+
+                    do_gpu_cofactorization(gpu_cofactor_ctx, rb, &dconf->lcg_state,
+                        300, 50, 0, 0, 100, 0);
 
                     // perhaps we can make the context persistent after we create it 
                     // once in the thread?
-                    gpu_ctx_free(thread_data->gpu_cofactor_ctx);
+                    gpu_ctx_free(gpu_cofactor_ctx);
 
                     gettimeofday(&stop, NULL);
 
                     ttime = ytools_difftime(&start, &stop);
 
-                    if (vflag >= 0)
+                    sconf->rb[0].num_attempt += rb->num_relations;
+                    if ((dconf->batch_run_override - 1) > 0)
                     {
-                        printf("nfs: CUDA cofactorization on %u rels from file "
-                            "%s took %1.4f sec producing %u relations\n",
-                            rb->num_relations, infile, ttime, rb->num_success);
+                        sconf->rb[0].num_success += rb->num_success;
+                    }
+
+                    for (i = 0; i < rb->num_relations; i++)
+                    {
+                        cofactor_t* c = rb->relations + i;
+                        uint32_t* f = rb->factors + c->factor_list_word;
+
+                        if (c->success)
+                        {
+                            c->success = 3;
+                        }
+                    }
+
+                    if (VFLAG > 0)
+                    {
+                        printf("nfs: GPU cofactorization on %u rels took "
+                            "%1.4f sec producing %u tlp's\n",
+                            rb->num_relations, ttime, rb->num_success);
                     }
 
 #else
 
                     if (VFLAG > 0)
                     {
-                        printf("\nnow processing %u relations in batch %d in thread %d\n",
+                        printf("now processing %u relations in batch %d in thread %d\n",
                             rb->num_relations, dconf->batch_run_override, dconf->tid);
 
                         if ((dconf->batch_run_override - 1) > 0)
@@ -686,27 +715,28 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
                     ttime = ytools_difftime(&start, &stop);
 
-                    if (VFLAG > 0)
+                    sconf->rb[0].num_attempt += rb->num_relations;
+                    if ((dconf->batch_run_override - 1) > 0)
+                    {
+                        sconf->rb[0].num_success += rb->num_success;
+                        sconf->rb[0].num_uecm[0] += rb->num_uecm[0];
+                        sconf->rb[0].num_uecm[1] += rb->num_uecm[1];
+                        sconf->rb[0].num_uecm[2] += rb->num_uecm[2];
+                        sconf->rb[0].num_uecm[3] += rb->num_uecm[3];
+                        sconf->rb[0].num_tecm += rb->num_tecm;
+                        sconf->rb[0].num_tecm2 += rb->num_tecm2;
+                        sconf->rb[0].num_qs += rb->num_qs;
+                        for (i = 0; i < 8; i++)
+                        {
+                            sconf->rb[0].num_abort[i] += rb->num_abort[i];
+                        }
+                    }
+
+                    if (VFLAG > 1)
                     {
                         printf("\nrelation_batch_run took %1.4f sec producing %u tlp's\n",
                             ttime, rb->num_success);
 
-                        sconf->rb[0].num_attempt += rb->num_relations;
-                        if ((dconf->batch_run_override - 1) > 0)
-                        {
-                            sconf->rb[0].num_success += rb->num_success;
-                            sconf->rb[0].num_uecm[0] += rb->num_uecm[0];
-                            sconf->rb[0].num_uecm[1] += rb->num_uecm[1];
-                            sconf->rb[0].num_uecm[2] += rb->num_uecm[2];
-                            sconf->rb[0].num_uecm[3] += rb->num_uecm[3];
-                            sconf->rb[0].num_tecm += rb->num_tecm;
-                            sconf->rb[0].num_tecm2 += rb->num_tecm2;
-                            sconf->rb[0].num_qs += rb->num_qs;
-                            for (i = 0; i < 8; i++)
-                            {
-                                sconf->rb[0].num_abort[i] += rb->num_abort[i];
-                            }
-                        }
                         printf("\tattempt: %u\n", sconf->rb[0].num_attempt);
                         printf("\tuecm1/uecm2/uecm3/uecm4/tecm1/tecm2/qs: %u,%u,%u,%u,%u,%u,%u\n",
                             sconf->rb[0].num_uecm[0], sconf->rb[0].num_uecm[1], sconf->rb[0].num_uecm[2],
@@ -749,10 +779,10 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                         }
                     }
 
-                    if (VFLAG > 1)
+                    if (VFLAG > 0)
                     {
-                        printf("done processing batch %d in thread %d, found %u relations\n",
-                            dconf->batch_run_override, dconf->tid, rb->num_success);  
+                        printf("batch %d in thread %d took %1.4f sec and found %u relations\n",
+                            dconf->batch_run_override, dconf->tid, ttime, rb->num_success);
                     }
 
                     // clear the relation batch now that we are done processing it.

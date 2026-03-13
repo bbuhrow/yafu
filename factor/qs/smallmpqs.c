@@ -18,15 +18,17 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "qs.h"
-#include "qs_impl.h"
+#include "smallmpqs.h"
 #include "soe.h"
 #include "ytools.h"
 #include "common.h"
 #include <gmp.h>
+#include "arith.h"
 #include "gmp_xface.h"
+#include <math.h>
 
 #define SM_BLOCKSIZE 16384
+#define RADIX_32 4294967296.0
 
 typedef struct
 {
@@ -91,6 +93,7 @@ typedef struct
 	uint64_t poly_a;
 	uint64_t poly_b;
 	mpz_t poly_c;
+	mpz_t poly_t;
 	uint32_t poly_d;
 	int poly_d_idp;
 	int poly_d_idn;
@@ -122,7 +125,6 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n);
 void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32_t *modsqrt, 
 	smpqs_sieve_fb *fbp, smpqs_sieve_fb *fbn, uint32_t start_prime);
 
-void smpqs_get_more_primes(sm_mpqs_poly *poly, int VFLAG);
 uint8_t smpqs_choose_multiplier(mpz_t n, uint32_t fb_size);
 int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apoly, uint64_t *bpoly,
 			fb_list_sm_mpqs *fb, mpz_t n, int mul, 
@@ -137,7 +139,109 @@ __inline void sm_zcopy(mpz_t src, mpz_t dest)
 void sm_get_params(int bits, uint32_t *B, uint32_t *M, uint32_t *BL);
 int qcomp_smpqs(const void *x, const void *y);
 
-
+#define num_mpqs_p 1000
+uint16_t small_mpqs_p[num_mpqs_p] = {
+2,3,5,7,11,13,17,19,23,29,
+	 31,37,41,43,47,53,59,61,67,71,
+	 73,79,83,89,97,101,103,107,109,113,
+	 127,131,137,139,149,151,157,163,167,173,
+	 179,181,191,193,197,199,211,223,227,229,
+	 233,239,241,251,257,263,269,271,277,281,
+	 283,293,307,311,313,317,331,337,347,349,
+	 353,359,367,373,379,383,389,397,401,409,
+	 419,421,431,433,439,443,449,457,461,463,
+	 467,479,487,491,499,503,509,521,523,541,
+	 547,557,563,569,571,577,587,593,599,601,
+	 607,613,617,619,631,641,643,647,653,659,
+	 661,673,677,683,691,701,709,719,727,733,
+	 739,743,751,757,761,769,773,787,797,809,
+	 811,821,823,827,829,839,853,857,859,863,
+	 877,881,883,887,907,911,919,929,937,941,
+	 947,953,967,971,977,983,991,997,1009,1013,
+	 1019,1021,1031,1033,1039,1049,1051,1061,1063,1069,
+	 1087,1091,1093,1097,1103,1109,1117,1123,1129,1151,
+	 1153,1163,1171,1181,1187,1193,1201,1213,1217,1223,
+	 1229,1231,1237,1249,1259,1277,1279,1283,1289,1291,
+	 1297,1301,1303,1307,1319,1321,1327,1361,1367,1373,
+	 1381,1399,1409,1423,1427,1429,1433,1439,1447,1451,
+	 1453,1459,1471,1481,1483,1487,1489,1493,1499,1511,
+	 1523,1531,1543,1549,1553,1559,1567,1571,1579,1583,
+	 1597,1601,1607,1609,1613,1619,1621,1627,1637,1657,
+	 1663,1667,1669,1693,1697,1699,1709,1721,1723,1733,
+	 1741,1747,1753,1759,1777,1783,1787,1789,1801,1811,
+	 1823,1831,1847,1861,1867,1871,1873,1877,1879,1889,
+	 1901,1907,1913,1931,1933,1949,1951,1973,1979,1987,
+	 1993,1997,1999,2003,2011,2017,2027,2029,2039,2053,
+	 2063,2069,2081,2083,2087,2089,2099,2111,2113,2129,
+	 2131,2137,2141,2143,2153,2161,2179,2203,2207,2213,
+	 2221,2237,2239,2243,2251,2267,2269,2273,2281,2287,
+	 2293,2297,2309,2311,2333,2339,2341,2347,2351,2357,
+	 2371,2377,2381,2383,2389,2393,2399,2411,2417,2423,
+	 2437,2441,2447,2459,2467,2473,2477,2503,2521,2531,
+	 2539,2543,2549,2551,2557,2579,2591,2593,2609,2617,
+	 2621,2633,2647,2657,2659,2663,2671,2677,2683,2687,
+	 2689,2693,2699,2707,2711,2713,2719,2729,2731,2741,
+	 2749,2753,2767,2777,2789,2791,2797,2801,2803,2819,
+	 2833,2837,2843,2851,2857,2861,2879,2887,2897,2903,
+	 2909,2917,2927,2939,2953,2957,2963,2969,2971,2999,
+	 3001,3011,3019,3023,3037,3041,3049,3061,3067,3079,
+	 3083,3089,3109,3119,3121,3137,3163,3167,3169,3181,
+	 3187,3191,3203,3209,3217,3221,3229,3251,3253,3257,
+	 3259,3271,3299,3301,3307,3313,3319,3323,3329,3331,
+	 3343,3347,3359,3361,3371,3373,3389,3391,3407,3413,
+	 3433,3449,3457,3461,3463,3467,3469,3491,3499,3511,
+	 3517,3527,3529,3533,3539,3541,3547,3557,3559,3571,
+	 3581,3583,3593,3607,3613,3617,3623,3631,3637,3643,
+	 3659,3671,3673,3677,3691,3697,3701,3709,3719,3727,
+	 3733,3739,3761,3767,3769,3779,3793,3797,3803,3821,
+	 3823,3833,3847,3851,3853,3863,3877,3881,3889,3907,
+	 3911,3917,3919,3923,3929,3931,3943,3947,3967,3989,
+	 4001,4003,4007,4013,4019,4021,4027,4049,4051,4057,
+	 4073,4079,4091,4093,4099,4111,4127,4129,4133,4139,
+	 4153,4157,4159,4177,4201,4211,4217,4219,4229,4231,
+	 4241,4243,4253,4259,4261,4271,4273,4283,4289,4297,
+	 4327,4337,4339,4349,4357,4363,4373,4391,4397,4409,
+	 4421,4423,4441,4447,4451,4457,4463,4481,4483,4493,
+	 4507,4513,4517,4519,4523,4547,4549,4561,4567,4583,
+	 4591,4597,4603,4621,4637,4639,4643,4649,4651,4657,
+	 4663,4673,4679,4691,4703,4721,4723,4729,4733,4751,
+	 4759,4783,4787,4789,4793,4799,4801,4813,4817,4831,
+	 4861,4871,4877,4889,4903,4909,4919,4931,4933,4937,
+	 4943,4951,4957,4967,4969,4973,4987,4993,4999,5003,
+	 5009,5011,5021,5023,5039,5051,5059,5077,5081,5087,
+	 5099,5101,5107,5113,5119,5147,5153,5167,5171,5179,
+	 5189,5197,5209,5227,5231,5233,5237,5261,5273,5279,
+	 5281,5297,5303,5309,5323,5333,5347,5351,5381,5387,
+	 5393,5399,5407,5413,5417,5419,5431,5437,5441,5443,
+	 5449,5471,5477,5479,5483,5501,5503,5507,5519,5521,
+	 5527,5531,5557,5563,5569,5573,5581,5591,5623,5639,
+	 5641,5647,5651,5653,5657,5659,5669,5683,5689,5693,
+	 5701,5711,5717,5737,5741,5743,5749,5779,5783,5791,
+	 5801,5807,5813,5821,5827,5839,5843,5849,5851,5857,
+	 5861,5867,5869,5879,5881,5897,5903,5923,5927,5939,
+	 5953,5981,5987,6007,6011,6029,6037,6043,6047,6053,
+	 6067,6073,6079,6089,6091,6101,6113,6121,6131,6133,
+	 6143,6151,6163,6173,6197,6199,6203,6211,6217,6221,
+	 6229,6247,6257,6263,6269,6271,6277,6287,6299,6301,
+	 6311,6317,6323,6329,6337,6343,6353,6359,6361,6367,
+	 6373,6379,6389,6397,6421,6427,6449,6451,6469,6473,
+	 6481,6491,6521,6529,6547,6551,6553,6563,6569,6571,
+	 6577,6581,6599,6607,6619,6637,6653,6659,6661,6673,
+	 6679,6689,6691,6701,6703,6709,6719,6733,6737,6761,
+	 6763,6779,6781,6791,6793,6803,6823,6827,6829,6833,
+	 6841,6857,6863,6869,6871,6883,6899,6907,6911,6917,
+	 6947,6949,6959,6961,6967,6971,6977,6983,6991,6997,
+	 7001,7013,7019,7027,7039,7043,7057,7069,7079,7103,
+	 7109,7121,7127,7129,7151,7159,7177,7187,7193,7207,
+	 7211,7213,7219,7229,7237,7243,7247,7253,7283,7297,
+	 7307,7309,7321,7331,7333,7349,7351,7369,7393,7411,
+	 7417,7433,7451,7457,7459,7477,7481,7487,7489,7499,
+	 7507,7517,7523,7529,7537,7541,7547,7549,7559,7561,
+	 7573,7577,7583,7589,7591,7603,7607,7621,7639,7643,
+	 7649,7669,7673,7681,7687,7691,7699,7703,7717,7723,
+	 7727,7741,7753,7757,7759,7789,7793,7817,7823,7829,
+	 7841,7853,7867,7873,7877,7879,7883,7901,7907,7919
+	 };
 
 uint32_t small_inv_tab[1000][3] = { { 2147483648, 1, 1 },
 { 1431655765, 1, 2 },
@@ -1140,11 +1244,6 @@ uint32_t small_inv_tab[1000][3] = { { 2147483648, 1, 1 },
 { 139055473, 1, 13 },
 { 138844757, 0, 13 }};
 
-
-
-
-
-
 uint8_t small_sqrt_tab[54][256] = { { 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 { 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 { 0, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -1200,11 +1299,9 @@ uint8_t small_sqrt_tab[54][256] = { { 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 { 0, 1, 22, 56, 2, 103, 27, 0, 44, 3, 97, 0, 112, 0, 0, 16, 4, 0, 66, 0, 35, 0, 0, 0, 54, 5, 0, 73, 0, 92, 111, 0, 88, 0, 0, 0, 6, 0, 0, 0, 47, 102, 0, 0, 0, 68, 0, 23, 17, 7, 110, 0, 0, 52, 81, 0, 0, 0, 96, 78, 32, 28, 0, 0, 8, 0, 0, 84, 0, 0, 0, 0, 109, 0, 0, 39, 0, 42, 0, 101, 70, 9, 75, 18, 0, 0, 0, 91, 0, 0, 50, 36, 0, 0, 24, 0, 108, 45, 87, 0, 10, 0, 0, 0, 0, 0, 61, 59, 95, 0, 0, 0, 0, 63, 0, 0, 57, 0, 29, 100, 19, 11, 107, 72, 0, 33, 0, 0, 65, 0, 0, 0, 0, 55, 80, 48, 0, 0, 0, 0, 0, 83, 0, 25, 12, 77, 0, 90, 0, 0, 106, 67, 0, 0, 40, 0, 0, 0, 53, 20, 94, 99, 43, 0, 37, 0, 86, 0, 0, 13, 0, 0, 0, 0, 74, 0, 0, 30, 0, 0, 105, 120, 69, 119, 0, 0, 0, 118, 46, 0, 0, 51, 34, 117, 26, 0, 14, 0, 0, 0, 21, 116, 0, 0, 0, 98, 0, 0, 0, 89, 0, 115, 104, 0, 93, 0, 79, 82, 0, 0, 0, 71, 0, 114, 0, 15, 60, 0, 0, 62, 0, 58, 49, 76, 0, 41, 85, 113, 31, 38, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 { 0, 1, 0, 76, 2, 16, 0, 42, 0, 3, 0, 0, 99, 55, 0, 39, 4, 45, 0, 0, 32, 71, 111, 104, 0, 5, 0, 23, 84, 0, 0, 28, 0, 0, 0, 81, 6, 0, 17, 87, 0, 36, 0, 0, 0, 48, 0, 0, 53, 7, 0, 94, 110, 0, 0, 0, 0, 0, 73, 0, 78, 0, 0, 125, 8, 124, 98, 103, 90, 123, 0, 0, 0, 18, 24, 122, 0, 0, 0, 62, 64, 9, 0, 121, 109, 33, 60, 0, 29, 66, 0, 51, 43, 120, 40, 0, 0, 0, 0, 0, 10, 58, 0, 75, 0, 119, 68, 0, 46, 0, 19, 0, 83, 102, 37, 93, 0, 86, 108, 118, 0, 11, 97, 25, 56, 80, 0, 0, 0, 0, 0, 70, 0, 0, 0, 117, 0, 0, 0, 0, 89, 0, 49, 0, 12, 0, 0, 30, 0, 20, 0, 0, 34, 116, 107, 54, 77, 0, 0, 0, 0, 101, 0, 0, 72, 0, 0, 0, 0, 13, 0, 0, 0, 115, 26, 41, 0, 0, 0, 44, 96, 92, 0, 0, 0, 0, 0, 0, 0, 38, 21, 0, 106, 0, 52, 114, 14, 85, 82, 0, 0, 47, 0, 0, 63, 74, 0, 61, 31, 65, 0, 100, 0, 0, 88, 0, 0, 79, 59, 113, 0, 35, 67, 0, 0, 15, 0, 27, 0, 0, 0, 0, 105, 22, 0, 0, 0, 57, 0, 0, 95, 50, 0, 69, 0, 112, 0, 0, 0, 91, 0, 0, 0, 0, 0, 0 } };
 
-
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC)
 	#define SM_SCAN_CLEAN __asm__ volatile("emms");	
 	#define SM_SIMD_SIEVE_SCAN_VEC 1
-
 
 uint32_t mulredc32(uint32_t x, uint32_t y, uint32_t n, uint32_t nhat)
 {
@@ -1235,7 +1332,6 @@ uint32_t u32div(uint32_t c, uint32_t n)
 
     return n;
 }
-
 
 #ifdef USE_AVX2
 
@@ -1468,9 +1564,6 @@ uint32_t u32div(uint32_t c, uint32_t n)
 #endif
 #define SM_SCAN_MASK 0x8080808080808080ULL
 
-//uint64_t total_locs;
-//uint64_t td_locs;
-
 sm_mpqs_params sm_sieve_params;
 #define SM_MAX_SMOOTH_PRIMES 100
 
@@ -1493,7 +1586,7 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
 	j=2; i=1;
 	while (j<fb->B)
 	{
-		r = mpz_tdiv_ui(n, (uint64_t)siqs_primes[i]);
+		r = mpz_tdiv_ui(n, (uint64_t)small_mpqs_p[i]);
 		if (r == 0)
 		{
 			// p divides n, which means it divides the multiplier.
@@ -1501,7 +1594,7 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
 			// of two.  just divide its logprime in half.
 			// we also can't find the root using shanks-tonelli, but it will be very small
 			// because the multiplier is very small, so just use brute force.
-			prime = (uint32_t)siqs_primes[i];
+			prime = (uint32_t)small_mpqs_p[i];
             if (prime < 256)
             {
                 k = small_sqrt_tab[i][r];
@@ -1533,11 +1626,11 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
 		}
 
 		mpz_set_ui(tmpr, r);
-		b = mpz_kronecker_ui(tmpr, siqs_primes[i]);
+		b = mpz_kronecker_ui(tmpr, small_mpqs_p[i]);
 		if (b==1)
 		{
 			// this prime works
-			prime = (uint32_t)siqs_primes[i];
+			prime = (uint32_t)small_mpqs_p[i];
 
             if (prime < 256)
             {
@@ -1601,7 +1694,7 @@ void sm_get_params(int bits, uint32_t *B, uint32_t *M, uint32_t *BL)
 		{80,	80,	50,	1},
 		{90,	120,	50,	1},
 		{100,	150,	50,	1},
-		{110,	250,	50,	1},	
+		{110,	250,	50,	1},
 		{120,	350,	60,	1},
 		{130,	450,	80,	1},
 	};
@@ -1659,8 +1752,7 @@ void sm_get_params(int bits, uint32_t *B, uint32_t *M, uint32_t *BL)
 	return;
 }
 
-
-void smallmpqs(fact_obj_t *fobj)
+mpz_t* smallmpqs(mpz_t n, int *num_factors)
 {
 	//input expected in fobj->qs_obj.gmp_n
 	sm_mpqs_rlist *full, *partial;
@@ -1669,8 +1761,7 @@ void smallmpqs(fact_obj_t *fobj)
 	sm_mpqs_poly *poly;
 	uint32_t *modsqrt;
 
-	mpz_t n;
-	mpz_t *factors, tmp, tmp2, tmp3, sqrt_n;
+	mpz_t tmp, tmp2, tmp3, sqrt_n, *factors;
 	uint64_t *apoly, *bpoly;
 
 	double t_time;
@@ -1683,54 +1774,38 @@ void smallmpqs(fact_obj_t *fobj)
 	uint32_t start_prime;
 	uint32_t num, max_f;
 	int digits_n, bits_n, pindex;
-	uint32_t num_factors;
 	uint8_t *sieve;							//sieve values
 	uint8_t s_init;							//initial sieve value
 	uint8_t closnuf, small_bits;
 
-	//total_locs = 0;
-	//td_locs = 0;
-
-	mpz_init(n);
-	mpz_init(tmp);
-	
-	//copy to local variable
-	mpz_set(n, fobj->qs_obj.gmp_n);
-
-	if (mpz_cmp_ui(n,1) == 0)
+	if (mpz_cmp_ui(n, 1 << 20) <= 0)
 	{
-		mpz_clear(n);
-		mpz_clear(tmp);
-		return;
+		// too small
+		*num_factors = -2;
+		return NULL;
 	}
 
 	if (mpz_even_p(n))
 	{
-		mpz_clear(n);
-		mpz_clear(tmp);
-		gmp_printf("%Zu is not odd in smallmpqs\n",n);
-		return;
+		// even
+		*num_factors = -3;
+		return NULL;
 	}
 
-	// size in bits influences mpqs parameters
 	bits_n = mpz_sizeinbase(n,2);	
 
-	// don't use the logfile if we see this special flag
-	if (fobj->qs_obj.flags != 12345)
+	if (bits_n > 130)
 	{
-        if (fobj->logfile != NULL)
-        {
-            char* s = mpz_get_str(NULL, 10, n);
-            logprint(fobj->logfile, "starting smallmpqs on C%d: %s\n",
-                gmp_base10(n), s);
-            free(s);
-        }
-
-        gettimeofday(&tstart, NULL);
+		// too big
+		*num_factors = -1;
+		return NULL;
 	}
 
+	//allocate the space for the factor base
+	fb = (fb_list_sm_mpqs*)malloc(sizeof(fb_list_sm_mpqs));
+
 	//empircal tuning of sieve interval based on digits in n
-	sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
+	sm_get_params(bits_n, &fb->B, &sm_sieve_params.large_mult, &sm_sieve_params.num_blocks);
 
     if (0)
     {
@@ -1741,12 +1816,12 @@ void smallmpqs(fact_obj_t *fobj)
         printf("uint32_t small_inv_tab[1000][3] = {");
         for (i = 0; i < 1000; i++)
         {            
-            prime = siqs_primes[i];
+            prime = small_mpqs_p[i];
             if (prime < 256)
             {
                 small_inv = (uint32_t)(((uint64_t)1 << 32) / (uint64_t)prime);
                 
-                if (floor(MP_RADIX / (double)prime + 0.5) ==
+                if (floor(RADIX_32 / (double)prime + 0.5) ==
                     (double)small_inv) {
                     corr = 1;
                 }
@@ -1758,7 +1833,7 @@ void smallmpqs(fact_obj_t *fobj)
             else
             {
                 small_inv = (uint32_t)(((uint64_t)1 << 40) / (uint64_t)prime);
-                if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
+                if (floor(256 * RADIX_32 / (double)prime + 0.5) ==
                     (double)small_inv) {
                     corr = 1;
                 }
@@ -1783,9 +1858,9 @@ void smallmpqs(fact_obj_t *fobj)
         i = 0;
 
         printf("uint8_t small_sqrt_tab[36][256] = {");
-        while (siqs_primes[i] < 256)
+        while (small_mpqs_p[i] < 256)
         {
-            prime = siqs_primes[i];
+            prime = small_mpqs_p[i];
             
             printf("{");
             for (j = 0; j < prime; j++)
@@ -1813,13 +1888,12 @@ void smallmpqs(fact_obj_t *fobj)
         exit(1);
     }
 	
+	mpz_init(tmp);
 	mpz_init(tmp2);
 	mpz_init(tmp3);
 	
-	//default mpqs parameters
+	// default mpqs parameters
 	sm_sieve_params.fudge_factor = 1.3;
-	if (fobj->qs_obj.gbl_override_lpmult_flag != 0)
-		sm_sieve_params.large_mult = fobj->qs_obj.gbl_override_lpmult;
 
 	// how oversquare should we make the matrix?  32 works most of the time;
 	// it was observed to not work once, by kar_bon, where the input is comprised
@@ -1829,24 +1903,12 @@ void smallmpqs(fact_obj_t *fobj)
 	// fault.  thus it will stay 32...
 	sm_sieve_params.num_extra_relations = 32;
 
-	//allocate the space for the factor base
-	fb = (fb_list_sm_mpqs *)malloc(sizeof(fb_list_sm_mpqs));
-	
-	//set fb size from above
-	if (fobj->qs_obj.gbl_override_B_flag != 0)
-		fb->B = fobj->qs_obj.gbl_override_B;
-	else
-		fb->B = j;
+	// compute the number of digits in n 
+	digits_n = mpz_sizeinbase(n, 10);
 
-	if (fobj->qs_obj.gbl_override_blocks_flag != 0)
-		sm_sieve_params.num_blocks = fobj->qs_obj.gbl_override_blocks;
-
-	//compute the number of digits in n 
-	digits_n = gmp_base10(n);
-
-	//set the sieve interval.  this depends on the size of n, but for now, just fix it.  as more data
-	//is gathered, use some sort of table lookup.
-	sieve_interval = SM_BLOCKSIZE*sm_sieve_params.num_blocks;
+	// set the sieve interval.  this depends on the size of n, but for now, just fix it.  as more data
+	// is gathered, use some sort of table lookup.
+	sieve_interval = SM_BLOCKSIZE * sm_sieve_params.num_blocks;
 
 	//allocate the space for the factor base
 	modsqrt = (uint32_t *)malloc(fb->B * sizeof(uint32_t));
@@ -1876,83 +1938,6 @@ void smallmpqs(fact_obj_t *fobj)
 	//construct the factor base, and copy to the sieve factor base
 	smpqs_make_fb_mpqs(fb,modsqrt,n);
 
-	// small factors can be removed during factor base creation... now is a good
-	// time to see how big the number is, and use special methods if it is below 
-	// a threshold
-	bits_n = mpz_sizeinbase(n,2);	
-
-	if (bits_n > 130)
-	{
-		printf("******* input too big for smallmpqs *******\n");
-		mpz_clear(n);
-		mpz_clear(tmp);
-
-		free(fb_sieve_n);
-		free(fb_sieve_p);
-		align_free(fb->list->logprime);
-		align_free(fb->list->small_inv);
-		align_free(fb->list->prime);
-        align_free(fb->list->proot1);
-        align_free(fb->list->proot2);
-        align_free(fb->list->nroot1);
-        align_free(fb->list->nroot2);
-		free(fb->list);
-		free(fb);
-		return;
-	}
-    else if ((bits_n < 60) && (fobj->qs_obj.flags != 12345))
-	{
-		mpz_t ztmp;
-		mpz_init(ztmp);
-
-		// squfof and lehman will use their own mulipliers, remove the one we already added
-		mpz_tdiv_q_ui(n, n, mul); 
-		j = sp_shanks_loop(n, fobj);	
-
-		if (j > 1)
-		{
-			mpz_set_64(ztmp, j);
-			add_to_factor_list(fobj->factors, ztmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-
-			if (fobj->qs_obj.flags != 12345)
-			{
-				if (fobj->logfile != NULL)
-					logprint(fobj->logfile,"prp%d = %u\n",ndigits_1(j), j);
-			}
-
-			mpz_tdiv_q_ui(n,n,j);
-			add_to_factor_list(fobj->factors, n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-
-			if (fobj->qs_obj.flags != 12345)
-			{
-                if (fobj->logfile != NULL)
-                {
-                    char* s = mpz_get_str(NULL, 10, n);
-                    logprint(fobj->logfile, "prp%d = %s\n", gmp_base10(n), s);
-                    free(s);
-                }
-			}
-
-			mpz_set_ui(fobj->qs_obj.gmp_n, 1);
-
-			free(fb_sieve_n);
-			free(fb_sieve_p);
-			align_free(fb->list->logprime);
-			align_free(fb->list->small_inv);
-			align_free(fb->list->prime);
-            align_free(fb->list->proot1);
-            align_free(fb->list->proot2);
-            align_free(fb->list->nroot1);
-            align_free(fb->list->nroot2);
-			free(fb->list);
-			free(fb);
-			mpz_clear(n);
-			mpz_clear(tmp);
-			return;
-		}
-	}
-
-
 	// allocate storage for relations based on the factor base size
 	max_f = fb->B + 3*sm_sieve_params.num_extra_relations;	
 	full = (sm_mpqs_rlist *)malloc((size_t)(sizeof(sm_mpqs_rlist)));
@@ -1968,7 +1953,6 @@ void smallmpqs(fact_obj_t *fobj)
 	partial->act_r = 0;
 	partial->list = (sm_mpqs_r **)malloc((size_t) (10*fb->B* sizeof(sm_mpqs_r *)));
 
-
 	for (i=2;i<fb->B;i++)
 	{
 		fb_sieve_p[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
@@ -1981,6 +1965,7 @@ void smallmpqs(fact_obj_t *fobj)
 	// allocate the current polynomial
 	poly = (sm_mpqs_poly *)malloc(sizeof(sm_mpqs_poly));
 	mpz_init(poly->poly_c);
+	mpz_init(poly->poly_t);
 
 	// allocate the polynomial lists
 	polyalloc = 32;
@@ -2005,61 +1990,56 @@ void smallmpqs(fact_obj_t *fobj)
 	mpz_sqrt(tmp, tmp2);
 	if (mpz_even_p(tmp))
 		mpz_add_ui(tmp, tmp, 1);
+
+	// compute the number of bits in M/2*sqrt(N/2), the approximate value
+	// of residues in the sieve interval
+	// sieve locations greater than this are worthy of trial dividing
+	closnuf = (uint8_t)(double)((bits_n - 1) / 2);
+	closnuf += (uint8_t)(log((double)sieve_interval / 2) / log(2.0));
+	closnuf -= (uint8_t)(sm_sieve_params.fudge_factor * log(cutoff) / log(2.0));
+
+	// small prime variation -- hand tuned small_bits correction (likely could be better)
+	small_bits = 7;
+	closnuf -= small_bits;
+	start_prime = 7;
+
+	s_init = closnuf;
+
+	pmax = fb->list->prime[fb->B - 1];
+	cutoff = pmax * sm_sieve_params.large_mult;
+
+	// print some info to the screen and the log file
+	if (0)
+	{
+		gmp_printf("n = %Zd (%d digits and %d bits)\n", n, digits_n, bits_n);
+		printf("==== sieve params ====\n");
+		printf("factor base: %d primes (max prime = %u)\n", fb->B, pmax);
+		printf("large prime cutoff: %u (%d * pmax)\n", cutoff, sm_sieve_params.large_mult);
+		printf("sieve interval: %d blocks of size %d\n", sieve_interval / SM_BLOCKSIZE, SM_BLOCKSIZE);
+		printf("multiplier is %u\n", mul);
+		printf("trial factoring cutoff at %d bits\n", closnuf);
+		printf("==== sieving in progress ====\n");
+	}
 	
 	mpz_nextprime(tmp, tmp);
 	poly->poly_d = (uint64_t)mpz_get_ui(tmp);
 
-	if (siqs_primes[siqs_nump - 1] <= poly->poly_d)
-		smpqs_get_more_primes(poly, fobj->VFLAG);
-
-	pindex = bin_search_uint64(siqs_nump, 0, poly->poly_d, siqs_primes);
-	if (pindex < 0)
-	{
-		printf("prime not found in binary search\n");
-		exit(1);
-	}
-	poly->poly_d_idp = pindex;
-	poly->poly_d_idn = pindex;
-	poly->side = 1;
-	poly->use_only_p = 0;
+	//pindex = bin_search_uint16(num_mpqs_p, 0, poly->poly_d, small_mpqs_p);
+	//if (pindex < 0)
+	//{
+	//	printf("prime %u not found in binary search\n", poly->poly_d);
+	//	exit(1);
+	//}
+	//poly->poly_d_idp = pindex;
+	//poly->poly_d_idn = pindex;
+	//poly->side = 1;
+	//poly->use_only_p = 0;
 
 	smpqs_nextD(poly,n);
 	smpqs_computeB(poly,n);	
 
 	// find the root locations of the factor base primes for this poly
 	smpqs_computeRoots(poly,fb,modsqrt,fb_sieve_p,fb_sieve_n,2);
-
-	pmax = fb->list->prime[fb->B-1];
-	cutoff = pmax * sm_sieve_params.large_mult;
-
-	// compute the number of bits in M/2*sqrt(N/2), the approximate value
-	// of residues in the sieve interval
-	// sieve locations greater than this are worthy of trial dividing
-	closnuf = (uint8_t)(double)((bits_n - 1)/2);
-	closnuf += (uint8_t)(log((double)sieve_interval/2)/log(2.0));
-	closnuf -= (uint8_t)(sm_sieve_params.fudge_factor * log(cutoff) / log(2.0));
-	
-	closnuf += 6;
-
-	// small prime variation -- hand tuned small_bits correction (likely could be better)
-	small_bits = 7;
-	closnuf -= small_bits;
-	start_prime = 7;
-	
-	s_init = closnuf;
-
-	// print some info to the screen and the log file
-	if (fobj->VFLAG > 0)
-	{
-		gmp_printf("n = %Zd (%d digits and %d bits)\n",n,digits_n,bits_n);
-		printf("==== sieve params ====\n");
-		printf("factor base: %d primes (max prime = %u)\n",fb->B,pmax);
-		printf("large prime cutoff: %u (%d * pmax)\n",cutoff,sm_sieve_params.large_mult);
-		printf("sieve interval: %d blocks of size %d\n",sieve_interval/SM_BLOCKSIZE,SM_BLOCKSIZE);
-		printf("multiplier is %u\n",mul);
-		printf("trial factoring cutoff at %d bits\n",closnuf);
-		printf("==== sieving in progress ====\n");
-	}
 
 	numpoly = 0;
 	num = 0;
@@ -2097,11 +2077,13 @@ void smallmpqs(fact_obj_t *fobj)
 			s_init,fb_sieve_n,fb,full,partial,cutoff,small_bits,
 			start_prime,1,&num,numpoly);
 		
-		if (fobj->VFLAG > 1)
+		if (0)
+		{
 			printf("%d rels found: %d full + "
 				"%d from %d partial, (%d total polys)\r",
 				partial->act_r + full->num_r,
 				full->num_r, partial->act_r, partial->num_r, numpoly);
+		}
 
 		if (partial->num_r > 0)
 		{
@@ -2132,89 +2114,50 @@ void smallmpqs(fact_obj_t *fobj)
 
 done:
 
-	if (fobj->VFLAG > 0)
+	if (0)
+	{
 		printf("%d relations found: %d full + %d from %d partial, using %d polys\n",
-			partial->act_r+full->num_r,full->num_r,partial->act_r,partial->num_r,numpoly);
-
-	gettimeofday (&tend, NULL);
-    t_time = ytools_difftime(&tstart, &tend);
-
-	if (fobj->VFLAG > 0)
-		printf("QS elapsed time = %6.4f seconds.\n",t_time);
-
-	//printf("%" PRIu64 " blocks scanned, %" PRIu64 " hit\n",total_locs, td_locs);
+			partial->act_r + full->num_r, full->num_r, partial->act_r, partial->num_r, numpoly);
+	}
 
 	//can free sieving structures now
 	align_free(sieve);
 	free(fb_sieve_p);
 	free(fb_sieve_n);
 	mpz_clear(poly->poly_c);
+	mpz_clear(poly->poly_t);
 	free(poly);
 	free(modsqrt);
 
 	if (numpoly >= 2048)
 	{
-		// something went wrong.
-		// example, wraithx's 151116012007860377
-		// see: http://www.mersenneforum.org/showpost.php?p=369993&postcount=273
-		//
-		// assume this is rare and just do rho until it factors...
-		uint32_t tmpi = fobj->rho_obj.iterations;
-		mpz_set(fobj->rho_obj.gmp_n, fobj->qs_obj.gmp_n);
-
-		logprint(fobj->logfile, "Smallmpqs failed: bruteforcing with rho\n");
-		while (mpz_cmp_ui(fobj->rho_obj.gmp_n, 1) > 0)
-		{
-			fobj->rho_obj.iterations *= 2;
-			brent_loop(fobj);
-		}
-		
-		fobj->rho_obj.iterations = tmpi;
-		mpz_set_ui(fobj->qs_obj.gmp_n, 1);
+		factors = NULL;
+		*num_factors = -4;
 	}
 	else
 	{
-		num_factors=0;
-		factors = (mpz_t *)malloc(MAX_FACTORS * sizeof(mpz_t));
-		for (i=0;i<MAX_FACTORS;i++)
-			mpz_init(factors[i]);
+		*num_factors = 0;
+		factors = (mpz_t *)malloc(8 * sizeof(mpz_t));
 
-		gettimeofday(&tstart,NULL);
-		i = smpqs_BlockGauss(full,partial,apoly,bpoly,fb,n,mul,
-			factors,&num_factors);
-
-		gettimeofday (&tend, NULL);
-        t_time = ytools_difftime(&tstart, &tend);
-	
-		if (fobj->VFLAG > 0)
-			printf("Gauss elapsed time = %6.4f seconds.\n",t_time);
-
-		for(i=0;i<num_factors;i++)
+		for (i = 0; i < 8; i++)
 		{
-			add_to_factor_list(fobj->factors, factors[i], fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-
-			if (fobj->qs_obj.flags != 12345)
-			{
-                if (fobj->logfile != NULL)
-                {
-                    char* s = mpz_get_str(NULL, 10, factors[i]);
-                    logprint(fobj->logfile,
-                        "prp%d = %s\n", gmp_base10(factors[i]), s);
-                    free(s);
-                }
-			}
-		
-			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, factors[i]);
+			mpz_init(factors[i]);
 		}
 
-		for (i=0;i<MAX_FACTORS;i++)
-			mpz_clear(factors[i]);
-		free(factors);
-	}
-		
+		i = smpqs_BlockGauss(full, partial, apoly, bpoly, fb, n, mul,
+			factors, num_factors);
 	
+		if (0)
+		{
+			printf("Gauss elapsed time = %6.4f seconds.\n", t_time);
+		}
 
-	mpz_clear(n);
+		for (i = 7; i >= *num_factors; i--)
+		{
+			mpz_clear(factors[i]);
+		}
+	}
+
 	mpz_clear(tmp);
 	mpz_clear(tmp2);
 	mpz_clear(tmp3);
@@ -2249,33 +2192,9 @@ done:
 	free(fb->list);
 	free(fb);
 
-	return;
+	return factors;
 }
 
-
-void smpqs_get_more_primes(sm_mpqs_poly *poly, int VFLAG)
-{
-	uint64_t num_p;
-	int i;
-    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
-
-	if (VFLAG > 1)
-		printf("smallmpqs getting more primes: poly_d = %u\n",
-		poly->poly_d);
-
-	siqs_primes = soe_wrapper(sdata, 0, (uint64_t)((double)poly->poly_d * 1.25), 
-        0, &siqs_nump, 0, 0);
-    soe_finalize(sdata);
-
-	siqs_minp = 0; 
-	siqs_maxp = siqs_primes[(uint32_t)siqs_nump-1];
-
-	if (VFLAG > 1)
-		printf("prime finding complete, cached %u primes. pmax = %u\n",
-		(uint32_t)siqs_nump, (uint32_t)siqs_maxp);
-
-	return;
-}
 
 static uint8_t smpqs_mult_list[] =
 	{1, 2, 3, 5, 7, 10, 11, 13, 15, 17, 19, 
@@ -2324,7 +2243,7 @@ uint8_t smpqs_choose_multiplier(mpz_t n, uint32_t fb_size)
 
 	/* for the rest of the small factor base primes */
 	for (i = 1; i < num_primes; i++) {
-		uint32_t prime = (uint32_t)siqs_primes[i];
+		uint32_t prime = (uint32_t)small_mpqs_p[i];
 		double contrib = log((double)prime) / (prime - 1);
 		uint32_t modp = (uint32_t)mpz_tdiv_ui(n,prime);
 
@@ -2416,10 +2335,10 @@ int smpqs_check_relations(uint32_t sieve_interval, uint32_t blocknum, uint8_t *s
 			(*num)++;
 
 			offset = (blocknum<<15) + thisloc;
-			mpz_set_64(t2, poly->poly_b);
+			mpz_set_ui(t2, poly->poly_b);
 			mpz_mul_2exp(t2, t2, 1);
 
-			mpz_set_64(t1, poly->poly_a);
+			mpz_set_ui(t1, poly->poly_a);
 			mpz_mul_ui(t1, t1, offset);
 			if (parity)
 				mpz_sub(t3, t1, t2);
@@ -2472,10 +2391,10 @@ int smpqs_check_relations(uint32_t sieve_interval, uint32_t blocknum, uint8_t *s
 				(*num)++;
 
 				offset = (blocknum<<15) + thisloc;
-				mpz_set_64(t2, poly->poly_b);
+				mpz_set_ui(t2, poly->poly_b);
 				mpz_mul_2exp(t2, t2, 1);
 
-				mpz_set_64(t1, poly->poly_a);
+				mpz_set_ui(t1, poly->poly_a);
 				mpz_mul_ui(t1, t1, offset);
 				if (parity)
 					mpz_sub(t3, t1, t2);
@@ -2530,10 +2449,10 @@ int smpqs_check_relations(uint32_t sieve_interval, uint32_t blocknum, uint8_t *s
 				(*num)++;
 
 				offset = (blocknum<<15) + thisloc;
-				mpz_set_64(t2, poly->poly_b);
+				mpz_set_ui(t2, poly->poly_b);
 				mpz_mul_2exp(t2, t2, 1);
 
-				mpz_set_64(t1, poly->poly_a);
+				mpz_set_ui(t1, poly->poly_a);
 				mpz_mul_ui(t1, t1, offset);
 				if (parity)
 					mpz_sub(t3, t1, t2);
@@ -2773,7 +2692,7 @@ void smpqs_trial_divide_Q(mpz_t Q, smpqs_sieve_fb *fb, sm_mpqs_rlist *full, sm_m
 		}
 		smpqs_save_relation(full,offset,1,smooth_num+1,num_f,fboffset,numpoly,parity);
 	}
-	else if (mpz_cmp_ui(Q,cutoff) < 0)
+	else if (mpz_cmp_ui(Q, cutoff) < 0)
 	{
 		smpqs_save_relation(partial,offset,mpz_get_ui(Q),smooth_num+1,num_p,fboffset,numpoly,parity);
 
@@ -2864,34 +2783,35 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 {
 	uint32_t r;
 
-	if (poly->side || poly->use_only_p)
+	//if (poly->side || poly->use_only_p)
 	{
 		do 
 		{
-			poly->poly_d_idp++;
-			if (poly->poly_d_idp >= siqs_nump)
-				smpqs_get_more_primes(poly, 0);
-			poly->poly_d = siqs_primes[poly->poly_d_idp];
+			//poly->poly_d_idp++;
+			//poly->poly_d =  small_mpqs_p[poly->poly_d_idp];
+			mpz_set_ui(poly->poly_t, poly->poly_d);
+			mpz_nextprime(poly->poly_t, poly->poly_t);
+			poly->poly_d = mpz_get_ui(poly->poly_t);
 			r = mpz_tdiv_ui(n,poly->poly_d);
 		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
 	}
-	else
-	{
-		do 
-		{
-			poly->poly_d_idn--;
-			if (poly->poly_d_idn < 5)
-			{
-				poly->use_only_p = 1;
-				smpqs_nextD(poly, n);
-				return;
-			}
-			poly->poly_d = siqs_primes[poly->poly_d_idn];			
-			r = mpz_tdiv_ui(n,poly->poly_d);
-		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
-	}
+	//else
+	//{
+	//	do 
+	//	{
+	//		poly->poly_d_idn--;
+	//		if (poly->poly_d_idn < 5)
+	//		{
+	//			poly->use_only_p = 1;
+	//			smpqs_nextD(poly, n);
+	//			return;
+	//		}
+	//		poly->poly_d = small_mpqs_p[poly->poly_d_idn];
+	//		r = mpz_tdiv_ui(n,poly->poly_d);
+	//	} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
+	//}
 
-	poly->side = !poly->side;
+	//poly->side = !poly->side;
 
 	return;
 }
@@ -2997,11 +2917,11 @@ void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n)
 		poly->poly_b = poly->poly_a - poly->poly_b;
 
 	// now that we have b, compute c = (b*b - n)/a
-	mpz_set_64(t2, poly->poly_b);
+	mpz_set_ui(t2, poly->poly_b);
 	mpz_mul(t2, t2, t2);
 	mpz_sub(t2, t2, n); 
 
-    mpz_set_64(poly->poly_c, poly->poly_a);
+    mpz_set_ui(poly->poly_c, poly->poly_a);
     mpz_tdiv_q(poly->poly_c, t2, poly->poly_c);
     // MINGW64 bug?  below doesn't work for mingw64 but does for 64-bit gcc/intel/msvc
     //mpz_tdiv_q_ui(poly->poly_c, t2, poly->poly_a);
@@ -3443,8 +3363,8 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										pa = apoly[polynum];
 										d1 = (uint32_t)sqrt((int64_t)pa);
 										
-										mpz_set_64(tmp, apoly[polynum]);
-										mpz_set_64(tmp3, bpoly[polynum]);
+										mpz_set_ui(tmp, apoly[polynum]);
+										mpz_set_ui(tmp3, bpoly[polynum]);
 										mpz_mul_ui(tmp, tmp, partial->list[partial_index[l-num_f]]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]]->offset,&tmp);
 										if (partial->list[partial_index[l-num_f]]->parity)
 											mpz_sub(tmp, tmp, tmp3); //zShortSub(&tmp,pb,&tmp);
@@ -3462,8 +3382,8 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										pa = apoly[polynum]; 
 										d2 = (uint32_t)sqrt((int64_t)pa);
 										
-										mpz_set_64(tmp3, apoly[polynum]);
-										mpz_set_64(tmp4, bpoly[polynum]);
+										mpz_set_ui(tmp3, apoly[polynum]);
+										mpz_set_ui(tmp4, bpoly[polynum]);
 										mpz_mul_ui(tmp3, tmp3, partial->list[partial_index[l-num_f]-1]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]-1]->offset,&tmp3);
 										if (partial->list[partial_index[l-num_f]-1]->parity)
 											mpz_sub(tmp2, tmp3, tmp4); //zShortSub(&tmp3,pb,&tmp2);
@@ -3491,8 +3411,8 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										polynum = full->list[l]->polynum;
 											
 										//compute Q1(x)
-										mpz_set_64(tmp, apoly[polynum]);
-										mpz_set_64(tmp4, bpoly[polynum]);
+										mpz_set_ui(tmp, apoly[polynum]);
+										mpz_set_ui(tmp4, bpoly[polynum]);
 										mpz_mul_ui(tmp, tmp, full->list[l]->offset); //zShortMul(&apoly[polynum],full->list[l]->offset,&tmp);
 										pa = apoly[polynum]; //apoly[polynum].val[0];
 										d1 = (uint32_t)sqrt((int64_t)pa);
@@ -3711,8 +3631,6 @@ static uint64_t smpqs_masks64[64] = {0x1,0x2,0x4,0x8,
 							0x10000000000000ULL,0x20000000000000ULL,0x40000000000000ULL,0x80000000000000ULL,
 							0x100000000000000ULL,0x200000000000000ULL,0x400000000000000ULL,0x800000000000000ULL,
 							0x1000000000000000ULL,0x2000000000000000ULL,0x4000000000000000ULL,0x8000000000000000ULL};
-
-
 
 static uint64_t smpqs_bitValRead64(uint64_t **m, int row, int col)
 {

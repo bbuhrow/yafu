@@ -49,7 +49,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 44
+#define NUM_FUNC 43
 
 // symbols in calc
 #define EOE 1
@@ -150,8 +150,7 @@ static char function_names[NUM_FUNC][11] = {
     "extgcd", "fac2", "facm", "binom", "randp",
     "hamdist", "rsa", "factor",
     "siqs",
-    "siqsbench",
-    "smallmpqs"};
+    "siqsbench"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 2, 2,             //  "fib", "luc", "gcd", "jacobi",
@@ -166,8 +165,8 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 2, 2, 1,          //  "extgcd", "fac2", "facm", "binom", "randp",
     2, 1, 1,                //  "hamdist", "rsa", "factor", 
     1,                      //  "siqs",
-    0,                      //  "siqsbench",
-    1 };                      //  "smallmpqs", 
+    0                      //  "siqsbench"
+};
 
 
 
@@ -2351,29 +2350,6 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // siqsbench
         if (check_args(funcnum, nargs)) break;
         siqsbench(fobj);
-        break;
-
-    case 43:
-        // smallmpqs - 1 argument
-        if (check_args(funcnum, nargs)) break;
-
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->qs_obj.gmp_n, operands[0]);
-        if (strlen(fobj->flogname) > 0)
-        {
-            fobj->logfile = fopen(fobj->flogname, "a");
-            if (fobj->logfile == NULL)
-                printf("fopen error: %s\n", strerror(errno));
-        }
-        smallmpqs(fobj);
-        if (strlen(fobj->flogname) > 0)
-        {
-            if (fobj->logfile != NULL)
-                fclose(fobj->logfile);
-        }
-        mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj);
-
         break;
 
 

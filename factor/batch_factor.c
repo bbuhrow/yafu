@@ -12,6 +12,12 @@ benefit from your work.
 $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 --------------------------------------------------------------------*/
 
+/*--------------------------------------------------------------------
+bbuhrow:
+improved to handle relations with LPB larger than 32 bits on
+either or both sides.
+--------------------------------------------------------------------*/
+
 #include <stdint.h>
 #include "batch_factor.h"
 #include "monty.h"
@@ -28,10 +34,11 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "../factor/lasieve5_64/gmp-aux.h"
 #endif
 #include "ytools.h"
+#include "cofactorize.h"
 
 /*------------------------------------------------------------------
 
-Jasonp's batch GCD for relation factoring, using R. Gerbicz's 
+Jasonp's batch GCD for relation factoring, using R. Gerbicz's
 balanced remainder tree idea. See below for the thread where
 this idea first came up for reference.
 
@@ -65,7 +72,7 @@ size/64*(height-6)<size (because even height<64 is true), and that's not much,
 you need more memory to do the multiplication/division in the root of the tree.
 
 */
-typedef struct 
+typedef struct
 {
     mpz_t prod;
     uint32_t low;
@@ -95,7 +102,7 @@ uint32_t getNode(bintree_t* tree, uint32_t low, uint32_t high)
         {
             return nodeid;
         }
-        else 
+        else
         {
             if (node->left_id == -1)
                 return -1;
@@ -161,7 +168,7 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
         //        i, node->low, node->high, node->left_id, node->right_id, node->complete);
         //}
         //fclose(fid);
-        
+
         //exit(1);
 
         //printf("ignoring addNode\n");
@@ -213,7 +220,7 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
         tree->nodes[id].left_id = tree->size;
     else
         tree->nodes[id].right_id = tree->size;
-    
+
     //printf("added new node %d and assigned to node %d side %d\n", tree->size, id, side);
     tree->size++;
 
@@ -225,7 +232,7 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
 #define BREAKOVER_WORDS 50
 
 void multiply_primes(uint32_t first, uint32_t last,
-    uint64_t *primes, mpz_t prod) {
+    uint64_t* primes, mpz_t prod) {
 
     /* recursive routine to multiply all the elements of a
        list of consecutive primes. The current invocation
@@ -260,30 +267,30 @@ void multiply_primes(uint32_t first, uint32_t last,
 }
 
 /*------------------------------------------------------------------*/
-void relation_to_gmp(relation_batch_t *rb,
-				uint32_t index, mpz_t out) {
+void relation_to_gmp(relation_batch_t* rb,
+    uint32_t index, mpz_t out) {
 
-	/* multiply together the unfactored parts of an
-	   NFS relation, then convert to an mpz_t */
+    /* multiply together the unfactored parts of an
+       NFS relation, then convert to an mpz_t */
 
     int j;
-	uint32_t i, nwords;
-	cofactor_t *c = rb->relations + index;
-	uint32_t *f = rb->factors + c->factor_list_word + 
-			c->num_factors_r + c->num_factors_a;
-	
+    uint32_t i, nwords;
+    cofactor_t* c = rb->relations + index;
+    uint32_t* f = rb->factors + c->factor_list_word +
+        c->num_factors_r + c->num_factors_a;
+
     mpz_ptr num1 = rb->f1a, num2 = rb->f2a, num3 = rb->n;
 
-	if (c->lp_r_num_words > 1 && c->lp_a_num_words > 1) {
+    if (c->lp_r_num_words > 1 && c->lp_a_num_words > 1) {
 
-		/* rational and algebraic parts need to be
-		   multiplied together first */
+        /* rational and algebraic parts need to be
+           multiplied together first */
 
-        // These have been in here backwards this whole time :(
-        // relation_batch_add() puts them in there low word first.
-        // The code still worked, or gave the illusion of working,
-        // because these unfactored parts just end up in f2r/f2a instead
-        // of f1r/f1a and are still subjected to some factorization.
+           // These have been in here backwards this whole time :(
+           // relation_batch_add() puts them in there low word first.
+           // The code still worked, or gave the illusion of working,
+           // because these unfactored parts just end up in f2r/f2a instead
+           // of f1r/f1a and are still subjected to some factorization.
         mpz_set_ui(num1, f[c->lp_r_num_words - 1]);
         for (j = c->lp_r_num_words - 2; j >= 0; j--) {
             mpz_mul_2exp(num1, num1, 32);
@@ -306,7 +313,7 @@ void relation_to_gmp(relation_batch_t *rb,
         //    mpz_add_ui(num1, num1, f[i]);
         //}
         //
-		//f += c->lp_r_num_words;
+        //f += c->lp_r_num_words;
         //mpz_set_ui(num2, f[0]);
         //for (i = 1; i < c->lp_a_num_words; i++)
         //{
@@ -314,17 +321,17 @@ void relation_to_gmp(relation_batch_t *rb,
         //    mpz_add_ui(num2, num2, f[i]);
         //}
 
-		mpz_mul(num3, num2, num1);
-	}
-	else {
-		/* no multiply necesary */
+        mpz_mul(num3, num2, num1);
+    }
+    else {
+        /* no multiply necesary */
 
-		nwords = c->lp_r_num_words;
+        nwords = c->lp_r_num_words;
 
-		if (c->lp_a_num_words > 1) {
-			nwords = c->lp_a_num_words;
-			f += c->lp_r_num_words;
-		}
+        if (c->lp_a_num_words > 1) {
+            nwords = c->lp_a_num_words;
+            f += c->lp_r_num_words;
+        }
 
         // this case gets it correct.  In siqs this is 
         // the only case because there is no a-side, so the
@@ -335,7 +342,7 @@ void relation_to_gmp(relation_batch_t *rb,
             mpz_mul_2exp(num3, num3, 32);
             mpz_add_ui(num3, num3, f[j]);
         }
-	}
+    }
 
     mpz_set(out, num3);
 
@@ -344,33 +351,33 @@ void relation_to_gmp(relation_batch_t *rb,
 
 /*------------------------------------------------------------------*/
 void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
-				relation_batch_t *rb,
-				mpz_t prod) {
-	mpz_t half_prod;
+    relation_batch_t* rb,
+    mpz_t prod) {
+    mpz_t half_prod;
 
-	/* recursive routine to multiply together a list of
-	   relations. The current invocation multiplies relations
-	   first to last of the list, inclusive */
+    /* recursive routine to multiply together a list of
+       relations. The current invocation multiplies relations
+       first to last of the list, inclusive */
 
-	/* base case of recursion */
+       /* base case of recursion */
 
-	if (first == last) {
+    if (first == last) {
         //printf("leaf relation %u\n", first);
-		relation_to_gmp(rb, first, prod);
-		return;
-	}
+        relation_to_gmp(rb, first, prod);
+        return;
+    }
 
-	/* recurse on the left and right halves */
+    /* recurse on the left and right halves */
 
-	mpz_init(half_prod);
-	if (last == first + 1) {
+    mpz_init(half_prod);
+    if (last == first + 1) {
         //printf("forming product (prod(%u) * prod(%u))\n", first, last);
         // multiply a list of two relations.  This will always be below
         // the tree cutoff and the multiplication is trivial...
-		relation_to_gmp(rb, first, half_prod);
-		relation_to_gmp(rb, last, prod);
-	}
-	else 
+        relation_to_gmp(rb, first, half_prod);
+        relation_to_gmp(rb, last, prod);
+    }
+    else
     {
         uint32_t mid = (last + first) / 2;
 
@@ -448,7 +455,7 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
                 addNode(tree, pnode, 0, first, mid, NULL);
                 multiply_relations(tree, first, mid, rb, prod);
             }
-        
+
             // check if there is a node for the high-half product.
             node = getNode(tree, mid + 1, last);
             if ((node != -1) && (tree->nodes[node].complete))
@@ -479,12 +486,12 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
         multiply_relations(tree, first, mid, rb, prod);
         multiply_relations(tree, mid + 1, last, rb, half_prod);
 #endif
-		
-	}
+
+    }
 
     // when we get to here, all of the above recursing will be done
     // and we'll have the two half multiplies done in half_prod and prod.
-	// so we can finally do the final multiplication and return the result.
+    // so we can finally do the final multiplication and return the result.
 #ifdef USE_TREE
     if ((last - first) > TREE_CUTOFF)
     {
@@ -512,7 +519,7 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
             // otherwise do the multiply, assign the product to the node
             // (as well as the output) and mark the multiply complete for this node.
             mpz_mul(prod, prod, half_prod);
-            
+
             mpz_set(tree->nodes[pnode].prod, prod);
             tree->nodes[pnode].complete = 1;
         }
@@ -525,7 +532,7 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
     mpz_mul(prod, prod, half_prod);
 #endif
 
-	mpz_clear(half_prod);
+    mpz_clear(half_prod);
 }
 
 /*------------------------------------------------------------------*/
@@ -548,7 +555,7 @@ uint64_t pow2m(uint64_t b, uint64_t n)
     int i;
     int j;
     int bstr;
-    
+
     if (has_bmi1 < 0)
     {
         has_bmi1 = check_bmi1_support();
@@ -660,16 +667,16 @@ uint64_t pow2m(uint64_t b, uint64_t n)
    of the batch factoring handles an arbitrary number of large primes,
    so only this routine needs to change when more advanced factoring
    code becomes available. */
-void check_batch_relation(relation_batch_t *rb,
-			uint32_t index, uint64_t * lcg_state,
-			mpz_t prime_product) {
+void check_batch_relation(relation_batch_t* rb,
+    uint32_t index, uint64_t* lcg_state,
+    mpz_t prime_product) {
 
-	uint32_t i;
+    uint32_t i;
     int j;
-	cofactor_t *c = rb->relations + index;
-	uint32_t *f = rb->factors + c->factor_list_word;
-	uint32_t *lp1 = f + c->num_factors_r + c->num_factors_a;
-	uint32_t *lp2 = lp1 + c->lp_r_num_words;
+    cofactor_t* c = rb->relations + index;
+    uint32_t* f = rb->factors + c->factor_list_word;
+    uint32_t* lp1 = f + c->num_factors_r + c->num_factors_a;
+    uint32_t* lp2 = lp1 + c->lp_r_num_words;
     mpz_ptr f1r = rb->f1r;
     mpz_ptr f1a = rb->f1a;
     mpz_ptr f2r = rb->f2r;
@@ -677,22 +684,17 @@ void check_batch_relation(relation_batch_t *rb,
     mpz_ptr _small = rb->_small;     // rpcndr.h defines "small" as "char", problem for msvc
     mpz_ptr _large = rb->_large;
     mpz_ptr n = rb->n;
-	uint64_t lp_r[MAX_LARGE_PRIMES];
-	uint64_t lp_a[MAX_LARGE_PRIMES];
-	uint32_t num_r = 0, num_a = 0;
+    uint64_t lp_r[MAX_LARGE_PRIMES];
+    uint64_t lp_a[MAX_LARGE_PRIMES];
+    uint32_t num_r = 0, num_a = 0;
     int do_r_first = 0;
 
-	/* first compute gcd(prime_product, rational large cofactor).
-	   The rational part will split into a cofactor with all 
-	   factors <= the largest prime in rb->prime_product (stored
-	   in f1r) and a cofactor with all factors larger (stored in f2r) */
+    /* first compute gcd(prime_product, rational large cofactor).
+       The rational part will split into a cofactor with all
+       factors <= the largest prime in rb->prime_product (stored
+       in f1r) and a cofactor with all factors larger (stored in f2r) */
 
-
-    // the larger we make lp_cutoff_r, the more TLP's we will find, at
-    // the cost of having to split more TLP candidates in f1r.
     c->success = 0;
-    //c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
-    //c->lp_a[0] = c->lp_a[1] = c->lp_a[2] = c->lp_a[3] = 1;
 
     if (do_r_first == 0)
         goto process_a;
@@ -707,7 +709,7 @@ process_r:
             mpz_add_ui(n, n, lp1[j]);
         }
 
-        if (mpz_cmp_ui(n, rb->lp_cutoff_r)) {
+        if (mpz_cmp_ui(n, rb->lp_cutoff_r) <= 0) {
             // less than the cutoff: it goes in the gcd side
             // and we'll check it out more below
             mpz_set(f1r, n);
@@ -803,7 +805,7 @@ process_r:
        for relations with three large primes then at most
        two of the four choices need factoring */
 
-    if (mpz_cmp_ui(f1r, rb->lp_cutoff_r) <= 0) 
+    if (mpz_cmp_ui(f1r, rb->lp_cutoff_r) <= 0)
     {
         if (mpz_cmp_ui(f1r, 1) > 0)
         {
@@ -1089,7 +1091,35 @@ process_r:
                 else
                 {
                     rb->num_qs++;
-                    return;
+                    mpz_t flist[3];
+                    mpz_init(flist[0]);
+                    mpz_init(flist[1]);
+                    mpz_init(flist[2]);
+
+                    mpz_t* fac = flist;
+
+#ifdef HAVE_LASIEVE_MPQS
+                    int nf = mpqs_factor(_large, rb->lpbr, &fac);
+#else
+                    // todo: run tinysiqs instead
+                    int nf = 0;
+#endif
+
+                    if (nf == 0)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    while (nf > 0)
+                    {
+                        lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
+                        nf--;
+                    }
+
+                    mpz_clear(flist[0]);
+                    mpz_clear(flist[1]);
+                    mpz_clear(flist[2]);
                 }
 
             }
@@ -1140,34 +1170,54 @@ process_r:
         }
         else
         {
-            // could run QS, but this happens so rarely when tecm is given
-            // a 3LP with 3 known factors < lp_cutoff that instead we
-            // just give up and record this failure.
             rb->num_qs++;
-            return;
+            mpz_t flist[3];
+            mpz_init(flist[0]);
+            mpz_init(flist[1]);
+            mpz_init(flist[2]);
+
+            mpz_t* fac = flist;
+
+#ifdef HAVE_LASIEVE_MPQS
+            int nf = mpqs_factor(f1r, rb->lpbr, &fac);
+#else
+            int nf = 0;
+#endif
+
+
+            if (nf == 0)
+            {
+                rb->num_abort[7]++;
+                return;
+            }
+
+            while (nf > 0)
+            {
+                lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
+                nf--;
+            }
+
+            mpz_clear(flist[0]);
+            mpz_clear(flist[1]);
+            mpz_clear(flist[2]);
         }
 
     }
 
     if (mpz_sizeinbase(f2r, 2) > 64) {
-        // we don't really know anything about f2r in this case other than that
-        // it either has several factors not in the GCD, any of which could be too big,
-        // or it could be prime.  None of these scenarios is cost-benficial to pursue.
-        // Note: we should never actually get here, because size-based checks on f2r
-        // should eliminate this residue right away, rather than waste time on f1r first.
-        rb->num_abort[7]++;
-        return;
+        // If f2r is greater than lpb^2, then we don't really know anything about it other 
+        // than that it either has several factors not in the GCD, any of which could be too 
+        // big, or it could be prime.  None of these scenarios is cost-benficial to pursue.
+        // size based checks will eliminate these relations from consideration.  However, 
+        // note that when LPB is greater than 32 bits, then this case is necessary to 
+        // handle 2LPs that are greater than 64 bits.
 
         // if it isn't prime, maybe try to do a little work on it.
-        //mpz_set_ui(f1r, 2);
         if (mpz_probab_prime_p(f2r, 1))
         {
             rb->num_abort[7]++;
             return;
         }
-
-        //gmp_printf("attempting to factor composite %u-bit r-side residue %Zx\n", 
-        //    mpz_sizeinbase(f2r, 2), f2r);
 
 #ifdef USE_AVX512F
         int success = getfactor_tecm_x8(f2r, _small, mpz_sizeinbase(f2r, 2) / 3, lcg_state);
@@ -1204,33 +1254,41 @@ process_r:
             }
             else if (mpz_sizeinbase(_small, 2) > 32)
             {
-                uint64_t n64 = mpz_get_ui(_small);
-                if (prp_uecm(n64) == 1)
+                if (mpz_cmp_ui(_small, rb->lp_cutoff_r) <= 0)
                 {
-                    rb->num_abort[7]++;
-                    return;
+                    // lpb's can be larger than 32 bits
+                    lp_r[num_r++] = mpz_get_ui(_small);
                 }
-
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
-                rb->num_uecm[2]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                else
                 {
-                    rb->num_abort[7]++;
-                    return;
+                    uint64_t n64 = mpz_get_ui(_small);
+                    if (prp_uecm(n64) == 1)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
+                    rb->num_uecm[2]++;
+
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    mpz_tdiv_q_ui(_small, _small, f64);
+                    uint64_t q64 = mpz_get_ui(_small);
+
+                    if (q64 <= 1 || q64 > rb->lp_cutoff_r)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    lp_r[num_r++] = f64;
+                    lp_r[num_r++] = q64;
                 }
-
-                mpz_tdiv_q_ui(_small, _small, f64);
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 <= 1 || q64 > rb->lp_cutoff_r)
-                {
-                    rb->num_abort[7]++;
-                    return;
-                }
-
-                lp_r[num_r++] = f64;
-                lp_r[num_r++] = q64;
             }
             else
             {
@@ -1307,32 +1365,40 @@ process_r:
                     // process _large, which might need to be split again.
                     if (mpz_sizeinbase(_large, 2) > 32)
                     {
-                        uint64_t n64 = mpz_get_ui(_large);
-                        if (prp_uecm(n64) == 1)
+                        if (mpz_cmp_ui(_large, rb->lp_cutoff_r) <= 0)
                         {
-                            rb->num_abort[7]++;
-                            return;
+                            // lpb's can be larger than 32 bits
+                            lp_r[num_r++] = mpz_get_ui(_large);
                         }
-
-                        uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                        rb->num_uecm[2]++;
-
-                        if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                        else
                         {
-                            rb->num_abort[7]++;
-                            return;
+                            uint64_t n64 = mpz_get_ui(_large);
+                            if (prp_uecm(n64) == 1)
+                            {
+                                rb->num_abort[7]++;
+                                return;
+                            }
+
+                            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                            rb->num_uecm[2]++;
+
+                            if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                            {
+                                rb->num_abort[7]++;
+                                return;
+                            }
+
+                            lp_r[num_r++] = f64;
+                            mpz_tdiv_q_ui(_large, _large, f64);
+
+                            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
+                            {
+                                rb->num_abort[7]++;
+                                return;
+                            }
+
+                            lp_r[num_r++] = mpz_get_ui(_large);
                         }
-
-                        lp_r[num_r++] = f64;
-                        mpz_tdiv_q_ui(_large, _large, f64);
-
-                        if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
-                        {
-                            rb->num_abort[7]++;
-                            return;
-                        }
-
-                        lp_r[num_r++] = mpz_get_ui(_large);
                     }
                     else
                     {
@@ -1348,38 +1414,74 @@ process_r:
                 else
                 {
                     rb->num_qs++;
-                    return;
+
+                    mpz_t flist[3];
+                    mpz_init(flist[0]);
+                    mpz_init(flist[1]);
+                    mpz_init(flist[2]);
+
+                    mpz_t* fac = flist;
+
+#ifdef HAVE_LASIEVE_MPQS
+                    int nf = mpqs_factor(_large, rb->lpbr, &fac);
+#else
+                    int nf = 0;
+#endif
+
+                    if (nf == 0)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    while (nf > 0)
+                    {
+                        lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
+                        nf--;
+                    }
+
+                    mpz_clear(flist[0]);
+                    mpz_clear(flist[1]);
+                    mpz_clear(flist[2]);
                 }
 
             }
             else if (mpz_sizeinbase(_large, 2) > 32)
             {
-                uint64_t n64 = mpz_get_ui(_large);
-                if (prp_uecm(n64) == 1)
+                if (mpz_cmp_ui(_large, rb->lp_cutoff_r) <= 0)
                 {
-                    rb->num_abort[7]++;
-                    return;
+                    // lpb's can be larger than 32 bits
+                    lp_r[num_r++] = mpz_get_ui(_large);
                 }
-
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                rb->num_uecm[2]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                else
                 {
-                    rb->num_abort[7]++;
-                    return;
+                    uint64_t n64 = mpz_get_ui(_large);
+                    if (prp_uecm(n64) == 1)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                    rb->num_uecm[2]++;
+
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_r)
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    lp_r[num_r++] = f64;
+                    mpz_tdiv_q_ui(_large, _large, f64);
+
+                    if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
+                    {
+                        rb->num_abort[7]++;
+                        return;
+                    }
+
+                    lp_r[num_r++] = mpz_get_ui(_large);
                 }
-
-                lp_r[num_r++] = f64;
-                mpz_tdiv_q_ui(_large, _large, f64);
-
-                if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
-                {
-                    rb->num_abort[7]++;
-                    return;
-                }
-
-                lp_r[num_r++] = mpz_get_ui(_large);
             }
             else
             {
@@ -1394,11 +1496,36 @@ process_r:
         }
         else
         {
-            // could run QS, but this happens so rarely when tecm is given
-            // a 3LP with 3 known factors < lp_cutoff that instead we
-            // just give up and record this failure.
             rb->num_qs++;
-            return;
+
+            mpz_t flist[3];
+            mpz_init(flist[0]);
+            mpz_init(flist[1]);
+            mpz_init(flist[2]);
+
+            mpz_t* fac = flist;
+
+#ifdef HAVE_LASIEVE_MPQS
+            int nf = mpqs_factor(f2r, rb->lpbr, &fac);
+#else
+            int nf = 0;
+#endif
+
+            if (nf == 0)
+            {
+                rb->num_abort[7]++;
+                return;
+            }
+
+            while (nf > 0)
+            {
+                lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
+                nf--;
+            }
+
+            mpz_clear(flist[0]);
+            mpz_clear(flist[1]);
+            mpz_clear(flist[2]);
         }
     }
 
@@ -1439,36 +1566,6 @@ process_a:
             }
         }
 
-
-        /* give up on this relation if
-             - f1r has a single factor, and that factor
-               exceeds the rational large prime cutoff
-             - f1r is more than 3 words long
-
-             but, the first condition will never happen because
-             if there is a single factor found by GCD it will always
-             be less than the LPB because BDiv is always > 1.
-
-             and the 2nd condition is no longer valid with potential
-             4lp residues
-
-             so these checks are now ignored.
-             */
-
-             /* give up on this relation if
-                  - f2r has a single factor, and that factor
-                    exceeds the rational large prime cutoff
-                  - f2r has two words and exceeds the square of the
-                    cutoff (meaning at least one of the two factors in
-                    f2r would exceed the large prime cutoff)
-                  - f2r has two words and is smaller than the square
-                    of the largest prime in rb->prime_product, meaning
-                    that f2r is prime and way too large
-                  - f2r has 3+ words. We don't know anything about
-                    f2r in this case, except that all factors exceed the
-                    largest prime in rb->prime_product, and it would be
-                    much too expensive to find out anything more */
-
         if (mpz_cmp_ui(f2a, rb->lp_cutoff_a) <= 0)
         {
             // f2a is good.  case if equal to 1 is caught below.
@@ -1494,7 +1591,7 @@ process_a:
             }
         }
     }
-    else 
+    else
     {
         mpz_set_ui(f1a, 0);
         mpz_set_ui(f2a, 0);
@@ -1505,15 +1602,6 @@ process_a:
             goto done;
     }
 
-    /* the relation isn't obviously bad; do more work
-       trying to factor everything. Note that when relations
-       are expected to have three large primes then ~98% of
-       relations do not make it to this point
-
-       Begin by performing compositeness tests on f2r and f2a,
-       which are necessary if they are two words in size and
-       f1r or f1a is not one (the latter being true means
-       that the sieving already performed the compositeness test) */
 
     for (i = num_a = 0; i < MAX_LARGE_PRIMES; i++)
         lp_a[i] = 1;
@@ -1536,12 +1624,6 @@ process_a:
             return;
         }
     }
-
-    /* now perform all the factorizations that
-        require SQUFOF, since it is much faster than the
-        QS code. We have to check all of f[1|2][r|a] but
-        for relations with three large primes then at most
-        two of the four choices need factoring */
 
     if (mpz_cmp_ui(f1a, rb->lp_cutoff_a) <= 0)
     {
@@ -1598,8 +1680,6 @@ process_a:
 
     if (mpz_cmp_ui(f2a, rb->lp_cutoff_a) <= 0)
     {
-        // f2a is not guaranteed to be inside the LPB limit because it 
-        // wasn't found by GCD
         if (mpz_cmp_ui(f2a, 1) > 0)
         {
             // if f2a == 1, don't abort but also don't add it as a large prime factor.
@@ -1638,13 +1718,6 @@ process_a:
         lp_a[num_a++] = mpz_get_ui(f2a);
     }
 
-    /* only use expensive factoring methods when we know
-        f1a and/or f1a splits into three large primes and
-        we know all three primes are smaller than the
-        largest prime in rb->prime_product. When the latter
-        is a good deal smaller than the large prime cutoff
-        this happens extremely rarely */
-
     if (mpz_sizeinbase(f1a, 2) > 64) {
         // in this case we know there are 3+ factors and all are in the GCD
         // so we don't have to run isprime.
@@ -1662,9 +1735,10 @@ process_a:
 
         if (success)
         {
+            // found a factor; get the cofactor
             mpz_tdiv_q(_large, f1a, _small);
 
-            // process _small, which might need to be split again.
+            // process the factor first (_small), which might need to be split again.
             if (mpz_sizeinbase(_small, 2) > 64)
             {
                 // likely found 2 factors whos' product is greater than 64 bits.
@@ -1675,14 +1749,23 @@ process_a:
                     mpz_set(_large, _small);
                     mpz_tdiv_q(_small, f1a, _large);
                 }
+                else
+                {
+                    // found a garbage factor?
+                    rb->num_abort_a[7]++;
+                    return;
+                }
 
-                uint64_t q64 = mpz_get_ui(_small);
-
-                if (q64 > rb->lp_cutoff_a)
+                // if the factor we found was > 64 bits, then
+                // the cofactor should be smaller, but we still need to 
+                // see if it's in bounds.
+                if (mpz_cmp_ui(_small, rb->lp_cutoff_a) > 0)
                 {
                     rb->num_abort_a[7]++;
                     return;
                 }
+
+                uint64_t q64 = mpz_get_ui(_small);
 
                 if (q64 > 1)
                 {
@@ -1702,7 +1785,7 @@ process_a:
                     uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
                     rb->num_uecm_a[2]++;
 
-                    if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                    if ((f64 <= 1) || (f64 > rb->lp_cutoff_a))
                     {
                         // either we failed to factor it or the factor isn't useful
                         rb->num_abort_a[7]++;
@@ -1726,8 +1809,10 @@ process_a:
             }
             else
             {
+                // factor is less than or equal to 32 bits
                 uint64_t q64 = mpz_get_ui(_small);
 
+                // check it against lpb.
                 if (q64 <= 1 || q64 > rb->lp_cutoff_a)
                 {
                     rb->num_abort_a[7]++;
@@ -1737,7 +1822,9 @@ process_a:
                 lp_a[num_a++] = q64;
             }
 
-            // process _large, which could need to be split again
+            // now process the cofactor (_large), or a composite factor that
+            // we've swapped into _large.  Having already found one valid factor,
+            // this is processing a 2LP that may be larger than 64 bits.
             if (mpz_sizeinbase(_large, 2) > 64)
             {
 #ifdef USE_AVX512F
@@ -1752,14 +1839,7 @@ process_a:
                     mpz_tdiv_q(_large, _large, _small);
 
                     // process _small, which might need to be split again.
-                    if (mpz_sizeinbase(_small, 2) > 64)
-                    {
-                        // found all 3 factors?
-                        // give up
-                        rb->num_abort_a[7]++;
-                        return;
-                    }
-                    else if (mpz_sizeinbase(_small, 2) > 32)
+                    if (mpz_sizeinbase(_small, 2) > 32)
                     {
                         if (mpz_cmp_ui(_small, rb->lp_cutoff_a) <= 0)
                         {
@@ -1771,7 +1851,7 @@ process_a:
                             uint64_t f64 = getfactor_uecm(mpz_get_ui(_small), 0, lcg_state);
                             rb->num_uecm_a[3]++;
 
-                            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                            if ((f64 <= 1) || (f64 > rb->lp_cutoff_a))
                             {
                                 rb->num_abort_a[7]++;
                                 return;
@@ -1780,7 +1860,7 @@ process_a:
                             mpz_tdiv_q_ui(_small, _small, f64);
                             uint64_t q64 = mpz_get_ui(_small);
 
-                            if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                            if ((q64 <= 1) || (q64 > rb->lp_cutoff_a))
                             {
                                 rb->num_abort_a[7]++;
                                 return;
@@ -1794,7 +1874,7 @@ process_a:
                     {
                         uint64_t q64 = mpz_get_ui(_small);
 
-                        if (q64 <= 1 || q64 > rb->lp_cutoff_a)
+                        if ((q64 <= 1) || (q64 > rb->lp_cutoff_a))
                         {
                             rb->num_abort_a[7]++;
                             return;
@@ -1816,7 +1896,7 @@ process_a:
                             uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
                             rb->num_uecm_a[3]++;
 
-                            if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                            if ((f64 <= 1) || (f64 > rb->lp_cutoff_a))
                             {
                                 rb->num_abort_a[7]++;
                                 return;
@@ -1825,7 +1905,7 @@ process_a:
                             lp_a[num_a++] = f64;
                             mpz_tdiv_q_ui(_large, _large, f64);
 
-                            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                            if (mpz_cmp_ui(_large, rb->lp_cutoff_a) > 0)
                             {
                                 rb->num_abort_a[7]++;
                                 return;
@@ -1849,15 +1929,24 @@ process_a:
                 {
                     rb->num_qs_a++;
 
-#ifdef HAVE_LASIEVE_MPQS
                     mpz_t flist[3];
                     mpz_init(flist[0]);
                     mpz_init(flist[1]);
                     mpz_init(flist[2]);
 
                     mpz_t* fac = flist;
-                    
-                    int nf = mpqs_factor(_large, rb->lp_cutoff_a, &fac);
+
+#ifdef HAVE_LASIEVE_MPQS
+                    int nf = mpqs_factor(_large, rb->lpba, &fac);
+#else
+                    int nf = 0;
+#endif
+
+                    if (nf == 0)
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
 
                     while (nf > 0)
                     {
@@ -1868,7 +1957,6 @@ process_a:
                     mpz_clear(flist[0]);
                     mpz_clear(flist[1]);
                     mpz_clear(flist[2]);
-#endif
                 }
 
             }
@@ -1893,7 +1981,7 @@ process_a:
                     lp_a[num_a++] = f64;
                     mpz_tdiv_q_ui(_large, _large, f64);
 
-                    if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                    if (mpz_get_ui(_large) > rb->lp_cutoff_a)
                     {
                         rb->num_abort_a[7]++;
                         return;
@@ -1904,7 +1992,7 @@ process_a:
             }
             else
             {
-                if (mpz_get_ui(_large) > rb->lp_cutoff_a)
+                if (mpz_cmp_ui(_large, rb->lp_cutoff_a) > 0)
                 {
                     rb->num_abort_a[7]++;
                     return;
@@ -1919,11 +2007,9 @@ process_a:
         }
         else
         {
-            // need to run MPQS here.  until we get that going, record how
-            // many relations we are missing...
+            // split with mpqs
             rb->num_qs_a++;
-            
-#ifdef HAVE_LASIEVE_MPQS
+
             mpz_t flist[3];
             mpz_init(flist[0]);
             mpz_init(flist[1]);
@@ -1931,7 +2017,17 @@ process_a:
 
             mpz_t* fac = flist;
 
-            int nf = mpqs_factor(f1a, rb->lp_cutoff_a, &fac);
+#ifdef HAVE_LASIEVE_MPQS
+            int nf = mpqs_factor(f1a, rb->lpba, &fac);
+#else
+            int nf = 0;
+#endif
+
+            if (nf == 0)
+            {
+                rb->num_abort_a[7]++;
+                return;
+            }
 
             while (nf > 0)
             {
@@ -1942,24 +2038,20 @@ process_a:
             mpz_clear(flist[0]);
             mpz_clear(flist[1]);
             mpz_clear(flist[2]);
-#endif
         }
     }
 
     if (mpz_sizeinbase(f2a, 2) > 64) {
-        // gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f2a, 2), f2a);
+        // If f2a is greater than lpb^2, then we don't really know anything about it other 
+        // than that it either has several factors not in the GCD, any of which could be too 
+        // big, or it could be prime.  None of these scenarios is cost-benficial to pursue.
+        // size based checks will eliminate these relations from consideration.  However, 
+        // note that when LPB is greater than 32 bits, then this case is necessary to 
+        // handle 2LPs that are greater than 64 bits.
 
-        // we don't really know anything about f2a in this case other than that
-        // it either has several factors not in the GCD, any of which could be too big,
-        // or it could be prime.  None of these scenarios is cost-benficial to pursue.
-        // Note: we should never actually get here, because size-based checks on f2a
-        // should eliminate this residue right away, rather than waste time on f1a first.
-        //rb->num_abort[7]++;
-        //return;
-
-        // if it isn't prime, maybe try to do a little work on it.
         if (mpz_probab_prime_p(f2a, 1))
         {
+            //gmp_printf("prime f2a > 64 bits: %Zd\n", f2a);
             rb->num_abort_a[7]++;
             return;
         }
@@ -1975,6 +2067,7 @@ process_a:
         if (success)
         {
             mpz_tdiv_q(_large, f2a, _small);
+            //gmp_printf("split f2a > 64 bits with tecm: %Zd = %Zd * %Zd\n", f2a, _small, _large);
 
             // process _small, which might need to be split again.
             if (mpz_sizeinbase(_small, 2) > 64)
@@ -2064,14 +2157,7 @@ process_a:
                     mpz_tdiv_q(_large, _large, _small);
 
                     // process _small, which might need to be split again.
-                    if (mpz_sizeinbase(_small, 2) > 64)
-                    {
-                        // found all 3 factors?
-                        // give up
-                        rb->num_abort_a[7]++;
-                        return;
-                    }
-                    else if (mpz_sizeinbase(_small, 2) > 32)
+                    if (mpz_sizeinbase(_small, 2) > 32)
                     {
                         if (mpz_cmp_ui(_small, rb->lp_cutoff_a) <= 0)
                         {
@@ -2161,7 +2247,6 @@ process_a:
                 {
                     rb->num_qs_a++;
 
-#ifdef HAVE_LASIEVE_MPQS
                     mpz_t flist[3];
                     mpz_init(flist[0]);
                     mpz_init(flist[1]);
@@ -2169,7 +2254,17 @@ process_a:
 
                     mpz_t* fac = flist;
 
-                    int nf = mpqs_factor(_large, rb->lp_cutoff_a, &fac);
+#ifdef HAVE_LASIEVE_MPQS
+                    int nf = mpqs_factor(_large, rb->lpba, &fac);
+#else
+                    int nf = 0;
+#endif
+
+                    if (nf == 0)
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
 
                     while (nf > 0)
                     {
@@ -2180,31 +2275,38 @@ process_a:
                     mpz_clear(flist[0]);
                     mpz_clear(flist[1]);
                     mpz_clear(flist[2]);
-#endif
                 }
 
             }
             else if (mpz_sizeinbase(_large, 2) > 32)
             {
-                uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
-                rb->num_uecm_a[3]++;
-
-                if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                if (mpz_cmp_ui(_large, rb->lp_cutoff_a) <= 0)
                 {
-                    rb->num_abort_a[7]++;
-                    return;
+                    // lpb's can be larger than 32 bits
+                    lp_a[num_a++] = mpz_get_ui(_large);
                 }
-
-                lp_a[num_a++] = f64;
-                mpz_tdiv_q_ui(_large, _large, f64);
-
-                if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                else
                 {
-                    rb->num_abort_a[7]++;
-                    return;
-                }
+                    uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), 0, lcg_state);
+                    rb->num_uecm_a[3]++;
 
-                lp_a[num_a++] = mpz_get_ui(_large);
+                    if (f64 <= 1 || f64 > rb->lp_cutoff_a)
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    lp_a[num_a++] = f64;
+                    mpz_tdiv_q_ui(_large, _large, f64);
+
+                    if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
+                    {
+                        rb->num_abort_a[7]++;
+                        return;
+                    }
+
+                    lp_a[num_a++] = mpz_get_ui(_large);
+                }
             }
             else
             {
@@ -2223,9 +2325,36 @@ process_a:
         }
         else
         {
-            // if our "quick" ecm didn't find anything, give up.
             rb->num_qs_a++;
-            return;
+
+            mpz_t flist[3];
+            mpz_init(flist[0]);
+            mpz_init(flist[1]);
+            mpz_init(flist[2]);
+
+            mpz_t* fac = flist;
+
+#ifdef HAVE_LASIEVE_MPQS
+            int nf = mpqs_factor(f2a, rb->lpba, &fac);
+#else
+            int nf = 0;
+#endif
+
+            if (nf == 0)
+            {
+                rb->num_abort_a[7]++;
+                return;
+            }
+
+            while (nf > 0)
+            {
+                lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
+                nf--;
+            }
+
+            mpz_clear(flist[0]);
+            mpz_clear(flist[1]);
+            mpz_clear(flist[2]);
         }
     }
 
@@ -2237,17 +2366,67 @@ done:
     /* yay! Another relation found */
 
     rb->num_success++;
-    // it is complicated to save into the siqs relation buffer
-    // from here, so we just mark this cofactor as a success and
-    // calling code will put it into the buffer.
+
+    //#define CHECK_LARGE_PRIMES
+#ifdef CHECK_LARGE_PRIMES
+    if (c->lp_r_num_words) {
+
+        mpz_set_ui(n, lp1[c->lp_r_num_words - 1]);
+        for (j = c->lp_r_num_words - 2; j >= 0; j--)
+        {
+            mpz_mul_2exp(n, n, 32);
+            mpz_add_ui(n, n, lp1[j]);
+        }
+    }
+    else
+    {
+        mpz_set_ui(n, 1);
+    }
+#endif
 
     for (i = 0; i < num_r; i++)
     {
+#ifdef CHECK_LARGE_PRIMES
+        if (mpz_tdiv_ui(n, lp_r[i]) != 0)
+            gmp_printf("r-side large prime %"PRIu64" does not divide n = %Zd\n", lp_r[i], n);
+
+        mpz_set_ui(f1r, lp_r[i]);
+        if (mpz_probab_prime_p(f1r, 1) == 0)
+            printf("r-side large prime %"PRIu64" is composite\n", lp_r[i]);
+        if (mpz_cmp_ui(f1r, rb->lp_cutoff_r) > 0)
+            printf("r-side large prime %"PRIu64" is too big\n", lp_r[i]);
+#endif
         c->lp_r[i] = lp_r[i];
     }
 
+#ifdef CHECK_LARGE_PRIMES
+    if (c->lp_a_num_words) {
+
+        mpz_set_ui(n, lp2[c->lp_a_num_words - 1]);
+        for (j = c->lp_a_num_words - 2; j >= 0; j--)
+        {
+            mpz_mul_2exp(n, n, 32);
+            mpz_add_ui(n, n, lp2[j]);
+        }
+    }
+    else
+    {
+        mpz_set_ui(n, 1);
+    }
+#endif
+
     for (i = 0; i < num_a; i++)
     {
+#ifdef CHECK_LARGE_PRIMES
+        if (mpz_tdiv_ui(n, lp_a[i]) != 0)
+            gmp_printf("a-side large prime %"PRIu64" does not divide n = %Zd\n", lp_a[i], n);
+
+        mpz_set_ui(f1a, lp_a[i]);
+        if (mpz_probab_prime_p(f1a, 1) == 0)
+            printf("a-side large prime %"PRIu64" is composite\n", lp_a[i]);
+        if (mpz_cmp_ui(f1a, rb->lp_cutoff_a) > 0)
+            printf("a-side large prime %"PRIu64" is too big\n", lp_a[i]);
+#endif
         c->lp_a[i] = lp_a[i];
     }
 
@@ -2258,69 +2437,74 @@ done:
 
 /*------------------------------------------------------------------*/
 void compute_remainder_tree(bintree_t* tree, uint32_t first, uint32_t last,
-				relation_batch_t *rb, uint64_t *lcg_state,
-				mpz_t numerator) {
+    relation_batch_t* rb, uint64_t* lcg_state,
+    mpz_t numerator) {
 
-	/* recursively compute numerator % (each relation in 
-	   rb->relations) */
+    /* recursively compute numerator % (each relation in
+       rb->relations) */
 
-	uint32_t mid = (first + last) / 2;
-	mpz_t relation_prod, remainder;
+    uint32_t mid = (first + last) / 2;
+    mpz_t relation_prod, remainder;
 
-	/* recursion base case: numerator already fits in
-	   an mp_t, so manually compute the remainder and
-	   postprocess each relation */
+    /* recursion base case: numerator already fits in
+       an mp_t, so manually compute the remainder and
+       postprocess each relation */
 
-	if (mpz_sizeinbase(numerator, 2) <= (1024)) {
-		if (mpz_sgn(numerator) > 0) {
-			while (first <= last)
+    if (mpz_sizeinbase(numerator, 2) <= (1024)) {
+        if (mpz_sgn(numerator) > 0) {
+            while (first <= last)
                 check_batch_relation(rb, first++, lcg_state, numerator);
-		}
-		return;
-	}
+        }
+        return;
+    }
 
-	/* multiply together the unfactored parts of all the
-	   relations from first to last */
+    /* multiply together the unfactored parts of all the
+       relations from first to last */
 
-	mpz_init(relation_prod);
-	mpz_init(remainder);
-	multiply_relations(tree, first, last, rb, relation_prod);
+    mpz_init(relation_prod);
+    mpz_init(remainder);
+    multiply_relations(tree, first, last, rb, relation_prod);
 
-	/* use the remainder to deal with the left and right
-	   halves of the relation list */
+    /* use the remainder to deal with the left and right
+       halves of the relation list */
 
-	if (mpz_cmp(numerator, relation_prod) < 0) {
-		mpz_clear(relation_prod);
-		compute_remainder_tree(tree, first, mid, rb, lcg_state, numerator);
-		compute_remainder_tree(tree, mid + 1, last, rb, lcg_state, numerator);
-	}
-	else {
-		mpz_tdiv_r(remainder, numerator, relation_prod);
-		mpz_clear(relation_prod);
-		compute_remainder_tree(tree, first, mid, rb, lcg_state, remainder);
-		compute_remainder_tree(tree, mid + 1, last, rb, lcg_state, remainder);
-	}
-	mpz_clear(remainder);
+    if (mpz_cmp(numerator, relation_prod) < 0) {
+        mpz_clear(relation_prod);
+        compute_remainder_tree(tree, first, mid, rb, lcg_state, numerator);
+        compute_remainder_tree(tree, mid + 1, last, rb, lcg_state, numerator);
+    }
+    else {
+        mpz_tdiv_r(remainder, numerator, relation_prod);
+        mpz_clear(relation_prod);
+        compute_remainder_tree(tree, first, mid, rb, lcg_state, remainder);
+        compute_remainder_tree(tree, mid + 1, last, rb, lcg_state, remainder);
+    }
+    mpz_clear(remainder);
 }
 
 /*------------------------------------------------------------------*/
-void relation_batch_init(FILE *logfile, relation_batch_t *rb,
-			uint32_t min_prime, uint64_t max_prime,
-			uint64_t lp_cutoff_r, uint64_t lp_cutoff_a, 
-			print_relation_t print_relation,
-            int do_prime_product) {
+void relation_batch_init(FILE* logfile, relation_batch_t* rb,
+    uint32_t min_prime, uint64_t max_prime,
+    uint64_t lp_cutoff_r, uint64_t lp_cutoff_a,
+    print_relation_t print_relation,
+    int do_prime_product, int do_pm1) {
 
     mpz_init(rb->prime_product);
 
+    rb->do_pm1 = do_pm1;
+
+    //printf("rb_init with params: min_prime = %u, max_prime = %lu, lp_cutoff_r = %lu, "
+    //    "lp_cutoff_a = %lu\n", min_prime, max_prime, lp_cutoff_r, lp_cutoff_a);
+
     if (do_prime_product)
     {
-        soe_staticdata_t *sdata = soe_init(0, 1, 32768);
+        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
         uint64_t num_primes;
-        uint64_t *primes = soe_wrapper(sdata, min_prime, max_prime, 0, &num_primes, 0, 0);
+        uint64_t* primes = soe_wrapper(sdata, min_prime, max_prime, 0, &num_primes, 0, 0);
 
         // compute the product of primes
         printf("multiplying %"PRIu64" primes from %u to %"PRIu64"\n",
-            num_primes, primes[0], primes[num_primes-1]);
+            num_primes, primes[0], primes[num_primes - 1]);
 
         multiply_primes(0, num_primes, primes, rb->prime_product);
 
@@ -2332,27 +2516,27 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 
         printf("relation batch prime product is initialized\n");
     }
-					
-	rb->print_relation = print_relation;
+
+    rb->print_relation = print_relation;
     rb->conversion_ratio = 0.0;
 
-	/* compute the cutoffs used by the recursion base-case. Large
-	   primes have a maximum size specified as input arguments, 
-	   but numbers that can be passed to the SQUFOF routine are
-	   limited to size 2^62 */
+    /* compute the cutoffs used by the recursion base-case. Large
+       primes have a maximum size specified as input arguments,
+       but numbers that can be passed to the SQUFOF routine are
+       limited to size 2^62 */
 
-    // for TLP versions, this is typically 2^LPB
-	rb->lp_cutoff_r = lp_cutoff_r;
+       // for TLP versions, this is typically 2^LPB
+    rb->lp_cutoff_r = lp_cutoff_r;
     // no longer an issue with new ecm routines.
-	//lp_cutoff_r = MIN(lp_cutoff_r, 0x7fffffff);
-	mpz_init(rb->lp_cutoff_r2);
+    //lp_cutoff_r = MIN(lp_cutoff_r, 0x7fffffff);
+    mpz_init(rb->lp_cutoff_r2);
     mpz_set_ui(rb->lp_cutoff_r2, lp_cutoff_r);
     mpz_mul_ui(rb->lp_cutoff_r2, rb->lp_cutoff_r2, lp_cutoff_r);
     //gmp_printf("lp_cutoff_r = %"PRIu64", lp_cutoff_r^2 = %Zd\n", rb->lp_cutoff_r, rb->lp_cutoff_r2);
     mpz_init(rb->lp_cutoff_r3);
     mpz_mul_ui(rb->lp_cutoff_r3, rb->lp_cutoff_r2, lp_cutoff_r);
 
-	rb->lp_cutoff_a = lp_cutoff_a;
+    rb->lp_cutoff_a = lp_cutoff_a;
     // no longer an issue with new ecm routines.
     //lp_cutoff_a = MIN(lp_cutoff_a, 0x7fffffff);
     mpz_init(rb->lp_cutoff_a2);
@@ -2374,18 +2558,18 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_set_ui(rb->min_prime2, min_prime);
     mpz_mul_ui(rb->min_prime2, rb->min_prime2, min_prime);
 
-	/* allocate lists for relations and their factors */
+    /* allocate lists for relations and their factors */
 
-	rb->target_relations = 500000;
-	rb->num_relations = 0;
-	rb->num_relations_alloc = 1000;
-	rb->relations = (cofactor_t *)xmalloc(rb->num_relations_alloc *
-						sizeof(cofactor_t));
+    rb->target_relations = 500000;
+    rb->num_relations = 0;
+    rb->num_relations_alloc = 1000;
+    rb->relations = (cofactor_t*)xmalloc(rb->num_relations_alloc *
+        sizeof(cofactor_t));
 
-	rb->num_factors = 0;
-	rb->num_factors_alloc = 10000;
-	rb->factors = (uint32_t *)xmalloc(rb->num_factors_alloc *
-						sizeof(uint32_t));
+    rb->num_factors = 0;
+    rb->num_factors_alloc = 10000;
+    rb->factors = (uint32_t*)xmalloc(rb->num_factors_alloc *
+        sizeof(uint32_t));
 
     mpz_init(rb->n);
     mpz_init(rb->f1r);
@@ -2402,7 +2586,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 }
 
 /*------------------------------------------------------------------*/
-void relation_batch_free(relation_batch_t *rb, int has_prime_prod) {
+void relation_batch_free(relation_batch_t* rb, int has_prime_prod) {
 
     if (has_prime_prod)
     {
@@ -2415,8 +2599,8 @@ void relation_batch_free(relation_batch_t *rb, int has_prime_prod) {
     mpz_clear(rb->lp_cutoff_a3);
     mpz_clear(rb->lp_cutoff_r2);
     mpz_clear(rb->lp_cutoff_r3);
-	free(rb->relations);
-	free(rb->factors);
+    free(rb->relations);
+    free(rb->factors);
 
     mpz_clear(rb->n);
     mpz_clear(rb->f1r);
@@ -2432,58 +2616,58 @@ void relation_batch_free(relation_batch_t *rb, int has_prime_prod) {
 
 /*------------------------------------------------------------------*/
 void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
-			uint32_t *factors_r, uint32_t num_factors_r, 
-			mpz_t unfactored_r_in,
-			uint32_t *factors_a, uint32_t num_factors_a, 
-			mpz_t unfactored_a_in,
-			relation_batch_t *rb) {
+    uint32_t* factors_r, uint32_t num_factors_r,
+    mpz_t unfactored_r_in,
+    uint32_t* factors_a, uint32_t num_factors_a,
+    mpz_t unfactored_a_in,
+    relation_batch_t* rb) {
 
-	uint32_t i;
-	uint32_t *f;
-	cofactor_t *c;
+    uint32_t i;
+    uint32_t* f;
+    cofactor_t* c;
 
-	/* add one relation to the batch */
-	if (rb->num_relations == rb->num_relations_alloc) {
-		rb->num_relations_alloc *= 2;
-		rb->relations = (cofactor_t *)xrealloc(rb->relations,
-					rb->num_relations_alloc *
-					sizeof(cofactor_t));
-	}
-	c = rb->relations + rb->num_relations++;
-	c->a = a;
-	c->b = b;
+    /* add one relation to the batch */
+    if (rb->num_relations == rb->num_relations_alloc) {
+        rb->num_relations_alloc *= 2;
+        rb->relations = (cofactor_t*)xrealloc(rb->relations,
+            rb->num_relations_alloc *
+            sizeof(cofactor_t));
+    }
+    c = rb->relations + rb->num_relations++;
+    c->a = a;
+    c->b = b;
     c->signed_offset = offset;
-	c->num_factors_r = num_factors_r;
-	c->num_factors_a = num_factors_a;
-	c->lp_r_num_words = 0;
-	c->lp_a_num_words = 0;
-	c->factor_list_word = rb->num_factors;
+    c->num_factors_r = num_factors_r;
+    c->num_factors_a = num_factors_a;
+    c->lp_r_num_words = 0;
+    c->lp_a_num_words = 0;
+    c->factor_list_word = rb->num_factors;
     c->lp_r[0] = c->lp_r[1] = c->lp_r[2] = c->lp_r[3] = 1;
     c->lp_a[0] = c->lp_a[1] = c->lp_a[2] = c->lp_a[3] = 1;
     c->success = 0;
 
-	/* add its small factors */
+    /* add its small factors */
 
-	if (rb->num_factors + num_factors_r + num_factors_a +
-			2 * MAX_LARGE_PRIMES >= rb->num_factors_alloc) {
-		rb->num_factors_alloc *= 2;
-		rb->factors = (uint32_t *)xrealloc(rb->factors,
-					rb->num_factors_alloc *
-					sizeof(uint32_t));
-	}
-	f = rb->factors + rb->num_factors;
+    if (rb->num_factors + num_factors_r + num_factors_a +
+        2 * MAX_LARGE_PRIMES >= rb->num_factors_alloc) {
+        rb->num_factors_alloc *= 2;
+        rb->factors = (uint32_t*)xrealloc(rb->factors,
+            rb->num_factors_alloc *
+            sizeof(uint32_t));
+    }
+    f = rb->factors + rb->num_factors;
 
-	for (i = 0; i < num_factors_r; i++)
-		f[i] = factors_r[i];
-	f += i;
-	rb->num_factors += i;
+    for (i = 0; i < num_factors_r; i++)
+        f[i] = factors_r[i];
+    f += i;
+    rb->num_factors += i;
 
-	for (i = 0; i < num_factors_a; i++)
-		f[i] = factors_a[i];
-	f += i;
-	rb->num_factors += i;
+    for (i = 0; i < num_factors_a; i++)
+        f[i] = factors_a[i];
+    f += i;
+    rb->num_factors += i;
 
-	/* add its large factors (if any) */
+    /* add its large factors (if any) */
 
     if (mpz_cmp_si(unfactored_r_in, 0) < 0) {
         mpz_neg(rb->t0, unfactored_r_in);
@@ -2524,20 +2708,20 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
     }
 
 }
-	
+
 /*------------------------------------------------------------------*/
 
 
 
-uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lcg_state) {
+uint32_t relation_batch_run(relation_batch_t* rb, mpz_t prime_prod, uint64_t* lcg_state) {
     // recursive batch GCD, with a tree storage enhancement
     // to avoid re-calculating many of the products, at a cost
     // of additional RAM.
     // with TreeCutoff = 16 and ~500k relations in a batch, the
     // tree occupies about 64MB per thread and yields a speedup
     // of about 2x for the whole batch processing.
-	rb->num_success = 0;
-	if (rb->num_relations > 0) {
+    rb->num_success = 0;
+    if (rb->num_relations > 0) {
 
         bintree_t tree;
         int i;
@@ -2555,17 +2739,20 @@ uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lc
         tree.nodes[0].right_id = -1;
         tree.nodes[0].complete = 0;
 
-        printf("memory use for relations array is %u MB\n", rb->num_relations_alloc *
-            sizeof(cofactor_t) / (1<<20));
-        
-        printf("memory use for factors array is %u MB\n", rb->num_factors_alloc *
-            sizeof(uint32_t) / (1 << 20));
+        if (0)
+        {
+            printf("memory use for relations array is %u MB\n", rb->num_relations_alloc *
+                sizeof(cofactor_t) / (1 << 20));
+
+            printf("memory use for factors array is %u MB\n", rb->num_factors_alloc *
+                sizeof(uint32_t) / (1 << 20));
+        }
 
         // this already traverses the tree... just build in
         // the capability to add and reuse nodes and we 
         // should be there.
-		compute_remainder_tree(&tree, 0, rb->num_relations - 1,
-					rb, lcg_state, prime_prod);
+        compute_remainder_tree(&tree, 0, rb->num_relations - 1,
+            rb, lcg_state, prime_prod);
 
         uint32_t bytes = 0;
         for (i = 0; i < tree.size; i++)
@@ -2574,17 +2761,20 @@ uint32_t relation_batch_run(relation_batch_t *rb, mpz_t prime_prod, uint64_t *lc
             mpz_clear(tree.nodes[i].prod);
         }
 
-        printf("final tree had %u nodes with products occupying %u total MB\n", 
-            tree.size, bytes / (1<<20));
-        
+        if (0)
+        {
+            printf("final tree had %u nodes with products occupying %u total MB\n",
+                tree.size, bytes / (1 << 20));
+        }
+
         free(tree.nodes);
-	}
+    }
 
-	/* wipe out batched relations */
+    /* wipe out batched relations */
 
-	//rb->num_relations = 0;
-	//rb->num_factors = 0;
-	return rb->num_success;
+    //rb->num_relations = 0;
+    //rb->num_factors = 0;
+    return rb->num_success;
 }
 
 

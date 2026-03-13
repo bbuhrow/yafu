@@ -167,7 +167,8 @@ typedef struct {
 													   multiplier selection */
 
 													   /* relation stuff */
-
+	s32 num_full;
+	s32 num_partial;
 	s32 num_full_relations;   /* where next full relation will go */
 	s32 partial_idx;          /* where next partial relation will go */
 	s32 large_prime_max;      /* max value of a large prime */
@@ -221,7 +222,7 @@ typedef struct {
 
 // top level routines
 tiny_qs_params * init_tinysiqs(void);
-u32 tinysiqs(tiny_qs_params *g_params, mpz_t n, mpz_t factor1, mpz_t factor2);
+u32 tinysiqs(tiny_qs_params *g_params, mpz_t n, mpz_t factor1, mpz_t factor2, mpz_t factor3, int lpb);
 tiny_qs_params *free_tinysiqs(tiny_qs_params *g_params);
 
 #endif /* !_COFACTORIZE_H_ */

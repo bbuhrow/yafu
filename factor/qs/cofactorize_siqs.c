@@ -1330,6 +1330,7 @@ Trial factor a relation that survived sieving
 
     relation->large_prime = 1;
     params->num_full_relations++;
+    params->num_full++;
   }
   else if (mpz_cmp_ui(res, params->large_prime_max) < 0) {
     s32 lp = mpz_get_ui(res);
@@ -1337,7 +1338,7 @@ Trial factor a relation that survived sieving
     s32 partial_idx;
 
     /* partial relation; see if it has occurred already */
-
+    params->num_partial++;
     relation->large_prime = lp;
     for (i = 0; i < LP_HASH_DEPTH_TINY; i++) {
       partial_idx = params->partial_hash[table_idx][i];
@@ -1389,6 +1390,8 @@ sieve polynomials
   u32 fb_size = params->fb_size;
   u32 num_factors = params->num_a_factors;
 
+  params->num_full = 0;
+  params->num_partial = 0;
   /* compute the optimal size of the factors of
      the polynomial 'A' value. We know how many
      primes it should have, and know the optimal
@@ -2283,7 +2286,7 @@ Find linear dependencies among a set of relations
 }
 
 func_static u32 find_factors_tiny(tiny_qs_params *params, mpz_t factor1,
-	mpz_t factor2)
+	mpz_t factor2, mpz_t factor3)
 	/***********************************
 	perform MPQS square root phase
 	************************************/
@@ -2422,33 +2425,59 @@ func_static u32 find_factors_tiny(tiny_qs_params *params, mpz_t factor1,
 				}
 
 				/* found a factor: reduce n and check if we should keep going */
-				if (mpz_cmp_ui(t1, 1) && mpz_probab_prime_p(t1, 1)) {
-					//gmp_printf("found factor (%d) %Zd of %Zd\n", num_found, t1, params->n);
-					if (num_found == 0)
-					{
-						mpz_set(factor1, t1);
-						num_found++;
-					}
-					else
-					{
-						mpz_set(factor2, t1);
-						num_found++;
-					}
-					mpz_tdiv_q(params->n, params->n, t1);
-					//gmp_printf("n is now %Zd\n", params->n);
+                if (mpz_cmp_ui(t1, 1) && mpz_probab_prime_p(t1, 1)) {
+                    //gmp_printf("found factor (%d) %Zd of %Zd\n", num_found, t1, params->n);
+                    if (num_found == 0)
+                    {
+                        mpz_set(factor1, t1);
+                        num_found++;
+                    }
+                    else if (num_found == 1)
+                    {
+                        mpz_set(factor2, t1);
+                        num_found++;
+                    }
+                    else
+                    {
+                        mpz_set(factor3, t1);
+                        num_found++;
+                    }
+                    mpz_tdiv_q(params->n, params->n, t1);
+                    //gmp_printf("n is now %Zd\n", params->n);
 
-					//if (num_found == 2)
-					//	gmp_printf("found factors %Zd and %Zd with remainder %Zd\n", 
-					//		factor1, factor2, params->n);
-					
-					// if 1) we've already found 2 factors or
-					// 2) our input is completely reduced or
-					// 3) what's left of the input is prime
-					// then we're done.
-					if ((num_found == 2) || 
-						(mpz_cmp_ui(params->n, 1) == 0) || 
-						(mpz_probab_prime_p(params->n, 1)))
-						return 1;
+                    //if (num_found == 2)
+                    //	gmp_printf("found factors %Zd and %Zd with remainder %Zd\n", 
+                    //		factor1, factor2, params->n);
+
+                    // if 1) we've already found 2 factors or
+                    // 2) our input is completely reduced or
+                    // 3) what's left of the input is prime
+                    // then we're done.
+                    if ((num_found == 3) ||
+                        (mpz_cmp_ui(params->n, 1) == 0))
+                    {
+                        return num_found;
+                    }
+                
+                    if (mpz_probab_prime_p(params->n, 1))
+                    {
+                        if (num_found == 0)
+                        {
+                            mpz_set(factor1, params->n);
+                            num_found++;
+                        }
+                        else if (num_found == 1)
+                        {
+                            mpz_set(factor2, params->n);
+                            num_found++;
+                        }
+                        else
+                        {
+                            mpz_set(factor3, params->n);
+                            num_found++;
+                        }
+                        return num_found;
+                    }
 				}
 			}
 		}
@@ -2487,8 +2516,10 @@ tiny_qs_config static_config[] = {
  { 482, 5 },
 };
 
+//#define VERBOSE
+
 /***********************************/
-u32 tinysiqs(tiny_qs_params *params, mpz_t n, mpz_t factor1, mpz_t factor2)
+u32 tinysiqs(tiny_qs_params *params, mpz_t n, mpz_t factor1, mpz_t factor2, mpz_t factor3, int lpb)
 /***********************************
 Main driver for MPQS factorization
 Returns 1 and sets factor1 and factor2 if
@@ -2550,10 +2581,11 @@ successful, returns 0 otherwise
      size of the fudge factor needed to account
      for it in the sieving cutoff */
 
-  if (bits == 116)
-    large_prime_mult = 50;
+  if (bits > 85) //116)
+      large_prime_mult = 50;
   else
-    large_prime_mult = 15;
+      large_prime_mult = 25; // 15;
+
   bound = params->gprimes[fb_size - 1];
   bound *= large_prime_mult;
   params->large_prime_max = bound;
@@ -2600,11 +2632,70 @@ successful, returns 0 otherwise
 
   if (params->num_full_relations >= fb_size + NUM_EXTRA_RELATIONS_TINY) {
       solve_linear_system_tiny(params);
-      status = find_factors_tiny(params, factor1, factor2);
+      mpz_set_ui(factor1, 1);
+      mpz_set_ui(factor2, 1);
+      mpz_set_ui(factor3, 1);
+      status = find_factors_tiny(params, factor1, factor2, factor3);
+  }
+
+  if (lpb > 0)
+  {
+      // only return factors found that are smaller than the lpb bound
+      int valid[3];
+      valid[0] = status > 0;
+      valid[1] = status > 1;
+      valid[2] = status > 2;
+      if (status > 0)
+      {
+          if ((mpz_sizeinbase(factor1, 2) > lpb) || (mpz_sizeinbase(factor1, 2) < 10))
+          {
+              valid[0] = 0;
+          }
+      }
+      if (status > 1)
+      {
+          if ((mpz_sizeinbase(factor2, 2) > lpb) || (mpz_sizeinbase(factor2, 2) < 10))
+          {
+              valid[1] = 0;
+          }
+      }
+      if (status > 2)
+      {
+          if ((mpz_sizeinbase(factor3, 2) > lpb) || (mpz_sizeinbase(factor3, 2) < 10))
+          {
+              valid[2] = 0;
+          }
+      }
+
+      // compress the valid factors into the available outputs.
+      int j = 0;
+      if (valid[0]) 
+          j++;    // factor 1 is already in the right place
+      if (valid[1])
+      {
+          switch (j)
+          {
+          case 0: mpz_set(factor1, factor2); mpz_set_ui(factor2, 1); break;
+          }
+          j++;
+      }
+      if (valid[2])
+      {
+          switch (j)
+          {
+          case 0: mpz_set(factor1, factor3); mpz_set_ui(factor3, 1); break;
+          case 1: mpz_set(factor2, factor3); mpz_set_ui(factor3, 1); break;
+          }
+          j++;
+      }
+      status = j;
   }
 
   #ifdef VERBOSE
-  gmp_printf("found factors %Zu,%Zu; status is %u\n", factor1, factor2, status);
+  printf("found %u relations: %u full + %u from %u partial with %u polys\n", 
+      params->num_full_relations, params->num_full, 
+      (params->num_full_relations - params->num_full), params->num_partial, params->poly_num);
+  gmp_printf("found factors %Zu,%Zu,%Zu; status is %u\n", factor1, factor2, factor3, status);
   #endif
 
 

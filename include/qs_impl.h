@@ -540,6 +540,14 @@ typedef struct {
     int max_active_rb;
 #endif
 
+#ifdef HAVE_CUDA_BATCH_FACTOR
+
+    // a gpu device context
+    int which_gpu;
+    device_ctx_t* gpu_dev_ctx;
+
+#endif
+
 #ifdef GATHER_RESIDUE_STATS
     FILE* residue_files[64];
 #endif

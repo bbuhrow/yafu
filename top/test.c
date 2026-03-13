@@ -27,8 +27,130 @@ code to the public domain.
 #include "factor.h"
 #include "monty.h"
 #include "cofactorize.h"
+#include "smallmpqs.h"
 #include <ecm.h>
 #include <math.h>
+
+
+int test_smallmpqs(mpz_t* inputs, int num_inputs)
+{
+	struct timeval gstart;
+	struct timeval gstop;
+	mpz_t n, r;
+	mpz_init(n);
+	mpz_init(r);
+	gettimeofday(&gstart, NULL);
+
+	int i;
+	int correct = 0;
+	for (i = 0; i < num_inputs; i++)
+	{
+		int numf;
+		mpz_t* factors = smallmpqs(inputs[i], &numf);
+
+		if (numf > 0)
+		{
+			mpz_set(n, inputs[i]);
+			int j;
+			for (j = 0; j < numf; j++)
+			{
+				mpz_tdiv_r(r, n, factors[j]);
+				if (mpz_cmp_ui(r, 0) == 0)
+				{
+					mpz_tdiv_q(n, n, factors[j]);
+				}
+			}
+
+			if (mpz_cmp_ui(n, 1) == 0)
+			{
+				correct++;
+			}
+		}
+
+	}
+
+	gettimeofday(&gstop, NULL);
+	double t_time = ytools_difftime(&gstart, &gstop);
+
+	mpz_clear(n);
+	mpz_clear(r);
+	printf("smallmpqs got %d of %d correct in %2.2f sec\n", correct, num_inputs, t_time);
+	printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num_inputs);
+	printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num_inputs);
+	return correct;
+}
+
+int test_tinysiqs(mpz_t* inputs, int num_inputs)
+{
+	struct timeval gstart;
+	struct timeval gstop;
+	mpz_t n, r, f1, f2, f3;
+	mpz_init(n);
+	mpz_init(r);
+	mpz_init(f1);
+	mpz_init(f2);
+	mpz_init(f3);
+
+	tiny_qs_params* params;
+	params = init_tinysiqs();
+
+	gettimeofday(&gstart, NULL);
+
+	int i;
+	int correct = 0;
+	for (i = 0; i < num_inputs; i++)
+	{
+		int numf = tinysiqs(params, inputs[i], f1, f2, f3, 0);
+
+		if (numf > 0)
+		{
+			mpz_set(n, inputs[i]);
+
+			if (mpz_cmp_ui(f1, 1) > 0)
+			{
+				mpz_tdiv_r(r, n, f1);
+				if (mpz_cmp_ui(r, 0) == 0)
+				{
+					mpz_tdiv_q(n, n, f1);
+				}
+			}
+			if (mpz_cmp_ui(f2, 1) > 0)
+			{
+				mpz_tdiv_r(r, n, f2);
+				if (mpz_cmp_ui(r, 0) == 0)
+				{
+					mpz_tdiv_q(n, n, f2);
+				}
+			}
+			if (mpz_cmp_ui(f3, 1) > 0)
+			{
+				mpz_tdiv_r(r, n, f3);
+				if (mpz_cmp_ui(r, 0) == 0)
+				{
+					mpz_tdiv_q(n, n, f3);
+				}
+			}
+			if ((mpz_cmp_ui(n, 1) == 0) || (mpz_probab_prime_p(n, 1) > 0))
+			{
+				correct++;
+			}
+		}
+	}
+
+	gettimeofday(&gstop, NULL);
+	double t_time = ytools_difftime(&gstart, &gstop);
+
+	params = free_tinysiqs(params);
+	mpz_clear(n);
+	mpz_clear(r);
+	mpz_clear(f1);
+	mpz_clear(f2);
+	mpz_clear(f3);
+	printf("tinysiqs got %d of %d correct in %2.2f sec\n", correct, num_inputs, t_time);
+	printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num_inputs);
+	printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num_inputs);
+	return correct;
+}
 
 
 void test_dlp_composites()
@@ -97,14 +219,14 @@ void test_dlp_composites()
 	f64b = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 	uint64_t* outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 
-    //goto tinyqs_marker;
+    goto tinyqs_marker;
     //goto spfermat_marker;
     //goto tinyecm_104_list_marker;
 	//goto tinyecm_128_marker;
-	goto microecm_marker;
+	//goto microecm_marker;
 	//goto uecm_52_list_marker;
 	//goto brent_marker;
-	
+	//goto mpqs_marker;
 
 	
 	for (i = 0; i < 29; i++)
@@ -360,32 +482,26 @@ brent_marker:
 tinyqs_marker:
 
     i = 0;
-	strcpy(filenames[i++], "semiprimes_50bit.dat");
-	strcpy(filenames[i++], "semiprimes_52bit.dat");
-	strcpy(filenames[i++], "semiprimes_54bit.dat");
-    strcpy(filenames[i++], "semiprimes_56bit.dat");
-	strcpy(filenames[i++], "semiprimes_58bit.dat");
-    strcpy(filenames[i++], "semiprimes_60bit.dat");
+	//strcpy(filenames[i++], "semiprimes_50bit.dat");
+	//strcpy(filenames[i++], "semiprimes_52bit.dat");
+	//strcpy(filenames[i++], "semiprimes_54bit.dat");
+    //strcpy(filenames[i++], "semiprimes_56bit.dat");
+	//strcpy(filenames[i++], "semiprimes_58bit.dat");
+    //strcpy(filenames[i++], "semiprimes_60bit.dat");
     //strcpy(filenames[i++], "semiprimes_64bit.dat");
-    //strcpy(filenames[i++], "semiprimes_70bit.dat");
-    //strcpy(filenames[i++], "semiprimes_80bit.dat");
-    //strcpy(filenames[i++], "semiprimes_90bit.dat");
-    //strcpy(filenames[i++], "semiprimes_100bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_110bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_120bit.dat");
+    strcpy(filenames[i++], "semiprimes_70bit.dat");
+    strcpy(filenames[i++], "semiprimes_80bit.dat");
+    strcpy(filenames[i++], "semiprimes_90bit.dat");
+    strcpy(filenames[i++], "semiprimes_100bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_120bit.dat");
     //strcpy(filenames[i++], "pseudoprimes_125bit.dat");
     num_files = i;
     num = 10000;
 
     // tinyqs test
     {
-        tiny_qs_params *params;
-        mpz_t fact1, fact2, gmp_comp;
-
-        mpz_init(fact1);
-        mpz_init(fact2);
+        mpz_t gmp_comp;
         mpz_init(gmp_comp);
-        params = init_tinysiqs();
 
         for (nf = 0; nf < num_files; nf++)
         {
@@ -393,46 +509,55 @@ tinyqs_marker:
             char buf[1024];
             in = fopen(filenames[nf], "r");
 
-            gettimeofday(&gstart, NULL);
+			if (in == NULL)
+			{
+				printf("couldn't find %s to open\n", filenames[nf]);
+				continue;
+			}
 
-            correct = 0;
-            k = 0;
-            for (i = 0; i < num; i++)
-            {
-                fgets(buf, 768, in);
+			num = 10000;
+			totBits = 0;
+			minBits = 99999;
+			maxBits = 0;
 
+			mpz_t* inputs = (mpz_t*)xmalloc(num * sizeof(mpz_t));
+
+			for (i = 0; i < num; i++)
+			{
+				fgets(buf, 1024, in);
 #ifdef _MSC_VER
-                gmp_sscanf(buf, "%Zd, %llu, %llu",
-                    gmp_comp, &known1, &known2);
+				gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
+					gmp_comp, &known1, &known2);
 #else
-                gmp_sscanf(buf, "%Zd,%u,%u", gmp_comp, &known1, &known2);
+				gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+					gmp_comp, &known1, &known2);
 #endif
 
-                
-                mpz_set(fobj2->qs_obj.gmp_n, gmp_comp);
-                
-                k = tinysiqs(params, gmp_comp, fact1, fact2);
+				bits = mpz_sizeinbase(gmp_comp, 2);
+				totBits += bits;
+				if (bits < minBits) minBits = bits;
+				if (bits > maxBits) maxBits = bits;
 
-                if (k > 0)
-                {
-                    correct++;
-                }
-            }
+				mpz_init(inputs[i]);
+				mpz_set(inputs[i], gmp_comp);
+			}
 
-            fclose(in);
+			fclose(in);
 
-            gettimeofday(&gstop, NULL);
-            t_time = ytools_difftime(&gstart, &gstop);
+			printf("average bits of input numbers: %1.2f\n", (double)totBits / (double)num);
+			printf("minimum bits of input numbers: %u\n", minBits);
+			printf("maximum bits of input numbers: %u\n", maxBits);
+			printf("commencing mpqs test\n");
 
-            printf("tinyqs got %d of %d correct in %2.2f sec\n", correct, num, t_time);
-            printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
-            printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+			test_tinysiqs(inputs, num);
+
+			for (i = 0; i < num; i++)
+			{
+				mpz_clear(inputs[i]);
+			}
         }
 
-        params = free_tinysiqs(params);
         mpz_clear(gmp_comp);
-        mpz_clear(fact1);
-        mpz_clear(fact2);
     }   
 
 	goto done;
@@ -1068,6 +1193,73 @@ microecm_marker:
 		mpz_clear(gmp_f);
 	}
     
+
+mpqs_marker:
+	i = 0;
+	strcpy(filenames[i++], "semiprimes_70bit.dat");
+	strcpy(filenames[i++], "semiprimes_80bit.dat");
+	strcpy(filenames[i++], "semiprimes_90bit.dat");
+	strcpy(filenames[i++], "semiprimes_100bit.dat");
+	num_files = i;
+
+	for (nf = 0; nf < num_files; nf++)
+	{
+		mpz_t gmp_comp;
+		char buf[1024];
+		int curves;
+		int B1;
+		uint64_t known1, known2, known3;
+
+		in = fopen(filenames[nf], "r");
+		printf("testing file: %s\n", filenames[nf]);
+
+		mpz_init(gmp_comp);
+
+		gettimeofday(&gstart, NULL);
+
+		num = 10000;
+		totBits = 0;
+		minBits = 99999;
+		maxBits = 0;
+
+		mpz_t* inputs = (mpz_t*)xmalloc(num * sizeof(mpz_t));
+
+		for (i = 0; i < num; i++)
+		{
+			fgets(buf, 1024, in);
+#ifdef _MSC_VER
+			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
+				gmp_comp, &known1, &known2);
+#else
+			gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+				gmp_comp, &known1, &known2);
+#endif
+
+			bits = mpz_sizeinbase(gmp_comp, 2);
+			totBits += bits;
+			if (bits < minBits) minBits = bits;
+			if (bits > maxBits) maxBits = bits;
+
+			mpz_init(inputs[i]);
+			mpz_set(inputs[i], gmp_comp);
+		}
+
+		printf("average bits of input numbers: %1.2f\n", (double)totBits / (double)num);
+		printf("minimum bits of input numbers: %u\n", minBits);
+		printf("maximum bits of input numbers: %u\n", maxBits);
+		printf("commencing mpqs test\n");
+
+		test_smallmpqs(inputs, num);
+
+		mpz_clear(gmp_comp);
+		for (i = 0; i < num; i++)
+		{
+			mpz_clear(inputs[i]);
+		}
+	}
+
+	goto done;
+
 done:
 	
 	return;

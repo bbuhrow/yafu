@@ -419,7 +419,7 @@ void nfs_sieve_start(void* vptr)
 
 		// this initializes the prime product, regardless of whether it is computed or not.
 		relation_batch_init(stdout, job->rb, min_prime, 1ULL << max_prime,
-			1ull << job->lpbr, 1ull << job->lpba, NULL, compute_pproduct);
+			1ull << job->lpbr, 1ull << job->lpba, NULL, compute_pproduct, 0);
 
 		if (fid != NULL)
 		{
@@ -535,7 +535,7 @@ void nfs_sieve_start(void* vptr)
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 	printf("creating gpu device context\n");
-	device_ctx_t* dev = gpu_device_init(0);
+	device_ctx_t* dev = gpu_device_init(0, fobj->VFLAG >= 0);
 #endif
 
 	for (i = 0; i < fobj->THREADS; i++)
@@ -582,19 +582,12 @@ void nfs_sieve_start(void* vptr)
 			uint32_t min_prime = MIN(job->alim, job->rlim) / 10;
 
 			relation_batch_init(stdout, udata->thread_data[i].job.rb, min_prime, 1ULL << max_prime,
-				1ull << job->lpbr, 1ull << job->lpba, NULL, 0);
+				1ull << job->lpbr, 1ull << job->lpba, NULL, 0, 0);
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
-			// prepare a gpu context in this thread and point it to 
-			// this threads' relation batch.
-			// perhaps the context needs to be created in the thread
-			// in which it is run... if the gpu folds the thread
-			// id into the context somehow.
-
-			//printf("creating gpu cofactorization context in thread %d\n", i);
-			//udata->thread_data[i].gpu_cofactor_ctx = 
-			//	gpu_ctx_init(dev, udata->thread_data[i].job.rb);
-
+			// the work context needs to be created in the thread
+			// in which it is run.  Here is the device context,
+			// which we only need this one copy of.
 			udata->thread_data[i].gpu_dev_ctx = dev;
 #endif
 
@@ -949,8 +942,6 @@ void nfs_sieve_sync(void* vptr)
 			double this_batched_per_q = (double)t->job.rb->num_relations / (double)t->job.qrange;
 			double est_next_batched_per_q = udata->qrange_data->thread_qrange * this_batched_per_q;
 
-
-#ifndef HAVE_CUDA_BATCH_FACTOR
 			if (est_next_batched_per_q < 900000.0)
 			{
 				double mul = 1000000.0 / est_next_batched_per_q;
@@ -963,7 +954,6 @@ void nfs_sieve_sync(void* vptr)
 						udata->qrange_data->thread_qrange);
 				}
 			}
-#endif
 
 			// clear rb for next use
 			t->job.rb->num_relations = 0;
@@ -1812,21 +1802,19 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 	thread_data->job.rb->lpba = thread_data->job.lpba;
 	thread_data->job.rb->lpbr = thread_data->job.lpbr;
 
-	thread_data->gpu_cofactor_ctx =
-		gpu_ctx_init(thread_data->gpu_dev_ctx, thread_data->job.rb);
+	device_thread_ctx_t* gpu_cofactor_ctx =
+		gpu_ctx_init(thread_data->gpu_dev_ctx);
 
-	thread_data->gpu_cofactor_ctx->lpba = thread_data->job.lpba;
-	thread_data->gpu_cofactor_ctx->lpbr = thread_data->job.lpbr;
-	thread_data->gpu_cofactor_ctx->mfba = thread_data->job.mfba;
-	thread_data->gpu_cofactor_ctx->mfbr = thread_data->job.mfbr;
-	thread_data->gpu_cofactor_ctx->verbose = vflag;
-	thread_data->gpu_cofactor_ctx->stop_nofactor = 12;
-	do_gpu_cofactorization(thread_data->gpu_cofactor_ctx, &lcg_state,
+	gpu_cofactor_ctx->lpba = thread_data->job.lpba;
+	gpu_cofactor_ctx->lpbr = thread_data->job.lpbr;
+	gpu_cofactor_ctx->verbose = vflag;
+	gpu_cofactor_ctx->stop_nofactor = 12;
+	do_gpu_cofactorization(gpu_cofactor_ctx, thread_data->job.rb, &lcg_state,
 		500, 50, 0, 0, 100, 0);
 
 	// perhaps we can make the context persistent after we create it 
 	// once in the thread?
-	gpu_ctx_free(thread_data->gpu_cofactor_ctx);
+	gpu_ctx_free(gpu_cofactor_ctx);
 
 	gettimeofday(&stop, NULL);
 

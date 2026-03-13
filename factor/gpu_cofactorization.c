@@ -1,15 +1,41 @@
+/*
+MIT License
+
+Copyright (c) 2026 Ben Buhrow
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #include <stdio.h>
 #include <string.h>
 #include "gmp.h"
 #include "microecm.h"
 #include "batch_factor.h"
 #include "gpu_cofactorization.h"
+
 #ifdef HAVE_LASIEVE_MPQS
-#include "../factor/lasieve5_64/mpqs.h"
-#include "../factor/lasieve5_64/mpqs3.h"
-#include "../factor/lasieve5_64/if.h"
-#include "../factor/lasieve5_64/gmp-aux.h"
+#include "mpqs3/mpqs.h"
+#include "mpqs3/mpqs3.h"
+#include "mpqs3/if.h"
+#include "mpqs3/gmp-aux.h"
 #endif
+#include "cofactorize.h"
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 
@@ -141,9 +167,10 @@ uint32_t multiplicative_neg_inverse32(uint64_t a)
 	return res * (2 + a * res);
 }
 
-int handle_96b_factorization(device_thread_ctx_t* t, int idx, 
-	mpz_t zf, mpz_t zc, mpz_t zn, mpz_t *flist, 
-	int num2lp_retest, int *mpqs_success, int *num_mpqs)
+#if 0
+int handle_96b_factorization(device_thread_ctx_t* t, int idx,
+	mpz_t zf, mpz_t zc, mpz_t zn, mpz_t* flist,
+	int num2lp_retest, int* mpqs_success, int* num_mpqs)
 {
 	// here is a non-trivial factor that divides the modulus.
 	// check it against LPB size constraint.
@@ -164,7 +191,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 		{
 			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
 			uint64_t cofactor = mpz_get_ui(zc);
-			if (prp_uecm(cofactor) == 0)
+			//if (prp_uecm(cofactor) == 0)
+			if (mpz_probab_prime_p(zc, 1) == 0)
 			{
 				// record the factor we found
 				if (t->first_side == 0)
@@ -204,12 +232,9 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 			// for now try to do it here with mpqs.
 			if (mpz_probab_prime_p(zc, 1) == 0)
 			{
-#ifdef HAVE_LASIEVE_MPQS
 				int nf = mpqs_factor(zc, t->lpb_3lp, &flist);
 				(*num_mpqs)++;
-#else
-				int nf = 0;
-#endif
+
 				if (nf == 2)
 				{
 					(*mpqs_success)++;
@@ -246,7 +271,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 		{
 			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
 			uint64_t cofactor = mpz_get_ui(zf);
-			if (prp_uecm(cofactor) == 0)
+			//if (prp_uecm(cofactor) == 0)
+			if (mpz_probab_prime_p(zf, 1) == 0)
 			{
 				// record the factor we found
 				if (t->first_side == 0)
@@ -287,12 +313,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 			// for now try to do it here with mpqs.
 			if (mpz_probab_prime_p(zf, 1) == 0)
 			{
-#ifdef HAVE_LASIEVE_MPQS
 				int nf = mpqs_factor(zf, t->lpb_3lp, &flist);
 				(*num_mpqs)++;
-#else
-				int nf = 0;
-#endif
 
 				if (nf == 2)
 				{
@@ -317,6 +339,255 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 	}
 	return num2lp_retest;
 }
+#endif
+
+int handle_96b_factorization(device_thread_ctx_t* t, int idx,
+	mpz_t zf, mpz_t zc, mpz_t zn, mpz_t* flist,
+	int num2lp_retest, int* mpqs_success, int* num_mpqs)
+{
+	// here is a non-trivial factor that divides the modulus.
+	// check it against LPB size constraint.
+	int bits1 = mpz_sizeinbase(zf, 2);
+	mpz_tdiv_q(zc, zn, zf);
+	int bits2 = mpz_sizeinbase(zc, 2);
+
+	if (idx >= t->rb->num_relations)
+	{
+		printf("invalid index %d in handle_96b_factorization\n", idx);
+		return num2lp_retest;
+	}
+
+	if (bits1 <= t->lpb_3lp)
+	{
+		// the factor we found is good.
+		// the cofactor needs further analysis
+		// that we either assign to a list for
+		// more gpu-ecm work, or tackle immediately
+		// if too big for that.
+
+		// check if cofactor is small enough to re-process with 64-bit kernel.
+		if (bits2 <= 64)
+		{
+			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+			//uint64_t cofactor = mpz_get_ull(zc);
+			uint64_t cofactor = mpz_get_ui(zc);
+
+			// check if cofactor is composite and small enough to
+			// possibly yield 2 correctly-sized primes
+			//if (prp_uecm(cofactor) == 0)
+			if ((bits2 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zc, 1) == 0))
+			{
+				// record the factor we found
+				if (t->first_side == 0)
+				{
+					//c->lp_a[0] = mpz_get_ull(zf);
+					c->lp_a[0] = mpz_get_ui(zf);
+				}
+				else
+				{
+					//c->lp_r[0] = mpz_get_ull(zf);
+					c->lp_r[0] = mpz_get_ui(zf);
+				}
+				// and load the cofactor for further factorization
+				t->modulus_in[num2lp_retest] = cofactor;
+				t->rb_idx_2lp[num2lp_retest] = t->rb_idx_3lp[idx];
+				num2lp_retest++;
+			}
+			else if (bits2 > 2 * t->lpb_3lp)
+			{
+				// this cofactor is too big
+				c->success = 0;
+			}
+			else if (bits2 <= t->lpb_3lp)
+			{
+				// we just factored a 2LP larger than 64 bits.
+				if (t->first_side == 0)
+				{
+					//c->lp_a[0] = mpz_get_ull(zf);
+					c->lp_a[0] = mpz_get_ui(zf);
+					c->lp_a[1] = cofactor;
+				}
+				else
+				{
+					//c->lp_r[0] = mpz_get_ull(zf);
+					c->lp_r[0] = mpz_get_ui(zf);
+					c->lp_r[1] = cofactor;
+				}
+				c->success |= 0x0f;
+			}
+		}
+		else
+		{
+			// the cofactor is larger than 64 bits. if it's 
+			// not prime we could either try to factor it here
+			// (slow) or do another 96-bit pass on it (more code).
+			// for now try to do it here with mpqs.
+
+			// check if cofactor is composite and small enough to
+			// possibly yield 2 correctly-sized primes
+			//if (prp_uecm(cofactor) == 0)
+			if ((bits2 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zc, 1) == 0))
+			{
+#ifdef HAVE_LASIEVE_MPQS
+				int nf = mpqs_factor(zc, t->lpb_3lp, &flist);
+				(*num_mpqs)++;
+#else
+				(*num_mpqs)++;
+				int nf = tinysiqs(t->params, zc, flist[0], flist[1], flist[2], t->lpb_3lp);
+#endif
+				if (nf == 2)
+				{
+					//gmp_printf("factored %Zd as %Zd * %Zd by tinysiqs\n", zc, flist[0], flist[1]);
+					(*mpqs_success)++;
+					cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+					if (t->first_side == 0)
+					{
+						//c->lp_a[0] = mpz_get_ull(zf);
+						//c->lp_a[1] = mpz_get_ull(flist[0]);
+						//c->lp_a[2] = mpz_get_ull(flist[1]);
+						c->lp_a[0] = mpz_get_ui(zf);
+						c->lp_a[1] = mpz_get_ui(flist[0]);
+						c->lp_a[2] = mpz_get_ui(flist[1]);
+					}
+					else
+					{
+						//c->lp_r[0] = mpz_get_ull(zf);
+						//c->lp_r[1] = mpz_get_ull(flist[0]);
+						//c->lp_r[2] = mpz_get_ull(flist[1]);
+						c->lp_r[0] = mpz_get_ui(zf);
+						c->lp_r[1] = mpz_get_ui(flist[0]);
+						c->lp_r[2] = mpz_get_ui(flist[1]);
+					}
+					c->success |= 0x0f;
+				}
+			}
+			else
+			{
+				cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+				// if it's too big or prime (and > 64 bits), it's no good
+				c->success = 0;
+			}
+
+		}
+	}
+	else if (bits2 <= t->lpb_3lp)
+	{
+		// we found either an improbably large prime factor
+		// or two smaller factors simultaneously.
+		// submit this for further gpu analysis.
+		// build up a list on which we'll do 64-bit
+		// factorizations as needed.  possible 
+		// to maybe also do the prp checks on gpu
+		// but these are extremely cheap on cpu.
+
+		// check cofactor
+		if (bits1 <= 64)
+		{
+			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+			//uint64_t cofactor = mpz_get_ull(zf);
+			uint64_t cofactor = mpz_get_ui(zf);
+
+			// check if cofactor is composite and small enough to
+			// possibly yield 2 correctly-sized primes
+			//if (prp_uecm(cofactor) == 0)
+			if ((bits1 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zf, 1) == 0))
+			{
+				// record the factor we found
+				if (t->first_side == 0)
+				{
+					//c->lp_a[0] = mpz_get_ull(zc);
+					c->lp_a[0] = mpz_get_ui(zc);
+				}
+				else
+				{
+					//c->lp_r[0] = mpz_get_ull(zc);
+					c->lp_r[0] = mpz_get_ui(zc);
+				}
+
+				// and load the cofactor for further factorization
+				t->modulus_in[num2lp_retest] = cofactor;
+				t->rb_idx_2lp[num2lp_retest] = t->rb_idx_3lp[idx];
+				num2lp_retest++;
+			}
+			else if (bits2 > 2 * t->lpb_3lp)
+			{
+				// this cofactor is too big
+				c->success = 0;
+			}
+			else if (bits1 <= t->lpb_3lp)
+			{
+				// we just factored a 2LP larger than 64 bits.
+				if (t->first_side == 0)
+				{
+					//c->lp_a[0] = mpz_get_ull(zc);
+					c->lp_a[0] = mpz_get_ui(zc);
+					c->lp_a[1] = cofactor;
+				}
+				else
+				{
+					//c->lp_r[0] = mpz_get_ull(zc);
+					c->lp_r[0] = mpz_get_ui(zc);
+					c->lp_r[1] = cofactor;
+				}
+				c->success |= 0x0f;
+			}
+		}
+		else
+		{
+			// the cofactor is larger than 64 bits, if it's 
+			// not prime we could either try to factor it here
+			// (slow) or do another 96-bit pass on it (more code)
+			// for now try to do it here with mpqs.
+			// 
+			// check if cofactor is composite and small enough to
+			// possibly yield 2 correctly-sized primes
+			//if (prp_uecm(cofactor) == 0)
+			if ((bits1 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zf, 1) == 0))
+			{
+#ifdef HAVE_LASIEVE_MPQS
+				int nf = mpqs_factor(zf, t->lpb_3lp, &flist);
+				(*num_mpqs)++;
+#else
+				(*num_mpqs)++;
+				int nf = tinysiqs(t->params, zf, flist[0], flist[1], flist[2], t->lpb_3lp);
+#endif
+
+				if (nf == 2)
+				{
+					//gmp_printf("factored %Zd as %Zd * %Zd by tinysiqs\n", zf, flist[0], flist[1]);
+					cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+					(*mpqs_success)++;
+					if (t->first_side == 0)
+					{
+						//c->lp_a[0] = mpz_get_ull(zc);
+						//c->lp_a[1] = mpz_get_ull(flist[0]);
+						//c->lp_a[2] = mpz_get_ull(flist[1]);
+						c->lp_a[0] = mpz_get_ui(zc);
+						c->lp_a[1] = mpz_get_ui(flist[0]);
+						c->lp_a[2] = mpz_get_ui(flist[1]);
+					}
+					else
+					{
+						//c->lp_r[0] = mpz_get_ull(zc);
+						//c->lp_r[1] = mpz_get_ull(flist[0]);
+						//c->lp_r[2] = mpz_get_ull(flist[1]);
+						c->lp_r[0] = mpz_get_ui(zc);
+						c->lp_r[1] = mpz_get_ui(flist[0]);
+						c->lp_r[2] = mpz_get_ui(flist[1]);
+					}
+					c->success |= 0x0f;
+				}
+			}
+			else
+			{
+				cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+				// if it's too big or prime, it's no good
+				c->success = 0;
+			}
+		}
+	}
+	return num2lp_retest;
+}
 
 
 // the function we use to go and actually do work
@@ -330,12 +601,12 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 	gpu_launch_t* launch;
 
 	float elapsed_ms;
-		
+
 	int threads_per_block = 256;
 	int num_blocks = t->array_sz / threads_per_block +
 		((t->array_sz % threads_per_block) > 0);
 
-	printf("commencing gpu 64-bit ecm in mode %d on %d inputs\n", 
+	printf("commencing gpu 64-bit ecm in mode %d on %d inputs\n",
 		t->mode_2lp, t->array_sz);
 
 	fflush(stdout);
@@ -346,15 +617,15 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 		t->array_sz * sizeof(uint32_t),
 		t->stream))
 
-	// copy n into device memory
-	CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_n_array,
-		t->modulus_in,
-		t->array_sz * sizeof(uint64_t),
-		t->stream))
+		// copy n into device memory
+		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_n_array,
+			t->modulus_in,
+			t->array_sz * sizeof(uint64_t),
+			t->stream))
 
-	CUDA_TRY(cuEventRecord(t->start_event, t->stream))
+		CUDA_TRY(cuEventRecord(t->start_event, t->stream))
 
-	int curve = 0;
+		int curve = 0;
 	int total_factors = 0;
 	int i;
 	int lf = 0;
@@ -366,7 +637,7 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 	mpz_init(rsq);
 	mpz_init(zn);
 	for (i = 0; i < t->array_sz; i++)
-	{		
+	{
 		t->rho[i] = multiplicative_neg_inverse32(t->modulus_in[i]);
 		t->one[i] = ((uint64_t)0 - t->modulus_in[i]) % t->modulus_in[i];
 		mpz_set_ui(rsq, 1);
@@ -380,18 +651,18 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 		t->array_sz * sizeof(uint64_t),
 		t->stream))
 
-	CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rho_array,
-		t->rho,
-		t->array_sz * sizeof(uint32_t),
-		t->stream))
+		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rho_array,
+			t->rho,
+			t->array_sz * sizeof(uint32_t),
+			t->stream))
 
-	CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
-		t->one,
-		t->array_sz * sizeof(uint64_t),
-		t->stream))
+		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
+			t->one,
+			t->array_sz * sizeof(uint64_t),
+			t->stream))
 
-	// run 64-bit ecm curves
-	launch = t->launch + GPU_ECM_VEC;
+		// run 64-bit ecm curves
+		launch = t->launch + GPU_ECM_VEC;
 
 	int orig_size = t->array_sz;
 	int nofactors = 0;
@@ -415,37 +686,37 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 		CUDA_TRY(cuFuncSetBlockShape(launch->kernel_func,
 			threads_per_block, 1, 1))
 
-		//printf("kernel %s, size <%d,%d>, ", gpu_kernel_names[GPU_ECM_VEC],
-		//	num_blocks, threads_per_block); fflush(stdout);
-		//	int maxblocks;
-		//int mingrid;
-		//cuOccupancyMaxActiveBlocksPerMultiprocessor(&maxblocks, (void*)launch->kernel_func,
-		//	threads_per_block, 0);
-		//printf("occupancy says %d blocks can be active per multiprocessor for kernel %s\n",
-		//	maxblocks, gpu_kernel_names[GPU_ECM_VEC]);
-		//cuOccupancyMaxPotentialBlockSize(&mingrid, &maxblocks, (void*)launch->kernel_func, 
-		//	NULL, 0, 0);
-		//printf("best occupancy with grid size %d and block size %d for kernel %s\n",
-		//	mingrid, maxblocks, gpu_kernel_names[GPU_ECM_VEC]);
+			//printf("kernel %s, size <%d,%d>, ", gpu_kernel_names[GPU_ECM_VEC],
+			//	num_blocks, threads_per_block); fflush(stdout);
+			//	int maxblocks;
+			//int mingrid;
+			//cuOccupancyMaxActiveBlocksPerMultiprocessor(&maxblocks, (void*)launch->kernel_func,
+			//	threads_per_block, 0);
+			//printf("occupancy says %d blocks can be active per multiprocessor for kernel %s\n",
+			//	maxblocks, gpu_kernel_names[GPU_ECM_VEC]);
+			//cuOccupancyMaxPotentialBlockSize(&mingrid, &maxblocks, (void*)launch->kernel_func, 
+			//	NULL, 0, 0);
+			//printf("best occupancy with grid size %d and block size %d for kernel %s\n",
+			//	mingrid, maxblocks, gpu_kernel_names[GPU_ECM_VEC]);
 
-		// launch the kernel with the size we just set and 
-		// arguments configured by the gpu_launch_set command.
-		CUDA_TRY(cuLaunchGridAsync(launch->kernel_func,
-			num_blocks, 1, t->stream))
+			// launch the kernel with the size we just set and 
+			// arguments configured by the gpu_launch_set command.
+			CUDA_TRY(cuLaunchGridAsync(launch->kernel_func,
+				num_blocks, 1, t->stream))
 
-		// copy factors back to host
-		CUDA_TRY(cuMemcpyDtoHAsync(t->a, t->gpu_a_array,
-			t->array_sz * sizeof(uint64_t), t->stream))
+			// copy factors back to host
+			CUDA_TRY(cuMemcpyDtoHAsync(t->a, t->gpu_a_array,
+				t->array_sz * sizeof(uint64_t), t->stream))
 
-		// swap factored inputs to the end of the list
-		int n = t->array_sz;
+			// swap factored inputs to the end of the list
+			int n = t->array_sz;
 		int c = 0;
 		for (i = 0; i < n; i++)
 		{
 			mpz_set_ui(zn, t->modulus_in[i]);
 			uint64_t factor = t->a[i];
 
-			if ((factor > 1) && 
+			if ((factor > 1) &&
 				(factor < t->modulus_in[i]))
 			{
 				mpz_set_ui(rsq, factor);
@@ -456,8 +727,6 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 
 				if (t->rb_idx_2lp[i] < t->rb->num_relations)
 				{
-					//printf("recording factor %u in relation %d of %d\n",
-					//	factor, t->rb_idx_2lp[i], t->rb->num_relations);
 					if ((bits1 <= t->lpb_2lp) && (bits2 <= t->lpb_2lp))
 					{
 						// valid factorization, save it.
@@ -479,14 +748,9 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 						else
 						{
 							// in mode 1 these are a-side LPs whose indices
-							// into the RB have been loaded into the r-side array.
+							// into the RB have been loaded into the 2lp array.
 							cofactor_t* c = t->rb->relations + t->rb_idx_2lp[i];
 							uint8_t success = c->success;
-
-							//printf("3LP cofactor %d has initial factor %u and "
-							//	"r-side factors %u,%u (2LP success = %u)\n",
-							//	t->rb_idx_2lp[i], c->lp_a[0], c->lp_r[0], 
-							//	c->lp_r[1], success);
 
 							// we end up here because the 3LP kernel already
 							// found one valid factor and put it in position 0.
@@ -509,10 +773,6 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 					{
 						if (t->mode_2lp == 0)
 						{
-							// gmp_printf("2LP invalid factor sizes: %Zx = %Zx (%d) * ",
-							//  	zn, rsq, mpz_sizeinbase(rsq, 2));
-							// mpz_tdiv_q(rsq, zn, rsq);
-							// gmp_printf("%Zx (%d)\n", rsq, mpz_sizeinbase(rsq, 2));
 							cofactor_t* c = t->rb->relations + t->rb_idx_2lp[i];
 							c->success = 0;
 						}
@@ -554,9 +814,6 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 		if (lastfactors == total_factors)
 			nofactors++;
 
-		//if (nofactors > 2)
-		//	break;
-
 		num_blocks = t->array_sz / threads_per_block +
 			((t->array_sz % threads_per_block) > 0);
 
@@ -566,34 +823,46 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 			t->array_sz * sizeof(uint64_t),
 			t->stream))
 
-		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rsq_array,
-			t->rsq,
-			t->array_sz * sizeof(uint64_t),
-			t->stream))
+			CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rsq_array,
+				t->rsq,
+				t->array_sz * sizeof(uint64_t),
+				t->stream))
 
-		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rho_array,
-			t->rho,
-			t->array_sz * sizeof(uint32_t),
-			t->stream))
+			CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rho_array,
+				t->rho,
+				t->array_sz * sizeof(uint32_t),
+				t->stream))
 
-		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
-			t->one,
-			t->array_sz * sizeof(uint64_t),
-			t->stream))
+			CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
+				t->one,
+				t->array_sz * sizeof(uint64_t),
+				t->stream))
 
-		// new curves.  The gpu does 1 at a time.
-		curve += 1;
+			// new curves.  The gpu does 1 at a time.
+			curve += 1;
 
 	}
-	//printf("\n");
+
+	// anything unfactored we mark as invalid
+	nofactors = 0;
+	if (t->mode_2lp == 0)
+	{
+		for (i = 0; i < t->array_sz; i++) {
+			cofactor_t* c = t->rb->relations + t->rb_idx_2lp[i];
+			c->success = 0;
+			nofactors++;
+		}
+
+		printf("marked %d unfactored residues as invalid\n", nofactors);
+	}
 
 	CUDA_TRY(cuEventRecord(t->end_event, t->stream))
-	CUDA_TRY(cuEventSynchronize(t->end_event))
-	CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
-		t->start_event, t->end_event))
+		CUDA_TRY(cuEventSynchronize(t->end_event))
+		CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
+			t->start_event, t->end_event))
 
-	printf("found %d total factors (%d valid) in %1.4f ms\n", 
-		total_factors, t->num_factors_2lp, elapsed_ms);
+		printf("found %d total factors (%d valid) in %1.4f ms\n",
+			total_factors, t->num_factors_2lp, elapsed_ms);
 
 	mpz_clear(rsq);
 	mpz_clear(zn);
@@ -601,7 +870,7 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 	/* we have to synchronize now */
 	CUDA_TRY(cuStreamSynchronize(t->stream))
 
-	return quit;
+		return quit;
 }
 
 uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
@@ -616,11 +885,11 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 
 	// When stg2 is set to use D30, use 384 threads/block.
 	// with D60 the max is 256, but 128 threads/block is slightly faster.
-	int threads_per_block = 384;
+	int threads_per_block = 128;
 	int num_blocks = t->array_sz / threads_per_block +
 		((t->array_sz % threads_per_block) > 0);
 
-	printf("commencing gpu 96-bit ecm on %d inputs (b1 = %d, b2 = %d, curves = %d)\n", 
+	printf("commencing gpu 96-bit ecm on %d inputs (b1 = %d, b2 = %d, curves = %d)\n",
 		t->array_sz, t->b1_3lp, t->b2_3lp * t->b1_3lp, t->curves_3lp);
 	fflush(stdout);
 
@@ -644,23 +913,13 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 	// initialize on cpu
 	// compute rho, one, and Rsq
 	mpz_t rsq, zn, zf, zc;
-	mpz_init(rsq);
-	mpz_init(zn);
-	mpz_init(zf);
-	mpz_init(zc);
-
+	mpz_init(rsq); mpz_init(zn); mpz_init(zf); mpz_init(zc);
 	mpz_t fac[3];
-
-	mpz_init(fac[0]);
-	mpz_init(fac[1]);
-	mpz_init(fac[2]);
-
+	mpz_init(fac[0]); mpz_init(fac[1]); mpz_init(fac[2]);
 	mpz_t* flist = fac;
 
-	for (i = 0; i < t->array_sz; i++)
-	{
+	for (i = 0; i < t->array_sz; i++) {
 		bignum32_to_mpz(zn, &t->modulus96_in[3 * i]);
-
 		uint32_t n32 = t->modulus96_in[3 * i];
 		t->rho[i] = multiplicative_neg_inverse32(n32);
 
@@ -668,13 +927,11 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 		mpz_mul_2exp(rsq, rsq, 96);
 		mpz_sub(rsq, rsq, zn);
 		mpz_tdiv_r(rsq, rsq, zn);
-
 		mpz_to_bignum32(&t->one96[3 * i], rsq);
 
 		mpz_set_ui(rsq, 1);
 		mpz_mul_2exp(rsq, rsq, 192);
 		mpz_tdiv_r(rsq, rsq, zn);
-
 		mpz_to_bignum32(&t->rsq96[3 * i], rsq);
 	}
 
@@ -731,8 +988,9 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 		CUDA_TRY(cuFuncSetBlockShape(launch->kernel_func,
 			threads_per_block, 1, 1))
 
-			//printf("kernel %s, size <%d,%d>, ", gpu_kernel_names[GPU_ECM96_VEC],
-			//	num_blocks, threads_per_block);
+		//printf("kernel %s, inputs %d, size <%d,%d>, ", gpu_kernel_names[GPU_ECM96_VEC],
+		//	t->array_sz, num_blocks, threads_per_block);
+
 		//	int maxblocks;
 		//int mingrid;
 		//	cuOccupancyMaxActiveBlocksPerMultiprocessor(&maxblocks, (void *)launch->kernel_func, 
@@ -811,9 +1069,9 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 		// keep running curves until 
 		// we get to max curves or we stop finding valid factors.
 		if (no_factors >= max_no_factors)
-		{			
+		{
 			printf("halting after %d curves (%d/%d mpqs calls): "
-				"last %d curves yielded no factors\n", 
+				"%d curves yielded no factors\n",
 				curve + 1, mpqs_success, num_mpqs, max_no_factors);
 			printf("giving up on %d likely unproductive 96-bit residues\n", n);
 			curve = max_curves;
@@ -822,7 +1080,7 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 		{
 			curve = max_curves;
 			printf("halting after running the maximum specified %d curves "
-				"(%d/%d mpqs calls)\n", 
+				"(%d/%d mpqs calls)\n",
 				max_curves, mpqs_success, num_mpqs);
 		}
 
@@ -832,26 +1090,26 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 		// copy new list of N to the gpu
 		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_n_array,
 			t->modulus96_in,
-			t->array_sz * sizeof(uint32_t),
-			t->stream))
-
-		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rsq_array,
-			t->rsq96,
 			t->array_sz * 3 * sizeof(uint32_t),
 			t->stream))
 
-		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rho_array,
-			t->rho,
-			t->array_sz * sizeof(uint32_t),
-			t->stream))
+			CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rsq_array,
+				t->rsq96,
+				t->array_sz * 3 * sizeof(uint32_t),
+				t->stream))
 
-		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
-			t->one96,
-			t->array_sz * 3 * sizeof(uint32_t),
-			t->stream))
+			CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_rho_array,
+				t->rho,
+				t->array_sz * sizeof(uint32_t),
+				t->stream))
 
-		// new curves.  The gpu does 1 at a time.
-		curve += 1;
+			CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
+				t->one96,
+				t->array_sz * 3 * sizeof(uint32_t),
+				t->stream))
+
+			// new curves.  The gpu does 1 at a time.
+			curve += 1;
 
 	}
 
@@ -865,18 +1123,18 @@ uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 	mpz_clear(fac[2]);
 
 	CUDA_TRY(cuEventRecord(t->end_event, t->stream))
-	CUDA_TRY(cuEventSynchronize(t->end_event))
-	CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
-		t->start_event, t->end_event))
+		CUDA_TRY(cuEventSynchronize(t->end_event))
+		CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
+			t->start_event, t->end_event))
 
-	printf("found %d total factors with %d total curves in %1.4f ms\n", 
-		total_factors, total_curves, elapsed_ms);
+		printf("found %d total factors with %d total curves in %1.4f ms\n",
+			total_factors, total_curves, elapsed_ms);
 	t->array_sz = total_factors;
 
 	/* we have to synchronize now */
 	CUDA_TRY(cuStreamSynchronize(t->stream))
 
-	printf("running 2LP kernel on %d 3LP-cofactors\n", num2lp_retest);
+		printf("running 2LP kernel on %d 3LP-cofactors\n", num2lp_retest);
 	t->array_sz = num2lp_retest;
 	t->mode_2lp = 1;
 	t->num_factors_2lp = 0;
@@ -900,7 +1158,7 @@ uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 
 	// When stg2 is set to use D30, use 384 threads/block.
 	// with D60 the max is 256, but 128 threads/block is slightly faster.
-	int threads_per_block = 384;
+	int threads_per_block = 128;
 	int num_blocks = t->array_sz / threads_per_block +
 		((t->array_sz % threads_per_block) > 0);
 
@@ -914,9 +1172,9 @@ uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 		t->array_sz * 3 * sizeof(uint32_t),
 		t->stream))
 
-	CUDA_TRY(cuEventRecord(t->start_event, t->stream))
+		CUDA_TRY(cuEventRecord(t->start_event, t->stream))
 
-	int total_factors = 0;
+		int total_factors = 0;
 	int i;
 
 	// initialize on cpu
@@ -956,12 +1214,12 @@ uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 		t->array_sz * sizeof(uint32_t),
 		t->stream))
 
-	CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
-		t->one96,
-		t->array_sz * 3 * sizeof(uint32_t),
-		t->stream))
+		CUDA_TRY(cuMemcpyHtoDAsync(t->gpu_one_array,
+			t->one96,
+			t->array_sz * 3 * sizeof(uint32_t),
+			t->stream))
 
-	launch = t->launch + GPU_PM196_VEC;
+		launch = t->launch + GPU_PM196_VEC;
 	int orig_size = t->array_sz;
 	int num2lp_retest = 0;
 	int num_mpqs = 0;
@@ -1000,15 +1258,15 @@ uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 
 		// launch the kernel with the size we just set and 
 		// arguments configured by the gpu_launch_set command.
-		CUDA_TRY(cuLaunchGridAsync(launch->kernel_func,
-			num_blocks, 1, t->stream))
+			CUDA_TRY(cuLaunchGridAsync(launch->kernel_func,
+				num_blocks, 1, t->stream))
 
-		// copy factors back to host
-		CUDA_TRY(cuMemcpyDtoHAsync(t->factors96, t->gpu_res32_array,
-			t->array_sz * 3 * sizeof(uint32_t), t->stream))
+			// copy factors back to host
+			CUDA_TRY(cuMemcpyDtoHAsync(t->factors96, t->gpu_res32_array,
+				t->array_sz * 3 * sizeof(uint32_t), t->stream))
 
-		// swap factored inputs to the end of the list
-		int n = t->array_sz;
+			// swap factored inputs to the end of the list
+			int n = t->array_sz;
 		int c = 0;
 		for (i = 0; i < n; i++)
 		{
@@ -1070,7 +1328,7 @@ uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 		CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
 			t->start_event, t->end_event))
 
-	orig_size = t->array_sz;
+		orig_size = t->array_sz;
 	printf("found %d total factors (%d/%d mpqs calls) with P-1 in %1.4f ms\n",
 		total_factors, mpqs_success, num_mpqs, elapsed_ms);
 	t->array_sz = total_factors;
@@ -1078,7 +1336,7 @@ uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 	/* we have to synchronize now */
 	CUDA_TRY(cuStreamSynchronize(t->stream))
 
-	printf("running 2LP kernel on %d 3LP-cofactors\n", num2lp_retest);
+		printf("running 2LP kernel on %d 3LP-cofactors\n", num2lp_retest);
 	t->array_sz = num2lp_retest;
 	t->mode_2lp = 1;
 	t->num_factors_2lp = 0;
@@ -1096,48 +1354,108 @@ uint32_t gpu_cofactorization(device_thread_ctx_t* t)
 	uint32_t quit = 0;
 	int i;
 	int j;
+	int do_2lp = 1;
+	int do_3lp = 1;
 
 	// which list is 2LP?
 	// load the residues into the 64-bit input array.
-	if (t->first_side == 0)
+	//if (t->first_side == 0)
+	//{
+	//	// 2LP side is r-side
+	//	printf("setting up gpu to factor %d r-side 2LPs\n", t->numres_r);
+	//	for (i = 0; i < t->numres_r; i++) {
+	//		t->modulus_in[i] = ((uint64_t)t->residues_r_in[i * 2 + 1] << 32) |
+	//			(uint64_t)t->residues_r_in[i * 2 + 0];
+	//	}
+	//
+	//	// the 2LP factorization code is agnostic to side, so
+	//	// point it to which side it should be tracking.
+	//	t->array_sz = t->numres_r;
+	//
+	//	memcpy(t->rb_idx_2lp, t->rb_idx_r, t->numres_r * sizeof(uint32_t));
+	//}
+	//else if (t->first_side == 1)
+	//{
+	//	// 2LP side is a-side
+	//	printf("setting up gpu to factor %d a-side 2LPs\n", t->numres_a);
+	//	for (i = 0; i < t->numres_a; i++) {
+	//		t->modulus_in[i] = ((uint64_t)t->residues_a_in[i * 2 + 1] << 32) |
+	//			(uint64_t)t->residues_a_in[i * 2 + 0];
+	//	}
+	//	// the 2LP factorization code is agnostic to side, so
+	//	// point it to which side it should be tracking.
+	//	t->array_sz = t->numres_a;
+	//
+	//	memcpy(t->rb_idx_2lp, t->rb_idx_a, t->numres_a * sizeof(uint32_t));
+	//}
+	//else
 	{
-		// 2LP side has 2 words per input
-		printf("setting up gpu to factor %d r-side 2LPs\n", t->numres_r);
-		for (i = 0; i < t->numres_r; i++) {
-			t->modulus_in[i] = ((uint64_t)t->residues_r_in[i * 2 + 1] << 32) |
-				(uint64_t)t->residues_r_in[i * 2 + 0];
+		// first side not equal to 0 or 1 means there is only
+		// one side to factor
+		switch (t->first_side)
+		{
+			// r-side 2LP cases
+		case -2:
+			// here we are only doing this side
+			do_3lp = 0;
+			t->first_side = 0;
+		case 0:
+
+			printf("setting up gpu to factor %d r-side 2LPs\n", t->numres_r);
+			for (i = 0; i < t->numres_r; i++) {
+				t->modulus_in[i] = ((uint64_t)t->residues_r_in[i * 2 + 1] << 32) |
+					(uint64_t)t->residues_r_in[i * 2 + 0];
+			}
+
+			// the 2LP factorization code is agnostic to side, so
+			// point it to which side it should be tracking.
+			t->array_sz = t->numres_r;
+
+			memcpy(t->rb_idx_2lp, t->rb_idx_r, t->numres_r * sizeof(uint32_t));
+			break;
+
+			// a-side 2LP cases
+		case -4:
+			// here we are only doing this side
+			do_3lp = 0;
+			t->first_side = 1;
+		case 1:
+			// a-side 2LPs
+			printf("setting up gpu to factor %d a-side 2LPs\n", t->numres_a);
+			for (i = 0; i < t->numres_a; i++) {
+				t->modulus_in[i] = ((uint64_t)t->residues_a_in[i * 2 + 1] << 32) |
+					(uint64_t)t->residues_a_in[i * 2 + 0];
+			}
+			// the 2LP factorization code is agnostic to side, so
+			// point it to which side it should be tracking.
+			t->array_sz = t->numres_a;
+
+			memcpy(t->rb_idx_2lp, t->rb_idx_a, t->numres_a * sizeof(uint32_t));
+			break;
+
+		case -3:
+			// only r-side 3LPs.  Flag as having done a (non-existant) a-side 2LP first pass.
+			t->first_side = 1;
+			do_2lp = 0;
+			break;
+		case -5:
+			// only a-side 3LPs.  Flag as having done a (non-existant) r-side 2LP first pass.
+			t->first_side = 0;
+			do_2lp = 0;
+			break;
 		}
-
-		// the 2LP factorization code is agnostic to side, so
-		// point it to which side it should be tracking.
-		t->array_sz = t->numres_r;
-
-		memcpy(t->rb_idx_2lp, t->rb_idx_r, t->numres_r * sizeof(uint32_t));
-		//t->rb_idx_2lp = t->rb_idx_r;		
-	}
-	else
-	{
-		// 2LP side has 2 words per input
-		printf("setting up gpu to factor %d a-side 2LPs\n", t->numres_a);
-		for (i = 0; i < t->numres_a; i++) {
-			t->modulus_in[i] = ((uint64_t)t->residues_a_in[i * 2 + 1] << 32) |
-				(uint64_t)t->residues_a_in[i * 2 + 0];
-		}
-		// the 2LP factorization code is agnostic to side, so
-		// point it to which side it should be tracking.
-		t->array_sz = t->numres_a;
-
-		memcpy(t->rb_idx_2lp, t->rb_idx_a, t->numres_a * sizeof(uint32_t));
-		//t->rb_idx_2lp = t->rb_idx_a;
 	}
 
-	// try to completely factor the 2LP list.  The last handful
-	// of curves don't typically make sense to run on the gpu (only
-	// a few inputs left) but it also doesn't take much time, so
-	// to be lazy we just finish it all here.
 	t->mode_2lp = 0;
 	t->num_factors_2lp = 0;
-	do_gpu_ecm64(t);
+	if (do_2lp)
+	{
+		// try to completely factor the 2LP list.  The last handful
+		// of curves don't typically make sense to run on the gpu (only
+		// a few inputs left) but it also doesn't take much time, so
+		// to be lazy we just finish it all here.
+		do_gpu_ecm64(t);
+	}
 
 	// sometimes the factors of a 2LP are not correctly sized.
 	// when that happens, we can ignore the corresponding 3LP side cofactor.
@@ -1160,13 +1478,21 @@ uint32_t gpu_cofactorization(device_thread_ctx_t* t)
 			// the 3lps for this successful 2lp-side factorization.
 			if (t->first_side == 0)
 			{
+				// cases where we have already factored a list of r-side 2LPs,
+				// or there was no r-side to factor.
+				// in the latter case all relations default to initial 2LP success,
+				// so we won't be rejecting anything in this loop.
 				t->modulus96_in[3 * j + 0] = t->residues_a_in[3 * i + 0];
 				t->modulus96_in[3 * j + 1] = t->residues_a_in[3 * i + 1];
 				t->modulus96_in[3 * j + 2] = t->residues_a_in[3 * i + 2];
 				t->rb_idx_3lp[j] = t->rb_idx_a[i];
 			}
-			else
+			else if (t->first_side == 1)
 			{
+				// cases where we have already factored a list of a-side 2LPs,
+				// or there was no a-side to factor.
+				// in the latter case all relations default to initial 2LP success,
+				// so we won't be rejecting anything in this loop.
 				t->modulus96_in[3 * j + 0] = t->residues_r_in[3 * i + 0];
 				t->modulus96_in[3 * j + 1] = t->residues_r_in[3 * i + 1];
 				t->modulus96_in[3 * j + 2] = t->residues_r_in[3 * i + 2];
@@ -1179,24 +1505,38 @@ uint32_t gpu_cofactorization(device_thread_ctx_t* t)
 	}
 
 	t->array_sz = j;
-	printf("ignoring %d 3LP-side cofactors due to invalid 2LP-side factorizations\n", 
-		t->rb->num_relations - j);
-	
+	if (do_2lp)
+	{
+		printf("ignoring %d 3LP-side cofactors due to invalid 2LP-side factorizations\n",
+			t->rb->num_relations - j);
+	}
+
 	// now run the 3LP kernels
 	t->num_factors_3lp = 0;
-	
-	do_gpu_pm1_96b(t);
-	do_gpu_ecm_96b(t);
+
+	if (do_3lp)
+	{
+		if (t->rb->do_pm1)
+		{
+			do_gpu_pm1_96b(t);
+		}
+		do_gpu_ecm_96b(t);
+	}
 
 	// any survivors have now survived both sides (had factors 
 	// found on both R and A sides). 
 	// double check the number that have success fully flagged
-	t->num_factors_3lp = 0;
 	for (i = 0; i < t->rb->num_relations; i++)
 	{
+		// if there was only a 2LP list to do, then one side
+		// success is a full success.  only 3LP lists still
+		// require a full 0xff, indicating that both 3LP and
+		// the corresponding 2LP cofactorization were successful.
+		if ((do_3lp == 0) && (t->rb->relations[i].success))
+			t->rb->relations[i].success = 0xff;
+
 		if (t->rb->relations[i].success == 0xff)
 		{
-			t->num_factors_3lp++;
 			t->rb->relations[i].success = 1;
 			t->rb->num_success++;
 		}
@@ -1214,7 +1554,7 @@ uint32_t gpu_cofactorization(device_thread_ctx_t* t)
 // definitions for ECM types/functions that use cuda_xface
 /*------------------------------------------------------------------------*/
 
-device_ctx_t* gpu_device_init(int which_gpu)
+device_ctx_t* gpu_device_init(int which_gpu, int verbose)
 {
 	gpu_config_t gpu_config;
 	gpu_info_t* gpu_info;
@@ -1237,19 +1577,21 @@ device_ctx_t* gpu_device_init(int which_gpu)
 	printf("selected card has CUDA arch %d.%d\n",
 		gpu_info->compute_version_major,
 		gpu_info->compute_version_minor);
-	printf("more GPU info:\n");
-	printf("\tmax_grid_size: %d x %d x %d\n", gpu_info->max_grid_size[0],
-		gpu_info->max_grid_size[1], gpu_info->max_grid_size[2]);
-	printf("\tglobal_mem_size: %zd\n", gpu_info->global_mem_size);
-	printf("\tconstant_mem_size: %d\n", gpu_info->constant_mem_size);
-	printf("\tmax_threads_per_block: %d\n", gpu_info->max_threads_per_block);
-	printf("\tmax_thread_dim: %d x %d x %d\n", gpu_info->max_thread_dim[0],
-		gpu_info->max_thread_dim[1], gpu_info->max_thread_dim[2]);
-	printf("\tnum_compute_units: %d\n", gpu_info->num_compute_units);
-	printf("\tregisters_per_block: %d\n", gpu_info->registers_per_block);
-	printf("\tshared_mem_size: %d\n", gpu_info->shared_mem_size);
-	printf("\twarp_size: %d\n", gpu_info->warp_size);
-
+	if (verbose)
+	{
+		printf("more GPU info:\n");
+		printf("\tmax_grid_size: %d x %d x %d\n", gpu_info->max_grid_size[0],
+			gpu_info->max_grid_size[1], gpu_info->max_grid_size[2]);
+		printf("\tglobal_mem_size: %zd\n", gpu_info->global_mem_size);
+		printf("\tconstant_mem_size: %d\n", gpu_info->constant_mem_size);
+		printf("\tmax_threads_per_block: %d\n", gpu_info->max_threads_per_block);
+		printf("\tmax_thread_dim: %d x %d x %d\n", gpu_info->max_thread_dim[0],
+			gpu_info->max_thread_dim[1], gpu_info->max_thread_dim[2]);
+		printf("\tnum_compute_units: %d\n", gpu_info->num_compute_units);
+		printf("\tregisters_per_block: %d\n", gpu_info->registers_per_block);
+		printf("\tshared_mem_size: %d\n", gpu_info->shared_mem_size);
+		printf("\twarp_size: %d\n", gpu_info->warp_size);
+	}
 	return d;
 }
 
@@ -1259,34 +1601,33 @@ void gpu_dev_free(device_ctx_t* d)
 	free(d);
 }
 
-device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
+device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d) {
 
 	device_thread_ctx_t* t;
 
 	t = (device_thread_ctx_t*)xcalloc(1, sizeof(device_thread_ctx_t));
 
 	t->dev = d;
-	t->rb = rb;
 
 	/* every thread needs its own context; making all
 	   threads share the same context causes problems
 	   with the sort engine, because apparently it
 	   changes the GPU cache size on the fly */
 #if toolkit_version >= 13
-		CUctxCreateParams* ctxCreateParams;
+	CUctxCreateParams* ctxCreateParams;
 
-		CUDA_TRY(cuCtxCreate(&t->gpu_context,
-			ctxCreateParams,
-			CU_CTX_BLOCKING_SYNC,
-			d->gpu_info->device_handle))
+	CUDA_TRY(cuCtxCreate(&t->gpu_context,
+		ctxCreateParams,
+		CU_CTX_BLOCKING_SYNC,
+		d->gpu_info->device_handle))
 #else
-		CUDA_TRY(cuCtxCreate(&t->gpu_context,
-			CU_CTX_BLOCKING_SYNC,
-			d->gpu_info->device_handle))
+	CUDA_TRY(cuCtxCreate(&t->gpu_context,
+		CU_CTX_BLOCKING_SYNC,
+		d->gpu_info->device_handle))
 #endif
 
-	/* load GPU kernels */
-	char ptxfile[80];
+		/* load GPU kernels */
+		char ptxfile[80];
 	if (d->gpu_info->compute_version_major == 2) {
 		strcpy(ptxfile, "cuda_ecm20.ptx");
 	}
@@ -1311,17 +1652,17 @@ device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
 		exit(-1);
 	}
 
-	printf("loading kernel code from %s\n",	ptxfile);
+	printf("loading kernel code from %s\n", ptxfile);
 
 	CUDA_TRY(cuModuleLoad(&t->gpu_module, ptxfile))
 
-	printf("successfully loaded kernel code from %s\n",
-		ptxfile);
+		printf("successfully loaded kernel code from %s\n",
+			ptxfile);
 
 	t->launch = (gpu_launch_t*)xmalloc(NUM_GPU_FUNCTIONS *
 		sizeof(gpu_launch_t));
 
-	printf("initializing kernels\n");
+	// printf("initializing kernels\n");
 	int i;
 	for (i = 0; i < NUM_GPU_FUNCTIONS; i++) {
 		gpu_launch_t* launch = t->launch + i;
@@ -1330,34 +1671,34 @@ device_thread_ctx_t* gpu_ctx_init(device_ctx_t* d, relation_batch_t *rb) {
 			gpu_kernel_args + i, launch);
 	}
 
-	printf("creating stream\n");
+	// printf("creating stream\n");
 	/* threads each send a stream of kernel calls */
 	CUDA_TRY(cuStreamCreate(&t->stream, 0))
 
-		printf("creating events\n");
-	// for measuring elapsed time
-	CUDA_TRY(cuEventCreate(&t->start_event, CU_EVENT_BLOCKING_SYNC))
-	CUDA_TRY(cuEventCreate(&t->end_event, CU_EVENT_BLOCKING_SYNC))
+		// printf("creating events\n");
+		// for measuring elapsed time
+		CUDA_TRY(cuEventCreate(&t->start_event, CU_EVENT_BLOCKING_SYNC))
+		CUDA_TRY(cuEventCreate(&t->end_event, CU_EVENT_BLOCKING_SYNC))
 
-	return t;
+		return t;
 }
 
 void gpu_ctx_free(device_thread_ctx_t* d)
 {
 	CUDA_TRY(cuEventDestroy(d->start_event))
-	CUDA_TRY(cuEventDestroy(d->end_event))
-	CUDA_TRY(cuStreamDestroy(d->stream))
-	free(d->launch);
+		CUDA_TRY(cuEventDestroy(d->end_event))
+		CUDA_TRY(cuStreamDestroy(d->stream))
+		free(d->launch);
 	CUDA_TRY(cuCtxDestroy(d->gpu_context))
 }
 
 /* external entry point */
-int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg, 
+int do_gpu_cofactorization(device_thread_ctx_t* t, relation_batch_t* rb, uint64_t* lcg,
 	int b1_3lp_ovr, int b2_3lp_ovr, int b1_2lp_ovr, int b2_2lp_ovr,
 	int curves_3lp_ovr, int curves_2lp_ovr)
 {
 	uint32_t i;
-	relation_batch_t* rb = t->rb;
+	t->rb = rb;
 
 	// the relation batch tracks all factors and metadata of a relation.
 	// the gpu only cares about the large factors.  we need
@@ -1375,6 +1716,9 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg,
 	t->rb_idx_a = (uint32_t*)xmalloc(sizeof(uint32_t) * t->array_sz);
 	t->rb_idx_2lp = (uint32_t*)xmalloc(sizeof(uint32_t) * t->array_sz);
 	t->rb_idx_3lp = (uint32_t*)xmalloc(sizeof(uint32_t) * t->array_sz);
+
+	// get ready for siqs
+	t->params = init_tinysiqs();
 
 	uint32_t kr = 0;
 	uint32_t ka = 0;
@@ -1471,13 +1815,15 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg,
 		exit(1);
 	}
 
-	if (max_words[0] == 0)
+	if (max_words[1] == 0)
 	{
-		printf("only one side has unfactored residues of max size %d\n", max_words[1]);
-		if (max_words[1] == 2)
-			t->first_side = -2;
-		else if (max_words[1] == 3)
-			t->first_side = -3;
+		printf("only r-side has unfactored residues of max size %d\n", max_words[1]);
+		t->lpb_3lp = t->lpbr;		// 3lp's are on the r-side
+		t->lpb_2lp = t->lpbr;		// 2lp's are on the r-side
+		if (max_words[0] == 2)
+			t->first_side = -2;			// flag for only 2LP on r-side
+		else if (max_words[0] == 3)
+			t->first_side = -3;			// flag for only 3LP on r-side
 		else
 		{
 			printf("could not find a list of unfactored residues to process\n");
@@ -1485,13 +1831,15 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg,
 		}
 	}
 
-	if (max_words[1] == 0)
+	if (max_words[0] == 0)
 	{
-		printf("only one side has unfactored residues of max size %d\n", max_words[0]);
-		if (max_words[0] == 2)
-			t->first_side = -4;
-		else if (max_words[0] == 3)
-			t->first_side = -5;
+		printf("only a-side has unfactored residues of max size %d\n", max_words[0]);
+		t->lpb_3lp = t->lpba;		// 3lp's are on the a-side
+		t->lpb_2lp = t->lpba;		// 2lp's are on the a-side
+		if (max_words[1] == 2)
+			t->first_side = -4;			// flag for only 2LP on a-side
+		else if (max_words[1] == 3)
+			t->first_side = -5;			// flag for only 3LP on a-side
 		else
 		{
 			printf("could not find a list of unfactored residues to process\n");
@@ -1607,15 +1955,17 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg,
 	free(t->one96);
 	free(t->factors96);
 
-	CUDA_TRY(cuMemFree(t->gpu_a_array))
-	CUDA_TRY(cuMemFree(t->gpu_u32_array))
-	CUDA_TRY(cuMemFree(t->gpu_n_array))
-	CUDA_TRY(cuMemFree(t->gpu_rho_array))
-	CUDA_TRY(cuMemFree(t->gpu_rsq_array))
-	CUDA_TRY(cuMemFree(t->gpu_one_array))
-	CUDA_TRY(cuMemFree(t->gpu_res32_array))
+	t->params = free_tinysiqs(t->params);
 
-	return 0;
+	CUDA_TRY(cuMemFree(t->gpu_a_array))
+		CUDA_TRY(cuMemFree(t->gpu_u32_array))
+		CUDA_TRY(cuMemFree(t->gpu_n_array))
+		CUDA_TRY(cuMemFree(t->gpu_rho_array))
+		CUDA_TRY(cuMemFree(t->gpu_rsq_array))
+		CUDA_TRY(cuMemFree(t->gpu_one_array))
+		CUDA_TRY(cuMemFree(t->gpu_res32_array))
+
+		return 0;
 }
 
 

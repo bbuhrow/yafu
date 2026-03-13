@@ -1579,7 +1579,33 @@ uint32_t* mergesort(uint32_t* a, uint32_t* b, int sz_a, int sz_b)
 // ============================================================================
 // searching
 // ============================================================================
+int bin_search_uint16(int idp, int idm, uint16_t q, uint16_t* input)
+{
+    int next = (idp + idm) / 2;
 
+    while ((idp - idm) > 10)
+    {
+        if (input[next] > q)
+        {
+            idp = next;
+            next = (next + idm) / 2;
+        }
+        else
+        {
+            idm = next;
+            next = (idp + next) / 2;
+        }
+    }
+
+    for (next = idm; next < idm + 10; next++)
+        if (input[next] == q)
+            return next;
+
+    if (input[next] != q)
+        next = -1;
+
+    return next;
+}
 
 int bin_search_uint32(int idp, int idm, uint32_t q, uint32_t *input)
 {

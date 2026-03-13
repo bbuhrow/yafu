@@ -32,7 +32,7 @@ extern "C" {
 #define VWORDS ((VBITS + 63) / 64)
 
 #if VBITS!=64 && VBITS!=128 && VBITS!=256
-#error "unsupported vector size"
+#error "unsupported VBITS vector size (must be 64, 128, or 256)"
 #endif
 
 typedef struct {

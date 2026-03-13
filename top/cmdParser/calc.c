@@ -51,6 +51,8 @@ SOFTWARE.
 #include "arith.h"
 #include "microecm.h"
 #include "tinyprp.h"
+#include "smallmpqs.h"
+#include "cofactorize.h"
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
@@ -2909,25 +2911,25 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // smallmpqs - 1 argument
         if (check_args(funcnum, nargs)) break;
 
-        // set up a new factorization of the provided input
-        new_factorization(fobj, operands[0]);
+        {
+            int numf;
 
-        // customize for this method
-        mpz_set(fobj->qs_obj.gmp_n, operands[0]);
-        if (strlen(fobj->flogname) > 0)
-        {
-            fobj->logfile = fopen(fobj->flogname, "a");
-            if (fobj->logfile == NULL)
-                printf("fopen error: %s\n", strerror(errno));
+            tiny_qs_params* params;
+            params = init_tinysiqs();
+
+            numf = tinysiqs(params, operands[0], tmp1, tmp2, mp3, 0);
+
+            if (numf > 0)
+            {
+                gmp_printf("%Zd\n", tmp1);
+                if (mpz_cmp_ui(tmp2, 1) > 0)
+                    gmp_printf("%Zd\n", tmp2);
+                if (mpz_cmp_ui(mp3, 1) > 0)
+                    gmp_printf("%Zd\n", mp3);
+            }
+
+            params = free_tinysiqs(params);
         }
-        smallmpqs(fobj);
-        if (strlen(fobj->flogname) > 0)
-        {
-            if (fobj->logfile != NULL)
-                fclose(fobj->logfile);
-        }
-        mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj);
 
         break;
     case 68:

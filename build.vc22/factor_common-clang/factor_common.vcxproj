@@ -162,6 +162,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\micropm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
+    <ClCompile Include="..\..\factor\gpu_cofactorization.c" />
+    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c" />
+    <ClCompile Include="..\..\factor\qs\smallmpqs.c" />
     <ClCompile Include="..\..\factor\rho.c" />
     <ClCompile Include="..\..\factor\squfof.c" />
     <ClCompile Include="..\..\factor\trialdiv.c" />
@@ -169,10 +172,13 @@
     <ClCompile Include="..\..\top\aprcl\tinyprp.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\factor\cuda_intrinsics.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\microecm.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />
+    <ClInclude Include="..\..\factor\gpu_cofactorization.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\batch_factor.h" />
+    <ClInclude Include="..\..\include\cofactorize.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\gmp_xface.h" />
@@ -183,6 +189,9 @@
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\factor\cuda_ecm64.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
