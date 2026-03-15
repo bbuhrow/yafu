@@ -9,6 +9,7 @@
 # Quick-start
 # -----------
 #   cp config.mk.example config.mk   # first time only; edit paths as needed
+#   Add to .gitignore: config.mk  .deps/
 #   make yafu                        # build yafu (default compiler: gcc)
 #   make msieve                      # build msieve static library + demo
 #   make siqs                        # build siqs_demo standalone binary
@@ -991,8 +992,24 @@ QS_OBJS = \
     mpqs/sieve_core_generic_32k.qo \
     mpqs/sieve_core_generic_64k.qo
 
-COMMON_GPU_OBJS   = $(COMMON_GPU_SRCS:.c=$(OBJ_EXT))
-COMMON_NOGPU_OBJS = $(COMMON_NOGPU_SRCS:.c=$(OBJ_EXT))
+DEPS_DIR      := .deps
+ALL_OBJS      := $(YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) \
+                 $(YAFU_COMMON_OBJS) $(YAFU_NFS_OBJS) \
+                 $(MSIEVE_YAFU_OBJS) $(MSIEVE_COMMON_OBJS) \
+                 $(SIQS_BIN_OBJS) $(ECM_BIN_OBJS)
+
+# All compiled objects across all extensions — used to derive the full set
+# of .deps subdirectories that need to exist before compilation starts.
+ALL_COMPILED  := $(ALL_OBJS) $(QS_OBJS) $(NFS_OBJS)
+
+# Mirror the source tree under .deps/ for every compiled object.
+# .o → .deps/path/to/file.d
+# .qo → .deps/path/to/file.d  (strip the q, keep the path)
+# .no → .deps/path/to/file.d  (strip the n, keep the path)
+ALL_DEPS      := $(patsubst %.o,$(DEPS_DIR)/%.d,\
+                 $(patsubst %.qo,$(DEPS_DIR)/%.d,\
+                 $(patsubst %.no,$(DEPS_DIR)/%.d,$(ALL_COMPILED))))
+DEPS_SUBDIRS  := $(sort $(dir $(ALL_DEPS)))
 
 # GPU / PTX objects
 GPU_OBJS :=
@@ -1018,12 +1035,10 @@ endif
 # -----------------------------------------------------------------------------
 .PHONY: all yafu msieve siqs ecm clean info help _dep_status
 
-
 # -----------------------------------------------------------------------------
 # 23. DEFAULT GOAL
 # -----------------------------------------------------------------------------
 all: yafu msieve siqs ecm
-
 
 # -----------------------------------------------------------------------------
 # 24. DEPENDENCY STATUS  (printed at the start of every real build)
@@ -1035,6 +1050,10 @@ _dep_status:
 	@echo "  CUDA    : $(if $(HAVE_CUDA_TOOLKIT),found ($(CUDA_INCDIR)),DISABLED — cuda.h not found; set CUDA_PREFIX in config.mk)"
 	@echo "  OpenCL  : $(if $(HAVE_OPENCL),found ($(OCL_INCDIR)),DISABLED — CL/cl.h not found; set OCL_PREFIX in config.mk)"
 	@echo "---------------------------------------------------------------------"
+
+# Create .deps subdirectory tree (order-only — never triggers a rebuild)
+$(DEPS_SUBDIRS):
+	$(MKDIR) $@
 
 
 # -----------------------------------------------------------------------------
@@ -1092,26 +1111,29 @@ ecm: _dep_status \
 # -----------------------------------------------------------------------------
 
 # Standard .c → .o
-%.o: %.c
-	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+# -MF redirects the dependency file into .deps/, mirroring the source tree.
+%.o: %.c | $(DEPS_SUBDIRS)
+	$(CC) $(CFLAGS) -MMD -MP -MF $(DEPS_DIR)/$*.d -c -o $@ $<
 
-# QS objects (.qo)
-mpqs/sieve_core_generic_32k.qo: mpqs/sieve_core.c
+# QS objects (.qo) — also get dependency files now
+mpqs/sieve_core_generic_32k.qo: mpqs/sieve_core.c | $(DEPS_SUBDIRS)
 	$(CC) $(CFLAGS) -DBLOCK_KB=32 -DHAS_SSE2 \
 	    -DROUTINE_NAME=qs_core_sieve_generic_32k \
+	    -MMD -MP -MF $(DEPS_DIR)/mpqs/sieve_core_generic_32k.d \
 	    -c -o $@ $<
 
-mpqs/sieve_core_generic_64k.qo: mpqs/sieve_core.c
+mpqs/sieve_core_generic_64k.qo: mpqs/sieve_core.c | $(DEPS_SUBDIRS)
 	$(CC) $(CFLAGS) -DBLOCK_KB=64 -DHAS_SSE2 \
 	    -DROUTINE_NAME=qs_core_sieve_generic_64k \
+	    -MMD -MP -MF $(DEPS_DIR)/mpqs/sieve_core_generic_64k.d \
 	    -c -o $@ $<
 
-%.qo: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+%.qo: %.c | $(DEPS_SUBDIRS)
+	$(CC) $(CFLAGS) -MMD -MP -MF $(DEPS_DIR)/$*.d -c -o $@ $<
 
 # NFS objects (.no) — add -Ignfs for NFS-internal includes
-%.no: %.c
-	$(CC) $(CFLAGS) -Ignfs -c -o $@ $<
+%.no: %.c | $(DEPS_SUBDIRS)
+	$(CC) $(CFLAGS) -Ignfs -MMD -MP -MF $(DEPS_DIR)/$*.d -c -o $@ $<
 
 # GPU / PTX rules
 stage1_core.ptx: gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu
@@ -1128,13 +1150,9 @@ cub/built:
 
 
 # -----------------------------------------------------------------------------
-# 27. AUTOMATIC DEPENDENCY INCLUSION  (.d files from -MMD -MP)
+# 27. AUTOMATIC DEPENDENCY INCLUSION  (.d files from .deps/)
 # -----------------------------------------------------------------------------
-ALL_OBJS := $(YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) \
-            $(YAFU_COMMON_OBJS) $(YAFU_NFS_OBJS) \
-            $(MSIEVE_YAFU_OBJS) $(MSIEVE_COMMON_OBJS) \
-            $(SIQS_BIN_OBJS) $(ECM_BIN_OBJS)
--include $(ALL_OBJS:.o=.d)
+-include $(ALL_DEPS)
 
 
 # -----------------------------------------------------------------------------
@@ -1148,7 +1166,7 @@ clean:
 	    $(SIQS_BIN_OBJS) $(ECM_BIN_OBJS) \
 	    $(MSIEVE_COMMON_OBJS) \
 	    $(QS_OBJS) $(NFS_OBJS) $(NFS_GPU_OBJS) $(NFS_NOGPU_OBJS) \
-	    $(ALL_OBJS:.o=.d) \
+	    $(DEPS_DIR) \
 	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
 	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
 	    *.ptx

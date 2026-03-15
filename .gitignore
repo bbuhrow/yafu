@@ -5,6 +5,7 @@
 /yafu
 *.no
 *.qo
+.deps/
 
 # Logs / Checkpoints / data files
 *.log
