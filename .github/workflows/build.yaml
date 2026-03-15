@@ -6,8 +6,12 @@
 # OS detection:   Automatic — the Makefile reads the Windows_NT env var that
 #                 GitHub's windows-latest runner always provides. No WIN= flag needed.
 #
-# GMP/ECM paths:  Auto-discovered from /mingw64/include and /mingw64/lib after
+# GMP paths:      Auto-discovered from /mingw64/include and /mingw64/lib after
 #                 the pacman install step. No GMP_PREFIX override needed.
+#
+# GMP-ECM:        Not available as an MSYS2 package, so it is built from source
+#                 and cached. The cache key includes the version string so it
+#                 rebuilds automatically when you bump the version below.
 #
 # Static linking: STATIC_WIN=1 produces a standalone .exe with no DLL dependencies,
 #                 which is ideal for end-user distribution.
@@ -75,6 +79,8 @@ jobs:
           key: msys2-mingw64-${{ hashFiles('.github/workflows/build-windows.yml') }}
 
       # ── 3. MSYS2 + MinGW-64 toolchain ────────────────────────────────────────
+      # Note: mingw-w64-x86_64-ecm does not exist in the MSYS2 package repo.
+      # GMP-ECM is built from source in the next step instead.
       - name: Set up MSYS2 / MinGW-64
         uses: msys2/setup-msys2@v2
         with:
@@ -84,25 +90,60 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-make
             mingw-w64-x86_64-gmp
-            mingw-w64-x86_64-ecm
+            autoconf
+            automake
+            libtool
             make
 
-      # ── 4. Show resolved build configuration (useful for debugging failures) ──
+      # ── 4. Build GMP-ECM from source (cached) ────────────────────────────────
+      # The cache key includes the version string — bump it here to force a rebuild.
+      - name: Cache GMP-ECM
+        id: cache-ecm
+        uses: actions/cache@v4
+        with:
+          path: C:\msys64\home\runneradmin\ecm-install
+          key: gmp-ecm-7.0.6-mingw64
+
+      - name: Build GMP-ECM from source
+        if: steps.cache-ecm.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          cd ~
+          curl -L https://gitlab.inria.fr/zimmerma/ecm/-/archive/ecm-7.0.6/ecm-ecm-7.0.6.tar.gz \
+               -o ecm.tar.gz
+          tar xf ecm.tar.gz
+          cd ecm-ecm-7.0.6
+          autoreconf -i
+          ./configure \
+            --prefix="$HOME/ecm-install" \
+            --with-gmp=/mingw64 \
+            --disable-shared \
+            --enable-static
+          make -j$(nproc)
+          make install
+
+      # ── 5. Show resolved build configuration (useful for debugging failures) ──
       - name: Show build config (${{ matrix.target }})
         shell: msys2 {0}
-        run: make -f Makefile.new info ${{ matrix.make_flags }}
+        run: |
+          make -f Makefile.new info \
+            ${{ matrix.make_flags }} \
+            ECM_PREFIX="$HOME/ecm-install"
 
-      # ── 5. Build ──────────────────────────────────────────────────────────────
+      # ── 6. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
         shell: msys2 {0}
-        run: make -f Makefile.new yafu ${{ matrix.make_flags }}
+        run: |
+          make -f Makefile.new yafu \
+            ${{ matrix.make_flags }} \
+            ECM_PREFIX="$HOME/ecm-install"
 
-      # ── 6. Rename to target-specific name ────────────────────────────────────
+      # ── 7. Rename to target-specific name ────────────────────────────────────
       - name: Stage artifact
         shell: msys2 {0}
         run: cp yafu.exe ${{ matrix.artifact_name }}
 
-      # ── 7. Upload (retained 30 days on every push/PR) ────────────────────────
+      # ── 8. Upload (retained 30 days on every push/PR) ────────────────────────
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -110,7 +151,7 @@ jobs:
           path: ${{ matrix.artifact_name }}
           retention-days: 30
 
-      # ── 8. Smoke test ─────────────────────────────────────────────────────────
+      # ── 9. Smoke test ─────────────────────────────────────────────────────────
       # AVX-512 targets are skipped: GitHub's Azure VMs don't support AVX-512
       # at runtime, so the binary would fault. The build itself is still verified.
       - name: Smoke test (${{ matrix.target }})
