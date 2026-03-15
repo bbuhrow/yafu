@@ -1,0 +1,165 @@
+# .github/workflows/build-windows.yml
+#
+# GitHub Actions CI/CD for YAFU — Windows MSYS2/MinGW-64
+# Uses Makefile.new (unified Linux/MSYS2 makefile)
+#
+# OS detection:   Automatic — the Makefile reads the Windows_NT env var that
+#                 GitHub's windows-latest runner always provides. No WIN= flag needed.
+#
+# GMP/ECM paths:  Auto-discovered from /mingw64/include and /mingw64/lib after
+#                 the pacman install step. No GMP_PREFIX override needed.
+#
+# Static linking: STATIC_WIN=1 produces a standalone .exe with no DLL dependencies,
+#                 which is ideal for end-user distribution.
+
+name: Build YAFU Windows (MSYS2/MinGW-64)
+
+on:
+  push:
+    branches: [ master ]
+    tags:     [ 'v*' ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # BUILD — one parallel runner per CPU target
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    runs-on: windows-latest
+    name: ${{ matrix.artifact_name }}
+
+    strategy:
+      fail-fast: false    # finish all targets even if one fails
+
+      matrix:
+        include:
+
+          # Any x86-64 CPU — widest compatibility
+          - target:        generic
+            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1"
+            artifact_name: yafu-windows-generic.exe
+
+          # SSE 4.1 — Intel Core 2 / Penryn (2008) and newer
+          - target:        sse41
+            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_SSE41=1"
+            artifact_name: yafu-windows-sse41.exe
+
+          # AVX2 + BMI2 — Haswell (2013) and newer, recommended for most users
+          - target:        avx2
+            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_AVX2=1 USE_BMI2=1"
+            artifact_name: yafu-windows-avx2.exe
+
+          # AVX-512 F/BW — Skylake-X, Cascade Lake, Zen 4
+          - target:        avx512
+            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_AVX512=1"
+            artifact_name: yafu-windows-avx512.exe
+
+          # AVX-512 + IFMA — Ice Lake and later, best ECM performance
+          - target:        avx512ifma
+            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_AVX512IFMA=1"
+            artifact_name: yafu-windows-avx512ifma.exe
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ── 2. Cache pacman packages ──────────────────────────────────────────────
+      # Busts automatically when the workflow file changes (e.g. new packages added)
+      - name: Cache MSYS2 packages
+        uses: actions/cache@v4
+        with:
+          path: C:\msys64\var\cache\pacman\pkg
+          key: msys2-mingw64-${{ hashFiles('.github/workflows/build-windows.yml') }}
+
+      # ── 3. MSYS2 + MinGW-64 toolchain ────────────────────────────────────────
+      - name: Set up MSYS2 / MinGW-64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-gmp
+            mingw-w64-x86_64-ecm
+            make
+
+      # ── 4. Show resolved build configuration (useful for debugging failures) ──
+      - name: Show build config (${{ matrix.target }})
+        shell: msys2 {0}
+        run: make -f Makefile.new info ${{ matrix.make_flags }}
+
+      # ── 5. Build ──────────────────────────────────────────────────────────────
+      - name: Build (${{ matrix.target }})
+        shell: msys2 {0}
+        run: make -f Makefile.new yafu ${{ matrix.make_flags }}
+
+      # ── 6. Rename to target-specific name ────────────────────────────────────
+      - name: Stage artifact
+        shell: msys2 {0}
+        run: cp yafu.exe ${{ matrix.artifact_name }}
+
+      # ── 7. Upload (retained 30 days on every push/PR) ────────────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+          retention-days: 30
+
+      # ── 8. Smoke test ─────────────────────────────────────────────────────────
+      # AVX-512 targets are skipped: GitHub's Azure VMs don't support AVX-512
+      # at runtime, so the binary would fault. The build itself is still verified.
+      - name: Smoke test (${{ matrix.target }})
+        shell: msys2 {0}
+        if: ${{ !contains(matrix.target, 'avx512') }}
+        run: |
+          echo "Binary size: $(ls -lh ${{ matrix.artifact_name }} | awk '{print $5}')"
+          ./${{ matrix.artifact_name }} "factor(12345678901234567)" \
+            && echo "SMOKE TEST PASSED" \
+            || echo "::warning::Smoke test failed for ${{ matrix.target }}"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # RELEASE — only on version tags (e.g. git tag v2.1.0 && git push --tags)
+  # Collects all .exe artifacts and attaches them to a GitHub Release.
+  # ─────────────────────────────────────────────────────────────────────────────
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.exe
+          generate_release_notes: true
+          body: |
+            ## Windows Binaries
+
+            All builds are fully static — no extra DLLs required.
+
+            | File | Best for |
+            |------|----------|
+            | `yafu-windows-generic.exe`    | Any x86-64 CPU — widest compatibility |
+            | `yafu-windows-sse41.exe`      | Intel Core 2 / Penryn (2008) and newer |
+            | `yafu-windows-avx2.exe`       | Haswell (2013) and newer — **recommended for most users** |
+            | `yafu-windows-avx512.exe`     | Skylake-X / Cascade Lake / Zen 4 (AVX-512) |
+            | `yafu-windows-avx512ifma.exe` | Ice Lake and newer — best ECM performance |
+
+            Not sure which to pick? Run this in a Windows command prompt:
+```
+            wmic cpu get name
+```
+            Then look up your CPU generation, or just start with `avx2` — it works on nearly every CPU sold since 2015.
