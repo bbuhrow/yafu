@@ -10,8 +10,9 @@
 #                 the pacman install step. No GMP_PREFIX override needed.
 #
 # GMP-ECM:        Not available as an MSYS2 package, so it is built from source
-#                 and cached. The cache key includes the version string so it
-#                 rebuilds automatically when you bump the version below.
+#                 and cached. Source is cloned from the GitHub mirror of the
+#                 canonical GitLab repo. The cache key includes the commit SHA
+#                 so it rebuilds automatically when you update ECM_COMMIT below.
 #
 # Static linking: STATIC_WIN=1 produces a standalone .exe with no DLL dependencies,
 #                 which is ideal for end-user distribution.
@@ -25,6 +26,12 @@ on:
   pull_request:
     branches: [ master ]
   workflow_dispatch:
+
+env:
+  # GMP-ECM source — GitHub mirror of https://gitlab.inria.fr/zimmerma/ecm
+  # 0ab79ad is the 7.0.5 release commit. Update this SHA to pick up a newer version.
+  ECM_REPO:   https://github.com/sethtroisi/gmp-ecm.git
+  ECM_COMMIT: 0ab79ad
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -94,25 +101,25 @@ jobs:
             automake
             libtool
             make
+            git
 
       # ── 4. Build GMP-ECM from source (cached) ────────────────────────────────
-      # The cache key includes the version string — bump it here to force a rebuild.
+      # Cache key is the commit SHA — update ECM_COMMIT above to force a rebuild.
       - name: Cache GMP-ECM
         id: cache-ecm
         uses: actions/cache@v4
         with:
           path: C:\msys64\home\runneradmin\ecm-install
-          key: gmp-ecm-7.0.6-mingw64
+          key: gmp-ecm-${{ env.ECM_COMMIT }}-mingw64
 
       - name: Build GMP-ECM from source
         if: steps.cache-ecm.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: |
           cd ~
-          curl -L https://gitlab.inria.fr/zimmerma/ecm/-/archive/ecm-7.0.6/ecm-ecm-7.0.6.tar.gz \
-               -o ecm.tar.gz
-          tar xf ecm.tar.gz
-          cd ecm-ecm-7.0.6
+          git clone ${{ env.ECM_REPO }} ecm-src
+          cd ecm-src
+          git checkout ${{ env.ECM_COMMIT }}
           autoreconf -i
           ./configure \
             --prefix="$HOME/ecm-install" \
