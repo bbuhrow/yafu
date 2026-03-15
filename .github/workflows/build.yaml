@@ -122,7 +122,9 @@ jobs:
             --prefix="$HOME/gmp-install" \
             --enable-static \
             --disable-shared \
-            --host=x86_64-w64-mingw32
+            --host=x86_64-w64-mingw32 \
+            --build=x86_64-w64-mingw32 \
+            ABI=64
           make -j$(nproc)
           make install
 
