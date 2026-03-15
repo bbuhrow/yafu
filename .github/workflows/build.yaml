@@ -158,8 +158,5 @@ jobs:
             | `yafu-windows-avx512.exe`     | Skylake-X / Cascade Lake / Zen 4 (AVX-512) |
             | `yafu-windows-avx512ifma.exe` | Ice Lake and newer — best ECM performance |
 
-            Not sure which to pick? Run this in a Windows command prompt:
-```
-            wmic cpu get name
-```
-            Then look up your CPU generation, or just start with `avx2` — it works on nearly every CPU sold since 2015.
+            Not sure which to pick? Run `wmic cpu get name` in a Windows command prompt,
+            then look up your CPU generation, or just start with `avx2` — it works on nearly every CPU sold since 2015.
