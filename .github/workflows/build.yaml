@@ -6,16 +6,13 @@
 # OS detection:   Automatic — the Makefile reads the Windows_NT env var that
 #                 GitHub's windows-latest runner always provides. No WIN= flag needed.
 #
-# GMP paths:      Auto-discovered from /mingw64/include and /mingw64/lib after
-#                 the pacman install step. No GMP_PREFIX override needed.
-#
-# GMP-ECM:        Not available as an MSYS2 package, so it is built from source
-#                 and cached. Source is cloned from the GitHub mirror of the
-#                 canonical GitLab repo. The cache key includes the commit SHA
-#                 so it rebuilds automatically when you update ECM_COMMIT below.
+# GMP and GMP-ECM are both built from source as fully static libraries.
+# The MSYS2 GMP package ships a DLL-mode gmp.h which prevents ECM from building
+# statically, so we bypass it entirely and build our own static GMP first.
+# Both are cached — they only rebuild when you bump the version variables below.
 #
 # Static linking: STATIC_WIN=1 produces a standalone .exe with no DLL dependencies,
-#                 which is ideal for end-user distribution.
+#                 confirmed to run in both MSYS2 and cmd.exe/PowerShell.
 
 name: Build YAFU Windows (MSYS2/MinGW-64)
 
@@ -28,7 +25,11 @@ on:
   workflow_dispatch:
 
 env:
-  # GMP-ECM source — GitHub mirror of https://gitlab.inria.fr/zimmerma/ecm
+  # GMP — update version here to force a rebuild
+  GMP_VERSION: 6.3.0
+  GMP_URL: https://gmplib.org/download/gmp/gmp-6.3.0.tar.xz
+
+  # GMP-ECM — GitHub mirror of https://gitlab.inria.fr/zimmerma/ecm
   # 0ab79ad is the 7.0.5 release commit. Update this SHA to pick up a newer version.
   ECM_REPO:   https://github.com/sethtroisi/gmp-ecm.git
   ECM_COMMIT: 0ab79ad
@@ -78,7 +79,6 @@ jobs:
         uses: actions/checkout@v4
 
       # ── 2. Cache pacman packages ──────────────────────────────────────────────
-      # Busts automatically when the workflow file changes (e.g. new packages added)
       - name: Cache MSYS2 packages
         uses: actions/cache@v4
         with:
@@ -86,8 +86,8 @@ jobs:
           key: msys2-mingw64-${{ hashFiles('.github/workflows/build-windows.yml') }}
 
       # ── 3. MSYS2 + MinGW-64 toolchain ────────────────────────────────────────
-      # Note: mingw-w64-x86_64-ecm does not exist in the MSYS2 package repo.
-      # GMP-ECM is built from source in the next step instead.
+      # We do NOT install mingw-w64-x86_64-gmp here — its DLL-mode gmp.h would
+      # prevent ECM from building statically. We build our own static GMP instead.
       - name: Set up MSYS2 / MinGW-64
         uses: msys2/setup-msys2@v2
         with:
@@ -96,23 +96,46 @@ jobs:
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-make
-            mingw-w64-x86_64-gmp
             autoconf
             automake
             libtool
             make
             git
 
-      # ── 4. Build GMP-ECM from source (cached) ────────────────────────────────
-      # Cache key is the commit SHA — update ECM_COMMIT above to force a rebuild.
-      - name: Cache GMP-ECM
+      # ── 4. Build static GMP from source (cached) ─────────────────────────────
+      - name: Cache static GMP
+        id: cache-gmp
+        uses: actions/cache@v4
+        with:
+          path: C:\msys64\home\runneradmin\gmp-install
+          key: gmp-${{ env.GMP_VERSION }}-static-mingw64
+
+      - name: Build static GMP from source
+        if: steps.cache-gmp.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          cd ~
+          curl -L ${{ env.GMP_URL }} -o gmp.tar.xz
+          tar xf gmp.tar.xz
+          cd gmp-${{ env.GMP_VERSION }}
+          ./configure \
+            --prefix="$HOME/gmp-install" \
+            --enable-static \
+            --disable-shared \
+            --host=x86_64-w64-mingw32
+          make -j$(nproc)
+          make install
+
+      # ── 5. Build static GMP-ECM from source (cached) ─────────────────────────
+      # With a static-only GMP, ECM's configure is happy to build statically.
+      - name: Cache static GMP-ECM
         id: cache-ecm
         uses: actions/cache@v4
         with:
           path: C:\msys64\home\runneradmin\ecm-install
-          key: gmp-ecm-${{ env.ECM_COMMIT }}-mingw64
+          key: gmp-ecm-${{ env.ECM_COMMIT }}-gmp-${{ env.GMP_VERSION }}-static-mingw64
 
-      - name: Build GMP-ECM from source
+      - name: Build static GMP-ECM from source
         if: steps.cache-ecm.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: |
@@ -123,34 +146,53 @@ jobs:
           autoreconf -i
           ./configure \
             --prefix="$HOME/ecm-install" \
-            --with-gmp=/mingw64 \
-            --disable-shared \
-            --enable-static
+            --with-gmp="$HOME/gmp-install" \
+            --enable-static \
+            --disable-shared
           make -j$(nproc)
           make install
 
-      # ── 5. Show resolved build configuration (useful for debugging failures) ──
+      # ── 6. Show resolved build configuration (useful for debugging failures) ──
       - name: Show build config (${{ matrix.target }})
         shell: msys2 {0}
         run: |
           make -f Makefile.new info \
             ${{ matrix.make_flags }} \
+            GMP_PREFIX="$HOME/gmp-install" \
             ECM_PREFIX="$HOME/ecm-install"
 
-      # ── 6. Build ──────────────────────────────────────────────────────────────
+      # ── 7. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
         shell: msys2 {0}
         run: |
           make -f Makefile.new yafu \
             ${{ matrix.make_flags }} \
+            GMP_PREFIX="$HOME/gmp-install" \
             ECM_PREFIX="$HOME/ecm-install"
 
-      # ── 7. Rename to target-specific name ────────────────────────────────────
+      # ── 8. Rename to target-specific name ────────────────────────────────────
       - name: Stage artifact
         shell: msys2 {0}
         run: cp yafu.exe ${{ matrix.artifact_name }}
 
-      # ── 8. Upload (retained 30 days on every push/PR) ────────────────────────
+      # ── 9. Verify fully static — no DLL dependencies ─────────────────────────
+      # objdump -p lists imported DLLs. A truly static binary imports only
+      # Windows system DLLs (kernel32, msvcrt, etc.), never libgmp or libecm.
+      - name: Verify static linkage (${{ matrix.target }})
+        shell: msys2 {0}
+        run: |
+          echo "=== DLL imports ==="
+          objdump -p ${{ matrix.artifact_name }} | grep "DLL Name" || true
+          echo "=== Checking for unexpected DLL deps ==="
+          if objdump -p ${{ matrix.artifact_name }} | grep -i "DLL Name" | \
+             grep -iE "gmp|ecm|gomp|winpthread"; then
+            echo "::error::Unexpected DLL dependency found — binary is not fully static"
+            exit 1
+          else
+            echo "OK: no unexpected DLL dependencies"
+          fi
+
+      # ── 10. Upload (retained 30 days on every push/PR) ───────────────────────
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -158,7 +200,7 @@ jobs:
           path: ${{ matrix.artifact_name }}
           retention-days: 30
 
-      # ── 9. Smoke test ─────────────────────────────────────────────────────────
+      # ── 11. Smoke test ────────────────────────────────────────────────────────
       # AVX-512 targets are skipped: GitHub's Azure VMs don't support AVX-512
       # at runtime, so the binary would fault. The build itself is still verified.
       - name: Smoke test (${{ matrix.target }})
@@ -196,7 +238,7 @@ jobs:
           body: |
             ## Windows Binaries
 
-            All builds are fully static — no extra DLLs required.
+            All builds are fully static — no extra DLLs required, runs in cmd.exe and PowerShell.
 
             | File | Best for |
             |------|----------|
