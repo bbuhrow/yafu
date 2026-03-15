@@ -27,7 +27,9 @@ on:
 env:
   # GMP — update version here to force a rebuild
   GMP_VERSION: 6.3.0
-  GMP_URL: https://gmplib.org/download/gmp/gmp-6.3.0.tar.xz
+  # Primary: GNU official FTP mirror (more reliable than gmplib.org for CI)
+  # Fallback mirrors are tried in the build step if the primary fails
+  GMP_URL: https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz
 
   # GMP-ECM — GitHub mirror of https://gitlab.inria.fr/zimmerma/ecm
   # 0ab79ad is the 7.0.5 release commit. Update this SHA to pick up a newer version.
@@ -115,7 +117,14 @@ jobs:
         shell: msys2 {0}
         run: |
           cd ~
-          curl -L ${{ env.GMP_URL }} -o gmp.tar.xz
+          # Try mirrors in order until one succeeds
+          for url in \
+            "https://ftp.gnu.org/gnu/gmp/gmp-${{ env.GMP_VERSION }}.tar.xz" \
+            "https://mirrors.kernel.org/gnu/gmp/gmp-${{ env.GMP_VERSION }}.tar.xz" \
+            "https://gmplib.org/download/gmp/gmp-${{ env.GMP_VERSION }}.tar.xz"; do
+            curl -L --retry 3 --retry-delay 5 "$url" -o gmp.tar.xz && break
+            echo "Mirror $url failed, trying next..."
+          done
           tar xf gmp.tar.xz
           cd gmp-${{ env.GMP_VERSION }}
           ./configure \
