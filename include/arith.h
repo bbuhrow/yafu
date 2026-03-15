@@ -230,7 +230,11 @@ __inline uint64_t _trail_zcnt64(uint64_t x)
 
 #endif
 
-// arbitrary precision arith routines
+#if defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16)
+#define HAS_UINT128
+typedef __uint128_t uint128_t;
+#endif
+
 /********************* single precision arith **********************/
 void spAdd(uint64_t u, uint64_t v, uint64_t *sum, uint64_t *carry);
 void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t *sum, uint64_t *carry);
@@ -256,6 +260,10 @@ uint64_t bingcd64(uint64_t x, uint64_t y);
 void dblGCD(double x, double y, double* w);
 int jacobi_1(uint64_t n, uint64_t p);
 int ndigits_1(uint64_t n);
+int uint128_div(const uint64_t dividend[2], const uint64_t divisor[2],
+    uint64_t quotient[2], uint64_t remainder[2]);
+uint64_t u64div(uint64_t c, uint64_t n);
+
 
 /********************* a few gmp-based utilities **********************/
 double zlog(mpz_t x);

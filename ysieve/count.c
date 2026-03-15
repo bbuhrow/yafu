@@ -35,6 +35,10 @@ SOFTWARE.
 #include "tinyprp.h"
 #include "mpz_aprcl.h"
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 uint64_t count_8_bytes(soe_staticdata_t* sdata,
     uint64_t pcount, uint64_t byte_offset);
 uint64_t count_8_bytes_bmi2(soe_staticdata_t* sdata,

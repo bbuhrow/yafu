@@ -51,16 +51,6 @@ int ndigits_1(uint64_t n)
     return i;
 }
 
-//double rint(double x)
-//{
-//	 double i, r = modf(x, &i);
-//	 if (r < 0.0) {
-//		 r += 1.0; 
-//		 i -= 1.0;
-//	 }
-//	 return (r > 0.5 || (r == 0.5 && ((int)i & 1)) ? i + 1.0 : i);
-//}
-
 int gmp_base10(mpz_t x)
 {
     mpz_t t;	//temp
@@ -127,12 +117,43 @@ int bits64(uint64_t n)
 #if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
 
 
-#ifdef _WIN32
+#if defined(__INTEL_COMPILER) || defined(__clang__)
+#define ASM_ __asm__
+#elif defined(_WIN32)
 #define ASM_ ASM_M
 #else
 #define ASM_ ASM_G
 #endif
 
+// uint64_t u64div(uint64_t c, uint64_t n)
+// {
+// #if 1
+//     __asm__("divq %4"
+//         : "=a"(c), "=d"(n)
+//         : "1"(c), "0"(0ULL), "r"(n));
+// #else
+//     // this should work if the above won't compile (e.g. on clang)
+//     uint64_t tmp = 0;
+//     __asm__("divq %4"
+//         : "=a"(tmp), "=d"(n)
+//         : "1"(c), "0"(tmp), "r"(n));
+// #endif
+//     return n;
+// }
+
+
+#if defined(USE_AVX512F) || defined(USE_BMI2)
+__inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {
+    __asm__(
+        "mulx %3, %0, %1	\n\t"
+        : "=&d"(x), "=&a"(y)
+        : "0"(x), "1"(y)
+    );
+
+    *hi = y;
+    return x;
+}
+#endif
 
 void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
 {
@@ -420,6 +441,798 @@ void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t* w)
 }
 
 #endif
+
+
+
+// make a _udiv128 for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
+// For MSVC, use the intrinsic
+#if defined(_MSC_VER) && (!defined(__clang__))
+#include <intrin.h>
+#pragma intrinsic(_udiv128)
+#else
+// For other compilers, we'll implement a fallback or use inline assembly
+// This is a simplified implementation for demonstration
+static __inline uint64_t _udiv128(uint64_t high, uint64_t low, uint64_t divisor, uint64_t* remainder) {
+
+    // Use __int128 if available (GCC/Clang)
+#if (defined(__clang__) || defined(__INTEL_COMPILER))
+
+    __asm__("divq %4"
+        : "=a"(low), "=d"(high)
+        : "1"(high), "0"(low), "r"(divisor));
+
+    *remainder = high;
+    return low;
+
+#elif defined(HAS_UINT128)
+
+    __uint128_t dividend = ((__uint128_t)high << 64) | low;
+    __uint128_t quotient = dividend / divisor;
+    *remainder = dividend % divisor;
+    return (uint64_t)quotient;
+
+#else
+
+// Fallback implementation using double-precision division
+// This is not as accurate but works for demonstration
+    double d_dividend = (double)high * (1.0 * (1ULL << 32) * (1ULL << 32)) + (double)low;
+    double d_quotient = d_dividend / (double)divisor;
+    uint64_t quotient = (uint64_t)d_quotient;
+
+    // brb added.  I think all compiler cases that I support are covered but in
+    // case not, spam this message.
+    printf("warning: _udiv128 is not accurate\n");
+
+    // Calculate remainder more accurately
+    uint64_t temp_high, temp_low;
+    // Multiply quotient * divisor
+    temp_low = quotient * divisor; // This may overflow, but that's handled below
+
+    // Subtract from original dividend to get remainder
+    if (low >= temp_low) {
+        *remainder = low - temp_low;
+    }
+    else {
+        *remainder = (UINT64_MAX - temp_low + 1) + low;
+        quotient--;
+    }
+
+    return quotient;
+
+#endif
+}
+
+#endif
+
+
+
+// make a _umul128 for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#include <immintrin.h>
+#pragma intrinsic(_umul128)
+#else
+// For other compilers, we'll implement a fallback or use inline assembly
+// This is a simplified implementation for demonstration
+static __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi) {
+
+#if (defined(__clang__) || defined(__INTEL_COMPILER))
+
+    {
+        __asm__(
+            "mulq %3	\n\t"
+            : "=&a"(x), "=&d"(y)
+            : "0"(x), "1"(y)
+            : "cc"
+        );
+
+        *hi = y;
+        return x;
+    }
+
+// Use __int128 if available (GCC/Clang)
+#elif defined(HAS_UINT128)
+
+    __uint128_t prod = (__uint128_t)x * (__uint128_t)y;
+    *hi = (uint64_t)(prod >> 64);
+    return (uint64_t)prod;
+
+#else
+
+    // Fallback: split into 32-bit parts
+    uint64_t x_low = x & 0xFFFFFFFF;
+    uint64_t x_high = x >> 32;
+    uint64_t y_low = y & 0xFFFFFFFF;
+    uint64_t y_high = y >> 32;
+
+    uint64_t p0 = x_low * y_low;
+    uint64_t p1 = x_low * y_high;
+    uint64_t p2 = x_high * y_low;
+    uint64_t p3 = x_high * y_high;
+
+    uint64_t middle = p1 + p2 + (p0 >> 32);
+    *hi = p3 + (middle >> 32);
+    return p0 + (middle << 32);
+
+
+#endif
+}
+
+#endif
+
+
+// make a 128-bit add/sub for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
+// created with help from Claude-code
+// 
+// Platform detection for compiler intrinsics
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#define COMPILER_MSVC
+#elif defined(__GNUC__) || defined(__clang__)
+#define COMPILER_GCC_LIKE
+#endif
+
+
+#ifdef HAS_UINT128
+
+static inline int uint128_add(uint128_t* result, const uint128_t a, const uint128_t b)
+{
+    *result = a + b;
+    return (*result < a);
+}
+
+static inline int uint128_sub(uint128_t* result, const uint128_t a, const uint128_t b)
+{
+    *result = a - b;
+    return a < b;
+}
+
+#else
+// 128-bit unsigned integer represented as array of two 64-bit integers
+// [0] = low 64 bits, [1] = high 64 bits (little-endian order)
+typedef uint64_t uint128_t[2];
+
+/**
+ * Add two 128-bit unsigned integers
+ * @param result: Output array to store the sum
+ * @param a: First operand (128-bit)
+ * @param b: Second operand (128-bit)
+ * @return: Carry bit (0 or 1)
+ */
+static inline int uint128_add(uint128_t result, const uint128_t a, const uint128_t b) {
+    uint64_t carry = 0;
+
+#if defined(COMPILER_MSVC)
+    // Use MSVC intrinsics for optimal performance
+    unsigned char c1 = _addcarry_u64(0, a[0], b[0], &result[0]);
+    unsigned char c2 = _addcarry_u64(c1, a[1], b[1], &result[1]);
+    carry = c2;
+#elif defined(COMPILER_GCC_LIKE)
+    // Use GCC/Clang builtin overflow detection
+    // Use GCC/Clang builtin overflow detection
+    carry = __builtin_add_overflow(a[0], b[0], &result[0]);
+    result[1] = __builtin_addcll(a[1], b[1], carry, &carry);
+#else
+    // Portable fallback implementation
+    result[0] = a[0] + b[0];
+    result[1] = a[1] + b[1];
+
+    // Check for overflow in low part
+    if (result[0] < a[0]) {
+        result[1]++;
+        // Check for overflow in high part after increment
+        if (result[1] < a[1]) {
+            carry = 1;
+        }
+    }
+    else if (result[1] < a[1]) {
+        // Overflow in high part without low overflow
+        carry = 1;
+    }
+#endif
+
+    return (int)carry;
+}
+
+/**
+ * Add two 128-bit unsigned integers with input carry
+ * @param result: Output array to store the sum
+ * @param a: First operand (128-bit)
+ * @param b: Second operand (128-bit)
+ * @param carry_in: Input carry (0 or 1)
+ * @return: Output carry bit (0 or 1)
+ */
+static inline int uint128_adc(uint128_t result, const uint128_t a, const uint128_t b, int carry_in) {
+    uint64_t carry = 0;
+
+#if defined(COMPILER_MSVC)
+    unsigned char c1 = _addcarry_u64(carry_in, a[0], b[0], &result[0]);
+    unsigned char c2 = _addcarry_u64(c1, a[1], b[1], &result[1]);
+    carry = c2;
+#else
+    // First add the operands
+    int c = uint128_add(result, a, b);
+
+    // Then add the carry_in
+    if (carry_in) {
+        uint128_t one = { 1, 0 };
+        c |= uint128_add(result, result, one);
+    }
+    carry = c;
+#endif
+
+    return (int)carry;
+}
+
+/**
+ * Subtract two 128-bit unsigned integers
+ * @param result: Output array to store the difference (a - b)
+ * @param a: Minuend (128-bit)
+ * @param b: Subtrahend (128-bit)
+ * @return: Borrow bit (0 or 1), 1 indicates underflow (b > a)
+ */
+static inline int uint128_sub(uint128_t result, const uint128_t a, const uint128_t b) {
+    uint64_t borrow = 0;
+
+#if defined(COMPILER_MSVC)
+    // Use MSVC intrinsics for optimal performance
+    unsigned char b1 = _subborrow_u64(0, a[0], b[0], &result[0]);
+    unsigned char b2 = _subborrow_u64(b1, a[1], b[1], &result[1]);
+    borrow = b2;
+#elif defined(COMPILER_GCC_LIKE)
+    // Use GCC/Clang builtin overflow detection
+    borrow = __builtin_sub_overflow(a[0], b[0], &result[0]);
+    result[1] = __builtin_subcll(a[1], b[1], borrow, &borrow);
+#else
+    // Portable fallback implementation
+    result[0] = a[0] - b[0];
+    result[1] = a[1] - b[1];
+
+    // Check for borrow from low part
+    if (a[0] < b[0]) {
+        result[1]--;
+        // Check for underflow in high part after decrement
+        if (a[1] < b[1] || result[1] > a[1]) {
+            borrow = 1;
+        }
+    }
+    else if (a[1] < b[1]) {
+        // Underflow in high part without low borrow
+        borrow = 1;
+    }
+#endif
+
+    return (int)borrow;
+}
+
+/**
+ * Subtract two 128-bit unsigned integers with input borrow
+ * @param result: Output array to store the difference
+ * @param a: Minuend (128-bit)
+ * @param b: Subtrahend (128-bit)
+ * @param borrow_in: Input borrow (0 or 1)
+ * @return: Output borrow bit (0 or 1)
+ */
+static inline int uint128_sbb(uint128_t result, const uint128_t a, const uint128_t b, int borrow_in) {
+    uint64_t borrow = 0;
+
+#if defined(COMPILER_MSVC)
+    unsigned char b1 = _subborrow_u64(borrow_in, a[0], b[0], &result[0]);
+    unsigned char b2 = _subborrow_u64(b1, a[1], b[1], &result[1]);
+    borrow = b2;
+#else
+    // First subtract the operands
+    int b = uint128_sub(result, a, b);
+
+    // Then subtract the borrow_in
+    if (borrow_in) {
+        uint128_t one = { 1, 0 };
+        b |= uint128_sub(result, result, one);
+    }
+    borrow = b;
+#endif
+
+    return (int)borrow;
+}
+
+/**
+ * Compare two 128-bit unsigned integers
+ * @param a: First operand
+ * @param b: Second operand
+ * @return: -1 if a < b, 0 if a == b, 1 if a > b
+ */
+static inline int uint128_compare(const uint128_t a, const uint128_t b) {
+    if (a[1] < b[1]) return -1;
+    if (a[1] > b[1]) return 1;
+    if (a[0] < b[0]) return -1;
+    if (a[0] > b[0]) return 1;
+    return 0;
+}
+
+/**
+ * Check if 128-bit integer is zero
+ * @param a: Operand to check
+ * @return: true if zero, false otherwise
+ */
+static inline bool uint128_is_zero(const uint128_t a) {
+    return (a[0] == 0) && (a[1] == 0);
+}
+
+/**
+ * Set 128-bit integer to zero
+ * @param result: Output to set to zero
+ */
+static inline void uint128_zero(uint128_t result) {
+    result[0] = 0;
+    result[1] = 0;
+}
+
+/**
+ * Set 128-bit integer from a 64-bit value
+ * @param result: Output 128-bit integer
+ * @param value: Input 64-bit value
+ */
+static inline void uint128_set64(uint128_t result, uint64_t value) {
+    result[0] = value;
+    result[1] = 0;
+}
+
+/**
+ * Copy 128-bit integer
+ * @param dest: Destination
+ * @param src: Source
+ */
+static inline void uint128_copy(uint128_t dest, const uint128_t src) {
+    dest[0] = src[0];
+    dest[1] = src[1];
+}
+
+
+#endif
+
+
+
+
+/*
+Claude-code generated 128-bit / 128-bit division.  Here was the conversation:
+
+
+===================================================================================================
+Me:
+I'd like to write a function in C that divides one 128-bit integer, represented as an array of two 64-bit integers,
+by another 128-bit integer, represented as an array of two 64-bit integers, returning the quotient and remainder.
+
+Claude:
+I'll help you create a function to divide two 128-bit integers represented as arrays of two 64-bit integers.
+This requires implementing long division since C doesn't have native 128-bit division on all platforms.
+
+128-bit Integer Division
+Code
+This implementation provides a complete 128-bit division function with the following key features:
+
+Main Function:
+
+uint128_div() - Takes dividend and divisor as arrays of two 64-bit integers, returns quotient and remainder
+Returns 0 on success, -1 on division by zero
+Key Implementation Details:
+
+Data Structure: Uses a uint128_t structure internally for easier manipulation
+Algorithm: Implements binary long division, similar to how you'd do division by hand but in base 2
+Edge Cases: Handles division by zero, zero dividend, and cases where dividend < divisor
+Bit Manipulation: Uses efficient bit shifting and comparison operations
+Helper Functions:
+
+is_zero() - Check if a 128-bit number is zero
+compare() - Compare two 128-bit numbers
+shift_left_1()/shift_right_1() - Bit shifting operations
+subtract() - 128-bit subtraction
+find_msb() - Find most significant bit position
+Usage:
+
+uint64_t dividend[2] = {low_bits, high_bits};
+uint64_t divisor[2] = {low_bits, high_bits};
+uint64_t quotient[2], remainder[2];
+
+int result = uint128_div(dividend, divisor, quotient, remainder);
+The algorithm works by:
+
+Aligning the divisor with the most significant bits of the dividend
+Performing subtraction when possible and setting quotient bits
+Shifting right and repeating until complete
+The example code includes test cases demonstrating basic division, large number division, and error handling for
+division by zero.
+
+===================================================================================================
+Me:
+Can you rewrite to make use of Knuth algorithm D?
+
+Claude:
+I'll rewrite the division function to use Knuth's Algorithm D from "The Art of Computer Programming" Volume 2. This is
+the classic algorithm for multi-precision division.
+
+128-bit Integer Division
+Code‚Version 2
+This implementation now uses Knuth's Algorithm D for multi-precision division. Here are the key improvements and features:
+
+Knuth Algorithm D Implementation:
+
+Normalization (Step D1): Multiplies both dividend and divisor by a factor to ensure the leading digit of the
+divisor is BASE/2, which improves the accuracy of quotient digit estimation.
+Quotient Digit Estimation (Step D3): Uses the two leading digits of the current dividend portion and the
+leading digit of the divisor to estimate the quotient digit (q).
+Adjustment: Refines the quotient digit estimate to prevent overflow.
+Multiply and Subtract (Step D4): Performs the trial subtraction.
+Correction (Steps D5-D6): If the subtraction goes negative, adds back and decreases the quotient digit.
+Unnormalization (Step D8): Removes the normalization factor from the remainder.
+Key Features:
+
+32-bit Digit Arithmetic: Works with 32-bit "digits" as Knuth recommends, making the algorithm more manageable
+Optimized Single-Digit Case: Special handling for divisors that fit in a single 32-bit digit
+Proper Normalization: Implements Knuth's normalization technique for accuracy
+Error Handling: Robust handling of edge cases (zero division, zero dividend, etc.)
+Algorithm Advantages:
+
+Mathematically Sound: Based on Knuth's rigorous analysis
+Efficient: O(mn) complexity where m and n are the number of digits
+Accurate: Normalization ensures quotient digit estimates are almost always correct
+Well-Tested: This is the standard algorithm used in most multiple-precision libraries
+Usage Example:
+
+uint64_t dividend[2] = {0xFFFFFFFFFFFFFFFFULL, 0x1ULL};
+uint64_t divisor[2] = {0x100000000ULL, 0};
+uint64_t quotient[2], remainder[2];
+
+int result = uint128_div(dividend, divisor, quotient, remainder);
+The implementation handles all the tricky aspects of Knuth's algorithm including proper carry propagation,
+normalization, and the add-back correction step that's needed when the quotient digit estimate is too large.
+
+===================================================================================================
+Me:
+ok great.  now please modify this code to use 64-bit dividends and the function _udiv128 to perform
+128-bit by 64-bit divisions when necessary
+
+
+I'll modify the code to use 64-bit digits and leverage the _udiv128 intrinsic for efficient 128-bit by 64-bit
+divisions.This updated implementation now uses 64-bit digits and leverages the _udiv128 intrinsic for efficient
+divisions. Here are the key changes and improvements:
+
+**Major Changes:**
+
+1. **64-bit Digits**: Now works with 64-bit digits instead of 32-bit, reducing the number of operations needed.
+
+2. **_udiv128 Integration**: Uses the hardware-accelerated _udiv128 intrinsic for 128-bit by 64-bit divisions,
+which is much faster than implementing this in software.
+
+3. **Cross-Platform Support**: Includes fallback implementations for non-MSVC compilers using __int128 or manual computation.
+
+**Key Optimizations:**
+
+1. **Single-Digit Divisor Fast Path**: When the divisor fits in a single 64-bit digit, uses _udiv128 directly for maximum efficiency.
+
+2. **Efficient Normalization**: Uses bit-level operations optimized for 64-bit arithmetic.
+
+3. **Hardware Multiplication**: Uses _umul128 intrinsic where available for 64-bit x 64-bit -> 128-bit multiplication.
+
+**Algorithm Flow:**
+
+1. **Input Validation**: Checks for division by zero and handles edge cases.
+
+2. **Single 64-bit Divisor**: If divisor < 2^64, uses _udiv128 for direct hardware division:
+   q[1] = _udiv128(0, u[1], v[0], &remainder);
+   q[0] = _udiv128(remainder, u[0], v[0], &final_remainder);
+
+3. **Multi-Digit Division**: Uses full Knuth Algorithm D with 64-bit digits for divisors >= 2^64.
+
+**Performance Benefits:**
+
+- **Hardware Acceleration**: _udiv128 provides native CPU support for 128 / 64 operations
+- **Reduced Iterations**: 64-bit digits mean fewer loop iterations compared to 32-bit version
+- **Better Cache Usage**: Fewer memory operations due to larger digit size
+- **Compiler Optimizations**: Modern compilers can better optimize 64-bit arithmetic
+
+**Compiler Support:**
+
+- **MSVC**: Uses _udiv128 and _umul128 intrinsics
+- **GCC/Clang**: Uses __int128 builtin type when available
+- **Fallback**: Provides software implementation for other cases
+
+This implementation should be significantly faster than the previous 32-bit digit version, especially for cases
+where the divisor fits in 64 bits, which can take advantage of the hardware _udiv128 instruction.
+
+BRB:
+note that I've modified Claude's code a little to make use of existing low level code.
+
+*/
+
+
+
+
+
+#include <stdint.h>
+#include <stdbool.h>
+
+// Knuth Algorithm D for 128-bit division using 64-bit digits
+// Based on "The Art of Computer Programming" Volume 2, Section 4.3.1
+
+#define BASE64 (1ULL << 63) // We'll use 2^63 as our effective base to avoid overflow issues
+
+// Convert 128-bit number (two uint64_t) to array of 64-bit digits (little-endian)
+static void to_digits_64(const uint64_t num[2], uint64_t digits[2]) {
+    digits[0] = num[0]; // Low 64 bits
+    digits[1] = num[1]; // High 64 bits
+}
+
+// Convert array of 64-bit digits back to 128-bit number
+static void from_digits_64(const uint64_t digits[2], uint64_t num[2]) {
+    num[0] = digits[0];
+    num[1] = digits[1];
+}
+
+// Find the actual length of a number in 64-bit digits (ignoring leading zeros)
+static int actual_length_64(const uint64_t digits[], int max_len) {
+    for (int i = max_len - 1; i >= 0; i--) {
+        if (digits[i] != 0) {
+            return i + 1;
+        }
+    }
+    return 0; // All zeros
+}
+
+// Shift left by n bits for multi-digit number
+static void shift_left_64(uint64_t digits[], int len, int shift) {
+    if (shift == 0 || len == 0) return;
+
+    if (shift >= 64) {
+        // Shift by whole digits
+        int digit_shift = shift / 64;
+        shift %= 64;
+
+        for (int i = len - 1; i >= digit_shift; i--) {
+            digits[i] = digits[i - digit_shift];
+        }
+        for (int i = 0; i < digit_shift; i++) {
+            digits[i] = 0;
+        }
+        if (shift == 0) return;
+    }
+
+    // Shift by remaining bits
+    uint64_t carry = 0;
+    for (int i = 0; i < len; i++) {
+        uint64_t new_carry = digits[i] >> (64 - shift);
+        digits[i] = (digits[i] << shift) | carry;
+        carry = new_carry;
+    }
+}
+
+// Shift right by n bits for multi-digit number
+static void shift_right_64(uint64_t digits[], int len, int shift) {
+    if (shift == 0 || len == 0) return;
+
+    if (shift >= 64) {
+        // Shift by whole digits
+        int digit_shift = shift / 64;
+        shift %= 64;
+
+        for (int i = 0; i < len - digit_shift; i++) {
+            digits[i] = digits[i + digit_shift];
+        }
+        for (int i = len - digit_shift; i < len; i++) {
+            digits[i] = 0;
+        }
+        if (shift == 0) return;
+    }
+
+    // Shift by remaining bits
+    uint64_t carry = 0;
+    for (int i = len - 1; i >= 0; i--) {
+        uint64_t new_carry = digits[i] << (64 - shift);
+        digits[i] = (digits[i] >> shift) | carry;
+        carry = new_carry;
+    }
+}
+
+// Subtract: u = u - v * q, return borrow
+static bool sub_mul_64(uint64_t u[], const uint64_t v[], int n, uint64_t q) {
+    uint64_t borrow = 0;
+
+    for (int i = 0; i < n; i++) {
+        // Calculate v[i] * q
+        uint64_t high, low;
+
+        low = _umul128(v[i], q, &high);
+
+        // Add previous borrow to the product
+        low += borrow;
+        if (low < borrow) high++;
+
+        // Subtract from u[i]
+        if (u[i] >= low) {
+            u[i] -= low;
+            borrow = high;
+        }
+        else {
+            u[i] = u[i] - low; // Will underflow correctly
+            borrow = high + 1;
+        }
+    }
+
+    return borrow > 0;
+}
+
+// Add: u = u + v, return carry
+static uint64_t add_64(uint64_t u[], const uint64_t v[], int n) {
+    uint64_t carry = 0;
+
+    for (int i = 0; i < n; i++) {
+        uint64_t sum = u[i] + v[i] + carry;
+        carry = (sum < u[i]) ? 1 : 0;
+        u[i] = sum;
+    }
+
+    return carry;
+}
+
+// Knuth Algorithm D implementation using 64-bit digits and _udiv128
+int knuth_div_64(uint64_t u[], int m_plus_n, const uint64_t v[], int n,
+    uint64_t q[], uint64_t r[]) {
+
+    // Step D1: Normalize
+    // Find the normalization factor d
+    int shift = _lead_zcnt64(v[n - 1]);
+
+    // Shift u and v left by shift bits
+    uint64_t u_norm[4] = { 0 }; // Extended for normalization
+    uint64_t v_norm[2] = { 0 };
+
+    // Copy and extend u
+    for (int i = 0; i < m_plus_n; i++) {
+        u_norm[i] = u[i];
+    }
+    shift_left_64(u_norm, m_plus_n + 1, shift);
+
+    // Copy and normalize v
+    for (int i = 0; i < n; i++) {
+        v_norm[i] = v[i];
+    }
+    shift_left_64(v_norm, n, shift);
+
+    int m = m_plus_n - n; // Number of quotient digits
+
+    // Step D2: Initialize j
+    for (int j = m; j >= 0; j--) {
+        // Step D3: Calculate q‚ (q-hat) using _udiv128
+        uint64_t q_hat;
+        uint64_t r_hat;
+
+        if (u_norm[j + n] == v_norm[n - 1]) {
+            q_hat = 0xffffffffffffffffull;
+            r_hat = u_norm[j + n - 1] + v_norm[n - 1];
+        }
+        else {
+            // Use _udiv128 for 128-bit by 64-bit division
+            q_hat = _udiv128(u_norm[j + n], u_norm[j + n - 1], v_norm[n - 1], &r_hat);
+        }
+
+        // Adjust q_hat if necessary (Step D3 continued)
+        while (n >= 2 && q_hat > 0) {
+            // Check if q_hat * v_norm[n-2] > (r_hat << 64) + u_norm[j + n - 2]
+            uint64_t product_high, product_low;
+
+            product_low = _umul128(q_hat, v_norm[n - 2], &product_high);
+
+            if (product_high > r_hat ||
+                (product_high == r_hat && product_low > u_norm[j + n - 2])) {
+                q_hat--;
+                r_hat += v_norm[n - 1];
+                if (r_hat < v_norm[n - 1]) break; // Overflow
+            }
+            else {
+                break;
+            }
+        }
+
+        // Step D4: Multiply and subtract
+        bool negative = sub_mul_64(&u_norm[j], v_norm, n, q_hat);
+
+        // Step D5: Test remainder
+        if (negative) {
+            // Step D6: Add back
+            q_hat--;
+            add_64(&u_norm[j], v_norm, n);
+        }
+
+        // Store quotient digit
+        if (j < 2) q[j] = q_hat;
+
+        // Step D7: Loop on j (handled by for loop)
+    }
+
+    // Step D8: Unnormalize remainder
+    for (int i = 0; i < n; i++) {
+        r[i] = u_norm[i];
+    }
+    shift_right_64(r, n, shift);
+
+    return 0;
+}
+
+// Main 128-bit division function using Knuth Algorithm D with 64-bit digits
+int uint128_div(const uint64_t dividend[2], const uint64_t divisor[2],
+    uint64_t quotient[2], uint64_t remainder[2]) {
+
+    // Check for division by zero
+    if (divisor[0] == 0 && divisor[1] == 0) {
+        return -1;
+    }
+
+    // Convert to 64-bit digits
+    uint64_t u[3] = { 0 }; // dividend + space for normalization
+    uint64_t v[2] = { 0 }; // divisor
+    uint64_t q[2] = { 0 }; // quotient
+    uint64_t r[2] = { 0 }; // remainder
+
+    to_digits_64(dividend, u);
+    to_digits_64(divisor, v);
+
+    // Find actual lengths
+    int u_len = actual_length_64(u, 2);
+    int v_len = actual_length_64(v, 2);
+
+    // Handle special cases
+    if (u_len == 0) {
+        // Dividend is zero
+        quotient[0] = quotient[1] = 0;
+        remainder[0] = remainder[1] = 0;
+        return 0;
+    }
+
+    if (u_len < v_len) {
+        // Dividend < divisor
+        quotient[0] = quotient[1] = 0;
+        remainder[0] = dividend[0];
+        remainder[1] = dividend[1];
+        return 0;
+    }
+
+    // Handle single-digit divisor case using _udiv128
+    if (v_len == 1) {
+        uint64_t rem;
+        if (u_len == 1) {
+            q[0] = u[0] / v[0];
+            r[0] = u[0] % v[0];
+            r[1] = 0;
+        }
+        else {
+            // Use _udiv128 for 128-bit by 64-bit division
+            q[1] = _udiv128(0, u[1], v[0], &rem);
+            q[0] = _udiv128(rem, u[0], v[0], &r[0]);
+            r[1] = 0;
+        }
+        q[1] = (u_len > 1) ? q[1] : 0;
+    }
+    else {
+        // Multi-digit case: use full Knuth Algorithm D
+        knuth_div_64(u, u_len, v, v_len, q, r);
+    }
+
+    // Convert results back to 64-bit format
+    from_digits_64(q, quotient);
+    from_digits_64(r, remainder);
+
+    return 0;
+}
+
+
+
+uint64_t u64div(uint64_t c, uint64_t n)
+{
+    uint64_t r;
+    _udiv128(c, 0, n, &r);
+
+    return r;
+}
+
+
 
 void spModExp(uint64_t a, uint64_t b, uint64_t m, uint64_t* u)
 {

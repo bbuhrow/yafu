@@ -30,6 +30,10 @@ benefit from your work.
 #endif
 #include <math.h>
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #ifdef USE_NFS
 
 #define USE_THREADPOOL
@@ -687,19 +691,21 @@ void nfs_sieve_sync(void* vptr)
 		// the file naming convention.
 		char* ofn = xmalloc(256);
 		FILE* of;
-		char* hn = xmalloc(128);
 		int ret;
+		char* hn = xmalloc(128);
 
 #if defined(WIN32)
 
 		int sysname_sz = 128;
+#ifdef __MINGW32__
+		GetComputerName((LPSTR)hn, (LPDWORD)&sysname_sz);
+#else
 		GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);
+#endif
 		ret = 0;
 
 #else
-
 		ret = gethostname(hn, 127);
-
 #endif
 
 		if (ret == 0) sprintf(ofn, "%s.%s.last_spq%d", fobj->nfs_obj.job_infile, hn, tid);

@@ -27,6 +27,10 @@ code to the public domain.
 #include <signal.h>
 #include <math.h>
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes
 void pm1_init(fact_obj_t *fobj);

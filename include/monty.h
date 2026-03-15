@@ -125,16 +125,8 @@ typedef struct
 	uint64_t rho;
 } monty128_t;
 
-#if defined(_MSC_VER) && (!defined(__clang__))
-
-#else
+#ifdef HAS_UINT128
 #define USE_PERIG_128BIT
-#endif
-
-#ifdef USE_PERIG_128BIT
-
-typedef __uint128_t uint128_t;
-
 #endif
 
 void to_monty128(monty128_t *mdata, uint64_t * x);
@@ -351,34 +343,9 @@ __inline static uint64_t mfma64(uint64_t x, uint64_t y, uint64_t c, uint64_t N, 
 /* --- end Hurchalla functions --- */
 
 
+/********************* 64-bit modular arith **********************/
+
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
-
-
-__inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi);
-
-#if defined(USE_AVX512F) || defined(USE_BMI2)
-__inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {
-    __asm__(
-        "mulx %3, %0, %1	\n\t"
-        : "=&d"(x), "=&a"(y)
-        : "0"(x), "1"(y)
-    );
-
-    *hi = y;
-    return x;
-}
-#endif
-__inline uint64_t mul64(uint64_t x, uint64_t y, uint64_t* hi) {
-    __asm__(
-        "mulq %3	\n\t"
-        : "=&a"(x), "=&d"(y)
-        : "0"(x), "1"(y)
-        : "cc"
-    );
-
-    *hi = y;
-    return x;
-}
 
 __inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 {
@@ -406,23 +373,6 @@ __inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
         );
     return x;
 }
-
-__inline uint64_t u64div(uint64_t c, uint64_t n)
-{
-#if 1
-    __asm__("divq %4"
-        : "=a"(c), "=d"(n)
-        : "1"(c), "0"(0ULL), "r"(n));
-#else
-// this should work if the above won't compile (e.g. on clang)
-    uint64_t tmp = 0;
-    __asm__("divq %4"
-        : "=a"(tmp), "=d"(n)
-        : "1"(c), "0"(tmp), "r"(n));
-#endif
-    return n;
-}
-
 
 #if defined(USE_AVX512F) || defined(USE_BMI2)
 
@@ -697,25 +647,6 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 #include <immintrin.h>
 #include <intrin.h>
 
-#if defined(_MSC_VER) && defined(__clang__)
-extern uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r);
-#endif
-
-__inline uint64_t u64div(uint64_t c, uint64_t n)
-{
-    uint64_t r;
-    //mpz_t a;
-    //mpz_init(a);
-    //mpz_set_ui(a, c);
-    //mpz_mul_2exp(a, a, 64);
-    //r = mpz_tdiv_ui(a, n);
-    //mpz_clear(a);
-    // first available in Visual Studio 2019
-    _udiv128(c, 0, n, &r);
-
-    return r;
-}
-
 __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     uint64_t th, tl, u, ah, al;
@@ -834,6 +765,7 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 
 #endif
 
+/********************* vector Montgomery arith **********************/
 
 #ifdef USE_AVX512F
 
@@ -842,7 +774,7 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 
 #define and64 _mm512_and_epi64
 #define store64 _mm512_store_epi64
-#if defined( __clang__)|| defined(__GNUC__)
+#ifdef __clang__
 #define storeu64 _mm512_storeu_si512
 #else
 #define storeu64 _mm512_storeu_epi64
@@ -854,7 +786,7 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 #define set64 _mm512_set1_epi64
 #define srli64 _mm512_srli_epi64
 #define load64 _mm512_load_epi64
-#if defined( __clang__)|| defined(__GNUC__)
+#ifdef __clang__
 #define loadu64 _mm512_loadu_si512
 #else
 #define loadu64 _mm512_loadu_epi64
@@ -1375,7 +1307,6 @@ __inline static void mask_sqrredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulm
 	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
 
 	// m0
-	//t1 += sqr_lo;
 	t1 = _mm512_add_epi64(t1, sqr_lo);
 	m = mul52lo(t0, vrho);
 
@@ -1463,7 +1394,6 @@ __inline static void mask_sqrredc104_vec_pos(__m512i* c1, __m512i* c0, __mmask8 
 	VEC_MUL_ACCUM_LOHI_PD(a0, a0, t0, t1);
 
 	// m0
-	//t1 += sqr_lo;
 	t1 = _mm512_add_epi64(t1, sqr_lo);
 
 	// note, we leave rho = 0 - rho so that we get -m,
@@ -1749,9 +1679,7 @@ __inline static void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i 
 uint64_t multiplicative_inverse(uint64_t a);
 __m512i multiplicative_inverse104_x8(uint64_t* a);
 
-/*
-#ifdef USE_PERIG_128BIT
-// only needed, so far, for an eventual lucas_prp test
+#if defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16)
 static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 {
 	//w = gcd(u, v);
@@ -1813,8 +1741,6 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 	w[0] = u[0];
 }
 #endif
-*/
-
 
 #endif
 

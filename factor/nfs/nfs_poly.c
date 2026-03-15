@@ -18,7 +18,9 @@ benefit from your work.
 #include "threadpool.h"
 #include <math.h>
 
-
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
 
 #ifdef USE_NFS
 

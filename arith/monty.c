@@ -78,19 +78,19 @@ __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
 #endif
 #endif
 
-#if defined(_MSC_VER) && defined(__clang__)
 
-uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r) // uint64_t c, uint64_t n)
-{
-	__asm__("divq %4"
-		: "=a"(lo), "=d"(hi)
-		: "1"(hi), "0"(lo), "r"(d));
 
-	*r = hi;
-	return lo;
-}
 
-#endif
+
+
+
+
+
+
+
+
+
+
 
 /********************* arbitrary-precision Montgomery arith **********************/
 // generic Montgomery arithmetic using gmp
@@ -673,12 +673,17 @@ static void ciosSubtract128(uint64_t* res_lo, uint64_t* res_hi, uint64_t carries
 			b = my_sbb64(b, carries, 0, &carries);
 		}
 #endif
-		
+
 	} while (b == 0);
 	// get the saved values when a borrow occurs
 	*res_lo = t_lo;
 	*res_hi = t_hi;
 }
+
+
+#if 1 //def USE_PERIG_128BIT
+
+
 
 void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b_hi, uint64_t mod_lo, uint64_t mod_hi,
 	uint64_t mmagic)
@@ -967,6 +972,7 @@ void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 #endif
 
 }
+#endif
 
 // already defined within mingw64/msys2
 #if 0 //defined( GCC_ASM64X ) && !defined(__MINGW32__)

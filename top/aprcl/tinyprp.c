@@ -57,6 +57,10 @@
 #include "gmp.h"
 #endif
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 int fermat_prp_64x1(uint64_t n)
 {
 	uint64_t rho = multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);

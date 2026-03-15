@@ -31,6 +31,10 @@ code to the public domain.
 #include <sys/time.h>
 #endif
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #define SM_BLOCKSIZE 16384
 #define RADIX_32 4294967296.0
 

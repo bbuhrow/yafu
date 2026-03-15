@@ -6,12 +6,12 @@
 *.no
 *.qo
 
-# Logs / Checkpoints
+# Logs / Checkpoints / data files
 *.log
 siqs.dat
 cadoWorkdir
 /*.db
-/nfs.*
+nfs.*
 *.optrpt
 *.obj
 *.tlog
@@ -23,5 +23,8 @@ build.vc22/.vs/*
 *.pdb
 *.user
 *.recipe
+
+# makefile configuration
+config.mk
 
 

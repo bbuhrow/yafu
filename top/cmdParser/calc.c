@@ -54,6 +54,10 @@ SOFTWARE.
 #include "smallmpqs.h"
 #include "cofactorize.h"
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
 

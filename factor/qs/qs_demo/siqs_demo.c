@@ -484,7 +484,7 @@ int check_expression(options_t* options)
     // they interface with stdin/out/err through pipes, so there will always
     // be a pipe.
     // https://github.com/msys2/msys2/wiki/Porting
-#if defined(__MINGW32__)
+#if 1 //defined(__MINGW32__)
     // I'm not sure how to detect at runtime if this is an msys shell.
     // So unfortunately if we compile with mingw we basically have to remove 
     // the ability to process from pipes or redirects.  should be able to use 
@@ -525,7 +525,7 @@ int check_expression(options_t* options)
     }
 
 #if defined(__MINGW32__)
-    }
+    // }
 #endif
 
 	return is_cmdline_run;

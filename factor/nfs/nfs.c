@@ -29,6 +29,10 @@ benefit from your work.
 #include <direct.h>		// _getcwd
 #endif
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #ifdef USE_NFS
 
 int NFS_ABORT;

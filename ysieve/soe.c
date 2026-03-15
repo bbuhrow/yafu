@@ -29,6 +29,10 @@ SOFTWARE.
 #include "threadpool.h"
 #include <string.h>
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 // http://www.mersenneforum.org/showthread.php?t=21611
 // http://www.mersenneforum.org/showthread.php?t=11900
 

@@ -27,7 +27,9 @@ code to the public domain.
 #include <time.h>
 #include <math.h>
 
-
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
 
 //local function declarations
 typedef struct {

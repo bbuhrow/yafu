@@ -7,6 +7,10 @@
 #include <stdint.h>
 #include <math.h>
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
 #define NUM_SIQS_PTS 10
 #define NUM_GNFS_PTS 6

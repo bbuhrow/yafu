@@ -30,6 +30,10 @@ SOFTWARE.
 #include "threadpool.h"
 #include "soe_impl.h"
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #define USE_NEW_ROOTCALC
 
 

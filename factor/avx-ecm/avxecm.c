@@ -54,6 +54,9 @@ http://www.gnu.org/licenses/ or write to the Free Software Foundation, Inc.,
 #include "soe.h"
 #include "arith.h"
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
 
 //#define D 1155
 //#define U 8

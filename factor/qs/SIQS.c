@@ -34,6 +34,10 @@ code to the public domain.
 
 #include "soe.h"
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #if defined( USE_SS_SEARCH ) && defined(USE_POLY_BUCKET_SS)
 #define SS_TIMING
 #endif
@@ -3514,7 +3518,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     //init_factobj(dconf->fobj2, sconf->obj->options);
     // also not needed, except for maybe with mingw?
 #if defined(__MINGW64__)
-    dconf->cosiqs = init_tinyqs();
+    dconf->cosiqs = init_tinysiqs();
 #endif
 
     dconf->batch_run_override = 0;

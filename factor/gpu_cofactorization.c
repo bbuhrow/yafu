@@ -37,6 +37,10 @@ SOFTWARE.
 #endif
 #include "cofactorize.h"
 
+#ifdef _MSC_VER
+#define HAVE_CUDA_BATCH_FACTOR
+#endif
+
 #ifdef HAVE_CUDA_BATCH_FACTOR
 
 #ifndef TOOLKIT_VERSION

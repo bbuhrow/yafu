@@ -31,6 +31,9 @@ code to the public domain.
 #include <ecm.h>
 #include <math.h>
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
 
 int test_smallmpqs(mpz_t* inputs, int num_inputs)
 {

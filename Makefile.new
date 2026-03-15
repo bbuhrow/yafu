@@ -1,0 +1,1261 @@
+# =============================================================================
+# yafu — Unified Makefile
+# Author of original Makefiles: Ben Buhrow
+#
+# Platforms  : Linux, Windows (MSYS2/MinGW-w64)
+# Compilers  : gcc, clang, icc/icx   — select with  make CC=gcc|clang|icc
+# Build type : release (default)     — debug with    make DEBUG=1
+#
+# Quick-start
+# -----------
+#   cp config.mk.example config.mk   # first time only; edit paths as needed
+#   make yafu                        # build yafu (default compiler: gcc)
+#   make msieve                      # build msieve static library + demo
+#   make siqs                        # build siqs_demo standalone binary
+#   make ecm                         # build ecm_demo standalone binary
+#   make all                         # build all four targets
+#   make CC=clang yafu               # use clang
+#   make CC=icc yafu                 # use Intel compiler
+#   make DEBUG=1 yafu                # debug build
+#   make info                        # show fully resolved configuration
+#   make help                        # show feature-flag reference
+#   make clean                       # remove all build artefacts
+#
+# Feature flags (pass on command line or set in config.mk):
+#   OMP=1          OpenMP threading
+#   ECM=1          Link GMP-ECM, enable ECM factorisation
+#   BATCH_CUDA=1   GPU cofactorisation for NFS/SIQS  (requires CUDA)
+#   CUDA_POLY=1    GPU NFS polynomial selection       (requires CUDA)
+#   CUDA_LA=1      GPU NFS linear algebra             (requires CUDA)
+#   MPI=1          MPI parallel processing
+#   NO_ZLIB=1      Disable zlib
+#   VBITS=N        Linear algebra vector width: 64 (default), 128, 256
+#   USE_SSE41=1      SSE 4.1
+#   USE_AVX2=1       AVX2  (implies SSE 4.1)
+#   USE_BMI2=1       BMI / BMI2
+#   USE_AVX512=1     AVX-512 F/BW  (implies AVX2, BMI2; works on Skylake-X,
+#                    Ice Lake, Zen 4, and any other AVX-512-capable CPU)
+#   USE_AVX512IFMA=1 AVX-512 IFMA  (implies USE_AVX512; for Ice Lake and later)
+#   USE_AVX512PF=1   AVX-512 PF    (implies USE_AVX512; for Xeon Phi / KNL)
+#   SMALLINT=1     Small SIQS intervals
+#   PROFILE=1      gprof profiling
+#   OPT_DEBUG=1    Optimisation debug output
+#   TIMING=1       QS timing instrumentation
+#   FORCE_GENERIC=1  Disable all SIMD paths
+#   STATIC=1       Static link (experimental, Linux)
+#   STATIC_WIN=1   Fully static Windows binary (runs in PowerShell/cmd without DLLs)
+#   MINGW=1        Building under MinGW (skip -ldl)
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 1. LOAD USER CONFIG  (silently skipped if config.mk is absent)
+# -----------------------------------------------------------------------------
+-include config.mk
+
+
+# -----------------------------------------------------------------------------
+# 2. OS DETECTION
+# -----------------------------------------------------------------------------
+ifeq ($(OS),Windows_NT)
+    DETECTED_OS := Windows
+    EXE_EXT     := .exe
+else
+    DETECTED_OS := $(shell uname -s)
+    EXE_EXT     :=
+endif
+
+MKDIR  := mkdir -p
+RM_RF  := rm -rf
+
+
+# -----------------------------------------------------------------------------
+# 3. COMPILER FAMILY DETECTION
+# -----------------------------------------------------------------------------
+CC ?= gcc
+CC_BASENAME := $(notdir $(CC))
+
+ifneq (,$(findstring icx,$(CC_BASENAME)))
+    COMPILER_FAMILY := icc
+else ifneq (,$(findstring icc,$(CC_BASENAME)))
+    COMPILER_FAMILY := icc
+else ifneq (,$(findstring clang,$(CC_BASENAME)))
+    COMPILER_FAMILY := clang
+else
+    COMPILER_FAMILY := gcc
+endif
+
+# MPI overrides the compiler wrapper
+ifeq ($(MPI),1)
+    CC = mpicc
+endif
+
+
+# -----------------------------------------------------------------------------
+# 4. DEPENDENCY DISCOVERY
+#
+#    Helper: search a list of candidate directories for a filename.
+#    Returns the first directory where the file is found, or empty.
+# -----------------------------------------------------------------------------
+define find_dir
+$(firstword $(foreach d,$(2),$(if $(wildcard $(d)/$(1)),$(d))))
+endef
+
+ifeq ($(DETECTED_OS),Windows)
+    SYS_INC_PATHS := /mingw64/include /mingw32/include /usr/include
+    SYS_LIB_PATHS := /mingw64/lib     /mingw32/lib     /usr/lib
+else
+    SYS_INC_PATHS := /usr/include /usr/local/include /opt/local/include
+    SYS_LIB_PATHS := /usr/lib /usr/lib64 /usr/local/lib \
+                     /usr/lib/x86_64-linux-gnu
+endif
+
+
+# ---- 4a. GMP  (required) ---------------------------------------------------
+ifdef GMP_PREFIX
+    GMP_INCDIR ?= $(GMP_PREFIX)/include
+    GMP_LIBDIR ?= $(GMP_PREFIX)/lib
+endif
+GMP_INCDIR ?= $(call find_dir,gmp.h,$(SYS_INC_PATHS))
+GMP_LIBDIR ?= $(call find_dir,libgmp.a,$(SYS_LIB_PATHS))
+
+ifeq (,$(wildcard $(GMP_INCDIR)/gmp.h))
+    $(error GMP is required but gmp.h was not found. \
+Set GMP_PREFIX or GMP_INCDIR in config.mk or on the command line.)
+endif
+
+GMP_INC   := -I$(GMP_INCDIR)
+GMP_LPATH := $(if $(GMP_LIBDIR),-L$(GMP_LIBDIR))
+
+
+# ---- 4b. GMP-ECM  (optional) -----------------------------------------------
+ifdef ECM_PREFIX
+    ECM_INCDIR ?= $(ECM_PREFIX)/include
+    ECM_LIBDIR ?= $(ECM_PREFIX)/lib
+endif
+ECM_INCDIR ?= $(call find_dir,ecm.h,$(SYS_INC_PATHS))
+
+ifneq (,$(wildcard $(ECM_INCDIR)/ecm.h))
+    HAVE_ECM_LIB := 1
+    ECM_INC      := -I$(ECM_INCDIR)
+    ECM_LPATH    := $(if $(ECM_LIBDIR),-L$(ECM_LIBDIR))
+else
+    HAVE_ECM_LIB :=
+    ECM_INC      :=
+    ECM_LPATH    :=
+endif
+
+
+# ---- 4c. CUDA Toolkit  (optional) ------------------------------------------
+# Discovery precedence (first match wins):
+#   1. CUDA_PREFIX set in config.mk or on the command line
+#   2. CUDA_ROOT environment variable  (set by the NVIDIA installer on Linux)
+#   3. CUDA_PATH environment variable  (set by the NVIDIA installer on Windows)
+#   4. nvcc found on PATH  (derive root from its location)
+#   5. Well-known filesystem locations  (/usr/local/cuda, /usr/local/cuda-12 …)
+#
+# Steps 2-5 are skipped entirely when CUDA_PREFIX is already defined,
+# so config.mk / command-line always wins without any ambiguity.
+ifndef CUDA_PREFIX
+    # 2. CUDA_ROOT (Linux installer standard)
+    ifneq (,$(CUDA_ROOT))
+        CUDA_PREFIX := $(CUDA_ROOT)
+    # 3. CUDA_PATH (Windows installer standard)
+    else ifneq (,$(CUDA_PATH))
+        CUDA_PREFIX := $(CUDA_PATH)
+    # 4. nvcc on PATH
+    else
+        _NVCC_ON_PATH := $(shell which nvcc 2>/dev/null)
+        ifneq (,$(_NVCC_ON_PATH))
+            CUDA_PREFIX := $(shell dirname $(_NVCC_ON_PATH))/..
+        # 5. Common filesystem locations
+        else
+            CUDA_PREFIX := $(firstword $(wildcard \
+                /usr/local/cuda \
+                /usr/local/cuda-12 \
+                /usr/local/cuda-11))
+        endif
+    endif
+endif
+
+ifdef CUDA_PREFIX
+    CUDA_INCDIR ?= $(CUDA_PREFIX)/include
+    ifeq ($(DETECTED_OS),Windows)
+        CUDA_LIBDIR ?= $(CUDA_PREFIX)/lib/x64
+    else
+        CUDA_LIBDIR ?= $(CUDA_PREFIX)/lib64
+    endif
+    NVCC        ?= $(CUDA_PREFIX)/bin/nvcc
+endif
+
+ifneq (,$(wildcard $(CUDA_INCDIR)/cuda.h))
+    HAVE_CUDA_TOOLKIT := 1
+    CUDA_INC          := -I$(CUDA_INCDIR)
+    CUDA_LPATH        := $(if $(CUDA_LIBDIR),-L$(CUDA_LIBDIR))
+else
+    HAVE_CUDA_TOOLKIT :=
+    CUDA_INC          :=
+    CUDA_LPATH        :=
+    NVCC              :=
+    # If user requested CUDA features but toolkit not found, warn and disable
+    ifdef BATCH_CUDA
+        $(warning CUDA toolkit not found — disabling BATCH_CUDA)
+        override BATCH_CUDA :=
+    endif
+    ifdef CUDA_POLY
+        $(warning CUDA toolkit not found — disabling CUDA_POLY)
+        override CUDA_POLY :=
+    endif
+    ifdef CUDA_LA
+        $(warning CUDA toolkit not found — disabling CUDA_LA)
+        override CUDA_LA :=
+    endif
+endif
+
+
+# ---- 4d. OpenCL  (optional, only meaningful with BATCH_CUDA) ---------------
+# OpenCL is used as an alternative to CUDA for GPU cofactorisation on AMD
+# and other non-NVIDIA hardware.  There is no point probing for it or linking
+# it when BATCH_CUDA is not enabled.
+ifdef BATCH_CUDA
+ifdef OCL_PREFIX
+    OCL_INCDIR ?= $(OCL_PREFIX)/include
+    OCL_LIBDIR ?= $(OCL_PREFIX)/lib
+endif
+OCL_INCDIR ?= $(call find_dir,CL/cl.h,$(SYS_INC_PATHS))
+
+# Check for the library as well as the header — on some systems (e.g. MinGW)
+# the headers are installed without a matching ICD loader library.
+ifeq ($(DETECTED_OS),Windows)
+    _OCL_LIBNAMES := libOpenCL.a libOpenCL.dll.a OpenCL.lib
+else
+    _OCL_LIBNAMES := libOpenCL.so libOpenCL.a
+endif
+
+OCL_LIBDIR ?= $(firstword $(foreach l,$(_OCL_LIBNAMES),\
+                  $(call find_dir,$(l),$(SYS_LIB_PATHS))))
+
+_OCL_HEADER_FOUND := $(wildcard $(OCL_INCDIR)/CL/cl.h)
+_OCL_LIB_FOUND    := $(if $(OCL_LIBDIR),$(firstword $(foreach l,$(_OCL_LIBNAMES),\
+                         $(wildcard $(OCL_LIBDIR)/$(l)))))
+
+ifneq (,$(_OCL_HEADER_FOUND))
+ifneq (,$(_OCL_LIB_FOUND))
+    HAVE_OPENCL := 1
+    OCL_INC     := -I$(OCL_INCDIR)
+    OCL_LPATH   := -L$(OCL_LIBDIR)
+    OCL_LIBS    := -lOpenCL
+else
+    HAVE_OPENCL :=
+    OCL_INC     :=
+    OCL_LPATH   :=
+    OCL_LIBS    :=
+    $(info OpenCL: header found ($(OCL_INCDIR)) but no library — disabling. \
+        Set OCL_PREFIX in config.mk if you have it installed.)
+endif
+else
+    HAVE_OPENCL :=
+    OCL_INC     :=
+    OCL_LPATH   :=
+    OCL_LIBS    :=
+endif
+else
+    # BATCH_CUDA not set — skip OpenCL entirely
+    HAVE_OPENCL :=
+    OCL_INC     :=
+    OCL_LPATH   :=
+    OCL_LIBS    :=
+endif
+
+
+# -----------------------------------------------------------------------------
+# 5. CUDA SM (streaming multiprocessor / compute capability) version
+#
+#    SM controls the -arch sm_$(SM) flag passed to nvcc for .ptx compilation.
+#
+#    Precedence (first match wins — auto-detect is skipped if SM is already set):
+#      1. SM=XY on the command line or in config.mk
+#      2. A numeric value passed via BATCH_CUDA or CUDA_POLY (legacy behaviour)
+#      3. Auto-detected from nvidia-smi (lowest capability across all cards,
+#         so the .ptx runs correctly on every GPU in a multi-card system)
+#      4. Hardcoded fallback of 80 (Ampere) with a warning
+#
+#    To override: set SM := 89 in config.mk, or  make SM=89
+# -----------------------------------------------------------------------------
+
+# Legacy: BATCH_CUDA=XY or CUDA_POLY=XY used to encode the SM value directly.
+# Honour that for backward compatibility, but only if SM isn't already set.
+ifndef SM
+    ifdef BATCH_CUDA
+        ifneq ($(BATCH_CUDA),1)
+            SM         := $(BATCH_CUDA)
+            BATCH_CUDA := 1
+        endif
+    endif
+endif
+
+ifndef SM
+    ifdef CUDA_POLY
+        ifneq ($(CUDA_POLY),1)
+            SM        := $(CUDA_POLY)
+            CUDA_POLY := 1
+        endif
+    endif
+endif
+
+# Normalize BATCH_CUDA / CUDA_POLY to plain 1 if they held a numeric SM value
+# (which has already been captured into SM above).
+ifneq (,$(BATCH_CUDA))
+    BATCH_CUDA := 1
+endif
+ifneq (,$(CUDA_POLY))
+    CUDA_POLY := 1
+endif
+
+# Auto-detect SM from nvidia-smi when CUDA is present and SM is still unset.
+ifndef SM
+    ifdef HAVE_CUDA_TOOLKIT
+        # Query compute capability for every GPU, strip the dot (8.0 → 80),
+        # sort numerically, and take the lowest value so the .ptx is
+        # compatible with every card in the system.
+        _SMS_RAW := $(shell nvidia-smi --query-gpu=compute_cap \
+                        --format=csv,noheader 2>/dev/null | tr -d '.' | sort -n)
+        ifneq (,$(_SMS_RAW))
+            SM := $(firstword $(_SMS_RAW))
+            $(info CUDA: auto-detected SM=$(SM) \
+                (lowest capability across $(words $(_SMS_RAW)) GPU(s): $(_SMS_RAW)))
+        else
+            SM := 80
+            $(warning CUDA: nvidia-smi found no GPUs — falling back to SM=$(SM). \
+                Set SM in config.mk if this is wrong.)
+        endif
+    else
+        # CUDA toolkit not present; SM won't be used, but give it a value
+        # so any $(SM) references in non-CUDA rules don't expand to empty.
+        SM := 80
+    endif
+endif
+
+
+# -----------------------------------------------------------------------------
+# 6. BASE CFLAGS
+# -----------------------------------------------------------------------------
+CFLAGS := \
+    -fno-common \
+    -m64 \
+    -std=c11 \
+    -DUSE_SSE2 \
+    -fPIE \
+    -DUSE_NFS \
+    -D_FILE_OFFSET_BITS=64 \
+    -D_LARGEFILE64_SOURCE \
+    -Wall \
+    -Wconversion
+
+VBITS ?= 64
+CFLAGS += -DVBITS=$(VBITS)
+
+# Include paths — project-internal
+CFLAGS += \
+    -I. \
+    -Iinclude \
+    -Ims_include \
+    -Itop/aprcl \
+    -Itop/cmdParser \
+    -Itop \
+    -Ifactor/gmp-ecm \
+    -Iytools \
+    -Iysieve \
+    -Iaprcl \
+    -Ignfs \
+    -Ignfs/poly \
+    -Ignfs/poly/stage1 \
+    -Ifactor/avx-ecm \
+    -Ifactor
+
+# External dependency includes
+CFLAGS += $(GMP_INC) $(ECM_INC) $(CUDA_INC) $(OCL_INC)
+
+
+# -----------------------------------------------------------------------------
+# 7. DEBUG / RELEASE FLAGS
+# -----------------------------------------------------------------------------
+ifeq ($(DEBUG),1)
+    CFLAGS += -O0 -g -DDEBUG
+else
+    CFLAGS += -O2 -DNDEBUG -D_FILE_OFFSET_BITS=64 -fomit-frame-pointer
+endif
+
+
+# -----------------------------------------------------------------------------
+# 8. PER-COMPILER FLAGS
+# -----------------------------------------------------------------------------
+ifeq ($(COMPILER_FAMILY),icc)
+    CFLAGS += -qopt-report=5
+    # ICC uses -L path for its own runtime headers (legacy icc on RHEL)
+    CFLAGS += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
+
+else ifeq ($(COMPILER_FAMILY),clang)
+    CFLAGS += \
+        -Wno-unused-parameter \
+        -Wno-padded \
+        -Wno-declaration-after-statement
+    ifeq ($(DEBUG),1)
+        CFLAGS        += -fsanitize=address,undefined -fno-omit-frame-pointer
+        LDFLAGS_EXTRA += -fsanitize=address,undefined
+    else
+        CFLAGS        += -flto
+        LDFLAGS_EXTRA += -flto
+    endif
+
+else
+    # GCC
+    CFLAGS += -Wshadow -Wstrict-prototypes
+    ifeq ($(DEBUG),1)
+        # nothing extra
+    else
+        CFLAGS        += -flto
+        LDFLAGS_EXTRA += -flto
+    endif
+    ifeq ($(DETECTED_OS),Windows)
+        ifdef STATIC_WIN
+            # Fully static binary — runs in PowerShell/cmd.exe with no DLLs needed.
+            # Requires that GMP, ECM, zlib etc. were installed as static (.a) libs
+            # (pacman -S mingw-w64-x86_64-gmp etc. includes both static and shared).
+            LDFLAGS_EXTRA += -static -static-libgcc
+        else
+            LDFLAGS_EXTRA += -static-libgcc
+        endif
+    endif
+endif
+
+
+# -----------------------------------------------------------------------------
+# 9. ISA / MICRO-ARCHITECTURE FLAGS
+#    Enabling a higher level automatically enables the levels below it.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# ISA implication chain — enabling a higher-level feature automatically
+# enables everything it depends on.  Only the highest applicable flag needs
+# to be set; the chain fills in the rest.
+#
+#   USE_AVX512IFMA  →  USE_AVX512
+#   USE_AVX512PF    →  USE_AVX512
+#   USE_AVX512      →  USE_AVX2  →  USE_SSE41
+#   USE_AVX512      →  USE_BMI2
+#
+# Backward-compatibility aliases: the old microarchitecture names still work
+# but map to the new feature flags and print a deprecation notice.
+# -----------------------------------------------------------------------------
+ifdef ICELAKE
+    $(info NOTE: ICELAKE is deprecated — use USE_AVX512IFMA=1 instead)
+    USE_AVX512IFMA := 1
+endif
+ifdef SKYLAKEX
+    $(info NOTE: SKYLAKEX is deprecated — use USE_AVX512=1 instead)
+    USE_AVX512 := 1
+endif
+ifdef KNL
+    $(info NOTE: KNL is deprecated — use USE_AVX512PF=1 (and SMALLINT=1 if needed) instead)
+    USE_AVX512PF := 1
+endif
+
+# Propagate implications top-down
+ifeq ($(USE_AVX512IFMA),1)
+    USE_AVX512 := 1
+endif
+ifeq ($(USE_AVX512PF),1)
+    USE_AVX512 := 1
+endif
+ifeq ($(USE_AVX512),1)
+    USE_AVX2   := 1
+    USE_BMI2   := 1
+endif
+ifeq ($(USE_AVX2),1)
+    USE_SSE41  := 1
+endif
+
+# --- SSE 4.1 -----------------------------------------------------------------
+ifeq ($(USE_SSE41),1)
+    CFLAGS += -msse4.1 -DUSE_SSE41
+endif
+
+# --- AVX2 --------------------------------------------------------------------
+ifeq ($(USE_AVX2),1)
+    CFLAGS += -DUSE_AVX2
+    ifeq ($(COMPILER_FAMILY),icc)
+        CFLAGS += -march=core-avx2
+    else
+        CFLAGS += -mavx2
+    endif
+endif
+
+# --- BMI / BMI2 --------------------------------------------------------------
+ifeq ($(USE_BMI2),1)
+    CFLAGS += -mbmi -mbmi2 -DUSE_BMI2
+endif
+
+# --- AVX-512 base (F + BW) ---------------------------------------------------
+# Works on: Skylake-X, Cascade Lake, Ice Lake, Tiger Lake, Zen 4, and others.
+# Use this flag for any CPU with AVX-512F/BW — not just Intel server parts.
+ifeq ($(USE_AVX512),1)
+    # New-style defines
+    CFLAGS += -DUSE_AVX512F -DUSE_AVX512BW
+    # Legacy defines retained for source compatibility during transition
+    CFLAGS += -DSKYLAKEX
+    ifeq ($(COMPILER_FAMILY),icc)
+        CFLAGS += -march=core-avx512
+    else
+        CFLAGS += -march=skylake-avx512
+    endif
+endif
+
+# --- AVX-512 IFMA (Ice Lake and later) ---------------------------------------
+ifeq ($(USE_AVX512IFMA),1)
+    # New-style define
+    CFLAGS += -DUSE_AVX512IFMA
+    # Legacy define retained for source compatibility during transition
+    CFLAGS += -DIFMA
+    ifeq ($(COMPILER_FAMILY),icc)
+        CFLAGS += -march=icelake-client
+    else
+        CFLAGS += -march=icelake-client
+    endif
+endif
+
+# --- AVX-512 PF (Xeon Phi / Knights Landing) ---------------------------------
+ifeq ($(USE_AVX512PF),1)
+    # New-style define
+    CFLAGS += -DUSE_AVX512PF -DTARGET_KNL
+    ifeq ($(COMPILER_FAMILY),icc)
+        CFLAGS += -xMIC-AVX512
+    else
+        CFLAGS += -march=knl
+    endif
+endif
+
+
+# -----------------------------------------------------------------------------
+# 10. OPTIONAL FEATURE FLAGS
+# -----------------------------------------------------------------------------
+ifeq ($(OMP),1)
+    CFLAGS += -fopenmp -DHAVE_OMP
+endif
+
+ifeq ($(ECM),1)
+    CFLAGS += -DHAVE_GMP_ECM
+endif
+
+ifdef BATCH_CUDA
+    CFLAGS += -DHAVE_CUDA_BATCH_FACTOR -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+    TOOLKIT_VERSION ?= 12
+    CFLAGS += -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+endif
+
+ifdef CUDA_POLY
+    CFLAGS += -DHAVE_CUDA_POLY -Icub
+    ifeq ($(DETECTED_OS),Windows)
+        CUDA_POLY_LIBS := "$(CUDA_LIBDIR)/cuda.lib"
+    else
+        CUDA_POLY_LIBS := -lcuda -lcudart
+    endif
+endif
+
+ifdef CUDA_LA
+    CFLAGS += -DHAVE_CUDA_LA
+endif
+
+ifeq ($(MPI),1)
+    CFLAGS += -DHAVE_MPI
+endif
+
+ifeq ($(BOINC),1)
+    BOINC_INC_DIR ?= .
+    BOINC_LIB_DIR ?= .
+    CFLAGS += -I$(BOINC_INC_DIR) -DHAVE_BOINC
+endif
+
+ifeq ($(CUDAAWARE),1)
+    CFLAGS += -DHAVE_CUDAAWARE_MPI
+endif
+
+ifeq ($(SMALLINT),1)
+    CFLAGS += -DSMALL_SIQS_INTERVALS
+endif
+
+ifeq ($(PROFILE),1)
+    CFLAGS  += -pg -DPROFILING
+    BINNAME := ${BINNAME:%=%_prof}
+endif
+
+ifeq ($(OPT_DEBUG),1)
+    CFLAGS += -DOPT_DEBUG
+endif
+
+ifeq ($(TIMING),1)
+    CFLAGS += -DQS_TIMING
+endif
+
+ifeq ($(FORCE_GENERIC),1)
+    CFLAGS += -DFORCE_GENERIC
+endif
+
+ifeq ($(STATIC),1)
+    CFLAGS += -static-intel -static
+endif
+
+# Append any user overrides from config.mk
+CFLAGS += $(USER_CFLAGS)
+
+
+# -----------------------------------------------------------------------------
+# 11. LINKER FLAG ASSEMBLY
+#
+#    LIBS       — libraries linked into yafu and the demo binaries
+#    MSIEVE_LIBS — libraries linked into msieve (slightly different set)
+# -----------------------------------------------------------------------------
+
+# Base library search paths
+LIBS        := -L. $(GMP_LPATH) $(ECM_LPATH) $(CUDA_LPATH) $(OCL_LPATH)
+MSIEVE_LIBS := -L. $(GMP_LPATH)
+
+# ECM
+ifeq ($(ECM),1)
+    ifneq (,$(HAVE_ECM_LIB))
+        LIBS        += -lecm
+        MSIEVE_LIBS += -lecm
+    else
+        $(warning ECM=1 set but libecm not found — linking without -lecm)
+    endif
+endif
+
+# CUDA (batch cofactorisation)
+ifdef BATCH_CUDA
+    LIBS        += $(CUDA_LPATH) -lcuda -lcudart
+    MSIEVE_LIBS += $(CUDA_LPATH) -lcuda -lcudart
+endif
+
+# CUDA (polynomial selection)
+ifdef CUDA_POLY
+    MSIEVE_LIBS += $(CUDA_POLY_LIBS)
+endif
+
+# OpenCL
+ifneq (,$(HAVE_OPENCL))
+    LIBS        += $(OCL_LPATH) $(OCL_LIBS)
+    MSIEVE_LIBS += $(OCL_LPATH) $(OCL_LIBS)
+endif
+
+# MPI / BOINC / zlib
+ifeq ($(BOINC),1)
+    MSIEVE_LIBS += -L$(BOINC_LIB_DIR) -lboinc_api -lboinc
+endif
+
+ifeq ($(NO_ZLIB),1)
+    CFLAGS += -DNO_ZLIB
+else
+    MSIEVE_LIBS += -lz
+endif
+
+# GMP, math, threading
+LIBS        += -lecm -lgmp -lpthread -lm
+MSIEVE_LIBS += -lgmp -lm -lpthread
+
+# Static Windows build needs extra libs that are normally pulled in implicitly
+# by the shared runtime, plus winpthread for the static pthreads implementation.
+ifeq ($(DETECTED_OS),Windows)
+    ifdef STATIC_WIN
+        LIBS        += -lwinpthread -lws2_32 -lssp
+        MSIEVE_LIBS += -lwinpthread -lws2_32 -lssp
+    endif
+endif
+
+# dl (not needed on MinGW or Windows)
+ifneq ($(MINGW),1)
+    ifneq ($(DETECTED_OS),Windows)
+        LIBS        += -ldl
+        MSIEVE_LIBS += -ldl
+    endif
+endif
+
+# Static extras
+ifeq ($(STATIC),1)
+    LIBS += -L/usr/lib/x86_64-redhat-linux6E/lib64/ -lpthread -lm
+endif
+
+# ICC: SVML
+ifeq ($(COMPILER_FAMILY),icc)
+    LIBS        += -lsvml
+    MSIEVE_LIBS += -lsvml
+endif
+
+LIBS        += $(USER_LDFLAGS) $(LDFLAGS_EXTRA)
+MSIEVE_LIBS += $(LDFLAGS_EXTRA)
+
+
+# =============================================================================
+# SOURCE FILE LISTS
+# =============================================================================
+
+OBJ_EXT := .o
+
+# -----------------------------------------------------------------------------
+# 12. MSIEVE / YAFU shared sources
+# -----------------------------------------------------------------------------
+MSIEVE_YAFU_SRCS = \
+    factor/qs/msieve/lanczos.c \
+    factor/qs/msieve/lanczos_matmul0.c \
+    factor/qs/msieve/lanczos_matmul1.c \
+    factor/qs/msieve/lanczos_matmul2.c \
+    factor/qs/msieve/lanczos_pre.c \
+    factor/qs/msieve/sqrt.c \
+    factor/qs/msieve/gf2.c
+
+MSIEVE_YAFU_OBJS = $(MSIEVE_YAFU_SRCS:.c=$(OBJ_EXT))
+
+
+# -----------------------------------------------------------------------------
+# 13. YAFU top-level sources
+# -----------------------------------------------------------------------------
+YAFU_SRCS = \
+    top/driver.c \
+    top/test.c \
+    factor/tune.c \
+    factor/autofactor.c \
+    top/cmdParser/cmdOptions.c \
+    top/cmdParser/calc.c
+
+
+# -----------------------------------------------------------------------------
+# 14. COMMON (shared across yafu targets)
+# -----------------------------------------------------------------------------
+COMMON_SRCS = \
+    factor/batch_factor.c \
+    factor/factor_common.c \
+    factor/rho.c \
+    factor/squfof.c \
+    factor/trialdiv.c \
+    arith/arith.c \
+    arith/monty.c \
+    arith/fftmul.c \
+    top/aprcl/tinyprp.c \
+    factor/gmp-ecm/tinyecm.c \
+    factor/gmp-ecm/micropm1.c \
+    factor/gmp-ecm/microecm.c \
+    ytools/threadpool.c \
+    ytools/util.c \
+    ysieve/presieve.c \
+    ysieve/count.c \
+    ysieve/offsets.c \
+    ysieve/primes.c \
+    ysieve/roots.c \
+    ysieve/linesieve.c \
+    ysieve/soe.c \
+    ysieve/tiny.c \
+    ysieve/worker.c \
+    ysieve/soe_util.c \
+    ysieve/wrapper.c \
+    top/aprcl/mpz_aprcl.c \
+    factor/gpu_cofactorization.c
+
+COMMON_BATCH_GPU_SRCS = \
+    factor/cuda_tinyecm.cu \
+    factor/cuda_intrinsics.h
+
+
+# -----------------------------------------------------------------------------
+# 15. ECM sources
+# -----------------------------------------------------------------------------
+ECM_SRCS = \
+    factor/gmp-ecm/ecm.c \
+    factor/gmp-ecm/pp1.c \
+    factor/gmp-ecm/pm1.c \
+    factor/avx-ecm/avxecm.c \
+    factor/avx-ecm/avx_ecm_main.c \
+    factor/avx-ecm/vec_common.c \
+    factor/avx-ecm/vecarith.c \
+    factor/avx-ecm/vecarith52.c \
+    factor/avx-ecm/vecarith52_special.c \
+    factor/avx-ecm/vecarith52_common.c
+
+
+# -----------------------------------------------------------------------------
+# 16. SIQS sources  (base + ISA-specific additions)
+# -----------------------------------------------------------------------------
+YAFU_SIQS_SRCS = \
+    factor/qs/filter.c \
+    factor/qs/tdiv.c \
+    factor/qs/tdiv_small.c \
+    factor/qs/tdiv_large.c \
+    factor/qs/tdiv_scan.c \
+    factor/qs/large_sieve.c \
+    factor/qs/new_poly.c \
+    factor/qs/siqs_test.c \
+    factor/qs/siqs_aux.c \
+    factor/qs/smallmpqs.c \
+    factor/qs/SIQS.c \
+    factor/qs/med_sieve_32k.c \
+    factor/qs/poly_roots_32k.c \
+    factor/qs/cofactorize_siqs.c
+
+ifeq ($(USE_SSE41),1)
+    YAFU_SIQS_SRCS += \
+        factor/qs/update_poly_roots_32k_sse4.1.c \
+        factor/qs/med_sieve_32k_sse4.1.c
+endif
+
+ifeq ($(USE_AVX2),1)
+    YAFU_SIQS_SRCS += \
+        factor/qs/tdiv_med_32k_avx2.c \
+        factor/qs/update_poly_roots_32k_avx2.c \
+        factor/qs/med_sieve_32k_avx2.c \
+        factor/qs/tdiv_resieve_32k_avx2.c
+endif
+
+ifeq ($(USE_AVX512),1)
+    YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k_knl.c
+endif
+
+# Always-included generic SIQS files (appended after any ISA variants)
+YAFU_SIQS_SRCS += \
+    factor/qs/update_poly_roots_32k.c \
+    factor/qs/tdiv_med_32k.c \
+    factor/qs/tdiv_resieve_32k.c
+
+
+# -----------------------------------------------------------------------------
+# 17. Demo binary sources
+# -----------------------------------------------------------------------------
+SIQS_BIN_SRCS = \
+    factor/qs/qs_demo/siqs_demo.c \
+    factor/qs/qs_demo/cmdOptions.c \
+    factor/qs/qs_demo/calc.c
+
+ECM_BIN_SRCS = \
+    factor/ecm_demo/ecm_demo.c \
+    factor/ecm_demo/cmdOptions.c \
+    factor/ecm_demo/calc.c
+
+
+# -----------------------------------------------------------------------------
+# 18. NFS sources
+# -----------------------------------------------------------------------------
+YAFU_NFS_SRCS = \
+    factor/nfs/nfs_sieving.c \
+    factor/nfs/nfs_poly.c \
+    factor/nfs/nfs_postproc.c \
+    factor/nfs/nfs_filemanip.c \
+    factor/nfs/nfs_threading.c \
+    factor/nfs/snfs.c \
+    factor/nfs/nfs.c
+
+ifdef BATCH_CUDA
+    YAFU_NFS_SRCS += common/cuda_xface.c
+endif
+
+NFS_SRCS = \
+    gnfs/poly/poly.c \
+    gnfs/poly/poly_param.c \
+    gnfs/poly/poly_skew.c \
+    gnfs/poly/polyutil.c \
+    gnfs/poly/root_score.c \
+    gnfs/poly/size_score.c \
+    gnfs/poly/stage1/stage1.c \
+    gnfs/poly/stage1/stage1_roots.c \
+    gnfs/poly/stage2/optimize.c \
+    gnfs/poly/stage2/optimize_deg6.c \
+    gnfs/poly/stage2/root_sieve.c \
+    gnfs/poly/stage2/root_sieve_deg45_x.c \
+    gnfs/poly/stage2/root_sieve_deg5_xy.c \
+    gnfs/poly/stage2/root_sieve_deg6_x.c \
+    gnfs/poly/stage2/root_sieve_deg6_xy.c \
+    gnfs/poly/stage2/root_sieve_deg6_xyz.c \
+    gnfs/poly/stage2/root_sieve_line.c \
+    gnfs/poly/stage2/root_sieve_util.c \
+    gnfs/poly/stage2/stage2.c \
+    gnfs/filter/duplicate.c \
+    gnfs/filter/filter.c \
+    gnfs/filter/singleton.c \
+    gnfs/sieve/sieve_line.c \
+    gnfs/sieve/sieve_util.c \
+    gnfs/sqrt/sqrt.c \
+    gnfs/sqrt/sqrt_a.c \
+    gnfs/fb.c \
+    gnfs/ffpoly.c \
+    gnfs/gf2.c \
+    gnfs/gnfs.c \
+    gnfs/relation.c
+
+NFS_GPU_SRCS  = gnfs/poly/stage1/stage1_sieve_gpu.c
+NFS_NOGPU_SRCS = gnfs/poly/stage1/stage1_sieve_cpu.c
+
+ifeq ($(CUDA_POLY),1)
+    NFS_SRCS += $(NFS_GPU_SRCS)
+else
+    NFS_SRCS += $(NFS_NOGPU_SRCS)
+endif
+
+
+# -----------------------------------------------------------------------------
+# 19. Msieve common sources
+# -----------------------------------------------------------------------------
+MSIEVE_COMMON_SRCS = \
+    common/filter/clique.c \
+    common/filter/filter.c \
+    common/filter/merge.c \
+    common/filter/merge_post.c \
+    common/filter/merge_pre.c \
+    common/filter/merge_util.c \
+    common/filter/singleton.c \
+    common/lanczos/lanczos.c \
+    common/lanczos/lanczos_io.c \
+    common/lanczos/lanczos_matmul.c \
+    common/lanczos/lanczos_pre.c \
+    common/lanczos/matmul_util.c \
+    common/smallfact/gmp_ecm.c \
+    common/smallfact/smallfact.c \
+    common/smallfact/squfof.c \
+    common/smallfact/tinyqs.c \
+    common/cuda_xface.c \
+    common/cuda_xface_la.c \
+    common/dickman.c \
+    common/driver.c \
+    common/expr_eval.c \
+    common/hashtable.c \
+    common/integrate.c \
+    common/minimize.c \
+    common/minimize_global.c \
+    common/mp.c \
+    common/ms_batch_factor.c \
+    common/polyroot.c \
+    common/prime_delta.c \
+    common/prime_sieve.c \
+    common/savefile.c \
+    common/strtoll.c \
+    common/thread.c \
+    common/util.c \
+    aprcl/mpz_aprcl32.c
+
+COMMON_GPU_SRCS = \
+    common/lanczos/gpu/lanczos_matmul_gpu.c \
+    common/lanczos/gpu/lanczos_vv.c
+
+COMMON_NOGPU_SRCS = \
+    common/lanczos/cpu/lanczos_matmul0.c \
+    common/lanczos/cpu/lanczos_matmul1.c \
+    common/lanczos/cpu/lanczos_matmul2.c \
+    common/lanczos/cpu/lanczos_vv.c
+
+ifdef CUDA_LA
+    MSIEVE_COMMON_SRCS += $(COMMON_GPU_SRCS)
+else
+    MSIEVE_COMMON_SRCS += $(COMMON_NOGPU_SRCS)
+endif
+
+
+# -----------------------------------------------------------------------------
+# 20. QS sources  (msieve's quadratic sieve)
+# -----------------------------------------------------------------------------
+QS_SRCS = \
+    mpqs/gf2.c \
+    mpqs/mpqs.c \
+    mpqs/poly.c \
+    mpqs/relation.c \
+    mpqs/sieve.c \
+    mpqs/sieve_core.c \
+    mpqs/sqrt.c
+
+
+# -----------------------------------------------------------------------------
+# 21. OBJECT LISTS
+# -----------------------------------------------------------------------------
+YAFU_OBJS         = $(YAFU_SRCS:.c=$(OBJ_EXT))
+YAFU_SIQS_OBJS    = $(YAFU_SIQS_SRCS:.c=$(OBJ_EXT))
+YAFU_ECM_OBJS     = $(ECM_SRCS:.c=$(OBJ_EXT))
+YAFU_COMMON_OBJS  = $(COMMON_SRCS:.c=$(OBJ_EXT))
+YAFU_NFS_OBJS     = $(YAFU_NFS_SRCS:.c=$(OBJ_EXT))
+SIQS_BIN_OBJS     = $(SIQS_BIN_SRCS:.c=$(OBJ_EXT))
+ECM_BIN_OBJS      = $(ECM_BIN_SRCS:.c=$(OBJ_EXT))
+MSIEVE_COMMON_OBJS = $(MSIEVE_COMMON_SRCS:.c=$(OBJ_EXT))
+NFS_OBJS          = $(NFS_SRCS:.c=.no)
+NFS_GPU_OBJS      = $(NFS_GPU_SRCS:.c=.no)
+NFS_NOGPU_OBJS    = $(NFS_NOGPU_SRCS:.c=.no)
+QS_OBJS = \
+    mpqs/gf2.qo \
+    mpqs/mpqs.qo \
+    mpqs/poly.qo \
+    mpqs/relation.qo \
+    mpqs/sieve.qo \
+    mpqs/sqrt.qo \
+    mpqs/sieve_core_generic_32k.qo \
+    mpqs/sieve_core_generic_64k.qo
+
+COMMON_GPU_OBJS   = $(COMMON_GPU_SRCS:.c=$(OBJ_EXT))
+COMMON_NOGPU_OBJS = $(COMMON_NOGPU_SRCS:.c=$(OBJ_EXT))
+
+# GPU / PTX objects
+GPU_OBJS :=
+ifdef CUDA_LA
+    GPU_OBJS += lanczos_kernel.ptx
+endif
+ifeq ($(CUDA_POLY),1)
+    GPU_OBJS += stage1_core.ptx cub/built
+endif
+ifdef BATCH_CUDA
+    BATCH_GPU_OBJS := cuda_ecm$(SM).ptx
+else
+    BATCH_GPU_OBJS :=
+endif
+
+
+# =============================================================================
+# BUILD RULES
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 22. PHONY TARGETS
+# -----------------------------------------------------------------------------
+.PHONY: all yafu msieve siqs ecm clean info help _dep_status
+
+
+# -----------------------------------------------------------------------------
+# 23. DEFAULT GOAL
+# -----------------------------------------------------------------------------
+all: yafu msieve siqs ecm
+
+
+# -----------------------------------------------------------------------------
+# 24. DEPENDENCY STATUS  (printed at the start of every real build)
+# -----------------------------------------------------------------------------
+_dep_status:
+	@echo "--- Dependency status -----------------------------------------------"
+	@echo "  GMP     : found ($(GMP_INCDIR))"
+	@echo "  GMP-ECM : $(if $(HAVE_ECM_LIB),found ($(ECM_INCDIR)),DISABLED — ecm.h not found; set ECM_PREFIX in config.mk)"
+	@echo "  CUDA    : $(if $(HAVE_CUDA_TOOLKIT),found ($(CUDA_INCDIR)),DISABLED — cuda.h not found; set CUDA_PREFIX in config.mk)"
+	@echo "  OpenCL  : $(if $(HAVE_OPENCL),found ($(OCL_INCDIR)),DISABLED — CL/cl.h not found; set OCL_PREFIX in config.mk)"
+	@echo "---------------------------------------------------------------------"
+
+
+# -----------------------------------------------------------------------------
+# 25. LINK TARGETS
+# -----------------------------------------------------------------------------
+
+yafu: _dep_status \
+      $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) \
+      $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
+      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(BATCH_GPU_OBJS)
+	rm -f libmsieve.a
+	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib libmsieve.a
+	rm -f libysiqs.a
+	ar r  libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
+	ranlib libysiqs.a
+	rm -f libyecm.a
+	ar r  libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	ranlib libyecm.a
+	rm -f libynfs.a
+	ar r  libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
+	ranlib libynfs.a
+	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu$(EXE_EXT) \
+	    -lysiqs -lyecm -lynfs -lmsieve $(LIBS)
+
+msieve: _dep_status \
+        $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
+	rm -f libmsieve.a
+	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib libmsieve.a
+	$(CC) $(CFLAGS) demo.c -o msieve$(EXE_EXT) \
+	    libmsieve.a $(MSIEVE_LIBS)
+
+siqs: _dep_status \
+      $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) \
+      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	rm -f libysiqs.a
+	ar r  libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
+	ranlib libysiqs.a
+	rm -f libmsieve.a
+	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib libmsieve.a
+	$(CC) $(CFLAGS) $(SIQS_BIN_OBJS) -o siqs_demo$(EXE_EXT) -lysiqs -lmsieve $(LIBS)
+
+ecm: _dep_status \
+     $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
+	rm -f libyecm.a
+	ar r  libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	ranlib libyecm.a
+	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo$(EXE_EXT) -lyecm $(LIBS)
+
+
+# -----------------------------------------------------------------------------
+# 26. COMPILE RULES
+# -----------------------------------------------------------------------------
+
+# Standard .c → .o
+%.o: %.c
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
+# QS objects (.qo)
+mpqs/sieve_core_generic_32k.qo: mpqs/sieve_core.c
+	$(CC) $(CFLAGS) -DBLOCK_KB=32 -DHAS_SSE2 \
+	    -DROUTINE_NAME=qs_core_sieve_generic_32k \
+	    -c -o $@ $<
+
+mpqs/sieve_core_generic_64k.qo: mpqs/sieve_core.c
+	$(CC) $(CFLAGS) -DBLOCK_KB=64 -DHAS_SSE2 \
+	    -DROUTINE_NAME=qs_core_sieve_generic_64k \
+	    -c -o $@ $<
+
+%.qo: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# NFS objects (.no) — add -Ignfs for NFS-internal includes
+%.no: %.c
+	$(CC) $(CFLAGS) -Ignfs -c -o $@ $<
+
+# GPU / PTX rules
+stage1_core.ptx: gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu
+	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
+
+lanczos_kernel.ptx: common/lanczos/gpu/lanczos_kernel.cu
+	$(NVCC) -arch sm_$(SM) -ptx -DVBITS=$(VBITS) -o $@ $<
+
+cuda_ecm$(SM).ptx: $(COMMON_BATCH_GPU_SRCS)
+	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
+
+cub/built:
+	cd cub && $(MAKE) WIN=$(WIN) WIN64=$(WIN64) VBITS=$(VBITS) sm=$(SM)0 && cd ..
+
+
+# -----------------------------------------------------------------------------
+# 27. AUTOMATIC DEPENDENCY INCLUSION  (.d files from -MMD -MP)
+# -----------------------------------------------------------------------------
+ALL_OBJS := $(YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_ECM_OBJS) \
+            $(YAFU_COMMON_OBJS) $(YAFU_NFS_OBJS) \
+            $(MSIEVE_YAFU_OBJS) $(MSIEVE_COMMON_OBJS) \
+            $(SIQS_BIN_OBJS) $(ECM_BIN_OBJS)
+-include $(ALL_OBJS:.o=.d)
+
+
+# -----------------------------------------------------------------------------
+# 28. CLEAN
+# -----------------------------------------------------------------------------
+clean:
+	$(RM_RF) \
+	    $(MSIEVE_YAFU_OBJS) \
+	    $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) \
+	    $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
+	    $(SIQS_BIN_OBJS) $(ECM_BIN_OBJS) \
+	    $(MSIEVE_COMMON_OBJS) \
+	    $(QS_OBJS) $(NFS_OBJS) $(NFS_GPU_OBJS) $(NFS_NOGPU_OBJS) \
+	    $(ALL_OBJS:.o=.d) \
+	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
+	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
+	    *.ptx
+
+
+# -----------------------------------------------------------------------------
+# 29. INFO
+# -----------------------------------------------------------------------------
+info:
+	@echo "================================================================"
+	@echo "  yafu build configuration"
+	@echo "================================================================"
+	@echo "  Detected OS      : $(DETECTED_OS)"
+	@echo "  Compiler (CC)    : $(CC)"
+	@echo "  Compiler family  : $(COMPILER_FAMILY)"
+	@echo "  Debug build      : $(if $(filter 1,$(DEBUG)),yes,no)"
+	@echo "  VBITS            : $(VBITS)"
+	@echo "----------------------------------------------------------------"
+	@echo "  ISA flags"
+	@echo "    USE_SSE41      : $(if $(USE_SSE41),yes,no)"
+	@echo "    USE_AVX2       : $(if $(USE_AVX2),yes,no)"
+	@echo "    USE_BMI2       : $(if $(USE_BMI2),yes,no)"
+	@echo "    USE_AVX512     : $(if $(USE_AVX512),yes,no)"
+	@echo "    USE_AVX512IFMA : $(if $(USE_AVX512IFMA),yes,no)"
+	@echo "    USE_AVX512PF   : $(if $(USE_AVX512PF),yes,no)"
+	@echo "----------------------------------------------------------------"
+	@echo "  Dependencies"
+	@echo "    GMP     inc    : $(GMP_INCDIR)"
+	@echo "    GMP     lib    : $(GMP_LIBDIR)"
+	@echo "    GMP-ECM        : $(if $(HAVE_ECM_LIB),enabled ($(ECM_INCDIR)),disabled)"
+	@echo "    CUDA           : $(if $(HAVE_CUDA_TOOLKIT),enabled ($(CUDA_INCDIR)),disabled)"
+	@echo "    CUDA root src  : $(if $(CUDA_ROOT),CUDA_ROOT env,$(if $(CUDA_PATH),CUDA_PATH env,$(if $(_NVCC_ON_PATH),nvcc on PATH,$(if $(CUDA_PREFIX),config.mk/cmdline,not found))))"
+	@echo "    OpenCL         : $(if $(HAVE_OPENCL),enabled ($(OCL_INCDIR)),disabled)"
+	@echo "    NVCC           : $(if $(NVCC),$(NVCC),n/a)"
+	@echo "    SM target      : $(SM)$(if $(_SMS_RAW), (all cards: $(_SMS_RAW)))"
+	@echo "----------------------------------------------------------------"
+	@echo "  Optional features"
+	@echo "    OMP            : $(if $(filter 1,$(OMP)),yes,no)"
+	@echo "    ECM            : $(if $(filter 1,$(ECM)),yes,no)"
+	@echo "    BATCH_CUDA     : $(if $(BATCH_CUDA),yes,no)"
+	@echo "    CUDA_POLY      : $(if $(CUDA_POLY),yes,no)"
+	@echo "    CUDA_LA        : $(if $(CUDA_LA),yes,no)"
+	@echo "    MPI            : $(if $(filter 1,$(MPI)),yes,no)"
+	@echo "    NO_ZLIB        : $(if $(filter 1,$(NO_ZLIB)),yes,no)"
+	@echo "    STATIC_WIN     : $(if $(STATIC_WIN),yes,no)"
+	@echo "----------------------------------------------------------------"
+	@echo "  CFLAGS           : $(CFLAGS)"
+	@echo "  LIBS             : $(LIBS)"
+	@echo "  MSIEVE_LIBS      : $(MSIEVE_LIBS)"
+	@echo "================================================================"
+
+
+# -----------------------------------------------------------------------------
+# 30. HELP
+# -----------------------------------------------------------------------------
+help:
+	@echo ""
+	@echo "  Targets:"
+	@echo "    make yafu            build the main yafu binary"
+	@echo "    make msieve          build libmsieve.a + msieve demo"
+	@echo "    make siqs            build siqs_demo standalone binary"
+	@echo "    make ecm             build ecm_demo standalone binary"
+	@echo "    make all             build all four targets"
+	@echo "    make clean           remove all build artefacts"
+	@echo "    make info            show resolved flags and dependency paths"
+	@echo ""
+	@echo "  Compiler selection (default: gcc):"
+	@echo "    make CC=gcc          GCC"
+	@echo "    make CC=clang        Clang"
+	@echo "    make CC=icc          Intel C Compiler"
+	@echo ""
+	@echo "  Build type:"
+	@echo "    make DEBUG=1         debug build (-O0 -g)"
+	@echo ""
+	@echo "  ISA / micro-architecture (enabling a higher level implies lower ones):"
+	@echo "    make USE_SSE41=1        SSE 4.1"
+	@echo "    make USE_AVX2=1         AVX2  (implies SSE 4.1)"
+	@echo "    make USE_BMI2=1         BMI / BMI2"
+	@echo "    make USE_AVX512=1       AVX-512 F/BW  (implies AVX2, BMI2)"
+	@echo "                            Works on: Skylake-X, Ice Lake, Zen 4, etc."
+	@echo "    make USE_AVX512IFMA=1   AVX-512 IFMA  (implies USE_AVX512)"
+	@echo "                            Ice Lake and later"
+	@echo "    make USE_AVX512PF=1     AVX-512 PF    (implies USE_AVX512)"
+	@echo "                            Xeon Phi / Knights Landing only"
+	@echo ""
+	@echo "  Deprecated ISA aliases (still accepted, mapped to new flags):"
+	@echo "    SKYLAKEX=1  →  USE_AVX512=1"
+	@echo "    ICELAKE=1   →  USE_AVX512IFMA=1"
+	@echo "    KNL=1       →  USE_AVX512PF=1"
+	@echo ""
+	@echo "  Optional features:"
+	@echo "    make OMP=1           OpenMP threading"
+	@echo "    make ECM=1           GMP-ECM support"
+	@echo "    make BATCH_CUDA=1    GPU cofactorisation (NFS/SIQS)"
+	@echo "    make CUDA_POLY=1     GPU NFS polynomial selection"
+	@echo "    make CUDA_LA=1       GPU NFS linear algebra"
+	@echo "    make MPI=1           MPI parallel processing"
+	@echo "    make NO_ZLIB=1       disable zlib"
+	@echo "    make VBITS=128       linear algebra vector width (64/128/256)"
+	@echo "    make SMALLINT=1      small SIQS intervals"
+	@echo "    make PROFILE=1       gprof profiling"
+	@echo "    make TIMING=1        QS timing instrumentation"
+	@echo "    make FORCE_GENERIC=1 disable all SIMD paths"
+	@echo "    make STATIC=1        static link (experimental, Linux)"
+	@echo "    make STATIC_WIN=1    fully static Windows .exe (no DLLs needed)"
+	@echo "    make MINGW=1         building under MinGW (skips -ldl)"
+	@echo ""
+	@echo "  Tip: set frequently-used flags in config.mk instead of typing"
+	@echo "  them every time (copy config.mk.example to get started)."
+	@echo ""
