@@ -29,6 +29,10 @@ code to the public domain.
 #include "microecm.h"
 #include "tinyecm.h"
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 //#define SIQSDEBUG 1
 
 /*

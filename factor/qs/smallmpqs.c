@@ -27,6 +27,10 @@ code to the public domain.
 #include "gmp_xface.h"
 #include <math.h>
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #define SM_BLOCKSIZE 16384
 #define RADIX_32 4294967296.0
 
