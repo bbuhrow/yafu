@@ -5,6 +5,8 @@
 # as the Makefile) and uncomment / edit any paths that differ from the
 # system defaults.
 #
+# NOTE: run make info to see what is automatically found by Make
+#
 # This file is intentionally NOT tracked by git.
 # Add "config.mk" to .gitignore and commit this file as "config.mk.example"
 # so new contributors can: cp config.mk.example config.mk
@@ -22,8 +24,9 @@
 # individually for split installations.
 # Example (WSL / custom build):
 #   GMP_PREFIX := ../gmp-install/6.2.1
+# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
-# GMP_PREFIX  := ../gmp-install/6.2.1
+# GMP_PREFIX  := ../gmp-install/gmp-6.2.0-mingw
 # GMP_INCDIR  := $(GMP_PREFIX)/include
 # GMP_LIBDIR  := $(GMP_PREFIX)/lib
 
@@ -33,19 +36,24 @@
 # If not found, ECM support is disabled and -DHAVE_GMP_ECM is not set.
 # Example:
 #   ECM_PREFIX := ../ecm-install/7.0.6-wsl
+# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
-# ECM_PREFIX  := ../ecm-install/7.0.6-wsl
+# ECM_PREFIX  := ../ecm-install/mingw
 # ECM_INCDIR  := $(ECM_PREFIX)/include
 # ECM_LIBDIR  := $(ECM_PREFIX)/lib
 
 
 # -----------------------------------------------------------------------------
 # CUDA Toolkit  (optional)
-# Enables BATCH_CUDA and/or CUDA_POLY when set.
+# BATCH_CUDA, CUDA_POLY, CUDA_LA features require a CUDA toolkit install.
 # If not found, all CUDA features are disabled.
+# CUDA_ROOT on linux and CUDA_PATH on windows are automatically
+# searched for a toolkit.
+# if your install is in a custom location, supply the path here.
 # Common locations:
 #   Linux  : /usr/local/cuda  or  /usr/local/cuda-12
-#   Windows: set CUDA_PATH in your environment and leave this commented out
+#   Windows: set CUDA_PATH in your environment and leave this commented out.
+# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
 # CUDA_PREFIX := /usr/local/cuda-12
 # CUDA_INCDIR := $(CUDA_PREFIX)/include
@@ -60,8 +68,12 @@
 
 # -----------------------------------------------------------------------------
 # OpenCL  (optional)
+# BATCH_CUDA feature require either CUDA or OpenCL.  If your OpenCL
+# installation is in a custom / non-standard location, supply the location 
+# here for:
 # Headers (CL/cl.h) and ICD loader (libOpenCL).
 # If not found, OpenCL support is disabled.
+# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
 # OCL_PREFIX  := /opt/opencl
 # OCL_INCDIR  := $(OCL_PREFIX)/include
@@ -75,11 +87,11 @@
 # -----------------------------------------------------------------------------
 # OMP      := 1      # OpenMP threading
 # ECM      := 1      # Link GMP-ECM and enable ECM factorisation
-# BATCH_CUDA := 1    # GPU cofactorisation (NFS + SIQS)  — requires CUDA
+# BATCH_CUDA := 1    # GPU cofactorisation (NFS + SIQS)  — requires CUDA or OpenCL
 # CUDA_POLY  := 1    # GPU NFS polynomial selection      — requires CUDA
 # CUDA_LA    := 1    # GPU NFS linear algebra            — requires CUDA
-# MPI        := 1    # MPI parallel processing
-# NO_ZLIB    := 1    # Disable zlib (if not installed)
+# MPI        := 1    # MPI parallel processing (msieve LA)
+# NO_ZLIB    := 1    # Enable repo-local zlib (if not installed on system)
 # VBITS      := 128  # Linear algebra vector width: 64 (default), 128, 256
 # STATIC_WIN := 1    # Fully static Windows .exe — runs in PowerShell/cmd.exe
 #                    # without any DLLs. MinGW/MSYS2 only. Requires static
@@ -97,7 +109,7 @@
 #   USE_AVX512PF    →  USE_AVX512  →  USE_BMI2
 #
 # USE_AVX512=1     Any AVX-512-capable CPU (Skylake-X, Ice Lake, Zen 4, etc.)
-# USE_AVX512IFMA=1 Ice Lake and later (adds IFMA extensions)
+# USE_AVX512IFMA=1 Ice Lake, Zen4 and later (adds IFMA extensions)
 # USE_AVX512PF=1   Xeon Phi / Knights Landing only
 #
 # Deprecated aliases — still accepted, but will print a notice at build time:

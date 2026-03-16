@@ -23,6 +23,10 @@ benefit from your work.
 #include "gpu_cofactorization.h"
 #endif
 
+#ifdef HAVE_OCL_BATCH_FACTOR
+#include "gpu_cofactorization_cl.h"
+#endif
+
 #if defined(__INTEL_LLVM_COMPILER) || defined(__GNUC__)
 #include <pthread.h>
 
@@ -537,7 +541,7 @@ void nfs_sieve_start(void* vptr)
 
 	}
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 	printf("creating gpu device context\n");
 	device_ctx_t* dev = gpu_device_init(0, fobj->VFLAG >= 0);
 #endif
@@ -588,7 +592,7 @@ void nfs_sieve_start(void* vptr)
 			relation_batch_init(stdout, udata->thread_data[i].job.rb, min_prime, 1ULL << max_prime,
 				1ull << job->lpbr, 1ull << job->lpba, NULL, 0, 0);
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 			// the work context needs to be created in the thread
 			// in which it is run.  Here is the device context,
 			// which we only need this one copy of.
@@ -1791,7 +1795,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 
 	
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 
 	if (vflag >= 0)
 	{

@@ -628,7 +628,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     else
                         rb = &sconf->rb[dconf->batch_run_override - 1];
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 
                     gettimeofday(&start, NULL);
 

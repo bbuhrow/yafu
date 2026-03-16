@@ -191,7 +191,7 @@
     <YASM Include="..\..\arith\mod64.asm" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\factor\cuda_ecm64.cu" />
+    <None Include="..\..\factor\cuda_tinyecm.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

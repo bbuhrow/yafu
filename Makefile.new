@@ -199,10 +199,12 @@ else
     CUDA_LPATH        :=
     NVCC              :=
     # If user requested CUDA features but toolkit not found, warn and disable
-    ifdef BATCH_CUDA
-        $(warning CUDA toolkit not found — disabling BATCH_CUDA)
-        override BATCH_CUDA :=
-    endif
+
+#	BATCH_CUDA is also available through OpenCL, disable later if neither are found	
+#    ifdef BATCH_CUDA
+#        $(warning CUDA toolkit not found — disabling BATCH_CUDA)
+#        override BATCH_CUDA :=
+#    endif
     ifdef CUDA_POLY
         $(warning CUDA toolkit not found — disabling CUDA_POLY)
         override CUDA_POLY :=
@@ -266,6 +268,16 @@ else
     OCL_INC     :=
     OCL_LPATH   :=
     OCL_LIBS    :=
+endif
+
+# now check if either OCL or CUDA are found with BATCH_CUDA defined
+ifdef BATCH_CUDA
+	ifeq (,$(HAVE_OPENCL))
+		ifeq (,$(HAVE_CUDA_TOOLKIT))
+			$(warning neither CUDA toolkit nor OpenCL found — disabling BATCH_CUDA)
+			override BATCH_CUDA :=
+		endif
+	endif
 endif
 
 
@@ -420,6 +432,12 @@ else
     endif
     ifeq ($(DETECTED_OS),Windows)
         ifdef STATIC_WIN
+			
+			ifdef BATCH_CUDA
+$(error BATCH_CUDA is not supported with STATIC_WIN. \
+OpenCL must be dynamically linked and is only available natively in msys2/mingw-w64.)
+			endif
+				
             # Fully static binary — runs in PowerShell/cmd.exe with no DLLs needed.
             # Requires that GMP, ECM, zlib etc. were installed as static (.a) libs
             # (pacman -S mingw-w64-x86_64-gmp etc. includes both static and shared).
@@ -548,10 +566,17 @@ ifeq ($(ECM),1)
     CFLAGS += -DHAVE_GMP_ECM
 endif
 
+
 ifdef BATCH_CUDA
-    CFLAGS += -DHAVE_CUDA_BATCH_FACTOR -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
-    TOOLKIT_VERSION ?= 12
-    CFLAGS += -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+	ifneq (,$(HAVE_CUDA_TOOLKIT))
+		CFLAGS += -DHAVE_CUDA_BATCH_FACTOR -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+		TOOLKIT_VERSION ?= 12
+		CFLAGS += -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+	else
+		ifneq (,$(HAVE_OPENCL))
+			CFLAGS += -DHAVE_OCL_BATCH_FACTOR
+		endif
+	endif
 endif
 
 ifdef CUDA_POLY
@@ -633,8 +658,10 @@ endif
 
 # CUDA (batch cofactorisation)
 ifdef BATCH_CUDA
-    LIBS        += $(CUDA_LPATH) -lcuda -lcudart
-    MSIEVE_LIBS += $(CUDA_LPATH) -lcuda -lcudart
+	ifneq (,$(HAVE_CUDA_TOOLKIT))
+		LIBS        += $(CUDA_LPATH) -lcuda -lcudart
+		MSIEVE_LIBS += $(CUDA_LPATH) -lcuda -lcudart
+	endif
 endif
 
 # CUDA (polynomial selection)
@@ -757,8 +784,26 @@ COMMON_SRCS = \
     ysieve/worker.c \
     ysieve/soe_util.c \
     ysieve/wrapper.c \
-    top/aprcl/mpz_aprcl.c \
-    factor/gpu_cofactorization.c
+    top/aprcl/mpz_aprcl.c
+	
+ifdef BATCH_CUDA
+# building these causes their respective headers to be included
+# which contain the CUDA or OpenCL interface headers and
+# rely on system headers being present.  So we only include
+# them if the system checks have passed.  prefer CUDA if both
+# are present.
+# added cuda_xface and ocl_xface here; they are not just NFS
+# SRCS now that BATCH_CUDA is also in siqs.
+	ifneq (,$(HAVE_CUDA_TOOLKIT))
+		COMMON_SRCS += factor/gpu_cofactorization.c
+		COMMON_SRCS += common/cuda_xface.c
+	else
+		ifneq (,$(HAVE_OPENCL))
+			COMMON_SRCS += factor/gpu_cofactorization_cl.c
+			COMMON_SRCS += common/ocl_xface.c
+		endif
+	endif
+endif
 
 COMMON_BATCH_GPU_SRCS = \
     factor/cuda_tinyecm.cu \
@@ -850,10 +895,6 @@ YAFU_NFS_SRCS = \
     factor/nfs/nfs_threading.c \
     factor/nfs/snfs.c \
     factor/nfs/nfs.c
-
-ifdef BATCH_CUDA
-    YAFU_NFS_SRCS += common/cuda_xface.c
-endif
 
 NFS_SRCS = \
     gnfs/poly/poly.c \
@@ -1019,8 +1060,15 @@ endif
 ifeq ($(CUDA_POLY),1)
     GPU_OBJS += stage1_core.ptx cub/built
 endif
+
+
 ifdef BATCH_CUDA
-    BATCH_GPU_OBJS := cuda_ecm$(SM).ptx
+	ifneq (,$(HAVE_CUDA_TOOLKIT))
+		YAFU_NFS_SRCS += common/cuda_xface.c
+		BATCH_GPU_OBJS := cuda_ecm$(SM).ptx
+	else
+		BATCH_GPU_OBJS :=
+	endif
 else
     BATCH_GPU_OBJS :=
 endif

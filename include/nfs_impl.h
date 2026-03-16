@@ -35,6 +35,10 @@ code to the public domain.
 #include "gpu_cofactorization.h"
 #endif
 
+#ifdef HAVE_OCL_BATCH_FACTOR
+#include "gpu_cofactorization_cl.h"
+#endif
+
 #ifdef __GNUC__
 #include <pthread.h>
 #endif
@@ -166,7 +170,7 @@ typedef struct {
     uint32_t siever;
     relation_batch_t* rb_ref;
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
     device_ctx_t* gpu_dev_ctx;
     device_thread_ctx_t* gpu_cofactor_ctx;
 #endif

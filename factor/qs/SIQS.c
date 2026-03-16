@@ -3517,7 +3517,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     //dconf->fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
     //init_factobj(dconf->fobj2, sconf->obj->options);
     // also not needed, except for maybe with mingw?
-#if defined(__MINGW64__)
+#if 0 //defined(__MINGW64__)
     dconf->cosiqs = init_tinysiqs();
 #endif
 
@@ -4498,7 +4498,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
     sconf->batch_run_override = 0;
 
-#if !defined( __MINGW64__)
+#if 1 //!defined( __MINGW64__)
     // not sure why, but batch factoring completely fails when using mingw64.
     if ((sconf->use_dlp >= 2) && (sconf->do_batch == 1))
     {
@@ -4511,7 +4511,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         sconf->num_active_rb = 0;
         memuse += obj->THREADS * sizeof(relation_batch_t);
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 
         // create a device context with the specified gpu.
         sconf->which_gpu = 0;       // todo: get from cmdline options
@@ -6022,7 +6022,7 @@ int free_siqs(static_conf_t *sconf)
 	free(sconf->factor_base);
     align_free(sconf->sieve_primes);
 
-#if !defined( __MINGW64__)
+#if 1 //!defined( __MINGW64__)
     // not sure why, but batch factoring completely fails when using mingw64.
     if ((sconf->use_dlp >= 2) && (sconf->do_batch == 1))
     {

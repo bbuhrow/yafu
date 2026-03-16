@@ -26,10 +26,6 @@ either or both sides.
 #include "gmp.h"
 #include "cofactorize.h"
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
-#include "cuda_xface.h"
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

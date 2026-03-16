@@ -60,6 +60,18 @@
     <ClCompile Include="..\..\factor\batch_factor.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gpu_cofactorization.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\smallmpqs.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\gpu_cofactorization_cl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -95,10 +107,27 @@
     <ClInclude Include="..\..\include\batch_factor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\factor\gpu_cofactorization.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\cuda_intrinsics.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\cofactorize.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\gpu_cofactorization_cl.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">
       <Filter>Source Files\arith</Filter>
     </YASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\factor\cuda_tinyecm.cu">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

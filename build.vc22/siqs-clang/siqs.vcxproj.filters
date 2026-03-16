@@ -105,9 +105,6 @@
     <ClCompile Include="..\..\factor\qs\tdiv_small.c">
       <Filter>Source Files\tdiv</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\filter.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -118,9 +115,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\siqs_test.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\smallmpqs.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -150,9 +144,6 @@
       <Filter>Source Files\tdiv</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\qs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\cofactorize.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lanczos.h">

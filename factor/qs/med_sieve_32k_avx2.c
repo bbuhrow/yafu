@@ -605,6 +605,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 
 // intrinsics and sieve routines for processors with AVX512BW
 #ifdef USE_AVX512BW
+
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init)
 {

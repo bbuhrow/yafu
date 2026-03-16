@@ -28,6 +28,10 @@
 #include "gpu_cofactorization.h"
 #endif
 
+#ifdef HAVE_OCL_BATCH_FACTOR
+#include "gpu_cofactorization_cl.h"
+#endif
+
 // I've been unable to get this to run any faster, for
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
@@ -540,7 +544,7 @@ typedef struct {
     int max_active_rb;
 #endif
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 
     // a gpu device context
     int which_gpu;
@@ -690,7 +694,7 @@ typedef struct {
 
     uint64_t lcg_state;
 
-#ifdef HAVE_CUDA_BATCH_FACTOR
+#if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
     device_thread_ctx_t* gpu_cofactor_ctx;
 #endif
 

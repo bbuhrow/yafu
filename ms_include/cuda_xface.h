@@ -15,7 +15,7 @@ $Id$
 #ifndef _GPU_XFACE_H
 #define _GPU_XFACE_H
 
-#if defined(HAVE_CUDA) || defined(HAVE_CUDA_BATCH_FACTOR)
+#if defined(HAVE_CUDA_POLY) || defined(HAVE_CUDA_LA) || defined(HAVE_CUDA_BATCH_FACTOR)
 
 #include <stdint.h>
 #include <cuda.h>

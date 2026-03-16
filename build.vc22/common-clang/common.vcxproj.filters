@@ -142,9 +142,6 @@
     <ClInclude Include="..\..\common\lanczos\lanczos.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\polyroot.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\thread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -161,9 +158,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\common\filter\merge_util.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\cuda_xface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\aprcl\jacobi_sum32.h">
@@ -194,6 +188,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\ms_include\mp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ms_include\cuda_xface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ms_include\polyroot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
