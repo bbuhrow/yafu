@@ -87,8 +87,15 @@ jobs:
             automake \
             libtool
           echo "=== GMP install verification ==="
-          ls /usr/include/gmp.h
-          ls /usr/lib/x86_64-linux-gnu/libgmp.* || ls /usr/lib/libgmp.*
+          find /usr -name "gmp.h" 2>/dev/null
+          find /usr -name "libgmp.*" 2>/dev/null
+          # Resolve the multiarch GMP prefix for passing to make
+          # On Ubuntu 24.04 gmp.h is at /usr/include/x86_64-linux-gnu/gmp.h
+          GMP_INC=$(dirname $(find /usr/include -name "gmp.h" | head -1))
+          GMP_LIB=$(dirname $(find /usr/lib -name "libgmp.a" | head -1))
+          echo "GMP_INC=$GMP_INC" >> $GITHUB_ENV
+          echo "GMP_LIB=$GMP_LIB" >> $GITHUB_ENV
+          echo "Resolved GMP_INC=$GMP_INC GMP_LIB=$GMP_LIB" 
 
       # ── 3. Build GMP-ECM from source (cached) ────────────────────────────────
       # Cache key is the commit SHA — update ECM_COMMIT above to force a rebuild.
@@ -119,7 +126,8 @@ jobs:
         run: |
           make -f Makefile.new info \
             ${{ matrix.make_flags }} \
-            GMP_PREFIX=/usr \
+            GMP_INCDIR="$GMP_INC" \
+            GMP_LIBDIR="$GMP_LIB" \
             ECM_PREFIX="$HOME/ecm-install"
 
       # ── 5. Build ──────────────────────────────────────────────────────────────
@@ -127,7 +135,8 @@ jobs:
         run: |
           make -f Makefile.new yafu \
             ${{ matrix.make_flags }} \
-            GMP_PREFIX=/usr \
+            GMP_INCDIR="$GMP_INC" \
+            GMP_LIBDIR="$GMP_LIB" \
             ECM_PREFIX="$HOME/ecm-install"
 
       # ── 6. Rename to target-specific name ────────────────────────────────────
