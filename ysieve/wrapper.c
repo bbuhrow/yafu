@@ -33,7 +33,7 @@ SOFTWARE.
 #include <string.h>
 #include <math.h>
 #include "threadpool.h"
-#if USE_AVX512F
+#if 1 //USE_AVX512F
 #include "tinyprp.h"
 #endif
 
@@ -85,12 +85,7 @@ void compute_prps_work_fcn(void *vptr)
 
 	// and maximum value is less than 104 bits,
 	// and standard prime detection is requested (not gaps or twins)
-#if defined(_MSC_VER) && !defined(__clang__)
-		// don't have a div128 yet so we can't use the vec prp functions here.
-	if (0)
-#else
 	if ((mpz_sizeinbase(t->tmpz, 2) < 104) && (sdata->analysis == 1))
-#endif
 	{
 		// use fast sprp functions
 		t->linecount = 0;
@@ -122,6 +117,15 @@ void compute_prps_work_fcn(void *vptr)
 
 			uint8_t prpmask = valid_msk & MR_2sprp_104x8(n8);
 			t->linecount += _mm_popcnt_u32(prpmask);
+
+			//for (j = 0; j < 8; j++)
+			//{
+			//	if (prpmask & (1 << j))
+			//	{
+			//		t->ddata.primes[t->linecount++] = t->ddata.primes[i + j - t->startid];
+			//	}
+			//}
+
 		}
 	}
 	else
@@ -149,26 +153,6 @@ void compute_prps_work_fcn(void *vptr)
 			{
 				//gmp_printf("candidate %Zd... ", t->tmpz);
 				//if (mpz_extrastrongbpsw_prp(t->tmpz))
-#if defined(_MSC_VER) && !defined(__clang__)
-				if (mpz_probab_prime_p(t->tmpz, 1))
-				{
-					if (sdata->analysis == 2)
-					{
-						// also need to check the twin
-						//gmp_printf("and twin %Zd is...", t->tmpz);
-						mpz_add_ui(t->tmpz, t->tmpz, 2);
-
-						if (mpz_probab_prime_p(t->tmpz, 1))
-						{
-							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
-						}
-					}
-					else
-					{
-						t->linecount++;
-					}
-				}
-#else
 				uint64_t n64[2];
 				n64[0] = mpz_get_ui(t->tmpz);
 				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 64);
@@ -179,23 +163,19 @@ void compute_prps_work_fcn(void *vptr)
 					{
 						// also need to check the twin
 						//gmp_printf("and twin %Zd is...", t->tmpz);
-						if (n64[0] >= 0xfffffffffffffffeull)
-						{
-							n64[1]++;
-						}
-						n64[0] += 2;
-
-						if (MR_2sprp_128x1(n64))
+						mpz_add_ui(t->tmpz, t->tmpz, 2);
+						if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
 						{
 							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+							//printf("prime!\n");
 						}
 					}
 					else
 					{
+						//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 						t->linecount++;
 					}
 				}
-#endif
 			}
 		}
 		else
@@ -520,10 +500,11 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
     uint64_t sieve_limit, uint64_t *num_p,
     int PRIMES_TO_FILE, int PRIMES_TO_SCREEN)
 {
-	// this is now called via the "bigprimes" command in calc.
-	// i.e., we always call it with count = 0 and witnesses = 1,
-	// so that PRP checks are used to return primes in the 
-	// range with large offset (> 64-bit).
+	// public interface to a routine which will sieve a range of integers
+	// with the supplied primes and either count or compute the values
+	// that survive.  Basically, it is just the sieve, but with no
+	// guareentees that what survives the sieving is prime.  The idea is to 
+	// remove cheap composites.
 	uint64_t retval, i, range, tmpl, tmph, num_sp_needed;
 	uint64_t *values = NULL;
 	mpz_t tmpz;
@@ -709,12 +690,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 				// and maximum value is less than 104 bits
 				// and standard prime detection is requested (not gaps or twins)
-#if defined(_MSC_VER) && !defined(__clang__)
-				// don't have a div128 yet so we can't use the vec prp functions here.
-				if (0)
-#else
 				if ((mpz_sizeinbase(tmpz, 2) < 104) && (sdata->analysis == 1))
-#endif
 				{
 					// use fast sprp function
 					for (i = 0; i < range - 8; i += 8)
@@ -770,26 +746,6 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 						{
 							//gmp_printf("candidate %Zd... ", t->tmpz);
 							//if (mpz_extrastrongbpsw_prp(t->tmpz))
-#if defined(_MSC_VER) && !defined(__clang__)
-							if (mpz_probab_prime_p(tmpz, 1))
-							{
-								if (sdata->analysis == 2)
-								{
-									// also need to check the twin
-									mpz_add_ui(tmpz, tmpz, 2);
-
-									if (mpz_probab_prime_p(tmpz, 1))
-									{
-										values[retval++] = values[i];
-									}
-								}
-								else
-								{
-									values[retval++] = values[i];
-								}
-							}
-						}
-#else
 							uint64_t n64[2];
 							n64[0] = mpz_get_ui(tmpz);
 							mpz_tdiv_q_2exp(tmpz, tmpz, 64);
@@ -799,13 +755,8 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 								if (sdata->analysis == 2)
 								{
 									// also need to check the twin
-									if (n64[0] >= 0xfffffffffffffffeull)
-									{
-										n64[1]++;
-									}
-									n64[0] += 2;
-
-									if (MR_2sprp_128x1(n64))
+									mpz_add_ui(tmpz, tmpz, 2);
+									if (mpz_probab_prime_p(tmpz, num_witnesses))
 									{
 										values[retval++] = values[i];
 									}
@@ -816,7 +767,6 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 								}
 							}
 						}
-#endif
 					}
 					else
 					{

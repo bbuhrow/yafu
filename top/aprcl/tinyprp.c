@@ -61,9 +61,25 @@
 #include <sys/time.h>
 #endif
 
+// for this algorithm, see https://jeffhurchalla.com/2022/04/25/a-faster-multiplicative-inverse-mod-a-power-of-2/
+static uint64_t prp_multiplicative_inverse(uint64_t a)
+{
+	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+	uint64_t x0 = (3 * a) ^ 2;
+	uint64_t y = 1 - a * x0;
+	uint64_t x1 = x0 * (1 + y);
+	y *= y;
+	uint64_t x2 = x1 * (1 + y);
+	y *= y;
+	uint64_t x3 = x2 * (1 + y);
+	y *= y;
+	uint64_t x4 = x3 * (1 + y);
+	return x4;
+}
+
 int fermat_prp_64x1(uint64_t n)
 {
-	uint64_t rho = multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
+	uint64_t rho = prp_multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
 	uint64_t unityval = ((uint64_t)0 - n) % n;   // unityval == R  (mod n)
 	uint64_t result = unityval;
 	uint64_t e = (n - 1); // / 2;
@@ -128,7 +144,7 @@ int fermat_prp_64x1(uint64_t n)
 
 int MR_2sprp_64x1(uint64_t n)
 {
-	uint64_t rho = multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
+	uint64_t rho = prp_multiplicative_inverse(n);	// pos variant.  neg would be (uint64_t)0ull - multiplicative_inverse(n);
 	uint64_t one = ((uint64_t)0 - n) % n;		// one == R  (mod n)
 	uint64_t result = one;
 	uint64_t e = (n - 1);
@@ -209,7 +225,7 @@ int modexp_128x1b(uint64_t* n, uint64_t* e, uint64_t b)
 {
 	// compute b^e % n and check if equal to 1 or n-1 (-1)
 
-	uint64_t rho = multiplicative_inverse(n[0]);
+	uint64_t rho = 0ull - prp_multiplicative_inverse(n[0]);
 	uint64_t one[2]; // = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
 	uint64_t r[2];
 	uint64_t d[2];
@@ -308,7 +324,7 @@ int fermat_prp_128x1(uint64_t* n)
 	// assumes n has two 64-bit words, n0 and n1.
 	// do a base-2 fermat prp test using LR binexp.
 
-	uint64_t rho = multiplicative_inverse(n[0]);
+	uint64_t rho = 0ull - prp_multiplicative_inverse(n[0]);
 	uint64_t unityval[2]; // = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
 	uint64_t m;
 	uint64_t r[2];
@@ -404,7 +420,7 @@ int MR_2sprp_128x1(uint64_t *n)
 	// assumes n has two 64-bit words, n0 and n1.
 	// do a base-2 Miller-Rabin sprp test.
 
-	uint64_t rho = multiplicative_inverse(n[0]);
+	uint64_t rho = 0ull - prp_multiplicative_inverse(n[0]);
 	uint64_t m;
 	uint64_t r[2];
 	uint64_t e[2];
