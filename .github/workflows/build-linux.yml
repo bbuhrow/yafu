@@ -3,15 +3,17 @@
 # GitHub Actions CI/CD for YAFU — Linux (Ubuntu)
 # Uses Makefile.new (unified Linux/MSYS2 makefile)
 #
-# GMP:     Installed via apt (libgmp-dev).
-# GMP-ECM: Installed via apt (libecm-dev) if available; otherwise built from
-#          source and cached. Ubuntu 22.04+ ships libecm-dev so apt is tried
-#          first and the from-source build is the fallback.
+# GMP:     Installed via apt (libgmp-dev). gmp.h lands in /usr/include and
+#          libgmp.a/.so in /usr/lib/x86_64-linux-gnu, both of which are in
+#          Makefile.new's default SYS_INC_PATHS / SYS_LIB_PATHS for Linux.
+#          GMP_PREFIX is passed explicitly to remove any ambiguity.
 #
-# The Linux build does not need STATIC or MINGW flags — the resulting binaries
-# are standard dynamically linked ELF executables suitable for Linux users.
-# Artifacts are uploaded for each target and attached to releases alongside
-# the Windows binaries.
+# GMP-ECM: Built from source and cached, same approach as build-windows.yml.
+#          libecm-dev on Ubuntu is often an older version, so building from
+#          source ensures consistency between Linux and Windows builds.
+#
+# Artifacts are dynamically linked ELF binaries — normal for Linux.
+# They are uploaded alongside the Windows .exe files on each release.
 
 name: Build YAFU Linux (Ubuntu)
 
@@ -25,7 +27,6 @@ on:
 
 env:
   # GMP-ECM — GitHub mirror of https://gitlab.inria.fr/zimmerma/ecm
-  # Used only if libecm-dev is not available via apt.
   # Keep in sync with build-windows.yml.
   ECM_REPO:   https://github.com/sethtroisi/gmp-ecm.git
   ECM_COMMIT: 0ab79ad
@@ -74,7 +75,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # ── 2. Install GMP and build tools ───────────────────────────────────────
+      # ── 2. Install GMP and build tools via apt ────────────────────────────────
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
@@ -85,32 +86,21 @@ jobs:
             autoconf \
             automake \
             libtool
+          echo "=== GMP install verification ==="
+          ls /usr/include/gmp.h
+          ls /usr/lib/x86_64-linux-gnu/libgmp.* || ls /usr/lib/libgmp.*
 
-      # ── 3. Install or build GMP-ECM ──────────────────────────────────────────
-      # Try apt first (available on Ubuntu 22.04+). If libecm-dev is not in the
-      # apt repos, fall back to building from the GitHub mirror source.
-      - name: Install GMP-ECM via apt
-        id: apt-ecm
-        run: |
-          if apt-cache show libecm-dev > /dev/null 2>&1; then
-            sudo apt-get install -y libecm-dev
-            echo "installed=true" >> $GITHUB_OUTPUT
-          else
-            echo "installed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Cache GMP-ECM (source build fallback)
-        if: steps.apt-ecm.outputs.installed != 'true'
+      # ── 3. Build GMP-ECM from source (cached) ────────────────────────────────
+      # Cache key is the commit SHA — update ECM_COMMIT above to force a rebuild.
+      - name: Cache GMP-ECM
         id: cache-ecm
         uses: actions/cache@v4
         with:
           path: ~/ecm-install
           key: gmp-ecm-${{ env.ECM_COMMIT }}-linux
 
-      - name: Build GMP-ECM from source (fallback)
-        if: >
-          steps.apt-ecm.outputs.installed != 'true' &&
-          steps.cache-ecm.outputs.cache-hit != 'true'
+      - name: Build GMP-ECM from source
+        if: steps.cache-ecm.outputs.cache-hit != 'true'
         run: |
           cd ~
           git clone ${{ env.ECM_REPO }} ecm-src
@@ -127,34 +117,26 @@ jobs:
       # ── 4. Show resolved build configuration (useful for debugging failures) ──
       - name: Show build config (${{ matrix.target }})
         run: |
-          # If ECM was installed via apt, no ECM_PREFIX needed — Makefile.new
-          # will find it in the standard system paths (/usr/include, /usr/lib).
-          # If built from source, pass the prefix explicitly.
-          if [ "${{ steps.apt-ecm.outputs.installed }}" = "true" ]; then
-            make -f Makefile.new info ${{ matrix.make_flags }}
-          else
-            make -f Makefile.new info ${{ matrix.make_flags }} \
-              ECM_PREFIX="$HOME/ecm-install"
-          fi
+          make -f Makefile.new info \
+            ${{ matrix.make_flags }} \
+            GMP_PREFIX=/usr \
+            ECM_PREFIX="$HOME/ecm-install"
 
       # ── 5. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
         run: |
-          if [ "${{ steps.apt-ecm.outputs.installed }}" = "true" ]; then
-            make -f Makefile.new yafu ${{ matrix.make_flags }}
-          else
-            make -f Makefile.new yafu ${{ matrix.make_flags }} \
-              ECM_PREFIX="$HOME/ecm-install"
-          fi
+          make -f Makefile.new yafu \
+            ${{ matrix.make_flags }} \
+            GMP_PREFIX=/usr \
+            ECM_PREFIX="$HOME/ecm-install"
 
       # ── 6. Rename to target-specific name ────────────────────────────────────
       - name: Stage artifact
         run: cp yafu ${{ matrix.artifact_name }}
 
-      # ── 7. Verify shared library dependencies ────────────────────────────────
-      # On Linux we expect dynamic linking against system libs (libgmp, libecm,
-      # libgomp) — that is normal and correct. We just print them for the log
-      # so any unexpected deps are visible, but do not fail the build.
+      # ── 7. Show shared library dependencies ──────────────────────────────────
+      # Dynamic linking against system libs is normal and expected on Linux.
+      # This step prints deps to the log for visibility but does not fail.
       - name: Show shared library dependencies (${{ matrix.target }})
         run: |
           echo "=== Shared library dependencies ==="
@@ -182,9 +164,8 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # RELEASE — only on version tags (e.g. git tag v2.1.0 && git push --tags)
-  # Collects all Linux artifacts and adds them to the same GitHub Release that
-  # the Windows workflow creates. Both workflows target the same tag so GitHub
-  # merges their uploads into one release automatically.
+  # Uploads Linux binaries to the same GitHub Release created by build-windows.yml.
+  # Both workflows target the same tag so GitHub merges uploads into one release.
   # ─────────────────────────────────────────────────────────────────────────────
   release:
     needs: build
