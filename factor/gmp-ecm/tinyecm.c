@@ -33,6 +33,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include "monty.h"
 #include "ytools.h"
+#include "arith.h"
 
 #define D 120
 
@@ -3510,10 +3511,21 @@ static void tecm_multiplicative_inverse104(uint64_t* inv, uint64_t a)
 
 	// y *= y
 	uint64_t yhi, ylo;
+#ifdef HAS_UINT128
+	uint128_t yp = (uint128_t)y * y;
+	ylo = (uint64_t)yp;
+	yhi = (uint64_t)(yp >> 64);
+#else
 	ylo = _umul128(y, y, &yhi);
+#endif
 
 	// uint64_t x5 = x4 * (1 + y);	// 2^128
 	uint64_t x5hi, x5lo;
+#ifdef HAS_UINT128
+	uint128_t x5 = (uint128_t)x4 * ((uint128_t)y + 1);
+	x5lo = (uint64_t)x5;
+	x5hi = (uint64_t)(x5 >> 64);
+#else
 	if (ylo == 0xffffffffffffffffULL)
 	{
 		x5lo = 0;
@@ -3524,6 +3536,7 @@ static void tecm_multiplicative_inverse104(uint64_t* inv, uint64_t a)
 		x5lo = _umul128(1 + ylo, x4, &x5hi);
 		x5hi += _umul128(yhi, x4, &ylo);
 	}
+#endif
 
 	inv[0] = x5lo;
 	inv[1] = x5hi & 0x000000ffffffffffULL;

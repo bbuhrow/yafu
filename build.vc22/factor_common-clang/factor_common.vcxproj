@@ -157,12 +157,23 @@
     <ClCompile Include="..\..\arith\arith.c" />
     <ClCompile Include="..\..\arith\fftmul.c" />
     <ClCompile Include="..\..\arith\monty.c" />
+    <ClCompile Include="..\..\common\ocl_xface.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\factor\batch_factor.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\micropm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
-    <ClCompile Include="..\..\factor\gpu_cofactorization.c" />
+    <ClCompile Include="..\..\factor\gpu_cofactorization.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\gpu_cofactorization_cl.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c" />
     <ClCompile Include="..\..\factor\qs\smallmpqs.c" />
     <ClCompile Include="..\..\factor\rho.c" />
@@ -172,10 +183,17 @@
     <ClCompile Include="..\..\top\aprcl\tinyprp.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\factor\cuda_intrinsics.h" />
+    <ClInclude Include="..\..\factor\cuda_intrinsics.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\..\factor\gmp-ecm\microecm.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />
-    <ClInclude Include="..\..\factor\gpu_cofactorization.h" />
+    <ClInclude Include="..\..\factor\gpu_cofactorization.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\gpu_cofactorization_cl.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\batch_factor.h" />
     <ClInclude Include="..\..\include\cofactorize.h" />
@@ -183,6 +201,7 @@
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\monty.h" />
+    <ClInclude Include="..\..\include\ocl_xface.h" />
     <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
     <ClInclude Include="..\..\top\aprcl\tinyprp.h" />
@@ -191,7 +210,9 @@
     <YASM Include="..\..\arith\mod64.asm" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\factor\cuda_tinyecm.cu" />
+    <None Include="..\..\factor\cuda_tinyecm.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

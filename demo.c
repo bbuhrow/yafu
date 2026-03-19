@@ -372,7 +372,9 @@ int main(int argc, char **argv) {
 						char *p;
 						savefile_name = argv[i+1];
 						if((p=strstr(savefile_name, ".gz"))) {
-							savefile_name = strdup(argv[i+1]);
+							//savefile_name = strdup(argv[i+1]);
+							savefile_name = (char*)malloc(strlen(argv[i + 1]) + 1);
+							strcpy(savefile_name, argv[i + 1]);
 							savefile_name[p-argv[i+1]] = 0;
 						}
 					} 

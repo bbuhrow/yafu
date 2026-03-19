@@ -371,7 +371,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
         // the avx2 version is faster on avx512 capable cpus...
 #ifdef USE_AVX512Fno
         sieve_line_ptr = &sieve_line_avx512_32k;
-#elif defined(USE_AVX2)
+#elif defined(USE_AVX2no)
 
         if (sdata->has_avx2)
         {
@@ -392,7 +392,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
         {
             sieve_line_ptr = &sieve_line_avx512_128k;
         }
-#elif defined(USE_AVX2)
+#elif defined(USE_AVX2no)
         if (sdata->has_avx2)
         {
             //sieve_line_ptr = &sieve_line_avx2_128k;
@@ -407,7 +407,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
             sieve_line_ptr = &sieve_line_avx512_256k;
         }
 
-#elif defined(USE_AVX2)
+#elif defined(USE_AVX2no)
 
 #endif
         sdata->FLAGBITS = 21;
@@ -421,7 +421,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
             sieve_line_ptr = &sieve_line_avx512_512k;
         }
 
-#elif defined(USE_AVX2)
+#elif defined(USE_AVX2no)
         // the non-avx2 sieve is better, at least,
         // for huge offsets when you might be using this blocksize.
         //sieve_line_ptr = &sieve_line_avx2_512k;
@@ -576,7 +576,6 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
         }
 
 #if defined(USE_AVX2)
-
         if (sdata->has_avx2)
         {
             sdata->use_monty = 1;
@@ -668,25 +667,31 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
         // even have to be primes because we are already sieving with all of the
         // primes required.  Just need to be non-zero and the buffer needs
         // to be grown if necessary.
-        while (sdata->pboundi & 7)
+        //while (sdata->pboundi & 7)
+
+        // update: this breaks the sieve, somewhere, in a subtle way.  sometimes,
+        // primes are missed if we alter the sieve primes here like this.
+        // update this to warn if we don't have enough extra to fill a vector.
+        if (sdata->pboundi & 7)
         {
             if (sdata->pboundi == num_sp)
             {
-                sdata->sieve_p = (uint32_t*)xrealloc(sdata->sieve_p, (num_sp + 8) * sizeof(uint32_t));
-                for (i = 0; i < 8; i++)
-                {
-                    sdata->sieve_p[num_sp + i] = sdata->sieve_p[num_sp - 1] + 2*i;
-                }
-                sdata->num_sp = num_sp + 8;
+                printf("warning: not enough sieve primes to fill avx2 vector\n");
+                //sdata->sieve_p = (uint32_t*)xrealloc(sdata->sieve_p, (num_sp + 8) * sizeof(uint32_t));
+                //for (i = 0; i < 8; i++)
+                //{
+                //    sdata->sieve_p[num_sp + i] = sdata->sieve_p[num_sp - 1];
+                //}
+                //sdata->num_sp = num_sp + 8;
             }
-            sdata->pboundi++;
+            //sdata->pboundi++;
         }
 
-        if (sdata->VFLAG > 2)
-        {
-            printf("after vector padding, prime bound is now %lu and maxp is %u\n",
-                sdata->pboundi, sieve_p[sdata->pboundi - 1]);
-        }
+        //if (sdata->VFLAG > 2)
+        //{
+        //    printf("after vector padding, prime bound is now %lu and maxp is %u\n",
+        //        sdata->pboundi, sieve_p[sdata->pboundi - 1]);
+        //}
 
 #endif
 		
@@ -701,7 +706,7 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
         sdata->pbound = sieve_p[num_sp - 1];
         sdata->pboundi = num_sp;
 
-#ifdef USE_AVX2
+#if 0 //def USE_AVX2
         // plus perhaps a few extra to get us to a convienient vector boundary.
         // fixme: it's possible that this overflows the sieve primes provided,
         // when the range ends near the square of the max sieve prime.

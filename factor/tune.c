@@ -58,7 +58,7 @@ void factor_tune(fact_obj_t *inobj)
     uint32_t siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
         15, 13, 16, 20, 18, 19, 20, 21 }; // 20, 20
 	uint32_t siqs_testrels[NUM_SIQS_PTS] = { 10000, 10000, 10000 , 10000 , 10000,
-		10000, 10000 , 20000 , 40000 , 80000 };
+		10000, 10000 , 20000 , 20000 , 20000 };
 
 	double siqs_extraptime[NUM_SIQS_PTS];
 	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100, 105};
@@ -151,36 +151,36 @@ void factor_tune(fact_obj_t *inobj)
 	// RSA-129 (The magic words are squeamish ossifrage)
 	// 114381625757888867669235779976146612010218296721242362562561842935706935245733897830597123563958705058989075147599290026879543541
 
-	fact_obj_t fobj;
+	fact_obj_t *fobj = inobj;
 
-	init_factobj(&fobj);
-	copy_factobj(&fobj, inobj, 1);
+	//init_factobj(&fobj);
+	//copy_factobj(&fobj, inobj, 1);
 
 	//goto tune_ecm;
 
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
-		reset_factobj(&fobj);
+		reset_factobj(fobj);
 
 		// measure how long it takes to gather a fixed number of relations 		
         mpz_set_str(n, siqslist[i], 10);
-		fobj.qs_obj.gbl_override_rel_flag = 1;
-		fobj.qs_obj.gbl_override_rel = siqs_testrels[i];	
+		fobj->qs_obj.gbl_override_rel_flag = 1;
+		fobj->qs_obj.gbl_override_rel = siqs_testrels[i];	
 
         // also set the tf_small_cutoff to its known best value so we
         // don't pollute the measurement with the optimization process.
-        fobj.qs_obj.gbl_override_small_cutoff_flag = 1;
-        fobj.qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
+        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
+        fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
 
 		gettimeofday(&start, NULL);
-        mpz_set(fobj.qs_obj.gmp_n, n);
-		SIQS(&fobj);
+        mpz_set(fobj->qs_obj.gmp_n, n);
+		SIQS(fobj);
 		gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
 		// the number of relations actually gathered is stored in gbl_override_rel
-		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj.qs_obj.gbl_override_rel;
+		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
 
 		// add a guess at the linalg + sqrt time: something reasonable seems to be about
 		// 2% of the total sieve time
@@ -195,8 +195,8 @@ void factor_tune(fact_obj_t *inobj)
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a,b,fit);
 	printf("best exponential fit is y = %g * exp(%g * x)\n",pow(BASE_e,b),a);
 
-	// for each of the gnfs inputs
-	for (i=0; i<NUM_GNFS_PTS; i++)
+	// for each of the gnfs inputsNUM_GNFS_PTS
+	for (i=0; i<0; i++)
 	{
 		char syscmd[1024];
 		FILE *in;
@@ -285,6 +285,8 @@ void factor_tune(fact_obj_t *inobj)
 	xover = (b2 - b) / (a - a2);
 	printf("QS/NFS crossover occurs at %2.1f digits\n",xover);
 
+	goto done;
+
 tune_ecm:
 
 	{
@@ -301,7 +303,7 @@ tune_ecm:
 		
 		for (i = 0; i < NUM_ECM_PTS; i++, ecm_size += 208)
 		{
-			reset_factobj(&fobj);
+			reset_factobj(fobj);
 
 			mpz_urandomb(n, gmp_randstate, ecm_size - 100);
 			mpz_nextprime(n, n);
@@ -309,48 +311,48 @@ tune_ecm:
 			ecm_sizes[i] = mpz_sizeinbase(n, 2);
 
 			// measure how long the total process takes for B1=10000, 100000, 1000000
-			fobj.ecm_obj.B1 = 100000;
-			fobj.ecm_obj.num_curves = 1;
+			fobj->ecm_obj.B1 = 100000;
+			fobj->ecm_obj.num_curves = 1;
 			
 			gettimeofday(&start, NULL);
-			mpz_set(fobj.ecm_obj.gmp_n, n);
-			mpz_set(fobj.N, n);
-			curves_run = ecm_loop(&fobj);
+			mpz_set(fobj->ecm_obj.gmp_n, n);
+			mpz_set(fobj->N, n);
+			curves_run = ecm_loop(fobj);
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 			
 			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
-				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
+				fobj->ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 			
 			ecm_extraptime1[0][i] = t_time / curves_run;
 			
-			fobj.ecm_obj.B1 = 1000000;
-			fobj.ecm_obj.num_curves = 1;
+			fobj->ecm_obj.B1 = 1000000;
+			fobj->ecm_obj.num_curves = 1;
 			
 			gettimeofday(&start, NULL);
-			mpz_set(fobj.ecm_obj.gmp_n, n);
-			mpz_set(fobj.N, n);
-			curves_run = ecm_loop(&fobj);
+			mpz_set(fobj->ecm_obj.gmp_n, n);
+			mpz_set(fobj->N, n);
+			curves_run = ecm_loop(fobj);
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 			
 			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
-				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
+				fobj->ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 			
 			ecm_extraptime1[1][i] = t_time / curves_run;
 
-			fobj.ecm_obj.B1 = 10000000;
-			fobj.ecm_obj.num_curves = 1;
+			fobj->ecm_obj.B1 = 10000000;
+			fobj->ecm_obj.num_curves = 1;
 
 			gettimeofday(&start, NULL);
-			mpz_set(fobj.ecm_obj.gmp_n, n);
-			mpz_set(fobj.N, n);
-			curves_run = ecm_loop(&fobj);
+			mpz_set(fobj->ecm_obj.gmp_n, n);
+			mpz_set(fobj->N, n);
+			curves_run = ecm_loop(fobj);
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 
 			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
-				fobj.ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
+				fobj->ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 
 			ecm_extraptime1[2][i] = t_time / curves_run;
 		}
@@ -389,11 +391,14 @@ tune_ecm:
 
 	}
 
+done:
+
 	//write the coefficients to the .ini file
 	update_INI(pow(BASE_e, b), a, pow(BASE_e, b2), a2, xover,
 		a3, b3, avg_exp, inobj->MEAS_CPU_FREQUENCY, inobj->CPU_ID_STR);
 
-	free_factobj(&fobj);
+	//free_factobj(&fobj);
+	//clear_factor_list(fobj);
 	mpz_clear(n);
 	return;
 }

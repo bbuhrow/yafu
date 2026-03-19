@@ -34,6 +34,7 @@ SOFTWARE.
 */
 
 
+#define _POSIX_C_SOURCE 200809L
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -44,6 +45,11 @@ SOFTWARE.
 #include "gmp.h"
 #include "factor.h"
 #include "qs.h"
+
+#ifndef _MSC_VER
+#define strtok_s strtok_r
+#endif
+
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
@@ -113,10 +119,6 @@ int get_el_type2(char s);
 int is_new_token(int el_type, int el_type2);
 int invalid_dest(char* dest);
 void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet);
-
-#ifndef _MSC_VER
-#define strtok_s strtok_r
-#endif
 
 // local data
 char opchar[9] = { '=', '<', '>', '+', '-', '*', '/', '%', '^' }; // , '='};

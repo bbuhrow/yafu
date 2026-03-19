@@ -1162,7 +1162,7 @@ void SIQS(fact_obj_t *fobj)
 
 	if (fobj->VFLAG >= 0)
 	{
-		printf("SIQS elapsed time = %6.4f seconds.\n", static_conf->t_time3);
+		printf("SIQS elapsed time = %6.4f seconds\n", static_conf->t_time3);
 	}
 
 	fobj->qs_obj.total_time = static_conf->t_time3;

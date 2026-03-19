@@ -84,20 +84,43 @@
 # Optional feature flags
 # Uncomment to enable features that were previously set on the make command
 # line, so you don't have to type them every time.
+# NOTE: the comments describing the flags can't follow the assignment
+# because the makefile in some cases looks for a value == 1 and comments
+# following the assignment put extra whitespace after the 1 which breaks the
+# comparison in the makefile
 # -----------------------------------------------------------------------------
-# OMP      := 1      # OpenMP threading
-# ECM      := 1      # Link GMP-ECM and enable ECM factorisation
-# BATCH_CUDA := 1    # GPU cofactorisation (NFS + SIQS)  — requires CUDA or OpenCL
-# CUDA_POLY  := 1    # GPU NFS polynomial selection      — requires CUDA
-# CUDA_LA    := 1    # GPU NFS linear algebra            — requires CUDA
-# MPI        := 1    # MPI parallel processing (msieve LA)
-# NO_ZLIB    := 1    # Enable repo-local zlib (if not installed on system)
-# VBITS      := 128  # Linear algebra vector width: 64 (default), 128, 256
-# STATIC_WIN := 1    # Fully static Windows .exe — runs in PowerShell/cmd.exe
-#                    # without any DLLs. MinGW/MSYS2 only. Requires static
-#                    # (.a) versions of GMP, zlib etc. (included in mingw
-#                    # pacman packages by default).
+# OpenMP threading
+# OMP      := 1
 
+# Link GMP-ECM and enable ECM factorisation
+# ECM      := 1
+
+# GPU cofactorisation (NFS + SIQS)  — requires CUDA or OpenCL
+# BATCH_CUDA := 1
+
+# GPU NFS polynomial selection      — requires CUDA
+# CUDA_POLY  := 1
+
+# GPU NFS linear algebra            — requires CUDA  
+# CUDA_LA    := 1
+
+# MPI parallel processing (msieve LA)
+# MPI        := 1
+
+# Enable repo-local zlib (if not installed on system)
+# NO_ZLIB    := 1
+
+# Linear algebra vector width: 64 (default), 128, 256
+# VBITS      := 128
+
+# Fully static Windows .exe — runs in PowerShell/cmd.exe
+# without any DLLs. MinGW/MSYS2 only. Requires static
+# (.a) versions of GMP, zlib etc. (included in mingw
+# pacman packages by default).
+# STATIC_WIN := 1
+
+# CUDA toolkit version, default is 12
+# TOOLKIT_VERSION := 13
 
 # -----------------------------------------------------------------------------
 # ISA feature flags

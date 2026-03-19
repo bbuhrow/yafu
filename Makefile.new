@@ -301,6 +301,7 @@ endif
 ifndef SM
     ifdef BATCH_CUDA
         ifneq ($(BATCH_CUDA),1)
+            $(info CUDA: setting SM to $(BATCH_CUDA))
             SM         := $(BATCH_CUDA)
             BATCH_CUDA := 1
         endif
@@ -328,6 +329,7 @@ endif
 # Auto-detect SM from nvidia-smi when CUDA is present and SM is still unset.
 ifndef SM
     ifdef HAVE_CUDA_TOOLKIT
+		
         # Query compute capability for every GPU, strip the dot (8.0 → 80),
         # sort numerically, and take the lowest value so the .ptx is
         # compatible with every card in the system.
@@ -356,6 +358,7 @@ endif
 CFLAGS := \
     -fno-common \
     -m64 \
+	-g \
     -std=c11 \
     -DUSE_SSE2 \
     -fPIE \
@@ -416,9 +419,9 @@ else ifeq ($(COMPILER_FAMILY),clang)
     ifeq ($(DEBUG),1)
         CFLAGS        += -fsanitize=address,undefined -fno-omit-frame-pointer
         LDFLAGS_EXTRA += -fsanitize=address,undefined
-    else
-        CFLAGS        += -flto
-        LDFLAGS_EXTRA += -flto
+#    else
+#        CFLAGS        += -flto
+#        LDFLAGS_EXTRA += -flto
     endif
 
 else
@@ -426,9 +429,9 @@ else
     CFLAGS += -Wshadow -Wstrict-prototypes
     ifeq ($(DEBUG),1)
         # nothing extra
-    else
-        CFLAGS        += -flto
-        LDFLAGS_EXTRA += -flto
+#    else
+#        CFLAGS        += -flto
+#        LDFLAGS_EXTRA += -flto
     endif
     ifeq ($(DETECTED_OS),Windows)
         ifdef STATIC_WIN
@@ -650,7 +653,7 @@ MSIEVE_LIBS := -L. $(GMP_LPATH)
 ifeq ($(ECM),1)
     ifneq (,$(HAVE_ECM_LIB))
         LIBS        += -lecm
-        MSIEVE_LIBS += -lecm
+        MSIEVE_LIBS += $(ECM_LPATH) -lecm
     else
         $(warning ECM=1 set but libecm not found — linking without -lecm)
     endif
