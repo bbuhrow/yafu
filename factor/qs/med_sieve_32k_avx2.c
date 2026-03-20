@@ -260,7 +260,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     }
 
     __m256i vzero = _mm256_setzero_si256();
-#if defined(_MSC_VER) && defined(__clang__)
+#if (defined(_MSC_VER) && defined(__clang__)) || (defined(__MINGW32__))
     // clang-cl defines _mm256_set1_epi16 as taking a short, and therefore sets 32768 to -32768.
     // so we have to do this instead:
     __m256i vblock = _mm256_set1_epi16(32767);

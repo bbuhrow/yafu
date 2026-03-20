@@ -72,6 +72,9 @@
     <ClCompile Include="..\..\factor\gpu_cofactorization_cl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\common\ocl_xface.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -117,6 +120,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\factor\gpu_cofactorization_cl.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ocl_xface.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

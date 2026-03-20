@@ -195,8 +195,8 @@ void factor_tune(fact_obj_t *inobj)
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a,b,fit);
 	printf("best exponential fit is y = %g * exp(%g * x)\n",pow(BASE_e,b),a);
 
-	// for each of the gnfs inputsNUM_GNFS_PTS
-	for (i=0; i<0; i++)
+	// for each of the gnfs inputs
+	for (i=0; i < NUM_GNFS_PTS; i++)
 	{
 		char syscmd[1024];
 		FILE *in;
@@ -396,6 +396,7 @@ done:
 	//write the coefficients to the .ini file
 	update_INI(pow(BASE_e, b), a, pow(BASE_e, b2), a2, xover,
 		a3, b3, avg_exp, inobj->MEAS_CPU_FREQUENCY, inobj->CPU_ID_STR);
+
 
 	//free_factobj(&fobj);
 	//clear_factor_list(fobj);

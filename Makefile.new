@@ -367,6 +367,13 @@ CFLAGS := \
     -D_LARGEFILE64_SOURCE \
     -Wall \
     -Wconversion
+	
+# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
+# violations in the AVX2 sieve buffer casting code. 
+# Todo: audit __m256i casts throughout siqs when using avx2 only.
+ifeq ($(OS),Windows_NT)
+    CFLAGS += -fno-strict-aliasing
+endif
 
 VBITS ?= 64
 CFLAGS += -DVBITS=$(VBITS)

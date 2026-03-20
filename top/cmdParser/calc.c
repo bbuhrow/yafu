@@ -2843,6 +2843,11 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 64:
         // siqsbench
         if (check_args(funcnum, nargs)) break;
+
+        // set up a new factorization of the provided input
+        mpz_set_ui(operands[0], 1);
+        new_factorization(fobj, operands[0]);
+
         siqsbench(fobj);
         break;
 
@@ -3151,6 +3156,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 72:
         // tune, no arguments
         if (check_args(funcnum, nargs)) break;
+
+        // set up a new factorization
+        mpz_set_ui(operands[0], 1);
+        new_factorization(fobj, operands[0]);
 
         factor_tune(fobj);
         break;

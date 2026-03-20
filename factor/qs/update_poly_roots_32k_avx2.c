@@ -2850,8 +2850,6 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         for (j = large_B; j < bound; j += 8, ptr += 8)
 #endif
         {
-            //int i;
-
             CHECK_NEW_SLICE(j);
 
             vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
