@@ -160,6 +160,7 @@ typedef struct
     relation_batch_t* rb;
     struct timeval jobstart;
     snfs_t* snfs; // NULL if GNFS
+    int filenumber;
 } nfs_job_t;
 
 typedef struct {

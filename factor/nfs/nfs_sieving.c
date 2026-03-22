@@ -29,9 +29,9 @@ benefit from your work.
 
 #if defined(__INTEL_LLVM_COMPILER) || defined(__GNUC__)
 #include <pthread.h>
-
 #include <unistd.h>
 #endif
+
 #include <math.h>
 
 #ifdef __MINGW32__
@@ -58,6 +58,8 @@ typedef struct
 	uint32_t rels_found;
 	uint32_t ranges_completed;
 	uint32_t threads_sieving;
+
+	int filenumber;
 
 } nfs_userdata_t;
 
@@ -549,7 +551,8 @@ void nfs_sieve_start(void* vptr)
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		// copy needed info to the thread's job structure.
-		sprintf(udata->thread_data[i].outfilename, "rels%d.dat", i);
+		sprintf(udata->thread_data[i].outfilename, "rels%d_%d.dat", i, 
+			job->filenumber++);
 		sprintf(udata->thread_data[i].job_infile_name, "%s", fobj->nfs_obj.job_infile);
 		udata->thread_data[i].job.poly = job->poly;
 		udata->thread_data[i].job.rlim = job->rlim;
@@ -877,10 +880,6 @@ void nfs_sieve_sync(void* vptr)
 		rels_sec = (double)udata->rels_found / elapsed_so_far;
 		est_time = ((double)udata->rels_requested - (double)udata->rels_found) / rels_sec;
 
-		//est_time = ((double)udata->rels_requested - (double)udata->rels_found) *
-		//	(t->test_time / (double)udata->thread_data[tid].job.current_rels);
-		//est_time /= (double)fobj->THREADS;
-
 		if (est_time < 0) est_time = 0.000001;
 
 		uint32_t est_time_u = (uint32_t)est_time;
@@ -1006,11 +1005,39 @@ void nfs_sieve_sync(void* vptr)
 
 	// done with the temporary output file for this thread.
 	int i = 0;
-	MySleep(100);
+	//MySleep(100);
 	while (1)
 	{
+#if 0 //def __MINGW32__
+
+		printf("attempting to remove temporary file %s\n",
+			udata->thread_data[tid].outfilename);
+		int status = DeleteFileA(udata->thread_data[tid].outfilename);
+		
+		MySleep(1000);
+
+		// deleteFileA status is unreliable?
+		if (access(udata->thread_data[tid].outfilename, F_OK) == 0)
+		{
+			printf("attempt failed, file still exists\n");
+			status = 1;
+		}
+		else
+		{
+			printf("deletion succeeded\n");
+			status = 0;
+		}
+
+#else
 		int status = remove(udata->thread_data[tid].outfilename);
-		if (status == 0)
+#endif
+		// whether or not the file still exists right now, just keep going.
+		// if the file still exists when we go to create a new one
+		// with this thread, we'll make a differently named one.
+		// eventually the OS will catch up and remove the files
+		// we've requested.
+
+		//if (status == 0)
 			break;
 
 		// if working with network mounted drives, sometimes it takes a while
@@ -1027,6 +1054,10 @@ void nfs_sieve_sync(void* vptr)
 
 	if (i > 9)
 		printf("nfs: finished with and removed file %s\n", udata->thread_data[tid].outfilename);
+
+	// new temporary filename
+	sprintf(udata->thread_data[tid].outfilename, "rels%d_%d.dat", tid,
+		job->filenumber++);
 
 	// not sieving any more, for now.
 	udata->threads_sieving--;
@@ -2469,6 +2500,43 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 
 #ifdef USE_THREADPOOL
 
+	{
+		int i;
+		char tmpname[1024];
+		printf("attempting to clean up temporary relations files (max temp num = %d)\n",
+			job->filenumber);
+		for (i = 0; i < fobj->THREADS; i++) {
+
+			int j;
+			for (j = 0; j < job->filenumber; j++)
+			{
+				sprintf(tmpname, "rels%d_%d.dat", i, j);
+				FILE* fid = fopen(tmpname, "r");
+
+				if (fid != NULL)
+				{
+					int attempts = 0;
+					while (1)
+					{
+						int status = remove(tmpname);
+						if (status == 0)
+							break;
+
+						if (attempts > 9)
+						{
+							printf("%d attempts to remove file %s, ", 
+								attempts, tmpname);
+							perror("error was");
+							break;
+						}
+						attempts++;
+						MySleep(100);
+					}
+				}
+			}
+		}
+	}
+
 	if (udata.is_3lp)
 	{
 		int i;
@@ -2482,6 +2550,8 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	free(udata.qrange_data);
 	free(udata.thread_data);
 	free(tpool_data);
+
+
 
 #else
 	//stop worker threads

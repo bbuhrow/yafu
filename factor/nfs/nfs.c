@@ -234,6 +234,7 @@ void nfs(fact_obj_t *fobj)
 	// start a counter for the whole job
 	gettimeofday(&start, NULL);
 	gettimeofday(&job.jobstart, NULL);
+	job.filenumber = 0;
 
 	// nfs state machine:
 	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));

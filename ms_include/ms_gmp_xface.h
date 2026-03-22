@@ -18,6 +18,7 @@ $Id: gmp_xface.h 1033 2020-09-04 16:43:27Z jasonp_sf $
 #include <util.h>
 #include <gmp.h>
 #include <mp.h>
+#include "mpz-ull.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,7 +51,7 @@ static INLINE void gmp2mp(mpz_t src, mp_t *dest) {
 static INLINE void uint64_2gmp(uint64 src, mpz_t dest) {
 
 #if GMP_LIMB_BITS == 64
-	mpz_set_ui(dest, src);
+	mpz_set_ull(dest, src);
 #else
 	/* mpz_import is terribly slow */
 	mpz_set_ui(dest, (uint32)(src >> 32));
@@ -75,7 +76,9 @@ static INLINE void int64_2gmp(int64 src, mpz_t dest) {
 static INLINE uint64 gmp2uint64(mpz_t src) {
 
 	/* mpz_export is terribly slow */
-	uint64 ans = mpz_getlimbn(src, 0);
+	//uint64 ans = mpz_getlimbn(src, 0);
+	uint64 ans = mpz_get_ull(src);
+
 #if GMP_LIMB_BITS == 32
 	if (mpz_size(src) >= 2)
 		ans |= (uint64)mpz_getlimbn(src, 1) << 32;

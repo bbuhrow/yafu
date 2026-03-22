@@ -372,7 +372,7 @@ CFLAGS := \
 # violations in the AVX2 sieve buffer casting code. 
 # Todo: audit __m256i casts throughout siqs when using avx2 only.
 ifeq ($(OS),Windows_NT)
-    CFLAGS += -fno-strict-aliasing
+    CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
 endif
 
 VBITS ?= 64
@@ -796,6 +796,7 @@ COMMON_SRCS = \
     ysieve/wrapper.c \
     top/aprcl/mpz_aprcl.c
 	
+
 ifdef BATCH_CUDA
 # building these causes their respective headers to be included
 # which contain the CUDA or OpenCL interface headers and
@@ -939,6 +940,8 @@ NFS_SRCS = \
     gnfs/gnfs.c \
     gnfs/relation.c
 
+	
+
 NFS_GPU_SRCS  = gnfs/poly/stage1/stage1_sieve_gpu.c
 NFS_NOGPU_SRCS = gnfs/poly/stage1/stage1_sieve_cpu.c
 
@@ -988,6 +991,11 @@ MSIEVE_COMMON_SRCS = \
     common/thread.c \
     common/util.c \
     aprcl/mpz_aprcl32.c
+
+	
+ifeq ($(OS),Windows_NT)
+	MSIEVE_COMMON_SRCS += common/mpz-ull.c
+endif
 
 COMMON_GPU_SRCS = \
     common/lanczos/gpu/lanczos_matmul_gpu.c \
