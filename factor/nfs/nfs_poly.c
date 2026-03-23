@@ -818,6 +818,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	{
 		// 'fast' search.  scale by number of threads
 		deadline /= fobj->THREADS;
+
+		// msieve poly-select wants a nonzero deadline
+		if (deadline == 0)
+			deadline = 1;
 	}
 
 	if ((fobj->nfs_obj.timeout < deadline) && (fobj->nfs_obj.timeout > 1.0))
@@ -1003,7 +1007,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		t->fobj = fobj;
 		t->task = TASK_POLY;
 
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA_POLY
 		if (special_polyfind == 0)
 		{
 			if (fobj->THREADS > 1)

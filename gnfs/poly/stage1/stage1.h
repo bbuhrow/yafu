@@ -226,7 +226,7 @@ handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
 
 /* main search routine */
 
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA_POLY
 
 /* GPU search routine */
 

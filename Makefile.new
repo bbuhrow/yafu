@@ -590,7 +590,7 @@ ifdef BATCH_CUDA
 endif
 
 ifdef CUDA_POLY
-    CFLAGS += -DHAVE_CUDA_POLY -Icub
+    CFLAGS += -DHAVE_CUDA_POLY -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) -Icub
     ifeq ($(DETECTED_OS),Windows)
         CUDA_POLY_LIBS := "$(CUDA_LIBDIR)/cuda.lib"
     else
@@ -599,7 +599,7 @@ ifdef CUDA_POLY
 endif
 
 ifdef CUDA_LA
-    CFLAGS += -DHAVE_CUDA_LA
+    CFLAGS += -DHAVE_CUDA_LA -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
 endif
 
 ifeq ($(MPI),1)
@@ -676,7 +676,11 @@ endif
 
 # CUDA (polynomial selection)
 ifdef CUDA_POLY
-    MSIEVE_LIBS += $(CUDA_POLY_LIBS)
+	ifneq (,$(HAVE_CUDA_TOOLKIT))
+		LIBS        += $(CUDA_LPATH) -lcuda -lcudart
+		MSIEVE_LIBS += $(CUDA_LPATH) $(CUDA_POLY_LIBS) -lcuda -lcudart
+	endif
+# MSIEVE_LIBS += $(CUDA_POLY_LIBS)
 endif
 
 # OpenCL

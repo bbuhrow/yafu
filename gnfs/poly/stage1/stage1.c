@@ -428,7 +428,7 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 	double cumulative_time = 0;
 	sieve_t ad_sieve;
 	poly_coeff_t *c = poly_coeff_init();
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA_POLY
 	void *gpu_data = gpu_data_init(obj, poly);
 #endif
 
@@ -469,7 +469,7 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 		/* finally, sieve for polynomials using
 		   Kleinjung's improved algorithm */
 
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA_POLY
 		cumulative_time = sieve_lattice_gpu(obj, poly, c,
 					gpu_data, deadline_per_coeff);
 #else
@@ -485,7 +485,7 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 	}
 
 	free_ad_sieve(&ad_sieve);
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA_POLY
 	gpu_data_free(gpu_data);
 #endif
 	poly_coeff_free(c);

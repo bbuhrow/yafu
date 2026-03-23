@@ -251,7 +251,7 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 					(0.0635 * params->digits + 1.608) :
 					(0.0526 * params->digits + 3.23);
 			e0 = exp(-log(10) * e0); 
-#ifdef HAVE_CUDA
+#ifdef HAVE_CUDA_POLY
 			e0 *= 1.15;
 #endif
 			logprintf(obj, "expecting poly E from %.2le to > %.2le\n",
