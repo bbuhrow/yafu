@@ -247,7 +247,7 @@ poly_sizeopt_run(poly_sizeopt_t *data, mpz_t ad, mpz_t p, mpz_t d)
 				data->callback_data);
 
 		sizeopt_callback_data_t* callback = (sizeopt_callback_data_t*)data->callback_data;
-		
+
 		if (data->flags & MSIEVE_FLAG_NFS_POLYROOT) {
 			// if rootopt ran, record some stats.
 			poly_rootopt_t* rootopt = callback->rootopt;

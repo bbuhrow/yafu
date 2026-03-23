@@ -284,6 +284,10 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 
 			poly_sizeopt_init(&sizeopt_data, 
 					sizeopt_callback, &sizeopt_callback_data);
+
+			// in order to save in-progress rootopt results we
+			// need to forward the flags to the sizeopt handler.
+			sizeopt_data.flags = obj->flags;
 		}
 		else {
 			rootopt_data.best_saved_combined_e = 0.0;

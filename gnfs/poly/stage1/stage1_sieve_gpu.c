@@ -1117,27 +1117,40 @@ gpu_thread_data_init(void *data, int threadid)
 #endif
 
 	/* load GPU kernels */
+	char ptxfile[80];
 
 	if (d->gpu_info->compute_version_major == 2) {
-		CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm20.ptx"))
+		strcpy(ptxfile, "stage1_core_sm20.ptx");
 	}
 	else if (d->gpu_info->compute_version_major == 3) {
 		if (d->gpu_info->compute_version_minor < 5)
-			CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm30.ptx"))
+			strcpy(ptxfile, "stage1_core_sm30.ptx");
 		else
-			CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm35.ptx"))
+			strcpy(ptxfile, "stage1_core_sm35.ptx");
+	}
+	else if (d->gpu_info->compute_version_major >= 9) {
+		strcpy(ptxfile, "stage1_core_sm90.ptx");
 	}
 	else if (d->gpu_info->compute_version_major >= 8) {
-		CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm80.ptx"))
+		strcpy(ptxfile, "stage1_core_sm80.ptx");
 	}
 	else if (d->gpu_info->compute_version_major >= 5) {
-		CUDA_TRY(cuModuleLoad(&t->gpu_module, "stage1_core_sm50.ptx"))
+		strcpy(ptxfile, "stage1_core_sm50.ptx");
 	}
 	else 
 	{
-	    printf("sorry, Nvidia doesn't want to support your card\n");
+	    printf("unhandled compute version %d.%d\n", 
+			d->gpu_info->compute_version_major,
+			d->gpu_info->compute_version_minor);
 		exit(-1);
 	}
+
+	printf("attempting to load kernel code from %s\n", ptxfile);
+
+	CUDA_TRY(cuModuleLoad(&t->gpu_module, ptxfile))
+
+	printf("successfully loaded kernel code from %s\n",
+		ptxfile);
 
 	t->launch = (gpu_launch_t *)xmalloc(NUM_GPU_FUNCTIONS *
 				sizeof(gpu_launch_t));
