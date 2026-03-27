@@ -273,7 +273,9 @@ root_sieve_run_core(poly_rootopt_t *data, double initial_norm,
 		}
 
 		if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+		{
 			return;
+		}
 	}
 
 	for (i = 0; i < rs->root_heap.num_entries; i++) {
@@ -282,7 +284,9 @@ root_sieve_run_core(poly_rootopt_t *data, double initial_norm,
 		optimize_final(r->x, r->y, r->z, data);
 
 		if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+		{
 			return;
+		}
 	}
 }
 

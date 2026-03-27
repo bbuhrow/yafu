@@ -136,7 +136,6 @@ void init_factobj(fact_obj_t* fobj)
 
     int i;
 
-    printf("initializing tlevels in ecm_obj\n");
     for (i = 0; i < NUM_ECM_LEVELS; i++)
     {
         fobj->ecm_obj.tlevels[i] = 0.0;

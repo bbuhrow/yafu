@@ -109,9 +109,19 @@ handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
 	mpz_mul(c->tmp2, c->p, c->p);
 	mpz_sub(c->tmp1, c->trans_N, c->tmp1);
 	mpz_tdiv_r(c->tmp3, c->tmp1, c->tmp2);
+
+	// In mingw builds run with multiple threads,
+	// random stuff appears to be getting into 
+	// the hashtable and causing spurious collisions.
+	// the modular condition check makes this problem
+	// harmless except for a loss of speed doing the
+	// unneccessary collision checks.
+	// rather than spam the screen with these messages we
+	// return an error code and count them.
 	if (mpz_cmp_ui(c->tmp3, 0)) {
-		gmp_printf("crap %Zd %Zd %Zd\n", c->high_coeff, c->p, c->m);
-		return 0;
+		//gmp_printf("\ncrap %Zd %Zd %Zd, %"PRIu64", %u, %"PRId64"\n", c->high_coeff, c->p, c->m,
+		//	special_q_root, special_q, res);
+		return 2;
 	}
 
 	/* the pair works, now translate the computed m back
@@ -372,7 +382,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 						SIEVE_ARRAY_SIZE);
 
 	mpz_divexact_ui(poly->tmp1, poly->gmp_high_coeff_begin,
-			(mp_limb_t)sieve->high_coeff_multiplier);
+			(unsigned long int)sieve->high_coeff_multiplier);
 	for (i = p = 0; i < PRECOMPUTED_NUM_PRIMES; i++) {
 		uint32 power;
 		uint8 log_val;
@@ -384,7 +394,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 		log_val = floor(log(p) / M_LN2 + 0.5);
 		power = p;
 		for (j = 0; j < sieve->high_coeff_power_limit; j++) {
-			uint32 r = mpz_cdiv_ui(poly->tmp1, (mp_limb_t)power);
+			uint32 r = mpz_cdiv_ui(poly->tmp1, (unsigned long int)power);
 
 			if (sieve->num_primes >= sieve->num_primes_alloc) {
 				sieve->num_primes_alloc *= 2;
@@ -499,9 +509,9 @@ poly_stage1_init(poly_stage1_t *data,
 		 stage1_callback_t callback, void *callback_data)
 {
 	memset(data, 0, sizeof(poly_stage1_t));
-	mpz_init_set_ui(data->gmp_N, (mp_limb_t)0);
-	mpz_init_set_ui(data->gmp_high_coeff_begin, (mp_limb_t)0);
-	mpz_init_set_ui(data->gmp_high_coeff_end, (mp_limb_t)0);
+	mpz_init_set_ui(data->gmp_N, (unsigned long int)0);
+	mpz_init_set_ui(data->gmp_high_coeff_begin, (unsigned long int)0);
+	mpz_init_set_ui(data->gmp_high_coeff_end, (unsigned long int)0);
 	data->callback = callback;
 	data->callback_data = callback_data;
 }

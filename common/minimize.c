@@ -271,12 +271,23 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 	double directions[MAX_VARS][MAX_VARS];
 	int32 status = 0;
 
+	//int verbose = 0;
+	//if (max_iter == 41)
+	//{
+	//	max_iter = 40;
+	//	verbose = 1;
+	//}
+
+
 	memset(directions, 0, sizeof(directions));
 	for (i = 0; i < ndim; i++) {
 		p_old[i] = p[i];
 		directions[i][i] = 1.0;
 	}
 	best_f = callback(p, extra);
+
+	//if (verbose)
+	//	printf("best_f: %1.12e\n", best_f);
 
 	if (ndim == 1) {
 		curr_f = minimize_line(p, directions[0], ndim,
@@ -300,6 +311,10 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 			curr_f = minimize_line(p, directions[j], ndim,
 				MAX(ftol, 1e-7), &status,
 				callback, extra);
+
+			//if (verbose)
+			//	printf("curr_f: %1.12e\n", curr_f);
+
 			if (status)
 				return best_f;
 

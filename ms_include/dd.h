@@ -30,11 +30,11 @@ extern "C" {
    /* These routines *require* IEEE 53-bit double precision,
       even on x86 processors that support higher precision */
 
-#if defined(WIN32) && !defined(_WIN64) 
+#if defined(WIN32) && !defined(_WIN64)
 	#include <float.h>
 	typedef uint32 dd_precision_t;
 #elif (defined(__GNUC__) || defined(__ICL)) && \
-		(defined(__i386__) || defined(__x86_64__))
+		(defined(__i386__) || defined(__x86_64__) || defined(__MINGW32__))
 	#include <float.h>
 	typedef uint16 dd_precision_t;
 #else
@@ -42,12 +42,13 @@ extern "C" {
 #endif
 
 static INLINE dd_precision_t dd_set_precision_ieee(void) {
+
 #if defined(WIN32) && !defined(_WIN64)
 	dd_precision_t old_prec = _control87(0, 0);
 	_control87(_PC_53, _MCW_PC);
 	return old_prec;
 
-#elif defined(GCC_ASM32X) || defined(GCC_ASM64X)
+#elif defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 	dd_precision_t old_prec, new_prec;
 	ASM_G volatile ("fnstcw %0":"=m"(old_prec));
 	new_prec = (old_prec & ~0x0300) | 0x0200;
@@ -62,7 +63,7 @@ static INLINE dd_precision_t dd_set_precision_ieee(void) {
 static INLINE void dd_clear_precision(dd_precision_t old_prec) {
 #if defined(WIN32) && !defined(_WIN64)
 	_control87(old_prec, 0xffffffff);
-#elif defined(GCC_ASM32X) || defined(GCC_ASM64X)
+#elif defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 	ASM_G volatile ("fldcw %0": :"m"(old_prec));
 #endif
 }
@@ -72,10 +73,12 @@ static INLINE uint32 dd_precision_is_ieee(void) {
 	dd_precision_t prec = _control87(0, 0);
 	return  ((prec & _MCW_PC) == _PC_53) ? 1 : 0;
 
-#elif defined(GCC_ASM32X) || defined(GCC_ASM64X)
+#elif defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 	dd_precision_t prec;
 	ASM_G volatile ("fnstcw %0":"=m"(prec));
-	return ((prec & ~0x0300) == 0x0200) ? 1 : 0;
+	// bug: to check the status we don't flip the bits with ~
+	// like we do when setting the precision bits.
+	return ((prec & 0x0300) == 0x0200) ? 1 : 0;
 #else
 	return 1;
 #endif
@@ -397,6 +400,34 @@ static INLINE void dd_dd2mp(dd_t d, mp_t *x) {
 	   format. If both halves of d are integers then
 	   the conversion is exact */
 
+#if 0
+
+	mpz_t dhi;
+	mpz_t dlo;
+	mpz_init(dhi);
+	mpz_init(dlo);
+
+	mpz_set_d(dhi, d.hi);
+	mpz_set_d(dlo, d.lo);
+
+	if (d.lo < 0) {
+		double dneg = -d.lo;
+
+		mpz_set_d(dlo, dneg);
+		mpz_sub(dlo, dhi, dlo);
+	}
+	else {
+		mpz_set_d(dlo, d.lo);
+		mpz_add(dlo, dhi, dlo);
+	}
+
+	gmp2mp(dlo, x);
+	mpz_clear(dhi);
+	mpz_clear(dlo);
+
+#else
+
+
 	mp_t x1, x2;
 
 	mp_d2mp(&d.hi, &x1);
@@ -409,6 +440,10 @@ static INLINE void dd_dd2mp(dd_t d, mp_t *x) {
 		mp_d2mp(&d.lo, &x2);
 		mp_add(&x1, &x2, x);
 	}
+
+#endif
+
+
 }
 
 #ifdef __cplusplus

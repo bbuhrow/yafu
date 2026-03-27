@@ -314,6 +314,14 @@ double poly_rotate_callback(double* v, void* extra)
 	return opt->norm_callback(translated, apoly.degree, s);
 }
 
+// these function combine and unroll and slightly reorganize
+// the sizeopt operations of:
+// 1) poly_rotate_callback
+// 2) translate_d
+// 3) ifs_rectangular or ifs_radial (norms) 
+// on most inputs this is about 25% faster and finds 5% more sizeopt 
+// hits compared to the originial sequence of functions.
+
 double poly_rotate_callback_deg6_radial(double* v, void* extra)
 {
 	uint32 i;
@@ -552,8 +560,6 @@ double poly_rotate_callback_deg5_radial(double* v, void* extra)
 	apoly.coeff[0 + 1] += r1 * c0;
 	apoly.coeff[1] += r0 * c1;
 	apoly.coeff[1 + 1] += r1 * c1;
-	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
 
 	t = -t;
 
@@ -589,8 +595,6 @@ double poly_rotate_callback_deg5_radial(double* v, void* extra)
 	translated[3] = accum4;
 	translated[4] = accum5;
 	translated[5] = apoly.coeff[5];
-
-	//return opt->norm_callback(translated, apoly.degree, s);
 
 	double a0, a1, a2, a3, a4, a5;
 	double s2, s3, s4, s5;
@@ -631,17 +635,12 @@ double poly_rotate_callback_deg5_radial(double* v, void* extra)
 	norm += 3.0 * (a3 + a2);
 	norm += 6.0 * (s4 + s2 + s + s3);
 
-	//norm = 63.0 * (a5 * a5 + a0 * a0) +
-	//	14.0 * (a5 * a3 + a2 * a0) +
-	//	7.0 * (a4 * a4 + a1 * a1) +
-	//	3.0 * (a3 * a3 + a2 * a2) +
-	//	6.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
-
 	return norm * s5;
 }
 
 double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 {
+
 	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
@@ -660,9 +659,6 @@ double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 	apoly.coeff[0 + 1] += r1 * c0;
 	apoly.coeff[1] += r0 * c1;
 	apoly.coeff[1 + 1] += r1 * c1;
-
-	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
 
 	t = -t;
 
@@ -699,7 +695,6 @@ double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 	translated[4] = accum5;
 	translated[5] = apoly.coeff[5];
 
-	//return opt->norm_callback(translated, apoly.degree, s);
 
 	double a0, a1, a2, a3, a4, a5;
 	double s2, s3, s4, s5;
@@ -741,24 +736,6 @@ double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 	norm += (2.0 / 35.0) * (s4 + s2 + s + s3);
 
 	return norm * s5;
-
-	//a0 = a[0];
-	//a1 = a[1] * s;
-	//s2 = s * s;
-	//a2 = a[2] * s2;
-	//s3 = s2 * s;
-	//a3 = a[3] * s3;
-	//s4 = s3 * s;
-	//a4 = a[4] * s4;
-	//s5 = s4 * s;
-	//a5 = a[5] * s5;
-	//
-	//norm = 1.0 / 11.0 * (a5 * a5 + a0 * a0) +
-	//	2.0 / 27.0 * (a5 * a3 + a2 * a0) +
-	//	1.0 / 27.0 * (a4 * a4 + a1 * a1) +
-	//	1.0 / 35.0 * (a3 * a3 + a2 * a2) +
-	//	2.0 / 35.0 * (a5 * a1 + a4 * a2 + a4 * a0 + a3 * a1);
-	//return norm / s5;
 }
 
 double poly_rotate_callback_deg4_radial(double* v, void* extra)
@@ -982,7 +959,29 @@ static double poly_murphy_callback(double* v, void* extra)
 }
 
 /*-------------------------------------------------------------------------*/
+
+// the reorganized callbacks cause problems for the gcc compiler in mingw.
+// specifically, loss of precision and thus fewer hits.  I don't know
+// why this happens yet.  For now, just fall back on the official version.
+#if 1 //!defined(__MINGW32__)
 #define NEW_CALLBACK_STRUCTURE
+#endif
+
+// the myriad of callbacks and where they are used can be confusing.
+// here's my notes on how we end up in the various optimize functions below.
+// 
+// sizeopt runs optimize_initial, which uses the above rotate+norm callbacks
+// and the minimize line functions.
+
+// rootopt runs optimize_basic -> minimize+xlate_callback (rectangular norm)
+// this happens in a couple places:
+// root_sieve_run_core->compute_line_size
+// root_sieve_run_core->sieve_xy_run_deg5->sieve_x_run_deg5->root_sieve_line
+// root_sieve_run_core->sieve_xy_run_deg5->compute_line_size
+// lastly:
+// root_sieve_run_core->optimize_final -> minimize+murphy_callback
+
+
 
 void
 optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
@@ -996,7 +995,7 @@ optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 	dpoly_t rpoly, apoly;
 	objective_func objective;
 
-#ifdef NEW_CALLBACK_STRUCTURE
+#if defined(NEW_CALLBACK_STRUCTURE) && !defined(__MINGW32__)
 	switch (deg)
 	{
 	case 4: objective = poly_rotate_callback_deg4_radial; break;
@@ -1033,8 +1032,11 @@ optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 	for (i = 0; i <= 1; i++)
 		rpoly.coeff[i] = mpz_get_d(c->gmp_lina[i]);
 	apoly.degree = deg;
+
 	for (i = 0; i <= deg; i++)
 		apoly.coeff[i] = mpz_get_d(c->gmp_a[i]);
+
+	int verbose = 0;
 
 	for (i = 0; i < 2; i++) {
 
@@ -1042,7 +1044,7 @@ optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 
 		do {
 			last_score = score;
-			score = minimize(best, num_vars, tol, 40,
+			score = minimize(best, num_vars, tol, 40 + verbose,
 				objective, &opt_data);
 
 			for (j = 0; j <= rotate_dim; j++) {
@@ -1053,6 +1055,7 @@ optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 				mpz_submul(c->gmp_a[j], c->gmp_help1,
 					c->gmp_d);
 			}
+
 			translate_gmp(c, c->gmp_a, deg, c->gmp_lina,
 				(int64)(best[TRANSLATE_SIZE] + 0.5));
 
@@ -1074,8 +1077,10 @@ optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 		if (i == 0) {
 			opt_data.norm_callback = ifs_rectangular;
 
-#ifdef NEW_CALLBACK_STRUCTURE
+#if defined(NEW_CALLBACK_STRUCTURE)
 			if (!skew_only) {
+ 				// if sizeopt, apply the rectangular norm to the 
+				// rotation in the second pass.
 				switch (deg)
 				{
 				case 4: objective = poly_rotate_callback_deg4_rectangular; break;
@@ -1118,6 +1123,7 @@ optimize_basic(dpoly_t* apoly, double* best_skewness,
 
 	*best_translation = floor(best[TRANSLATE_SIZE] + 0.5);
 	*best_skewness = best[SKEWNESS];
+
 	return sqrt(score);
 }
 
@@ -1222,16 +1228,24 @@ optimize_final(mpz_t x, mpz_t y, int64 z, poly_rootopt_t* data)
 
 	if (stage2_root_score(deg, c->gmp_b,
 		data->murphy_p_bound, &alpha_a, 0))
+	{
 		return;
+	}
 
 	if (stage2_root_score(1, c->gmp_linb,
 		data->murphy_p_bound, &alpha_r, 0))
+	{
 		return;
+	}
 
 	if (alpha_a > -4.5)
+	{
 		return;
+	}
 
 	get_bernstein_score(c, assess, deg, alpha_a, &bscore);
+
+	//printf("\nbscore: %1.12le\n", bscore);
 
 	if (bscore > data->min_e_bernstein) {
 

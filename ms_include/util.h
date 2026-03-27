@@ -31,6 +31,7 @@ $Id: util.h 1005 2016-11-11 15:43:21Z jasonp_sf $
 	#include <errno.h>
 	#include <pthread.h>
 	#include <sys/resource.h>
+	#include <sys/time.h>
 	#include <float.h>
 	#include <dlfcn.h>
 #endif
@@ -67,6 +68,10 @@ extern "C" {
 #include <winsock.h>
 #endif
 
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
+
 #if defined(_MSC_VER) || defined(_MSC_EXTENSIONS)
 #define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
 #else
@@ -86,6 +91,8 @@ double msieve_difftime(struct timeval* start, struct timeval* end);
 
 #if defined (_MSC_VER)
 int msieve_gettimeofday(struct timeval* tv, struct timezone* tz);
+#else
+#define msieve_gettimeofday gettimeofday
 #endif
 
 /* basic types  -------------------------------------------------------*/

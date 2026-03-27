@@ -60,7 +60,7 @@ find_lattice_primes(sieve_prime_t *primes, uint32 num_primes,
 }
 
 /*-------------------------------------------------------------------------*/
-static void
+static void 
 do_sieving(sieve_root_t *r, uint16 *sieve,
 		uint32 contrib, uint32 dim)
 {
@@ -89,7 +89,7 @@ do_sieving(sieve_root_t *r, uint16 *sieve,
 /*-------------------------------------------------------------------------*/
 #define MAX_DIM 16
 
-static void
+static void 
 find_hits(sieve_prime_t *lattice_primes,
 	uint32 num_lattice_primes, hit_t *hitlist)
 {
@@ -246,12 +246,14 @@ sieve_xy_run_deg5(root_sieve_t *rs, uint64 lattice_size,
 	direction[0] = 1;
 	direction[1] = 0;
 	direction[2] = 0;
+
 	curr_y = gmp2int64(xy->y_base);
+
 	for (i = 0; i < y_blocks; i++) {
 		dpoly_t apoly = rs->apoly;
 
-		apoly.coeff[2] += rs->dbl_p * curr_y;
-		apoly.coeff[1] -= rs->dbl_d * curr_y;
+		apoly.coeff[2] += rs->dbl_p * (double)curr_y;
+		apoly.coeff[1] -= rs->dbl_d * (double)curr_y;
 
 		compute_line_size(rs->max_norm, &apoly,
 			rs->dbl_p, rs->dbl_d, direction,

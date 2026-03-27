@@ -13,6 +13,12 @@ $Id: util.c 964 2014-05-03 03:30:03Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <util.h>
+#include <time.h>
+
+
+#ifdef __MINGW32__
+#include <sys/time.h>
+#endif
 
 /*---------------------------------------------------------------------*/
 void *
@@ -162,6 +168,7 @@ int msieve_gettimeofday(struct timeval* tv, struct timezone* tz)
 	return 0;
 }
 #endif
+
 #endif
 
 double msieve_difftime(struct timeval* start, struct timeval* end)

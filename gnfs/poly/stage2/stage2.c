@@ -338,7 +338,9 @@ poly_rootopt_run(poly_rootopt_t *data, mpz_t * alg_coeffs,
 	}
 
 	if (sizeopt_norm * exp(projective_alpha) <= data->max_sizeopt_norm)
+	{
 		root_sieve_run(data, sizeopt_norm, projective_alpha);
+	}
 
 finished:
 	if (precision_changed)

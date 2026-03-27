@@ -707,6 +707,7 @@ static INLINE void mp_d2mp(double *d, mp_t *x) {
 		x->nwords = (uint32)(i+2);
 	else
 		x->nwords = (uint32)(i+1);
+
 }
 
 #ifdef __cplusplus

@@ -1238,8 +1238,7 @@ clean:
 	    $(QS_OBJS) $(NFS_OBJS) $(NFS_GPU_OBJS) $(NFS_NOGPU_OBJS) \
 	    $(DEPS_DIR) \
 	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
-	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
-	    *.ptx
+	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT)
 
 
 # -----------------------------------------------------------------------------

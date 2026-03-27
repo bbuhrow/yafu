@@ -24,9 +24,39 @@ benefit from your work.
 
 #ifdef USE_NFS
 
+
+/* parameters */
+typedef struct {
+	double digits;
+	double stage1_norm;
+	double stage2_norm;
+	double final_norm;
+	uint32_t deadline;
+} poly_params_t;
+
+static const poly_deadline_t time_limits[] = {
+	//  bits, seconds
+		{248, 15},		    // 74 digits 1
+		{264, 30},		    // 80 digits 2
+		{304, 60},		    // 92 digits 6
+		{320, 3 * 60},		// 97 digits 15
+		{348, 9 * 60},		// 105 digits 30
+		{365, 1 * 3600},	// 110 digits
+		{383, 2 * 3600},	// 116 digits
+		{399, 4 * 3600},	// 120 digits
+		{416, 8 * 3600},	// 126 digits
+		{433, 16 * 3600},	// 131 digits
+		{449, 32 * 3600},	// 135 digits
+		{466, 64 * 3600},	// 140 digits
+		{482, 100 * 3600},	// 146 digits
+		{498, 200 * 3600},	// 150 digits
+		{514, 300 * 3600},	// 155 digits
+};
+
 // until we can integrate the codebases its easier to just 
 // copy this from poly_params.c
-const double params_deg4[11][5] = {
+static const int num_params_deg4 = 11;
+static const poly_params_t params_deg4[] = {
 
 	{ 80, 3.00E+013, 2.00E+013, 1.00E-007,  1 * 60},
 	{ 85, 3.00E+014, 4.00E+013, 6.50E-008,  1 * 60},
@@ -41,7 +71,8 @@ const double params_deg4[11][5] = {
 	{125, 1.00E+022, 1.00E+099, 1.12E-010, 8 * 3600},
 };
 
-const double params_deg5[24][5] = {
+static const int num_params_deg5 = 24;
+static const poly_params_t params_deg5[] = {
 
 	{100, 9.89E+015, 4.00E+012, 2.95E-009,   12 * 60},
 	{105, 4.60E+016, 1.56E+013, 1.60E-009,   23 * 60},
@@ -69,25 +100,66 @@ const double params_deg5[24][5] = {
 	{220, 2.40E+033, 7.70E+031, 3.00E-017, 300 * 3600},
 };
 
+static const int num_params_deg6 = 6;
+static const poly_params_t params_deg6[] = {
 
-static const poly_deadline_t time_limits[] = {
-    //  bits, seconds
-        {248, 15},		    // 74 digits 1
-        {264, 30},		    // 80 digits 2
-        {304, 60},		    // 92 digits 6
-        {320, 3 * 60},		// 97 digits 15
-        {348, 9 * 60},		// 105 digits 30
-        {365, 1 * 3600},	// 110 digits
-        {383, 2 * 3600},	// 116 digits
-        {399, 4 * 3600},	// 120 digits
-        {416, 8 * 3600},	// 126 digits
-        {433, 16 * 3600},	// 131 digits
-        {449, 32 * 3600},	// 135 digits
-        {466, 64 * 3600},	// 140 digits
-        {482, 100 * 3600},	// 146 digits
-        {498, 200 * 3600},	// 150 digits
-        {514, 300 * 3600},	// 155 digits
+	{200, 1.00E+026, 1.00E+025, 8.0e-018, 300 * 3600},
+	{205, 1.00E+027, 1.00E+026, 6.0e-019, 300 * 3600},
+	{230, 3.00E+029, 3.00E+029, 6.0e-019, 300 * 3600},
+	{235, 1.50E+030, 8.00E+029, 6.0e-019, 300 * 3600},
+
+	/* better than nothing (marginally) */
+
+	{305, 1.00E+040, 1.00E+041, 0, 300 * 3600},
+	{310, 1.00E+042, 1.00E+043, 0, 300 * 3600},
 };
+
+/*--------------------------------------------------------------------*/
+static void get_default_params(double digits, poly_params_t* params,
+	const poly_params_t* defaults,
+	uint32_t num_default_entries) {
+
+	uint32_t i;
+	const poly_params_t* low, * high;
+	double j, k, dist;
+	double max_digits;
+
+	/* if the input is too small (large), give up */
+
+	if (digits < defaults[0].digits)
+		return;
+
+	max_digits = defaults[num_default_entries - 1].digits;
+	if (digits >= max_digits)
+		return;
+
+	/* Otherwise the parameters to use are a weighted average
+	   of the two table entries the input falls between */
+
+	for (i = 0; i < num_default_entries - 1; i++) {
+		if (digits < defaults[i + 1].digits)
+			break;
+	}
+
+	low = &defaults[i];
+	high = &defaults[i + 1];
+	dist = high->digits - low->digits;
+	j = digits - low->digits;
+	k = high->digits - digits;
+
+	/* use exponential interpolation */
+
+	params->digits = digits;
+	params->stage1_norm = exp((log(low->stage1_norm) * k +
+		log(high->stage1_norm) * j) / dist);
+	params->stage2_norm = exp((log(low->stage2_norm) * k +
+		log(high->stage2_norm) * j) / dist);
+	params->final_norm = exp((log(low->final_norm) * k +
+		log(high->final_norm) * j) / dist);
+	params->deadline = exp((log(low->deadline) * k +
+		log(high->deadline) * j) / dist);
+}
+
 
 #define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
 
@@ -727,40 +799,47 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	// compute digits the same way msieve does.
 	double digits = log(mpz_get_d(fobj->nfs_obj.gmp_n)) / log(10.0);
 
+	poly_params_t params;
+
     if (digits < 108.0) 		/* <= 110 digits */
     {
         fobj->nfs_obj.pref_degree = 4;
+		get_default_params(digits, &params, params_deg4, num_params_deg4);
     }
     else if (digits < 220.0) 		/* 110-220 digits */
     {
         fobj->nfs_obj.pref_degree = 5;
+		get_default_params(digits, &params, params_deg5, num_params_deg5);
     }
     else				/* 220+ digits */
     {
         fobj->nfs_obj.pref_degree = 6;
+		get_default_params(digits, &params, params_deg6, num_params_deg6);
     }
 
-	for (j = 0; j < NUM_TIME_LIMITS; j++) 
-    {
-        if (i < time_limits[j].bits)
-        {
-            break;
-        }
-	}
-	
-    if (j == NUM_TIME_LIMITS) 
-    {
-		deadline = time_limits[j-1].seconds;
-	}
-	else 
-    {
-		const poly_deadline_t *low = &time_limits[j-1];
-		const poly_deadline_t *high = &time_limits[j];
-		uint32_t dist = high->bits - low->bits;
-		deadline = (uint32_t)(
-			 ((double)low->seconds * (high->bits - i) +
-			  (double)high->seconds * (i - low->bits)) / dist);
-	}    
+	//for (j = 0; j < NUM_TIME_LIMITS; j++) 
+    //{
+    //    if (i < time_limits[j].bits)
+    //    {
+    //        break;
+    //    }
+	//}
+	//
+    //if (j == NUM_TIME_LIMITS) 
+    //{
+	//	deadline = time_limits[j-1].seconds;
+	//}
+	//else 
+    //{
+	//	const poly_deadline_t *low = &time_limits[j-1];
+	//	const poly_deadline_t *high = &time_limits[j];
+	//	uint32_t dist = high->bits - low->bits;
+	//	deadline = (uint32_t)(
+	//		 ((double)low->seconds * (high->bits - i) +
+	//		  (double)high->seconds * (i - low->bits)) / dist);
+	//}    
+
+	deadline = params.deadline;
 
 	// initialize the variable tracking the total time spent (over all threads)
 	// so far in the polynomial selection phase
@@ -1566,6 +1645,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	return;
 }
 
+#if 0
 void get_default_poly4_norms(double digits, double *norm1, double *norm2, double *min_e) {
 
     uint32_t i;
@@ -1676,6 +1756,7 @@ void get_default_poly5_norms(double digits, double* norm1, double* norm2, double
 	//printf("min_e lo,hi,interp = %1.4e, %1.4e, %1.4e\n", low[3], high[3], *min_e);
 
 }
+#endif
 
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags,
@@ -1730,12 +1811,22 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	double norm1, norm2, min_e;
 	if (digits < 108.0)
     {
-        get_default_poly4_norms(digits, &norm1, &norm2, &min_e);
+        //get_default_poly4_norms(digits, &norm1, &norm2, &min_e);
+		poly_params_t params;
+		get_default_params(digits, &params, params_deg4, num_params_deg4);
+		norm1 = params.stage1_norm;
+		norm2 = params.stage2_norm;
+		min_e = params.final_norm;
 		degree = 4;
     }
     else
     {
-		get_default_poly5_norms(digits, &norm1, &norm2, &min_e);
+		//get_default_poly5_norms(digits, &norm1, &norm2, &min_e);
+		poly_params_t params;
+		get_default_params(digits, &params, params_deg5, num_params_deg5);
+		norm1 = params.stage1_norm;
+		norm2 = params.stage2_norm;
+		min_e = params.final_norm;
 		degree = 5;
     }
 

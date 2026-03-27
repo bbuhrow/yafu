@@ -221,7 +221,7 @@ sieve_add_aprog(sieve_fb_t *s, poly_coeff_t *c, uint32 p,
 		power *= p;
 		a->powers[i].power = power;
 
-		nmodp = mpz_tdiv_ui(c->trans_N, (mp_limb_t)power);
+		nmodp = mpz_tdiv_ui(c->trans_N, (unsigned long int)power);
 
 		for (j = 0; j < num_roots; j++)
 			a->powers[i].roots[j] = lift_root_32(nmodp,
@@ -387,7 +387,7 @@ lift_roots(sieve_fb_t *s, poly_coeff_t *c, uint32 p, uint32 num_roots)
 
 		mpz_powm_ui(s->tmp1, s->gmp_root, degree, s->pp);
 		mpz_sub(s->tmp1, s->nmodpp, s->tmp1);
-		if (mpz_cmp_ui(s->tmp1, (mp_limb_t)0) < 0)
+		if (mpz_cmp_ui(s->tmp1, (unsigned long int)0) < 0)
 			mpz_add(s->tmp1, s->tmp1, s->pp);
 		mpz_tdiv_q(s->tmp1, s->tmp1, s->p);
 
@@ -399,7 +399,7 @@ lift_roots(sieve_fb_t *s, poly_coeff_t *c, uint32 p, uint32 num_roots)
 		mpz_tdiv_r(s->tmp1, s->tmp1, s->p);
 		mpz_addmul(s->gmp_root, s->tmp1, s->p);
 		mpz_sub(s->gmp_root, s->gmp_root, s->tmp3);
-		if (mpz_cmp_ui(s->gmp_root, (unsigned long)0) < 0)
+		if (mpz_cmp_ui(s->gmp_root, (unsigned long int)0) < 0)
 			mpz_add(s->gmp_root, s->gmp_root, s->pp);
 
 		s->roots[i] = gmp2uint64(s->gmp_root);

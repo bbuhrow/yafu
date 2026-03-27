@@ -52,7 +52,7 @@ $Id: stage1_sieve_cpu.c 1025 2018-08-19 02:20:28Z jasonp_sf $
    in size, though this appears to be sufficient for very large
    problems, e.g. 200-digit GNFS */
 
-#define NEW_P_PACKED
+//#define NEW_P_PACKED
 #define P_BITS 27
 #define HASHITER_BITS (32 - P_BITS)
 
@@ -292,7 +292,8 @@ uint32
 handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 		hash_entry_t *hashtable, uint32 hashtable_size_log2,
 		p_packed_var_t *hash_array, uint32 special_q,
-		uint64 special_q_root, uint64 block_size, uint64 *inv_array, uint32 *num_sizeopt)
+		uint64 special_q_root, uint64 block_size, uint64 *inv_array, 
+	uint32 *num_sizeopt, uint32* crap)
 {
 	/* perform the hashtable search for a single special-q
 
@@ -490,7 +491,6 @@ handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 
 						/* collision found! The sieve
 							offset is in 'special q	coordinates' */
-
 						uint64 p;
 
 						p = tmp[i].p;
@@ -584,8 +584,14 @@ handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 					key = (key + 1) & hashmask;
 				}
 
+				// In mingw builds run with multiple threads,
+				// random stuff appears to be getting into 
+				// the hashtable and causing spurious collisions.
+				// the modular condition check makes this problem
+				// harmless except for a loss of speed doing the
+				// unneccessary collision checks.
 				if (hashtable[key].iter == iter &&
-				   hashtable[key].p != 0) {
+					hashtable[key].p != 0) {
 
 					if (mp_gcd_1(hashtable[key].p,
 							tmp->p) == 1) {
@@ -599,13 +605,18 @@ handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 						p = tmp->p;
 						p = p * hashtable[key].p;
 
-						if (handle_collision(c, p, special_q,
-							special_q_root, offset) != 0) {
+						uint32 status = handle_collision(c, p, special_q,
+							special_q_root, offset);
+						if (status == 1) {
 
 							(*num_sizeopt)++;
 							poly->callback(c->high_coeff,
 								c->p, c->m,
 								poly->callback_data);
+						}
+						else if (status == 2)
+						{
+							crap++;
 						}
 					}
 				}
@@ -626,8 +637,8 @@ handle_special_q(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
 
 				offset += tmp->pp;
 
+				/* handle overflow */
 				if (offset < sieve_end)
-					/* handle overflow */
 					offset = SIEVE_MAX;
 
 				tmp->roots[j].offset = offset;
@@ -697,7 +708,8 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 		poly_coeff_t *c, int64 sieve_size,
 		void *sieve_special_q, void *sieve_p, 
 		uint32 special_q_min, uint32 special_q_max, 
-		uint32 p_min, uint32 p_max, double deadline, double *elapsed)
+		uint32 p_min, uint32 p_max, double deadline, 
+	double *elapsed, uint32 *crap)
 {
 	/* core search code */
 
@@ -720,7 +732,8 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 	uint32 num_sizeopt = 0;
 	uint32 last_num_sizeopt = 0;
 
-	//msieve_gettimeofday(&tstart, NULL);
+	msieve_gettimeofday(&tstart, NULL);
+
 	p_packed_init(&specialq_array);
 	p_packed_init(&hash_array);
 	mpz_init(qprod);
@@ -773,7 +786,7 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 	if (special_q_min == 1) {
 		quit = handle_special_q(obj, poly, c, hashtable,
 				hashtable_size_log2, &hash_array,
-				1, 0, block_size, NULL, &num_sizeopt);
+				1, 0, block_size, NULL, &num_sizeopt, crap);
 		if (quit || special_q_max == 1)
 			goto finished;
 	}
@@ -900,9 +913,9 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 					goto finished;
 			}
 
-			//msieve_gettimeofday(&tstop, NULL);
-			if (get_cpu_time() - cpu_start_time > deadline) {
-				//if (msieve_difftime(&tstart, &tstop) > deadline) {
+			msieve_gettimeofday(&tstop, NULL);
+			//if (get_cpu_time() - cpu_start_time > deadline) {
+			if (msieve_difftime(&tstart, &tstop) > deadline) {
 				quit = 1;
 				goto finished;
 			}
@@ -914,14 +927,14 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 						hashtable, hashtable_size_log2,
 						&hash_array, qptr->p, 
 						qptr->roots[j].start_offset,
-						block_size, invtmp, &num_sizeopt);
+						block_size, invtmp, &num_sizeopt, crap);
 				if (quit)
 					goto finished;
 			}
 
-			//msieve_gettimeofday(&tstop, NULL);
-			if (get_cpu_time() - cpu_start_time > deadline) {
-			//if (msieve_difftime(&tstart, &tstop) > deadline) {
+			msieve_gettimeofday(&tstop, NULL);
+			//if (get_cpu_time() - cpu_start_time > deadline) {
+			if (msieve_difftime(&tstart, &tstop) > deadline) {
 				quit = 1;
 				goto finished;
 			}
@@ -936,10 +949,12 @@ sieve_specialq_64(msieve_obj *obj, poly_search_t *poly,
 			last_num_sizeopt = num_sizeopt;
 			poly_sizeopt_t* data = (poly_sizeopt_t*)poly->callback_data;
 
-			//msieve_gettimeofday(&tstop, NULL);
+			msieve_gettimeofday(&tstop, NULL);
 
 			double best_e = data->best_saved_combined_e;
-			double time_elapsed = get_cpu_time() - cpu_start_time; //msieve_difftime(&tstart, &tstop);
+
+			// this is thread-time, not process time like get_cpu_time() is
+			double time_elapsed = msieve_difftime(&tstart, &tstop); //get_cpu_time() - cpu_start_time;
 
 			if (obj->flags & MSIEVE_FLAG_NFS_POLYSIZE)
 			{
@@ -972,7 +987,8 @@ finished:
 	p_packed_free(&specialq_array);
 	p_packed_free(&hash_array);
 	mpz_clear(qprod);
-	*elapsed = get_cpu_time() - cpu_start_time;
+	msieve_gettimeofday(&tstop, NULL);
+	*elapsed = msieve_difftime(&tstart, &tstop); //get_cpu_time() - cpu_start_time;
 	return quit;
 }
 
@@ -994,6 +1010,7 @@ sieve_lattice_cpu(msieve_obj *obj, poly_search_t *poly,
 	double elapsed_total = 0;
 	void *sieve_p = sieve_fb_alloc(); 
 	void *sieve_special_q = sieve_fb_alloc();
+	uint32 crap = 0;
 
 	/* size the problem; we choose p_min so that we will get
 	   to use a small number of each progression's offsets in
@@ -1087,7 +1104,7 @@ sieve_lattice_cpu(msieve_obj *obj, poly_search_t *poly,
 		quit = sieve_specialq_64(obj, poly, c, sieve_size,
 				sieve_special_q, sieve_p,
 				special_q_min2, special_q_max2,
-				p_min, p_max, deadline, &elapsed);
+				p_min, p_max, deadline, &elapsed, &crap);
 
 		elapsed_total += elapsed;
 		deadline -= elapsed;
@@ -1099,6 +1116,11 @@ sieve_lattice_cpu(msieve_obj *obj, poly_search_t *poly,
 		p_min = p_max;
 		p_max *= P_SCALE;
 		special_q_max /= (P_SCALE * P_SCALE);
+	}
+
+	if (crap)
+	{
+		printf("\nwarning: identified %u crap collisions\n", crap);
 	}
 
 	sieve_fb_free(sieve_special_q);

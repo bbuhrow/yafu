@@ -90,7 +90,14 @@ static INLINE uint64 gmp2uint64(mpz_t src) {
 static INLINE int64 gmp2int64(mpz_t src) {
 
 	if (mpz_cmp_ui(src, 0) < 0) {
-		return -gmp2uint64(src);
+		// when ULL_NO_UL is active and GMP_BITS_PER_ULONG = 32, then
+		// this conversion doesn't work, it is assumed that the 
+		// input is non-negative.  But it works in all cases if the input
+		// is non-negative.  So we do a quick double negation.
+		mpz_neg(src, src);
+		uint64 result = gmp2uint64(src);
+		mpz_neg(src, src);
+		return -result;
 	}
 	else {
        		return gmp2uint64(src);
