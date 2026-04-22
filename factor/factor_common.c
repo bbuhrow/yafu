@@ -132,6 +132,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.use_gpuecm = 0;
     fobj->ecm_obj.use_gpudev = 0;
     fobj->ecm_obj.ttime = 0.0;
+    // track statistics of ecm curves run
     fobj->ecm_obj.num_records = 0;
 
     int i;
@@ -418,7 +419,7 @@ void alloc_factobj(fact_obj_t *fobj)
     mpz_set_ui(fobj->ecm_obj.gmp_n, 0);
     mpz_set_ui(fobj->ecm_obj.gmp_f, 0);
     fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(fobj->num_threads * sizeof(uint64_t));
-
+    
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
     mpz_set_ui(fobj->squfof_obj.gmp_n, 0);
@@ -742,10 +743,51 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
 
 void reset_factobj(fact_obj_t *fobj)
 {
-	// keep all of the settings in fobj, but do an init/free cycle on all
-	// allocated structures
+	// do an init/free cycle on all
+	// allocated structures.  calling alloc will preserve the
+    // options/settings that are stored in fobj, but some
+    // variables in fobj track progress and those need to be
+    // reset (below).
 	free_factobj(fobj);
 	alloc_factobj(fobj);
+
+    // now reset progress variables in fobj
+    int i;
+
+    // start fresh set of ecm curve statistics
+    fobj->ecm_obj.num_records = 0;
+
+    for (i = 0; i < NUM_ECM_LEVELS; i++)
+    {
+        fobj->ecm_obj.tlevels[i] = 0.0;
+    }
+    fobj->ecm_obj.total_work = 0.0;
+
+    // continue the lcg state from the current global lcg_state
+    for (i = 0; i < (int)fobj->num_threads; i++)
+    {
+        fobj->ecm_obj.lcg_state[i] =
+            hash64(lcg_rand_64(&fobj->lcg_state));
+    }
+
+    fobj->nfs_obj.poly_time = 0.0;
+    fobj->nfs_obj.filter_time = 0.0;
+    fobj->nfs_obj.sieve_time = 0.0;
+    fobj->nfs_obj.la_time = 0.0;
+    fobj->nfs_obj.sqrt_time = 0.0;
+    fobj->nfs_obj.ttime = 0.0;
+
+    fobj->pm1_obj.ttime = 0.0;
+    fobj->pp1_obj.ttime = 0.0;
+    fobj->ecm_obj.ttime = 0.0;
+    fobj->rho_obj.curr_poly = 0;
+
+    fobj->ecm_obj.num_factors = 0;
+    fobj->qs_obj.num_factors = 0;
+    fobj->div_obj.num_factors = 0;
+    fobj->nfs_obj.num_factors = 0;
+    fobj->factors->num_factors = 0;
+    fobj->factors->total_factors = 0;
 
 	return;
 }

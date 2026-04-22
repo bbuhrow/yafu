@@ -156,7 +156,7 @@ void print_std_ecm_work_done(ecm_obj_t *ecm_obj, int disp_levels, FILE* log, int
 void record_curves_completed(ecm_obj_t* ecm_obj, int curves, uint64_t b1, int b1_method, int b2_method)
 {
     int i;
-
+    int found = 0;
     for (i = 0; i < ecm_obj->num_records; i++)
     {
         if ((b1 == ecm_obj->curve_b1_rec[i]) &&
@@ -165,40 +165,45 @@ void record_curves_completed(ecm_obj_t* ecm_obj, int curves, uint64_t b1, int b1
         {
             // add to the number already completed with these same parameters
             ecm_obj->num_rec[i] += curves;
+            found = 1;
             break;
         }
     }
 
-    if (i == 0)
+    if (!found)
     {
-        ecm_obj->num_records++;
-        ecm_obj->curve_b1_rec = (uint64_t*)xmalloc(ecm_obj->num_records * sizeof(uint64_t));
-        ecm_obj->curve_b2_rec = (uint64_t*)xmalloc(ecm_obj->num_records * sizeof(uint64_t));
-        ecm_obj->param_rec = (int*)xmalloc(ecm_obj->num_records * sizeof(int));
-        ecm_obj->num_rec = (int*)xmalloc(ecm_obj->num_records * sizeof(int));
+        // if we didn't add to an existing record, make a new one.
+        if (i == 0)
+        {
+            ecm_obj->num_records++;
+            ecm_obj->curve_b1_rec = (uint64_t*)xmalloc(ecm_obj->num_records * sizeof(uint64_t));
+            ecm_obj->curve_b2_rec = (uint64_t*)xmalloc(ecm_obj->num_records * sizeof(uint64_t));
+            ecm_obj->param_rec = (int*)xmalloc(ecm_obj->num_records * sizeof(int));
+            ecm_obj->num_rec = (int*)xmalloc(ecm_obj->num_records * sizeof(int));
 
-        ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
-        ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = b2_method;
-        ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
-        ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
-    }
-    else if (i == ecm_obj->num_records)
-    {
-        // add a new record for these curves
-        ecm_obj->num_records++;
-        ecm_obj->curve_b1_rec = (uint64_t*)xrealloc(ecm_obj->curve_b1_rec,
-            ecm_obj->num_records * sizeof(uint64_t));
-        ecm_obj->curve_b2_rec = (uint64_t*)xrealloc(ecm_obj->curve_b2_rec,
-            ecm_obj->num_records * sizeof(uint64_t));
-        ecm_obj->param_rec = (int*)xrealloc(ecm_obj->param_rec,
-            ecm_obj->num_records * sizeof(int));
-        ecm_obj->num_rec = (int*)xrealloc(ecm_obj->num_rec,
-            ecm_obj->num_records * sizeof(int));
+            ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
+            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = b2_method;
+            ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
+            ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
+        }
+        else if (i == ecm_obj->num_records)
+        {
+            // add a new record for these curves
+            ecm_obj->num_records++;
+            ecm_obj->curve_b1_rec = (uint64_t*)xrealloc(ecm_obj->curve_b1_rec,
+                ecm_obj->num_records * sizeof(uint64_t));
+            ecm_obj->curve_b2_rec = (uint64_t*)xrealloc(ecm_obj->curve_b2_rec,
+                ecm_obj->num_records * sizeof(uint64_t));
+            ecm_obj->param_rec = (int*)xrealloc(ecm_obj->param_rec,
+                ecm_obj->num_records * sizeof(int));
+            ecm_obj->num_rec = (int*)xrealloc(ecm_obj->num_rec,
+                ecm_obj->num_records * sizeof(int));
 
-        ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
-        ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = b2_method;
-        ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
-        ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
+            ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
+            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = b2_method;
+            ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
+            ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
+        }
     }
 
     // add to the total work if the parameters are something we have tables for
