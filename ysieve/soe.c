@@ -123,7 +123,7 @@ void sieve_work_fcn(void *vptr)
             if ((sdata->numclasses == 8) && ((t->current_line == 1) || (t->current_line == 6)))
             {
                 t->linecount = 0;
-                t->ddata.min_sieved_val = (1 << 31) - 1;
+                t->ddata.min_sieved_val = (1ull << 31) - 1;
                 return;
             }
 
@@ -151,7 +151,7 @@ void sieve_work_fcn(void *vptr)
                 case 39:
                 case 42:
                     t->linecount = 0;
-                    t->ddata.min_sieved_val = (1 << 31) - 1;
+                    t->ddata.min_sieved_val = (1ull << 31) - 1;
                     return;
                 }
             }
@@ -1130,11 +1130,9 @@ void finalize_sieve(soe_staticdata_t *sdata,
 		// load in the sieve primes that we need
 		j = 0;
 		i = 0;
-        //printf("min_sieved_val = %lu\n", sdata->min_sieved_val);
-        //printf("bucket_start_id = %u\n", sdata->bucket_start_id);
 
-		while (((uint64_t)sdata->sieve_p[i] < sdata->min_sieved_val) && (i < sdata->bucket_start_id))
-		{
+        while (((uint64_t)sdata->sieve_p[i] < sdata->min_sieved_val) && (i < sdata->bucket_start_id))
+        {
             // if we are doing twin prime or prime gap analysis 
             // then do that analysis here for the sieving primes
             // that are within the requested range.
@@ -1153,16 +1151,16 @@ void finalize_sieve(soe_staticdata_t *sdata,
                 }
             }
             i++;
-		}
+        }
 
-		//and then the primes in the lines
-		num_p = primes_from_lineflags(sdata, thread_data, j, primes);
-
+        //and then the primes in the lines
+        num_p = primes_from_lineflags(sdata, thread_data, j, primes);
 	}
 
 	// update count of found primes
 	sdata->num_found = num_p;
 
+    // clean up
     for (i = 0; i < sdata->THREADS; i++)
     {
         thread_soedata_t* thread = thread_data + i;

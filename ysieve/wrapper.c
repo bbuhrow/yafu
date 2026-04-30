@@ -77,11 +77,13 @@ void compute_prps_work_fcn(void *vptr)
     soe_staticdata_t *sdata = udata->sdata;
     thread_soedata_t *t = &udata->ddata[tdata->tindex];
 	int witnesses = sdata->witnesses;
-    int i;
+    uint64_t i;
+
+	t->linecount = 0;
 
 #if USE_AVX512F
 	// if we have avx512 functions
-	mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[t->stopid - 1]);
+	mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[t->stopid - t->startid - 1]);
 
 	// and maximum value is less than 104 bits,
 	// and standard prime detection is requested (not gaps or twins)
@@ -118,20 +120,17 @@ void compute_prps_work_fcn(void *vptr)
 			uint8_t prpmask = valid_msk & MR_2sprp_104x8(n8);
 			t->linecount += _mm_popcnt_u32(prpmask);
 
-			//for (j = 0; j < 8; j++)
-			//{
-			//	if (prpmask & (1 << j))
-			//	{
-			//		t->ddata.primes[t->linecount++] = t->ddata.primes[i + j - t->startid];
-			//	}
-			//}
+			for (j = 0; j < 8; j++)
+			{
 
+
+			}
 		}
 	}
 	else
 	{
 		// use GMP
-		i = 0;
+		i = t->startid;
 	}
 
 	for ( ; i < t->stopid; i++)
@@ -157,7 +156,7 @@ void compute_prps_work_fcn(void *vptr)
 				n64[0] = mpz_get_ui(t->tmpz);
 				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 64);
 				n64[1] = mpz_get_ui(t->tmpz);
-				if (MR_2sprp_128x1(n64))
+				if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
 				{
 					if (sdata->analysis == 2)
 					{
@@ -172,7 +171,7 @@ void compute_prps_work_fcn(void *vptr)
 					}
 					else
 					{
-						//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+						t->ddata.primes[t->linecount] = t->ddata.primes[i - t->startid];
 						t->linecount++;
 					}
 				}
@@ -183,7 +182,8 @@ void compute_prps_work_fcn(void *vptr)
 			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
 			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 			{
-				//gmp_printf("candidate %Zd... ", t->tmpz);
+				//gmp_printf("candidate %Zd = offset %Zd + idx %lu (witnesses: %d) is \n", 
+				//	t->tmpz, t->offset, t->ddata.primes[i - t->startid], sdata->witnesses);
 				//if (mpz_extrastrongbpsw_prp(t->tmpz))
 
 				if (mpz_probab_prime_p(t->tmpz, witnesses))
@@ -201,7 +201,7 @@ void compute_prps_work_fcn(void *vptr)
 					}
 					else
 					{
-						//t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+						t->ddata.primes[t->linecount] = t->ddata.primes[i - t->startid];
 						t->linecount++;
 					}
 				}
@@ -492,6 +492,7 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 		}			
 	}
 
+	mpz_clear(offset);
 	return primes;
 }
 
@@ -522,6 +523,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	mpz_set(offset, lowlimit);
 	mpz_sub(tmpz, highlimit, lowlimit);
 	range = mpz_get_ui(tmpz);
+	sdata->witnesses = num_witnesses;
 
 	// sieve with the range requested, down to a minimum of 1000.
 	// (so that we don't run into issues with the presieve.)
@@ -632,7 +634,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		if (num_witnesses > 0)
 		{
 			thread_soedata_t *thread_data;
-			uint32_t lastid;
+			uint64_t lastid;
 			int j;
 
             // threading structures
@@ -662,35 +664,25 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 				t->startid = lastid;
 				t->stopid = t->startid + range;
 				lastid = t->stopid;
-
-                if (sdata->VFLAG > 2)
-                {
-                    printf("thread %d computing PRPs from %u to %u\n",
-                        (int)j, t->startid, t->stopid);
-					fflush(stdout);
-                }
 			}
 
 			// the last one gets any leftover
-            if (thread_data[sdata->THREADS - 1].stopid != (uint32_t)*num_p)
-            {
-                thread_data[sdata->THREADS - 1].stopid = (uint32_t)*num_p;
-            }
+            thread_data[sdata->THREADS - 1].stopid = *num_p;
 
 			if (sdata->THREADS == 1)
 			{
-				mpz_t tmpz;
-				mpz_init(tmpz);
+				mpz_t tmpz_local;
+				mpz_init(tmpz_local);
 
 				retval = 0;
 
 #if USE_AVX512F
 				// if we have avx512 functions
-				mpz_add_ui(tmpz, offset, values[range - 1]);
+				mpz_add_ui(tmpz_local, offset, values[range - 1]);
 
 				// and maximum value is less than 104 bits
 				// and standard prime detection is requested (not gaps or twins)
-				if ((mpz_sizeinbase(tmpz, 2) < 104) && (sdata->analysis == 1))
+				if ((mpz_sizeinbase(tmpz_local, 2) < 104) && (sdata->analysis == 1))
 				{
 					// use fast sprp function
 					for (i = 0; i < range - 8; i += 8)
@@ -708,11 +700,11 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 						for (j = 0; j < 8; j++)
 						{
-							mpz_add_ui(tmpz, offset, values[i + j]);
+							mpz_add_ui(tmpz_local, offset, values[i + j]);
 
-							n8[j] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
-							mpz_tdiv_q_2exp(tmpz, tmpz, 52);
-							n8[j + 8] = mpz_get_ui(tmpz) & 0xfffffffffffffull;
+							n8[j] = mpz_get_ui(tmpz_local) & 0xfffffffffffffull;
+							mpz_tdiv_q_2exp(tmpz_local, tmpz_local, 52);
+							n8[j + 8] = mpz_get_ui(tmpz_local) & 0xfffffffffffffull;
 
 						}
 
@@ -739,24 +731,29 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					    fflush(stdout);
 					}
 
-					if (mpz_sizeinbase(tmpz, 2) < 128)
+					// max value to check
+					mpz_add_ui(tmpz_local, offset, values[range - 1]);
+
+					// can we use 128-bit functions?
+					if (mpz_sizeinbase(tmpz_local, 2) < 128)
 					{
-						mpz_add_ui(tmpz, offset, values[i]);
-						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+						mpz_add_ui(tmpz_local, offset, values[i]);
+						if ((mpz_cmp(tmpz_local, lowlimit) >= 0) && 
+							(mpz_cmp(highlimit, tmpz_local) >= 0))
 						{
 							//gmp_printf("candidate %Zd... ", t->tmpz);
 							//if (mpz_extrastrongbpsw_prp(t->tmpz))
 							uint64_t n64[2];
-							n64[0] = mpz_get_ui(tmpz);
-							mpz_tdiv_q_2exp(tmpz, tmpz, 64);
-							n64[1] = mpz_get_ui(tmpz);
-							if (MR_2sprp_128x1(n64))
+							n64[0] = mpz_get_ui(tmpz_local);
+							mpz_tdiv_q_2exp(tmpz_local, tmpz_local, 64);
+							n64[1] = mpz_get_ui(tmpz_local);
+							if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
 							{
 								if (sdata->analysis == 2)
 								{
 									// also need to check the twin
-									mpz_add_ui(tmpz, tmpz, 2);
-									if (mpz_probab_prime_p(tmpz, num_witnesses))
+									mpz_add_ui(tmpz_local, tmpz_local, 2);
+									if (mpz_probab_prime_p(tmpz_local, num_witnesses))
 									{
 										values[retval++] = values[i];
 									}
@@ -770,18 +767,19 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					}
 					else
 					{
-						mpz_add_ui(tmpz, offset, values[i]);
-						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+						mpz_add_ui(tmpz_local, offset, values[i]);
+						if ((mpz_cmp(tmpz_local, lowlimit) >= 0) && 
+							(mpz_cmp(highlimit, tmpz_local) >= 0))
 						{
 							//gmp_printf("candidate %Zd is...", tmpz);
 							//if (mpz_extrastrongbpsw_prp(t->tmpz))
-							if (mpz_probab_prime_p(tmpz, num_witnesses))
+							if (mpz_probab_prime_p(tmpz_local, num_witnesses))
 							{
 								if (sdata->analysis == 2)
 								{
 									// also need to check the twin
-									mpz_add_ui(tmpz, tmpz, 2);
-									if (mpz_probab_prime_p(tmpz, num_witnesses))
+									mpz_add_ui(tmpz_local, tmpz_local, 2);
+									if (mpz_probab_prime_p(tmpz_local, num_witnesses))
 									{
 										values[retval++] = values[i];
 									}
@@ -794,7 +792,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 						}
 					}
 				}
-				mpz_clear(tmpz);
+				mpz_clear(tmpz_local);
 				*num_p = retval;
 			}
 			else
@@ -813,6 +811,13 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					mpz_set(t->highlimit, highlimit);
 					t->current_line = (uint64_t)num_witnesses;
 
+					if (sdata->VFLAG > 2)
+					{
+						printf("thread %d computing PRPs from %"PRIu64" to %"PRIu64"\n",
+							(int)j, t->startid, t->stopid);
+						fflush(stdout);
+					}
+
 					t->ddata.primes = (uint64_t*)malloc((t->stopid - t->startid) * sizeof(uint64_t));
 					for (i = t->startid; i < t->stopid; i++)
 					{
@@ -823,12 +828,13 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 				// now run with the threads.  don't really need the 
 				// threadpool since we are statically dividing up the range
 				// to test, but it is easy so we use it.
-				udata.sdata = &thread_data->sdata;
+				udata.sdata = sdata; // &thread_data->sdata;
 				udata.ddata = thread_data;
 				tpool_data = tpool_setup(sdata->THREADS, NULL, NULL, NULL,
 					&compute_prps_dispatch, &udata);
 
-				thread_data->sdata.sync_count = 0;
+				//thread_data->sdata.sync_count = 0;
+				sdata->sync_count = 0;
 				tpool_add_work_fcn(tpool_data, &compute_prps_work_fcn);
 				tpool_go(tpool_data);
 
@@ -839,6 +845,12 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 				for (i = 0; i < sdata->THREADS; i++)
 				{
 					thread_soedata_t* t = thread_data + i;
+
+					if (sdata->VFLAG > 0)
+					{
+						printf("adding %" PRIu64 " PRPs found in thread %" PRIu64 "\n",
+							t->linecount, i);
+					}
 
 					for (j = 0; j < t->linecount; j++)
 					{
@@ -868,13 +880,13 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		{
 			// sieving needed to change the lower sieve limit.  adjust the returned
 			// values accordingly.
-			uint64_t a;
+			uint64_t a_local;
 			mpz_sub(tmpz, lowlimit, offset);
-			a = mpz_get_ui(tmpz);
+			a_local = mpz_get_ui(tmpz);
 
             for (i = 0; i < *num_p; i++)
             {
-                values[i] -= a;
+                values[i] -= a_local;
             }
 		}
 
@@ -898,13 +910,20 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			{
 				for (i = 0; i < *num_p; i++)
 				{
-					//mpz_add_ui(tmpz, *offset, values[i]);
 					mpz_add_ui(tmpz, lowlimit, values[i]);
                     if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
                     {
                         char* buf = mpz_get_str(NULL, 10, tmpz);
                         fprintf(out, "%s\n", buf);
                         free(buf);
+
+						if (sdata->analysis == 2)
+						{
+							mpz_add_ui(tmpz, tmpz, 2);
+							char* buf = mpz_get_str(NULL, 10, tmpz);
+							fprintf(out, "%s\n", buf);
+							free(buf);
+						}
                     }
 				}
 				fclose(out);

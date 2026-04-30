@@ -1443,7 +1443,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
     *AVX512ER = (CPUInfo[1] & (1 << 27)) || 0;
     *AVX512CD = (CPUInfo[1] & (1 << 28)) || 0;
     *AVX512BW = (CPUInfo[1] & (1 << 30)) || 0;
-    *AVX512VL = (CPUInfo[1] & (1 << 31)) || 0;
+    *AVX512VL = (CPUInfo[1] & (1u << 31)) || 0;
 
     if ((*BMI1) && do_print)
         printf("\n\n\tBMI1 Extensions\n");

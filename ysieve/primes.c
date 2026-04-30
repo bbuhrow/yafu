@@ -82,16 +82,36 @@ void compute_primes_work_fcn(void *vptr)
     thread_soedata_t *t = &udata->ddata[tdata->tindex];
     int i;
 
+    uint32_t alloc_p = 16384;
     if (sdata->THREADS > 1)
     {
+        alloc_p = 16384;
+        t->ddata.primes = (uint64_t*)malloc(alloc_p * sizeof(uint64_t));
         t->linecount = 0;
     }
+    else
+    {
+        // when single-threaded, we are using the main pre-allocated
+        // array for primes, not a temporary array, so don't manage
+        // the array allocation here.
+        alloc_p = 0xffffffff;
+    }
+    
 
 #if defined(USE_BMI2) || defined(USE_AVX512F)
     if ((sdata->has_bmi2) && (sdata->numclasses <= 48)) // && (!(sdata->analysis > 1)))
     {
         for (i = t->startid; i < t->stopid; i += 8)
         {
+            // could find up to 64 * numclasses more primes in the next 8 byte chunk.
+            // reallocate if this could overflow the current allocation.
+            if (t->linecount + 64ull * sdata->numclasses >= alloc_p)
+            {
+                alloc_p *= 2;
+                t->ddata.primes = (uint64_t*)realloc(t->ddata.primes,
+                    alloc_p * sizeof(uint64_t));
+            }
+
             t->linecount = compute_8_bytes_bmi2(sdata, t->linecount, t->ddata.primes, i);
 
             // if searching for prime constellations, then we need to look at the last 
@@ -153,6 +173,15 @@ void compute_primes_work_fcn(void *vptr)
         // complicated analysis, then we should end up here.
         for (i = t->startid; i < t->stopid; i += 8)
         {
+            // could find up to 64 * numclasses more primes in the next 8 byte chunk.
+            // reallocate if this could overflow the current allocation.
+            if (t->linecount + 64ull * sdata->numclasses >= alloc_p)
+            {
+                alloc_p *= 2;
+                t->ddata.primes = (uint64_t*)realloc(t->ddata.primes,
+                    alloc_p * sizeof(uint64_t));
+            }
+
             t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i);
 
             // if searching for prime constellations, then we need to look at the last 
@@ -211,6 +240,15 @@ void compute_primes_work_fcn(void *vptr)
 #else
     for (i = t->startid; i < t->stopid; i += 8)
     {
+        // could find up to 64 * numclasses more primes in the next 8 byte chunk.
+        // reallocate if this could overflow the current allocation.
+        if (t->linecount + 64ull * sdata->numclasses >= alloc_p)
+        {
+            alloc_p *= 2;
+            t->ddata.primes = (uint64_t*)realloc(t->ddata.primes,
+                alloc_p * sizeof(uint64_t));
+        }
+
         t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i);
     }
 #endif
@@ -271,70 +309,11 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
         }
     }
 
-    // allocate a temporary array for each thread's primes
-    if (sdata->THREADS > 1)
+    if (sdata->THREADS == 1)
     {
-        uint64_t memchunk;
-
-        if (sdata->sieve_range)
-        {
-            // then just split the overall range into equal parts
-            memchunk = (uint64_t)((double)(sdata->num_found / sdata->THREADS) * 1.1); 
-
-            if (sdata->VFLAG > 2)
-            {
-                printf("allocating temporary space for %" PRIu64 " primes per thread\n",
-                    memchunk);
-            }
-
-            for (i = 0; i < sdata->THREADS; i++)
-            {
-                thread_soedata_t *t = thread_data + i;
-
-                t->ddata.primes = (uint64_t *)malloc(memchunk * sizeof(uint64_t));
-            }
-        }
-        else
-        {
-            // then estimate the number of primes we'll find in each chunk.
-            // it's important to do this chunk by chunk, because in some cases
-            // the number of primes changes rapidly as a function of offset
-            // from the start of the range (i.e., when start is 0)
-            uint64_t hi_est, lo_est;
-            uint64_t tmplo = sdata->orig_llimit;
-            uint64_t tmphi;
-            uint64_t chunk = 8 * sdata->numlinebytes / sdata->THREADS;
-
-            chunk *= sdata->prodN;
-            tmphi = tmplo + chunk;
-            for (i = 0; i < sdata->THREADS; i++)
-            {
-                thread_soedata_t *t = thread_data + i;
-
-                hi_est = (uint64_t)(tmphi / log((double)tmphi));
-                if (tmplo > 1)
-                    lo_est = (uint64_t)(tmplo / log((double)tmplo));
-                else
-                    lo_est = 0;
-
-                memchunk = (uint64_t)((double)(hi_est - lo_est) * 1.25);
-
-                if (sdata->VFLAG > 2)
-                {
-                    printf("allocating temporary space for %" PRIu64 " primes between %" PRIu64 " and %" PRIu64 "\n",
-                        memchunk, tmplo, tmphi);
-                }
-
-                t->ddata.primes = (uint64_t *)malloc(memchunk * sizeof(uint64_t));
-
-                tmplo += chunk;
-                tmphi += chunk;
-            }
-        }
-    }
-    else
-    {
-        // with just one thread, don't bother with creating a temporary array
+        // with just one thread, reuse the pre-allocated primes array
+        // with more than one thread, the work function will manage
+        // a temporary prime list for that thread.
         thread_data[0].ddata.primes = primes;
     }
 
@@ -372,7 +351,12 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
 
             if (sdata->VFLAG > 2)
             {
-                printf("adding %" PRIu64 " primes found in thread %d\n", t->linecount, j);
+                if (sdata->sieve_range)
+                    printf("adding %" PRIu64 " prime candidates found in thread %d\n", 
+                        t->linecount, j);
+                else
+                    printf("adding %" PRIu64 " primes found in thread %d\n", 
+                        t->linecount, j);
             }
 
 			memcpy(primes + GLOBAL_OFFSET + pcount, t->ddata.primes, t->linecount * sizeof(uint64_t));

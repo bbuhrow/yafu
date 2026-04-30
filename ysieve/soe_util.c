@@ -92,13 +92,14 @@ uint64_t mpz_estimate_primes_in_range(mpz_t lowlimit, mpz_t highlimit)
     est = (uint64_t)((hi_est - lo_est) * 4);
     //printf("estimate = %lu\n", est);
 
-    if (est == 0)
+    if ((est == 0) || isnan(hi_est) || isnan(lo_est))
     {
         mpz_t d;
         mpz_init(d);
         mpz_sub(d, highlimit, lowlimit);
         est = mpz_get_ui(d) / 2;
         mpz_clear(d);
+        //printf("fallback estimate = %lu\n", est);
     }
     return est;
 }

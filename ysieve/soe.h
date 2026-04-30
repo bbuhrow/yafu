@@ -193,7 +193,7 @@ typedef struct {
     int tstartup;
 
 	// start and stop for computing roots
-	uint32_t startid, stopid;
+	uint64_t startid, stopid;
 
 	// stuff for computing PRPs
 	mpz_t offset, lowlimit, highlimit, tmpz;

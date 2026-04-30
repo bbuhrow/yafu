@@ -2882,6 +2882,167 @@ int factor_tiny(mpz_t in, mpz_t* out,
 	return numout;
 }
 
+int factor64(uint64_t in, uint64_t* out,
+	uint64_t* primes, uint64_t nump, uint64_t* prng)
+{
+	// factor input 'in', which is assumed to be <= 64 bits in size.
+	// avoid the overhead associated with the main factor() routine.
+	// utilize an input list of primes for trial division.
+	// also accept a 64-bit PRNG seed for LCG-RNG
+	// first a bit of trial division.
+	int k = 0;
+	int numout = 0;
+	while ((in > 1) && (primes[k] < 10000) && (k < nump))
+	{
+		uint64_t q = primes[k];
+		uint64_t r = in %q;
+
+		if (r != 0)
+		{
+			k++;
+		}
+		else
+		{
+			in /= q;
+			out[numout++] = q;
+		}
+	}
+
+	while (in > 1)
+	{
+		if (prp_uecm(in))
+		{
+			// prime residue
+			out[numout++] = in;
+			break;
+		}
+
+		uint64_t f = getfactor_uecm(in, 1, prng);
+		if (f > 1)
+		{
+			if (prp_uecm(f) == 0)
+			{
+				// found a composite factor.  try P-1 and rho on the factor.
+				uint64_t f1 = getfactor_upm1(f, 33);
+				if (f1 > 1) {
+					if (prp_uecm(f1) == 1)
+					{
+						out[numout++] = f1;
+						in /= f1;
+						if (prp_uecm(f / f1) == 1)
+						{
+							out[numout++] = f / f1;
+							in /= (f / f1);
+						}
+						continue;
+					}
+				}
+				f1 = getfactor_upm1(f, 100);
+				if (f1 > 1) {
+					if (prp_uecm(f1) == 1)
+					{
+						out[numout++] = f1;
+						in /= f1;
+						if (prp_uecm(f / f1) == 1)
+						{
+							out[numout++] = f / f1;
+							in /= (f / f1);
+						}
+						continue;
+					}
+				}
+				f1 = getfactor_upm1(f, 333);
+				if (f1 > 1) {
+					if (prp_uecm(f1) == 1)
+					{
+						out[numout++] = f1;
+						in /= f1;
+						if (prp_uecm(f / f1) == 1)
+						{
+							out[numout++] = f / f1;
+							in /= (f / f1);
+						}
+						continue;
+					}
+				}
+				int imax = 64;
+				int found = 0;
+				for (; imax < 8192; imax *= 2)
+				{
+					f1 = spbrent64(f, imax);
+					if (f1 > 1) {
+						if (prp_uecm(f1) == 1)
+						{
+							out[numout++] = f1;
+							in /= f1;
+							if (prp_uecm(f / f1) == 1)
+							{
+								out[numout++] = f / f1;
+								in /= (f / f1);
+							}
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				mpz_init(out[numout]);
+				mpz_set_ui(out[numout], f);
+				numout++;
+				mpz_tdiv_q_ui(in, in, f);
+			}
+		}
+		else
+		{
+			// uecm failed. try PM1, rho, then MPQS.
+			f = getfactor_upm1(in, 33);
+			if (f > 1) {
+				if (prp_uecm(f) == 1)
+				{
+					out[numout++] = f;
+					in /= f;
+					continue;
+				}
+			}
+			f = getfactor_upm1(in, 100);
+			if (f > 1) {
+				if (prp_uecm(f) == 1)
+				{
+					out[numout++] = f;
+					in /= f;
+					continue;
+				}
+			}
+			f = getfactor_upm1(in, 333);
+			if (f > 1) {
+				if (prp_uecm(f) == 1)
+				{
+					out[numout++] = f;
+					in /= f;
+					continue;
+				}
+			}
+			int imax = 64;
+			for (; imax < 8192; imax *= 2)
+			{
+				f = spbrent64(in, imax);
+				if (f > 1) {
+					if (prp_uecm(f) == 1)
+					{
+						out[numout++] = f;
+						in /= f;
+						break;
+					}
+				}
+			}
+
+			break;
+		}
+	}
+
+	return numout;
+}
 #endif
 
 void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,

@@ -324,7 +324,7 @@ int fermat_prp_128x1(uint64_t* n)
 	// assumes n has two 64-bit words, n0 and n1.
 	// do a base-2 fermat prp test using LR binexp.
 
-	uint64_t rho = 0ull - prp_multiplicative_inverse(n[0]);
+	uint64_t rho = prp_multiplicative_inverse(n[0]);
 	uint64_t unityval[2]; // = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
 	uint64_t m;
 	uint64_t r[2];
@@ -420,7 +420,7 @@ int MR_2sprp_128x1(uint64_t *n)
 	// assumes n has two 64-bit words, n0 and n1.
 	// do a base-2 Miller-Rabin sprp test.
 
-	uint64_t rho = 0ull - prp_multiplicative_inverse(n[0]);
+	uint64_t rho = prp_multiplicative_inverse(n[0]);
 	uint64_t m;
 	uint64_t r[2];
 	uint64_t e[2];
@@ -542,6 +542,181 @@ int MR_2sprp_128x1(uint64_t *n)
 	if ((r[0] == mone[0]) && (r[1] == mone[1])) return 1;
 	else return 0;
 }
+
+/* *******************************************************************************
+ * mpz_lucas_prp:
+ * A "Lucas pseudoprime" with parameters (P,Q) is a composite n with D=P^2-4Q,
+ * (n,2QD)=1 such that U_(n-(D/n)) == 0 mod n [(D/n) is the Jacobi symbol]
+ * *******************************************************************************/
+int lucas_prp_128x1(uint64_t *n, long int p, long int q)
+{
+	uint128_t zD;
+	uint128_t zN = (uint128_t)n[0] + (uint128_t)n[1] << 64;
+	uint128_t res;
+	uint128_t index;
+	uint128_t uh, vl, vh, ql, qh, tmp; /* used for calculating the Lucas U sequence */
+	uint64_t rho = prp_multiplicative_inverse(n[0]);
+	int s = 0, j = 0;
+	int ret = 0;
+	long int d = p * p - 4 * q;
+
+	if (d == 0) /* Does not produce a proper Lucas sequence */
+		return -1;
+
+	if (zN < 2)
+		return 0;
+
+	if ((zN & 1) == 0)
+	{
+		if (zN == 2)
+			return 1;
+		else
+			return 0;
+	}
+
+#ifdef POS_VARIANT
+
+#else
+	rho = 0ULL - rho;
+#endif
+
+	if (d > 0)
+	{
+		zD = d;
+	}
+	else
+	{
+		zD = zN - abs(d);
+	}
+
+#if 0
+	mpz_mul_si(res, zD, q);
+	mpz_mul_ui(res, res, 2);
+	mpz_gcd(res, res, n);
+	if ((mpz_cmp(res, n) != 0) && (mpz_cmp_ui(res, 1) > 0))
+	{
+		mpz_clear(zD);
+		mpz_clear(res);
+		mpz_clear(index);
+		return PRP_COMPOSITE;
+	}
+
+	/* index = n-(D/n), where (D/n) is the Jacobi symbol */
+	mpz_set(index, n);
+	ret = mpz_jacobi(zD, n);
+	if (ret == -1)
+		mpz_add_ui(index, index, 1);
+	else if (ret == 1)
+		mpz_sub_ui(index, index, 1);
+#endif
+
+	/* mpz_lucasumod(res, p, q, index, n); */
+	uh = 1;
+	vl = 2;
+	vh = p;
+	ql = 1;
+	qh = 1;
+	tmp = 0;
+
+#if 0
+	s = mpz_scan1(index, 0);
+	for (j = mpz_sizeinbase(index, 2) - 1; j >= s + 1; j--)
+	{
+		/* ql = ql*qh (mod n) */
+		mpz_mul(ql, ql, qh);
+		mpz_mod(ql, ql, n);
+		if (mpz_tstbit(index, j) == 1)
+		{
+			/* qh = ql*q */
+			mpz_mul_si(qh, ql, q);
+
+			/* uh = uh*vh (mod n) */
+			mpz_mul(uh, uh, vh);
+			mpz_mod(uh, uh, n);
+
+			/* vl = vh*vl - p*ql (mod n) */
+			mpz_mul(vl, vh, vl);
+			mpz_mul_si(tmp, ql, p);
+			mpz_sub(vl, vl, tmp);
+			mpz_mod(vl, vl, n);
+
+			/* vh = vh*vh - 2*qh (mod n) */
+			mpz_mul(vh, vh, vh);
+			mpz_mul_si(tmp, qh, 2);
+			mpz_sub(vh, vh, tmp);
+			mpz_mod(vh, vh, n);
+		}
+		else
+		{
+			/* qh = ql */
+			mpz_set(qh, ql);
+
+			/* uh = uh*vl - ql (mod n) */
+			mpz_mul(uh, uh, vl);
+			mpz_sub(uh, uh, ql);
+			mpz_mod(uh, uh, n);
+
+			/* vh = vh*vl - p*ql (mod n) */
+			mpz_mul(vh, vh, vl);
+			mpz_mul_si(tmp, ql, p);
+			mpz_sub(vh, vh, tmp);
+			mpz_mod(vh, vh, n);
+
+			/* vl = vl*vl - 2*ql (mod n) */
+			mpz_mul(vl, vl, vl);
+			mpz_mul_si(tmp, ql, 2);
+			mpz_sub(vl, vl, tmp);
+			mpz_mod(vl, vl, n);
+		}
+	}
+	/* ql = ql*qh */
+	mpz_mul(ql, ql, qh);
+
+	/* qh = ql*q */
+	mpz_mul_si(qh, ql, q);
+
+	/* uh = uh*vl - ql */
+	mpz_mul(uh, uh, vl);
+	mpz_sub(uh, uh, ql);
+
+	/* vl = vh*vl - p*ql */
+	mpz_mul(vl, vh, vl);
+	mpz_mul_si(tmp, ql, p);
+	mpz_sub(vl, vl, tmp);
+
+	/* ql = ql*qh */
+	mpz_mul(ql, ql, qh);
+
+	for (j = 1; j <= s; j++)
+	{
+		/* uh = uh*vl (mod n) */
+		mpz_mul(uh, uh, vl);
+		mpz_mod(uh, uh, n);
+
+		/* vl = vl*vl - 2*ql (mod n) */
+		mpz_mul(vl, vl, vl);
+		mpz_mul_si(tmp, ql, 2);
+		mpz_sub(vl, vl, tmp);
+		mpz_mod(vl, vl, n);
+
+		/* ql = ql*ql (mod n) */
+		mpz_mul(ql, ql, ql);
+		mpz_mod(ql, ql, n);
+	}
+
+	mpz_mod(res, uh, n); /* uh contains our return value */
+#endif
+
+	if (res == 0)
+	{
+		return 1; // PRP_PRP;
+	}
+	else
+	{
+		return 0; // PRP_COMPOSITE;
+	}
+
+}/* method mpz_lucas_prp */
 
 /* *******************************************************************************
  * mpz_lucas_prp:

@@ -62,7 +62,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 81
+#define NUM_FUNC 82
 
 // symbols in calc
 #define EOE 1
@@ -167,7 +167,7 @@ static char function_names[NUM_FUNC][11] = {
     "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
-    "divisors"};
+    "divisors", "acycles"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -186,7 +186,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 2,
-    1};
+    1, 1};
 
 
 // =====================================================================
@@ -1221,7 +1221,9 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 			// then cycle the types
 			el_type = el_type2;
 			i=1;
-			strcpy(tmp,&ch);
+			//strcpy(tmp,&ch);
+            tmp[0] = ch;
+            tmp[1] = '\0';
 		}
 		else
 		{
@@ -2068,6 +2070,46 @@ int generateDivisors(int curIndex, int currentCount, mpz_t curDivisor,
     }
     mpz_clear(copy);
     return currentCount;
+}
+
+int generateDivisors64(uint64_t *divlist, int *numdiv, int curIndex, int currentCount, 
+    uint64_t curDivisor, uint64_t* flist, int *fcount, int numf)
+{
+    // Base case i.e. we do not have more
+    // primeFactors to include
+    if (curIndex == numf) {
+        if (curDivisor > 1)
+        {
+            //gmp_printf("%Zd\n", curDivisor);
+            divlist[*numdiv] = curDivisor;
+            *numdiv = *numdiv + 1;
+            return currentCount + 1;
+        }
+        return currentCount;
+    }
+
+    uint64_t copy;
+    copy = curDivisor;
+
+    int i;
+    for (i = 0; i <= fcount[curIndex]; ++i) {
+        currentCount = generateDivisors64(divlist, numdiv, curIndex + 1, 
+            currentCount, copy, flist, fcount, numf);
+        copy = copy * flist[curIndex];
+    }
+    
+    return currentCount;
+}
+
+uint64_t sumdiv64(uint64_t n)
+{
+
+
+
+
+
+
+
 }
 
 
@@ -3085,9 +3127,11 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 mpz_set_ui(operands[2], 2000000000ull);
             }
 
+            sdata->witnesses = 1;
+            sdata->analysis = 1;
             primes = sieve_to_depth(sdata, lowz, highz,
                 0, 1, mpz_get_ui(operands[2]),
-                &num_found, metadata->pscreen, metadata->pfile);
+                &num_found, metadata->pfile, metadata->pscreen);
 
             gettimeofday(&tstop, NULL);
             t = ytools_difftime(&tstart, &tstop);
@@ -4078,6 +4122,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set_ui(operands[0], count);
         }
 
+        break;
+
+    case 81:
+        // expansion
         break;
 
 	default:

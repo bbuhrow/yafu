@@ -595,6 +595,15 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 
         CLEAN_AVX2;
 
+#if CHECK_AVX2_ERROR
+        int numerr = 0;
+#if (defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)) && defined(USE_AVX2)
+        printf("avx2 (asm) scan found %u results to divide\n", result);
+#else
+        printf("avx2 scan found %u results to divide\n", result);
+#endif
+#endif
+
         for (r = 0; r < result; r++)
         {
             i = fb_bound + (bptr[buffer[r]] >> 16);
@@ -607,7 +616,23 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
                 continue;
             }
 
-            DIVIDE_ONE_PRIME;
+#if CHECK_AVX2_ERROR
+            //printf("preparing to divide fbloc %d, p=%u from Q in report %u; currently %d smooths\n", 
+            //    i, prime, report_num, smooth_num);
+            if (mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0)
+            {
+                if (numerr > 10)
+                    exit(1);
+                gmp_printf("error: p=%u does not divide Q=%Zd\n", prime, dconf->Qvals[report_num]);
+                fflush(stdout);
+                numerr++;
+                continue;
+            }
+
+            DIVIDE_RESIEVED_PRIME(i);
+#else
+            DIVIDE_ONE_PRIME(i);
+#endif
 
         }
 
