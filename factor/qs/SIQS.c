@@ -1226,17 +1226,22 @@ done:
 	//free everything else
 	free_siqs(thread_data[0].sconf);
 
-    if (sieve_log != NULL)
-    {
-        fclose(sieve_log);
-    }
-
 	for (i=0; i<fobj->THREADS; i++)
 	{
 		free(thread_data[i].dconf);
 	}
 	free(static_conf);
 	free(thread_data);
+
+    if (sieve_log != NULL)
+    {
+        fclose(sieve_log);
+    }
+
+    //if (fobj->qs_obj.savefile.name != NULL) {
+    //    free(fobj->qs_obj.savefile.name);
+    //    fobj->qs_obj.savefile.name = NULL;
+    //}
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);

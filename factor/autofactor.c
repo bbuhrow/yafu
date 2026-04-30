@@ -2987,10 +2987,8 @@ int factor64(uint64_t in, uint64_t* out,
 			}
 			else
 			{
-				mpz_init(out[numout]);
-				mpz_set_ui(out[numout], f);
-				numout++;
-				mpz_tdiv_q_ui(in, in, f);
+				out[numout++] = f;
+				in /= f;
 			}
 		}
 		else
