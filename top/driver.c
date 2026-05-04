@@ -281,6 +281,7 @@ int main(int argc, char *argv[])
     calc_metadata.fobj = fobj;
     calc_metadata.pscreen = options->pscreen;
     calc_metadata.pfile = options->pfile;
+    calc_metadata.soe_analysis = options->soe_analysis;
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);

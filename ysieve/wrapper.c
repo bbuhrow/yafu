@@ -36,7 +36,7 @@ SOFTWARE.
 #if 1 //USE_AVX512F
 #include "tinyprp.h"
 #endif
-
+#include "gmp_u64_xface.h"
 
 // known issues:
 // sieve_to_depth crashes with offsets too big (somewhere above 2^80)
@@ -110,9 +110,9 @@ void compute_prps_work_fcn(void *vptr)
 
 				if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 				{
-					n8[j] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
+					n8[j] = gmp2uint64(t->tmpz) & 0xfffffffffffffull;
 					mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 52);
-					n8[j + 8] = mpz_get_ui(t->tmpz) & 0xfffffffffffffull;
+					n8[j + 8] = gmp2uint64(t->tmpz) & 0xfffffffffffffull;
 					valid_msk |= (1 << j);
 				}
 			}
@@ -153,17 +153,25 @@ void compute_prps_work_fcn(void *vptr)
 				//gmp_printf("candidate %Zd... ", t->tmpz);
 				//if (mpz_extrastrongbpsw_prp(t->tmpz))
 				uint64_t n64[2];
-				n64[0] = mpz_get_ui(t->tmpz);
+				n64[0] = gmp2uint64(t->tmpz);
 				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 64);
-				n64[1] = mpz_get_ui(t->tmpz);
+				n64[1] = gmp2uint64(t->tmpz);
 				if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
 				{
 					if (sdata->analysis == 2)
 					{
 						// also need to check the twin
-						//gmp_printf("and twin %Zd is...", t->tmpz);
-						mpz_add_ui(t->tmpz, t->tmpz, 2);
-						if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
+						if (n64[0] < 0xfffffffffffffffeull)
+						{
+							n64[0] += 2;
+						}
+						else
+						{
+							n64[0] += 2;
+							n64[1]++;
+						}
+
+						if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
 						{
 							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 							//printf("prime!\n");
@@ -278,8 +286,10 @@ uint64_t *GetPRIMESRange(soe_staticdata_t* sdata,
 		mpz_t a, b;
 		mpz_init(a);
 		mpz_init(b);
-		mpz_add_ui(a, offset, lowlimit);
-		mpz_add_ui(b, offset, highlimit);
+		uint64_2gmp(lowlimit, a);
+		uint64_2gmp(highlimit, b);
+		mpz_add(a, a, offset);
+		mpz_add(b, b, offset);
 		i = mpz_estimate_primes_in_range(a, b);
 		mpz_clear(a);
 		mpz_clear(b);
@@ -376,7 +386,7 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 	mpz_init(b);
 	mpz_init(offset);
 	mpz_set_ui(offset, 0);
-	mpz_set_ui(a, highlimit);
+	uint64_2gmp(highlimit, a);
 	mpz_set_ui(b, sdata->sieve_p[sdata->num_sp - 1]);
 	mpz_mul_ui(b, b, sdata->sieve_p[sdata->num_sp - 1]);
 	retval = (mpz_cmp(a, b) > 0);
@@ -394,7 +404,7 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 		//allocate array based on conservative estimate of the number of 
 		//primes in the interval	
 		mpz_sqrt(b, a);
-		max_p = (uint32_t)mpz_get_ui(b) + 65536;
+		max_p = (uint32_t)gmp2uint64(b) + 65536;
 		range_est = (uint32_t)estimate_primes_in_range(0, (uint64_t)max_p);
 
         if (sdata->VFLAG > 1)
@@ -522,8 +532,22 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	mpz_init(offset);
 	mpz_set(offset, lowlimit);
 	mpz_sub(tmpz, highlimit, lowlimit);
-	range = mpz_get_ui(tmpz);
+	range = gmp2uint64(tmpz);
 	sdata->witnesses = num_witnesses;
+
+	if (sdata->VFLAG > 0)
+	{
+		if (sdata->analysis == 1)
+		{
+			gmp_printf("commencing big prime finding from %Zd over range %"PRIu64"\n",
+				offset, range);
+		}
+		else if (sdata->analysis == 2)
+		{
+			gmp_printf("commencing big twin-prime finding from %Zd over range %"PRIu64"\n",
+				offset, range);
+		}
+	}
 
 	// sieve with the range requested, down to a minimum of 1000.
 	// (so that we don't run into issues with the presieve.)
@@ -678,7 +702,8 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 #if USE_AVX512F
 				// if we have avx512 functions
-				mpz_add_ui(tmpz_local, offset, values[range - 1]);
+				uint64_2gmp(values[range - 1], tmpz_local);
+				mpz_add(tmpz_local, offset, tmpz_local);
 
 				// and maximum value is less than 104 bits
 				// and standard prime detection is requested (not gaps or twins)
@@ -700,11 +725,12 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 						for (j = 0; j < 8; j++)
 						{
-							mpz_add_ui(tmpz_local, offset, values[i + j]);
+							uint64_2gmp(values[i + j], tmpz_local);
+							mpz_add(tmpz_local, offset, tmpz_local);
 
-							n8[j] = mpz_get_ui(tmpz_local) & 0xfffffffffffffull;
+							n8[j] = gmp2uint64(tmpz_local) & 0xfffffffffffffull;
 							mpz_tdiv_q_2exp(tmpz_local, tmpz_local, 52);
-							n8[j + 8] = mpz_get_ui(tmpz_local) & 0xfffffffffffffull;
+							n8[j + 8] = gmp2uint64(tmpz_local) & 0xfffffffffffffull;
 
 						}
 
@@ -732,28 +758,41 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					}
 
 					// max value to check
-					mpz_add_ui(tmpz_local, offset, values[range - 1]);
+					uint64_2gmp(values[range - 1], tmpz_local);
+					mpz_add(tmpz_local, offset, tmpz_local);
 
 					// can we use 128-bit functions?
 					if (mpz_sizeinbase(tmpz_local, 2) < 128)
 					{
-						mpz_add_ui(tmpz_local, offset, values[i]);
+						uint64_2gmp(values[i], tmpz_local);
+						mpz_add(tmpz_local, offset, tmpz_local);
+
 						if ((mpz_cmp(tmpz_local, lowlimit) >= 0) && 
 							(mpz_cmp(highlimit, tmpz_local) >= 0))
 						{
-							//gmp_printf("candidate %Zd... ", t->tmpz);
+							//gmp_printf("candidate %Zd... ", tmpz_local);
 							//if (mpz_extrastrongbpsw_prp(t->tmpz))
 							uint64_t n64[2];
-							n64[0] = mpz_get_ui(tmpz_local);
+							mpz_set(tmpz, tmpz_local);
+							n64[0] = gmp2uint64(tmpz_local);
 							mpz_tdiv_q_2exp(tmpz_local, tmpz_local, 64);
-							n64[1] = mpz_get_ui(tmpz_local);
+							n64[1] = gmp2uint64(tmpz_local);
 							if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
 							{
 								if (sdata->analysis == 2)
 								{
 									// also need to check the twin
-									mpz_add_ui(tmpz_local, tmpz_local, 2);
-									if (mpz_probab_prime_p(tmpz_local, num_witnesses))
+									if (n64[0] < 0xfffffffffffffffeull)
+									{
+										n64[0] += 2;
+									}
+									else
+									{
+										n64[0] += 2;
+										n64[1]++;
+									}
+									
+									if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
 									{
 										values[retval++] = values[i];
 									}
@@ -767,7 +806,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 					}
 					else
 					{
-						mpz_add_ui(tmpz_local, offset, values[i]);
+						uint64_2gmp(values[i], tmpz_local);
+						mpz_add(tmpz_local, offset, tmpz_local);
+
 						if ((mpz_cmp(tmpz_local, lowlimit) >= 0) && 
 							(mpz_cmp(highlimit, tmpz_local) >= 0))
 						{
@@ -848,8 +889,12 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 					if (sdata->VFLAG > 0)
 					{
-						printf("adding %" PRIu64 " PRPs found in thread %" PRIu64 "\n",
-							t->linecount, i);
+						if (sdata->analysis == 1)
+							printf("adding %" PRIu64 " PRPs found in thread %" PRIu64 "\n",
+								t->linecount, i);
+						else if (sdata->analysis == 2)
+							printf("adding %" PRIu64 " twin PRPs found in thread %" PRIu64 "\n",
+								t->linecount, i);
 					}
 
 					for (j = 0; j < t->linecount; j++)
@@ -871,7 +916,10 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			
             if (sdata->VFLAG > 0)
             {
-                printf("found %" PRIu64 " PRPs\n", *num_p);
+				if (sdata->analysis == 1)
+					printf("found %" PRIu64 " PRPs\n", *num_p);
+				else if (sdata->analysis == 2)
+					printf("found %" PRIu64 " twin PRPs\n", *num_p);
             }
 			
 		}
@@ -882,7 +930,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			// values accordingly.
 			uint64_t a_local;
 			mpz_sub(tmpz, lowlimit, offset);
-			a_local = mpz_get_ui(tmpz);
+			a_local = gmp2uint64(tmpz);
 
             for (i = 0; i < *num_p; i++)
             {
@@ -910,7 +958,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			{
 				for (i = 0; i < *num_p; i++)
 				{
-					mpz_add_ui(tmpz, lowlimit, values[i]);
+					uint64_2gmp(values[i], tmpz);
+					mpz_add(tmpz, lowlimit, tmpz);
+
                     if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
                     {
                         char* buf = mpz_get_str(NULL, 10, tmpz);
@@ -934,8 +984,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 		{
 			for (i = 0; i < *num_p; i++)
 			{
-				//mpz_add_ui(tmpz, *offset, values[i]);
-				mpz_add_ui(tmpz, lowlimit, values[i]);
+				uint64_2gmp(values[i], tmpz);
+				mpz_add(tmpz, lowlimit, tmpz);
+
                 if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
                 {
                     gmp_printf("%Zd\n", tmpz);
@@ -947,7 +998,6 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 	mpz_clear(tmpz);
 	mpz_clear(offset);
-	//free(offset);
 
 	return values;
 }

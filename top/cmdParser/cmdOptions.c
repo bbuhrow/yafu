@@ -84,7 +84,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
-    "forceQLP", "siqsMFBQ", "nfs_batch_3lp"};
+    "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -217,7 +217,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : Name of output JSON logfile",
     "                  : force the use of QLP SIQS (4 large primes)",
     "(Floating point)  : Exponent of SIQS QLP: attempt to split residues up to LPB^exponent",
-    "                  : Use batch factorization of 3LP cofactors in NFS"
+    "                  : Use batch factorization of 3LP cofactors in NFS",
+    "(Integer < 32-bit): analysis type for the sieve of Eratosthenes (default = 1 (find primes), 2 (find twins)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -251,7 +252,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
     1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
-    0,1,0       // forceQLP, qlp_exp, nfs_batch_3lp
+    0,1,0,1       // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis
 };
 
 // command line option aliases, specified by '--'
@@ -283,7 +284,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", ""
+    "", "", "", ""
 };
 
 
@@ -1289,6 +1290,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         //argument "forceQLP"
         options->nfs_batch_3lp = 1;
     }
+    else if (strcmp(opt, OptionArray[128]) == 0)
+    {
+        //argument "forceQLP"
+        options->soe_analysis  = atoi(arg);
+    }
     else
     {
         int i;
@@ -1434,6 +1440,7 @@ options_t* initOpt(void)
     options->num_prp_witnesses = 1;
     options->pfile = 0;
     options->pscreen = 0;
+    options->soe_analysis = 1;
 
     // siqs options
     strcpy(options->qssave, "siqs.dat");

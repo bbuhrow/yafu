@@ -28,6 +28,7 @@ SOFTWARE.
 #include "ytools.h"
 #include "threadpool.h"
 #include <string.h>
+#include "gmp_u64_xface.h"
 
 #ifdef __MINGW32__
 #include <sys/time.h>
@@ -550,6 +551,8 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
 	if (VFLAG > 2)
 	{	
         char strfeatures[80];
+        char strfeatures2[80];
+        int features_maxsize = 80;
 
         if (sdata->sieve_range == 0)
         {
@@ -564,12 +567,14 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
         else
         {
             // sieve to depth - not guarenteed to find all primes
-            gmp_printf("sieving range 0 to %" PRIu64 " from offset %Zd\n", 
-                *highlimit, sdata->offset);
-            gmp_printf("requested range is %Zd + %lu:%lu\n",
-                sdata->offset, sdata->orig_llimit, sdata->orig_hlimit);
-            printf("using %" PRIu64 " primes, max prime = %" PRIu64 "  \n",
+            char* s = mpz_get_str(NULL, 10, offset);
+            gmp_printf("sieving range 0 to %" PRIu64 " from offset %s\n", 
+                *highlimit, s);
+            gmp_printf("requested range is %s + %" PRIu64 ":%" PRIu64 "\n",
+                s, sdata->orig_llimit, sdata->orig_hlimit);
+            printf("using %" PRIu64 " primes, max prime = %u  \n",
                 sdata->pboundi, sdata->sieve_p[sdata->pboundi - 1]);
+            free(s);
         }
 
 		printf("using %u residue classes\n",sdata->numclasses);
@@ -591,7 +596,8 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
         {
             if (strlen(strfeatures) > 0)
             {
-                sprintf(strfeatures, "%s, BMI2", strfeatures);
+                sprintf(strfeatures2, "%s, BMI2", strfeatures);
+                strncpy(strfeatures, strfeatures2, features_maxsize);
             }
             else
             {
@@ -605,7 +611,8 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
         {
             if (strlen(strfeatures) > 0)
             {
-                sprintf(strfeatures, "%s, AVX512", strfeatures);
+                sprintf(strfeatures2, "%s, AVX512", strfeatures);
+                strncpy(strfeatures, strfeatures2, features_maxsize);
             }
             else
             {
@@ -1008,7 +1015,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 		{
             if (mpz_size(sdata->offset) == 1)
             {
-                ui_offset = mpz_get_ui(sdata->offset);
+                ui_offset = gmp2uint64(sdata->offset);
 
                 if (ui_offset > sdata->pbound)
                 {
@@ -1096,7 +1103,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 		{
             if (mpz_size(sdata->offset) == 1)
             {
-                ui_offset = mpz_get_ui(sdata->offset);
+                ui_offset = gmp2uint64(sdata->offset);
                 if (ui_offset > sdata->pbound)
                 {
                     // huge offset, we don't need to add any primes.

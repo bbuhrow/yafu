@@ -34,6 +34,7 @@ SOFTWARE.
 #include <inttypes.h>
 #include <math.h>
 #include "soe_impl.h"
+#include "gmp_u64_xface.h"
 
 #ifdef USE_AVX512F
 ALIGNED_MEM uint64_t presieve_largemasks[16][173][8];
@@ -97,7 +98,7 @@ uint64_t mpz_estimate_primes_in_range(mpz_t lowlimit, mpz_t highlimit)
         mpz_t d;
         mpz_init(d);
         mpz_sub(d, highlimit, lowlimit);
-        est = mpz_get_ui(d) / 2;
+        est = gmp2uint64(d) / 2;
         mpz_clear(d);
         //printf("fallback estimate = %lu\n", est);
     }
@@ -617,15 +618,15 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
 	{
         mpz_t h;
         mpz_init(h);
-        mpz_set_ui(h, highlimit);
+        uint64_2gmp(highlimit, h);
         mpz_sqrt(h, h);
 
 		//see if we were provided enough primes to do the job
-        sdata->pbound = (uint64_t)mpz_get_ui(h);
+        sdata->pbound = (uint64_t)gmp2uint64(h);
 
         if (sdata->VFLAG > 2)
         {
-            printf("checking if provided primes > sqrt(%lu) = %lu\n",
+            printf("checking if provided primes > sqrt(%"PRIu64") = %"PRIu64"\n",
                 highlimit, sdata->pbound);
         }
 
@@ -874,13 +875,13 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
 
         // raise the high limit by the amount the offset was lowered, so that
         // we allocate enough flags to cover the range of interest
-        highlimit += mpz_get_ui(tmpz2);
-        sdata->orig_hlimit += mpz_get_ui(tmpz2);
+        highlimit += gmp2uint64(tmpz2);
+        sdata->orig_hlimit += gmp2uint64(tmpz2);
 
         // modify the original lowlimit by the amount we need to lower the 
         // input offset (start of the requested range).  This is the way we
         // recover the original offset.
-        sdata->orig_llimit += mpz_get_ui(tmpz2);
+        sdata->orig_llimit += gmp2uint64(tmpz2);
 
         // copy the new value to the pointer, which will get passed back to sieve_to_depth
         mpz_set(sdata->offset, tmpz);

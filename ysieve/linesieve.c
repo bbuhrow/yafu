@@ -32,6 +32,8 @@ SOFTWARE.
 #endif
 #include <math.h>
 #include <string.h>
+#include "gmp_u64_xface.h"
+
 
 #define BUCKET_UPDATE2(i,bits) \
     bnum = ((uint32_t)bptr[j + i] >> (bits)); \
@@ -2047,9 +2049,9 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 
 	//ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
 
-	mpz_set_ui(gmp_sqrt, ddata->ublk_b + sdata->prodN);
+	uint64_2gmp(ddata->ublk_b + sdata->prodN, gmp_sqrt);
 	mpz_sqrt(gmp_sqrt, gmp_sqrt);
-	ddata->blk_b_sqrt = mpz_get_ui(gmp_sqrt) + 1;
+	ddata->blk_b_sqrt = gmp2uint64(gmp_sqrt) + 1;
 
 	mpz_clear(gmp_sqrt);
 

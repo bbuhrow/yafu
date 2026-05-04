@@ -30,7 +30,7 @@ SOFTWARE.
 #endif
 #include "ytools.h"
 #include <math.h>
-
+#include "gmp_u64_xface.h"
 
 #define NO_64U_REM
 //#define U64_REM_ONLY
@@ -156,9 +156,9 @@ void get_offsets(thread_soedata_t *thread_data)
                 ddata->lblk_b = ddata->ublk_b + prodN;
                 ddata->ublk_b += sdata->blk_r;
                 //ddata->blk_b_sqrt = (uint64_t)(sqrt((int64_t)(ddata->ublk_b + prodN))) + 1;
-                mpz_set_ui(gmp_sqrt, ddata->ublk_b + prodN);
+                uint64_2gmp(ddata->ublk_b + prodN, gmp_sqrt);
                 mpz_sqrt(gmp_sqrt, gmp_sqrt);
-                ddata->blk_b_sqrt = mpz_get_ui(gmp_sqrt) + 1;
+                ddata->blk_b_sqrt = gmp2uint64(gmp_sqrt) + 1;
             }
 
             s = sdata->root[i];

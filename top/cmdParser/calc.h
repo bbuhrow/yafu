@@ -119,6 +119,7 @@ typedef struct
     fact_obj_t* fobj;
     int pscreen;
     int pfile;
+    int soe_analysis;
     soe_staticdata_t* sdata;
 } meta_t;
 

@@ -3128,7 +3128,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             }
 
             sdata->witnesses = 1;
-            sdata->analysis = 1;
+            sdata->analysis = metadata->soe_analysis;
             primes = sieve_to_depth(sdata, lowz, highz,
                 0, 1, mpz_get_ui(operands[2]),
                 &num_found, metadata->pfile, metadata->pscreen);
