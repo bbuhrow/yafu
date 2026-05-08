@@ -55,7 +55,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
     {
         free(siqs_primes);
         siqs_primes = soe_wrapper(sdata, 0, urange, 0, &siqs_nump, 0, 0);
-        //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
+        //printf("found %"PRIu64" primes from %"PRIu64" to %"PRIu64"\n", NUM_P, P_MIN, P_MAX);
 
         //siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
         siqs_minp = siqs_primes[0];
@@ -78,7 +78,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
                 //siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
                 siqs_minp = siqs_primes[0];
                 siqs_maxp = siqs_primes[siqs_nump - 1];
-                //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
+                //printf("found %"PRIu64" primes from %"PRIu64" to %"PRIu64"\n", NUM_P, P_MIN, P_MAX);
                 i = 0;
             }
 		}

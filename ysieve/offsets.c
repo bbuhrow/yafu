@@ -145,7 +145,7 @@ void get_offsets(thread_soedata_t *thread_data)
             // a block, start that prime in the next block.
             if (sdata->sieve_p[i] > ddata->blk_b_sqrt)
             {
-                //printf("lblk_b = %lu, blk_b_sqrt = %lu, pbounds block %lu = %lu (%u)\n", 
+                //printf("lblk_b = %"PRIu64", blk_b_sqrt = %"PRIu64", pbounds block %"PRIu64" = %"PRIu64" (%u)\n", 
                 //    ddata->lblk_b, ddata->blk_b_sqrt, block, i, sdata->sieve_p[i]);
                 ddata->pbounds[block] = i;
 

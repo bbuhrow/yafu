@@ -128,7 +128,7 @@ int gettimeofday(struct timeval* tv, struct timezone* tz)
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
 
-    //printf("timespec_get returned sec = %lu, nsec = %lu\n", ts.tv_sec, ts.tv_nsec);
+    //printf("timespec_get returned sec = %"PRIu64", nsec = %"PRIu64"\n", ts.tv_sec, ts.tv_nsec);
 
     tv->tv_sec = ts.tv_sec;
     tv->tv_usec = ts.tv_nsec / 1000;
@@ -205,21 +205,21 @@ char* time_from_secs(char* str, unsigned long time)
     {
         d = time / (3600 * 24);
         time %= (3600 * 24);
-        sprintf(str, "%lu day%s ", d, d > 1 ? "s" : "");
+        sprintf(str, "%u day%s ", d, d > 1 ? "s" : "");
     }
     if (time > 3600)
     {
         d = time / 3600;
         time %= 3600;
-        sprintf(str, "%s%luh ", str, d);
+        sprintf(str, "%s%uh ", str, d);
     }
     if (time > 60)
     {
         d = time / 60;
         time %= 60;
-        sprintf(str, "%s%lum ", str, d);
+        sprintf(str, "%s%um ", str, d);
     }
-    sprintf(str, "%s%lus", str, time);
+    sprintf(str, "%s%us", str, time);
     return str;
 }
 
@@ -1662,8 +1662,8 @@ int bin_search_uint64(int idp, int idm, uint64_t q, uint64_t* input)
         if (input[next] == q)
             return next;
 
-    if (input[next] != q)
-        next = -1;
+    //if (input[next] != q)
+    //    next = -1;
 
     return next;
 }

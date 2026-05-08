@@ -125,7 +125,7 @@ int msieve_gettimeofday(struct timeval* tv, struct timezone* tz)
 	struct timespec ts;
 	timespec_get(&ts, TIME_UTC);
 
-	//printf("timespec_get returned sec = %lu, nsec = %lu\n", ts.tv_sec, ts.tv_nsec);
+	//printf("timespec_get returned sec = %"PRIu64", nsec = %"PRIu64"\n", ts.tv_sec, ts.tv_nsec);
 
 	tv->tv_sec = ts.tv_sec;
 	tv->tv_usec = ts.tv_nsec / 1000;

@@ -2537,7 +2537,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 					}
 					if (!found)
 					{
-						printf("failed to split composite factor %lu of input %lu\n", f, n64);
+						printf("failed to split composite factor %"PRIu64" of input %"PRIu64"\n", f, n64);
 						break;
 					}
 				}
@@ -2600,7 +2600,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 						}
 					}
 				}
-				printf("failed to find factor of %lu\n", n64);
+				printf("failed to find factor of %"PRIu64"\n", n64);
 				break;
 			}
 		}

@@ -879,11 +879,13 @@ void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 	cs = cs >> 64;
 	cs += t3;
 	t2 = (uint64_t)cs;
-	if (t2) {
-		unsigned char carry = my_sbb64(0, t0, mod_lo, &t0);
-		my_sbb64(carry, t1, mod_hi, &t1);
-		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
-	}
+	ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
+
+	//if (t2) {
+	//	unsigned char carry = my_sbb64(0, t0, mod_lo, &t0);
+	//	my_sbb64(carry, t1, mod_hi, &t1);
+	//	ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
+	//}
 
 #endif
 	*res_lo = t0;
@@ -1433,7 +1435,7 @@ void submod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 void dblmod128(uint64_t* a, uint64_t* n)
 {
 
-#if defined(__x86_64__) && defined(__unix__)
+#if defined(__x86_64__) && defined(__GNUC__)
 	// requires GCC_ASM64 syntax
 	uint64_t t1, t0;
 

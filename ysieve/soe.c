@@ -226,7 +226,7 @@ void bitmap_2class_work_fcn(void *vptr)
 
     if (sdata->VFLAG > 2)
     {
-        printf("thread %d working on range %lu - %lu\n", tdata->tindex,
+        printf("thread %d working on range %"PRIu64" - %"PRIu64"\n", tdata->tindex,
             llimit, hlimit);
     }
 
@@ -312,7 +312,7 @@ void bitmap_8class_work_fcn(void *vptr)
 
     if (sdata->VFLAG > 2)
     {
-        printf("thread %d working on range %lu - %lu\n", tdata->tindex,
+        printf("thread %d working on range %"PRIu64" - %"PRIu64"\n", tdata->tindex,
             llimit, hlimit);
     }
 
@@ -409,7 +409,7 @@ void bitmap_48class_work_fcn(void *vptr)
 
     if (sdata->VFLAG > 2)
     {
-        printf("thread %d working on range %lu - %lu\n", tdata->tindex, llimit, hlimit);
+        printf("thread %d working on range %"PRIu64" - %"PRIu64"\n", tdata->tindex, llimit, hlimit);
     }
 
     // do bitmap sieve work
@@ -1043,7 +1043,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
         if (sdata->VFLAG > 2)
         {
-            printf("num_found by main sieve = %lu\n", num_p);
+            printf("num_found by main sieve = %"PRIu64"\n", num_p);
         }
 
 		// PRIMES is already sized appropriately by the wrapper
@@ -1130,7 +1130,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
         if (sdata->VFLAG > 2)
         {
-            printf("num_found by main sieve = %lu\n", num_p);
+            printf("num_found by main sieve = %"PRIu64"\n", num_p);
         }
 
 		// PRIMES is already sized appropriately by the wrapper

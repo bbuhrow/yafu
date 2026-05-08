@@ -341,7 +341,7 @@ uint64_t count_twins(soe_staticdata_t* sdata, thread_soedata_t* thread_data)
 
     if (sdata->VFLAG > 1)
     {
-        printf("counting twins from %lu to %lu\n", sdata->orig_llimit, sdata->orig_hlimit);
+        printf("counting twins from %"PRIu64" to %"PRIu64"\n", sdata->orig_llimit, sdata->orig_hlimit);
     }
 
     // divvy up the line bytes.  Unlike when counting primes,

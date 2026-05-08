@@ -831,7 +831,7 @@ process_r:
                 f64 = getfactor_uecm(mpz_get_ui(f1r), 0, lcg_state);
                 rb->num_uecm[0]++;
 
-                printf("failed to find factor of %d-bit f1r %lu, this should be sent to mpqs\n",
+                printf("failed to find factor of %d-bit f1r %"PRIu64", this should be sent to mpqs\n",
                     mpz_sizeinbase(f1r, 2), mpz_get_ui(f1r));
                 rb->num_abort[5]++;
                 return;
@@ -875,7 +875,7 @@ process_r:
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            if (f64 == 1) printf("failed to find factor of %d-bit f2r %lu\n",
+            if (f64 == 1) printf("failed to find factor of %d-bit f2r %"PRIu64"\n",
                 mpz_sizeinbase(f2r, 2), mpz_get_ui(f2r));
             rb->num_abort[6]++;
             return;
@@ -972,7 +972,7 @@ process_r:
 
                     if (q64 <= 1 || q64 > rb->lp_cutoff_r)
                     {
-                        if (q64 == 1) gmp_printf("ecm found factor %lu == input, residue is 1\n", f64);
+                        if (q64 == 1) gmp_printf("ecm found factor %"PRIu64" == input, residue is 1\n", f64);
                         rb->num_abort[7]++;
                         return;
                     }
@@ -1653,7 +1653,7 @@ process_a:
 
                 if (f64 == 1)
                 {
-                    printf("failed to find factor of %d-bit f1a %lu, this should be sent to mpqs\n",
+                    printf("failed to find factor of %d-bit f1a %"PRIu64", this should be sent to mpqs\n",
                         mpz_sizeinbase(f1a, 2), mpz_get_ui(f1a));
                     rb->num_abort_a[5]++;
                     return;
@@ -2493,8 +2493,8 @@ void relation_batch_init(FILE* logfile, relation_batch_t* rb,
 
     rb->do_pm1 = do_pm1;
 
-    //printf("rb_init with params: min_prime = %u, max_prime = %lu, lp_cutoff_r = %lu, "
-    //    "lp_cutoff_a = %lu\n", min_prime, max_prime, lp_cutoff_r, lp_cutoff_a);
+    //printf("rb_init with params: min_prime = %u, max_prime = %"PRIu64", lp_cutoff_r = %"PRIu64", "
+    //    "lp_cutoff_a = %"PRIu64"\n", min_prime, max_prime, lp_cutoff_r, lp_cutoff_a);
 
     if (do_prime_product)
     {

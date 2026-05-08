@@ -397,7 +397,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
 
     if (isValidScientificNotation(arg)) {
         num = scientificToULong(arg); // Convert to unsigned long int
-        sprintf(arg, "%lu", num); // Convert to string
+        sprintf(arg, "%"PRIu64"", num); // Convert to string
     }
         enforce_numeric(arg, opt);
         options->B1ecm = strtoull(arg, ptr, 10);

@@ -1680,6 +1680,23 @@ uint64_t multiplicative_inverse(uint64_t a);
 __m512i multiplicative_inverse104_x8(uint64_t* a);
 
 #if defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16)
+
+static void gcd128(uint64_t* u, uint64_t* v, uint64_t* w)
+{
+	uint128_t a, b, c;
+	a = (uint128_t)u[1] << 64 + (uint128_t)u[0]; 
+	b = (uint128_t)v[1] << 64 + (uint128_t)v[0];
+	while (b != 0)
+	{
+		c = a % b;
+		a = b;
+		b = c;
+	}
+	w[1] = (uint64_t)(a >> 64);
+	w[0] = (uint64_t)a;
+	return;
+}
+
 static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 {
 	//w = gcd(u, v);
@@ -1692,6 +1709,7 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 	if ((v[1] != 0) || (v[0] != 0)) {
 		int j = my_ctz128(v[0], v[1]);
 		//v = (uint64_t)(v >> j);
+		//if (j > 64) printf("j overflow\n");
 		v[0] >>= j;
 		v[0] |= (v[1] << (64 - j));
 		v[1] >>= j;
@@ -1711,7 +1729,7 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 			uint128_t s1 = v128 - t;
 			uint128_t s2 = t - v128;
 
-			if (t == v)
+			if (t == v128)
 				break;
 
 
@@ -1732,6 +1750,7 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 			// _trail_zcnt64() at the same time as abs(u-v).
 			j = my_ctz128((uint64_t)s1, (uint64_t)(s1 >> 64));
 			//v = (uint64_t)(v >> j);
+			//if (j > 64) printf("j overflow\n");
 			v[0] >>= j;
 			v[0] |= (v[1] << (64 - j));
 			v[1] >>= j;

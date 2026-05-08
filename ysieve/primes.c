@@ -286,8 +286,12 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
 
     if (sdata->VFLAG > 1)
     {
-        printf("computing primes from %lu to %lu, start_count is %u\n", 
-            sdata->orig_llimit, sdata->orig_hlimit, start_count);
+        if (sdata->analysis == 1)
+            printf("computing primes from %"PRIu64" to %"PRIu64", start_count is %u\n", 
+                sdata->orig_llimit, sdata->orig_hlimit, start_count);
+        else if (sdata->analysis == 2)
+            printf("computing twins from %"PRIu64" to %"PRIu64", start_count is %u\n",
+                sdata->orig_llimit, sdata->orig_hlimit, start_count);
     }
 
     // divvy up the line bytes.  Unlike when counting primes,
@@ -304,8 +308,12 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
 
         if (sdata->VFLAG > 2)
         {
-            printf("thread %d finding primes from byte offset %u to %u\n",
-                (int)i, t->startid, t->stopid);
+            if (sdata->analysis == 1)
+                printf("thread %d finding primes from byte offset %u to %u\n",
+                    (int)i, t->startid, t->stopid);
+            else if (sdata->analysis == 2)
+                printf("thread %d finding twins from byte offset %u to %u\n",
+                    (int)i, t->startid, t->stopid);
         }
     }
 
@@ -352,11 +360,23 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
             if (sdata->VFLAG > 2)
             {
                 if (sdata->sieve_range)
-                    printf("adding %" PRIu64 " prime candidates found in thread %d\n", 
-                        t->linecount, j);
+                {
+                    if (sdata->analysis == 1)
+                        printf("adding %" PRIu64 " prime candidates found in thread %d\n",
+                            t->linecount, j);
+                    else if (sdata->analysis == 2)
+                        printf("adding %" PRIu64 " twin candidates found in thread %d\n",
+                            t->linecount, j);
+                }
                 else
-                    printf("adding %" PRIu64 " primes found in thread %d\n", 
-                        t->linecount, j);
+                {
+                    if (sdata->analysis == 1)
+                        printf("adding %" PRIu64 " primes found in thread %d\n",
+                            t->linecount, j);
+                    else if (sdata->analysis == 2)
+                        printf("adding %" PRIu64 " twins found in thread %d\n",
+                            t->linecount, j);
+                }
             }
 
 			memcpy(primes + GLOBAL_OFFSET + pcount, t->ddata.primes, t->linecount * sizeof(uint64_t));
@@ -394,7 +414,10 @@ uint64_t primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread
 
         if (sdata->VFLAG > 2)
         {
-            printf("time to compute primes = %1.4f\n", t);
+            if (sdata->analysis == 1)
+                printf("time to compute primes = %1.4f\n", t);
+            else if (sdata->analysis == 2)
+                printf("time to compute twins = %1.4f\n", t);
         }
     }
 

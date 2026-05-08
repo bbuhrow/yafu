@@ -1168,7 +1168,7 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
         logprint(logfile,"using %u random witness for Rabin-Miller PRP checks\n", numwit);
     else
         logprint(logfile, "using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
-    logprint(logfile, "Cached %lu primes: max prime is %lu\n", fobj->num_p, fobj->max_p);
+    logprint(logfile, "Cached %"PRIu64" primes: max prime is %"PRIu64"\n", fobj->num_p, fobj->max_p);
     if (strlen(cwd) == 0)
     {
         char buf[1024];
@@ -1217,7 +1217,7 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
         else
             printf("Using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
 
-        printf("Cached %lu primes; max prime is %lu\n", fobj->num_p, fobj->max_p);
+        printf("Cached %"PRIu64" primes; max prime is %"PRIu64"\n", fobj->num_p, fobj->max_p);
         if (strlen(cwd) == 0)
         {
             char buf[1024];

@@ -1229,7 +1229,7 @@ void ss_search_poly_buckets_sorted(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 #ifdef SS_TIMING
 	printf("ran subset-sum on %d primes\n", nump);
-	printf("found %lu sieve hits\n", nummatch);
+	printf("found %"PRIu64" sieve hits\n", nummatch);
 	printf("enumerating roots: %1.4f seconds\n", t_enum_roots);
 	printf("matching roots: %1.4f seconds\n", t_match_roots);
 #endif

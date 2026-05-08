@@ -50,8 +50,9 @@
 #include "monty.h"			// functions for 52- 64- 104- and 128-bit Montgomery arithmetic
 #include "ytools.h"
 #include "mpz_aprcl.h"
+#include "gmp_u64_xface.h"
 
-//#define GMP_CHECK
+#define GMP_CHECK
 
 #ifdef GMP_CHECK
 #include "gmp.h"
@@ -225,7 +226,7 @@ int modexp_128x1b(uint64_t* n, uint64_t* e, uint64_t b)
 {
 	// compute b^e % n and check if equal to 1 or n-1 (-1)
 
-	uint64_t rho = 0ull - prp_multiplicative_inverse(n[0]);
+	uint64_t rho = prp_multiplicative_inverse(n[0]);
 	uint64_t one[2]; // = ((uint64_t)0 - n) % n;  // unityval == R  (mod n)
 	uint64_t r[2];
 	uint64_t d[2];
@@ -425,7 +426,6 @@ int MR_2sprp_128x1(uint64_t *n)
 	uint64_t r[2];
 	uint64_t e[2];
 	uint64_t one[2] = { 1ULL, 0ULL };
-	uint64_t zero[2] = { 0ULL, 0ULL };
 
 #ifdef POS_VARIANT
 
@@ -450,6 +450,7 @@ int MR_2sprp_128x1(uint64_t *n)
 	r[0] = one[0];
 
 	// compute d and s
+	// my_clz64(e[1]);
 	uint64_t s = my_ctz128(e[0], e[1]);
 	uint64_t d[2];
 	d[0] = e[0];
@@ -470,7 +471,7 @@ int MR_2sprp_128x1(uint64_t *n)
 	int lzcnt = my_clz128(d[0], d[1]);
 
 #ifndef POS_VARIANT
-	int protect = ((lzcnt-s) < 3) ? 1 : 0;
+	int protect = (lzcnt < 3) ? 1 : 0;
 #endif
 
 	// we know the first bit is set and the first squaring is of unity,
@@ -543,398 +544,19 @@ int MR_2sprp_128x1(uint64_t *n)
 	else return 0;
 }
 
-/* *******************************************************************************
- * mpz_lucas_prp:
- * A "Lucas pseudoprime" with parameters (P,Q) is a composite n with D=P^2-4Q,
- * (n,2QD)=1 such that U_(n-(D/n)) == 0 mod n [(D/n) is the Jacobi symbol]
- * *******************************************************************************/
-int lucas_prp_128x1(uint64_t *n, long int p, long int q)
-{
-	uint128_t zD;
-	uint128_t zN = (uint128_t)n[0] + (uint128_t)n[1] << 64;
-	uint128_t res;
-	uint128_t index;
-	uint128_t uh, vl, vh, ql, qh, tmp; /* used for calculating the Lucas U sequence */
-	uint64_t rho = prp_multiplicative_inverse(n[0]);
-	int s = 0, j = 0;
-	int ret = 0;
-	long int d = p * p - 4 * q;
-
-	if (d == 0) /* Does not produce a proper Lucas sequence */
-		return -1;
-
-	if (zN < 2)
-		return 0;
-
-	if ((zN & 1) == 0)
-	{
-		if (zN == 2)
-			return 1;
-		else
-			return 0;
-	}
-
-#ifdef POS_VARIANT
-
-#else
-	rho = 0ULL - rho;
-#endif
-
-	if (d > 0)
-	{
-		zD = d;
-	}
-	else
-	{
-		zD = zN - abs(d);
-	}
-
-#if 0
-	mpz_mul_si(res, zD, q);
-	mpz_mul_ui(res, res, 2);
-	mpz_gcd(res, res, n);
-	if ((mpz_cmp(res, n) != 0) && (mpz_cmp_ui(res, 1) > 0))
-	{
-		mpz_clear(zD);
-		mpz_clear(res);
-		mpz_clear(index);
-		return PRP_COMPOSITE;
-	}
-
-	/* index = n-(D/n), where (D/n) is the Jacobi symbol */
-	mpz_set(index, n);
-	ret = mpz_jacobi(zD, n);
-	if (ret == -1)
-		mpz_add_ui(index, index, 1);
-	else if (ret == 1)
-		mpz_sub_ui(index, index, 1);
-#endif
-
-	/* mpz_lucasumod(res, p, q, index, n); */
-	uh = 1;
-	vl = 2;
-	vh = p;
-	ql = 1;
-	qh = 1;
-	tmp = 0;
-
-#if 0
-	s = mpz_scan1(index, 0);
-	for (j = mpz_sizeinbase(index, 2) - 1; j >= s + 1; j--)
-	{
-		/* ql = ql*qh (mod n) */
-		mpz_mul(ql, ql, qh);
-		mpz_mod(ql, ql, n);
-		if (mpz_tstbit(index, j) == 1)
-		{
-			/* qh = ql*q */
-			mpz_mul_si(qh, ql, q);
-
-			/* uh = uh*vh (mod n) */
-			mpz_mul(uh, uh, vh);
-			mpz_mod(uh, uh, n);
-
-			/* vl = vh*vl - p*ql (mod n) */
-			mpz_mul(vl, vh, vl);
-			mpz_mul_si(tmp, ql, p);
-			mpz_sub(vl, vl, tmp);
-			mpz_mod(vl, vl, n);
-
-			/* vh = vh*vh - 2*qh (mod n) */
-			mpz_mul(vh, vh, vh);
-			mpz_mul_si(tmp, qh, 2);
-			mpz_sub(vh, vh, tmp);
-			mpz_mod(vh, vh, n);
-		}
-		else
-		{
-			/* qh = ql */
-			mpz_set(qh, ql);
-
-			/* uh = uh*vl - ql (mod n) */
-			mpz_mul(uh, uh, vl);
-			mpz_sub(uh, uh, ql);
-			mpz_mod(uh, uh, n);
-
-			/* vh = vh*vl - p*ql (mod n) */
-			mpz_mul(vh, vh, vl);
-			mpz_mul_si(tmp, ql, p);
-			mpz_sub(vh, vh, tmp);
-			mpz_mod(vh, vh, n);
-
-			/* vl = vl*vl - 2*ql (mod n) */
-			mpz_mul(vl, vl, vl);
-			mpz_mul_si(tmp, ql, 2);
-			mpz_sub(vl, vl, tmp);
-			mpz_mod(vl, vl, n);
-		}
-	}
-	/* ql = ql*qh */
-	mpz_mul(ql, ql, qh);
-
-	/* qh = ql*q */
-	mpz_mul_si(qh, ql, q);
-
-	/* uh = uh*vl - ql */
-	mpz_mul(uh, uh, vl);
-	mpz_sub(uh, uh, ql);
-
-	/* vl = vh*vl - p*ql */
-	mpz_mul(vl, vh, vl);
-	mpz_mul_si(tmp, ql, p);
-	mpz_sub(vl, vl, tmp);
-
-	/* ql = ql*qh */
-	mpz_mul(ql, ql, qh);
-
-	for (j = 1; j <= s; j++)
-	{
-		/* uh = uh*vl (mod n) */
-		mpz_mul(uh, uh, vl);
-		mpz_mod(uh, uh, n);
-
-		/* vl = vl*vl - 2*ql (mod n) */
-		mpz_mul(vl, vl, vl);
-		mpz_mul_si(tmp, ql, 2);
-		mpz_sub(vl, vl, tmp);
-		mpz_mod(vl, vl, n);
-
-		/* ql = ql*ql (mod n) */
-		mpz_mul(ql, ql, ql);
-		mpz_mod(ql, ql, n);
-	}
-
-	mpz_mod(res, uh, n); /* uh contains our return value */
-#endif
-
-	if (res == 0)
-	{
-		return 1; // PRP_PRP;
-	}
-	else
-	{
-		return 0; // PRP_COMPOSITE;
-	}
-
-}/* method mpz_lucas_prp */
-
-/* *******************************************************************************
- * mpz_lucas_prp:
- * A "Lucas pseudoprime" with parameters (P,Q) is a composite n with D=P^2-4Q,
- * (n,2QD)=1 such that U_(n-(D/n)) == 0 mod n [(D/n) is the Jacobi symbol]
- * *******************************************************************************/
-#if 0
-int lucas_prp_128x1(uint64_t *n, long int p, long int q)
-{
-	uint64_t res[2];
-	uint64_t index[2];
-	uint128_t n128 = ((uint128_t)n[1] << 64) | (uint128_t)n[0];
-	int s = 0, j = 0;
-	int ret = 0;
-	long int d = p * p - 4 * q;
-	int sd = d < 0 ? 1 : 0;
-	int sq = q < 0 ? 1 : 0;
-
-	if (d == 0) /* Does not produce a proper Lucas sequence */
-		return -1;
-
-	if ((n[1] == 0) && (n[0] < 2))
-		return 0;
-
-	if ((n[0] & 1 == 0))
-		return 0;
-
-	if (sd)	d *= -1;
-	if (sq) q *= -1;
-
-	res[0] = (uint64_t)((uint64_t)d * (uint64_t)q * 2);
-	res[1] = 0;
-	bin_gcd128(res, n, res);
-
-	if (((res[1] == n[1]) && (res[0] == n[0])) ||
-		((res[1] == 0) && (res[0] == 1)))
-	{
-
-	}
-	else
-	{
-		// if the gcd is anything other than 1 or n, return composite.
-		return 0;
-	}
-
-	/* index = n-(D/n), where (D/n) is the Jacobi symbol */
-	index[0] = n[0]; 
-	index[1] = n[1];
-	if (jacobi_128(d * sd, n128) < 0)
-	{
-		uint64_t c = (n[0] == 0xffffffffffffffffull) ? 1 : 0;
-		index[0] += 1;
-		index[1] += c;
-	}
-	else
-	{
-		uint64_t c = (n[0] == 0) ? 1 : 0;
-		index[0] -= 1;
-		index[1] -= c;
-	}
-		
-
-	/* mpz_lucasumod(res, p, q, index, n); */
-	uint64_t uh[2], vl[2], vh[2], ql[2], qh[2], tmp[2];
-	uint64_t rho = multiplicative_inverse(n[0]);
-
-	// signs
-	int suh = 0;
-	int svl = 0;
-	int svh = 0;
-	int sql = 0;
-	int sqh = 0;
-	int st = 0;
-
-	// initialize our lucas variables into Montgomery representation
-	uint64_t one[2];
-	uint128_t unity128 = (uint128_t)0 - n128;
-	unity128 = unity128 % n128;
-	one[1] = (uint64_t)(unity128 >> 64);
-	one[0] = (uint64_t)unity128;
-
-	uh[0] = one[0];
-	vl[0] = one[0];
-	vh[0] = one[0]; // p is always 1. p;
-	ql[0] = one[0];
-	qh[0] = one[0];
-	tmp[0] = 0;
-
-	uh[1] = one[1];
-	vl[1] = one[1];
-	vh[1] = one[1];
-	ql[1] = one[1];
-	qh[1] = one[1];
-	tmp[1] = 0;
-
-	// vl = 2 = one + one
-	tmp[0] = vl[0];
-	vl[0] += one[0];
-	vl[1] += one[1];
-	vl[1] += (vl[0] < tmp[0]) ? 1 : 0;
-
-	//s = mpz_scan1(index, 0);	// index of least significant 1-bit, i.e., ctz
-	s = my_ctz128(index[0], index[1]);
-	int sz = 128 - my_clz128(index[0], index[1]);
-
-	for (j = sz - 1; j >= s + 1; j--)
-	{
-		/* ql = ql*qh (mod n) */
-		mulmod128n(ql, qh, ql, n, rho);
-		sql = sql ^ sqh;
-
-		int bit = (j >= 64) ? index[1] & (1ull << (j - 64)) : index[0] & (1ull << j);
-
-		if (bit > 0)
-		{
-			/* qh = ql*q */
-			mpz_mul_si(qh, ql, q);
-
-			/* uh = uh*vh (mod n) */
-			mpz_mul(uh, uh, vh);
-			mpz_mod(uh, uh, n);
-
-			/* vl = vh*vl - p*ql (mod n) */
-			mpz_mul(vl, vh, vl);
-			mpz_mul_si(tmp, ql, p);
-			mpz_sub(vl, vl, tmp);
-			mpz_mod(vl, vl, n);
-
-			/* vh = vh*vh - 2*qh (mod n) */
-			mpz_mul(vh, vh, vh);
-			mpz_mul_si(tmp, qh, 2);
-			mpz_sub(vh, vh, tmp);
-			mpz_mod(vh, vh, n);
-		}
-		else
-		{
-			/* qh = ql */
-			mpz_set(qh, ql);
-
-			/* uh = uh*vl - ql (mod n) */
-			mpz_mul(uh, uh, vl);
-			mpz_sub(uh, uh, ql);
-			mpz_mod(uh, uh, n);
-
-			/* vh = vh*vl - p*ql (mod n) */
-			mpz_mul(vh, vh, vl);
-			mpz_mul_si(tmp, ql, p);
-			mpz_sub(vh, vh, tmp);
-			mpz_mod(vh, vh, n);
-
-			/* vl = vl*vl - 2*ql (mod n) */
-			mpz_mul(vl, vl, vl);
-			mpz_mul_si(tmp, ql, 2);
-			mpz_sub(vl, vl, tmp);
-			mpz_mod(vl, vl, n);
-		}
-	}
-	/* ql = ql*qh */
-	mpz_mul(ql, ql, qh);
-
-	/* qh = ql*q */
-	mpz_mul_si(qh, ql, q);
-
-	/* uh = uh*vl - ql */
-	mpz_mul(uh, uh, vl);
-	mpz_sub(uh, uh, ql);
-
-	/* vl = vh*vl - p*ql */
-	mpz_mul(vl, vh, vl);
-	mpz_mul_si(tmp, ql, p);
-	mpz_sub(vl, vl, tmp);
-
-	/* ql = ql*qh */
-	mpz_mul(ql, ql, qh);
-
-	for (j = 1; j <= s; j++)
-	{
-		/* uh = uh*vl (mod n) */
-		mpz_mul(uh, uh, vl);
-		mpz_mod(uh, uh, n);
-
-		/* vl = vl*vl - 2*ql (mod n) */
-		mpz_mul(vl, vl, vl);
-		mpz_mul_si(tmp, ql, 2);
-		mpz_sub(vl, vl, tmp);
-		mpz_mod(vl, vl, n);
-
-		/* ql = ql*ql (mod n) */
-		mpz_mul(ql, ql, ql);
-		mpz_mod(ql, ql, n);
-	}
-
-	mpz_mod(res, uh, n); /* uh contains our return value */
-
-
-	if ((res[1] == 0) && (res[0] == 0))
-	{
-		return 1;
-	}
-	else
-	{
-		return 0;
-	}
-
-}/* method mpz_lucas_prp */
-#endif
 
 #ifdef USE_PERIG_128BIT
 int pull_twos_128(int* n, int* j, uint128_t p)
 {
 	int c = 0;
+	uint32_t p16 = p % 16;
 
 	while (!(*n & 1))
 	{
 		*n >>= 1;
 		c = 1 - c;
 	}
-	if ((c * (p * p - 1) % 16) == 8)
+	if ((c * (p16 * p16 - 1) % 16) == 8)
 		*j *= -1;
 	return c;
 }
@@ -995,17 +617,331 @@ int jacobi_128(int n, uint128_t p)
 	return sign * j;
 }
 
+void my_gcd128(uint64_t* u, uint64_t* v, uint64_t* w)
+{
+	uint128_t a, b, c;
+	a = ((uint128_t)u[1] << 64) | (uint128_t)u[0];
+	b = ((uint128_t)v[1] << 64) | (uint128_t)v[0];
+	while (b != 0)
+	{
+		c = a % b;
+		a = b;
+		b = c;
+	}
+	w[1] = (uint64_t)(a >> 64);
+	w[0] = (uint64_t)a;
+	return;
+}
+
+/* *******************************************************************************
+ * mpz_lucas_prp:
+ * A "Lucas pseudoprime" with parameters (P,Q) is a composite n with D=P^2-4Q,
+ * (n,2QD)=1 such that U_(n-(D/n)) == 0 mod n [(D/n) is the Jacobi symbol]
+ * *******************************************************************************/
+int lucas_prp_128x1(uint64_t* n, long int p, long int q)
+{
+	uint64_t res[2];
+	uint64_t index[2];
+	uint128_t n128 = ((uint128_t)n[1] << 64) | (uint128_t)n[0];
+	int s = 0, j = 0;
+	long int d = p * p - 4 * q;
+	int sd = d < 0 ? 1 : 0;
+	int sq = q < 0 ? 1 : 0;
+
+	if (d == 0) /* Does not produce a proper Lucas sequence */
+		return -1;
+
+	if ((n[1] == 0) && (n[0] < 2))
+		return 0;
+
+	if ((n[0] & 1) == 0)
+		return 0;
+
+	if (sd)	d *= -1;
+	if (sq) q *= -1;
+
+	res[0] = (uint64_t)((uint64_t)d * (uint64_t)q * 2);
+	res[1] = 0;
+	my_gcd128(res, n, res);
+
+	if (((res[1] == n[1]) && (res[0] == n[0])) ||
+		((res[1] == 0) && (res[0] == 1)))
+	{
+
+	}
+	else
+	{
+		// if the gcd is anything other than 1 or n, return composite.
+		return 0;
+	}
+
+	/* index = n-(D/n), where (D/n) is the Jacobi symbol */
+	index[0] = n[0];
+	index[1] = n[1];
+	if (sd)	d *= -1;
+
+	if (jacobi_128(d, n128) < 0)
+	{
+		uint64_t c = (n[0] == 0xffffffffffffffffull) ? 1 : 0;
+		index[0] += 1;
+		index[1] += c;
+	}
+	else
+	{
+		uint64_t c = (n[0] == 0) ? 1 : 0;
+		index[0] -= 1;
+		index[1] -= c;
+	}
+
+	uint64_t uh[2], vl[2], vh[2], ql[2], qh[2], mp[2], mq[2], tmp[2];
+	uint64_t rho = prp_multiplicative_inverse(n[0]);
+	uint64_t one[2] = { 1ULL, 0ULL };
+
+#ifdef POS_VARIANT
+
+#else
+	rho = 0ULL - rho;
+#endif
+
+#ifdef USE_PERIG_128BIT
+	uint128_t unity128 = (uint128_t)0 - n128;
+	unity128 = unity128 % n128;
+	one[1] = (uint64_t)(unity128 >> 64);
+	one[0] = (uint64_t)unity128;
+#else
+
+#endif
+
+	uh[0] = one[0];
+	vl[0] = one[0];
+	vh[0] = one[0]; // p is always 1. p;
+	ql[0] = one[0];
+	qh[0] = one[0];
+	tmp[0] = 0;
+	mp[0] = vh[0];
+
+	uh[1] = one[1];
+	vl[1] = one[1];
+	vh[1] = one[1];
+	ql[1] = one[1];
+	qh[1] = one[1];
+	tmp[1] = 0;
+	mp[1] = vh[1];
+
+	mq[0] = q;
+	mq[1] = 0;
+	if (sq)
+	{
+		submod128(n, mq, mq, n);
+	}
+
+	// to monty-rep
+	uint64_t r[2], dd[2];
+	uint64_t qq = mq[0];
+
+	r[1] = 0;
+	r[0] = 0;
+	dd[0] = one[0];
+	dd[1] = one[1];
+
+	s = 0;
+	while (qq > 0)
+	{
+		if (qq & 1)
+			addmod128(r, dd, r, n);
+		addmod128(dd, dd, dd, n);
+		qq >>= 1;
+		s++;
+	}
+
+	if (mq[1])
+	{
+		while (s < 64)
+		{
+			addmod128(dd, dd, dd, n);
+			s++;
+		}
+
+		qq = mq[1];
+		while (qq > 0)
+		{
+			if (qq & 1)
+				addmod128(r, dd, r, n);
+			addmod128(dd, dd, dd, n);
+			qq >>= 1;
+		}
+	}
+
+	mq[0] = r[0];
+	mq[1] = r[1];
+
+	// vl = 2 = one + one
+	addmod128(one, one, vl, n);
+
+	//s = mpz_scan1(index, 0);	// index of least significant 1-bit, i.e., ctz
+	s = my_ctz128(index[0], index[1]);
+	int sz = 128 - my_clz128(index[0], index[1]);
+
+	//printf("n = %016"PRIx64"%016"PRIx64", q = (%d)%d (%016"PRIx64"%016"PRIx64"), "
+	//	"1 = %016"PRIx64"%016"PRIx64", p = %d, d = %d, s = %d, sz = %d\n",
+	//	n[1], n[0], sq, q, mq[1], mq[0], one[1], one[0], p, d, s, sz);
+
+	for (j = sz - 1; j >= s + 1; j--)
+	{
+		/* ql = ql*qh (mod n) */
+		mulmod128n(ql, qh, ql, n, rho);
+
+		uint64_t bit = (j >= 64) ? index[1] & (1ull << (j - 64)) : index[0] & (1ull << j);
+
+		if (bit > 0)
+		{
+			/* qh = ql*q */
+			//mpz_mul_si(qh, ql, q);
+			mulmod128n(ql, mq, qh, n, rho);
+
+			/* uh = uh*vh (mod n) */
+			//mpz_mul(uh, uh, vh);
+			//mpz_mod(uh, uh, n);
+			mulmod128n(uh, vh, uh, n, rho);
+
+			/* vl = vh*vl - p*ql (mod n) */
+			//mpz_mul(vl, vh, vl);
+			//mpz_mul_si(tmp, ql, p);
+			//mpz_sub(vl, vl, tmp);
+			//mpz_mod(vl, vl, n);
+			mulmod128n(vl, vh, vl, n, rho);
+			//mulmod128n(ql, mp, tmp, n, rho);
+			submod128(vl, ql, vl, n);
+
+			/* vh = vh*vh - 2*qh (mod n) */
+			//mpz_mul(vh, vh, vh);
+			//mpz_mul_si(tmp, qh, 2);
+			//mpz_sub(vh, vh, tmp);
+			//mpz_mod(vh, vh, n);
+			mulmod128n(vh, vh, vh, n, rho);
+			submod128(vh, qh, vh, n);
+			submod128(vh, qh, vh, n);
+		}
+		else
+		{
+			/* qh = ql */
+			qh[0] = ql[0];
+			qh[1] = ql[1];
+
+			/* uh = uh*vl - ql (mod n) */
+			//mpz_mul(uh, uh, vl);
+			//mpz_sub(uh, uh, ql);
+			//mpz_mod(uh, uh, n);
+			mulmod128n(uh, vl, uh, n, rho);
+			submod128(uh, ql, uh, n);
+
+			/* vh = vh*vl - p*ql (mod n) */
+			//mpz_mul(vh, vh, vl);
+			//mpz_mul_si(tmp, ql, p);
+			//mpz_sub(vh, vh, tmp);
+			//mpz_mod(vh, vh, n);
+			mulmod128n(vl, vh, vh, n, rho);
+			//mulmod128n(ql, mp, tmp, n, rho);
+			submod128(vh, ql, vh, n);
+
+			/* vl = vl*vl - 2*ql (mod n) */
+			//mpz_mul(vl, vl, vl);
+			//mpz_mul_si(tmp, ql, 2);
+			//mpz_sub(vl, vl, tmp);
+			//mpz_mod(vl, vl, n);
+			mulmod128n(vl, vl, vl, n, rho);
+			submod128(vl, ql, vl, n);
+			submod128(vl, ql, vl, n);
+		}
+	}
+
+	//printf("after loop1:\n");
+	//printf("ql = %016"PRIx64"%016"PRIx64", qh = %016"PRIx64"%016"PRIx64", "
+	//	"vl = %016"PRIx64"%016"PRIx64", vh = %016"PRIx64"%016"PRIx64", "
+	//	"uh = %016"PRIx64"%016"PRIx64"\n",
+	//	ql[1], ql[0], qh[1], qh[0], vl[1], vl[0], vh[1], vh[0], uh[1], uh[0]);
+
+	/* ql = ql*qh */
+	//mpz_mul(ql, ql, qh);
+	mulmod128n(ql, qh, ql, n, rho);
+
+	/* qh = ql*q */
+	//mpz_mul_si(qh, ql, q);
+	mulmod128n(ql, mq, qh, n, rho);
+
+	/* uh = uh*vl - ql */
+	//mpz_mul(uh, uh, vl);
+	//mpz_sub(uh, uh, ql);
+	mulmod128n(uh, vl, uh, n, rho);
+	submod128(uh, ql, uh, n);
+
+	/* vl = vh*vl - p*ql */
+	//mpz_mul(vl, vh, vl);
+	//mpz_mul_si(tmp, ql, p);
+	//mpz_sub(vl, vl, tmp);
+	mulmod128n(vh, vl, vl, n, rho);
+	//mulmod128n(ql, mp, tmp, n, rho);
+	submod128(vl, ql, vl, n);
+
+	/* ql = ql*qh */
+	//mpz_mul(ql, ql, qh);
+	mulmod128n(ql, qh, ql, n, rho);
+
+	for (j = 1; j <= s; j++)
+	{
+		/* uh = uh*vl (mod n) */
+		//mpz_mul(uh, uh, vl);
+		//mpz_mod(uh, uh, n);
+		mulmod128n(uh, vl, uh, n, rho);
+
+		/* vl = vl*vl - 2*ql (mod n) */
+		//mpz_mul(vl, vl, vl);
+		//mpz_mul_si(tmp, ql, 2);
+		//mpz_sub(vl, vl, tmp);
+		//mpz_mod(vl, vl, n);
+		mulmod128n(vl, vl, vl, n, rho);
+		submod128(vl, ql, vl, n);
+		submod128(vl, ql, vl, n);
+
+		/* ql = ql*ql (mod n) */
+		//mpz_mul(ql, ql, ql);
+		//mpz_mod(ql, ql, n);
+		mulmod128n(ql, ql, ql, n, rho);
+	}
+
+	//printf("after loop2:\n");
+	//printf("ql = %016"PRIx64"%016"PRIx64", qh = %016"PRIx64"%016"PRIx64", "
+	//	"vl = %016"PRIx64"%016"PRIx64", vh = %016"PRIx64"%016"PRIx64", "
+	//	"uh = %016"PRIx64"%016"PRIx64"\n",
+	//	ql[1], ql[0], qh[1], qh[0], vl[1], vl[0], vh[1], vh[0], uh[1], uh[0]);
+
+	one[0] = 1;
+	one[1] = 0;
+	mulmod128n(uh, one, res, n, rho);
+
+	if ((res[1] == 0) && (res[0] == 0))
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+
+}/* method mpz_lucas_prp */
+
 // A lucas PRP with Selfridge parameters on 1 128-bit input (two 64-bit words) (in-progress)
 int selfridge_prp_128x1(uint64_t* n)
 {
 	int result;
 	mpz_t gn;
 	mpz_init(gn);
-	mpz_set_ui(gn, n[1]);
+	uint64_2gmp(n[1], gn);
 	mpz_mul_2exp(gn, gn, 64);
-	mpz_add_ui(gn, gn, n[0]);
+	mpz_add_ui(gn, gn, n[0] >> 32);
+	mpz_mul_2exp(gn, gn, 32);
+	mpz_add_ui(gn, gn, n[0] & 0xffffffff);
 
-#if 1
 	long int d = 5, p = 1, q = 0;
 	int max_d = 1000000;
 	int jacobi = 0;
@@ -1016,10 +952,16 @@ int selfridge_prp_128x1(uint64_t* n)
 	n128 |= (uint128_t)n[0];
 
 	if ((n[1] == 0) && (n[0] < 2))
+	{
+		mpz_clear(gn);
 		return 0;
+	}
 
-	if ((n[0] & 1 == 0))
+	if ((n[0] & 1) == 0)
+	{
+		mpz_clear(gn);
 		return 0;
+	}
 
 	while (1)
 	{
@@ -1031,10 +973,12 @@ int selfridge_prp_128x1(uint64_t* n)
 		{
 			if ((d == n128) && (d != 9))
 			{
+				mpz_clear(gn);
 				return 1;
 			}
 			else
 			{
+				mpz_clear(gn);
 				return 0;
 			}
 		}
@@ -1046,6 +990,7 @@ int selfridge_prp_128x1(uint64_t* n)
 		{
 			if (mpz_perfect_square_p(gn))
 			{
+				mpz_clear(gn);
 				return 0;
 			}
 		}
@@ -1064,28 +1009,26 @@ int selfridge_prp_128x1(uint64_t* n)
 		/* make sure we don't search forever */
 		if (d >= max_d)
 		{
+			mpz_clear(gn);
 			return -2;
 		}
 	}
 
 	q = (1 - d) / 4;
 
-	result = mpz_lucas_prp(gn, p, q); // lucas_prp_128x1(gn, p, q);
-
-
-#else
-	int result = mpz_extrastrongselfridge_prp(gn);
-#endif
+	result = lucas_prp_128x1(n, p, q);
 
 	mpz_clear(gn);
 	return result;
 }
 
-// a BPSW test on 1 128-bit input
+// a Baillie-Pomerance-Selfridge-Wagstaff (bpsw) test on 1 128-bit input
 int bpsw_prp_128x1(uint64_t* n)
 {
 	if (MR_2sprp_128x1(n) == 0)
+	{
 		return 0;
+	}
 
 	return selfridge_prp_128x1(n);
 }
@@ -1184,8 +1127,8 @@ int test_tinyprp()
 	mpz_init(gmpa);
 	
 	printf("test of mpz_powm +/-1 on random 6k + 1 inputs\n");
-	my_random_reset();
-	for (bits = 80; bits <= 104; bits += 1)
+	my_random_reset();	// bits <= 104
+	for (bits = 80; bits <= 0; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1257,7 +1200,7 @@ int test_tinyprp()
 
 		printf("%013"PRIx64"%013"PRIx64"\n", prp[1], prp[0]);
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %u +1 and %u -1 tests out of %u %d-bit inputs: %1.2f%%\n",
 			num1, numm1, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1267,8 +1210,8 @@ int test_tinyprp()
 
 #ifdef USE_AVX512F
 	printf("test of modexp_104x8b +/-1 on random 6k + 1 inputs\n");
-	my_random_reset();
-	for (bits = 80; bits <= 104; bits += 1)
+	my_random_reset();	// bits <= 104
+	for (bits = 80; bits <= 0; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1410,7 +1353,7 @@ int test_tinyprp()
 
 		printf("%013"PRIx64"%013"PRIx64"\n", prp[1], prp[0]);
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %u +1 and %u -1 tests out of %u %d-bit inputs: %1.2f%%\n",
 			num1, numm1, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1420,8 +1363,8 @@ int test_tinyprp()
 #endif
 
 	printf("test of modexp_128x1b on random 6k + 1 inputs\n");
-	my_random_reset();
-	for (bits = 80; bits <= 104; bits += 1)
+	my_random_reset();	// bits <= 104
+	for (bits = 80; bits <= 0; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1523,7 +1466,7 @@ int test_tinyprp()
 
 		printf("%013"PRIx64"%013"PRIx64"\n", prp[1], prp[0]);
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %u +1 and %u -1 tests out of %u %d-bit inputs: %1.2f%%\n",
 			num1, numm1, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1531,11 +1474,9 @@ int test_tinyprp()
 	}
 	printf("\n");
 
-	return 0;
-
 	printf("test of fermat_prp_64x1 on random 6k + 1 inputs\n");
-	my_random_reset();
-	for (bits = 20; bits <= 64; bits += 1)
+	my_random_reset();	// bits <= 64
+	for (bits = 20; bits <= 0; bits += 1)
 	{
 		uint32_t numprp = 0;
 		uint64_t ticks1 = my_rdtsc();
@@ -1585,7 +1526,7 @@ int test_tinyprp()
 
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %d fermat-prp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1645,7 +1586,7 @@ int test_tinyprp()
 
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %d MR_2sprp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1654,7 +1595,7 @@ int test_tinyprp()
 	printf("\n");
 
 	printf("test of mpz_probab_prime_p on random 6k + 1 inputs\n");
-	my_random_reset();
+	my_random_reset();	// bits <= 64
 	for (bits = 20; bits <= 64; bits += 1)
 	{
 		uint32_t numprp = 0;
@@ -1710,7 +1651,7 @@ int test_tinyprp()
 
 		mpz_clear(gmp_prp);
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %d mpz_probab_prime_p out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1770,7 +1711,7 @@ int test_tinyprp()
 
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %d fermat-prp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1830,7 +1771,7 @@ int test_tinyprp()
 
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num));
 		printf("found %d MR-2sprp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num, bits, 100. * (double)numprp / (double)(k * num));
@@ -1897,7 +1838,7 @@ int test_tinyprp()
 
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num * 8));
 		printf("found %d fermat-prp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num * 8, bits, 100. * (double)numprp / (double)(k * num * 8));
@@ -1979,7 +1920,7 @@ int test_tinyprp()
 			telapsed += ytools_difftime(&start, &stop);
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num * 8));
 		printf("found %d fermat-prp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num * 8, bits, 100. * (double)numprp / (double)(k * num * 8));
@@ -2046,7 +1987,7 @@ int test_tinyprp()
 
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num * 8));
 		printf("found %d MR-2sprp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num * 8, bits, 100. * (double)numprp / (double)(k * num * 8));
@@ -2128,7 +2069,7 @@ int test_tinyprp()
 			telapsed += ytools_difftime(&start, &stop);
 		} while (elapsed < (1ull << 30));
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / (k * num * 8));
 		printf("found %d MR-2sprp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, k * num * 8, bits, 100. * (double)numprp / (double)(k * num * 8));
@@ -2280,7 +2221,7 @@ int test_tinyprp()
 		gettimeofday(&stop, NULL);
 		telapsed += ytools_difftime(&start, &stop);
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / tested);
 		printf("found %d MR-sprp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, tested, bits, 100. * (double)numprp / (double)tested);
@@ -2435,7 +2376,7 @@ int test_tinyprp()
 		gettimeofday(&stop, NULL);
 		telapsed += ytools_difftime(&start, &stop);
 
-		printf("total ticks = %lu, ticks per %d-bit input = %lu\n",
+		printf("total ticks = %"PRIu64", ticks per %d-bit input = %"PRIu64"\n",
 			elapsed, bits, (elapsed) / tested);
 		printf("found %d MR-sprp out of %u %d-bit inputs: %1.2f%%\n",
 			numprp, tested, bits, 100. * (double)numprp / (double)tested);
@@ -2939,6 +2880,454 @@ uint8_t MR_2sprp_104x8(uint64_t* n)
 		_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[0], n1v[0]));
 
 	return (is1prp | ism1prp);
+}
+
+#if 0
+// a Lucas test on 8x 104-bit inputs
+uint8_t lucas_104x8(uint64_t* n, int *p, int *q)
+{
+	// assumes has no small factors.  assumes n >= 54 bits.
+	// assumes n is a list of 8 104-bit integers (16 52-bit words)
+	// in the format: 8 lo-words, 8 hi-words.
+	__m512i vrho = multiplicative_inverse104_x8(n);
+	__m512i mone[2];
+	vec_u104_t unity;
+	vec_u104_t index;
+	__m512i vindex[2];
+	__m512i nv[2];
+	__m512i dv[2];
+	__m512i rv[2];
+	__m512i bv[2];
+	__m512i n1v[2];
+	__m512i tv[2];
+	__m512i m;
+	__m512i zerov = _mm512_setzero_si512();
+	__m512i onev = _mm512_set1_epi64(1);
+	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+	uint64_t tmp = 0;
+	uint8_t rmask = 0xff;
+	int s[8], sz[8];
+
+	// negative inverse
+	vrho = _mm512_and_epi64(_mm512_sub_epi64(zerov, vrho), lo52mask);
+
+	nv[0] = loadu64(&n[0]);
+	nv[1] = loadu64(&n[8]);
+
+	// compute r % n, n-(D/n) and the loop bounds, and check gcd condition one at a time.
+#ifdef USE_PERIG_128BIT
+	int i;
+	for (i = 0; i < 8; i++)
+	{
+		uint64_t res[2];
+		uint128_t n128 = ((uint128_t)n[i + 8] << 52) + n[i];
+		uint64_t n64[2];
+		int j = 0;
+		long int d = p[i] * p[i] - 4 * q[i];
+		int sd = d < 0 ? 1 : 0;
+		int sq = q < 0 ? 1 : 0;
+
+		if (d == 0) /* Does not produce a proper Lucas sequence */
+		{
+			rmask &= (~(1 << i));
+			continue;
+		}
+
+		if ((n[8 + i] == 0) && (n[i] < 2))
+		{
+			rmask &= (~(1 << i));
+			continue;
+		}
+
+		if ((n[i] & 1) == 0)
+		{
+			rmask &= (~(1 << i));
+			continue;
+		}
+
+		if (sd)	d *= -1;
+		if (sq) q[i] *= -1;
+
+		res[0] = (uint64_t)((uint64_t)d * (uint64_t)q[i] * 2);
+		res[1] = 0;
+
+		n64[0] = (uint64_t)n128;
+		n64[1] = (uint64_t)(n128 >> 64);
+		my_gcd128(res, n64, res);
+
+		if (((res[1] == n64[1]) && (res[0] == n64[0])) ||
+			((res[1] == 0) && (res[0] == 1)))
+		{
+
+		}
+		else
+		{
+			// if the gcd is anything other than 1 or n, return composite.
+			rmask &= (~(1 << i));
+			continue;
+		}
+
+		/* index = n-(D/n), where (D/n) is the Jacobi symbol */
+		index.data[0][i] = n64[0];
+		index.data[1][i] = n64[1];
+		if (sd)	d *= -1;
+
+		if (jacobi_128(d, n128) < 0)
+		{
+			uint64_t c = (n64[0] == 0xffffffffffffffffull) ? 1 : 0;
+			index.data[0][i] += 1;
+			index.data[1][i] += c;
+		}
+		else
+		{
+			uint64_t c = (n64[0] == 0) ? 1 : 0;
+			index.data[0][i] -= 1;
+			index.data[1][i] -= c;
+		}
+
+		s[i] = my_ctz128(index.data[0][i], index.data[1][i]);
+		sz[i] = 128 - my_clz128(index.data[0][i], index.data[1][i]);
+
+		uint128_t one = (uint128_t)1 << 104;
+		one %= n128;
+
+		unity.data[0][i] = (uint64_t)one & 0xfffffffffffffULL;
+		unity.data[1][i] = (uint64_t)(one >> 52) & 0xfffffffffffffULL;
+	}
+#else
+
+#endif
+
+	mone[0] = loadu64(unity.data[0]);
+	mone[1] = loadu64(unity.data[1]);
+	vindex[0] = loadu64(index.data[0]);
+	vindex[1] = loadu64(index.data[1]);
+
+	// initialize lucas U sequence variables
+	uint64_t uh[2], vl[2], vh[2], ql[2], qh[2], mp[2], mq[2], tmp[2];
+
+	uh[0] = one[0];
+	vl[0] = one[0];
+	vh[0] = one[0]; // p is always 1. p;
+	ql[0] = one[0];
+	qh[0] = one[0];
+	tmp[0] = 0;
+	mp[0] = vh[0];
+
+	uh[1] = one[1];
+	vl[1] = one[1];
+	vh[1] = one[1];
+	ql[1] = one[1];
+	qh[1] = one[1];
+	tmp[1] = 0;
+	mp[1] = vh[1];
+
+	mq[0] = q;
+	mq[1] = 0;
+	if (sq)
+	{
+		submod128(n, mq, mq, n);
+	}
+
+	// to monty-rep
+	uint64_t r[2], dd[2];
+	uint64_t qq = mq[0];
+
+	r[1] = 0;
+	r[0] = 0;
+	dd[0] = one[0];
+	dd[1] = one[1];
+
+	s = 0;
+	while (qq > 0)
+	{
+		if (qq & 1)
+			addmod128(r, dd, r, n);
+		addmod128(dd, dd, dd, n);
+		qq >>= 1;
+		s++;
+	}
+
+	if (mq[1])
+	{
+		while (s < 64)
+		{
+			addmod128(dd, dd, dd, n);
+			s++;
+		}
+
+		qq = mq[1];
+		while (qq > 0)
+		{
+			if (qq & 1)
+				addmod128(r, dd, r, n);
+			addmod128(dd, dd, dd, n);
+			qq >>= 1;
+		}
+	}
+
+	mq[0] = r[0];
+	mq[1] = r[1];
+
+	// vl = 2 = one + one
+	addmod128(one, one, vl, n);
+
+
+
+	// compute d and tzcnt
+	submod104_x8(&n1v[1], &n1v[0], nv[1], nv[0], zerov, onev, nv[1], nv[0]);
+
+	__mmask8 done = 0;
+	dv[1] = n1v[1];
+	dv[0] = n1v[0];
+	__m512i tzcntv = zerov;
+	while (done != 0xff)
+	{
+		__m512i c = _mm512_mask_slli_epi64(dv[1], ~done, dv[1], 51);
+		dv[0] = _mm512_mask_srli_epi64(dv[0], ~done, dv[0], 1);
+		dv[0] = _mm512_mask_or_epi64(dv[0], ~done, c, dv[0]);
+		dv[1] = _mm512_mask_srli_epi64(dv[1], ~done, dv[1], 1);
+		tzcntv = _mm512_mask_add_epi64(tzcntv, ~done, tzcntv, onev);
+		done = done | _mm512_cmpeq_epi64_mask(_mm512_and_epi64(dv[0], onev), onev);
+	}
+	dv[0] = _mm512_and_epi64(dv[0], lo52mask);
+
+	// penultimate-hi-bit mask based on d
+	m = _mm512_sub_epi64(_mm512_set1_epi64(62), _mm512_lzcnt_epi64(dv[1]));
+	m = _mm512_sllv_epi64(_mm512_set1_epi64(1), m);
+	m = _mm512_mask_set1_epi64(m, _mm512_cmple_epi64_mask(dv[1], onev), 0);
+
+	// we know the first bit is set and the first squaring is of unity,
+	// so we can do the first iteration manually (and hence the penultimate mask bit)
+	addmod104_x8(&rv[1], &rv[0], mone[1], mone[0], mone[1], mone[0], nv[1], nv[0]);
+
+	__mmask8 protect = _mm512_cmpgt_epi64_mask(_mm512_srli_epi64(n1v[1], 49), zerov);
+
+	// compute b^d
+	if (protect)
+	{
+		done = _mm512_cmpeq_epu64_mask(m, zerov);
+		while (done != 0xff)
+		{
+			__mmask8 bitcmp = _mm512_test_epi64_mask(m, dv[1]);
+
+			mask_sqrredc104_exact_vec(&rv[1], &rv[0], ~done, rv[1], rv[0], nv[1], nv[0], vrho);
+			mask_dblmod104_x8(&rv[1], &rv[0], (~done) & bitcmp, rv[1], rv[0], nv[1], nv[0]);
+
+			m = _mm512_srli_epi64(m, 1);
+			done = _mm512_cmpeq_epu64_mask(m, zerov);
+		}
+	}
+	else
+	{
+		done = _mm512_cmpeq_epu64_mask(m, zerov);
+		while (done != 0xff)
+		{
+			__mmask8 bitcmp = _mm512_test_epi64_mask(m, dv[1]);
+
+			mask_sqrredc104_vec(&rv[1], &rv[0], ~done, rv[1], rv[0], nv[1], nv[0], vrho);
+			mask_dblmod104_x8(&rv[1], &rv[0], (~done) & bitcmp, rv[1], rv[0], nv[1], nv[0]);
+
+			m = _mm512_srli_epi64(m, 1);
+			done = _mm512_cmpeq_epu64_mask(m, zerov);
+		}
+	}
+
+	m = _mm512_sub_epi64(_mm512_set1_epi64(62), _mm512_lzcnt_epi64(dv[0]));
+	m = _mm512_sllv_epi64(_mm512_set1_epi64(1), m);
+	m = _mm512_mask_set1_epi64(m, _mm512_cmpge_epi64_mask(dv[1], onev), 1ULL << 51);
+
+	if (protect)
+	{
+		done = _mm512_cmpeq_epu64_mask(m, zerov);
+		while (done != 0xff)
+		{
+			__mmask8 bitcmp = _mm512_test_epi64_mask(m, dv[0]);
+
+			mask_sqrredc104_exact_vec(&rv[1], &rv[0], ~done, rv[1], rv[0], nv[1], nv[0], vrho);
+			mask_dblmod104_x8(&rv[1], &rv[0], (~done) & bitcmp, rv[1], rv[0], nv[1], nv[0]);
+
+			m = _mm512_srli_epi64(m, 1);
+			done = _mm512_cmpeq_epu64_mask(m, zerov);
+		}
+	}
+	else
+	{
+		done = _mm512_cmpeq_epu64_mask(m, zerov);
+		while (done != 0xff)
+		{
+			__mmask8 bitcmp = _mm512_test_epi64_mask(m, dv[0]);
+
+			mask_sqrredc104_vec(&rv[1], &rv[0], ~done, rv[1], rv[0], nv[1], nv[0], vrho);
+			mask_dblmod104_x8(&rv[1], &rv[0], (~done) & bitcmp, rv[1], rv[0], nv[1], nv[0]);
+
+			m = _mm512_srli_epi64(m, 1);
+			done = _mm512_cmpeq_epu64_mask(m, zerov);
+		}
+	}
+
+	// AMM possibly needs a final correction by n
+	addmod104_x8(&rv[1], &rv[0], zerov, zerov, rv[1], rv[0], nv[1], nv[0]);
+
+	// check current result == 1
+	__mmask8 is1prp = _mm512_cmpeq_epu64_mask(rv[1], mone[1]) &
+		_mm512_cmpeq_epu64_mask(rv[0], mone[0]);
+
+	// now compute b^(2^s*d) and check for congruence to -1 as we go.
+	// check while tzcnt is > 1 for all inputs or all are already not prp.
+	done = is1prp;
+	__mmask8 ism1prp = 0;
+
+	submod104_x8(&n1v[1], &n1v[0], nv[1], nv[0], mone[1], mone[0], nv[1], nv[0]);
+
+	while (done != 0xff)
+	{
+		tzcntv = _mm512_mask_sub_epi64(tzcntv, ~done, tzcntv, onev);
+
+		// prp by -1 check
+		ism1prp = (_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[1], n1v[1]) &
+			_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[0], n1v[0]));
+
+		is1prp |= ism1prp;	// stop checking it if we've found a prp criteria.
+		done = (is1prp | ism1prp);
+
+		sqrredc104_vec(&rv[1], &rv[0], rv[1], rv[0], nv[1], nv[0], vrho);
+		addmod104_x8(&rv[1], &rv[0], zerov, zerov, rv[1], rv[0], nv[1], nv[0]);
+
+		// definitely not prp by 1 check, stop checking
+		done |= (_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[1], zerov) &
+			_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[0], onev));
+
+		done |= _mm512_mask_cmple_epu64_mask(~done, tzcntv, onev);
+	}
+
+	addmod104_x8(&rv[1], &rv[0], zerov, zerov, rv[1], rv[0], nv[1], nv[0]);
+
+	// check current result == m-1
+	ism1prp |= (_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[1], n1v[1]) &
+		_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[0], n1v[0]));
+
+	return (is1prp | ism1prp);
+}
+#endif
+
+// a Selfridge test on 8x 104-bit inputs
+uint8_t selfridge_104x8(uint64_t* n)
+{
+	// assumes n is a list of 8 104-bit integers (16 52-bit words)
+	// in the format: 8 lo-words, 8 hi-words.
+	int result;
+	mpz_t gn;
+	mpz_init(gn);
+
+	long p[8];
+	long q[8];
+	uint8_t mask = 0;
+	int i;
+
+	for (i = 0; i < 8; i++)
+	{
+		uint64_2gmp(n[8 + i], gn);
+		mpz_mul_2exp(gn, gn, 64);
+		mpz_add_ui(gn, gn, n[i] >> 32);
+		mpz_mul_2exp(gn, gn, 32);
+		mpz_add_ui(gn, gn, n[i] & 0xffffffff);
+
+		long int d = 5;
+		int max_d = 1000000;
+		int jacobi = 0;
+		uint128_t n128;
+
+		p[i] = 1;
+		q[i] = 0;
+
+		n128 = n[1];
+		n128 <<= 64;
+		n128 |= (uint128_t)n[0];
+
+		if ((n[1] == 0) && (n[0] < 2))
+			continue;
+
+		if ((n[0] & 1 == 0))
+			continue;
+
+		int status = 0;
+		while (1)
+		{
+			jacobi = jacobi_128(d, n128);
+
+			/* if jacobi == 0, d is a factor of n, therefore n is composite... */
+			/* if d == n, then either n is either prime or 9... */
+			if (jacobi == 0)
+			{
+				if ((d == n128) && (d != 9))
+				{
+					// confirmed prime
+					mask |= (1 << i);
+					status = 1;
+					break;
+				}
+				else
+				{
+					// confirmed composite
+					status = -1;
+					break;
+				}
+			}
+
+			if (jacobi == -1)
+				break;
+
+			/* if we get to the 5th d, make sure we aren't dealing with a square... */
+			if (d == 13)
+			{
+				if (mpz_perfect_square_p(gn))
+				{
+					// confirmed composite
+					status = -1;
+					break;
+				}
+			}
+
+			if (d < 0)
+			{
+				d *= -1;
+				d += 2;
+			}
+			else
+			{
+				d += 2;
+				d *= -1;
+			}
+
+			/* make sure we don't search forever */
+			if (d >= max_d)
+			{
+				// error
+				status = -2;
+				break;
+			}
+		}
+
+		// if status != 0, then this lane is confirmed prime or composite.
+		// otherwise, proceed to the lucas test
+		if (status == 0)
+			mask |= (1 << i);
+
+		q[i] = (1 - d) / 4;
+	}
+
+	mpz_clear(gn);
+
+	//if (mask == 0) return 0;
+	//else return (mask & lucas_104x8(n, p, q));
+}
+
+// a Baillie-Pomerance-Selfridge-Wagstaff (bpsw) test on 8x 104-bit inputs
+uint8_t bpsw_104x8(uint64_t* n)
+{
+	uint8_t mask = MR_2sprp_104x8(n);
+	return (mask & selfridge_104x8(n));
 }
 
 // a Miller-Rabin SPRP test on 8x 104-bit inputs using an

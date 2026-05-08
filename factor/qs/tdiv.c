@@ -445,7 +445,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
             // so that a synthetic data set resembling this real one can
             // be constructed for deeper analysis of cycle generation for
             // this parameterization.
-            fprintf(sconf->residue_files[dconf->tid], "%lu\n", q64);
+            fprintf(sconf->residue_files[dconf->tid], "%"PRIu64"\n", q64);
 
 #endif
 

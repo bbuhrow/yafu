@@ -5676,7 +5676,7 @@ int update_final(static_conf_t *sconf)
 		{
 			printf("\n\nsieving required %u total polynomials (%u 'A' polynomials)\n",
 				sconf->tot_poly, sconf->total_poly_a);
-			gmp_printf("trial division touched %lu sieve locations out of %Zd\n",
+			gmp_printf("trial division touched %"PRIu64" sieve locations out of %Zd\n",
 				sconf->num, tmp1);
 
             if (sconf->use_dlp)
@@ -5706,7 +5706,7 @@ int update_final(static_conf_t *sconf)
                         sconf->qlp_outside_range, sconf->qlp_useful);
 			}
 
-            printf("total reports = %lu, total surviving reports = %lu\ntotal blocks sieved = %lu, "
+            printf("total reports = %"PRIu64", total surviving reports = %"PRIu64"\ntotal blocks sieved = %"PRIu64", "
                 "avg surviving reports per block = %1.2f\n", sconf->total_reports,
                 sconf->total_surviving_reports, sconf->total_blocks,
                 (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
@@ -5735,10 +5735,10 @@ int update_final(static_conf_t *sconf)
 				sconf->num, s);
             free(s);
 
-			logprint(sieve_log, "total reports = %lu, total surviving reports = %lu\n", sconf->total_reports,
+			logprint(sieve_log, "total reports = %"PRIu64", total surviving reports = %"PRIu64"\n", sconf->total_reports,
 				sconf->total_surviving_reports);
 
-			logprint(sieve_log, "total blocks sieved = %lu, avg surviving reports per block = %1.2f\n", 
+			logprint(sieve_log, "total blocks sieved = %"PRIu64", avg surviving reports per block = %1.2f\n", 
 				sconf->total_blocks, (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
 			
             if (sconf->use_dlp)
@@ -5806,7 +5806,7 @@ int update_final(static_conf_t *sconf)
 		}
 
         char* s = mpz_get_str(NULL, 10, tmp1);
-		logprint(sieve_log, "trial division touched %lu sieve locations out of %s\n",
+		logprint(sieve_log, "trial division touched %"PRIu64" sieve locations out of %s\n",
 			sconf->num, s);
         free(s);
 		logprint(sieve_log,"==== post processing stage (msieve-1.38) ====\n");

@@ -257,7 +257,7 @@ void pp1_prac(vec_bignum_t* A, uint64_t k, vec_bignum_t* B,
 
     if (d != 1)
     {
-        printf("problem in pp1_prac, d = %lu\n", d);
+        printf("problem in pp1_prac, d = %"PRIu64"\n", d);
     }
     return;
 }
@@ -741,7 +741,7 @@ void vecPP1(fact_obj_t* fobj)
 
     if (verbose > 1)
     {
-        printf("pp1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+        printf("pp1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
     }
 
     mpz_init(r);
@@ -867,7 +867,7 @@ void vecPP1(fact_obj_t* fobj)
 
         if (verbose > 0)
         {
-            gmp_printf("pp1: commencing parallel P+1 to B1 = %lu on %Zd\n", STAGE1_MAX, N[k]);
+            gmp_printf("pp1: commencing parallel P+1 to B1 = %"PRIu64" on %Zd\n", STAGE1_MAX, N[k]);
         }
 
         if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
@@ -1099,7 +1099,7 @@ void vecPP1(fact_obj_t* fobj)
 
             if (verbose > 1)
             {
-                printf("pp1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+                printf("pp1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
             }
             i = 0;
         }
@@ -1136,7 +1136,7 @@ void vecPP1(fact_obj_t* fobj)
 
             if (verbose > 1)
             {
-                printf("pp1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+                printf("pp1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
             }
             i = 0;
         }
@@ -1149,7 +1149,7 @@ void vecPP1(fact_obj_t* fobj)
 
         if ((fobj->VFLAG > 0) && ((i & 131071) == 0))
         {
-            printf("pp1: @ p = %lu\r", q);
+            printf("pp1: @ p = %"PRIu64"\r", q);
         }
     }
     if ((fobj->VFLAG > 0) && (i > 131071))
@@ -1228,7 +1228,7 @@ void vecPP1(fact_obj_t* fobj)
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
             char* s = mpz_get_str(NULL, 10, N[i]);
-            logprint_oc(fobj->flogname, "a", "AVX-PP1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            logprint_oc(fobj->flogname, "a", "AVX-PP1 with B1 = %"PRIu64" on %s\n", STAGE1_MAX, s);
             free(s);
 
             //check if the factor is prime
@@ -1341,7 +1341,7 @@ void vecPP1(fact_obj_t* fobj)
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
             char* s = mpz_get_str(NULL, 10, N[i]);
-            logprint_oc(fobj->flogname, "a", "AVX-PP1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            logprint_oc(fobj->flogname, "a", "AVX-PP1 with B1 = %"PRIu64" on %s\n", STAGE1_MAX, s);
             free(s);
 
             //check if the factor is prime
@@ -1440,7 +1440,7 @@ void vecPM1(fact_obj_t* fobj)
 
     if (verbose > 1)
     {
-        printf("pm1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+        printf("pm1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
     }
 
     mpz_init(r);
@@ -1567,7 +1567,7 @@ void vecPM1(fact_obj_t* fobj)
 
         if (verbose > 0)
         {
-            gmp_printf("pm1: commencing parallel P-1 @ B1=%lu on %Zd\n", STAGE1_MAX, N[k]);
+            gmp_printf("pm1: commencing parallel P-1 @ B1=%"PRIu64" on %Zd\n", STAGE1_MAX, N[k]);
         }
 
         if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
@@ -1827,7 +1827,7 @@ void vecPM1(fact_obj_t* fobj)
 
             if (verbose > 1)
             {
-                printf("pm1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+                printf("pm1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
             }
         }
     }
@@ -1857,7 +1857,7 @@ void vecPM1(fact_obj_t* fobj)
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
             char* s = mpz_get_str(NULL, 10, N[i]);
-            logprint_oc(fobj->flogname, "a", "AVX-PM1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            logprint_oc(fobj->flogname, "a", "AVX-PM1 with B1 = %"PRIu64" on %s\n", STAGE1_MAX, s);
             free(s);
 
             //check if the factor is prime
@@ -2009,7 +2009,7 @@ void vecPM1(fact_obj_t* fobj)
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
             char* s = mpz_get_str(NULL, 10, N[i]);
-            logprint_oc(fobj->flogname, "a", "AVX-PM1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            logprint_oc(fobj->flogname, "a", "AVX-PM1 with B1 = %"PRIu64" on %s\n", STAGE1_MAX, s);
             free(s);
 
             //check if the factor is prime
@@ -2114,7 +2114,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
 
     if (verbose > 1)
     {
-        printf("pp1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+        printf("pp1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
     }
 
     mpz_init(N);
@@ -2452,7 +2452,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
 
             if (verbose > 1)
             {
-                printf("pp1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+                printf("pp1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
             }
             i = 0;
         }
@@ -2489,7 +2489,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
 
             if (verbose > 1)
             {
-                printf("pp1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
+                printf("pp1: found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ppm1_nump, rangemin, rangemax);
             }
             i = 0;
         }
@@ -2502,7 +2502,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
 
         if ((fobj->VFLAG > 0) && ((i & 1048575) == 0))
         {
-            printf("pp1: @ p = %lu\r", q);
+            printf("pp1: @ p = %"PRIu64"\r", q);
         }
     }
     if ((fobj->VFLAG > 0) && (i > 1048575))

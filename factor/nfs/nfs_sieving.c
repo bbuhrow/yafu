@@ -415,7 +415,7 @@ void nfs_sieve_start(void* vptr)
 		// todo: need to free this at the end of sieving.
 		job->rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
 
-		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
+		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %"PRIu64"\n", 2, 1ULL << max_prime);
 
 		char fname[80];
 		sprintf(fname, "bgcd_lpb%d", max_prime);
@@ -2051,7 +2051,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 		// todo: need to free this at the end of sieving.
 		job->rb = (relation_batch_t*)xmalloc(sizeof(relation_batch_t));
 
-		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %lu\n", 2, 1ULL << max_prime);
+		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %"PRIu64"\n", 2, 1ULL << max_prime);
 
 		relation_batch_init(stdout, job->rb, min_prime, 1ULL << max_prime,
 			1ull << job->lpbr, 1ull << job->lpba, NULL, 1);

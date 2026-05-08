@@ -1464,7 +1464,7 @@ void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	vec_duplicate(mdata, work, s1, d1, &work->pt2);
 
 #ifdef DEBUG
-	printf("target is %lu\n", c);
+	printf("target is %"PRIu64"\n", c);
 	printf("pt1 holds [1]P\n");
 	print_vechex(work->pt1.X->data, 0, NWORDS, "");
 	print_vechex(work->pt1.Z->data, 0, NWORDS, "");
@@ -1609,7 +1609,7 @@ void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 
 	if (x != c)
 	{
-		printf("expected %lu, euclid returned %lu\n", c, x);
+		printf("expected %"PRIu64", euclid returned %"PRIu64"\n", c, x);
 		exit(1);
 	}
 
@@ -1710,7 +1710,7 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	}
 	if (d != c)
 	{
-		printf("expected %lu, ladder returned %lu\n", c, d);
+		printf("expected %"PRIu64", ladder returned %"PRIu64"\n", c, d);
 		exit(1);
 	}
 	vecCopy(x1, P->X);
@@ -1776,7 +1776,7 @@ void array_mul(uint64_t *primes, uint64_t b1, int num_p, mpz_t piprimes)
 
 	mpz_set(piprimes, p[0]);
 
-	printf("piprimes has %lu bits\n\n", mpz_sizeinbase(piprimes, 2));
+	printf("piprimes has %"PRIu64" bits\n\n", mpz_sizeinbase(piprimes, 2));
 
 	for (i = 0; i < alloc; i++)
 	{
@@ -1870,13 +1870,13 @@ void vececm_old(thread_data_t *tdata)
 
         if (verbose >= 0)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
+            printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=100*B1\r",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);
         }
         else if (verbose > 1)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\n",
+            printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=100*B1\n",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);
         }
@@ -1924,7 +1924,7 @@ void vececm_old(thread_data_t *tdata)
                 ecm_maxp = ecm_primes[ecm_nump - 1];
 
                 if (verbose > 1)
-				    printf("found %lu primes in range [%lu : %lu]\n", 
+				    printf("found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", 
                         ecm_nump, ecm_minp, ecm_maxp);
 			}
 
@@ -1936,7 +1936,7 @@ void vececm_old(thread_data_t *tdata)
 
             if (verbose > 1)
             {
-                printf("commencing Stage 1 @ prime %lu\n", ecm_minp);
+                printf("commencing Stage 1 @ prime %"PRIu64"\n", ecm_minp);
             }
 
             // start the stage 1 thread pool
@@ -2197,7 +2197,7 @@ void vececm_old(thread_data_t *tdata)
 
                     if (verbose > 1)
                     {
-                        printf("found %lu primes in range [%lu : %lu]\n",
+                        printf("found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n",
                             ecm_nump, ecm_minp, ecm_maxp);
                     }
 				}
@@ -2209,7 +2209,7 @@ void vececm_old(thread_data_t *tdata)
                 }
                 tpool_go(tpool_data);
 
-                //printf("stage 2 finished at P=%lu (maxP = %lu) (id %u of %lu)\n",
+                //printf("stage 2 finished at P=%"PRIu64" (maxP = %"PRIu64") (id %u of %"PRIu64")\n",
                 //    PRIMES[tdata[0].work->last_pid], P_MAX, tdata[0].work->last_pid, NUM_P);
 
 				if (tdata[0].work->last_pid == ecm_nump)
@@ -2232,7 +2232,7 @@ void vececm_old(thread_data_t *tdata)
             if (verbose > 1)
             {
                 printf("Stage 2 took %1.4f seconds\n", t_time);
-                printf("performed %d pair-multiplies for %lu primes in stage 2\n",
+                printf("performed %d pair-multiplies for %"PRIu64" primes in stage 2\n",
                     tdata[0].work->paired, tdata[0].work->numprimes);
                 printf("performed %u point-additions and %u point-doubles in stage 2\n",
                     tdata[0].work->ptadds + tdata[0].work->stg1Add, tdata[0].work->stg1Doub);
@@ -2301,7 +2301,7 @@ void vececm_old(thread_data_t *tdata)
 
         if (verbose >= 0)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
+            printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=100*B1\r",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);
         }
@@ -2313,7 +2313,7 @@ void vececm_old(thread_data_t *tdata)
 
     if (verbose > 1)
     {
-        printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\n",
+        printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=100*B1\n",
             curves_run, tdata[0].curves * threads,
             (int)gmp_base10(gmpn), STAGE1_MAX);
     }
@@ -2416,7 +2416,7 @@ void vececm(thread_data_t* tdata)
 
     if (verbose > 1)
     {
-        printf("found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+        printf("found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ecm_nump, rangemin, rangemax);
     }
 
     tpool_data = tpool_setup(tdata[0].total_threads, NULL, NULL, &vec_ecm_sync,
@@ -2458,7 +2458,7 @@ void vececm(thread_data_t* tdata)
             double est_time;
             double curves_left;
 
-            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1",
+            printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=100*B1",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX); fflush(stdout);
 
@@ -2505,7 +2505,7 @@ void vececm(thread_data_t* tdata)
 
             if (verbose > 1)
             {
-                printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                printf("Found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ecm_nump, rangemin, rangemax);
             }
         }
 
@@ -2581,7 +2581,7 @@ void vececm(thread_data_t* tdata)
 
                 if (verbose > 1)
                 {
-                    printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                    printf("Found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ecm_nump, rangemin, rangemax);
                 }
             }
 
@@ -2597,7 +2597,7 @@ void vececm(thread_data_t* tdata)
 
             if (verbose > 1)
             {
-                printf("Commencing Stage 1 @ prime %lu\n", ecm_minp);
+                printf("Commencing Stage 1 @ prime %"PRIu64"\n", ecm_minp);
             }
 
             tpool_go(tpool_data);
@@ -2910,7 +2910,7 @@ void vececm(thread_data_t* tdata)
 
                     if (verbose > 1)
                     {
-                        printf("found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                        printf("found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ecm_nump, rangemin, rangemax);
                     }
                 }
 
@@ -3017,7 +3017,7 @@ void vececm(thread_data_t* tdata)
 
         if (verbose >= 0)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
+            printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=100*B1\r",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);  fflush(stdout);
         }
@@ -3085,7 +3085,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
 
 
 #ifdef PRINT_DEBUG
-    printf("sigma = %lu\n", work->sigma);
+    printf("sigma = %"PRIu64"\n", work->sigma);
 #endif
 
     // v = 4*sigma
@@ -3336,7 +3336,7 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
     }
     
 #ifdef PRINT_DEBUG
-    printf("sigma = %lu\n", work->sigma);
+    printf("sigma = %"PRIu64"\n", work->sigma);
 #endif
 
     // v = sigma^2
@@ -3477,7 +3477,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
         work->last_pid = compute_s(s, PRIMES, stg1);
         gettimeofday(&stopt, NULL);
         t_time = ytools_difftime(&startt, &stopt);
-        printf("Built product of %lu bits in %1.0f ms\n", mpz_sizeinbase(s, 2), t_time * 1000);
+        printf("Built product of %"PRIu64" bits in %1.0f ms\n", mpz_sizeinbase(s, 2), t_time * 1000);
         ecm_stage1_batch(f, work, P, work->s, work->n, stg1, s, mdata);
         mpz_clear(s);
         mpz_clear(f);
@@ -3538,7 +3538,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
         if ((verbose > 1) && ((i & 511) == 0))
 #endif
 		{
-			printf("accumulating prime %lu\r", q);
+			printf("accumulating prime %"PRIu64"\r", q);
 			fflush(stdout);
 		}
 	}
@@ -3547,7 +3547,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 
     if (verbose > 1)
 	{
-		printf("\nStage 1 completed at prime %lu with %u point-adds and %u point-doubles\n", 
+		printf("\nStage 1 completed at prime %"PRIu64" with %u point-adds and %u point-doubles\n", 
 			primes[i-1], work->stg1Add, work->stg1Doub);
 		fflush(stdout);
 	}
@@ -3705,7 +3705,7 @@ void vec_ecm_stage2_init_old(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base
 	//and Paprod
 	vecmulmod_ptr(Pa[0].X, Pa[0].Z, Paprod[0], work->n, work->tt4, mdata);
 	if (verbose & (debug == 2))
-		printf("Pa[0] = [%lu]Q\n", work->A);
+		printf("Pa[0] = [%"PRIu64"]Q\n", work->A);
 
 	vecCopy(P->Z, work->Pad->Z);
 	vecCopy(P->X, work->Pad->X);
@@ -3713,7 +3713,7 @@ void vec_ecm_stage2_init_old(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base
 	//vec_prac(mdata, work, work->Pad, work->A - ainc);
 
 	if (verbose & (debug == 2))
-		printf("Pad = [%lu]Q\n", work->A - ainc);
+		printf("Pad = [%"PRIu64"]Q\n", work->A - ainc);
 
 	vecaddmod_ptr(Pa[0].X, Pa[0].Z, work->sum1, mdata);
 	vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
@@ -3724,7 +3724,7 @@ void vec_ecm_stage2_init_old(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base
 
 	work->A += ainc;
 	if (verbose & (debug == 2))
-		printf("Pa[1] = [%lu]Q\n", work->A + ainc);
+		printf("Pa[1] = [%"PRIu64"]Q\n", work->A + ainc);
 
 	for (i = 2; i < 2 * L; i++)
 	{
@@ -3745,7 +3745,7 @@ void vec_ecm_stage2_init_old(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base
 		work->A += ainc;
 		work->ptadds++;
 		if (verbose & (debug == 2))
-			printf("Pa[%d] = [%lu]Q\n", i, work->A + i * ainc);
+			printf("Pa[%d] = [%"PRIu64"]Q\n", i, work->A + i * ainc);
 
 		//and Paprod
 		vecmulmod_ptr(Pa[i].X, Pa[i].Z, Paprod[i], work->n, work->tt4, mdata);
@@ -4132,7 +4132,7 @@ void addflag(uint8_t* flags, uint64_t loc, uint64_t lobound, uint64_t hibound)
     //    printf("duplicate location %u\n", loc);
     if ((loc < lobound) || (loc >= hibound))
     {
-        //printf("attempted to add a flag to location %lu outside of bounds %lu:%lu\n",
+        //printf("attempted to add a flag to location %"PRIu64" outside of bounds %"PRIu64":%"PRIu64"\n",
         //    loc, lobound, hibound);
         return;
     }
@@ -4317,14 +4317,14 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
         next_pt_vec(mdata, work, &Pa[0], work->A);
 
         if (verbose & (debug == 2))
-            printf("Pa[0] = [%lu]Q\n", work->A);
+            printf("Pa[0] = [%"PRIu64"]Q\n", work->A);
 
         vecCopy(P->Z, work->Pad->Z);
         vecCopy(P->X, work->Pad->X);
         next_pt_vec(mdata, work, work->Pad, work->A - wscale * w);
 
         if (verbose & (debug == 2))
-            printf("Pad = [%lu]Q\n", work->A - wscale * w);
+            printf("Pad = [%"PRIu64"]Q\n", work->A - wscale * w);
 
         vecaddmod_ptr(Pa[0].X, Pa[0].Z, work->sum1, mdata);
         vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
@@ -4334,7 +4334,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
 
         work->A += wscale * w;
         if (verbose & (debug == 2))
-            printf("Pa[1] = [%lu]Q\n", work->A);
+            printf("Pa[1] = [%"PRIu64"]Q\n", work->A);
 
         for (i = 2; i < 2 * L; i++)
         {
@@ -4354,7 +4354,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
 
             work->A += wscale * w;
             if (verbose & (debug == 2))
-                printf("Pa[%d] = [%lu]Q\n", i, work->A);
+                printf("Pa[%d] = [%"PRIu64"]Q\n", i, work->A);
         }
 
 #ifdef DO_STAGE2_INV
@@ -4376,7 +4376,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
 
     if (verbose > 1)
     {
-        printf("commencing stage 2 at A=%lu\n"
+        printf("commencing stage 2 at A=%"PRIu64"\n"
             "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
             2 * (uint64_t)amin * (uint64_t)w, w, work->R - 3, L, U, umax, amin);
     }
@@ -4455,7 +4455,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
             //if ((((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w - (uint64_t)pb) == 10078477ULL) ||
             //    (((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w + (uint64_t)pb) == 10078477ULL))
             //{
-            //    printf("\naccumulated %lu @ amin = %u, pa = %d, pb = %d\n", 
+            //    printf("\naccumulated %"PRIu64" @ amin = %u, pa = %d, pb = %d\n", 
             //        10078477ULL, amin, pa, pb);
             //}
 
@@ -4506,12 +4506,12 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
     if (verbose > 1)
     {
-        printf("commencing pair on range %lu:%lu\n", B1, B2);
+        printf("commencing pair on range %"PRIu64":%"PRIu64"\n", B1, B2);
     }
 
     if (printpairmap || printpairs)
     {
-        printf("commencing pair at A=%lu\n"
+        printf("commencing pair at A=%"PRIu64"\n"
             "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
             2 * (uint64_t)amin * (uint64_t)w, w, R, L, U, umax, amin);
     }
@@ -4524,7 +4524,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         a = (s + w) / (2 * w);
         nump++;
 
-        //printf("s, a: %lu, %lu\n", s, a);
+        //printf("s, a: %"PRIu64", %"PRIu64"\n", s, a);
 
         while (a >= (amin + L))
         {
@@ -4555,7 +4555,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                             }
                             if (printpairs)
                             {
-                                printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                                printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                                     ap, q,
                                     2 * ap * w - q,
                                     2 * ap * w + q);
@@ -4586,7 +4586,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                             }
                             if (printpairs)
                             {
-                                printf("pair (ap,q):(%lu,%u)  %lu:%lu\n",
+                                printf("pair (ap,q):(%"PRIu64",%u)  %"PRIu64":%"PRIu64"\n",
                                     ap, Qrmap[i],
                                     2 * ap * w - Qrmap[i],
                                     2 * ap * w + Qrmap[i]);
@@ -4640,7 +4640,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                         }
                         if (printpairs)
                         {
-                            printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                            printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                                 ap, q,
                                 2 * ap * w - qq,
                                 2 * ap * w + qq);
@@ -4664,7 +4664,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                         }
                         if (printpairs)
                         {
-                            printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                            printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                                 ap, q,
                                 2 * ap * w - qq,
                                 2 * ap * w + qq);
@@ -4685,7 +4685,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                     }
                     if (printpairs)
                     {
-                        printf("pair (a,ap,u):(%lu,%lu,%lu)  %lu:%lu\n",
+                        printf("pair (a,ap,u):(%"PRIu64",%"PRIu64",%"PRIu64")  %"PRIu64":%"PRIu64"\n",
                             a, ap, u,
                             (a + ap) * w - u,
                             (a + ap) * w + u);
@@ -4695,15 +4695,15 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
             }
             else
             {
-                //printf("queueing a=%lu in Q[%d]\n", a, abs(q));
+                //printf("queueing a=%"PRIu64" in Q[%d]\n", a, abs(q));
                 if (q < 0)
                 {
-                    //printf("queueing a=%lu in Q[%u](%u)\n", a, 2 * w + q, Qmap[2 * w + q]);
+                    //printf("queueing a=%"PRIu64" in Q[%u](%u)\n", a, 2 * w + q, Qmap[2 * w + q]);
                     enqueue(Q[Qmap[2 * w + q]], a);
                 }
                 else
                 {
-                    //printf("queueing a=%lu in Q[%d]\n", a, q);
+                    //printf("queueing a=%"PRIu64" in Q[%d]\n", a, q);
                     enqueue(Q[Qmap[q]], a);
                 }
                 u = 0;
@@ -4732,7 +4732,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                 if (printpairs)
                 {
-                    printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                    printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                         ap, q,
                         2 * ap * w - q,
                         2 * ap * w + q);
@@ -4751,7 +4751,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                 if (printpairs)
                 {
-                    printf("pair (ap,q):(%lu,%u)  %lu:%lu\n",
+                    printf("pair (ap,q):(%"PRIu64",%u)  %"PRIu64":%"PRIu64"\n",
                         ap, Qrmap[i],
                         2 * ap * w - Qrmap[i],
                         2 * ap * w + Qrmap[i]);
@@ -4770,10 +4770,10 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     {
         printf("%u pairing steps generated\n", mapid);
         amin = (B1 + w) / (2 * w);
-        printf("amin is now %lu (A = %lu)\n", amin, 2 * amin * w);
+        printf("amin is now %"PRIu64" (A = %"PRIu64")\n", amin, 2 * amin * w);
         for (i = 0; i < mapid; i++)
         {
-            printf("pair: %uw+/-%u => %lu:%lu\n", pairmap_v[i]+amin, pairmap_u[i],
+            printf("pair: %uw+/-%u => %"PRIu64":%"PRIu64"\n", pairmap_v[i]+amin, pairmap_u[i],
                 (pairmap_v[i]+amin) * w - pairmap_u[i],
                 (pairmap_v[i]+amin) * w + pairmap_u[i]);
             if (pairmap_u[i] == 0)
@@ -4807,7 +4807,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         {
             if (flags[primes[pid] - B1] != 1)
             {
-                printf("prime %lu not covered!\n", primes[pid]);
+                printf("prime %"PRIu64" not covered!\n", primes[pid]);
                 notcovered++;
             }
             pid++;
@@ -5104,7 +5104,7 @@ int vec_ecm_stage1_batch(mpz_t f, ecm_work* work, ecm_pt* P, vec_bignum_t* A,
 
     //printf("d_1 = ");
     //for (i = 0; i < VECLEN; i++)
-    //    printf("%lu, ", d_1[i]);
+    //    printf("%"PRIu64", ", d_1[i]);
     //printf("\n");
 
     /* initialize P */

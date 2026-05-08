@@ -167,7 +167,7 @@ static char function_names[NUM_FUNC][11] = {
     "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
-    "divisors", "acycles"};
+    "divisors", "expansion"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -186,7 +186,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 2,
-    1, 1};
+    1, 0};
 
 
 // =====================================================================
@@ -3784,7 +3784,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             {
                 s += ni[i];
             }
-            printf("final sum = %lu\n", s);
+            printf("final sum = %"PRIu64"\n", s);
         }
 
         if (0)
@@ -3987,7 +3987,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             {
                 s += ni[i];
             }
-            printf("final sum = %lu\n", s);
+            printf("final sum = %"PRIu64"\n", s);
         }
 
 #endif
@@ -4126,6 +4126,97 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
     case 81:
         // expansion
+
+    {
+        uint64_t num_t;
+        uint64_t num_p;
+        uint64_t* primes;
+        uint64_t* twins;
+        uint64_t range;
+        mpz_t lowz, highz;
+
+        primes = NULL;
+
+        mpz_init(lowz);
+        mpz_init(highz);
+        mpz_set_ui(lowz, 0);
+        mpz_set_ui(highz, 1000000000);
+
+        gettimeofday(&tstart, NULL);
+
+        // find an array of twin primes
+        uint64_t limit = 10000000000ull;
+
+        soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+        sdata->witnesses = 1;
+        sdata->analysis = 2;
+        twins = sieve_to_depth(sdata, lowz, highz,
+            0, 1, 1000000000, &num_t, 0, 0);
+        soe_finalize(sdata);
+
+        gettimeofday(&tstop, NULL);
+        t = ytools_difftime(&tstart, &tstop);
+
+        printf("found %"PRIu64" twins < %"PRIu64", elapsed time = % 6.4f\n", num_t, limit, t);
+
+        gettimeofday(&tstart, NULL);
+
+        sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+        primes = soe_wrapper(sdata, 0, 10000000000ull, 0, &num_p, 0, 0);
+        soe_finalize(sdata);
+
+        gettimeofday(&tstop, NULL);
+        t = ytools_difftime(&tstart, &tstop);
+
+        printf("found %"PRIu64" primes < %"PRIu64", elapsed time = % 6.4f\n", num_p, limit, t);
+
+        uint32_t* evens = xcalloc(limit / 32 + 1000, sizeof(uint32_t));
+
+        uint64_t n;
+        uint32_t min_id = 0;
+        uint32_t min_p_id = 1;
+        uint32_t last_min_id = 0;
+        evens[0] = 0x7;     // 0, 2, 4
+        for (i = 0; i < num_t; i++)
+        {
+            for (j = min_p_id; j < num_p; j++)
+            {
+                n = (twins[i] + primes[j]) / 2;
+                evens[n >> 5] |= (1 << (n & 31));
+                n++;    // for the other side of the twin
+                evens[n >> 5] |= (1 << (n & 31));
+            }
+            printf("twin %"PRIu64"... ", twins[i]);
+
+            int done = 1;
+            for (j = min_id; j < limit / 32 / 2; j++)
+            {
+                if (evens[j] < 0xffffffff)
+                {
+                    done = 0;
+                    min_id = j;
+                    printf("minimum n not satisfied = %"PRIu64" (%08x)\n", 
+                        (uint64_t)j * 32 * 2, evens[j]);
+                    break;
+                }
+            }
+            if (done)
+            {
+                printf("all satisfied\n");
+                break;
+            }
+        } 
+
+
+        free(primes);
+        free(twins);
+
+        mpz_clear(lowz);
+        mpz_clear(highz);
+        mpz_set_ui(operands[0], 0);
+        
+    }
+
         break;
 
 	default:

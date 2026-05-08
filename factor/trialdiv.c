@@ -46,7 +46,7 @@ void zTrial(fact_obj_t *fobj)
         }
     }
 
-    //printf("min_p: %lu, max_p = %lu, num_p = %lu\n",
+    //printf("min_p: %"PRIu64", max_p = %"PRIu64", num_p = %"PRIu64"\n",
     //    fobj->min_p, fobj->max_p, fobj->num_p);
 
 	if ((fobj->primes == NULL) || (fobj->min_p > 2) || (fobj->max_p < limit))

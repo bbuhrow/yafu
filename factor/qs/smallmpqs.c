@@ -2894,7 +2894,7 @@ void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n)
     mpz_mul(t2, t2, t2);
     mpz_sub(t2, n, t2);
 
-    //gmp_printf("n = %Zd, ut1 = %lu, ut2 = %lu, nmodd = %lu, t2 = %Zd\n", n, ut1, ut2, nmodd, t2);
+    //gmp_printf("n = %Zd, ut1 = %"PRIu64", ut2 = %"PRIu64", nmodd = %"PRIu64", t2 = %Zd\n", n, ut1, ut2, nmodd, t2);
 
 	// (n - h1^2)/d
 	mpz_tdiv_q_ui(t2, t2, polyd);
@@ -2912,7 +2912,7 @@ void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n)
 	// compute t5 = h1 + h2*D
     u64a = (uint64_t)ut3 * (uint64_t)polyd + (uint64_t)ut2;
 
-    //gmp_printf("ut1 = %lu, ut3 = %lu, u64a = %llu, t2 = %Zd\n", ut1, ut3, u64a, t2);
+    //gmp_printf("ut1 = %"PRIu64", ut3 = %"PRIu64", u64a = %llu, t2 = %Zd\n", ut1, ut3, u64a, t2);
 
 	// we're now done with d, so compute a = d^2
 	poly->poly_a = (uint64_t)polyd * (uint64_t)polyd;

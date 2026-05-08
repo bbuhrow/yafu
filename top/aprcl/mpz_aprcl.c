@@ -47,6 +47,106 @@ typedef long long s64_t;
 typedef unsigned long long u64_t;
 #endif
 
+typedef struct
+{
+    mpz_t rhat;
+    mpz_t nhat;
+    mpz_t n;
+    mpz_t r;
+    mpz_t tmp;
+    int rbits;
+} montgomery_t;
+
+montgomery_t* monty_setup(mpz_t n)
+{
+    int nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS +
+        ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0);
+
+    montgomery_t* m;
+
+    m = (montgomery_t*)malloc(sizeof(montgomery_t));
+
+    mpz_init(m->n);
+    mpz_init(m->r);
+    mpz_init(m->rhat);
+    mpz_init(m->nhat);
+    mpz_init(m->tmp);
+
+    m->rbits = nfullwords * GMP_LIMB_BITS;
+    mpz_set(m->n, n);
+    mpz_set_ui(m->r, 1);
+    mpz_mul_2exp(m->r, m->r, m->rbits);
+    mpz_invert(m->nhat, m->n, m->r);
+    mpz_sub(m->nhat, m->r, m->nhat);
+    mpz_mul_2exp(m->rhat, m->r, m->rbits);
+    mpz_mod(m->rhat, m->rhat, n);
+
+    return m;
+}
+
+void to_montgomery(montgomery_t* mdata, mpz_t x)
+{
+    mpz_mul_2exp(x, x, mdata->rbits);
+    mpz_tdiv_r(x, x, mdata->n);
+    return;
+}
+
+void montgomery_add(montgomery_t* mdata, mpz_t u, mpz_t v, mpz_t w)
+{
+    mpz_add(w, u, v);
+    if (mpz_cmp(w, mdata->n) >= 0)
+        mpz_sub(w, w, mdata->n);
+
+    return;
+}
+
+void montgomery_sub(montgomery_t* mdata, mpz_t u, mpz_t v, mpz_t w)
+{
+    if (mpz_cmp(u, v) >= 0)
+    {
+        mpz_sub(w, u, v);
+    }
+    else
+    {
+        mpz_sub(w, u, v);
+        mpz_add(w, w, mdata->n);
+    }
+
+    return;
+}
+
+void montgomery_free(montgomery_t* mdata)
+{
+    mpz_clear(mdata->n);
+    mpz_clear(mdata->nhat);
+    mpz_clear(mdata->rhat);
+    mpz_clear(mdata->r);
+    mpz_clear(mdata->tmp);
+    free(mdata);
+    return;
+}
+
+void montgomery_redc(montgomery_t* mdata, mpz_t x)
+{
+    // q'=x*(-n^-1) mod r
+    mpz_tdiv_r_2exp(mdata->tmp, x, mdata->rbits);
+    mpz_mul(mdata->tmp, mdata->tmp, mdata->nhat);
+    mpz_tdiv_r_2exp(mdata->tmp, mdata->tmp, mdata->rbits);
+    // q'n
+    mpz_mul(mdata->tmp, mdata->tmp, mdata->n);     
+    // q'n + x
+    mpz_add(x, mdata->tmp, x);      
+    mpz_tdiv_q_2exp(x, x, mdata->rbits);
+    if (mpz_cmp(x, mdata->n) >= 0)
+        mpz_sub(x, x, mdata->n);
+}
+
+void montgomery_mul(mpz_t w, mpz_t u, mpz_t v, montgomery_t* mdata)
+{
+    mpz_mul(w, u, v);
+    montgomery_redc(mdata, w);
+}
+
 /* ******************************************************************
  * mpz_prp: (also called a Fermat pseudoprime)
  * A "pseudoprime" to the base a is a composite number n such that,
@@ -234,7 +334,6 @@ int mpz_sprp(mpz_t n, mpz_t a)
   return PRP_COMPOSITE;
 
 }/* method mpz_sprp */
-
 
 /* *************************************************************************
  * mpz_fibonacci_prp:
@@ -430,6 +529,7 @@ int mpz_lucas_prp(mpz_t n, long int p, long int q)
   mpz_init_set_si(tmp,0);
 
   s = mpz_scan1(index, 0);
+
   for (j = mpz_sizeinbase(index,2)-1; j >= s+1; j--)
   {
     /* ql = ql*qh (mod n) */
@@ -538,6 +638,261 @@ int mpz_lucas_prp(mpz_t n, long int p, long int q)
 
 }/* method mpz_lucas_prp */
 
+int mpz_lucas_prp_monty(mpz_t n, long int p, long int q)
+{
+    mpz_t zD;
+    mpz_t res;
+    mpz_t index;
+    mpz_t uh, vl, vh, ql, qh, tmp; /* used for calculating the Lucas U sequence */
+    int s = 0, j = 0;
+    int ret = 0;
+    long int d = p * p - 4 * q;
+
+    if (d == 0) /* Does not produce a proper Lucas sequence */
+        return PRP_ERROR;
+
+    if (mpz_cmp_ui(n, 2) < 0)
+        return PRP_COMPOSITE;
+
+    if (mpz_divisible_ui_p(n, 2))
+    {
+        if (mpz_cmp_ui(n, 2) == 0)
+            return PRP_PRIME;
+        else
+            return PRP_COMPOSITE;
+    }
+
+    mpz_init(index);
+    mpz_init_set_si(zD, d);
+    mpz_init(res);
+
+    mpz_mul_si(res, zD, q);
+    mpz_mul_ui(res, res, 2);
+    mpz_gcd(res, res, n);
+    if ((mpz_cmp(res, n) != 0) && (mpz_cmp_ui(res, 1) > 0))
+    {
+        mpz_clear(zD);
+        mpz_clear(res);
+        mpz_clear(index);
+        return PRP_COMPOSITE;
+    }
+
+    /* index = n-(D/n), where (D/n) is the Jacobi symbol */
+    mpz_set(index, n);
+    ret = mpz_jacobi(zD, n);
+    if (ret == -1)
+        mpz_add_ui(index, index, 1);
+    else if (ret == 1)
+        mpz_sub_ui(index, index, 1);
+
+    // do all lucas math mod N
+    montgomery_t* m = monty_setup(n);
+
+    /* mpz_lucasumod(res, p, q, index, n); */
+    mpz_init_set_si(uh, 1);
+    mpz_init_set_si(vl, 2);
+    mpz_init_set_si(vh, p);
+    mpz_init_set_si(ql, 1);
+    mpz_init_set_si(qh, 1);
+    mpz_init_set_si(tmp, 0);
+
+    to_montgomery(m, uh);
+    to_montgomery(m, vl);
+    if (p < 0)
+    {
+        mpz_neg(vh, vh);
+        to_montgomery(m, vh);
+        mpz_sub(vh, m->r, vh);
+    }
+    else
+    {
+        to_montgomery(m, vh);
+    }
+    to_montgomery(m, ql);
+    to_montgomery(m, qh);
+
+    mpz_t mp, mq;
+    mpz_init(mp);
+    mpz_init(mq);
+
+    mpz_set(mp, vh);
+    mpz_set_si(mq, q);
+
+    if (q < 0)
+    {
+        mpz_neg(mq, mq);
+        mpz_sub(mq, m->n, mq);
+        to_montgomery(m, mq);
+        //gmp_printf("%d -> %Zd\n", q, mq);
+    }
+    else
+    {
+        to_montgomery(m, mq);
+    }
+
+    s = mpz_scan1(index, 0);
+
+    //gmp_printf("n = %Zx, q = %d (%Zx), "
+    //    "1 = %Zx, p = %d, d = %d, s = %d, sz = %d (mpz)\n",
+    //    n, q, mq, uh, p, d, s, mpz_sizeinbase(index, 2));
+
+    for (j = mpz_sizeinbase(index, 2) - 1; j >= s + 1; j--)
+    {
+        /* ql = ql*qh (mod n) */
+        montgomery_mul(ql, ql, qh, m);
+        //mpz_mul(ql, ql, qh);
+        //mpz_mod(ql, ql, n);
+
+        if (mpz_tstbit(index, j) == 1)
+        {
+            /* qh = ql*q */
+            //mpz_mul_si(qh, ql, q);
+            montgomery_mul(qh, ql, mq, m);
+
+            /* uh = uh*vh (mod n) */
+            //mpz_mul(uh, uh, vh);
+            //mpz_mod(uh, uh, n);
+            montgomery_mul(uh, uh, vh, m);
+
+            /* vl = vh*vl - p*ql (mod n) */
+            //mpz_mul(vl, vh, vl);
+            //mpz_mul_si(tmp, ql, p);
+            //mpz_sub(vl, vl, tmp);
+            //mpz_mod(vl, vl, n);
+            montgomery_mul(vl, vl, vh, m);
+            montgomery_mul(tmp, ql, mp, m);
+            montgomery_sub(m, vl, tmp, vl);
+
+            /* vh = vh*vh - 2*qh (mod n) */
+            //mpz_mul(vh, vh, vh);
+            //mpz_mul_si(tmp, qh, 2);
+            //mpz_sub(vh, vh, tmp);
+            //mpz_mod(vh, vh, n);
+            montgomery_mul(vh, vh, vh, m);
+            montgomery_add(m, qh, qh, tmp);
+            montgomery_sub(m, vh, tmp, vh);
+        }
+        else
+        {
+            /* qh = ql */
+            mpz_set(qh, ql);
+
+            /* uh = uh*vl - ql (mod n) */
+            //mpz_mul(uh, uh, vl);
+            //mpz_sub(uh, uh, ql);
+            //mpz_mod(uh, uh, n);
+            montgomery_mul(uh, uh, vl, m);
+            montgomery_sub(m, uh, ql, uh);
+
+            /* vh = vh*vl - p*ql (mod n) */
+            //mpz_mul(vh, vh, vl);
+            //mpz_mul_si(tmp, ql, p);
+            //mpz_sub(vh, vh, tmp);
+            //mpz_mod(vh, vh, n);
+            montgomery_mul(vh, vl, vh, m);
+            montgomery_mul(tmp, ql, mp, m);
+            montgomery_sub(m, vh, tmp, vh);
+
+            /* vl = vl*vl - 2*ql (mod n) */
+            //mpz_mul(vl, vl, vl);
+            //mpz_mul_si(tmp, ql, 2);
+            //mpz_sub(vl, vl, tmp);
+            //mpz_mod(vl, vl, n);
+            montgomery_mul(vl, vl, vl, m);
+            montgomery_add(m, ql, ql, tmp);
+            montgomery_sub(m, vl, tmp, vl);
+        }
+    }
+
+    //printf("after loop1:\n");
+    //gmp_printf("ql = %Zx, qh = %Zx, "
+    //    "vl = %Zx, vh = %Zx, "
+    //    "uh = %Zx (mpz)\n",
+    //    ql, qh, vl, vh, uh);
+
+    /* ql = ql*qh */
+    //mpz_mul(ql, ql, qh);
+    montgomery_mul(ql, ql, qh, m);
+
+    /* qh = ql*q */
+    //mpz_mul_si(qh, ql, q);
+    montgomery_mul(qh, ql, mq, m);
+
+    /* uh = uh*vl - ql */
+    //mpz_mul(uh, uh, vl);
+    //mpz_sub(uh, uh, ql);
+    montgomery_mul(uh, uh, vl, m);
+    montgomery_sub(m, uh, ql, uh);
+
+    /* vl = vh*vl - p*ql */
+    //mpz_mul(vl, vh, vl);
+    //mpz_mul_si(tmp, ql, p);
+    //mpz_sub(vl, vl, tmp);
+    montgomery_mul(vl, vh, vl, m);
+    montgomery_mul(tmp, ql, mp, m);
+    montgomery_sub(m, vl, tmp, vl);
+
+    /* ql = ql*qh */
+    //mpz_mul(ql, ql, qh);
+    montgomery_mul(ql, ql, qh, m);
+
+    for (j = 1; j <= s; j++)
+    {
+        /* uh = uh*vl (mod n) */
+        //mpz_mul(uh, uh, vl);
+        //mpz_mod(uh, uh, n);
+        montgomery_mul(uh, uh, vl, m);
+
+        /* vl = vl*vl - 2*ql (mod n) */
+        //mpz_mul(vl, vl, vl);
+        //mpz_mul_si(tmp, ql, 2);
+        //mpz_sub(vl, vl, tmp);
+        //mpz_mod(vl, vl, n);
+        montgomery_mul(vl, vl, vl, m);
+        montgomery_add(m, ql, ql, tmp);
+        montgomery_sub(m, vl, tmp, vl);
+
+        /* ql = ql*ql (mod n) */
+        //mpz_mul(ql, ql, ql);
+        //mpz_mod(ql, ql, n);
+        montgomery_mul(ql, ql, ql, m);
+    }
+
+    //printf("after loop2:\n");
+    //gmp_printf("ql = %Zx, qh = %Zx, "
+    //    "vl = %Zx, vh = %Zx, "
+    //    "uh = %Zx (mpz)\n",
+    //    ql, qh, vl, vh, uh);
+
+    montgomery_redc(m, uh);
+    mpz_mod(res, uh, n); /* uh contains our return value */
+
+    montgomery_free(m);
+    mpz_clear(mp);
+    mpz_clear(mq);
+    mpz_clear(zD);
+    mpz_clear(index);
+    mpz_clear(uh);
+    mpz_clear(vl);
+    mpz_clear(vh);
+    mpz_clear(ql);
+    mpz_clear(qh);
+    mpz_clear(tmp);
+
+    if (mpz_cmp_ui(res, 0) == 0)
+    {
+        mpz_clear(res);
+        //gmp_printf("%Zd prp, q = %d\n", n, q);
+        return PRP_PRP;
+    }
+    else
+    {
+        mpz_clear(res);
+        //gmp_printf("%Zd composite, q = %d\n", n, q);
+        return PRP_COMPOSITE;
+    }
+
+}/* method mpz_lucas_prp */
 
 /* *********************************************************************************************
  * mpz_stronglucas_prp:

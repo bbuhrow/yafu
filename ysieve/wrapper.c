@@ -37,6 +37,7 @@ SOFTWARE.
 #include "tinyprp.h"
 #endif
 #include "gmp_u64_xface.h"
+#include "mpz_aprcl.h"
 
 // known issues:
 // sieve_to_depth crashes with offsets too big (somewhere above 2^80)
@@ -152,11 +153,13 @@ void compute_prps_work_fcn(void *vptr)
 			{
 				//gmp_printf("candidate %Zd... ", t->tmpz);
 				//if (mpz_extrastrongbpsw_prp(t->tmpz))
+
 				uint64_t n64[2];
 				n64[0] = gmp2uint64(t->tmpz);
 				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 64);
 				n64[1] = gmp2uint64(t->tmpz);
-				if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
+
+				if (bpsw_prp_128x1(n64)) //MR_2sprp_128x1  fermat_prp_128x1  (mpz_bpsw_prp(t->tmpz))
 				{
 					if (sdata->analysis == 2)
 					{
@@ -171,7 +174,9 @@ void compute_prps_work_fcn(void *vptr)
 							n64[1]++;
 						}
 
-						if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
+						//mpz_add_ui(t->tmpz, t->tmpz, 2);
+						//if (mpz_bpsw_prp(t->tmpz)) // //MR_2sprp_128x1
+						if (bpsw_prp_128x1(n64))
 						{
 							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 							//printf("prime!\n");
@@ -194,14 +199,14 @@ void compute_prps_work_fcn(void *vptr)
 				//	t->tmpz, t->offset, t->ddata.primes[i - t->startid], sdata->witnesses);
 				//if (mpz_extrastrongbpsw_prp(t->tmpz))
 
-				if (mpz_probab_prime_p(t->tmpz, witnesses))
+				if (mpz_bpsw_prp(t->tmpz))
 				{
 					if (sdata->analysis == 2)
 					{
 						// also need to check the twin
 						//gmp_printf("and twin %Zd is...", t->tmpz);
 						mpz_add_ui(t->tmpz, t->tmpz, 2);
-						if (mpz_probab_prime_p(t->tmpz, sdata->witnesses))
+						if (mpz_bpsw_prp(t->tmpz))
 						{
 							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 							//printf("prime!\n");
@@ -295,7 +300,7 @@ uint64_t *GetPRIMESRange(soe_staticdata_t* sdata,
 		mpz_clear(b);
 		primes = (uint64_t *)realloc(primes, (size_t) (i * sizeof(uint64_t)));
 
-		printf("allocating space for an estimated %lu primes in requested range\n", i);
+		printf("allocating space for an estimated %"PRIu64" primes in requested range\n", i);
 
 		if (primes == NULL)
 		{
@@ -481,7 +486,7 @@ uint64_t *soe_wrapper(soe_staticdata_t* sdata, uint64_t lowlimit, uint64_t highl
 						}
 						else
 						{
-							printf("out of bounds prime %lu found in list\n", primes[i]);
+							printf("out of bounds prime %"PRIu64" found in list\n", primes[i]);
 						}
 					}
 				}
@@ -520,6 +525,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	uint64_t *values = NULL;
 	mpz_t tmpz;
 	mpz_t offset;
+
+	printf("sizeof(long int) = %"PRIu64", sizeof(long) = %"PRIu64"\n",
+		sizeof(long int), sizeof(long));
 
 	if (mpz_cmp(highlimit, lowlimit) <= 0)
 	{
@@ -623,7 +631,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 	if (count)
 	{
-		gmp_printf("commencing sieve over interval %Zd + (%lu:%lu) with %u sieve primes\n",
+		gmp_printf("commencing sieve over interval %Zd + (%"PRIu64":%"PRIu64") with %u sieve primes\n",
 			offset, 0, range, sdata->num_sp);
 
 		if (num_witnesses > 0)
@@ -774,10 +782,15 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 							//if (mpz_extrastrongbpsw_prp(t->tmpz))
 							uint64_t n64[2];
 							mpz_set(tmpz, tmpz_local);
+							
+							//int mpzresult = mpz_bpsw_prp(tmpz_local);
+							//printf("result = %d\n", mpzresult);
+
 							n64[0] = gmp2uint64(tmpz_local);
 							mpz_tdiv_q_2exp(tmpz_local, tmpz_local, 64);
 							n64[1] = gmp2uint64(tmpz_local);
-							if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
+
+							if (bpsw_prp_128x1(n64)) //MR_2sprp_128x1 (mpzresult) //
 							{
 								if (sdata->analysis == 2)
 								{
@@ -791,8 +804,11 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 										n64[0] += 2;
 										n64[1]++;
 									}
+
+									//mpz_add_ui(tmpz_local, tmpz_local, 2);
+									//mpzresult = mpz_bpsw_prp(tmpz_local);
 									
-									if (fermat_prp_128x1(n64)) //MR_2sprp_128x1
+									if (bpsw_prp_128x1(n64)) // fermat_prp_128x1 //MR_2sprp_128x1 (mpzresult) //
 									{
 										values[retval++] = values[i];
 									}
@@ -814,13 +830,13 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 						{
 							//gmp_printf("candidate %Zd is...", tmpz);
 							//if (mpz_extrastrongbpsw_prp(t->tmpz))
-							if (mpz_probab_prime_p(tmpz_local, num_witnesses))
+							if (mpz_bpsw_prp(tmpz_local))
 							{
 								if (sdata->analysis == 2)
 								{
 									// also need to check the twin
 									mpz_add_ui(tmpz_local, tmpz_local, 2);
-									if (mpz_probab_prime_p(tmpz_local, num_witnesses))
+									if (mpz_bpsw_prp(tmpz_local))
 									{
 										values[retval++] = values[i];
 									}

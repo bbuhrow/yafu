@@ -56,6 +56,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #if defined(_MSC_VER)
 #  ifndef _WIN64
 #    error "64 bit compilation mode is required for MSVC"
@@ -696,7 +697,7 @@ void upm1_generate_window_plan(uint64_t B1)
             q *= p[i];
         }
         mpz_mul_ui(e, e, q);
-        gmp_printf("e*=%lu=%Zx\n", q, e);
+        gmp_printf("e*=%"PRIu64"=%Zx\n", q, e);
     }
 
     // now we have the exponent, generate a LR-kary windowing plan.
