@@ -534,7 +534,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 	mpz_init(r);
 	mpz_init(q);
 
-	//gmp_printf("find_brent_form on %Zd, form->n = %Zd\n", n, form->n);
+	// gmp_printf("find_brent_form on %Zd, form->n = %Zd\n", n, form->n);
 
 	for (i=2; i<maxa; i++)
 	{
@@ -649,7 +649,9 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 				form->exp1 = j;
 				form->coeff2 = sign ? c2 : -c2;
 				mpz_set(form->n, n);
+
 				//printf("form brent: %d, %d, %d, %d, %d\n", c1, form->coeff2, i, 1, j);
+
 				goto done;
 			}
 
@@ -722,7 +724,9 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 				form->exp1 = j;
 				form->coeff2 = sign ? c2 : -c2;
 				mpz_set(form->n, n);
+
 				//printf("form brent: %d, %d, %d, %d, %d\n", c1, form->coeff2, i, 1, j);
+
 				goto done;
 			}
 
@@ -798,7 +802,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
         mpz_pow_ui(p, b, i);
         mpz_sub(p, n, p);       // and see if n - b^i is "small"
 
-        if ((mpz_cmp_ui(p, 0) > 0) && (mpz_sizeinbase(p, 2) < 31))
+        if ((mpz_cmp_ui(p, 0) > 0) && (mpz_sizeinbase(p, 2) < 31) && (mpz_cmp_ui(b, 1) > 0))
         {
 			char* s = NULL; // [2048] ;
 			char* s2 = NULL; // [2048] ;
@@ -827,7 +831,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
         mpz_pow_ui(p, b, i);
         mpz_sub(p, p, n);       // and see if (b+1)^i - n is "small"
 
-        if ((mpz_cmp_ui(p, 0) > 0) && (mpz_sizeinbase(p, 2) < 31))
+        if ((mpz_cmp_ui(p, 0) > 0) && (mpz_sizeinbase(p, 2) < 31) && (mpz_cmp_ui(b, 1) > 0))
         {
 			char* s = NULL; // [2048] ;
 			char* s2 = NULL; // [2048] ;
@@ -2856,7 +2860,7 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 
 	if (j > 3)
 	{
-		printf("gen: too many distinct odd factors in exponent!\n");
+		printf("gen: too many distinct odd factors in exponent!  simplify your input.\n");
 		exit(1);
 	}
 
@@ -2954,6 +2958,7 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 			}
 		}
 	}
+
 	// now 'n' should be the full input for this polynomial form.
 	// reduce by the known algebraic factors, and also see if these
 	// are factors of our input (which may be an already-reduced cofactor).

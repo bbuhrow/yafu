@@ -163,6 +163,89 @@ static void get_default_params(double digits, poly_params_t* params,
 
 #define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
 
+int tdiv_exp(int x, int* factors, uint64_t* primes, uint64_t num_p)
+{
+	int numf = 0;
+	int xx = x;
+	int i;
+
+	i = 0;
+	while ((xx > 1) && (primes[i] < 1000))
+	{
+		int q = (int)primes[i];
+
+		if (xx % q != 0)
+			i++;
+		else
+		{
+			xx /= q;
+			factors[numf++] = q;
+		}
+	}
+
+	return numf;
+}
+
+int genDivisors(int curIndex, int currentCount, mpz_t curDivisor, mpz_t base,
+	mpz_t input, yfactor_list_t* flist, fact_obj_t* fobj)
+{
+	// Base case i.e. we do not have more
+	// primeFactors to include
+	if (curIndex == flist->num_factors) {
+		if (mpz_cmp_ui(curDivisor, 1) > 0)
+		{
+			mpz_t n;
+			mpz_init(n);
+			mpz_set_ui(n, 2);
+			mpz_pow_ui(n, n, mpz_get_ui(curDivisor));
+			mpz_sub_ui(n, n, 1);
+
+			//gmp_printf("%Zd, %Zd\n", curDivisor, n);
+
+			mpz_t t;
+			mpz_init(t);
+			// is this term a nontrivial divisor of the input we are trying to autofactor?
+			while (1)
+			{
+				mpz_gcd(t, input, n);
+				if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, input) < 0))
+				{
+					{
+						//gmp_printf("gen: removing factor %Zd from input %Zd (gcd of divisor %Zd)\n",
+						//	t, input, n);
+						if (fobj->VFLAG >= 0)
+							gmp_printf("gen: found algebraic factor %Zd\n");
+						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+					}
+
+					mpz_tdiv_q(input, input, t);
+				}
+				else
+				{
+					break;
+				}
+			}
+			mpz_clear(t);
+			mpz_clear(n);
+
+			return currentCount + 1;
+		}
+		return currentCount;
+	}
+
+	mpz_t copy;
+	mpz_init(copy);
+	mpz_set(copy, curDivisor);
+
+	int i;
+	for (i = 0; i <= flist->factors[curIndex].count; ++i) {
+		currentCount = genDivisors(curIndex + 1, currentCount, copy, base, input, flist, fobj);
+		mpz_mul(copy, copy, flist->factors[curIndex].factor);
+	}
+	mpz_clear(copy);
+	return currentCount;
+}
+
 snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 {
 	snfs_t* poly;
@@ -185,65 +268,122 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 		if (fobj->VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 
 		int halved = find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
-		if (halved == 2)
+
 		{
-			mpz_t t, g;
-			mpz_init(t);
-			mpz_init(g);
-			if (fobj->autofact_obj.autofact_active)
+			if (0)
 			{
-				// if we are autofactoring, we are proceeding with the -1 term.
-				// add the other half as a factor.
-				mpz_set(t, poly->base1);
-				mpz_pow_ui(t, t, poly->exp1);
-				mpz_add_ui(t, t, 1);
-				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				mpz_t t, g;
+				mpz_init(t);
+				mpz_init(g);
+				if (fobj->autofact_obj.autofact_active)
 				{
-					//gmp_printf("adding factor %Zd after gcd of +1 term %Zd\n", g, t);
-					add_to_factor_list(fobj->factors, g, 0, 0, 0);
-					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					// if we are autofactoring, we are proceeding with the -1 term.
+					// add the other half as a factor.
+					mpz_set(t, poly->base1);
+					mpz_pow_ui(t, t, poly->exp1);
+					mpz_add_ui(t, t, 1);
+					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+					{
+						//gmp_printf("adding factor %Zd after gcd of +1 term %Zd\n", g, t);
+						add_to_factor_list(fobj->factors, g, 0, 0, 0);
+						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					}
+
+					mpz_set(t, poly->base1);
+					mpz_pow_ui(t, t, poly->exp1);
+					mpz_sub_ui(t, t, 1);
+
+					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+					{
+						//gmp_printf("adding factor %Zd after gcd of -1 term %Zd\n", g, t);
+						add_to_factor_list(fobj->factors, g, 0, 0, 0);
+						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					}
 				}
-
-				mpz_set(t, poly->base1);
-				mpz_pow_ui(t, t, poly->exp1);
-				mpz_sub_ui(t, t, 1);
-
-				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				else
 				{
-					//gmp_printf("adding factor %Zd after gcd of -1 term %Zd\n", g, t);
-					add_to_factor_list(fobj->factors, g, 0, 0, 0);
-					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					// we've factored the input, which is good enough.
+					mpz_set(t, poly->base1);
+					mpz_pow_ui(t, t, poly->exp1);
+					mpz_add_ui(t, t, 1);
+
+					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+					{
+						add_to_factor_list(fobj->factors, g, 0, 0, 0);
+						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					}
+
+					mpz_set(t, poly->base1);
+					mpz_pow_ui(t, t, poly->exp1);
+					mpz_sub_ui(t, t, 1);
+
+					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
+					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+					{
+						add_to_factor_list(fobj->factors, g, 0, 0, 0);
+						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					}
 				}
+				mpz_clear(t);
+				mpz_clear(g);
 			}
 			else
 			{
-				// we've factored the input, which is good enough.
-				mpz_set(t, poly->base1);
-				mpz_pow_ui(t, t, poly->exp1);
-				mpz_add_ui(t, t, 1);
+				if (halved == 2)
+					poly->exp1 *= 2;
 
-				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
-				{
-					add_to_factor_list(fobj->factors, g, 0, 0, 0);
-					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-				}
+				mpz_t t, g;
 
-				mpz_set(t, poly->base1);
-				mpz_pow_ui(t, t, poly->exp1);
-				mpz_sub_ui(t, t, 1);
-				
-				mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-				if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
+				mpz_init(t);
+				mpz_init(g);
+
+				mpz_set_ui(t, poly->exp1);
+
+				if (mpz_probab_prime_p(t, 1) == 0)
 				{
-					add_to_factor_list(fobj->factors, g, 0, 0, 0);
-					mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
+					yfactor_list_t flist;
+
+					if (fobj->VFLAG >= 0)
+						gmp_printf("gen: algebraic factor of 'b^e - 1' form with composite exponent\n");
+
+					mpz_set(g, poly->base1);
+					mpz_pow_ui(g, g, poly->exp1);
+					mpz_sub_ui(g, g, 1);
+
+					init_factor_list(&flist, g);
+
+					int e = poly->exp1;
+					int f[32];
+					int i;
+					int nf;
+					nf = tdiv_exp(e, f, fobj->primes, fobj->num_p);
+
+					// add known exponent divisors
+					for (i = 0; i < nf; i++)
+					{
+						mpz_set_ui(t, f[i]);
+						add_to_factor_list(&flist, t, 0, 0, 1);
+					}
+
+					// generate all divisors and remove from input 
+					mpz_set_ui(t, 1);
+					genDivisors(0, 0, t, poly->base1, fobj->nfs_obj.gmp_n, &flist, fobj);
+
+					clear_factor_list(&flist);
+
+					if (fobj->VFLAG >= 0)
+						gmp_printf("gen: continuing with residue %Zd\n", fobj->nfs_obj.gmp_n);
+
+					// redo poly find
+					poly->form_type = SNFS_NONE;
+					halved = find_brent_form(fobj->nfs_obj.gmp_n, poly, fobj->VFLAG, fobj->flogname);
 				}
+				mpz_clear(t);
+				mpz_clear(g);
 			}
-			mpz_clear(t);
-			mpz_clear(g);
 		}
 	}
 

@@ -2882,7 +2882,7 @@ uint8_t MR_2sprp_104x8(uint64_t* n)
 	return (is1prp | ism1prp);
 }
 
-#if 0
+
 // a Lucas test on 8x 104-bit inputs
 uint8_t lucas_104x8(uint64_t* n, int *p, int *q)
 {
@@ -3003,6 +3003,7 @@ uint8_t lucas_104x8(uint64_t* n, int *p, int *q)
 	vindex[0] = loadu64(index.data[0]);
 	vindex[1] = loadu64(index.data[1]);
 
+#if 0
 	// initialize lucas U sequence variables
 	uint64_t uh[2], vl[2], vh[2], ql[2], qh[2], mp[2], mq[2], tmp[2];
 
@@ -3208,8 +3209,10 @@ uint8_t lucas_104x8(uint64_t* n, int *p, int *q)
 		_mm512_mask_cmpeq_epu64_mask(~is1prp, rv[0], n1v[0]));
 
 	return (is1prp | ism1prp);
-}
 #endif
+
+}
+
 
 // a Selfridge test on 8x 104-bit inputs
 uint8_t selfridge_104x8(uint64_t* n)
@@ -3319,8 +3322,9 @@ uint8_t selfridge_104x8(uint64_t* n)
 
 	mpz_clear(gn);
 
-	//if (mask == 0) return 0;
-	//else return (mask & lucas_104x8(n, p, q));
+	if (mask == 0) return 0;
+	else return (mask & lucas_104x8(n, p, q));
+
 }
 
 // a Baillie-Pomerance-Selfridge-Wagstaff (bpsw) test on 8x 104-bit inputs

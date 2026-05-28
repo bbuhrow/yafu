@@ -380,15 +380,38 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 
 		if (snfs_status > 0)
 		{
+			// figure out the best method to use based on input size,
+			// poly quality, user options, and tune parameters
 			equiv_gnfs_size = est_gnfs_size_via_poly(job.snfs);
 
-			printf("nfs: gnfs size is %d, equivalent gnfs size of snfs poly is %d\n",
+			printf("fac: gnfs size is %d, equivalent gnfs size of snfs poly is %d\n",
 				gnfs_size, equiv_gnfs_size);
+
+			int have_tune = check_tune_params(fobj);
+
+			double qs_time_est = 9999999.0;
+			double gnfs_time_est = 9999999.0;
+			double snfs_time_est = 9999999.0;
+			if (have_tune)
+			{
+				qs_time_est = get_qs_time_estimate(fobj, fobj->N);
+				gnfs_time_est = get_gnfs_time_estimate(fobj, fobj->N);
+				mpz_t b;
+				mpz_init(b);
+				mpz_set_ui(b, 10);
+				mpz_pow_ui(b, b, equiv_gnfs_size);
+				snfs_time_est = get_gnfs_time_estimate(fobj, b);
+				mpz_clear(b);
+
+				printf("fac: tune estimates: siqs = %1.2f, gnfs = %1.2f, snfs = %1.2f\n",
+					qs_time_est, gnfs_time_est, snfs_time_est);
+			}
 
 			// choose between snfs, gnfs, and siqs based on their sizes and user options
 			if (fobj->autofact_obj.only_pretest > 1)
 			{
 				target_job_type = job_ecm;	// ecm only
+				printf("chosing ecm based on pretest option\n");
 				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 					"chosing ecm based on pretest option\n", gnfs_size, equiv_gnfs_size);
 			}
@@ -396,6 +419,7 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			{
 				// user specifically requested gnfs
 				target_job_type = job_gnfs;
+				printf("chosing gnfs based on user selection\n");
 				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 					"chosing gnfs based on user selection\n", gnfs_size, equiv_gnfs_size);
 			}
@@ -404,14 +428,77 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 				// user specifically requested snfs
 				//printf("fac: should not see .snfs flag in autofactor\n");
 				target_job_type = job_snfs;
+				printf("chosing snfs based on user selection\n");
 				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 					"chosing snfs based on user selection\n", gnfs_size, equiv_gnfs_size);
 			}
+			else if (have_tune)
+			{
+				// if we have tune data, use it to determine best method
+				if (qs_time_est < gnfs_time_est)
+				{
+					if (qs_time_est < snfs_time_est)
+					{
+						target_job_type = job_siqs;
+					}
+					else if (gnfs_time_est < snfs_time_est)
+					{
+						target_job_type = job_gnfs;
+					}
+					else
+					{
+						target_job_type = job_snfs;
+					}
+				}
+				else if (qs_time_est < snfs_time_est)
+				{
+					if (qs_time_est < gnfs_time_est)
+					{
+						target_job_type = job_siqs;
+					}
+					else if (gnfs_time_est < snfs_time_est)
+					{
+						target_job_type = job_gnfs;
+					}
+					else
+					{
+						target_job_type = job_snfs;
+					}
+				}
+				else if (gnfs_time_est < snfs_time_est)
+				{
+					target_job_type = job_gnfs;
+				}
+				else
+				{
+					target_job_type = job_snfs;
+				}
+
+				char jobtype[32];
+				switch (target_job_type)
+				{
+				case 0: strcpy(jobtype, "snfs"); break;
+				case 1: strcpy(jobtype, "gnfs"); break;
+				case 2: strcpy(jobtype, "siqs"); break;
+				case 3: strcpy(jobtype, "ecm"); break;
+				case 4: strcpy(jobtype, "unknown"); break;
+				}
+
+				printf("fac: chosing %s based on tune estimates\n", jobtype);
+				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d\n",
+					gnfs_size, equiv_gnfs_size);
+				logprint_oc(fobj->flogname, "a", "chosing %s based on tune estimates: "
+					"siqs = %1.2f, gnfs = %1.2f, snfs = %1.2f\n",
+					jobtype, qs_time_est, gnfs_time_est, snfs_time_est);
+			}
+			// otherwise look at crossovers
 			else if ((equiv_gnfs_size <= (gnfs_size + 3)) &&
 				(gnfs_size < fobj->autofact_obj.qs_snfs_xover))
 			{
 				// snfs easier than gnfs but siqs size below siqs xover
 				target_job_type = job_siqs;
+				printf("chosing siqs based on qs/snfs crossover %1.2f\n",
+					fobj->autofact_obj.qs_snfs_xover);
 				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 					"chosing siqs based on qs/snfs crossover %1.2f\n",
 					gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_snfs_xover);
@@ -421,6 +508,8 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			{
 				// snfs easier than gnfs and siqs
 				target_job_type = job_snfs;
+				printf("chosing snfs based on qs/snfs crossover %1.2f\n",
+					fobj->autofact_obj.qs_snfs_xover);
 				logprint_oc(fobj->flogname, "a", "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 					"chosing snfs based on qs/snfs crossover %1.2f\n",
 					gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_snfs_xover);
@@ -431,6 +520,8 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 				{
 					// gnfs but below this crossover
 					target_job_type = job_siqs;
+					printf("chosing siqs based on qs/gnfs crossover %1.2f\n",
+						fobj->autofact_obj.qs_gnfs_xover);
 					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 						"chosing siqs based on qs/gnfs crossover %1.2f\n",
 						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
@@ -439,6 +530,8 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 				{
 					// if none of the above, target gnfs on this input.
 					target_job_type = job_gnfs;
+					printf("chosing gnfs based on qs/gnfs crossover %1.2f\n",
+						fobj->autofact_obj.qs_gnfs_xover);
 					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, equivalent gnfs size of snfs poly: %d, "
 						"chosing gnfs based on qs/gnfs crossover %1.2f\n",
 						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
@@ -452,6 +545,9 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			{
 				// gnfs but below this crossover
 				target_job_type = job_siqs;
+				printf("gnfs size: %d, snfs job flagged as better by gnfs, "
+					"chosing siqs based on qs/gnfs crossover %1.2f\n",
+					gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, snfs job flagged as better by gnfs, "
 					"chosing siqs based on qs/gnfs crossover %1.2f\n",
 					gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
@@ -460,6 +556,8 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			{
 				// if none of the above, target gnfs on this input.
 				target_job_type = job_gnfs;
+				printf("gnfs size: %d, snfs job flagged as better by gnfs, "
+					"chosing gnfs\n", gnfs_size);
 				logprint_oc(fobj->flogname, "a",  "gnfs size: %d, snfs job flagged as better by gnfs, "
 					"chosing gnfs\n", gnfs_size);
 			}
@@ -511,7 +609,7 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 		}
 
 		// don't need the poly anymore.  If this ends up actually going
-		// go snfs, we redo all of the poly formation there.
+		// to snfs, we redo all of the poly formation there.
 		snfs_clear(poly);
 		free(poly);
 	}
@@ -1573,37 +1671,58 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		}
 		else
 		{
-			double qs_time_est, gnfs_time_est;
-		
-			// compute the time to factor using estimates derived during 'tune'.
-			// if we know of a preferable SNFS poly, use its equivalent gnfs
-			// size to predict the job duration.
 
-			qs_time_est = get_qs_time_estimate(fobj, b);
-			gnfs_time_est = get_gnfs_time_estimate(fobj, b);
+			if (0)
+			{
+				double qs_time_est, gnfs_time_est;
 
-            if (fobj->VFLAG > 0)
-            {
-                printf("fac: tune params predict %1.2f sec for SIQS and %1.2f sec for NFS\n",
-                    qs_time_est, gnfs_time_est);
-            }
+				// compute the time to factor using estimates derived during 'tune'.
+				// if we know of a preferable SNFS poly, use its equivalent gnfs
+				// size to predict the job duration.
 
-            if (qs_time_est < gnfs_time_est)
-            {
-                if (fobj->VFLAG > 0)
-                {
-                    printf("fac: tune params scheduling SIQS work\n");
-                }
-				next_state = state_qs;
-            }
-            else
-            {
-                if (fobj->VFLAG > 0)
-                {
-                    printf("fac: tune params scheduling NFS work\n");
-                }
-				next_state = state_nfs;
-            }
+				qs_time_est = get_qs_time_estimate(fobj, b);
+				gnfs_time_est = get_gnfs_time_estimate(fobj, b);
+
+				if (fobj->VFLAG > 0)
+				{
+					printf("fac: tune params predict %1.2f sec for SIQS and %1.2f sec for NFS\n",
+						qs_time_est, gnfs_time_est);
+				}
+
+				if (qs_time_est < gnfs_time_est)
+				{
+					if (fobj->VFLAG > 0)
+					{
+						printf("fac: tune params scheduling SIQS work\n");
+					}
+					next_state = state_qs;
+				}
+				else
+				{
+					if (fobj->VFLAG > 0)
+					{
+						printf("fac: tune params scheduling NFS work\n");
+					}
+					next_state = state_nfs;
+				}
+			}
+			else
+			{
+				// the determine job type function does all of the analysis
+				// on which method is best, use its output.
+				switch (fwork->target_job_type)
+				{
+				case 0: next_state = state_nfs; break;
+				case 1: next_state = state_nfs; break;
+				case 2: next_state = state_qs; break;
+				case 3: next_state = state_nfs; break; // ecm?, default to nfs
+				case 4: next_state = state_nfs; break; // unknown? default to nfs
+				}
+
+			}
+
+
+
 		}
 	}
 
@@ -2227,7 +2346,8 @@ void factor(fact_obj_t *fobj)
 
 		if (more_work)
 		{
-			mpz_set(fobj->input_N, b);
+			//mpz_set(fobj->input_N, b);
+			mpz_set(fobj->N, b);
 			//gmp_printf("fac: next item of work is %Zd\n", b);
 		}
 
@@ -3228,9 +3348,15 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 		{
 			fprintf(fid, "\t\"ecm-curves\" : {");
 
-			for (i = 0; i < fobj->ecm_obj.num_records; i++)
+			for (i = 0; i < fobj->ecm_obj.num_records-1; i++)
 			{
-				fprintf(fid, "\"%"PRIu64"\":%d", fobj->ecm_obj.curve_b1_rec[i], fobj->ecm_obj.num_rec[i]);
+				fprintf(fid, "\"%"PRIu64"\":%d,", 
+					fobj->ecm_obj.curve_b1_rec[i], fobj->ecm_obj.num_rec[i]);
+			}
+			if (fobj->ecm_obj.num_records > 0)
+			{
+				fprintf(fid, "\"%"PRIu64"\":%d",
+					fobj->ecm_obj.curve_b1_rec[i], fobj->ecm_obj.num_rec[i]);
 			}
 
 			fprintf(fid, "},%c", lf);
@@ -3247,13 +3373,9 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 				else if (fobj->ecm_obj.tlevels[i] > 0.01)
 				{
 					fprintf(fid, "\"t%d\":%1.2f},%c", level, fobj->ecm_obj.tlevels[i], lf);
+					break;
 				}
 				level += 5;
-			}
-
-			if (fobj->ecm_obj.tlevels[i] > 0.01)
-			{
-				fprintf(fid, "\"t%d\":%1.2f},%c", level, fobj->ecm_obj.tlevels[i], lf);
 			}
 
 			if (fobj->ecm_obj.total_work > 0.0)
