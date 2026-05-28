@@ -348,6 +348,25 @@ int fermat_prp_128x1(uint64_t* n)
 
 #else
 
+	mpz_t n128, gr;
+	mpz_init(n128);
+	mpz_init(gr);
+
+	mpz_set_ui(n128, n[1] >> 32);			mpz_mul_2exp(n128, n128, 32);
+	mpz_add_ui(n128, n128, (uint32_t)n[1]);	mpz_mul_2exp(n128, n128, 32);
+	mpz_add_ui(n128, n128, n[0] >> 32);		mpz_mul_2exp(n128, n128, 32);
+	mpz_add_ui(n128, n128, (uint32_t)n[0]);
+	mpz_set_ui(gr, 1);
+	mpz_mul_2exp(gr, gr, 128);
+	mpz_mod(n128, gr, n128);
+
+	one[0] = gmp2uint64(n128);
+	mpz_tdiv_q_2exp(n128, n128, 64);
+	one[1] = gmp2uint64(n128);
+
+	mpz_clear(n128);
+	mpz_clear(gr);
+
 #endif
 
 	e[1] = n[1];
@@ -440,6 +459,25 @@ int MR_2sprp_128x1(uint64_t *n)
 	one[1] = (uint64_t)(unity128 >> 64);
 	one[0] = (uint64_t)unity128;
 #else
+
+	mpz_t n128, gr;
+	mpz_init(n128);
+	mpz_init(gr);
+
+	mpz_set_ui(n128, n[1] >> 32);			mpz_mul_2exp(n128, n128, 32);
+	mpz_add_ui(n128, n128, (uint32_t)n[1]);	mpz_mul_2exp(n128, n128, 32);
+	mpz_add_ui(n128, n128, n[0] >> 32);		mpz_mul_2exp(n128, n128, 32);
+	mpz_add_ui(n128, n128, (uint32_t)n[0]);
+	mpz_set_ui(gr, 1);
+	mpz_mul_2exp(gr, gr, 128);
+	mpz_mod(n128, gr, n128);
+
+	one[0] = gmp2uint64(n128);
+	mpz_tdiv_q_2exp(n128, n128, 64);
+	one[1] = gmp2uint64(n128);
+
+	mpz_clear(n128);
+	mpz_clear(gr);
 
 #endif
 
@@ -3239,6 +3277,8 @@ uint8_t selfridge_104x8(uint64_t* n)
 		long int d = 5;
 		int max_d = 1000000;
 		int jacobi = 0;
+
+#ifdef USE_PERIG_128BIT
 		uint128_t n128;
 
 		p[i] = 1;
@@ -3312,6 +3352,9 @@ uint8_t selfridge_104x8(uint64_t* n)
 			}
 		}
 
+#else
+
+#endif
 		// if status != 0, then this lane is confirmed prime or composite.
 		// otherwise, proceed to the lucas test
 		if (status == 0)

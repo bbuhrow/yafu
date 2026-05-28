@@ -159,7 +159,7 @@ void compute_prps_work_fcn(void *vptr)
 				mpz_tdiv_q_2exp(t->tmpz, t->tmpz, 64);
 				n64[1] = gmp2uint64(t->tmpz);
 
-				if (bpsw_prp_128x1(n64)) //MR_2sprp_128x1  fermat_prp_128x1  (mpz_bpsw_prp(t->tmpz))
+				if (MR_2sprp_128x1(n64)) // bpsw_prp_128x1 fermat_prp_128x1  (mpz_bpsw_prp(t->tmpz))
 				{
 					if (sdata->analysis == 2)
 					{
@@ -176,7 +176,7 @@ void compute_prps_work_fcn(void *vptr)
 
 						//mpz_add_ui(t->tmpz, t->tmpz, 2);
 						//if (mpz_bpsw_prp(t->tmpz)) // //MR_2sprp_128x1
-						if (bpsw_prp_128x1(n64))
+						if (MR_2sprp_128x1(n64))
 						{
 							t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 							//printf("prime!\n");
@@ -790,7 +790,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 							mpz_tdiv_q_2exp(tmpz_local, tmpz_local, 64);
 							n64[1] = gmp2uint64(tmpz_local);
 
-							if (bpsw_prp_128x1(n64)) //MR_2sprp_128x1 (mpzresult) //
+							if (MR_2sprp_128x1(n64)) //bpsw_prp_128x1 (mpzresult) //
 							{
 								if (sdata->analysis == 2)
 								{
@@ -808,7 +808,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 									//mpz_add_ui(tmpz_local, tmpz_local, 2);
 									//mpzresult = mpz_bpsw_prp(tmpz_local);
 									
-									if (bpsw_prp_128x1(n64)) // fermat_prp_128x1 //MR_2sprp_128x1 (mpzresult) //
+									if (MR_2sprp_128x1(n64)) //bpsw_prp_128x1 (mpzresult) //
 									{
 										values[retval++] = values[i];
 									}
