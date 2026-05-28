@@ -2922,7 +2922,7 @@ uint8_t MR_2sprp_104x8(uint64_t* n)
 
 
 // a Lucas test on 8x 104-bit inputs
-uint8_t lucas_104x8(uint64_t* n, int *p, int *q)
+uint8_t lucas_104x8(uint64_t* n, long *p, long *q)
 {
 	// assumes has no small factors.  assumes n >= 54 bits.
 	// assumes n is a list of 8 104-bit integers (16 52-bit words)
@@ -3251,7 +3251,6 @@ uint8_t lucas_104x8(uint64_t* n, int *p, int *q)
 
 }
 
-
 // a Selfridge test on 8x 104-bit inputs
 uint8_t selfridge_104x8(uint64_t* n)
 {
@@ -3376,6 +3375,7 @@ uint8_t bpsw_104x8(uint64_t* n)
 	uint8_t mask = MR_2sprp_104x8(n);
 	return (mask & selfridge_104x8(n));
 }
+
 
 // a Miller-Rabin SPRP test on 8x 104-bit inputs using an
 // independent arbitrary 52-bit base on each
