@@ -372,7 +372,8 @@ CFLAGS := \
 # violations in the AVX2 sieve buffer casting code. 
 # Todo: audit __m256i casts throughout siqs when using avx2 only.
 ifeq ($(OS),Windows_NT)
-    CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+    CFLAGS += -fno-strict-aliasing 
+# -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
 endif
 
 VBITS ?= 64
