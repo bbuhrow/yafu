@@ -269,6 +269,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 
 		int halved = find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
 
+		if (poly->form_type == SNFS_BRENT)
 		{
 			if (0)
 			{

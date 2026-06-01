@@ -5676,8 +5676,11 @@ int update_final(static_conf_t *sconf)
 		{
 			printf("\n\nsieving required %u total polynomials (%u 'A' polynomials)\n",
 				sconf->tot_poly, sconf->total_poly_a);
-			gmp_printf("trial division touched %"PRIu64" sieve locations out of %Zd\n",
-				sconf->num, tmp1);
+            // ugh.  sending "PRIu64" to gmp_printf segfaults on mingw64/msys2 windows.  
+            // probably because of the size difference between "ui" (unsigned int) 
+            // here in yafu-land and in gmp-land.
+            printf("trial division touched %"PRIu64" sieve locations out of ", sconf->num);
+            gmp_printf("%Zd\n",	tmp1);
 
             if (sconf->use_dlp)
             {

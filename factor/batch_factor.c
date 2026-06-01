@@ -972,7 +972,7 @@ process_r:
 
                     if (q64 <= 1 || q64 > rb->lp_cutoff_r)
                     {
-                        if (q64 == 1) gmp_printf("ecm found factor %"PRIu64" == input, residue is 1\n", f64);
+                        if (q64 == 1) printf("ecm found factor %"PRIu64" == input, residue is 1\n", f64);
                         rb->num_abort[7]++;
                         return;
                     }

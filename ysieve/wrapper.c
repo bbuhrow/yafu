@@ -547,13 +547,13 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	{
 		if (sdata->analysis == 1)
 		{
-			gmp_printf("commencing big prime finding from %Zd over range %"PRIu64"\n",
-				offset, range);
+			gmp_printf("commencing big prime finding from %Zd over range ", offset);
+			printf("%"PRIu64"\n", range);
 		}
 		else if (sdata->analysis == 2)
 		{
-			gmp_printf("commencing big twin-prime finding from %Zd over range %"PRIu64"\n",
-				offset, range);
+			gmp_printf("commencing big twin-prime finding from %Zd over range ", offset);
+			printf("%"PRIu64"\n", range);
 		}
 	}
 
@@ -631,8 +631,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 
 	if (count)
 	{
-		gmp_printf("commencing sieve over interval %Zd + (%"PRIu64":%"PRIu64") with %u sieve primes\n",
-			offset, 0, range, sdata->num_sp);
+		gmp_printf("commencing sieve over interval %Zd ", offset);
+		printf("+ (% "PRIu64": % "PRIu64") with %u sieve primes\n",
+			0, range, sdata->num_sp);
 
 		if (num_witnesses > 0)
 		{
@@ -649,8 +650,9 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 	}
 	else
 	{
-		gmp_printf("generating primes in interval %Zd + (%" PRIu64 ":%" PRIu64 ") with %u sieve primes\n",
-			offset, 0, range, sdata->num_sp);
+		gmp_printf("generating primes in interval %Zd ", offset);
+		printf("+ (% "PRIu64": % "PRIu64") with %u sieve primes\n",
+			0, range, sdata->num_sp);
 	}
 
 	if (count)
@@ -679,7 +681,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
 			// conduct PRP tests on all surviving values
             if (sdata->VFLAG > 0)
             {
-                gmp_printf("starting PRP tests with %d witnesses on "
+                printf("starting PRP tests with %d witnesses on "
                     "%" PRIu64 " surviving candidates using %d threads\n",
                     num_witnesses, *num_p, sdata->THREADS);
 				fflush(stdout);

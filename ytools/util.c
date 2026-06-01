@@ -57,7 +57,7 @@ SOFTWARE.
 
 int portable_sleep(int sleep_time_ms)
 {
-#ifdef WIN32
+#ifdef _MSC_VER //WIN32
     Sleep(sleep_time_ms);
 #else
     struct timespec sleep_time, sleep_remaining;

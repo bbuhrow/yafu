@@ -6,6 +6,9 @@
 #include "yafu_ecm.h"
 #include <stdint.h>
 #include <math.h>
+#ifndef _MSC_VER
+#include <unistd.h>
+#endif
 
 #ifdef __MINGW32__
 #include <sys/time.h>
@@ -159,7 +162,7 @@ void factor_tune(fact_obj_t *inobj)
 	//goto tune_ecm;
 
 	// for each of the siqs inputs
-	for (i=0; i<NUM_SIQS_PTS; i++)
+	for (i=0; i< NUM_SIQS_PTS; i++)
 	{
 		reset_factobj(fobj);
 
@@ -203,19 +206,47 @@ void factor_tune(fact_obj_t *inobj)
 		uint32_t startq, qrange;		
 		double t_time2, d;
 
-		//remove previous tests
-		remove("tunerels.out");
-		remove("tune.job.afb.0");
-		MySleep(.1);
+		// remove previous tests
+#ifndef _MSC_VER
+		//printf("checking if tunerels.out exists\n");
+		if (access("tunerels.out", F_OK) == 0)
+#endif
+		{
+			//printf("tunerels exists, checking for write access\n");
+#ifndef _MSC_VER
+			if (access("tunerels.out", W_OK) == 0)
+#endif
+			{
+				//printf("write access confirmed, attempting to remove it\n");
+				remove("tunerels.out");
+			}
+		}
 
-		//make a job file for each input
+#ifndef _MSC_VER
+		//printf("checking if tune.job.afb.0 exists\n");
+		if (access("tune.job.afb.0", F_OK) == 0)
+#endif
+		{
+			//printf("tune.job.afb.0 exists, checking for write access\n");
+#ifndef _MSC_VER
+			if (access("tune.job.afb.0", W_OK) == 0)
+#endif
+			{
+				//printf("write access confirmed, attempting to remove it\n");
+				remove("tune.job.afb.0");
+			}
+		}
+
+		MySleep(100);
+
+		// make a job file for each input
 		make_job_file(sievername, &startq, &qrange, nfslist[i], i, inobj);
 
-		//measure how long it takes to generate the afb... for fun.		
+		// measure how long it takes to generate the afb... for fun.		
 		gettimeofday(&start, NULL);
 
-		//create the afb - we don't want the time it takes to do this to
-		//pollute the sieve timings
+		// create the afb - we don't want the time it takes to do this to
+		// pollute the sieve timings
 		sprintf(syscmd,"%s -b tune.job -k -c 0 -F", sievername);
 
 		printf("nfs: commencing construction of afb\n");
@@ -226,12 +257,12 @@ void factor_tune(fact_obj_t *inobj)
 		
 		printf("afb generation took %6.4f seconds.\n",t_time2);
 		remove("tune.job.afb.0");
-		MySleep(.1);
+		MySleep(100);
 
-		//measure how long it takes to sieve a fixed range of special-q	
+		// measure how long it takes to sieve a fixed range of special-q	
 		gettimeofday(&start, NULL);
 
-		//start the test
+		// start the test
 		sprintf(syscmd,"%s -f %u -c %u -o tunerels.out -a tune.job",
 			sievername, startq, qrange);
 		printf("nfs: commencing lattice sieving over range: %u - %u\n",
@@ -240,7 +271,7 @@ void factor_tune(fact_obj_t *inobj)
 		gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
-		//count relations
+		// count relations
 		in = fopen("tunerels.out","r");
 		if (in != NULL)
 		{
@@ -255,17 +286,17 @@ void factor_tune(fact_obj_t *inobj)
 		printf("nfs: elapsed time for %u relations of c%d = %6.4f seconds.\n",
 			count,(uint32_t)gnfs_sizes[i],t_time - t_time2);
 
-		//extrapolate
+		// extrapolate
 		gnfs_extraptime[i] = (double)gnfs_actualrels[i] * (t_time - t_time2) / (double)count;
 		printf("nfs: extrapolated time for sieving = %6.4f seconds\n",gnfs_extraptime[i]);
 
-		//add estimated linalg and sqrt time.  
-		//reasonable estimate is 10% of the total runtime?
+		// add estimated linalg and sqrt time.  
+		// reasonable estimate is 10% of the total runtime?
 		d = gnfs_extraptime[i] * 0.1;
 		gnfs_extraptime[i] += d;
 		printf("adding %g seconds for linalg and sqrt\n",d);	
 
-		//add avg poly time 
+		// add avg poly time 
 		// estimated at 5% of sieving time
 		d = gnfs_extraptime[i] * 0.05; // gnfs_max_poly_time[i] * 3600 / 2;
 		gnfs_extraptime[i] += d;

@@ -867,7 +867,8 @@ void vecPP1(fact_obj_t* fobj)
 
         if (verbose > 0)
         {
-            gmp_printf("pp1: commencing parallel P+1 to B1 = %"PRIu64" on %Zd\n", STAGE1_MAX, N[k]);
+            printf("pp1: commencing parallel P+1 to B1 = %"PRIu64" on ", STAGE1_MAX);
+            gmp_printf("%Zd\n", N[k]);
         }
 
         if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
@@ -1567,7 +1568,8 @@ void vecPM1(fact_obj_t* fobj)
 
         if (verbose > 0)
         {
-            gmp_printf("pm1: commencing parallel P-1 @ B1=%"PRIu64" on %Zd\n", STAGE1_MAX, N[k]);
+            printf("pm1: commencing parallel P-1 @ B1=%"PRIu64" on ", STAGE1_MAX);
+            gmp_printf("%Zd\n", N[k]);
         }
 
         if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)

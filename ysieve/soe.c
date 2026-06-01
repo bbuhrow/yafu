@@ -568,9 +568,9 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
         {
             // sieve to depth - not guarenteed to find all primes
             char* s = mpz_get_str(NULL, 10, offset);
-            gmp_printf("sieving range 0 to %" PRIu64 " from offset %s\n", 
+            printf("sieving range 0 to %" PRIu64 " from offset %s\n", 
                 *highlimit, s);
-            gmp_printf("requested range is %s + %" PRIu64 ":%" PRIu64 "\n",
+            printf("requested range is %s + %" PRIu64 ":%" PRIu64 "\n",
                 s, sdata->orig_llimit, sdata->orig_hlimit);
             printf("using %" PRIu64 " primes, max prime = %u  \n",
                 sdata->pboundi, sdata->sieve_p[sdata->pboundi - 1]);
