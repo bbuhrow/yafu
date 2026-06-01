@@ -4895,6 +4895,7 @@ int update_check(static_conf_t *sconf)
 		if (SIQS_ABORT)
 		{
             // let the threads stop gracefully (merge rels).  
+            mpz_clear(tmp1);
             return 2;
 		}
 
@@ -4917,13 +4918,13 @@ int update_check(static_conf_t *sconf)
 
                 printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
                     sconf->t_time1, sconf->t_time2, sconf->t_time3);
-                gmp_printf("trial division touched %d sieve locations out of %Zd\n",
-                    sconf->num, tmp1);
+                printf("trial division touched %d sieve locations out of ", sconf->num);
+                gmp_printf("%Zd\n", tmp1);
                 fflush(stdout);
                 fflush(stderr);
 
                 sconf->obj->qs_obj.gbl_override_rel = num_full + sconf->num_cycles;
-
+                mpz_clear(tmp1);
                 return 2;
             }
         }
@@ -4942,11 +4943,11 @@ int update_check(static_conf_t *sconf)
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
-			gmp_printf("trial division touched %d sieve locations out of %Zd\n",
-				sconf->num, tmp1);
+            printf("trial division touched %d sieve locations out of ", sconf->num);
+            gmp_printf("%Zd\n", tmp1);
 			fflush(stdout);
 			fflush(stderr);
-			
+            mpz_clear(tmp1);
 			return 2;
 		}
 
@@ -6044,11 +6045,15 @@ int free_siqs(static_conf_t *sconf)
 
     // list of a values used first to track all a coefficients
     // generated during sieving.
+    
     for (i = 0; (uint32_t)i < sconf->total_poly_a; i++)
     {
         mpz_clear(sconf->poly_a_list[i]);
     }
-    free(sconf->poly_a_list);
+    if (sconf->total_poly_a > 0)
+    {
+        free(sconf->poly_a_list);
+    }
 
 	//while freeing the list of factors, divide them out of the input
 	for (i=0;i<sconf->factor_list.num_factors;i++)

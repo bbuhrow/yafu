@@ -162,25 +162,26 @@ void factor_tune(fact_obj_t *inobj)
 	//goto tune_ecm;
 
 	// for each of the siqs inputs
-	for (i=0; i< NUM_SIQS_PTS; i++)
+	for (i = 0; i < NUM_SIQS_PTS; i++)
 	{
 		reset_factobj(fobj);
 
 		// measure how long it takes to gather a fixed number of relations 		
-        mpz_set_str(n, siqslist[i], 10);
-		fobj->qs_obj.gbl_override_rel_flag = 1;
-		fobj->qs_obj.gbl_override_rel = siqs_testrels[i];	
+		mpz_set_str(n, siqslist[i], 10);
 
-        // also set the tf_small_cutoff to its known best value so we
-        // don't pollute the measurement with the optimization process.
-        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
-        fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
+		fobj->qs_obj.gbl_override_rel_flag = 1;
+		fobj->qs_obj.gbl_override_rel = siqs_testrels[i];
+
+		// also set the tf_small_cutoff to its known best value so we
+		// don't pollute the measurement with the optimization process.
+		fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
+		fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
 
 		gettimeofday(&start, NULL);
-        mpz_set(fobj->qs_obj.gmp_n, n);
+		mpz_set(fobj->qs_obj.gmp_n, n);
 		SIQS(fobj);
 		gettimeofday(&stop, NULL);
-        t_time = ytools_difftime(&start, &stop);
+		t_time = ytools_difftime(&start, &stop);
 
 		// the number of relations actually gathered is stored in gbl_override_rel
 		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
@@ -191,7 +192,7 @@ void factor_tune(fact_obj_t *inobj)
 
 		printf("elapsed time for ~%dk relations of c%d = %6.4f seconds.\n",
 			siqs_testrels[i] / 1000, mpz_sizeinbase(n, 10), t_time);
-		printf("extrapolated time for complete factorization = %6.4f seconds\n",siqs_extraptime[i]);
+		printf("extrapolated time for complete factorization = %6.4f seconds\n", siqs_extraptime[i]);
 	}
 
 	fit = best_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b, 2);
