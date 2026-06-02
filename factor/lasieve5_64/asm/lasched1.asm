@@ -62,11 +62,11 @@ lasched`'ot`'_fbi_loop:
 	cmovnel ad,ijd
 	negl ad
 	negl bd
-	addl aux2d,ijd
+	addq aux2,ij
 	andl $n_i_mask,ad
-	ifelse(ot,1,`addl $n_i,ijd')
+	ifelse(ot,1,`addq $n_i,ij')
 	andl $n_i_mask,bd
-	shrl $1,ijd
+	shrq $1,ij
 	ifelse(ot,2,`cmpl ad,bd
 	jbe lasched2_exception
 lasched2_afterexception:')
@@ -173,11 +173,11 @@ lasched`'ot`'_1_fbi_loop:
 	cmovnel ad,ijd
 	negl ad
 	negl bd
-	addl aux2d,ijd
+	addq aux2,ij
 	andl $n_i_mask,ad
-	ifelse(ot,1,`addl $n_i,ijd')
+	ifelse(ot,1,`addq $n_i,ij')
 	andl $n_i_mask,bd
-	shrl $1,ijd
+	shrq $1,ij
 	ifelse(ot,2,`cmpl ad,bd
 	jbe lasched2_1_exception
 lasched2_1_afterexception:')
