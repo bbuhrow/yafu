@@ -75,11 +75,11 @@ jobs:
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # ── 2. Cache pacman packages ──────────────────────────────────────────────
       - name: Cache MSYS2 packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\msys64\var\cache\pacman\pkg
           key: msys2-mingw64-${{ hashFiles('.github/workflows/build-windows.yml') }}
@@ -107,7 +107,7 @@ jobs:
       # Cache key is the commit SHA — update ECM_COMMIT above to force a rebuild.
       - name: Cache GMP-ECM
         id: cache-ecm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:\msys64\home\runneradmin\ecm-install
           key: gmp-ecm-${{ env.ECM_COMMIT }}-mingw64
@@ -169,7 +169,7 @@ jobs:
 
       # ── 9. Upload (retained 30 days on every push/PR) ────────────────────────
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_name }}
@@ -200,7 +200,7 @@ jobs:
 
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts/
           merge-multiple: true
