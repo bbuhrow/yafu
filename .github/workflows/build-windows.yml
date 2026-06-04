@@ -38,7 +38,7 @@ jobs:
   # BUILD — one parallel runner per CPU target
   # ─────────────────────────────────────────────────────────────────────────────
   build:
-    runs-on: windows-latest
+    runs-on: windows-2025
     name: ${{ matrix.artifact_name }}
 
     strategy:

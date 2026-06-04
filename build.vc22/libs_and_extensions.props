@@ -1,24 +1,69 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  build.vc22/libs_and_extensions.props
+
+  Dependency paths and ISA target selection for all yafu sub-projects.
+  This file is imported by every project configuration in the solution.
+
+  LOCAL DEVELOPMENT:
+    Edit mp_dir and ecm_dir below to point at your local MPIR and ECM builds.
+    The ISA target defaults to avx2; edit YafuISA in build_config.props or
+    pass /p:YafuISA=<target> on the command line to change it.
+
+  CI / COMMAND-LINE OVERRIDE:
+    All path and ISA properties can be overridden without editing this file:
+      msbuild yafu.sln
+        /p:YafuISA=avx2
+        /p:mp_dir=C:\deps\mpir\lib\x64\Release\
+        /p:ecm_dir=C:\deps\ecm-install\
+
+  CHANGES FROM PREVIOUS VERSION:
+    - Hardcoded PreprocessorDefinitions removed (now set by build_config.props)
+    - Hardcoded EnableEnhancedInstructionSet removed (now set by build_config.props)
+    - Path properties now use Condition="''==''" so CI overrides take precedence
+    - build_config.props imported here so every sub-project gets ISA flags for free
+-->
+<Project DefaultTargets="Build" ToolsVersion="4.0"
+         xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!--
+    Import local user overrides first (never committed to git).
+    Create build.vc22/User.props to set YafuToolset, YafuISA, and
+    dependency paths for local development without editing this file.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)User.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)User.props')" />
+
+  <!--
+    Import build configuration (toolset + ISA) so that $(YafuISADefines),
+    $(YafuEnhancedISA), and $(PlatformToolset) are defined before the
+    ItemDefinitionGroup below.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)build_config.props" />
+
   <PropertyGroup Label="UserMacros">
-	  <mp_dir>..\..\..\mpir\lib\x64\Release\</mp_dir>
-	  <mp_lib>mpir.lib</mp_lib>
-	  <ecm_dir>..\..\..\ecm_install\</ecm_dir>
-	  <ecm_lib>libecm.lib</ecm_lib>
-	<!-- <msieve_dir>..\..\..\msieve-intel\lib\x64\Release\</msieve_dir> -->
+    <!--
+      Dependency paths — edit for local development.
+      CI passes these on the command line; the Condition prevents the
+      local defaults from overwriting a /p: override.
+    -->
+    <mp_dir  Condition="'$(mp_dir)'  == ''">..\..\..\mpir\lib\x64\Release\</mp_dir>
+    <mp_lib  Condition="'$(mp_lib)'  == ''">mpir.lib</mp_lib>
+    <ecm_dir Condition="'$(ecm_dir)' == ''">..\..\..\ecm-install\</ecm_dir>
+    <ecm_lib Condition="'$(ecm_lib)' == ''">libecm.lib</ecm_lib>
   </PropertyGroup>
+
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30128.1</_ProjectFileVersion>
   </PropertyGroup>
+
   <ItemDefinitionGroup>
     <ClCompile>
-      <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
-	  <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
-	  <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-	  <!-- <PreprocessorDefinitions>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;IFMA;%(PreprocessorDefinitions)</PreprocessorDefinitions> -->
+      <!-- Static MSVC runtime — required for standalone .exe distribution -->
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
+
   <ItemGroup>
     <BuildMacro Include="mp_dir">
       <Value>$(mp_dir)</Value>
@@ -28,7 +73,7 @@
       <Value>$(mp_lib)</Value>
       <EnvironmentVariable>true</EnvironmentVariable>
     </BuildMacro>
-	<BuildMacro Include="ecm_dir">
+    <BuildMacro Include="ecm_dir">
       <Value>$(ecm_dir)</Value>
       <EnvironmentVariable>true</EnvironmentVariable>
     </BuildMacro>
@@ -37,4 +82,5 @@
       <EnvironmentVariable>true</EnvironmentVariable>
     </BuildMacro>
   </ItemGroup>
+
 </Project>

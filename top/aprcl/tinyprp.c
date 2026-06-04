@@ -3276,6 +3276,7 @@ uint8_t selfridge_104x8(uint64_t* n)
 		long int d = 5;
 		int max_d = 1000000;
 		int jacobi = 0;
+		int status = 0;
 
 #ifdef USE_PERIG_128BIT
 		uint128_t n128;
@@ -3292,8 +3293,7 @@ uint8_t selfridge_104x8(uint64_t* n)
 
 		if ((n[0] & 1 == 0))
 			continue;
-
-		int status = 0;
+		
 		while (1)
 		{
 			jacobi = jacobi_128(d, n128);

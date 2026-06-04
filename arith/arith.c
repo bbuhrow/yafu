@@ -589,6 +589,7 @@ static inline int uint128_sub(uint128_t* result, const uint128_t a, const uint12
 #else
 // 128-bit unsigned integer represented as array of two 64-bit integers
 // [0] = low 64 bits, [1] = high 64 bits (little-endian order)
+//typedef uint64_t uint128_t[2];
 typedef uint64_t uint128_t[2];
 
 /**
@@ -753,7 +754,7 @@ static inline int uint128_compare(const uint128_t a, const uint128_t b) {
  * @param a: Operand to check
  * @return: true if zero, false otherwise
  */
-static inline bool uint128_is_zero(const uint128_t a) {
+static inline int uint128_is_zero(const uint128_t a) {
     return (a[0] == 0) && (a[1] == 0);
 }
 

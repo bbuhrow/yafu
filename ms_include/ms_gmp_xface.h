@@ -18,7 +18,13 @@ $Id: gmp_xface.h 1033 2020-09-04 16:43:27Z jasonp_sf $
 #include <util.h>
 #include <gmp.h>
 #include <mp.h>
+
+#ifdef __MINGW32__
 #include "mpz-ull.h"
+#else
+#define mpz_set_ull mpz_set_ui
+#define mpz_get_ull mpz_get_ui
+#endif
 
 #ifdef __cplusplus
 extern "C" {

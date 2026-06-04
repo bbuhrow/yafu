@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  build.vc22/build_config.props
+
+  Single source of truth for compiler toolset and ISA target selection
+  across ALL projects in the yafu solution.
+
+  Replaces isa_target.props — update any references to that filename.
+
+  ── TOOLSET ──────────────────────────────────────────────────────────────
+  Pass /p:YafuToolset=<value> on the MSBuild command line, or set it in
+  User.props for the IDE.  Valid values:
+
+    ClangCL   — Clang frontend with MSVC ABI (default, matches yafu.vcxproj)
+    v144      — MSVC 2022 compiler
+    v143      — MSVC 2019 compiler
+
+  IMPORTANT: PlatformToolset is consumed by MSBuild during the early
+  "evaluation" phase, before most targets and imports run.  Setting it
+  from a props file works correctly only when the props file is imported
+  from within a <PropertyGroup Label="Configuration"> context, OR when
+  the .vcxproj files themselves forward $(YafuToolset) into PlatformToolset.
+  The recommended approach (requiring no .vcxproj edits) is to pass it
+  on the command line with /p:PlatformToolset=$(YafuToolset) — the workflow
+  does this automatically.  For the IDE, set it via User.props (see below).
+
+  ── ISA TARGET ───────────────────────────────────────────────────────────
+  Pass /p:YafuISA=<value> on the MSBuild command line, or set it in
+  User.props for the IDE.  Valid values:
+
+    generic      — baseline x86-64, no extensions
+    sse41        — SSE 4.1
+    avx2         — AVX2 + BMI2  (default, recommended for most desktop CPUs)
+    avx512       — AVX-512 F/BW (Skylake-X, Cascade Lake, Zen 4)
+
+  ── IDE USAGE ────────────────────────────────────────────────────────────
+  Create build.vc22/User.props (never committed to git, add to .gitignore):
+
+    <?xml version="1.0" encoding="utf-8"?>
+    <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+      <PropertyGroup>
+        <YafuToolset>ClangCL</YafuToolset>
+        <YafuISA>avx2</YafuISA>
+      </PropertyGroup>
+    </Project>
+
+  libs_and_extensions.props imports User.props automatically if it exists.
+
+  ── COMMAND LINE ─────────────────────────────────────────────────────────
+    msbuild yafu.sln
+      /p:YafuToolset=ClangCL
+      /p:PlatformToolset=ClangCL
+      /p:YafuISA=avx2
+      /p:mp_dir=C:\deps\mpir\lib\x64\Release\
+      /p:ecm_dir=C:\deps\ecm-install\
+
+  Note: /p:PlatformToolset must be passed alongside /p:YafuToolset because
+  MSBuild reads PlatformToolset before props-file imports take effect.
+  The two are kept in sync by the CI workflow matrix automatically.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- ── Toolset defaults ─────────────────────────────────────────────── -->
+  <PropertyGroup>
+    <YafuToolset Condition="'$(YafuToolset)'==''">ClangCL</YafuToolset>
+  </PropertyGroup>
+
+  <!--
+    Forward YafuToolset → PlatformToolset so that projects which import
+    this file early enough (via Directory.Build.props or the first import
+    in the vcxproj) pick up the toolset without a command-line override.
+    For projects that import this via libs_and_extensions.props the
+    /p:PlatformToolset command-line argument is the reliable path.
+  -->
+  <PropertyGroup Label="Configuration">
+    <PlatformToolset Condition="'$(PlatformToolset)'==''">$(YafuToolset)</PlatformToolset>
+  </PropertyGroup>
+
+  <!-- ── ISA defaults ─────────────────────────────────────────────────── -->
+  <PropertyGroup>
+    <YafuISA Condition="'$(YafuISA)'==''">avx2</YafuISA>
+  </PropertyGroup>
+
+  <!-- ── generic: baseline x86-64, no extensions ─────────────────────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='generic'">
+    <YafuISADefines>VBITS=128</YafuISADefines>
+    <YafuEnhancedISA>NoExtensions</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── sse41: SSE 4.1 ───────────────────────────────────────────────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='sse41'">
+    <YafuISADefines>VBITS=128;USE_SSE41</YafuISADefines>
+    <YafuEnhancedISA>StreamingSIMDExtensions4.1</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── avx2: AVX2 + BMI2 (Haswell+, recommended for most users) ─────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='avx2'">
+    <YafuISADefines>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2</YafuISADefines>
+    <YafuEnhancedISA>AdvancedVectorExtensions2</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── avx512: AVX-512 F/BW (Skylake-X, Cascade Lake, Zen 4) ──────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='avx512'">
+    <YafuISADefines>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX</YafuISADefines>
+    <YafuEnhancedISA>AdvancedVectorExtensions512</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!--
+    avx512ifma is NOT included in the MSVC/ClangCL matrix.
+    MSVC's EnableEnhancedInstructionSet has no distinct AVX-512-IFMA value —
+    the IFMA intrinsics are available under /arch:AVX512 but there is no
+    separate compiler switch for them in VS 2022 or VS 2026.
+    This target is used by the MinGW and Linux workflows only, where GCC/Clang
+    have a real -mavx512ifma flag that enables additional auto-vectorisation.
+    It is defined here so that build_config.props remains the single source of
+    truth if it is ever needed in a future MSVC toolchain version.
+  -->
+  <!-- ── avx512ifma: AVX-512 + IFMA (Ice Lake+, best ECM and SIQS performance) ── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='avx512ifma'">
+    <YafuISADefines>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;IFMA</YafuISADefines>
+    <YafuEnhancedISA>AdvancedVectorExtensions512</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!--
+    Apply ISA flags to every ClCompile item in any project that imports
+    this file (via libs_and_extensions.props).
+    %(PreprocessorDefinitions) and %(EnableEnhancedInstructionSet) preserve
+    any per-file overrides in individual project ItemDefinitionGroups.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>$(YafuISADefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>$(YafuEnhancedISA)</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+</Project>

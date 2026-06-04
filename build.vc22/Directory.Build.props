@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  build.vc22/Directory.Build.props
+
+  MSBuild automatically imports this file before processing any .vcxproj
+  in this directory or any subdirectory. This makes it the ideal place to
+  set solution-wide defaults that need to be evaluated early — including
+  PlatformToolset, which must be set before the Configuration section of
+  each .vcxproj is evaluated.
+
+  This file is NOT committed if you add it to .gitignore, making it a
+  per-developer local override. Or commit it with a sensible default and
+  let developers override via User.props.
+
+  To switch all projects to v144:
+    Change <YafuToolset> below to v144.
+
+  To switch back to ClangCL:
+    Change it back, or delete this file.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <YafuToolset Condition="'$(YafuToolset)'==''">v143</YafuToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)'==''">$(YafuToolset)</PlatformToolset>
+  </PropertyGroup>
+</Project>
