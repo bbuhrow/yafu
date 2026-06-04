@@ -176,7 +176,7 @@ jobs:
           cd C:\deps\ecm-src
           # ECM's MSVC build requires MPIR — point it at our avx2 build
           # (generic enough for building the ECM library itself)
-          msbuild build.vc\ecm.sln `
+          msbuild build.vs\ecm.sln `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:mp_dir=C:\deps\mpir-lib_mpir_gc\lib\ `
