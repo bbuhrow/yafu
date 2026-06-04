@@ -163,6 +163,10 @@ jobs:
           path: C:\deps\ecm-install
           key: gmp-ecm-${{ env.ECM_COMMIT }}-msvc
 
+      - name: Install YASM (required by ECM assembler)
+        if: steps.cache-ecm.outputs.cache-hit != 'true'
+        run: choco install yasm --no-progress -y
+
       - name: Clone GMP-ECM
         if: steps.cache-ecm.outputs.cache-hit != 'true'
         run: |
@@ -170,16 +174,28 @@ jobs:
           cd C:\deps\ecm-src
           git checkout ${{ env.ECM_COMMIT }}
 
+      - name: Patch GMP-ECM project (remove unconditional CUDA imports)
+        if: steps.cache-ecm.outputs.cache-hit != 'true'
+        run: |
+          # The ECM vcxproj unconditionally imports CUDA props/targets even
+          # when CUDA is not in use, causing MSB4019 on runners without the
+          # matching toolkit. Filter out any line that mentions CUDA.
+          $proj = 'C:\deps\ecm-src\build.vs\ecm\ecm.vcxproj'
+          $lines = Get-Content $proj
+          $lines = $lines | Where-Object { $_ -notlike '*CUDA*' }
+          Set-Content $proj $lines
+
+
       - name: Build GMP-ECM
         if: steps.cache-ecm.outputs.cache-hit != 'true'
         run: |
           cd C:\deps\ecm-src
-          # ECM's MSVC build requires MPIR — point it at our avx2 build
+          # ECM's MSVC build requires MPIR — point it at our gc build
           # (generic enough for building the ECM library itself)
-          msbuild build.vs\ecm.sln `
+          msbuild build.vs\libecm\libecm.vcxproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            /p:mp_dir=C:\deps\mpir-lib_mpir_gc\lib\ `
+            /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\ `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
           New-Item -ItemType Directory -Force C:\deps\ecm-install\lib\x64\Release
