@@ -89,8 +89,9 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          release: '2025-12-13'  # GCC 15.2 — after 15.2 release (Aug 2025),
-                                 # before GCC 16.1 release (Apr 2026)
+          # Pin to the 2025-12-13 installer snapshot: GCC 15.2 (Aug 2025),
+          # before GCC 16.1 (Apr 2026). Update the URL to move to a newer GCC.
+          installer-url: https://github.com/msys2/msys2-installer/releases/download/2025-12-13/msys2-x86_64-20251213.exe
           update: false          # must be false to prevent pacman upgrading to GCC 16
           install: >-
             mingw-w64-x86_64-gcc
