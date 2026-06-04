@@ -165,7 +165,12 @@ jobs:
 
       - name: Install YASM (required by ECM assembler)
         if: steps.cache-ecm.outputs.cache-hit != 'true'
-        run: choco install yasm --no-progress -y
+        run: |
+          choco install yasm --no-progress -y
+          # ECM's vsyasm.targets looks for vsyasm.exe specifically.
+          # Copy yasm.exe alongside itself with that name in the same folder.
+          Copy-Item "C:\ProgramData\chocolatey\lib\yasm\tools\yasm.exe" `
+            "C:\ProgramData\chocolatey\lib\yasm\tools\vsyasm.exe" 
 
       - name: Clone GMP-ECM
         if: steps.cache-ecm.outputs.cache-hit != 'true'
@@ -195,6 +200,7 @@ jobs:
           msbuild build.vs\libecm\libecm.vcxproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
+            /p:YasmPath="C:\ProgramData\chocolatey\lib\yasm\tools\" `
             /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\ `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
