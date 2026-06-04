@@ -9,7 +9,7 @@
 #               for every sub-project in the solution automatically.
 #
 # MPIR:         Built from source using the optimised configuration that
-#               best matches each ISA target (haswell_avx for avx2,
+#               best matches each ISA target (skylake_avx for avx2,
 #               skylake_avx for avx512/avx512ifma, gc for generic/sse41).
 #               Cached by commit SHA + config name.
 #
@@ -74,7 +74,7 @@ jobs:
 
           - toolset: ClangCL
             isa:         avx2
-            mpir_config: lib_mpir_haswell_avx
+            mpir_config: lib_mpir_skylake_avx
             artifact_name: yafu-clangcl-avx2.exe
 
           - toolset: ClangCL
@@ -96,7 +96,7 @@ jobs:
 
           - toolset: v144
             isa:         avx2
-            mpir_config: lib_mpir_haswell_avx
+            mpir_config: lib_mpir_skylake_avx
             artifact_name: yafu-msvc-avx2.exe
 
           - toolset: v144
@@ -136,16 +136,20 @@ jobs:
         if: steps.cache-mpir.outputs.cache-hit != 'true'
         run: |
           cd C:\deps\mpir-src
-          msbuild build.vc17\${{ matrix.mpir_config }}\${{ matrix.mpir_config }}.vcxproj `
+          msbuild msvc\vs26\${{ matrix.mpir_config }}\${{ matrix.mpir_config }}.vcxproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib to a clean install prefix
+          # Output lands in x64\Release\ relative to the project file directory
           New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\include
-          New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release
-          Copy-Item lib\x64\Release\mpir.lib `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
-          Copy-Item mpir.h gmp.h `
+          New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\lib
+          Copy-Item msvc\vs26\${{ matrix.mpir_config }}\x64\Release\mpir.lib `
+            C:\deps\mpir-${{ matrix.mpir_config }}\lib\
+          Copy-Item mpir.h `
+            C:\deps\mpir-${{ matrix.mpir_config }}\include\
+          # gmp.h is a compatibility shim — copy if present
+          Copy-Item gmp.h `
             C:\deps\mpir-${{ matrix.mpir_config }}\include\ `
             -ErrorAction SilentlyContinue
 
@@ -175,7 +179,7 @@ jobs:
           msbuild build.vc\ecm.sln `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            /p:mp_dir=C:\deps\mpir-lib_mpir_gc\lib\x64\Release\ `
+            /p:mp_dir=C:\deps\mpir-lib_mpir_gc\lib\ `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
           New-Item -ItemType Directory -Force C:\deps\ecm-install\lib\x64\Release
@@ -196,7 +200,7 @@ jobs:
             /p:YafuToolset=${{ matrix.toolset }} `
             /p:PlatformToolset=${{ matrix.toolset }} `
             /p:YafuISA=${{ matrix.isa }} `
-            /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\ `
+            /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\ `
             /p:ecm_dir=C:\deps\ecm-install\ `
             /m
 
