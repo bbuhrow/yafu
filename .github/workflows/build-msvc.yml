@@ -200,7 +200,7 @@ jobs:
           msbuild build.vs\libecm\libecm.vcxproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            /p:YasmPath="C:\ProgramData\chocolatey\lib\yasm\tools\" `
+            /p:YASM_PATH="C:\ProgramData\chocolatey\lib\yasm\tools\" `
             /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\ `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
