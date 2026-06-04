@@ -38,7 +38,7 @@ jobs:
   # BUILD — one parallel runner per CPU target
   # ─────────────────────────────────────────────────────────────────────────────
   build:
-    runs-on: windows-2025
+    runs-on: windows-latest
     name: ${{ matrix.artifact_name }}
 
     strategy:
@@ -75,11 +75,11 @@ jobs:
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       # ── 2. Cache pacman packages ──────────────────────────────────────────────
       - name: Cache MSYS2 packages
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: C:\msys64\var\cache\pacman\pkg
           key: msys2-mingw64-${{ hashFiles('.github/workflows/build-windows.yml') }}
@@ -89,7 +89,9 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          update: true
+          release: '2025-12-13'  # GCC 15.2 — after 15.2 release (Aug 2025),
+                                 # before GCC 16.1 release (Apr 2026)
+          update: false          # must be false to prevent pacman upgrading to GCC 16
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-make
@@ -107,7 +109,7 @@ jobs:
       # Cache key is the commit SHA — update ECM_COMMIT above to force a rebuild.
       - name: Cache GMP-ECM
         id: cache-ecm
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: C:\msys64\home\runneradmin\ecm-install
           key: gmp-ecm-${{ env.ECM_COMMIT }}-mingw64
@@ -169,7 +171,7 @@ jobs:
 
       # ── 9. Upload (retained 30 days on every push/PR) ────────────────────────
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_name }}
@@ -200,7 +202,7 @@ jobs:
 
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           path: artifacts/
           merge-multiple: true
