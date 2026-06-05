@@ -356,7 +356,7 @@ endif
 # 6. BASE CFLAGS
 # -----------------------------------------------------------------------------
 CFLAGS := \
-    -fno-common \
+    -fno-common -fno-tree-loop-vectorize -fno-tree-slp-vectorize\
     -m64 \
 	-g \
     -std=c11 \
@@ -441,9 +441,7 @@ else
 #        LDFLAGS_EXTRA += -flto
     endif
     ifeq ($(DETECTED_OS),Windows)
-	
-		CFLAGS += -fno-tree-loop-vectorize -fno-tree-slp-vectorize
-		
+
         ifdef STATIC_WIN
 			
 			ifdef BATCH_CUDA
