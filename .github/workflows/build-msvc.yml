@@ -152,6 +152,9 @@ jobs:
           Copy-Item gmp.h `
             C:\deps\mpir-${{ matrix.mpir_config }}\include\ `
             -ErrorAction SilentlyContinue
+          Copy-Item gmp.h `
+            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\ `
+            -ErrorAction SilentlyContinue
 
       # ── 4. Build GMP-ECM (cached) ─────────────────────────────────────────────
       # ECM is built once and shared across all ISA targets — the lib itself
