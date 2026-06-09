@@ -331,7 +331,8 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 				mpz_clear(t);
 				mpz_clear(g);
 			}
-			else
+			else if ((poly->coeff1 == 1) && (poly->coeff2 == -1) && 
+				(mpz_cmp_ui(poly->base2, 1) == 0))
 			{
 				if (halved == 2)
 					poly->exp1 *= 2;
@@ -380,7 +381,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 
 					// redo poly find
 					poly->form_type = SNFS_NONE;
-					halved = find_brent_form(fobj->nfs_obj.gmp_n, poly, fobj->VFLAG, fobj->flogname);
+					halved = find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
 				}
 				mpz_clear(t);
 				mpz_clear(g);
