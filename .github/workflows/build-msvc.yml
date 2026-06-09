@@ -154,12 +154,6 @@ jobs:
           Copy-Item gmp.h `
             C:\deps\mpir-${{ matrix.mpir_config }}\include\ `
             -ErrorAction SilentlyContinue
-          # ECM's libecm.vcxproj AdditionalIncludeDirectories resolves to
-          # $(mp_dir) directly, so headers must live alongside mpir.lib
-          Copy-Item mpir.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
-          Copy-Item gmp.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
 
       # ── 4. Build GMP-ECM (cached) ─────────────────────────────────────────────
       # ECM is built once and shared across all ISA targets — the lib itself
@@ -209,7 +203,7 @@ jobs:
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:YASM_PATH="C:\ProgramData\chocolatey\lib\yasm\tools\" `
-            /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\ `
+            /p:mp_dir=mpir-${{ matrix.mpir_config }}\lib\ `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
           New-Item -ItemType Directory -Force C:\deps\ecm-install\lib\x64\Release
