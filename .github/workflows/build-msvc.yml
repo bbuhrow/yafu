@@ -180,6 +180,12 @@ jobs:
           git clone ${{ env.ECM_REPO }} C:\deps\ecm-src
           cd C:\deps\ecm-src
           git checkout ${{ env.ECM_COMMIT }}
+          
+      - name: List MPIR build folder (debug)
+        if: steps.cache-ecm.outputs.cache-hit != 'true'
+        run: |
+          Write-Host "=== mpir-${{ matrix.mpir_config }} lib ==="
+          Get-ChildItem -Recurse "C:\deps\mpir-${{ matrix.mpir_config }}" | Select-Object FullName
 
       - name: Patch GMP-ECM project (remove unconditional CUDA imports)
         if: steps.cache-ecm.outputs.cache-hit != 'true'
