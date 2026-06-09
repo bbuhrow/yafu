@@ -145,16 +145,19 @@ jobs:
           New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\include
           New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\lib
           Copy-Item msvc\vs26\${{ matrix.mpir_config }}\x64\Release\mpir.lib `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\
+            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
           Copy-Item mpir.h `
             C:\deps\mpir-${{ matrix.mpir_config }}\include\
           # gmp.h is a compatibility shim — copy if present
           Copy-Item gmp.h `
             C:\deps\mpir-${{ matrix.mpir_config }}\include\ `
             -ErrorAction SilentlyContinue
+          # ECM's libecm.vcxproj AdditionalIncludeDirectories resolves to
+          # $(mp_dir) directly, so headers must live alongside mpir.lib
+          Copy-Item mpir.h `
+            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
           Copy-Item gmp.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\ `
-            -ErrorAction SilentlyContinue
+            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
 
       # ── 4. Build GMP-ECM (cached) ─────────────────────────────────────────────
       # ECM is built once and shared across all ISA targets — the lib itself
