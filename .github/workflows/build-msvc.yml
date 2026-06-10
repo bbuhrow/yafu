@@ -254,9 +254,11 @@ jobs:
           git clone ${{ env.PTHREADS_REPO }} C:\deps\pthreads-src
           cd C:\deps\pthreads-src
           git checkout ${{ env.PTHREADS_COMMIT }}
-          nmake VC-static
+          :: VC-inlined-static builds a single-object static lib with /MT
+          :: Output is pthreadVC2.lib in the current directory (not x64\Release)
+          nmake VC-inlined-static
           mkdir C:\deps\pthreads-old\lib\x64\Release
-          copy x64\Release\pthreadVC2.lib C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
+          copy pthreadVC2.lib C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
           copy pthread.h C:\deps\pthreads-old\
           copy semaphore.h C:\deps\pthreads-old\
           copy sched.h C:\deps\pthreads-old\
