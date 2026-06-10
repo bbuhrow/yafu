@@ -320,6 +320,22 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			vij = _mm512_mask_mov_epi32(vij, (~mri0) & (~mri1) & ((~mri2) | (~mri3)), _mm512_add_epi32(vri2, vri1));
 			vij = _mm512_srli_epi32(_mm512_add_epi32(vij, _mm512_andnot_epi32(vot_tester, vni)), 1);
 
+			// Case D above is ij = ri[0]+ri[1].  With -J 16 both recurrence
+			// vectors can be "tall" (s,t ~ 2^16), so that u32 sum can exceed
+			// 2^32 and wrap, giving a bogus in-range ij and a phantom sieve hit
+			// (the source of the "td" warnings).  The halved value (ij+e)/2
+			// still fits in u32, so recompute the Case D lanes overflow-free
+			// via the average (a+b)/2 = (a&b)+((a^b)>>1), plus e/2 (e is even).
+			{
+				__mmask16 mD = (~mri0) & (~mri1) & ((~mri2) | (~mri3));
+				__m512i ve = _mm512_andnot_epi32(vot_tester, vni);
+				__m512i vijD = _mm512_add_epi32(
+					_mm512_add_epi32(_mm512_and_epi32(vri1, vri2),
+						_mm512_srli_epi32(_mm512_xor_epi32(vri1, vri2), 1)),
+					_mm512_srli_epi32(ve, 1));
+				vij = _mm512_mask_mov_epi32(vij, mD, vijD);
+			}
+
 			__mmask16 mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 
 #if 1
@@ -402,24 +418,28 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 #line 102 "lasched.w"
 
 			{
-				ij = 0;
-				if ((ri[0] & ot_mask) == ot_tester)ij = ri[0];
+				// ij0 holds the pre-halving value in 64 bits: the Case D
+				// branch (ri[0]+ri[1]) can exceed 2^32 with -J 16, and halving
+				// in u32 after a wrap yields a bogus in-range ij (phantom hit /
+				// "td" warning).  The halved result still fits in u32.
+				u64_t ij0 = 0;
+				if ((ri[0] & ot_mask) == ot_tester)ij0 = ri[0];
 				else {
-					if ((ri[RI_OFFSET1] & ot_mask) == (ot_tester ^ n_i))ij = ri[RI_OFFSET1];
+					if ((ri[RI_OFFSET1] & ot_mask) == (ot_tester ^ n_i))ij0 = ri[RI_OFFSET1];
 					else {
 						if ((ri[0] & (n_i - 1)) <= (ri[RI_OFFSET1] & (n_i - 1)) && ri[0] <= ri[RI_OFFSET1]) {
 
 
-							if ((ri[0] & (n_i - 1)) == (ri[RI_OFFSET1] & (n_i - 1)))ij = ri[RI_OFFSET1] - ri[0];
-							else ij = n_i;
+							if ((ri[0] & (n_i - 1)) == (ri[RI_OFFSET1] & (n_i - 1)))ij0 = ri[RI_OFFSET1] - ri[0];
+							else ij0 = n_i;
 							if (ot != 2)
 								Schlendrian("Exceptional situation for oddness type %u ?\n",
 									ot);
 						}
-						else ij = ri[0] + ri[RI_OFFSET1];
+						else ij0 = (u64_t)ri[0] + ri[RI_OFFSET1];
 					}
 				}
-				ij = (ij + ((~ot_tester) & n_i)) / 2;
+				ij = (u32_t)((ij0 + ((~ot_tester) & n_i)) / 2);
 			}/*:3*/
 #line 85 "lasched.w"
 
