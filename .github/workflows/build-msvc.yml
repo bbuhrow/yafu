@@ -247,7 +247,10 @@ jobs:
         if: steps.cache-pthreads.outputs.cache-hit != 'true'
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          :: Locate vcvarsall.bat dynamically using vswhere so this works
+          :: regardless of VS version or edition on the runner.
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VS_PATH=%%i
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" x64
           git clone ${{ env.PTHREADS_REPO }} C:\deps\pthreads-src
           cd C:\deps\pthreads-src
           git checkout ${{ env.PTHREADS_COMMIT }}
