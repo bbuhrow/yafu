@@ -42,6 +42,10 @@ env:
   # Keep in sync with build-windows.yml and build-linux.yml.
   ECM_REPO:    https://github.com/sethtroisi/gmp-ecm.git
   ECM_COMMIT:  0ab79ad
+  
+  # pthreads — BrianGladman's MSVC-compatible pthreads-win32
+  PTHREADS_REPO:   https://github.com/BrianGladman/pthreads.git
+  PTHREADS_COMMIT: master
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
