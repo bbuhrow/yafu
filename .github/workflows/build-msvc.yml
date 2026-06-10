@@ -271,6 +271,7 @@ jobs:
           msbuild build.vc22\yafu.sln `
             /p:Configuration=Release `
             /p:Platform=x64 `
+            /p:YASMPATH="C:\ProgramData\chocolatey\lib\yasm\tools\" `
             /p:YafuToolset=${{ matrix.toolset }} `
             /p:PlatformToolset=${{ matrix.toolset }} `
             /p:YafuISA=${{ matrix.isa }} `
