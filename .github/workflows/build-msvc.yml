@@ -242,26 +242,23 @@ jobs:
         with:
           path: C:\deps\pthreads-install
           key: pthreads-${{ env.PTHREADS_COMMIT }}-msvc
-          
+ 
       - name: Build pthreads from source
         if: steps.cache-pthreads.outputs.cache-hit != 'true'
-        shell: cmd
         run: |
-          :: Locate vcvarsall.bat dynamically using vswhere so this works
-          :: regardless of VS version or edition on the runner.
-          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VS_PATH=%%i
-          call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" x64
           git clone ${{ env.PTHREADS_REPO }} C:\deps\pthreads-src
           cd C:\deps\pthreads-src
           git checkout ${{ env.PTHREADS_COMMIT }}
-          :: VC-inlined-static builds a single-object static lib with /MT
-          :: Output is pthreadVC2.lib in the current directory (not x64\Release)
-          nmake clean VC-static
-          mkdir C:\deps\pthreads-old\lib\x64\Release
-          copy pthreadVC2.lib C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
-          copy pthread.h C:\deps\pthreads-old\
-          copy semaphore.h C:\deps\pthreads-old\
-          copy sched.h C:\deps\pthreads-old\
+          msbuild build.vs\pthreads_lib\pthreads_lib.vcxproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:RuntimeLibrary=MultiThreaded
+          # Solution outputs pthreads.lib and pthread.h to lib\x64\Release\
+          New-Item -ItemType Directory -Force C:\deps\pthreads-old\lib\x64\Release
+          Copy-Item lib\x64\Release\pthreads.lib `
+            C:\deps\pthreads-old\lib\x64\Release\
+          Copy-Item lib\x64\Release\pthread.h `
+            C:\deps\pthreads-old\
             
       # ── 5. Build yafu ─────────────────────────────────────────────────────────
       # ISA flags propagate automatically via isa_target.props, which is imported
