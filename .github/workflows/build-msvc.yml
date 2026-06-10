@@ -226,6 +226,27 @@ jobs:
             C:\deps\ecm-install\lib\x64\Release\
           Copy-Item ecm.h C:\deps\ecm-install\
 
+      # ── 4.5. Build pthreads (cached) ───────────────────────────────────────────
+      # Built with nmake VC-static target which produces a static lib with /MT,
+      # matching yafu's RuntimeLibrary setting.
+      # Staged to pthreads-old\ relative to the solution so yafu finds it at
+      # the path its project files expect: pthreads-old\pthread.h and
+      # pthreads-old\lib\x64\Release\pthreads.lib
+      - name: Build pthreads from source
+        if: steps.cache-pthreads.outputs.cache-hit != 'true'
+        run: |
+          git clone ${{ env.PTHREADS_REPO }} C:\deps\pthreads-src
+          cd C:\deps\pthreads-src
+          git checkout ${{ env.PTHREADS_COMMIT }}
+          # VC-static builds pthreadVC2.lib with /MT (static MSVC runtime)
+          nmake VC-static
+          New-Item -ItemType Directory -Force C:\deps\pthreads-old\lib\x64\Release
+          # The static lib is named pthreadVC2.lib — copy as pthreads.lib
+          Copy-Item x64\Release\pthreadVC2.lib `
+            C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
+          Copy-Item pthread.h semaphore.h sched.h `
+            C:\deps\pthreads-old\
+            
       # ── 5. Build yafu ─────────────────────────────────────────────────────────
       # ISA flags propagate automatically via isa_target.props, which is imported
       # by libs_and_extensions.props, which every sub-project already imports.
