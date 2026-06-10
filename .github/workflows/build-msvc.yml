@@ -188,11 +188,10 @@ jobs:
           git clone ${{ env.ECM_REPO }} C:\deps\ecm-src
           cd C:\deps\ecm-src
           git checkout ${{ env.ECM_COMMIT }}
-          
+
       - name: List MPIR build folder (debug)
         if: steps.cache-ecm.outputs.cache-hit != 'true'
         run: |
-            # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
           Write-Host "=== mpir-lib_mpir_gc lib ==="
           Get-ChildItem -Recurse "C:\deps\mpir-lib_mpir_gc" | Select-Object FullName
 
