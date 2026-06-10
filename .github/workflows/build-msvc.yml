@@ -255,9 +255,9 @@ jobs:
             /p:RuntimeLibrary=MultiThreaded
           # Solution outputs pthreads.lib and pthread.h to lib\x64\Release\
           New-Item -ItemType Directory -Force C:\deps\pthreads-old\lib\x64\Release
-          Copy-Item lib\x64\Release\pthreads.lib `
+          Copy-Item build.vs\lib\x64\Release\pthreads.lib `
             C:\deps\pthreads-old\lib\x64\Release\
-          Copy-Item lib\x64\Release\pthread.h `
+          Copy-Item pthread.h `
             C:\deps\pthreads-old\
             
       # ── 5. Build yafu ─────────────────────────────────────────────────────────
