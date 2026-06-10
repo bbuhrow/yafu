@@ -136,30 +136,32 @@ jobs:
         if: steps.cache-mpir.outputs.cache-hit != 'true'
         run: |
           cd C:\deps\mpir-src
-          msbuild msvc\vs26\${{ matrix.mpir_config }}\${{ matrix.mpir_config }}.vcxproj `
+          # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
+          msbuild msvc\vs26\lib_mpir_gc\lib_mpir_gc.vcxproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib to a clean install prefix
           # Output lands in x64\Release\ relative to the project file directory
-          New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\include
-          New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\lib
-          New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64
-          New-Item -ItemType Directory -Force C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release
-          Copy-Item msvc\vs26\${{ matrix.mpir_config }}\x64\Release\mpir.lib `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\
+          New-Item -ItemType Directory -Force C:\deps\mpir-lib_mpir_gc\include
+          New-Item -ItemType Directory -Force C:\deps\mpir-lib_mpir_gc\lib
+          New-Item -ItemType Directory -Force C:\deps\mpir-lib_mpir_gc\lib\x64
+          New-Item -ItemType Directory -Force C:\deps\mpir-lib_mpir_gc\lib\x64\Release
+          # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
+          Copy-Item msvc\vs26\lib_mpir_gc\x64\Release\mpir.lib `
+            C:\deps\mpir-lib_mpir_gc\lib\
           Copy-Item mpir.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\include\
+            C:\deps\mpir-lib_mpir_gc\include\
           # gmp.h is a compatibility shim — copy if present
           Copy-Item gmp.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\include\ `
+            C:\deps\mpir-lib_mpir_gc\include\ `
             -ErrorAction SilentlyContinue
           # ECM's libecm.vcxproj AdditionalIncludeDirectories resolves to
           # $(mp_dir) directly, so headers must live alongside mpir.lib
           Copy-Item mpir.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
+            C:\deps\mpir-lib_mpir_gc\lib\x64\Release\
           Copy-Item gmp.h `
-            C:\deps\mpir-${{ matrix.mpir_config }}\lib\x64\Release\
+            C:\deps\mpir-lib_mpir_gc\lib\x64\Release\
 
       # ── 4. Build GMP-ECM (cached) ─────────────────────────────────────────────
       # ECM is built once and shared across all ISA targets — the lib itself
@@ -190,8 +192,9 @@ jobs:
       - name: List MPIR build folder (debug)
         if: steps.cache-ecm.outputs.cache-hit != 'true'
         run: |
-          Write-Host "=== mpir-${{ matrix.mpir_config }} lib ==="
-          Get-ChildItem -Recurse "C:\deps\mpir-${{ matrix.mpir_config }}" | Select-Object FullName
+            # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
+          Write-Host "=== mpir-lib_mpir_gc lib ==="
+          Get-ChildItem -Recurse "C:\deps\mpir-lib_mpir_gc" | Select-Object FullName
 
       - name: Patch GMP-ECM project (remove unconditional CUDA imports)
         if: steps.cache-ecm.outputs.cache-hit != 'true'
@@ -211,11 +214,12 @@ jobs:
           cd C:\deps\ecm-src
           # ECM's MSVC build requires MPIR — point it at our gc build
           # (generic enough for building the ECM library itself)
+          # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
           msbuild build.vs\libecm\libecm.vcxproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:YASM_PATH="C:\ProgramData\chocolatey\lib\yasm\tools\" `
-            /p:mp_dir=mpir-${{ matrix.mpir_config }}\lib\ `
+            /p:mp_dir=mpir-lib_mpir_gc\lib\ `
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
           New-Item -ItemType Directory -Force C:\deps\ecm-install\lib\x64\Release
@@ -228,6 +232,7 @@ jobs:
       # by libs_and_extensions.props, which every sub-project already imports.
       # The hardcoded EnableEnhancedInstructionSet in yafu.vcxproj Release|x64
       # must be removed for this to work (see migration notes).
+      # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
       - name: Build yafu (${{ matrix.toolset }}-${{ matrix.isa }})
         run: |
           msbuild build.vc22\yafu\yafu.vcxproj `
@@ -236,7 +241,7 @@ jobs:
             /p:YafuToolset=${{ matrix.toolset }} `
             /p:PlatformToolset=${{ matrix.toolset }} `
             /p:YafuISA=${{ matrix.isa }} `
-            /p:mp_dir=C:\deps\mpir-${{ matrix.mpir_config }}\lib\ `
+            /p:mp_dir=C:\deps\mpir-lib_mpir_gc\lib\x64\Release `
             /p:ecm_dir=C:\deps\ecm-install\ `
             /m
 
