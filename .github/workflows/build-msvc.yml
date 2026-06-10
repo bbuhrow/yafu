@@ -256,7 +256,7 @@ jobs:
           git checkout ${{ env.PTHREADS_COMMIT }}
           :: VC-inlined-static builds a single-object static lib with /MT
           :: Output is pthreadVC2.lib in the current directory (not x64\Release)
-          nmake VC-inlined-static
+          nmake clean VC-static
           mkdir C:\deps\pthreads-old\lib\x64\Release
           copy pthreadVC2.lib C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
           copy pthread.h C:\deps\pthreads-old\
