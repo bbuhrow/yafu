@@ -219,7 +219,7 @@ typedef struct
     uint32_t aprcl_p;
     uint32_t aprcl_d;
     uint32_t soe_blocksize;
-    int soe_analysis
+    int soe_analysis;
 
 
     // ========================================================================
