@@ -236,20 +236,27 @@ jobs:
       # Staged to pthreads-old\ relative to the solution so yafu finds it at
       # the path its project files expect: pthreads-old\pthread.h and
       # pthreads-old\lib\x64\Release\pthreads.lib
+      - name: Cache pthreads
+        id: cache-pthreads
+        uses: actions/cache@v5
+        with:
+          path: C:\deps\pthreads-install
+          key: pthreads-${{ env.PTHREADS_COMMIT }}-msvc
+          
       - name: Build pthreads from source
         if: steps.cache-pthreads.outputs.cache-hit != 'true'
+        shell: cmd
         run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           git clone ${{ env.PTHREADS_REPO }} C:\deps\pthreads-src
           cd C:\deps\pthreads-src
           git checkout ${{ env.PTHREADS_COMMIT }}
-          # VC-static builds pthreadVC2.lib with /MT (static MSVC runtime)
           nmake VC-static
-          New-Item -ItemType Directory -Force C:\deps\pthreads-old\lib\x64\Release
-          # The static lib is named pthreadVC2.lib — copy as pthreads.lib
-          Copy-Item x64\Release\pthreadVC2.lib `
-            C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
-          Copy-Item pthread.h semaphore.h sched.h `
-            C:\deps\pthreads-old\
+          mkdir C:\deps\pthreads-old\lib\x64\Release
+          copy x64\Release\pthreadVC2.lib C:\deps\pthreads-old\lib\x64\Release\pthreads.lib
+          copy pthread.h C:\deps\pthreads-old\
+          copy semaphore.h C:\deps\pthreads-old\
+          copy sched.h C:\deps\pthreads-old\
             
       # ── 5. Build yafu ─────────────────────────────────────────────────────────
       # ISA flags propagate automatically via isa_target.props, which is imported
