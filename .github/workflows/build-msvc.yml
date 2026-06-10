@@ -234,7 +234,7 @@ jobs:
       # always use lib_mpir_gc instead of ${{ matrix.mpir_config }}
       - name: Build yafu (${{ matrix.toolset }}-${{ matrix.isa }})
         run: |
-          msbuild build.vc22\yafu\yafu.vcxproj `
+          msbuild build.vc22\yafu.sln `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:YafuToolset=${{ matrix.toolset }} `
