@@ -219,7 +219,7 @@ jobs:
             /p:RuntimeLibrary=MultiThreaded
           # Stage headers and lib
           New-Item -ItemType Directory -Force C:\deps\ecm-install\lib\x64\Release
-          Copy-Item lib\x64\Release\libecm.lib `
+          Copy-Item build.vs\lib\x64\Release\libecm.lib `
             C:\deps\ecm-install\lib\x64\Release\
           Copy-Item ecm.h C:\deps\ecm-install\
 
