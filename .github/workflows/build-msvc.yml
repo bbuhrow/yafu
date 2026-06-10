@@ -83,23 +83,23 @@ jobs:
             artifact_name: yafu-clangcl-avx512.exe
 
 
-          # ── MSVC (v144) builds ───────────────────────────────────────────
-          - toolset: v144
+          # ── MSVC (v143) builds ───────────────────────────────────────────
+          - toolset: v143
             isa:         generic
             mpir_config: lib_mpir_gc
             artifact_name: yafu-msvc-generic.exe
 
-          - toolset: v144
+          - toolset: v143
             isa:         sse41
             mpir_config: lib_mpir_gc
             artifact_name: yafu-msvc-sse41.exe
 
-          - toolset: v144
+          - toolset: v143
             isa:         avx2
             mpir_config: lib_mpir_skylake_avx
             artifact_name: yafu-msvc-avx2.exe
 
-          - toolset: v144
+          - toolset: v143
             isa:         avx512
             mpir_config: lib_mpir_skylake_avx
             artifact_name: yafu-msvc-avx512.exe
