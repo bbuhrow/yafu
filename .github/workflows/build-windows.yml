@@ -136,7 +136,7 @@ jobs:
       - name: Show build config (${{ matrix.target }})
         shell: msys2 {0}
         run: |
-          make -f Makefile.new info \
+          make info \
             ${{ matrix.make_flags }} \
             ECM_PREFIX="$HOME/ecm-install"
 
@@ -144,7 +144,7 @@ jobs:
       - name: Build (${{ matrix.target }})
         shell: msys2 {0}
         run: |
-          make -f Makefile.new yafu \
+          make yafu \
             ${{ matrix.make_flags }} \
             ECM_PREFIX="$HOME/ecm-install"
 

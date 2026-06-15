@@ -124,7 +124,7 @@ jobs:
       # ── 4. Show resolved build configuration (useful for debugging failures) ──
       - name: Show build config (${{ matrix.target }})
         run: |
-          make -f Makefile.new info \
+          make info \
             ${{ matrix.make_flags }} \
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
@@ -133,7 +133,7 @@ jobs:
       # ── 5. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
         run: |
-          make -f Makefile.new yafu \
+          make yafu \
             ${{ matrix.make_flags }} \
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
