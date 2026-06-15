@@ -486,7 +486,7 @@ int main(int argc, char *argv[])
                 fobj->input_str_alloc = strlen(input_str.s) + 2;
             }
             fobj->argc = argc;
-            fobj->argv = argv;
+            fobj->argv = argv;            
             strcpy(fobj->input_str, input_str.s);
             firstline = 1;
             reset_preprocessor();

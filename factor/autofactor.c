@@ -3194,7 +3194,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			fprintf(fid, "\t\"input-argument-string\":\"");
 			for (i = 1; i < fobj->argc; i++)
 			{
-				fprintf(fid, "%s ", fobj->argv[i]);
+				fprintf(fid, "%s", fobj->argv[i]);
 			}
 			fprintf(fid, "\",%c", lf);
 		}

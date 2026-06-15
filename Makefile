@@ -14,7 +14,8 @@
 #   make msieve                      # build msieve static library + demo
 #   make siqs                        # build siqs_demo standalone binary
 #   make ecm                         # build ecm_demo standalone binary
-#   make all                         # build all four targets
+#   make lasieve                     # build factor/lasieve5_64 binaries
+#   make all                         # build all targets
 #   make CC=clang yafu               # use clang
 #   make CC=icc yafu                 # use Intel compiler
 #   make DEBUG=1 yafu                # debug build
@@ -199,12 +200,10 @@ else
     CUDA_LPATH        :=
     NVCC              :=
     # If user requested CUDA features but toolkit not found, warn and disable
-
-#	BATCH_CUDA is also available through OpenCL, disable later if neither are found	
-#    ifdef BATCH_CUDA
-#        $(warning CUDA toolkit not found — disabling BATCH_CUDA)
-#        override BATCH_CUDA :=
-#    endif
+    ifdef BATCH_CUDA
+        $(warning CUDA toolkit not found — disabling BATCH_CUDA)
+        override BATCH_CUDA :=
+    endif
     ifdef CUDA_POLY
         $(warning CUDA toolkit not found — disabling CUDA_POLY)
         override CUDA_POLY :=
@@ -270,16 +269,6 @@ else
     OCL_LIBS    :=
 endif
 
-# now check if either OCL or CUDA are found with BATCH_CUDA defined
-ifdef BATCH_CUDA
-	ifeq (,$(HAVE_OPENCL))
-		ifeq (,$(HAVE_CUDA_TOOLKIT))
-			$(warning neither CUDA toolkit nor OpenCL found — disabling BATCH_CUDA)
-			override BATCH_CUDA :=
-		endif
-	endif
-endif
-
 
 # -----------------------------------------------------------------------------
 # 5. CUDA SM (streaming multiprocessor / compute capability) version
@@ -301,7 +290,6 @@ endif
 ifndef SM
     ifdef BATCH_CUDA
         ifneq ($(BATCH_CUDA),1)
-            $(info CUDA: setting SM to $(BATCH_CUDA))
             SM         := $(BATCH_CUDA)
             BATCH_CUDA := 1
         endif
@@ -329,7 +317,6 @@ endif
 # Auto-detect SM from nvidia-smi when CUDA is present and SM is still unset.
 ifndef SM
     ifdef HAVE_CUDA_TOOLKIT
-		
         # Query compute capability for every GPU, strip the dot (8.0 → 80),
         # sort numerically, and take the lowest value so the .ptx is
         # compatible with every card in the system.
@@ -358,7 +345,6 @@ endif
 CFLAGS := \
     -fno-common \
     -m64 \
-	-g \
     -std=c11 \
     -DUSE_SSE2 \
     -fPIE \
@@ -367,13 +353,6 @@ CFLAGS := \
     -D_LARGEFILE64_SOURCE \
     -Wall \
     -Wconversion
-	
-# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
-# violations in the AVX2 sieve buffer casting code. 
-# Todo: audit __m256i casts throughout siqs when using avx2 only.
-ifeq ($(OS),Windows_NT)
-    CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
-endif
 
 VBITS ?= 64
 CFLAGS += -DVBITS=$(VBITS)
@@ -426,29 +405,22 @@ else ifeq ($(COMPILER_FAMILY),clang)
     ifeq ($(DEBUG),1)
         CFLAGS        += -fsanitize=address,undefined -fno-omit-frame-pointer
         LDFLAGS_EXTRA += -fsanitize=address,undefined
-#    else
-#        CFLAGS        += -flto
-#        LDFLAGS_EXTRA += -flto
+    else
+        CFLAGS        += -flto
+        LDFLAGS_EXTRA += -flto
     endif
 
 else
     # GCC
-    CFLAGS += -Wshadow -Wstrict-prototypes -fno-tree-loop-vectorize -fno-tree-slp-vectorize
+    CFLAGS += -Wshadow -Wstrict-prototypes
     ifeq ($(DEBUG),1)
         # nothing extra
-#    else
-#        CFLAGS        += -flto
-#        LDFLAGS_EXTRA += -flto
+    else
+        CFLAGS        += -flto
+        LDFLAGS_EXTRA += -flto
     endif
     ifeq ($(DETECTED_OS),Windows)
-
         ifdef STATIC_WIN
-			
-			ifdef BATCH_CUDA
-$(error BATCH_CUDA is not supported with STATIC_WIN. \
-OpenCL must be dynamically linked and is only available natively in msys2/mingw-w64.)
-			endif
-				
             # Fully static binary — runs in PowerShell/cmd.exe with no DLLs needed.
             # Requires that GMP, ECM, zlib etc. were installed as static (.a) libs
             # (pacman -S mingw-w64-x86_64-gmp etc. includes both static and shared).
@@ -577,21 +549,14 @@ ifeq ($(ECM),1)
     CFLAGS += -DHAVE_GMP_ECM
 endif
 
-
 ifdef BATCH_CUDA
-	ifneq (,$(HAVE_CUDA_TOOLKIT))
-		CFLAGS += -DHAVE_CUDA_BATCH_FACTOR -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
-		TOOLKIT_VERSION ?= 12
-		CFLAGS += -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
-	else
-		ifneq (,$(HAVE_OPENCL))
-			CFLAGS += -DHAVE_OCL_BATCH_FACTOR
-		endif
-	endif
+    CFLAGS += -DHAVE_CUDA_BATCH_FACTOR -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+    TOOLKIT_VERSION ?= 12
+    CFLAGS += -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
 endif
 
 ifdef CUDA_POLY
-    CFLAGS += -DHAVE_CUDA_POLY -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) -Icub
+    CFLAGS += -DHAVE_CUDA_POLY -Icub
     ifeq ($(DETECTED_OS),Windows)
         CUDA_POLY_LIBS := "$(CUDA_LIBDIR)/cuda.lib"
     else
@@ -600,7 +565,7 @@ ifdef CUDA_POLY
 endif
 
 ifdef CUDA_LA
-    CFLAGS += -DHAVE_CUDA_LA -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
+    CFLAGS += -DHAVE_CUDA_LA
 endif
 
 ifeq ($(MPI),1)
@@ -661,7 +626,7 @@ MSIEVE_LIBS := -L. $(GMP_LPATH)
 ifeq ($(ECM),1)
     ifneq (,$(HAVE_ECM_LIB))
         LIBS        += -lecm
-        MSIEVE_LIBS += $(ECM_LPATH) -lecm
+        MSIEVE_LIBS += -lecm
     else
         $(warning ECM=1 set but libecm not found — linking without -lecm)
     endif
@@ -669,19 +634,13 @@ endif
 
 # CUDA (batch cofactorisation)
 ifdef BATCH_CUDA
-	ifneq (,$(HAVE_CUDA_TOOLKIT))
-		LIBS        += $(CUDA_LPATH) -lcuda -lcudart
-		MSIEVE_LIBS += $(CUDA_LPATH) -lcuda -lcudart
-	endif
+    LIBS        += $(CUDA_LPATH) -lcuda -lcudart
+    MSIEVE_LIBS += $(CUDA_LPATH) -lcuda -lcudart
 endif
 
 # CUDA (polynomial selection)
 ifdef CUDA_POLY
-	ifneq (,$(HAVE_CUDA_TOOLKIT))
-		LIBS        += $(CUDA_LPATH) -lcuda -lcudart
-		MSIEVE_LIBS += $(CUDA_LPATH) $(CUDA_POLY_LIBS) -lcuda -lcudart
-	endif
-# MSIEVE_LIBS += $(CUDA_POLY_LIBS)
+    MSIEVE_LIBS += $(CUDA_POLY_LIBS)
 endif
 
 # OpenCL
@@ -799,27 +758,8 @@ COMMON_SRCS = \
     ysieve/worker.c \
     ysieve/soe_util.c \
     ysieve/wrapper.c \
-    top/aprcl/mpz_aprcl.c
-	
-
-ifdef BATCH_CUDA
-# building these causes their respective headers to be included
-# which contain the CUDA or OpenCL interface headers and
-# rely on system headers being present.  So we only include
-# them if the system checks have passed.  prefer CUDA if both
-# are present.
-# added cuda_xface and ocl_xface here; they are not just NFS
-# SRCS now that BATCH_CUDA is also in siqs.
-	ifneq (,$(HAVE_CUDA_TOOLKIT))
-		COMMON_SRCS += factor/gpu_cofactorization.c
-		COMMON_SRCS += common/cuda_xface.c
-	else
-		ifneq (,$(HAVE_OPENCL))
-			COMMON_SRCS += factor/gpu_cofactorization_cl.c
-			COMMON_SRCS += common/ocl_xface.c
-		endif
-	endif
-endif
+    top/aprcl/mpz_aprcl.c \
+    factor/gpu_cofactorization.c
 
 COMMON_BATCH_GPU_SRCS = \
     factor/cuda_tinyecm.cu \
@@ -912,6 +852,10 @@ YAFU_NFS_SRCS = \
     factor/nfs/snfs.c \
     factor/nfs/nfs.c
 
+ifdef BATCH_CUDA
+    YAFU_NFS_SRCS += common/cuda_xface.c
+endif
+
 NFS_SRCS = \
     gnfs/poly/poly.c \
     gnfs/poly/poly_param.c \
@@ -944,8 +888,6 @@ NFS_SRCS = \
     gnfs/gf2.c \
     gnfs/gnfs.c \
     gnfs/relation.c
-
-	
 
 NFS_GPU_SRCS  = gnfs/poly/stage1/stage1_sieve_gpu.c
 NFS_NOGPU_SRCS = gnfs/poly/stage1/stage1_sieve_cpu.c
@@ -996,11 +938,6 @@ MSIEVE_COMMON_SRCS = \
     common/thread.c \
     common/util.c \
     aprcl/mpz_aprcl32.c
-
-	
-ifeq ($(OS),Windows_NT)
-	MSIEVE_COMMON_SRCS += common/mpz-ull.c
-endif
 
 COMMON_GPU_SRCS = \
     common/lanczos/gpu/lanczos_matmul_gpu.c \
@@ -1083,15 +1020,8 @@ endif
 ifeq ($(CUDA_POLY),1)
     GPU_OBJS += stage1_core.ptx cub/built
 endif
-
-
 ifdef BATCH_CUDA
-	ifneq (,$(HAVE_CUDA_TOOLKIT))
-		YAFU_NFS_SRCS += common/cuda_xface.c
-		BATCH_GPU_OBJS := cuda_ecm$(SM).ptx
-	else
-		BATCH_GPU_OBJS :=
-	endif
+    BATCH_GPU_OBJS := cuda_ecm$(SM).ptx
 else
     BATCH_GPU_OBJS :=
 endif
@@ -1104,7 +1034,7 @@ endif
 # -----------------------------------------------------------------------------
 # 22. PHONY TARGETS
 # -----------------------------------------------------------------------------
-.PHONY: all yafu msieve siqs ecm clean info help _dep_status
+.PHONY: all yafu msieve siqs ecm lasieve lasieve-clean clean info help _dep_status
 
 # -----------------------------------------------------------------------------
 # 23. DEFAULT GOAL
@@ -1178,6 +1108,34 @@ ecm: _dep_status \
 
 
 # -----------------------------------------------------------------------------
+# lasieve — NFS sieve binaries (factor/lasieve5_64)
+#
+# Built separately from the main yafu targets since the sieve programs are
+# standalone binaries invoked at runtime, not linked into yafu.
+#
+# USE_AVX512=1 in config.mk or on the command line enables AVX-512 sieve
+# paths automatically (maps to AVX512_ALL=1 in the sub-make).
+#
+# The built libraries land in factor/lasieve5_64/asm/ alongside the sources.
+# yafu.ini's ggnfs_dir should point there (or to wherever you copy them).
+# -----------------------------------------------------------------------------
+LASIEVE_DIR  := factor/lasieve5_64
+LASIEVE_VARS := \
+    CC=$(CC) \
+    GMP_INCDIR=$(GMP_INCDIR) \
+    GMP_LIBDIR=$(GMP_LIBDIR) \
+    DETECTED_OS=$(DETECTED_OS) \
+    $(if $(DEBUG),DEBUG=$(DEBUG)) \
+    $(if $(USE_AVX512),AVX512_ALL=1)
+
+lasieve: _dep_status
+	$(MAKE) -C $(LASIEVE_DIR) alle $(LASIEVE_VARS)
+
+lasieve-clean:
+	$(MAKE) -C $(LASIEVE_DIR) clean
+
+
+# -----------------------------------------------------------------------------
 # 26. COMPILE RULES
 # -----------------------------------------------------------------------------
 
@@ -1239,7 +1197,9 @@ clean:
 	    $(QS_OBJS) $(NFS_OBJS) $(NFS_GPU_OBJS) $(NFS_NOGPU_OBJS) \
 	    $(DEPS_DIR) \
 	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
-	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT)
+	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
+	    *.ptx
+	@echo "Note: use 'make lasieve-clean' to also clean factor/lasieve5_64"
 
 
 # -----------------------------------------------------------------------------
@@ -1286,6 +1246,10 @@ info:
 	@echo "  CFLAGS           : $(CFLAGS)"
 	@echo "  LIBS             : $(LIBS)"
 	@echo "  MSIEVE_LIBS      : $(MSIEVE_LIBS)"
+	@echo "----------------------------------------------------------------"
+	@echo "  lasieve (NFS sieve — separate target)"
+	@echo "    Directory      : $(LASIEVE_DIR)"
+	@echo "    AVX-512        : $(if $(USE_AVX512),enabled (AVX512_ALL=1),disabled)"
 	@echo "================================================================"
 
 
@@ -1299,8 +1263,10 @@ help:
 	@echo "    make msieve          build libmsieve.a + msieve demo"
 	@echo "    make siqs            build siqs_demo standalone binary"
 	@echo "    make ecm             build ecm_demo standalone binary"
-	@echo "    make all             build all four targets"
-	@echo "    make clean           remove all build artefacts"
+	@echo "    make all             build all four targets above"
+	@echo "    make lasieve         build NFS sieve libraries (factor/lasieve5_64)"
+	@echo "    make clean           remove yafu build artefacts (not lasieve)"
+	@echo "    make lasieve-clean   remove lasieve build artefacts"
 	@echo "    make info            show resolved flags and dependency paths"
 	@echo ""
 	@echo "  Compiler selection (default: gcc):"
@@ -1316,6 +1282,7 @@ help:
 	@echo "    make USE_AVX2=1         AVX2  (implies SSE 4.1)"
 	@echo "    make USE_BMI2=1         BMI / BMI2"
 	@echo "    make USE_AVX512=1       AVX-512 F/BW  (implies AVX2, BMI2)"
+	@echo "                            Also enables AVX512_ALL=1 for lasieve"
 	@echo "                            Works on: Skylake-X, Ice Lake, Zen 4, etc."
 	@echo "    make USE_AVX512IFMA=1   AVX-512 IFMA  (implies USE_AVX512)"
 	@echo "                            Ice Lake and later"

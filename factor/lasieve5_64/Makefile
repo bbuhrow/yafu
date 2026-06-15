@@ -1,194 +1,248 @@
 # Copyright (C) 2001,2002 Jens Franke
-# This file is part of gnfs4linux, distributed under the terms of the 
+# This file is part of gnfs4linux, distributed under the terms of the
 # GNU General Public Licence and WITHOUT ANY WARRANTY.
-
+#
 # You should have received a copy of the GNU General Public License along
 # with this program; see the file COPYING.  If not, write to the Free
 # Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 # 02111-1307, USA.
+#
+# -----------------------------------------------------------------------------
+# factor/lasieve5_64/Makefile
+#
+# Builds the NFS sieve executables:
+#   gnfs-lasieve4I{11..16}e   (alle)
+#   gnfs-lasieve4I{11..16}f   (allf)
+#   gnfs-lasieve4I{11..16}g   (allg)
+#
+# Assembly libraries (liblasieve.a, liblasieveI%.a) are built in the asm/
+# subdirectory and pulled in automatically via the asm/%: force delegation.
+#
+# Variables accepted from the top-level yafu Makefile (all have sensible
+# defaults so this file can also be used standalone):
+#
+#   CC            Compiler: gcc, clang, or icc (default: gcc)
+#   GMP_INCDIR    Path to gmp.h               (default: /usr/include)
+#   GMP_LIBDIR    Path to libgmp.a            (default: /usr/lib)
+#   DETECTED_OS   Windows or Linux            (auto-detected if absent)
+#   DEBUG         Set to 1 for a debug build
+#
+# AVX-512 feature flags (set individually or use AVX512_ALL=1 for all):
+#   AVX512_ALL        Enable all AVX-512 sieve paths
+#   AVX512_ECM        AVX-512 ECM
+#   AVX512_LASETUP    AVX-512 lasieve setup
+#   AVX512_LASCHED    AVX-512 scheduler  (also forwarded to asm/)
+#   AVX512_TD         AVX-512 trial division  (ICC only)
+#   AVX512_TDSCHED    AVX-512 TD scheduler
+#   AVX512_SIEVE1     AVX-512 sieve pass 1
+#   AVX512_TDS0       AVX-512 TDS0
+#   AVX512_SIEVE_SEARCH  AVX-512 sieve search
+#   LASTATS           Gather statistics
+#   MPQS              Enable MPQS
+#
+# Standalone usage:
+#   make alle
+#   make alle AVX512_ALL=1
+#   make alle GMP_INCDIR=/path/to/include GMP_LIBDIR=/path/to/lib
+#   make clean
+# -----------------------------------------------------------------------------
 
 
-# for people that have custom gmp locations or are evaluating a new
-# gmp build in a custom location, fill in these fields to point to
-# the include and lib locations.  Relative locations should be relative
-# to this makefile location.  I have several to support various build
-# environments.  Just comment them out or remove them as you wish.
-CUSTOM_GMP_INC=../../../gmp-install/6.2.0-gcc/include
-CUSTOM_GMP_LIB=../../../gmp-install/6.2.0-gcc/lib
-#CUSTOM_GMP_INC=../../../gmp-install/6.2.0-gcc/include
-#CUSTOM_GMP_LIB=../../../gmp-install/6.2.0-gcc/lib
-#CUSTOM_GMP_INC=../../../gmp-install/mingw/include
-#CUSTOM_GMP_LIB=../../../gmp-install/mingw/lib
+# --- Standalone fallbacks (overridden when called from top-level) ------------
+CC         ?= gcc
+GMP_INCDIR ?= /usr/include
+GMP_LIBDIR ?= /usr/lib
 
-CC=gcc
+ifndef DETECTED_OS
+    ifeq ($(OS),Windows_NT)
+        DETECTED_OS := Windows
+    else
+        DETECTED_OS := $(shell uname -s)
+    endif
+endif
 
-# gcc linux
-CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
-	-I$(CUSTOM_GMP_INC) -L$(CUSTOM_GMP_LIB) -I../../include -fcommon
-
-# mingw windows
-# BRB: ULL_NO_UL didn't quite do the job by itself, because gmp ./configure set ulong to be 4 bytes
-# but ulong is set to 8 bytes in siever_config.h when compiling lasieve.  Changing the siever_config
-# definition breaks the montgomery asm code.  An easier solution is to set the following new definition:
-# BITS_PER_GMP_ULONG, and a few relevant lines of code in mpz-ull.c
-#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -O2 -Ofast -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fomit-frame-pointer -march=native -funroll-loops  \
-#	-I. -I$(CUSTOM_GMP_INC) -L$(CUSTOM_GMP_LIB) -I../../include -fcommon
-	
-# clang linux
-#CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -ffp-model=precise -funroll-loops  \
-#	-I$(CUSTOM_GMP_INC) -L$(CUSTOM_GMP_LIB)  -fcommon
-
-GMP_LIB=$(CUSTOM_GMP_LIB)/libgmp.a
-
-include paths
+# Compiler family — mirrors the top-level detection so ifeq ($(CC),icc) checks
+# work correctly even when CC is a full path or versioned name.
+CC_BASENAME := $(notdir $(CC))
+ifneq (,$(findstring icx,$(CC_BASENAME)))
+    COMPILER_FAMILY := icc
+else ifneq (,$(findstring icc,$(CC_BASENAME)))
+    COMPILER_FAMILY := icc
+else ifneq (,$(findstring clang,$(CC_BASENAME)))
+    COMPILER_FAMILY := clang
+else
+    COMPILER_FAMILY := gcc
+endif
 
 
-#CTANGLE=ctangle
-CTANGLE=~/src/c/cweb-master/ctangle
+# --- GMP static library ------------------------------------------------------
+# Lasieve links statically against GMP so the sieve binaries are self-contained.
+GMP_LIB := $(GMP_LIBDIR)/libgmp.a
 
+
+# --- CFLAGS: platform and compiler selection ---------------------------------
+#
+# All three variants share a common base; platform and compiler add extras.
+#
+# gcc linux  : base flags only
+# clang linux: base + -ffp-model=precise (required for reproducible FP results)
+# mingw win  : base + -I. + -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+#              (GMP's ./configure sets ulong=32-bit on Windows, but lasieve
+#              assumes 64-bit; the defines reconcile this without changing
+#              siever-config.h or the montgomery asm code)
+#
+CFLAGS_BASE := \
+    -Wall -Wno-unused-variable -Wno-unused-function \
+    -Ofast -fomit-frame-pointer -march=native -funroll-loops \
+    -I$(GMP_INCDIR) -L$(GMP_LIBDIR) -I../../include -fcommon
+
+ifeq ($(DETECTED_OS),Windows)
+    CFLAGS = -I. $(CFLAGS_BASE) -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+else ifeq ($(COMPILER_FAMILY),clang)
+    CFLAGS = $(CFLAGS_BASE) -ffp-model=precise
+else
+    CFLAGS = $(CFLAGS_BASE)
+endif
+
+ifeq ($(DEBUG),1)
+    CFLAGS := $(filter-out -Ofast -fomit-frame-pointer -march=native -funroll-loops,$(CFLAGS))
+    CFLAGS += -O0 -g
+endif
+
+
+# --- ASM_FLAGS: variables forwarded to the asm/ sub-make --------------------
+# Always forward the compiler, GMP path, and OS so the asm Makefile doesn't
+# need its own hardcoded values.  AVX512 flags are appended below as needed.
+ASM_FLAGS := CC=$(CC) GMP_INCDIR=$(GMP_INCDIR) DETECTED_OS=$(DETECTED_OS) \
+             $(if $(DEBUG),DEBUG=$(DEBUG))
+
+
+# --- AVX-512 feature flags ---------------------------------------------------
+# Individual flags can be set on the command line or in config.mk (via yafu's
+# top-level Makefile which passes AVX512_ALL=1 when USE_AVX512=1 is set).
+# AVX512_TD is ICC-only: that compiler generates faster AVX-512 TD code.
 
 ifeq ($(AVX512_ECM),1)
-	CFLAGS += -DAVX512_ECM
+    CFLAGS += -DAVX512_ECM
 endif
 
 ifeq ($(AVX512_LASETUP),1)
-	CFLAGS += -DAVX512_LASIEVE_SETUP
+    CFLAGS += -DAVX512_LASIEVE_SETUP
 endif
 
 ifeq ($(AVX512_LASCHED),1)
-	CFLAGS += -DAVX512_LASCHED
-	ASM_FLAGS += AVX512_LASCHED=1
+    CFLAGS += -DAVX512_LASCHED
+    ASM_FLAGS += AVX512_LASCHED=1
 endif
 
 ifeq ($(AVX512_TD),1)
-	ifeq ($(CC),icc)
-		CFLAGS += -DAVX512_TD
-		ASM_FLAGS += AVX512_TD=1
-	endif
+    ifeq ($(COMPILER_FAMILY),icc)
+        CFLAGS    += -DAVX512_TD
+        ASM_FLAGS += AVX512_TD=1
+    endif
 endif
 
 ifeq ($(AVX512_TDSCHED),1)
-	CFLAGS += -DAVX512_TDSCHED
+    CFLAGS += -DAVX512_TDSCHED
 endif
 
 ifeq ($(AVX512_SIEVE1),1)
-	CFLAGS += -DAVX512_SIEVE1
+    CFLAGS += -DAVX512_SIEVE1
 endif
 
 ifeq ($(AVX512_TDS0),1)
-	CFLAGS += -DAVX512_TDS0
+    CFLAGS += -DAVX512_TDS0
 endif
 
 ifeq ($(AVX512_SIEVE_SEARCH),1)
-	CFLAGS += -DAVX512_SIEVE_SEARCH
+    CFLAGS += -DAVX512_SIEVE_SEARCH
 endif
 
 ifeq ($(LASTATS),1)
-	CFLAGS += -DGATHER_STAT
+    CFLAGS += -DGATHER_STAT
 endif
 
 ifeq ($(MPQS),1)
-	CFLAGS += -DGGNFS_MPQS
+    CFLAGS += -DGGNFS_MPQS
 endif
 
 ifeq ($(AVX512_ALL),1)
-	ifeq ($(CC),icc)
-		CFLAGS += -DUSE_AVX512F -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
-		ASM_FLAGS += AVX512_TD=1
-	else
-		CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_ECM -DAVX512_LASCHED -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
-		# -DAVX512_ECM 
-	endif
-	ASM_FLAGS += AVX512_LASCHED=1
-	
+    ifeq ($(COMPILER_FAMILY),icc)
+        CFLAGS    += -DUSE_AVX512F -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED \
+                     -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 \
+                     -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED
+        ASM_FLAGS += AVX512_TD=1
+    else
+        # gcc / clang: all AVX-512 paths except TD (which requires ICC codegen)
+        CFLAGS    += -DAVX512_LASIEVE_SETUP -DAVX512_ECM -DAVX512_LASCHED \
+                     -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH \
+                     -DAVX512_TDS0 -DAVX512_TDSCHED
+    endif
+    ASM_FLAGS += AVX512_LASCHED=1
 endif
 
 
-.SUFFIXES:
+# --- Build rules -------------------------------------------------------------
 
+.SUFFIXES:
 .SECONDARY: *.c *.o *.a
 
-SRCFILES=fbgen.c fbgen.h lasieve-prepn.c if.c la-cs.c gmp-aux.c mpz-ull.c \
-	fbgen64.c fbgen64.h \
-	real-poly-aux.c real-poly-aux.h recurrence6.c redu2.c input-poly.c \
-	input-poly-orig.c \
-	primgen32.c primgen64.c gnfs-lasieve4e.c gnfs-lasieve4g.w \
-	td.[ch] \
-	ecm.[ch] strategy.c ecmtest.c \
-	ecmstat.c mpqsstat.c mpqstest.c mpqs3test.c mpqs.c mpqs3.c tinyecm.c microecm.c \
-	micropm1.c pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
-
-
-ASMDIRS=asm
+ASMDIRS = asm
 
 list_asm_files = \
-	$(foreach file, $(shell $(MAKE) -s -C $(asm_dir) bup),$(asm_dir)/$(file))
+    $(foreach file,$(shell $(MAKE) -s -C $(asm_dir) bup),$(asm_dir)/$(file))
 
-ASMFILES=$(foreach asm_dir,$(ASMDIRS),$(list_asm_files))
+ASMFILES = $(foreach asm_dir,$(ASMDIRS),$(list_asm_files))
 
-asm/%:	force
+# Delegate any asm/* target to the asm sub-make, forwarding ASM_FLAGS.
+asm/%: force
 	$(MAKE) $(ASM_FLAGS) -C asm $*
 
-%.c: %.w %.ch
-	$(CTANGLE) $*.w $*.ch
-
-%.c: %.w
-	$(CTANGLE) $*.w
-
-%.h: %.w %.ch
-	$(CTANGLE) $*.w $*.ch
-
-%.h: %.w
-	$(CTANGLE) $*.w
-
-%.tex: %.w %.ch
-	cweave $*.w $*.ch
-
-%.tex: %.w
-	cweave $*.w
-
-%.dvi: %.tex
-	tex $<
-
-%.s: %.asm
-	gasp -c '#' -o $@ $^
-
+# Generic compile rules
 %.o: %.c if.h asm/siever-config.h
-	$(CC)  $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 %.o: %.s
 	$(CC) $(CFLAGS) -c $^
 
-.PHONY:	force
+.PHONY: force alle allf allg clean
 
-alle: gnfs-lasieve4I11e  gnfs-lasieve4I12e  gnfs-lasieve4I13e  gnfs-lasieve4I14e   gnfs-lasieve4I15e  gnfs-lasieve4I16e
 
-allf: gnfs-lasieve4I11f  gnfs-lasieve4I12f  gnfs-lasieve4I13f  gnfs-lasieve4I14f   gnfs-lasieve4I15f  gnfs-lasieve4I16f
+# --- Targets -----------------------------------------------------------------
 
-allg: gnfs-lasieve4I11g  gnfs-lasieve4I12g  gnfs-lasieve4I13g  gnfs-lasieve4I14g   gnfs-lasieve4I15g  gnfs-lasieve4I16g
+alle: gnfs-lasieve4I11e gnfs-lasieve4I12e gnfs-lasieve4I13e \
+      gnfs-lasieve4I14e gnfs-lasieve4I15e gnfs-lasieve4I16e
+
+allf: gnfs-lasieve4I11f gnfs-lasieve4I12f gnfs-lasieve4I13f \
+      gnfs-lasieve4I14f gnfs-lasieve4I15f gnfs-lasieve4I16f
+
+allg: gnfs-lasieve4I11g gnfs-lasieve4I12g gnfs-lasieve4I13g \
+      gnfs-lasieve4I14g gnfs-lasieve4I15g gnfs-lasieve4I16g
+
+
+# --- Explicit header dependencies --------------------------------------------
 
 input-poly.o: input-poly.h
-
 input-poly-orig.o: input-poly-orig.h
-
 fbgen.o: gmp-aux.h
-
 fbgen.o lasieve-prepn.o: asm/32bit.h
+redu2.o: redu2.h
+primgen32.o fbgen.o: primgen32.h
+gnfs-lasieve4e.c: la-cs.c
+lasieve-prepn.o: lasieve-prepn.h recurrence6.h
+mpqs3.o: asm/mpqs-config.h
+
+
+# --- Per-I-value compile rules -----------------------------------------------
 
 recurrence6I%.o: recurrence6.c recurrence6.h if.h asm/siever-config.h
-	$(CC)  $(CFLAGS) -c -DI_bits=$* -o $@ $<
-
-redu2.o: redu2.h
-
-primgen32.o fbgen.o: primgen32.h
-
-gnfs-lasieve4e.c: la-cs.c
+	$(CC) $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4eI%.o: gnfs-lasieve4e.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
 	asm/siever-config.h lasieve-prepn.h input-poly.h asm/lasched.h \
 	strategy.h
-	$(CC)  $(CFLAGS) -c -DI_bits=$* -o $@ $<
+	$(CC) $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
 gnfs-lasieve4fI%.o: gnfs-lasieve4f.c if.h primgen32.h asm/32bit.h redu2.h \
 	recurrence6.h fbgen.h real-poly-aux.h gmp-aux.h asm/medsched.h \
@@ -202,20 +256,20 @@ gnfs-lasieve4gI%.o: gnfs-lasieve4g.c if.h primgen32.h asm/32bit.h redu2.h \
 	strategy.h
 	$(CC) $(CFLAGS) -c -DI_bits=$* -o $@ $<
 
+
+# --- Library rules -----------------------------------------------------------
+
 libgmp-aux.a: gmp-aux.o mpz-ull.o
 	$(AR) rcs $@ $^
 
-lasieve-prepn.o: lasieve-prepn.h recurrence6.h
-
-mpqs3.o: asm/mpqs-config.h
-
 mpqs.o: mpqs.c asm/mpqs-config.h asm/siever-config.h
-#	gcc -c -O2 -o $@ $<
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 mpqs3.o: mpqs3.c asm/mpqs-config.h asm/siever-config.h
-#	gcc -c -O2 -o $@ $<
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+
+# --- Executable link rules ---------------------------------------------------
 
 gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
 	recurrence6I%.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
@@ -238,9 +292,11 @@ gnfs-lasieve4I%g: gnfs-lasieve4gI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o
 	asm/liblasieve.a asm/liblasieveI%.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
+
+# --- Test / stat targets -----------------------------------------------------
+
 mpqsz.o: mpqs.c asm/mpqs-config.h
 	$(CC) $(CFLAGS) -O2 -DMPQS_STAT -DMPQS_ZEIT -c -o $@ $<
-#	gcc -g -DMPQS_STAT -DMPQS_ZEIT -c -o $@ $<
 
 mpqstest: mpqstest.o mpqsz.o if.o mpz-ull.o asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
@@ -248,7 +304,7 @@ mpqstest: mpqstest.o mpqsz.o if.o mpz-ull.o asm/liblasieve.a
 mpqst: mpqst.o mpqsz.o if.o asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
-mpqszt.o: mpqs.c  asm/mpqs-config.h
+mpqszt.o: mpqs.c asm/mpqs-config.h
 	$(CC) $(CFLAGS) -O2 -DTOTAL_STAT -DMPQS_ZEIT -c -o $@ $<
 
 tmpqs: mpqst.o mpqszt.o if.o asm/liblasieve.a
@@ -256,25 +312,22 @@ tmpqs: mpqst.o mpqszt.o if.o asm/liblasieve.a
 
 mpqs3z.o: mpqs3.c asm/mpqs-config.h
 	$(CC) $(CFLAGS) -O2 -DMPQS3_STAT -DMPQS3_ZEIT -c -o $@ $<
-#	gcc -g -DMPQS3_STAT -DMPQS3_ZEIT -c -o $@ $<
 
 mpqs3test: mpqs3test.o mpqs3z.o if.o libgmp-aux.a asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
 mpqs3z2.o: mpqs3.c asm/mpqs-config2.h
 	$(CC) $(CFLAGS) -O2 -DMPQS3_STAT -DMPQS3_ZEIT -DVARIANT2 -c -o $@ $<
-#	gcc -g -DMPQS3_STAT -DMPQS3_ZEIT -c -o $@ $<
 
 mpqs3test2: mpqs3test.o mpqs3z2.o if.o libgmp-aux.a asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
-mpqsstat: mpqsstat.o mpqs.o mpqs3.o if.o mpz-ull.o libgmp-aux.a \
-	asm/liblasieve.a
+mpqsstat: mpqsstat.o mpqs.o mpqs3.o if.o mpz-ull.o libgmp-aux.a asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
 ecmz.o: ecm.c asm/siever-config.h
 	$(CC) $(CFLAGS) -DECM_STAT -DECM_ZEIT -c -o $@ $<
-	
+
 ecmtest: ecmtest.o ecmz.o if.o asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
@@ -290,11 +343,8 @@ pm1test: pm1test.o pm1z.o if.o asm/liblasieve.a
 pm1stat: pm1stat.o pm1z.o if.o asm/liblasieve.a
 	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
 
-lasieve5.tgz: Makefile paths INSTALL.and.USE COPYING $(SRCFILES) $(ASMFILES)
-	tar cvO $^ | gzip --best --stdout > $@
+
+# --- Clean -------------------------------------------------------------------
 
 clean:
-	rm -f *.o *.a asm/*.o asm/*.a asm/*.s asm/*.S
-
-binclean: realclean
-	rm -f gnfs-lasieve4I1* forumexs/*.out readmeex/*.gz
+	-rm -f *.o *.a asm/*.o asm/*.a asm/*.s asm/*.S gnfs-lasieve4I1*

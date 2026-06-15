@@ -42,13 +42,13 @@ void new_factorization(fact_obj_t* fobj, mpz_t n)
     mpz_set(fobj->N, n);            // this one allowed to change if necessary throughout factorization process
     mpz_set(fobj->input_N, n);      // this one remains constant
     
-    if (fobj->input_str_alloc > 0)
-    {
-        free(fobj->input_str);
-    }
-
-    fobj->input_str = mpz_get_str(NULL, 10, fobj->N);
-    fobj->input_str_alloc = strlen(fobj->input_str) + 1;
+    // if (fobj->input_str_alloc > 0)
+    // {
+    //     free(fobj->input_str);
+    // }
+    // 
+    // fobj->input_str = mpz_get_str(NULL, 10, fobj->N);
+    // fobj->input_str_alloc = strlen(fobj->input_str) + 1;
 
     // reset specific inputs
     mpz_set_ui(fobj->nfs_obj.gmp_n, 0);
