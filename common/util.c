@@ -12,12 +12,17 @@ benefit from your work.
 $Id: util.c 964 2014-05-03 03:30:03Z jasonp_sf $
 --------------------------------------------------------------------*/
 
+#define _POSIX_C_SOURCE 200112L
 #include <util.h>
 #include <time.h>
 
 
 #ifdef __MINGW32__
 #include <sys/time.h>
+#endif
+
+#if defined(__clang__) && !defined(_MSC_VER)
+#include <unistd.h>		// for nice()
 #endif
 
 /*---------------------------------------------------------------------*/

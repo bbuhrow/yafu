@@ -47,6 +47,11 @@ code to the public domain.
 #include <ctype.h>
 #endif
 
+#if defined(__clang__) && !defined(_MSC_VER)
+#include <unistd.h>		// for nice()
+#endif
+
+
 #include "cmdOptions.h"
 
 // function to read the .ini file and populate options
