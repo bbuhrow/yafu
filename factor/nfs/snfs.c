@@ -5610,9 +5610,10 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 nfs_job_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t* jobs, int force_test)
 {
 	int i, dotest, minscore_id;	
+	double normdiff = fabs(log10(jobs[0].snfs->rnorm) - log10(jobs[0].snfs->anorm));
 
 	// only one poly - don't bother test sieving it :)
-	if ((npoly < 2) && (!force_test))
+	if ((npoly < 2) && (normdiff >= 5.0) && (!force_test))
 		return &jobs[0];
 
 	// see if any poly is big enough to justify test sieving

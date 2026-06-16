@@ -655,6 +655,9 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 			}
 			jobs[i].startq = fobj->nfs_obj.startq;
 		}
+
+		// use fill_job_file to select the side
+		fill_job_file(fobj, &jobs[i], PARAM_FLAG_INFO1);
 	}
 
     //printf("gnfs size = %d, size n + 3 = %d, snfs = %d\n", est_gnfs_size(&jobs[0]),

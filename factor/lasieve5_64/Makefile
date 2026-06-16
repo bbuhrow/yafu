@@ -40,7 +40,7 @@
 #   LASTATS           Gather statistics
 #   MPQS              Enable MPQS
 #
-# Standalone usage:
+# Standalone usage examples:
 #   make alle
 #   make alle AVX512_ALL=1
 #   make alle GMP_INCDIR=/path/to/include GMP_LIBDIR=/path/to/lib

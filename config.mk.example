@@ -1,32 +1,43 @@
 # =============================================================================
 # config.mk — Local dependency configuration for yafu
 #
+# yafu's fast algorithm implementations rely on advanced compiler options
+# that in turn depend on features of the machine, and the location of 
+# additional software on the machine (e.g., CUDA, GMP).  This file is
+# intended to help guide the build process in order to get the best
+# performance on a given machine.
+#
 # Copy or rename this file to config.mk in the project root (same directory
 # as the Makefile) and uncomment / edit any paths that differ from the
 # system defaults.
 #
-# NOTE: run make info to see what is automatically found by Make
-#
-# This file is intentionally NOT tracked by git.
-# Add "config.mk" to .gitignore and commit this file as "config.mk.example"
-# so new contributors can: cp config.mk.example config.mk
+# NOTE: "make info" is a useful tool. Run that command to see what 
+# is automatically found by Make
 #
 # Precedence (highest → lowest):
-#   1. Command-line:   make GMP_PREFIX=/opt/gmp
+#   1. Command-line, e.g.:   make GMP_PREFIX=/opt/gmp
 #   2. This file
 #   3. Makefile auto-detection
+#
+# IMPORTANT: Do not put comments on the same line as an uncommented
+# assignment.  Make includes the comment text in the variable value, which
+# breaks comparisons like ifeq ($(OMP),1).  Put the description on its own
+# comment line above the assignment instead.
 # =============================================================================
 
 
 # -----------------------------------------------------------------------------
 # GMP  (required)
+# This can be left commented if GMP can be autodetected on your machine.
+# run "make info" to see what is detected.
 # Set GMP_PREFIX for a self-contained install tree, or set INC/LIB dirs
-# individually for split installations.
-# Example (WSL / custom build):
+# individually for split installations.  Paths may be relative to the yafu
+# root — the Makefile converts them to absolute paths automatically before
+# passing them to sub-makes.
+# Example (custom build or WSL):
 #   GMP_PREFIX := ../gmp-install/6.2.1
-# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
-# GMP_PREFIX  := ../gmp-install/gmp-6.2.0-mingw
+# GMP_PREFIX  := ../gmp-install/6.2.1
 # GMP_INCDIR  := $(GMP_PREFIX)/include
 # GMP_LIBDIR  := $(GMP_PREFIX)/lib
 
@@ -36,44 +47,44 @@
 # If not found, ECM support is disabled and -DHAVE_GMP_ECM is not set.
 # Example:
 #   ECM_PREFIX := ../ecm-install/7.0.6-wsl
-# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
-# ECM_PREFIX  := ../ecm-install/mingw
+# ECM_PREFIX  := ../ecm-install/7.0.6-wsl
 # ECM_INCDIR  := $(ECM_PREFIX)/include
 # ECM_LIBDIR  := $(ECM_PREFIX)/lib
 
 
 # -----------------------------------------------------------------------------
 # CUDA Toolkit  (optional)
-# BATCH_CUDA, CUDA_POLY, CUDA_LA features require a CUDA toolkit install.
+# This can be left commented if CUDA can be autodetected on your machine.
+# run "make info" to see what is detected.  Note this must be used in 
+# conjunction with feature flags (below) to enable CUDA features.
+# Enables BATCH_CUDA and/or CUDA_POLY when set.
 # If not found, all CUDA features are disabled.
-# CUDA_ROOT on linux and CUDA_PATH on windows are automatically
-# searched for a toolkit.
-# if your install is in a custom location, supply the path here.
+# The Makefile auto-detects CUDA via CUDA_ROOT / CUDA_PATH environment
+# variables (set by the NVIDIA installer), then nvcc on PATH, then common
+# filesystem locations.  Only set these if auto-detection fails.
 # Common locations:
 #   Linux  : /usr/local/cuda  or  /usr/local/cuda-12
-#   Windows: set CUDA_PATH in your environment and leave this commented out.
-# NOTE: run make info to see what is automatically found by Make
+#   Windows: set CUDA_PATH in your environment and leave this commented out
 # -----------------------------------------------------------------------------
 # CUDA_PREFIX := /usr/local/cuda-12
 # CUDA_INCDIR := $(CUDA_PREFIX)/include
-# CUDA_LIBDIR := $(CUDA_PREFIX)/lib64    # use lib/x64 on Windows
+# Use lib/x64 on Windows instead of lib64:
+# CUDA_LIBDIR := $(CUDA_PREFIX)/lib64
 # NVCC        := $(CUDA_PREFIX)/bin/nvcc
 #
-# SM (compute capability, without the dot — e.g. 80 for Ampere, 89 for Ada).
-# Leave commented out to let the Makefile auto-detect via nvidia-smi.
-# Set explicitly when cross-compiling or targeting a specific card remotely.
+# SM: compute capability without the dot (e.g. 80 for Ampere, 89 for Ada).
+# Leave commented out to let the Makefile auto-detect via nvidia-smi, which
+# picks the lowest SM across all installed GPUs so the binary runs on all of
+# them.  Set explicitly when cross-compiling or targeting a remote machine.
 # SM          := 80
 
 
 # -----------------------------------------------------------------------------
 # OpenCL  (optional)
-# BATCH_CUDA feature require either CUDA or OpenCL.  If your OpenCL
-# installation is in a custom / non-standard location, supply the location 
-# here for:
-# Headers (CL/cl.h) and ICD loader (libOpenCL).
+# Headers (CL/cl.h) and ICD loader (libOpenCL).  Only probed when BATCH_CUDA
+# is set, since OpenCL is used as an alternative GPU backend for that feature.
 # If not found, OpenCL support is disabled.
-# NOTE: run make info to see what is automatically found by Make
 # -----------------------------------------------------------------------------
 # OCL_PREFIX  := /opt/opencl
 # OCL_INCDIR  := $(OCL_PREFIX)/include
@@ -82,74 +93,148 @@
 
 # -----------------------------------------------------------------------------
 # Optional feature flags
-# Uncomment to enable features that were previously set on the make command
-# line, so you don't have to type them every time.
-# NOTE: the comments describing the flags can't follow the assignment
-# because the makefile in some cases looks for a value == 1 and comments
-# following the assignment put extra whitespace after the 1 which breaks the
-# comparison in the makefile
+# Uncomment the assignment line to enable a feature.  Keep the description
+# on a separate comment line above — do not put comments after the value.
 # -----------------------------------------------------------------------------
+
 # OpenMP threading
-# OMP      := 1
+# OMP        := 1
 
 # Link GMP-ECM and enable ECM factorisation
-# ECM      := 1
+# ECM        := 1
 
-# GPU cofactorisation (NFS + SIQS)  — requires CUDA or OpenCL
+# GPU cofactorisation for NFS/SIQS (requires CUDA)
 # BATCH_CUDA := 1
 
-# GPU NFS polynomial selection      — requires CUDA
+# GPU NFS polynomial selection (requires CUDA)
 # CUDA_POLY  := 1
 
-# GPU NFS linear algebra            — requires CUDA  
+# GPU NFS linear algebra (requires CUDA)
 # CUDA_LA    := 1
 
-# MPI parallel processing (msieve LA)
+# MPI parallel processing
 # MPI        := 1
 
-# Enable repo-local zlib (if not installed on system)
+# Disable zlib (if not installed)
 # NO_ZLIB    := 1
 
-# Linear algebra vector width: 64 (default), 128, 256
+# Linear algebra vector width: 64 (default), 128, or 256
 # VBITS      := 128
 
-# Fully static Windows .exe — runs in PowerShell/cmd.exe
-# without any DLLs. MinGW/MSYS2 only. Requires static
-# (.a) versions of GMP, zlib etc. (included in mingw
-# pacman packages by default).
+# Fully static Windows .exe — runs in PowerShell/cmd.exe without any DLLs.
+# MinGW/MSYS2 only. Requires static (.a) versions of GMP, zlib etc.
+# (included in the mingw pacman packages by default).
 # STATIC_WIN := 1
 
-# CUDA toolkit version, default is 12
-# TOOLKIT_VERSION := 13
+# CUDA toolkit version, default is 12.  Uncomment and change this if
+# your version is higher than 12.
+# TOOLKIT_VERSION := 12
 
-# -----------------------------------------------------------------------------
-# ISA feature flags
-# Uncomment the highest level your CPU supports.
-# The Makefile enables all lower levels automatically.
+
+# =============================================================================
+# ISA / CPU FEATURE FLAGS
 #
-# Implication chain:
-#   USE_AVX512IFMA  →  USE_AVX512  →  USE_AVX2  →  USE_SSE41
-#   USE_AVX512PF    →  USE_AVX512  →  USE_BMI2
+# There are three approaches to controlling SIMD code generation.  Choose one
+# and leave the others commented out.
 #
-# USE_AVX512=1     Any AVX-512-capable CPU (Skylake-X, Ice Lake, Zen 4, etc.)
-# USE_AVX512IFMA=1 Ice Lake, Zen4 and later (adds IFMA extensions)
-# USE_AVX512PF=1   Xeon Phi / Knights Landing only
+# ── Approach 1: No flags (default) ───────────────────────────────────────────
 #
-# Deprecated aliases — still accepted, but will print a notice at build time:
-#   SKYLAKEX=1  maps to  USE_AVX512=1
-#   ICELAKE=1   maps to  USE_AVX512IFMA=1
-#   KNL=1       maps to  USE_AVX512PF=1
-# -----------------------------------------------------------------------------
+#   Leave all ISA flags commented out.  The build uses only the baseline
+#   -O2 optimisation with no SIMD-specific source files or compiler flags.
+#   The resulting binary runs on any x86-64 CPU.  Use this for maximum
+#   portability or when you don't know the target CPU.
+#
+# ── Approach 2: USE_NATIVE — auto-detect from the build machine ──────────────
+#
+#   USE_NATIVE=1 asks the compiler what the current CPU supports and enables
+#   the matching USE_* flags automatically.  It also adds -march=native so
+#   the compiler can use every instruction the CPU offers.
+#
+#   How it works (same technique for gcc, clang, and icc):
+#     echo | $(CC) -march=native -dM -E -x c -
+#   dumps all preprocessor macros the compiler defines for the native CPU.
+#   The Makefile looks for __SSE4_1__, __AVX2__, __BMI2__, __AVX512F__ etc.
+#   and sets the corresponding USE_* flags automatically.
+#
+#   Advantages:
+#     - Zero manual configuration: one line enables everything the CPU has
+#     - Consistent with -march=native: the binary uses every available feature
+#     - Works with gcc, clang, and icc without any compiler-specific logic
+#
+#   Limitations:
+#     - Linux only. Not supported on Windows/MinGW — -march=native does not
+#       reliably enable the expected ISA instructions under MinGW, producing
+#       a binary that compiles but runs slowly or incorrectly.  Use explicit
+#       flags (USE_AVX2=1, USE_AVX512=1 etc.) on Windows instead.
+#     - The binary only runs on CPUs with the same or better feature set as
+#       the build machine.  Not suitable for distributing pre-built binaries.
+#     - Should NOT be used in CI where reproducible builds across different
+#       machines matter.
+#     - Does not work for cross-compilation.
+#
+#   Individual USE_* flags set alongside USE_NATIVE are still respected, so
+#   you can suppress a detected feature:  USE_NATIVE := 1  then  USE_AVX512 :=
+#
+# USE_NATIVE := 1
+#
+#
+# ── Approach 3: Explicit feature flags ───────────────────────────────────────
+#
+#   Set exactly the features you want.  The Makefile enables all lower levels
+#   in the implication chain automatically — you only need to set the highest
+#   level your CPU supports.
+#
+#   Implication chain:
+#     USE_AVX512IFMA  →  USE_AVX512  →  USE_AVX2  →  USE_SSE41
+#     USE_AVX512PF    →  USE_AVX512  →  USE_BMI2
+#
+#   Use this when:
+#     - Building for a specific known CPU family (e.g. all Zen 4 machines)
+#     - Distributing binaries that need to run on a defined set of CPUs
+#     - Cross-compiling
+#     - USE_NATIVE detects features you don't want to use
+#
+#   Flag              Enables                            Example CPUs
+#   ────────────────  ─────────────────────────────────  ─────────────────────
+#   USE_SSE41         SSE 4.1                            Core 2 Penryn+
+#   USE_AVX2          AVX2, implies SSE4.1               Haswell, Zen 1+
+#   USE_BMI2          BMI / BMI2                         Haswell, Zen 1+
+#   USE_AVX512        AVX-512 F/BW, implies AVX2+BMI2    Skylake-X, Ice Lake,
+#                                                        Zen 4
+#   USE_AVX512IFMA    AVX-512 IFMA, implies USE_AVX512   Ice Lake and later
+#   USE_AVX512PF      AVX-512 PF,   implies USE_AVX512   Xeon Phi / KNL only
+#
+#   Note: USE_AVX512=1 also enables AVX512_ALL=1 in the lasieve NFS sieve
+#   build (make lasieve), enabling its AVX-512 scheduler and sieve paths.
+#
+#   Deprecated aliases (still accepted, print a notice at build time):
+#     SKYLAKEX=1  →  USE_AVX512=1
+#     ICELAKE=1   →  USE_AVX512IFMA=1
+#     KNL=1       →  USE_AVX512PF=1
+#
+# Uncomment exactly one group below:
+
+# Generic SSE4.1 build (Sandy Bridge / Bulldozer era and newer):
 # USE_SSE41      := 1
+
+# AVX2 build (Haswell / Zen 1 era and newer):
 # USE_AVX2       := 1
 # USE_BMI2       := 1
+
+# AVX-512 build (Skylake-X / Ice Lake / Zen 4 and newer):
 # USE_AVX512     := 1
+
+# AVX-512 + IFMA build (Ice Lake and later):
 # USE_AVX512IFMA := 1
+
+# Xeon Phi / KNL build:
 # USE_AVX512PF   := 1
+# =============================================================================
 
 
 # -----------------------------------------------------------------------------
-# Extra user CFLAGS / LDFLAGS  (appended after all auto-generated flags)
+# Extra user CFLAGS / LDFLAGS (appended after all auto-generated flags).
+# Do not put comments after the value on the same line.
 # -----------------------------------------------------------------------------
 # USER_CFLAGS  :=
 # USER_LDFLAGS :=

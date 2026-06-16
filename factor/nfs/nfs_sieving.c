@@ -1361,7 +1361,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			}
 			fclose(out);
 			strcpy(fobj->nfs_obj.job_infile, filenames[i]);
-			fill_job_file(fobj, jobs+i, PARAM_FLAG_ALL);
+			
+			if (jobs[i].poly->side != NEITHER_SPQ) {
+				fill_job_file(fobj, jobs + i, PARAM_FLAG_ALL ^ PARAM_FLAG_INFO1);
+			}
+			else {
+				fill_job_file(fobj, jobs + i, PARAM_FLAG_ALL);
+			}
 		} 
 		// that seems like a lot more code than it should be
 	}

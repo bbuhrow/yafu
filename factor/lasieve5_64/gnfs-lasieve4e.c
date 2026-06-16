@@ -2593,7 +2593,13 @@ nr= 1;
 
                     hn = xmalloc(100);
 
-#if defined(WIN32)
+#if defined(__MINGW32__)
+
+                    int sysname_sz = 100;
+                    GetComputerName((LPSTR)hn, (LPDWORD)&sysname_sz);
+                    ret = 0;
+
+#elif defined(WIN32)
 
                     int sysname_sz = 100;
                     GetComputerName((LPWSTR)hn, (LPDWORD)&sysname_sz);

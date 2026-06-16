@@ -14,8 +14,8 @@
 #   make msieve                      # build msieve static library + demo
 #   make siqs                        # build siqs_demo standalone binary
 #   make ecm                         # build ecm_demo standalone binary
-#   make lasieve                     # build factor/lasieve5_64 binaries
-#   make all                         # build all targets
+#   make all                         # build all four above targets
+#   make lasieve                     # build lasieve5_64 binaries
 #   make CC=clang yafu               # use clang
 #   make CC=icc yafu                 # use Intel compiler
 #   make DEBUG=1 yafu                # debug build
@@ -39,6 +39,10 @@
 #                    Ice Lake, Zen 4, and any other AVX-512-capable CPU)
 #   USE_AVX512IFMA=1 AVX-512 IFMA  (implies USE_AVX512; for Ice Lake and later)
 #   USE_AVX512PF=1   AVX-512 PF    (implies USE_AVX512; for Xeon Phi / KNL)
+#   USE_NATIVE=1     Auto-detect ISA from the build CPU and add -march=native.
+#                    Works with gcc, clang, and icc.  Not suitable for
+#                    cross-compilation or CI where reproducibility matters.
+#                    Not supported on Windows/MinGW — use explicit ISA flags.
 #   SMALLINT=1     Small SIQS intervals
 #   PROFILE=1      gprof profiling
 #   OPT_DEBUG=1    Optimisation debug output
@@ -126,6 +130,12 @@ ifeq (,$(wildcard $(GMP_INCDIR)/gmp.h))
 Set GMP_PREFIX or GMP_INCDIR in config.mk or on the command line.)
 endif
 
+# Normalise to absolute paths so sub-makes at deeper directory levels
+# (factor/lasieve5_64/ and factor/lasieve5_64/asm/) receive correct paths
+# even when config.mk used a relative value like ../gmp-install/mingw.
+GMP_INCDIR := $(abspath $(GMP_INCDIR))
+GMP_LIBDIR := $(abspath $(GMP_LIBDIR))
+
 GMP_INC   := -I$(GMP_INCDIR)
 GMP_LPATH := $(if $(GMP_LIBDIR),-L$(GMP_LIBDIR))
 
@@ -136,7 +146,18 @@ ifdef ECM_PREFIX
     ECM_LIBDIR ?= $(ECM_PREFIX)/lib
 endif
 ECM_INCDIR ?= $(call find_dir,ecm.h,$(SYS_INC_PATHS))
-
+ 
+# Normalise to absolute paths before the header check — same reason as GMP:
+# relative paths in config.mk must not propagate into linker flags or
+# sub-makes.  Applied unconditionally so the wildcard check below uses
+# unambiguous absolute paths.
+ifneq (,$(ECM_INCDIR))
+    ECM_INCDIR := $(abspath $(ECM_INCDIR))
+endif
+ifneq (,$(ECM_LIBDIR))
+    ECM_LIBDIR := $(abspath $(ECM_LIBDIR))
+endif
+ 
 ifneq (,$(wildcard $(ECM_INCDIR)/ecm.h))
     HAVE_ECM_LIB := 1
     ECM_INC      := -I$(ECM_INCDIR)
@@ -354,6 +375,13 @@ CFLAGS := \
     -Wall \
     -Wconversion
 
+# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
+# violations in the AVX2 sieve buffer casting code. 
+# Todo: audit __m256i casts throughout siqs when using avx2 only.
+ifeq ($(OS),Windows_NT)
+    CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+endif
+
 VBITS ?= 64
 CFLAGS += -DVBITS=$(VBITS)
 
@@ -405,19 +433,24 @@ else ifeq ($(COMPILER_FAMILY),clang)
     ifeq ($(DEBUG),1)
         CFLAGS        += -fsanitize=address,undefined -fno-omit-frame-pointer
         LDFLAGS_EXTRA += -fsanitize=address,undefined
-    else
-        CFLAGS        += -flto
-        LDFLAGS_EXTRA += -flto
+# don't use link time optimizations
+#    else
+#        CFLAGS        += -flto
+#        LDFLAGS_EXTRA += -flto
     endif
 
 else
     # GCC
-    CFLAGS += -Wshadow -Wstrict-prototypes
+	# newer gcc versions with -O2 turn on auto-vectorization features that 
+	# interfere with and greatly slow down the hand-optimized vectorization
+	# in yafu's SIQS.  Turn them off here.
+    CFLAGS += -Wshadow -Wstrict-prototypes -fno-tree-loop-vectorize -fno-tree-slp-vectorize
     ifeq ($(DEBUG),1)
         # nothing extra
-    else
-        CFLAGS        += -flto
-        LDFLAGS_EXTRA += -flto
+# don't use link time optimizations
+#    else
+#        CFLAGS        += -flto
+#        LDFLAGS_EXTRA += -flto
     endif
     ifeq ($(DETECTED_OS),Windows)
         ifdef STATIC_WIN
@@ -437,10 +470,75 @@ endif
 #    Enabling a higher level automatically enables the levels below it.
 # -----------------------------------------------------------------------------
 
+# --- USE_NATIVE: auto-detect ISA from the build CPU --------------------------
+#
+# Queries the compiler for the preprocessor macros it defines when targeting
+# the native CPU (-march=native -dM -E).  This approach works identically
+# with gcc, clang, and icc — all three support -dM -E and emit the same
+# __SSE4_1__, __AVX2__, __AVX512F__ etc. macro names.
+#
+# Individual USE_* flags already set by the user are NOT overridden, so
+# explicit overrides like USE_AVX512=0 are still respected even with
+# USE_NATIVE=1.
+#
+# -march=native is added to CFLAGS here.  The specific -march=<arch> flags
+# in the individual ISA blocks below (e.g. -march=skylake-avx512) are skipped
+# when USE_NATIVE is set to avoid overriding or conflicting with the native
+# target — -march=native already covers everything they would enable.
+# The feature-enablement flags (-mavx2, -msse4.1 etc.) are safe alongside
+# -march=native and are kept.
 # -----------------------------------------------------------------------------
-# ISA implication chain — enabling a higher-level feature automatically
-# enables everything it depends on.  Only the highest applicable flag needs
-# to be set; the chain fills in the rest.
+ifdef USE_NATIVE
+    ifeq ($(DETECTED_OS),Windows)
+        $(error USE_NATIVE is not supported on Windows/MinGW builds. \
+            -march=native does not reliably enable the expected ISA instructions \
+            under MinGW, resulting in a binary that compiles but runs slowly or \
+            incorrectly. Use explicit ISA flags instead — for example: \
+            USE_AVX2=1 USE_BMI2=1, or USE_AVX512=1. \
+            See 'make help' for the full list.)
+    endif
+    # Dump all preprocessor macros the compiler defines for the native CPU.
+    # The 'echo |' idiom feeds an empty C source — portable across platforms.
+    _NATIVE_DEFS := $(shell echo | $(CC) -march=native -dM -E -x c - 2>/dev/null)
+
+    ifndef USE_SSE41
+        ifneq (,$(findstring __SSE4_1__,$(_NATIVE_DEFS)))
+            USE_SSE41 := 1
+        endif
+    endif
+    ifndef USE_AVX2
+        ifneq (,$(findstring __AVX2__,$(_NATIVE_DEFS)))
+            USE_AVX2 := 1
+        endif
+    endif
+    ifndef USE_BMI2
+        ifneq (,$(findstring __BMI2__,$(_NATIVE_DEFS)))
+            USE_BMI2 := 1
+        endif
+    endif
+    ifndef USE_AVX512
+        ifneq (,$(findstring __AVX512F__,$(_NATIVE_DEFS)))
+            USE_AVX512 := 1
+        endif
+    endif
+    ifndef USE_AVX512IFMA
+        ifneq (,$(findstring __AVX512IFMA__,$(_NATIVE_DEFS)))
+            USE_AVX512IFMA := 1
+        endif
+    endif
+    ifndef USE_AVX512PF
+        ifneq (,$(findstring __AVX512PF__,$(_NATIVE_DEFS)))
+            USE_AVX512PF := 1
+        endif
+    endif
+
+    $(info USE_NATIVE: SSE41=$(USE_SSE41) AVX2=$(USE_AVX2) BMI2=$(USE_BMI2) AVX512=$(USE_AVX512) AVX512IFMA=$(USE_AVX512IFMA) AVX512PF=$(USE_AVX512PF))
+
+    CFLAGS += -march=native
+endif
+
+
+# --- Implication chain -------------------------------------------------------
 #
 #   USE_AVX512IFMA  →  USE_AVX512
 #   USE_AVX512PF    →  USE_AVX512
@@ -487,7 +585,9 @@ endif
 ifeq ($(USE_AVX2),1)
     CFLAGS += -DUSE_AVX2
     ifeq ($(COMPILER_FAMILY),icc)
-        CFLAGS += -march=core-avx2
+        ifndef USE_NATIVE
+            CFLAGS += -march=core-avx2
+        endif
     else
         CFLAGS += -mavx2
     endif
@@ -506,10 +606,14 @@ ifeq ($(USE_AVX512),1)
     CFLAGS += -DUSE_AVX512F -DUSE_AVX512BW
     # Legacy defines retained for source compatibility during transition
     CFLAGS += -DSKYLAKEX
-    ifeq ($(COMPILER_FAMILY),icc)
-        CFLAGS += -march=core-avx512
-    else
-        CFLAGS += -march=skylake-avx512
+    ifndef USE_NATIVE
+        # Skip -march=<arch> when USE_NATIVE is set: -march=native already
+        # covers this and the specific arch could conflict with native target.
+        ifeq ($(COMPILER_FAMILY),icc)
+            CFLAGS += -march=core-avx512
+        else
+            CFLAGS += -march=skylake-avx512
+        endif
     endif
 endif
 
@@ -519,9 +623,7 @@ ifeq ($(USE_AVX512IFMA),1)
     CFLAGS += -DUSE_AVX512IFMA
     # Legacy define retained for source compatibility during transition
     CFLAGS += -DIFMA
-    ifeq ($(COMPILER_FAMILY),icc)
-        CFLAGS += -march=icelake-client
-    else
+    ifndef USE_NATIVE
         CFLAGS += -march=icelake-client
     endif
 endif
@@ -530,10 +632,12 @@ endif
 ifeq ($(USE_AVX512PF),1)
     # New-style define
     CFLAGS += -DUSE_AVX512PF -DTARGET_KNL
-    ifeq ($(COMPILER_FAMILY),icc)
-        CFLAGS += -xMIC-AVX512
-    else
-        CFLAGS += -march=knl
+    ifndef USE_NATIVE
+        ifeq ($(COMPILER_FAMILY),icc)
+            CFLAGS += -xMIC-AVX512
+        else
+            CFLAGS += -march=knl
+        endif
     endif
 endif
 
@@ -620,7 +724,7 @@ CFLAGS += $(USER_CFLAGS)
 
 # Base library search paths
 LIBS        := -L. $(GMP_LPATH) $(ECM_LPATH) $(CUDA_LPATH) $(OCL_LPATH)
-MSIEVE_LIBS := -L. $(GMP_LPATH)
+MSIEVE_LIBS := -L. $(GMP_LPATH) $(ECM_LPATH)
 
 # ECM
 ifeq ($(ECM),1)
@@ -661,7 +765,7 @@ else
 endif
 
 # GMP, math, threading
-LIBS        += -lecm -lgmp -lpthread -lm
+LIBS        += -lgmp -lpthread -lm
 MSIEVE_LIBS += -lgmp -lm -lpthread
 
 # Static Windows build needs extra libs that are normally pulled in implicitly
@@ -938,6 +1042,10 @@ MSIEVE_COMMON_SRCS = \
     common/thread.c \
     common/util.c \
     aprcl/mpz_aprcl32.c
+	
+ifeq ($(OS),Windows_NT)
+	MSIEVE_COMMON_SRCS += common/mpz-ull.c
+endif
 
 COMMON_GPU_SRCS = \
     common/lanczos/gpu/lanczos_matmul_gpu.c \
@@ -1181,8 +1289,10 @@ cub/built:
 # -----------------------------------------------------------------------------
 # 27. AUTOMATIC DEPENDENCY INCLUSION  (.d files from .deps/)
 # -----------------------------------------------------------------------------
--include $(ALL_DEPS)
-
+ifeq (,$(filter %clean info help,$(MAKECMDGOALS)))
+    -include $(ALL_DEPS)
+endif
+ 
 
 # -----------------------------------------------------------------------------
 # 28. CLEAN
@@ -1216,6 +1326,7 @@ info:
 	@echo "  VBITS            : $(VBITS)"
 	@echo "----------------------------------------------------------------"
 	@echo "  ISA flags"
+	@echo "    USE_NATIVE     : $(if $(USE_NATIVE),yes,no)"
 	@echo "    USE_SSE41      : $(if $(USE_SSE41),yes,no)"
 	@echo "    USE_AVX2       : $(if $(USE_AVX2),yes,no)"
 	@echo "    USE_BMI2       : $(if $(USE_BMI2),yes,no)"
@@ -1278,6 +1389,10 @@ help:
 	@echo "    make DEBUG=1         debug build (-O0 -g)"
 	@echo ""
 	@echo "  ISA / micro-architecture (enabling a higher level implies lower ones):"
+	@echo "    make USE_NATIVE=1       Auto-detect ISA from build CPU + -march=native"
+	@echo "                            Works with gcc, clang, and icc on Linux."
+	@echo "                            Not supported on Windows/MinGW."
+	@echo "                            Not for cross-compilation or CI."
 	@echo "    make USE_SSE41=1        SSE 4.1"
 	@echo "    make USE_AVX2=1         AVX2  (implies SSE 4.1)"
 	@echo "    make USE_BMI2=1         BMI / BMI2"
