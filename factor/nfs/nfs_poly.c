@@ -494,7 +494,10 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 		}
 	}
 
-	// with the form detected and algebraic factors removed, create a good polynomial
+	// with the form detected and algebraic factors removed, 
+	// create a good polynomial.  start by making sure the input number
+	// is the one with any previously found factors removed.
+	mpz_gcd(poly->n, poly->n, fobj->nfs_obj.gmp_n);
 	
 	if (poly->form_type == SNFS_XYYXF)
 	{

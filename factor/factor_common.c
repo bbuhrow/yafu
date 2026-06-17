@@ -878,6 +878,9 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
                 // add the pieces of the input, one equal to the current factor
                 if (force)
                 {
+                    if (VFLAG > 2)
+                        gmp_printf("forced increased count of existing factor %Zd\n", 
+                            flist->factors[i].factor);
                     flist->factors[i].count++;
                 }
                 // and the remainder
