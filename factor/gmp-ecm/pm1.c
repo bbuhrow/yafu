@@ -23,7 +23,6 @@ code to the public domain.
 #include "factor.h"
 #include "ytools.h"
 #include <gmp_xface.h>
-#include <ecm.h>
 #include <signal.h>
 #include <math.h>
 
@@ -41,6 +40,9 @@ void pm1_print_B1_B2(fact_obj_t *fobj);
 
 int PM1_ABORT;
 uint64_t PM1_TMP_STG2_MAX;
+
+#ifdef HAVE_GMP_ECM
+#include <ecm.h>
 
 typedef struct
 {
@@ -309,3 +311,33 @@ void pm1exit(int sig)
 	return;
 }
 
+#else
+
+void pm1_init(fact_obj_t* fobj)
+{
+
+}
+void pm1_finalize(fact_obj_t* fobj)
+{
+
+}
+void pm1exit(int sig)
+{
+
+}
+int pm1_wrapper(fact_obj_t* fobj)
+{
+
+}
+void pm1_print_B1_B2(fact_obj_t* fobj)
+{
+
+}
+
+// external entry point
+void pollard_loop(fact_obj_t* fobj)
+{
+
+}
+
+#endif

@@ -22,7 +22,6 @@ code to the public domain.
 #include "factor.h"
 #include "calc.h"
 #include "threadpool.h"
-#include <ecm.h>
 #include <signal.h>
 #include <time.h>
 #include <math.h>
@@ -31,57 +30,20 @@ code to the public domain.
 #include <sys/time.h>
 #endif
 
-//local function declarations
-typedef struct {
-    mpz_t gmp_n, gmp_factor;
-    mpz_t t, d; // scratch bignums
-    ecm_params params;
-    uint32_t sigma;
-    int stagefound;
-    fact_obj_t* fobj;
-    int thread_num;
-    int curves_run;
-    int* total_curves_run;
-    char tmp_output[80];
-    int factor_found;
-    int* ok_to_stop;
-    int* curves_in_flight;
-    int resume_avx_ecm;
-
-    // timing data for ETA
-    struct timeval stop;
-    struct timeval start;
-    double* total_time;
-
-} ecm_thread_data_t;
-
-void ecm_do_one_curve(void* ptr);
-void ecmexit(int sig);
 void ecm_process_init(fact_obj_t* fobj);
 void ecm_process_free(fact_obj_t* fobj);
 int ecm_check_input(fact_obj_t* fobj);
-int ecm_get_sigma(ecm_thread_data_t* thread_data);
-int ecm_deal_with_factor(ecm_thread_data_t* thread_data);
-void ecm_stop_worker_thread(ecm_thread_data_t* t, uint32_t is_master_thread);
-void ecm_start_worker_thread(ecm_thread_data_t* t, uint32_t is_master_thread);
-void ecm_thread_free(ecm_thread_data_t* tdata);
-void ecm_thread_init(ecm_thread_data_t* tdata);
+
 
 int ECM_ABORT;
 int TMP_THREADS;
 uint64_t ECM_TMP_STG2_MAX;
 
-#if defined(WIN32) || defined(_WIN64)
-DWORD WINAPI ecm_worker_thread_main(LPVOID thread_data);
-#else
-void* ecm_worker_thread_main(void* thread_data);
-#endif
-
 void get_ecm_method(fact_obj_t* fobj, uint64_t b1, int* b1_method, int* b2_method)
 {
     // what method is currently configured for curves at this b1?
     // this must consider quite a few user-configurable options and machine state.
-    
+
     *b1_method = 0; // default param 0
     *b2_method = 0; // default gmp_stg2_default
 
@@ -125,7 +87,7 @@ void get_ecm_method(fact_obj_t* fobj, uint64_t b1, int* b1_method, int* b2_metho
     return;
 }
 
-void print_std_ecm_work_done(ecm_obj_t *ecm_obj, int disp_levels, FILE* log, int VFLAG, int LOGFLAG)
+void print_std_ecm_work_done(ecm_obj_t* ecm_obj, int disp_levels, FILE* log, int VFLAG, int LOGFLAG)
 {
     // there is probably a more elegant way to do this involving dickman's function
     // or something, but we can get a reasonable estimate using empirical data
@@ -427,11 +389,11 @@ uint32_t get_curves_required(ecm_obj_t* ecm_obj, double target_tlevel, uint64_t 
         // arbitrarily large number of curves
         est_curves = 1000000000;
     }
-    
+
     return est_curves;
 }
 
-void split_residue_file(int curves_run, int nthreads, char *base_filename)
+void split_residue_file(int curves_run, int nthreads, char* base_filename)
 {
     // prefer-gmpecm-stg2 works by calling the external gmp-ecm
             // with -resume.  With multiple threads we need to split this
@@ -439,7 +401,7 @@ void split_residue_file(int curves_run, int nthreads, char *base_filename)
             // with a subset of the curves.
     int i, j;
     int curves_per_thread = curves_run / nthreads;
-    
+
     if ((curves_run % nthreads) > 0)
     {
         curves_per_thread++;
@@ -515,6 +477,213 @@ void split_residue_file(int curves_run, int nthreads, char *base_filename)
 
     return;
 }
+
+int ecm_check_input(fact_obj_t* fobj)
+{
+    // check for trivial cases
+    if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 0) == 0)
+    {
+        logprint_oc(fobj->flogname, "a", "Trivial input == 0 in ECM\n");
+        return 0;
+    }
+
+    if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0)
+    {
+        logprint_oc(fobj->flogname, "a", "Trivial input == 1 in ECM\n");
+        return 0;
+    }
+
+    if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 3) == 0)
+    {
+        mpz_t tmp;
+        mpz_init(tmp);
+        mpz_set_ui(tmp, 3);
+        mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3);
+        add_to_factor_list(fobj->factors, tmp,
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+        logprint_oc(fobj->flogname, "a", "Trivial factor of 3 found in ECM\n");
+        mpz_clear(tmp);
+        return 0;
+    }
+
+    if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 2) == 0)
+    {
+        mpz_t tmp;
+        mpz_init(tmp);
+        mpz_set_ui(tmp, 2);
+        mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2);
+        add_to_factor_list(fobj->factors, tmp,
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+        logprint_oc(fobj->flogname, "a", "Trivial factor of 2 found in ECM\n");
+        mpz_clear(tmp);
+        return 0;
+    }
+
+    if (is_mpz_prp(fobj->ecm_obj.gmp_n, fobj->NUM_WITNESSES))
+    {
+        // maybe have an input flag to optionally not perform
+        // PRP testing (useful for really big inputs)
+        add_to_factor_list(fobj->factors, fobj->ecm_obj.gmp_n,
+            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+        char* s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
+        logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), s);
+        mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
+        free(s);
+        return 0;
+    }
+
+    return 1;
+}
+
+void ecm_process_init(fact_obj_t* fobj)
+{
+    // initialize things which all threads will need when using
+    // GMP-ECM
+    TMP_THREADS = fobj->THREADS;
+    ECM_TMP_STG2_MAX = fobj->ecm_obj.B2;
+
+    if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
+    {
+        // check that the file actually exists... print a warning if not and
+        // resort to internal ecm.
+        FILE* fid = fopen(fobj->ecm_obj.ecm_path, "rb");
+        if (NULL == fid)
+        {
+            printf("ecm: ECM executable does not exist at %s\n", fobj->ecm_obj.ecm_path);
+                
+#ifdef HAVE_GMP_ECM
+            printf("ecm: using internal single threaded ECM\n");
+#else
+            printf("ecm: no linked internal ECM, ECM may be disabled\n");
+#endif
+            fobj->ecm_obj.use_external = 0;
+        }
+        else
+        {
+            fclose(fid);
+            fobj->ecm_obj.use_external = 1;
+        }
+    }
+
+#if defined(HAVE_GMP_ECM)
+    // if we have an internal GMP-ECM, then manage whether or not
+    // we use it for this B1 and thread count
+
+    if (fobj->THREADS > 1)
+    {
+        float ver;
+
+#if defined(HAVE_GMP_ECM) && defined(ECM_VERSION)
+        sscanf(ECM_VERSION, "%f", &ver);
+#else
+        ver = 6;
+#endif
+
+        //printf("ecm version: %f, string version: %s\n", ver, ECM_VERSION);
+
+        
+        if (!fobj->ecm_obj.use_external)
+        {
+            if (ver >= 7.0)
+            {
+                // ok to use multiple threads in ecm 7+
+
+            }
+            else
+            {
+                if (fobj->VFLAG >= 2)
+                {
+                    printf("internal version of GMP-ECM (%f) does not support "
+                        "multiple threads... running single threaded\n", ver);
+                }
+                fobj->THREADS = 1;
+            }
+        }
+        else
+        {
+
+            // ok to use external, but for small B1 it's faster to use internal.
+            // unless using gpu, then we have to use the external version.
+            if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover) ||
+                (fobj->ecm_obj.num_curves == 1)) // && (!fobj->ecm_obj.use_gpuecm))
+            {
+                if (ver >= 7.0)
+                {
+                    // ok to use multiple threads in ecm 7+
+                }
+                else
+                {
+                    fobj->THREADS = 1;
+                }
+                fobj->ecm_obj.use_external = 0;
+            }
+
+        }
+
+    }
+    else
+    {
+        if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover)) // && (!fobj->ecm_obj.use_gpuecm))
+        {
+            fobj->ecm_obj.use_external = 0;
+        }
+    }
+#endif
+    return;
+}
+
+void ecm_process_free(fact_obj_t* fobj)
+{
+    fobj->THREADS = TMP_THREADS;
+    fobj->ecm_obj.B2 = ECM_TMP_STG2_MAX;
+    return;
+}
+
+#ifdef HAVE_GMP_ECM
+#include <ecm.h>
+#endif
+
+//local function declarations
+typedef struct {
+    mpz_t gmp_n, gmp_factor;
+    mpz_t t, d; // scratch bignums
+#ifdef HAVE_GMP_ECM
+    ecm_params params;
+#endif
+    uint32_t sigma;
+    int stagefound;
+    fact_obj_t* fobj;
+    int thread_num;
+    int curves_run;
+    int* total_curves_run;
+    char tmp_output[80];
+    int factor_found;
+    int* ok_to_stop;
+    int* curves_in_flight;
+    int resume_avx_ecm;
+
+    // timing data for ETA
+    struct timeval stop;
+    struct timeval start;
+    double* total_time;
+
+} ecm_thread_data_t;
+
+void ecm_do_one_curve(void* ptr);
+void ecmexit(int sig);
+int ecm_get_sigma(ecm_thread_data_t* thread_data);
+int ecm_deal_with_factor(ecm_thread_data_t* thread_data);
+void ecm_stop_worker_thread(ecm_thread_data_t* t, uint32_t is_master_thread);
+void ecm_start_worker_thread(ecm_thread_data_t* t, uint32_t is_master_thread);
+void ecm_thread_free(ecm_thread_data_t* tdata);
+void ecm_thread_init(ecm_thread_data_t* tdata);
+
+#if defined(WIN32) || defined(_WIN64)
+DWORD WINAPI ecm_worker_thread_main(LPVOID thread_data);
+#else
+void* ecm_worker_thread_main(void* thread_data);
+#endif
+
 
 void ecm_sync_fcn(void *ptr)
 {
@@ -664,11 +833,13 @@ void ecm_start_fcn(tpool_t *ptr)
     //initialize everything for all threads using GMP-ECM
     mpz_init(tdata->gmp_n);
     mpz_init(tdata->gmp_factor);
+#ifdef HAVE_GMP_ECM
     ecm_init(tdata->params);
     gmp_randseed_ui(tdata->params->rng,
         lcg_rand_32(&tdata->fobj->ecm_obj.lcg_state[tpool->tindex]));
-    mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->params->method = ECM_ECM;
+#endif
+    mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->curves_run = 0;
     mpz_init(tdata->d);
     mpz_init(tdata->t);
@@ -682,7 +853,9 @@ void ecm_stop_fcn(tpool_t *ptr)
     ecm_thread_data_t *udata = (ecm_thread_data_t *)tpool->user_data;
     ecm_thread_data_t *tdata = &udata[tpool->tindex];
 
+#ifdef HAVE_GMP_ECM
     ecm_clear(tdata->params);
+#endif
     mpz_clear(tdata->gmp_n);
     mpz_clear(tdata->gmp_factor);
     mpz_clear(tdata->d);
@@ -1161,165 +1334,18 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	return 0;
 }
 
-int ecm_check_input(fact_obj_t *fobj)
-{
-	//check for trivial cases
-	if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 0) == 0)
-	{
-		logprint_oc(fobj->flogname, "a","Trivial input == 0 in ECM\n");
-		return 0;
-	}
-
-	if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0)
-	{
-		logprint_oc(fobj->flogname, "a","Trivial input == 1 in ECM\n");
-		return 0;
-	}
-
-	if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 3) == 0)
-	{
-		mpz_t tmp;
-		mpz_init(tmp);
-		mpz_set_ui(tmp, 3);
-		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3);
-		add_to_factor_list(fobj->factors, tmp,
-            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-		logprint_oc(fobj->flogname, "a","Trivial factor of 3 found in ECM\n");
-		mpz_clear(tmp);
-		return 0;
-	}
-
-	if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 2) == 0)
-	{
-		mpz_t tmp;
-		mpz_init(tmp);
-		mpz_set_ui(tmp, 2);
-		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2);
-		add_to_factor_list(fobj->factors, tmp,
-            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-		logprint_oc(fobj->flogname, "a","Trivial factor of 2 found in ECM\n");
-		mpz_clear(tmp);
-		return 0;
-	}
-
-	if (is_mpz_prp(fobj->ecm_obj.gmp_n, fobj->NUM_WITNESSES))
-	{
-		//maybe have an input flag to optionally not perform
-		//PRP testing (useful for really big inputs)
-		add_to_factor_list(fobj->factors, fobj->ecm_obj.gmp_n,
-            fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-        char* s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
-		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), s);		
-		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
-        free(s);
-		return 0;
-	}
-
-	return 1;
-}
-
-void ecm_process_init(fact_obj_t *fobj)
-{
-	// initialize things which all threads will need when using
-	// GMP-ECM
-	TMP_THREADS = fobj->THREADS;
-	ECM_TMP_STG2_MAX = fobj->ecm_obj.B2;
-
-    if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
-    {
-        // check that the file actually exists... print a warning if not and
-        // resort to internal ecm.
-        FILE* fid = fopen(fobj->ecm_obj.ecm_path, "rb");
-        if (NULL == fid)
-        {
-            printf("ecm: ECM executable does not exist at %s\n"
-                "ecm: using internal single threaded ECM...\n",
-                fobj->ecm_obj.ecm_path);
-            fobj->ecm_obj.use_external = 0;
-        }
-        else
-        {
-            fclose(fid);
-            fobj->ecm_obj.use_external = 1;
-        }
-    }
-
-	if (fobj->THREADS > 1)
-	{
-        float ver;
-
-#ifdef ECM_VERSION
-        sscanf(ECM_VERSION, "%f", &ver);
-#else
-        ver = 6;
-#endif
-
-        //printf("ecm version: %f, string version: %s\n", ver, ECM_VERSION);
-
-		if (!fobj->ecm_obj.use_external)
-		{                       
-            if (ver >= 7.0)
-            {
-                // ok to use multiple threads in ecm 7+
-
-            }
-            else
-            {
-                if (fobj->VFLAG >= 2)
-                {
-                    printf("internal version of GMP-ECM (%f) does not support "
-                        "multiple threads... running single threaded\n", ver);
-                }
-                fobj->THREADS = 1;
-            }
-		}
-		else
-		{
-            // ok to use external, but for small B1 it's faster to use internal.
-            // unless using gpu, then we have to use the external version.
-			if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover) || 
-                (fobj->ecm_obj.num_curves == 1)) // && (!fobj->ecm_obj.use_gpuecm))
-			{
-                if (ver >= 7.0)
-                {
-                    // ok to use multiple threads in ecm 7+
-                }
-                else
-                {
-                    fobj->THREADS = 1;                    
-                }
-                fobj->ecm_obj.use_external = 0;
-			}
-		}
-	}
-	else
-	{
-        if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover)) // && (!fobj->ecm_obj.use_gpuecm))
-        {
-            fobj->ecm_obj.use_external = 0;
-        }
-	}
-
-	return;
-}
-
-void ecm_process_free(fact_obj_t *fobj)
-{
-	fobj->THREADS = TMP_THREADS;
-	fobj->ecm_obj.B2 = ECM_TMP_STG2_MAX;
-	return;
-}
-
 void ecm_thread_init(ecm_thread_data_t *tdata)
 {
     // initialize everything for all threads using GMP-ECM
     mpz_init(tdata->gmp_n);
     mpz_init(tdata->gmp_factor);
+#ifdef HAVE_GMP_ECM
     ecm_init(tdata->params);
     gmp_randseed_ui(tdata->params->rng, 
         lcg_rand_32(&tdata->fobj->ecm_obj.lcg_state[tdata->thread_num]));
-    mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->params->method = ECM_ECM;
+#endif
+    mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->curves_run = 0;
     mpz_init(tdata->d);
     mpz_init(tdata->t);
@@ -1329,7 +1355,9 @@ void ecm_thread_init(ecm_thread_data_t *tdata)
 
 void ecm_thread_free(ecm_thread_data_t *tdata)
 {
+#ifdef HAVE_GMP_ECM
     ecm_clear(tdata->params);
+#endif
     mpz_clear(tdata->gmp_n);
     mpz_clear(tdata->gmp_factor);
     mpz_clear(tdata->d);
@@ -1364,8 +1392,9 @@ void ecm_do_one_curve(void *ptr)
 
 	if (!fobj->ecm_obj.use_external)
 	{
-		int status;
+		int status = 0;
 
+#ifdef HAVE_GMP_ECM
 		thread_data->params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 		if (fobj->VFLAG >= 3)
 			thread_data->params->verbose = fobj->VFLAG - 2;		
@@ -1381,7 +1410,7 @@ void ecm_do_one_curve(void *ptr)
 
 		status = ecm_factor(thread_data->gmp_factor, thread_data->gmp_n,
 				fobj->ecm_obj.B1, thread_data->params);		
-
+#endif
 		//the return value is the stage the factor was found in, if no error
 		thread_data->stagefound = status;
 	}
@@ -1695,6 +1724,5 @@ int print_B1B2(fact_obj_t *fobj, FILE *fid)
 
 	return i;
 }
-
 
 
