@@ -28,7 +28,6 @@
 #   ECM=1          Link GMP-ECM, enable ECM factorisation
 #   BATCH_CUDA=1   GPU cofactorisation for NFS/SIQS  (requires CUDA)
 #   CUDA_POLY=1    GPU NFS polynomial selection       (requires CUDA)
-#   CUDA_LA=1      GPU NFS linear algebra             (requires CUDA)
 #   MPI=1          MPI parallel processing
 #   NO_ZLIB=1      Disable zlib
 #   VBITS=N        Linear algebra vector width: 64 (default), 128, 256
@@ -668,9 +667,9 @@ ifdef CUDA_POLY
     endif
 endif
 
-ifdef CUDA_LA
-    CFLAGS += -DHAVE_CUDA_LA
-endif
+# ifdef CUDA_LA
+#     CFLAGS += -DHAVE_CUDA_LA
+# endif
 
 ifeq ($(MPI),1)
     CFLAGS += -DHAVE_MPI
@@ -1349,7 +1348,6 @@ info:
 	@echo "    ECM            : $(if $(filter 1,$(ECM)),yes,no)"
 	@echo "    BATCH_CUDA     : $(if $(BATCH_CUDA),yes,no)"
 	@echo "    CUDA_POLY      : $(if $(CUDA_POLY),yes,no)"
-	@echo "    CUDA_LA        : $(if $(CUDA_LA),yes,no)"
 	@echo "    MPI            : $(if $(filter 1,$(MPI)),yes,no)"
 	@echo "    NO_ZLIB        : $(if $(filter 1,$(NO_ZLIB)),yes,no)"
 	@echo "    STATIC_WIN     : $(if $(STATIC_WIN),yes,no)"
@@ -1414,7 +1412,6 @@ help:
 	@echo "    make ECM=1           GMP-ECM support"
 	@echo "    make BATCH_CUDA=1    GPU cofactorisation (NFS/SIQS)"
 	@echo "    make CUDA_POLY=1     GPU NFS polynomial selection"
-	@echo "    make CUDA_LA=1       GPU NFS linear algebra"
 	@echo "    make MPI=1           MPI parallel processing"
 	@echo "    make NO_ZLIB=1       disable zlib"
 	@echo "    make VBITS=128       linear algebra vector width (64/128/256)"

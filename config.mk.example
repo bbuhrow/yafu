@@ -109,9 +109,6 @@
 # GPU NFS polynomial selection (requires CUDA)
 # CUDA_POLY  := 1
 
-# GPU NFS linear algebra (requires CUDA)
-# CUDA_LA    := 1
-
 # MPI parallel processing
 # MPI        := 1
 
