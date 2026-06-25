@@ -272,8 +272,7 @@ void file_compress(file, mode)
         exit(1);
     }
 
-    strcpy(outfile, file);
-    strcat(outfile, GZ_SUFFIX);
+    snprintf(outfile, sizeof(outfile), "%s%s", file, GZ_SUFFIX);
 
     in = fopen(file, "rb");
     if (in == NULL) {
