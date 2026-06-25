@@ -60,8 +60,9 @@
 #if !defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #include <unistd.h> 
 #endif
-#include <limits.h> 
-#include <string.h> 
+#include <limits.h>
+#include <errno.h>
+#include <string.h>
 #include <time.h> 
 #include <ctype.h> 
 #ifdef LINUX
@@ -174,6 +175,120 @@ i32_t poldeg[2],poldeg_max;
 
 /* Should we save the factorbase after it is created? */
 u32_t keep_factorbase;
+/* Set when FB_bound is lowered to first_spq-1 (special q below the FB bound). */
+static u32_t FB_bound_lowered;
+
+/* The legacy .afb format ([u32 count][primes][roots][u32 xFBs]) carries no
+   provenance, so writes append a five-word trailer that legacy readers never
+   reach: magic, the FB_bound the cache was built with, a 64-bit fingerprint
+   of the polynomial, and a checksum covering the records and the trailer
+   fields.  Files without the trailer are rejected unless
+   LASIEVE_AFB_ALLOW_LEGACY=1, since their completeness cannot be verified. */
+#define AFB_EXT_MAGIC 0xafb00004
+#define AFB_EXT_WORDS 5
+
+/* _WIN64 (not _WIN32) deliberately: it matches this file's Windows.h
+   include guard, and the 64-bit asm rules out Win32 siever builds. */
+#ifdef _WIN64
+#define AFB_PID() ((int)GetCurrentProcessId())
+#else
+#define AFB_PID() ((int)getpid())
+#endif
+
+/* Atomically publish src as dst, replacing any existing dst; plain rename
+   does that on POSIX but refuses to replace on Windows. */
+static int afb_replace(const char *src, const char *dst)
+{
+#ifdef _WIN64
+    return MoveFileExA(src, dst, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;
+#else
+    return rename(src, dst);
+#endif
+}
+
+/* Remove an aborted staging file (see afb_replace) so a failed or
+   interrupted write does not leave "<afbname>.tmp.<pid>" litter behind.
+   errno (and, on Windows, GetLastError) is preserved so the complain()
+   that follows still reports the original failure via %m / %lu, not the
+   result of this cleanup. */
+static void afb_unlink_tmp(const char *tmp)
+{
+    int e = errno;
+#ifdef _WIN64
+    DWORD le = GetLastError();
+#endif
+    remove(tmp);
+#ifdef _WIN64
+    SetLastError(le);
+#endif
+    errno = e;
+}
+
+/* FNV-1a over a u32 in little-endian byte order — the same byte order
+   write_u32 puts on disk — so validation is endian-independent. */
+static u32_t afb_fnv32_word(u32_t h, u32_t v)
+{
+    int i;
+
+    for (i = 0; i < 4; i++) {
+        h ^= (v >> (8 * i)) & 0xff;
+        h *= 16777619U;
+    }
+    return h;
+}
+
+/* The checksum covers the bound and the polynomial fingerprint as well as
+   the records, so the trailer itself cannot be edited undetected. */
+static u32_t afb_cksum(u32_t fbsz, u32_t *fb, u32_t *roots, u32_t bound,
+    u32_t fp_lo, u32_t fp_hi)
+{
+    u32_t h = 2166136261U;
+    u32_t i;
+
+    h = afb_fnv32_word(h, fbsz);
+    for (i = 0; i < fbsz; i++)h = afb_fnv32_word(h, fb[i]);
+    for (i = 0; i < fbsz; i++)h = afb_fnv32_word(h, roots[i]);
+    h = afb_fnv32_word(h, bound);
+    h = afb_fnv32_word(h, fp_lo);
+    h = afb_fnv32_word(h, fp_hi);
+    return h;
+}
+
+/* 64-bit FNV-1a over the complete coefficient representations: degree,
+   then per coefficient the sign, the magnitude byte length and the
+   magnitude bytes (least-significant first via mpz_export, so the value
+   is canonical regardless of limb size or endianness).  Reducing
+   coefficients modulo a fixed prime is not enough: two polynomials whose
+   coefficients differ by a multiple of that prime would collide. */
+static u64_t afb_fnv64_byte(u64_t h, unsigned char b)
+{
+    h ^= b;
+    h *= 1099511628211ULL;
+    return h;
+}
+
+static u64_t afb_poly_fp(mpz_t *pol, i32_t deg)
+{
+    u64_t h = 14695981039346656037ULL;
+    i32_t i;
+    size_t j, nbytes, nalloc;
+    unsigned char *bytes;
+
+    h = afb_fnv64_byte(h, (unsigned char)deg);
+    for (i = 0; i <= deg; i++) {
+        nalloc = (mpz_sizeinbase(pol[i], 2) + 7) / 8;
+        bytes = xmalloc(nalloc > 0 ? nalloc : 1);
+        nbytes = 0;
+        mpz_export(bytes, &nbytes, -1, 1, 0, 0, pol[i]);
+        h = afb_fnv64_byte(h, (unsigned char)(mpz_sgn(pol[i]) < 0));
+        for (j = 0; j < 4; j++)
+            h = afb_fnv64_byte(h, (unsigned char)(((u64_t)nbytes >> (8 * j)) & 0xff));
+        for (j = 0; j < nbytes; j++)
+            h = afb_fnv64_byte(h, bytes[j]);
+        free(bytes);
+    }
+    return h;
+}
 u32_t g_resume;
 #define MAX_LPFACTORS 3
 static mpz_t rational_rest,algebraic_rest;
@@ -1322,6 +1437,7 @@ int main(int argc, char** argv)
             if ((u64_t)(FB_bound[special_q_side]) > first_spq) {
 
                 FB_bound[special_q_side] = (float)first_spq - 1;
+                FB_bound_lowered = 1;
 
                 if (verbose)printf("Warning:  lowering FB_bound to "UL_FMTSTR"\n", first_spq - 1);
             }
@@ -1528,20 +1644,69 @@ int main(int argc, char** argv)
 #line 1449 "gnfs-lasieve4e.w"
 
                     {
-                        if ((afbfile = fopen(afbname, "wb")) == NULL) {
-                            complain("Cannot open %s for output of aFB: %m\n", afbname);
+                        if (FB_bound_lowered && side == special_q_side) {
+                            /* The factor base only reaches first_spq-1; a cache
+                               written now would make every later run at higher q
+                               fail its completeness audit. */
+                            errprintf("Warning: not writing %s: FB_bound was lowered to "
+                                UL_FMTSTR" and the cache would be incomplete for runs "
+                                "at higher q\n", afbname, first_spq - 1);
                         }
-                        if (write_u32(afbfile, &(FBsize[side]), 1) != 1) {
-                            complain("Cannot write aFBsize to %s: %m\n", afbname);
+                        else {
+                            char *afbtmp;
+                            u32_t ext[AFB_EXT_WORDS];
+                            u64_t afb_fp;
+
+                            /* Write to a pid-unique temp name and rename so an
+                               interrupted write never leaves a partial cache
+                               where later runs would find it, and concurrent
+                               writers cannot truncate each other's staging. */
+                            asprintf(&afbtmp, "%s.tmp.%d", afbname, AFB_PID());
+                            if ((afbfile = fopen(afbtmp, "wb")) == NULL) {
+                                complain("Cannot open %s for output of aFB: %m\n", afbtmp);
+                            }
+                            if (write_u32(afbfile, &(FBsize[side]), 1) != 1) {
+                                afb_unlink_tmp(afbtmp);
+                                complain("Cannot write aFBsize to %s: %m\n", afbtmp);
+                            }
+                            if (write_u32(afbfile, FB[side], FBsize[side]) != FBsize[side] ||
+                                write_u32(afbfile, proots[side], FBsize[side]) != FBsize[side]) {
+                                afb_unlink_tmp(afbtmp);
+                                complain("Cannot write aFB to %s: %m\n", afbtmp);
+                            }
+                            if (write_u32(afbfile, &xFBs[side], 1) != 1) {
+                                afb_unlink_tmp(afbtmp);
+                                complain("Cannot write aFBsize to %s: %m\n", afbtmp);
+                            }
+                            afb_fp = afb_poly_fp(poly[side], poldeg[side]);
+                            ext[0] = AFB_EXT_MAGIC;
+                            ext[1] = (u32_t)FB_bound[side];
+                            ext[2] = (u32_t)(afb_fp & 0xffffffffULL);
+                            ext[3] = (u32_t)(afb_fp >> 32);
+                            ext[4] = afb_cksum(FBsize[side], FB[side], proots[side],
+                                ext[1], ext[2], ext[3]);
+                            if (write_u32(afbfile, ext, AFB_EXT_WORDS) != AFB_EXT_WORDS) {
+                                afb_unlink_tmp(afbtmp);
+                                complain("Cannot write aFB trailer to %s: %m\n", afbtmp);
+                            }
+                            if (fclose(afbfile) != 0) {
+                                afb_unlink_tmp(afbtmp);
+                                complain("Cannot write %s: %m\n", afbtmp);
+                            }
+                            if (afb_replace(afbtmp, afbname) != 0) {
+                                afb_unlink_tmp(afbtmp);
+#ifdef _WIN64
+                                /* MoveFileExA reports through GetLastError,
+                                   not errno. */
+                                complain("Cannot rename %s to %s: error %lu\n",
+                                    afbtmp, afbname, GetLastError());
+#else
+                                complain("Cannot rename %s to %s: %m\n", afbtmp,
+                                    afbname);
+#endif
+                            }
+                            free(afbtmp);
                         }
-                        if (write_u32(afbfile, FB[side], FBsize[side]) != FBsize[side] ||
-                            write_u32(afbfile, proots[side], FBsize[side]) != FBsize[side]) {
-                            complain("Cannot write aFB to %s: %m\n", afbname);
-                        }
-                        if (write_u32(afbfile, &xFBs[side], 1) != 1) {
-                            complain("Cannot write aFBsize to %s: %m\n", afbname);
-                        }
-                        fclose(afbfile);
                     }
 
                     /*:29*/
@@ -1552,9 +1717,33 @@ int main(int argc, char** argv)
                     /*28:*/
 #line 1432 "gnfs-lasieve4e.w"
 
+                    long afb_flen = 0;
+                    u64_t afb_legacy_len;
+                    int afb_has_ext = 0;
+                    u32_t afb_ext[AFB_EXT_WORDS];
+
                     if (read_u32(afbfile, &(FBsize[side]), 1) != 1) {
                         complain("Cannot read aFB size from %s: %m\n", afbname);
                     }
+
+                    /* Check the file length against the header before letting
+                       FBsize drive the allocations: a corrupt header must not
+                       trigger a multi-GB xmalloc or a garbage factor base. */
+                    if (fseek(afbfile, 0, SEEK_END) != 0 ||
+                        (afb_flen = ftell(afbfile)) < 0 ||
+                        fseek(afbfile, sizeof(u32_t), SEEK_SET) != 0) {
+                        complain("Cannot get size of %s: %m\n", afbname);
+                    }
+                    afb_legacy_len = 2 * sizeof(u32_t) +
+                        2 * (u64_t)FBsize[side] * sizeof(u32_t);
+                    if ((u64_t)afb_flen == afb_legacy_len)
+                        afb_has_ext = 0;
+                    else if ((u64_t)afb_flen ==
+                        afb_legacy_len + AFB_EXT_WORDS * sizeof(u32_t))
+                        afb_has_ext = 1;
+                    else
+                        complain("%s: file length %ld does not match FB size %u; "
+                            "delete it and rerun\n", afbname, afb_flen, FBsize[side]);
 
                     FB[side] = xmalloc(FBsize[side] * sizeof(u32_t));
                     proots[side] = xmalloc(FBsize[side] * sizeof(u32_t));
@@ -1569,7 +1758,136 @@ int main(int argc, char** argv)
                     if (read_u32(afbfile, &xFBs[side], 1) != 1) {
                         complain("%s: Cannot read xFBsize\n", afbname);
                     }
+
+                    /* The stored xFB count is always 0 (the cache is written
+                       before prime powers are built, and the entries themselves
+                       are not stored); a nonzero value would leave that many
+                       uninitialized xFB slots in the sieve. */
+                    if (xFBs[side] != 0) {
+                        complain("%s: nonzero xFB count %u (corrupt); "
+                            "delete it and rerun\n", afbname, xFBs[side]);
+                    }
+
+                    if (afb_has_ext) {
+                        if (read_u32(afbfile, afb_ext, AFB_EXT_WORDS) != AFB_EXT_WORDS) {
+                            complain("%s: cannot read trailer: %m\n", afbname);
+                        }
+                        if (afb_ext[0] != AFB_EXT_MAGIC) {
+                            complain("%s: bad trailer magic; delete it and rerun\n",
+                                afbname);
+                        }
+                        if (afb_ext[4] != afb_cksum(FBsize[side], FB[side], proots[side],
+                            afb_ext[1], afb_ext[2], afb_ext[3])) {
+                            complain("%s: checksum mismatch (file is corrupt); "
+                                "delete it and rerun\n", afbname);
+                        }
+                        {
+                            u64_t afb_fp = afb_poly_fp(poly[side], poldeg[side]);
+
+                            if (afb_ext[2] != (u32_t)(afb_fp & 0xffffffffULL) ||
+                                afb_ext[3] != (u32_t)(afb_fp >> 32)) {
+                                complain("%s: cached factor base belongs to a different "
+                                    "polynomial; delete it and rerun\n", afbname);
+                            }
+                        }
+                        if ((u32_t)FB_bound[side] > afb_ext[1]) {
+                            complain("%s: cache was built with FB_bound %u but this "
+                                "run needs %u; delete it and rerun\n", afbname,
+                                afb_ext[1], (u32_t)FB_bound[side]);
+                        }
+                    }
+                    else {
+                        const char *afb_legacy_ok = getenv("LASIEVE_AFB_ALLOW_LEGACY");
+
+                        /* Without the trailer there is no exact bound or
+                           checksum; the heuristics below cannot catch a cache
+                           built with a slightly smaller FB_bound. */
+                        if (afb_legacy_ok == NULL || strcmp(afb_legacy_ok, "1") != 0) {
+                            complain("%s has no integrity trailer (written by an older "
+                                "binary); delete it to regenerate, or set "
+                                "LASIEVE_AFB_ALLOW_LEGACY=1 to accept it\n", afbname);
+                        }
+                    }
                     fclose(afbfile);
+
+                    /* The trim below, the fbis/fbi1 setup and the sieve all
+                       assume ascending primes. */
+                    {
+                        u32_t ai;
+
+                        for (ai = 1; ai < FBsize[side]; ai++)
+                            if (FB[side][ai] < FB[side][ai - 1])
+                                complain("%s: factor base not sorted at entry %u; "
+                                    "delete it and rerun\n", afbname, ai);
+                    }
+
+                    /* The cache may hold a larger FB_bound than this run's
+                       (FB_bound is lowered to first_spq-1 when q is below it).
+                       Trim so the FB matches a fresh computation; the float
+                       comparison must mirror the computation loop's
+                       prime < FB_bound[side]. */
+                    {
+                        u32_t trimmed_FBsize = FBsize[side];
+
+                        while (trimmed_FBsize > 0 &&
+                            !(FB[side][trimmed_FBsize - 1] < FB_bound[side]))
+                            trimmed_FBsize--;
+                        if (trimmed_FBsize < FBsize[side]) {
+                            if (verbose)
+                                printf("Trimmed cached aFB to FB_bound: %u of %u entries kept\n",
+                                    trimmed_FBsize, FBsize[side]);
+                            FBsize[side] = trimmed_FBsize;
+                            if (FBsize[side] > 0) {
+                                FB[side] = xrealloc(FB[side], FBsize[side] * sizeof(u32_t));
+                                proots[side] = xrealloc(proots[side], FBsize[side] * sizeof(u32_t));
+                            }
+                        }
+                    }
+
+                    /* Legacy (trailer-less) caches get heuristic checks only:
+                       a complete cache normally ends within a prime gap of
+                       FB_bound, and sampled roots must satisfy the polynomial.
+                       Trailered caches are covered exactly by the bound and
+                       checksum above — and since only primes with roots are
+                       stored, an honest cache could in principle end further
+                       than any fixed gap below the bound, so the heuristic
+                       must not run for them. */
+                    if (!afb_has_ext && (FBsize[side] == 0 ||
+                        (double)FB_bound[side] - (double)FB[side][FBsize[side] - 1] > 4096.0))
+                        complain("%s: cached factor base ends at %u but FB_bound is %.0f; "
+                            "it was built with a smaller bound. Delete it and rerun\n",
+                            afbname, FBsize[side] > 0 ? FB[side][FBsize[side] - 1] : 0,
+                            (double)FB_bound[side]);
+
+                    /* Spot-check that the cached roots belong to this job's
+                       polynomial (r==p encodes a projective root). */
+                    if (!afb_has_ext) {
+                        u32_t ns, nsamples;
+
+                        nsamples = FBsize[side] < 32 ? FBsize[side] : 32;
+                        for (ns = 0; ns < nsamples; ns++) {
+                            u32_t ai, p, r;
+                            u64_t v;
+                            i32_t d;
+
+                            ai = (u32_t)((u64_t)ns * (FBsize[side] - 1) /
+                                (nsamples > 1 ? nsamples - 1 : 1));
+                            p = FB[side][ai];
+                            r = proots[side][ai];
+                            if (r > p)
+                                complain("%s: root %u exceeds prime %u at entry %u; "
+                                    "delete it and rerun\n", afbname, r, p, ai);
+                            if (r == p)
+                                v = mpz_fdiv_ui(poly[side][poldeg[side]], p);
+                            else
+                                for (d = poldeg[side], v = 0; d >= 0; d--)
+                                    v = (v * r + mpz_fdiv_ui(poly[side][d], p)) % p;
+                            if (v != 0)
+                                complain("%s: cached factor base does not match the "
+                                    "polynomial (p=%u, r=%u); delete it and rerun\n",
+                                    afbname, p, r);
+                        }
+                    }
 
                     /*:28*/
 #line 1366 "gnfs-lasieve4e.w"
