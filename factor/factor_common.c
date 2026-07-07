@@ -246,6 +246,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.poly_percent_max = 8;
     fobj->nfs_obj.td = 0;
     fobj->nfs_obj.batch_3lp = 0;
+    fobj->nfs_obj.keep_afb = 0;
     mpz_set_ui(fobj->nfs_obj.snfs_fullinput, 0);
 
     fobj->nfs_obj.polybatch = 250;						//default	
@@ -653,6 +654,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->nfs_obj.poly_testsieve = src->nfs_obj.poly_testsieve;
     dest->nfs_obj.td = src->nfs_obj.td;
     dest->nfs_obj.batch_3lp = src->nfs_obj.batch_3lp;
+    dest->nfs_obj.keep_afb = src->nfs_obj.keep_afb;
 
     dest->nfs_obj.polybatch = src->nfs_obj.polybatch;
     strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);

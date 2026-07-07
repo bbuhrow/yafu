@@ -1779,6 +1779,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.poly_percent_max = options->poly_percent_max;
     fobj->nfs_obj.poly_testsieve = options->poly_testsieve;
     fobj->nfs_obj.batch_3lp = options->nfs_batch_3lp;
+    fobj->nfs_obj.keep_afb = options->keep_afb;
 
     // raise min_rels bounds by a percentage
     // on unsuccessful filtering

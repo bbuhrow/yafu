@@ -1070,6 +1070,8 @@ void nfs(fact_obj_t *fobj)
 			sprintf(tmpstr, "%s.d",fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.ranges", fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.mat.chk",fobj->nfs_obj.outputfile);	remove(tmpstr);
+			snprintf(tmpstr, sizeof(tmpstr), "%s.afb.0",fobj->nfs_obj.job_infile);	remove(tmpstr);
+			snprintf(tmpstr, sizeof(tmpstr), "%s.afb.1",fobj->nfs_obj.job_infile);	remove(tmpstr);
 
 			if (fobj->nfs_obj.cadoMsieve) {
 				remove("nfs.poly");
