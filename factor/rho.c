@@ -26,24 +26,24 @@ code to the public domain.
 
 void brent_loop(fact_obj_t *fobj)
 {
-	//repeatedly use brent's rho on n
-	//we always use three constants 'c'.
-	//it may be desirable to make the number of different
-	//polynomials, and their values, configurable, but for 
-	//now it is hardcoded.
+	// repeatedly use brent's rho on n
+	// we always use three constants 'c'.
+	// it may be desirable to make the number of different
+	// polynomials, and their values, configurable, but for 
+	// now it is hardcoded.
 	mpz_t d,t;
 	FILE *flog = NULL;
 	clock_t start, stop;
 	double tt;
 		
-	//check for trivial cases
+	// check for trivial cases
 	if ((mpz_cmp_ui(fobj->rho_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->rho_obj.gmp_n, 0) == 0))
 		return;
 
 	if (mpz_cmp_ui(fobj->rho_obj.gmp_n, 2) == 0)
 		return;
 
-	//open the log file
+	// open the log file
     if (fobj->LOGFLAG)
     {
         flog = fopen(fobj->flogname, "a");
@@ -51,11 +51,10 @@ void brent_loop(fact_obj_t *fobj)
         {
             printf("fopen error: %s\n", strerror(errno));
 			printf("could not open %s for writing, results will not be logged\n", fobj->flogname);
-            //return;
         }
     }
 
-	//initialize some local args
+	// initialize some local args
 	mpz_init(d);
 	mpz_init(t);	
 
@@ -95,7 +94,7 @@ void brent_loop(fact_obj_t *fobj)
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
 			(int)gmp_base10(fobj->rho_obj.gmp_n));
 		
-		//call brent's rho algorithm
+		// call brent's rho algorithm
 		mbrent(fobj);
 
         if (fobj->VFLAG >= 0)
@@ -103,17 +102,17 @@ void brent_loop(fact_obj_t *fobj)
             printf("\n");
         }
 
-		//check to see if 'f' is non-trivial
+		// check to see if 'f' is non-trivial
 		if ((mpz_cmp_ui(fobj->rho_obj.gmp_f, 1) > 0)
 			&& (mpz_cmp(fobj->rho_obj.gmp_f, fobj->rho_obj.gmp_n) < 0))
 		{				
             char* s = mpz_get_str(NULL, 10, fobj->rho_obj.gmp_f);
 
-			//non-trivial factor found
+			// non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
-			//check if the factor is prime
+			// check if the factor is prime
 			if (is_mpz_prp(fobj->rho_obj.gmp_f, fobj->NUM_WITNESSES))
 			{
 				add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_f, 
@@ -149,7 +148,7 @@ void brent_loop(fact_obj_t *fobj)
             free(s);
 			start = clock();
 
-			//reduce input
+			// reduce input
 			mpz_tdiv_q(fobj->rho_obj.gmp_n, fobj->rho_obj.gmp_n, fobj->rho_obj.gmp_f);
 
 			if (fobj->autofact_obj.autofact_active && fobj->autofact_obj.stop_strict)
@@ -163,11 +162,11 @@ void brent_loop(fact_obj_t *fobj)
 		}
 		else
 		{
-			//no factor found, log the effort we made.
+			// no factor found, log the effort we made.
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
-			fobj->rho_obj.curr_poly++; //try a different function
+			fobj->rho_obj.curr_poly++; // try a different function
 		}
 	}
 
@@ -220,7 +219,7 @@ int mbrent(fact_obj_t *fobj)
 		mpz_set(x,y);
 		for(i=0;i<=r;i++)
 		{
-			mpz_mul(t1,y,y);		//y = (y*y + c) mod n
+			mpz_mul(t1,y,y);		// y = (y*y + c) mod n
             mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
 			mpz_tdiv_r(y, t1, fobj->rho_obj.gmp_n);			
 		}
@@ -231,11 +230,11 @@ int mbrent(fact_obj_t *fobj)
 			mpz_set(ys, y);
 			for(i=1;i<=MIN(m,r-k);i++)
 			{
-				mpz_mul(t1,y,y); //y=(y*y + c)%n
+				mpz_mul(t1,y,y); // y=(y*y + c)%n
                 mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
 				mpz_tdiv_r(y, t1, fobj->rho_obj.gmp_n);	
 
-				mpz_sub(t1, x, y); //q = q*abs(x-y) mod n
+				mpz_sub(t1, x, y); // q = q*abs(x-y) mod n
 				if (mpz_sgn(t1) < 0)
 					mpz_add(t1, t1, fobj->rho_obj.gmp_n);
 				mpz_mul(q, t1, q); 
@@ -261,7 +260,7 @@ int mbrent(fact_obj_t *fobj)
 		// back track
 		do
 		{
-			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
+			mpz_mul(t1, ys, ys); // ys = (ys*ys + c) mod n
             mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
 			mpz_tdiv_r(ys, t1, fobj->rho_obj.gmp_n); 
 
@@ -290,8 +289,6 @@ int mbrent(fact_obj_t *fobj)
     
 
 free:
-	//if (fobj->VFLAG >= 0)
-	//	printf("\n");
 
 	mpz_clear(x);
 	mpz_clear(y);

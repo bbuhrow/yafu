@@ -405,10 +405,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
         helperstruct.filler = 42;
         helperstruct.scratch = dconf->polyscratch;        //120
 
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 1\n");
-		//}
 
         ASM_G (		\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -686,10 +682,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_index = helperstruct.bound_index;
 		logp = update_data.logp[large_B-1];
 
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 2\n");
-		//}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1072,8 +1064,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm10", "xmm11", "xmm13", "xmm14", "xmm15", "memory", "cc");
 
 
-            //printf("all positive roots skipped %d times out of %d\n",
-            //    helperstruct.filler, (bound - large_B) / 8);
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
@@ -1172,11 +1162,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		logp = update_data.logp[med_B-1];
-
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 1n\n");
-		//}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1475,11 +1460,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		check_bound = helperstruct.check_bound;
 		bound_index = helperstruct.bound_index;
 		logp = update_data.logp[large_B-1];
-
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 2n\n");
-		//}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1859,8 +1839,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             : "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r13", "r14", "r15",
             "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm10", "xmm11", "xmm13", "xmm14", "xmm15", "memory", "cc");
 
-
-
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
@@ -1890,9 +1868,10 @@ __m256i _mm256_mask_sub_op2_epi32(__m256i m, __m256i a, __m256i b) {
     return _mm256_sub_epi32(a, _mm256_and_si256(m, b));
 }
 
-__m256i _mm256_cmplt_epi32(__m256i a, __m256i b) {
-    __m256i m = _mm256_or_si256(_mm256_cmpgt_epi32(a, b), _mm256_cmpeq_epi32(a, b));
-    m = _mm256_andnot_si256(m, _mm256_cmpeq_epi32(a, a));
+__m256i _emu_mm256_cmplt_epi32(__m256i a, __m256i b) {
+    __m256i m = _mm256_cmpgt_epi32(b, a);
+    m = _mm256_andnot_si256(_mm256_cmpeq_epi32(a, b), m);
+
     return m;
 }
 
@@ -1918,7 +1897,6 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
     uint32_t j, interval;
     int k, numblocks, idx;
-    //uint32_t root1, prime;
 
     int bound_index = 0;
     int check_bound = BUCKET_ALLOC / 2 - 1;
@@ -1937,15 +1915,15 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
     __m256i vone = _mm256_set1_epi32(1);
 
-    __m256i vnroot1, vnroot2;
     __m256i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval;
     __m256i velement1, velement2, vblockm1 = _mm256_set1_epi32(32767);
     __m256i mask1, mask2;
     uint32_t bitmask1, bitmask2;
 
-    ALIGNED_MEM uint32_t e1[32]; //e1[65536];
-    ALIGNED_MEM uint32_t b1[32]; //b1[65536];
-    ALIGNED_MEM uint32_t b2[32]; //b1[65536];
+    ALIGNED_MEM uint32_t e1[32];
+    ALIGNED_MEM uint32_t b1[32];
+    ALIGNED_MEM uint32_t b2[32];
+    // ALIGNED_MEM uint32_t e2[32];
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;
@@ -2378,6 +2356,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             vroot2 = _mm256_mask_add_op2_epi32(mask2, vroot2, vprime);
             _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
             _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+            
             vbnum1 = _mm256_srli_epi32(vroot1, 15);
             vbnum2 = _mm256_srli_epi32(vroot2, 15);
             velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
@@ -2385,8 +2364,8 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
 
-            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
-            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
             bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
             bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
 
@@ -2430,8 +2409,8 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
-            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
-            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
             bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
             bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
 
@@ -2464,6 +2443,104 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
                 numptr_n[b1[idx]]++;
                 bitmask2 = _reset_lsb(bitmask2); //mask1 ^= (1 << idx);
             }
+
+#if 0
+            // blend so that root1 is bigger than root2 in each lane
+            __m256i vt1 = _mm256_max_epu32(vroot1, vroot2);
+            __m256i vt2 = _mm256_min_epu32(vroot1, vroot2);
+
+            vbnum1 = _mm256_srli_epi32(vt1, 15);
+            vbnum2 = _mm256_srli_epi32(vt2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
+
+            // want mask == 1 when root < interval
+            mask1 = _emu_mm256_cmplt_epi32(vt1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vt2, vinterval);
+
+            _mm256_store_si256((__m256i*)b1, vbnum1);
+            _mm256_store_si256((__m256i*)e1, velement1);
+            _mm256_store_si256((__m256i*)b2, vbnum2);
+            _mm256_store_si256((__m256i*)e2, velement2);
+
+            uint32_t m1 = 0x88888888 & _mm256_movemask_epi8(mask1);
+            uint32_t m2 = 0x88888888 & _mm256_movemask_epi8(mask2);
+            m2 ^= m1;
+
+            // since root1 is bigger, if it hits the interval then so does root2
+            while (m1 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m1) >> 2;
+                uint32_t* bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
+                *bptr = e2[idx];
+                numptr_p[b2[idx]]++;
+                m1 = _reset_lsb(m1);
+            }
+
+            // pick up the root2's that are remaining
+            while (m2 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m2) >> 2;
+                uint32_t* bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
+                *bptr = e2[idx];
+                numptr_p[b2[idx]]++;
+                m2 = _reset_lsb(m2);
+            }
+
+            // and the -side roots; same story.
+            vroot1 = _mm256_sub_epi32(vprime, vroot1);
+            vroot2 = _mm256_sub_epi32(vprime, vroot2);
+
+            // blend so that root1 is bigger than root2 in each lane
+            vt1 = _mm256_max_epu32(vroot1, vroot2);
+            vt2 = _mm256_min_epu32(vroot1, vroot2);
+
+            vbnum1 = _mm256_srli_epi32(vt1, 15);
+            vbnum2 = _mm256_srli_epi32(vt2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
+
+            // want mask == 1 when root < interval
+            mask1 = _emu_mm256_cmplt_epi32(vt1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vt2, vinterval);
+
+            _mm256_store_si256((__m256i*)b1, vbnum1);
+            _mm256_store_si256((__m256i*)e1, velement1);
+            _mm256_store_si256((__m256i*)b2, vbnum2);
+            _mm256_store_si256((__m256i*)e2, velement2);
+
+            m1 = 0x88888888 & _mm256_movemask_epi8(mask1);
+            m2 = 0x88888888 & _mm256_movemask_epi8(mask2);
+            m2 ^= m1;
+
+            // since root1 is bigger, if it hits the interval then so does root2
+            while (m1 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m1) >> 2;
+                uint32_t* bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
+                *bptr = e2[idx];
+                numptr_n[b2[idx]]++;
+                m1 = _reset_lsb(m1);
+            }
+
+            // pick up the root2's that are remaining
+            while (m2 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m2) >> 2;
+                uint32_t* bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
+                *bptr = e2[idx];
+                numptr_n[b2[idx]]++;
+                m2 = _reset_lsb(m2);
+            }
+#endif
 
         }
     }
@@ -2864,14 +2941,15 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             vroot2 = _mm256_mask_sub_op2_epi32(mask2, vroot2, vprime);
             _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
             _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+
             vbnum1 = _mm256_srli_epi32(vroot1, 15);
             vbnum2 = _mm256_srli_epi32(vroot2, 15);
             velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
-            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
-            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
             bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
             bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
 
@@ -2914,8 +2992,8 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
-            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
-            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
             bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
             bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
 
@@ -2948,6 +3026,106 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
                 numptr_n[b1[idx]]++;
                 bitmask2 = _reset_lsb(bitmask2); //mask1 ^= (1 << idx);
             }
+
+#if 0
+            // blend so that root1 is bigger than root2 in each lane
+            __m256i vt1 = _mm256_max_epu32(vroot1, vroot2);
+            __m256i vt2 = _mm256_min_epu32(vroot1, vroot2);
+
+            vbnum1 = _mm256_srli_epi32(vt1, 15);
+            vbnum2 = _mm256_srli_epi32(vt2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
+
+            // want mask == 1 when root < interval
+            mask1 = _emu_mm256_cmplt_epi32(vt1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vt2, vinterval);
+
+            _mm256_store_si256((__m256i*)b1, vbnum1);
+            _mm256_store_si256((__m256i*)e1, velement1);
+            _mm256_store_si256((__m256i*)b2, vbnum2);
+            _mm256_store_si256((__m256i*)e2, velement2);
+
+            uint32_t m1 = 0x88888888 & _mm256_movemask_epi8(mask1);
+            uint32_t m2 = 0x88888888 & _mm256_movemask_epi8(mask2);
+
+            m2 ^= m1;
+
+            // since root1 is bigger, if it hits the interval then so does root2
+            while (m1 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m1) >> 2;
+                uint32_t* bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
+                *bptr = e2[idx];
+                numptr_p[b2[idx]]++;
+                m1 = _reset_lsb(m1);
+            }
+
+            // pick up the root2's that are remaining
+            while (m2 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m2) >> 2;
+                uint32_t* bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
+                *bptr = e2[idx];
+                numptr_p[b2[idx]]++;
+                m2 = _reset_lsb(m2);
+            }
+
+            // and the -side roots; same story.
+            vroot1 = _mm256_sub_epi32(vprime, vroot1);
+            vroot2 = _mm256_sub_epi32(vprime, vroot2);
+
+            // blend so that root1 is bigger than root2 in each lane
+            vt1 = _mm256_max_epu32(vroot1, vroot2);
+            vt2 = _mm256_min_epu32(vroot1, vroot2);
+
+            vbnum1 = _mm256_srli_epi32(vt1, 15);
+            vbnum2 = _mm256_srli_epi32(vt2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
+
+            // want mask == 1 when root < interval
+            mask1 = _emu_mm256_cmplt_epi32(vt1, vinterval);
+            mask2 = _emu_mm256_cmplt_epi32(vt2, vinterval);
+
+            _mm256_store_si256((__m256i*)b1, vbnum1);
+            _mm256_store_si256((__m256i*)e1, velement1);
+            _mm256_store_si256((__m256i*)b2, vbnum2);
+            _mm256_store_si256((__m256i*)e2, velement2);
+
+            m1 = 0x88888888 & _mm256_movemask_epi8(mask1);
+            m2 = 0x88888888 & _mm256_movemask_epi8(mask2);
+            m2 ^= m1;
+
+            // since root1 is bigger, if it hits the interval then so does root2
+            while (m1 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m1) >> 2;
+                uint32_t* bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
+                *bptr = e2[idx];
+                numptr_n[b2[idx]]++;
+                m1 = _reset_lsb(m1);
+            }
+
+            // pick up the root2's that are remaining
+            while (m2 > 0)
+            {
+                uint32_t idx = _trail_zcnt(m2) >> 2;
+                uint32_t* bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
+                *bptr = e2[idx];
+                numptr_n[b2[idx]]++;
+                m2 = _reset_lsb(m2);
+            }
+#endif
+
         }
     }
 

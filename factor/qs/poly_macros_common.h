@@ -66,7 +66,7 @@ typedef struct
 		}													\
 		room = BUCKET_ALLOC - room;							\
         /* if it is filled close to the allocation, start recording in a new set of buckets */ \
-		if (room < 32)										\
+		if (room < 48)										\
 		{													\
 			logp = update_data.logp[j];						\
 			slicelogp_ptr[bound_index] = logp;			\

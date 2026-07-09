@@ -25,8 +25,8 @@ code to the public domain.
 
 void zTrial(fact_obj_t *fobj)
 {
-	//trial divide n using primes below limit. optionally, print factors found.
-	//input expected in the gmp_n field of div_obj.
+	// trial divide n using primes below limit. optionally, print factors found.
+	// input expected in the gmp_n field of div_obj.
 	uint32_t r,k=0;
 	uint32_t limit = fobj->div_obj.limit;
 	int print = fobj->div_obj.print;
@@ -45,9 +45,6 @@ void zTrial(fact_obj_t *fobj)
             return;
         }
     }
-
-    //printf("min_p: %"PRIu64", max_p = %"PRIu64", num_p = %"PRIu64"\n",
-    //    fobj->min_p, fobj->max_p, fobj->num_p);
 
 	if ((fobj->primes == NULL) || (fobj->min_p > 2) || (fobj->max_p < limit))
 	{

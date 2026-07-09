@@ -832,6 +832,15 @@ extern void (*nextRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_generic_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
 
+void nextRoots_32k_knl_medbucket(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int* bi, int* cb, uint32_t* bv, int** uptr,
+    uint32_t** np_p, uint32_t** np_n, uint32_t** sl_p, uint32_t** sl_n);
+void nextRoots_32k_knl_medbucket_manyblocks(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int* bi, int* cb, uint32_t* bv, int** uptr,
+    uint32_t** np_p, uint32_t** np_n, uint32_t** sl_p, uint32_t** sl_n);
+void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int bound_index, int check_bound, uint32_t bound_val, int* ptr,
+    uint32_t* numptr_p, uint32_t* numptr_n, uint32_t* sliceptr_p, uint32_t* sliceptr_n);
 void nextRoots_32k_knl_bucket(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextBigRoots_32k_knl_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
 
