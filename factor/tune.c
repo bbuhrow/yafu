@@ -809,19 +809,19 @@ void update_INI(double mult, double exponent, double mult2,
 	{
 #if defined(_WIN64)
 		printf("Adding tune_info entry for WIN64 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+		sprintf(newline, "\ntune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
 			cpu_str, mult, exponent, mult2, exponent2, xover,
 			b1slope, b1intercept, size_exp, cpu_freq);
 		fputs(newline, out);
 #elif defined(WIN32)
 		printf("Adding tune_info entry for WIN32 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+		sprintf(newline, "\ntune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
 			cpu_str, mult, exponent, mult2, exponent2, xover,
 			b1slope, b1intercept, size_exp, cpu_freq);
 		fputs(newline, out);
 #else 
 		printf("Adding tune_info entry for LINUX64 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
+		sprintf(newline, "\ntune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg,%lg\n",
 			cpu_str, mult, exponent, mult2, exponent2, xover,
 			b1slope, b1intercept, size_exp, cpu_freq);
 		fputs(newline, out);
