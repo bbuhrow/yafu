@@ -23,11 +23,11 @@ code to the public domain.
 
 #include "factor.h"
 #include <stdint.h>
-#include "gmp.h"
+#include "ytools.h"
 
 
 extern void SIQS(fact_obj_t* qsobj);
-extern void siqsbench(fact_obj_t* qsobj);
+extern void siqsbench(fact_obj_t* qsobj, info_t *comp_info);
 
 #endif /* _SIQS_H_ */
 

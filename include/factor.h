@@ -527,6 +527,9 @@ typedef struct
     int L3CACHE;
     uint32_t cache_size1;
     uint32_t cache_size2;
+
+    // YAFU version
+    char yafu_version[80];
     
     // RNG state
     uint64_t lcg_state;

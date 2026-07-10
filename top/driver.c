@@ -209,6 +209,7 @@ int main(int argc, char *argv[])
     fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
     fobj->LOGFLAG = yafu_obj.LOGFLAG;
     fobj->THREADS = yafu_obj.THREADS;
+    strcpy(fobj->yafu_version, YAFU_VERSION_STRING);
 
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
@@ -287,6 +288,7 @@ int main(int argc, char *argv[])
     calc_metadata.pscreen = options->pscreen;
     calc_metadata.pfile = options->pfile;
     calc_metadata.soe_analysis = options->soe_analysis;
+    calc_metadata.comp_info = &comp_info;
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);
@@ -1533,16 +1535,21 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
     // specified, prefer this to whatever may be in the tune_info string.
     xover = fobj->autofact_obj.qs_gnfs_xover;
 
+    double dummy1;
+    double dummy2;
+    double dummy3;
+
 #if defined(_WIN64)
 	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
 	{
         if (yobj->VFLAG > 0)
 		    printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
-		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg, %lg, %lg, %lg",
 			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
 			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
-			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+			&fobj->autofact_obj.qs_gnfs_xover, 
+            &dummy1, &dummy2, &dummy3, &fobj->nfs_obj.gnfs_tune_freq);
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 
         if (yobj->VFLAG > 1)
@@ -1559,10 +1566,11 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 	{
         if (yobj->VFLAG > 0)
 		    printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
-		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg, %lg, %lg, %lg",
 			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
 			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
-			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+			&fobj->autofact_obj.qs_gnfs_xover, 
+            &dummy1, &dummy2, &dummy3, &fobj->nfs_obj.gnfs_tune_freq);
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 
         if (yobj->VFLAG > 1)
@@ -1581,10 +1589,11 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
         if (yobj->VFLAG > 0)
             printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
-		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg, %lg, %lg, %lg",
 			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
 			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
-			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+			&fobj->autofact_obj.qs_gnfs_xover, 
+            &dummy1, &dummy2, &dummy3, &fobj->nfs_obj.gnfs_tune_freq);
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 
         if (yobj->VFLAG > 1)

@@ -458,7 +458,289 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 	return 0;
 }
 
-void siqsbench(fact_obj_t* fobj)
+void siqsbench(fact_obj_t* fobj, info_t* comp_info)
+{
+	// Run through the list of benchmark SIQS factorizations and emit
+	// a Markdown results row to siqs_bench.md for use on the YAFU wiki.
+	//
+	// Table format (one row per run):
+	//   Col 1   : System — CPU, OS, Compiler, SIMD, thread count (stacked with <br>)
+	//   Col 2   : YAFU version
+	//   Col 3-11: qs_time (total_time) for each benchmark digit size
+	//
+	// The file is opened in append mode so successive runs accumulate rows.
+	// A header block is written only when the file is empty / newly created.
+
+	// ------------------------------------------------------------------ //
+	//  Benchmark inputs (digit counts: 44 50 55 60 65 70 74 80 85)       //
+	// ------------------------------------------------------------------ //
+	const char* list[] = {
+		"405461849292216354219321922871108605045931309",                             /* 44 */
+		"29660734457033883936073030405220515257819037444591",                        /* 50 */
+		"1592739380299790264815370870751381488173344970710983383",                   /* 55 */
+		"349594255864176572614071853194924838158088864370890996447417",              /* 60 */
+		"34053408309992030649212497354061832056920539397279047809781589871",         /* 65 */
+		"6470287906463336878241474855987746904297564226439499503918586590778209",    /* 70 */
+		"281396163585532137380297959872159569353696836686080935550459706878100362721",           /* 74 */
+		"33727095233132290409342213138708322681737322487170896778164145844669592994743377",      /* 80 */
+		"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561"  /* 85 */
+	};
+	const int digit_sizes[] = { 44, 50, 55, 60, 65, 70, 74, 80, 85 };
+	int num_bench = 9;
+
+	// ------------------------------------------------------------------ //
+	//  Storage for per-input timings captured before reset_factobj()      //
+	// ------------------------------------------------------------------ //
+	double qs_time[9];
+	double total_time[9];
+
+	// ------------------------------------------------------------------ //
+	//  Build the System cell content                                       //
+	//                                                                      //
+	//  Each piece of info on its own line via <br>:                        //
+	//    Line 1 (bold): CPU model        (comp_info->idstr)               //
+	//    Line 2:        OS               (compile-time macro)             //
+	//    Line 3:        Compiler+version (mirrors print_splash logic)     //
+	//    Line 4:        SIMD feature set (highest enabled; BMI2 shown     //
+	//                   only for AVX2-and-below builds)                  //
+	//    Line 5:        Thread count     (fobj->THREADS)                  //
+	// ------------------------------------------------------------------ //
+	char compiler_str[128];
+	char simd_str[128];
+	char os_str[32];
+	char system_cell[512];
+
+#if defined(_WIN32) || defined(_WIN64)
+	strcpy(os_str, "Windows");
+#elif defined(__linux__)
+	// Detect WSL and, if found, include the distro name from WSL_DISTRO_NAME.
+	// Fall back to /proc/version string search if the env var isn't set.
+	{
+		int is_wsl = 0;
+		const char* wsl_distro = getenv("WSL_DISTRO_NAME");
+
+		if (wsl_distro != NULL && wsl_distro[0] != '\0')
+		{
+			// WSL_DISTRO_NAME is set — use it directly for the distro label
+			snprintf(os_str, sizeof(os_str), "Linux (WSL/%s)", wsl_distro);
+			is_wsl = 1;
+		}
+
+		if (!is_wsl)
+		{
+			// Fall back: inspect /proc/version for "Microsoft" or "WSL"
+			FILE* pv = fopen("/proc/version", "r");
+			if (pv != NULL)
+			{
+				char pvbuf[256];
+				if (fgets(pvbuf, sizeof(pvbuf), pv) != NULL)
+				{
+					if (strstr(pvbuf, "Microsoft") != NULL || strstr(pvbuf, "WSL") != NULL)
+					{
+						strcpy(os_str, "Linux (WSL)");
+						is_wsl = 1;
+					}
+				}
+				fclose(pv);
+			}
+		}
+
+		if (!is_wsl)
+			strcpy(os_str, "Linux");
+	}
+#elif defined(__APPLE__)
+	strcpy(os_str, "macOS");
+#else
+	strcpy(os_str, "Unknown OS");
+#endif
+
+	// Compiler identification — mirrors the logic in print_splash()
+#if defined(_MSC_VER)
+#  if defined(__INTEL_COMPILER)
+	snprintf(compiler_str, sizeof(compiler_str), "MSVC %d + ICC %d", _MSC_VER, __INTEL_COMPILER);
+#  elif defined(__INTEL_LLVM_COMPILER)
+	snprintf(compiler_str, sizeof(compiler_str), "MSVC %d + ICX %s", _MSC_VER, __clang_version__);
+#  elif defined(__clang_version__)
+	snprintf(compiler_str, sizeof(compiler_str), "MSVC %d + Clang %s", _MSC_VER, __clang_version__);
+#  else
+	snprintf(compiler_str, sizeof(compiler_str), "MSVC %d", _MSC_VER);
+#  endif
+#elif defined(__INTEL_COMPILER)
+	snprintf(compiler_str, sizeof(compiler_str), "ICC %d", __INTEL_COMPILER);
+#elif defined(__INTEL_LLVM_COMPILER)
+	snprintf(compiler_str, sizeof(compiler_str), "ICX %s", __clang_version__);
+#elif defined(__clang_version__)
+	snprintf(compiler_str, sizeof(compiler_str), "Clang %s", __clang_version__);
+#elif defined(__GNUC__)
+	snprintf(compiler_str, sizeof(compiler_str), "GCC %d.%d", __GNUC__, __GNUC_MINOR__);
+#else
+	snprintf(compiler_str, sizeof(compiler_str), "Unknown compiler");
+#endif
+
+	// SIMD feature set — highest enabled level first.
+	// BMI2 is only appended for AVX2-and-below builds because AVX512 implies BMI2.
+	// Guards use the same USE_* / IFMA macros as the rest of the build so
+	// the string reflects what was actually compiled in.
+	simd_str[0] = '\0';
+	int simd_is_avx512 = 0;
+#ifdef IFMA
+	if (comp_info->AVX512IFMA) { strcat(simd_str, "AVX512IFMA"); simd_is_avx512 = 1; }
+	else
+#endif
+#ifdef USE_AVX512BW
+		if (comp_info->AVX512BW) { strcat(simd_str, "AVX512BW");   simd_is_avx512 = 1; }
+		else
+#endif
+#ifdef USE_AVX512F
+			if (comp_info->AVX512F) { strcat(simd_str, "AVX512F");    simd_is_avx512 = 1; }
+			else
+#endif
+#ifdef USE_AVX2
+				if (comp_info->AVX2) { strcat(simd_str, "AVX2"); }
+				else
+#endif
+#ifdef USE_AVX
+					if (comp_info->AVX) { strcat(simd_str, "AVX"); }
+					else
+#endif
+#ifdef USE_SSE41
+						if (comp_info->bSSE41Extensions) { strcat(simd_str, "SSE41"); }
+						else
+#endif
+						{
+							strcat(simd_str, "SSE2");
+						}
+
+#ifdef USE_BMI2
+	// Only show BMI2 explicitly when it adds information (AVX2 and below)
+	if (!simd_is_avx512 && comp_info->BMI2) { strcat(simd_str, " BMI2"); }
+#endif
+
+	if (simd_str[0] == '\0')
+		strcpy(simd_str, "generic");
+
+	// Compose System cell: bold CPU name, then one line per attribute
+	snprintf(system_cell, sizeof(system_cell),
+		"**%s**<br>%s<br>%s<br>%s<br>%d threads",
+		comp_info->idstr,
+		os_str,
+		compiler_str,
+		simd_str,
+		fobj->THREADS);
+
+	// ------------------------------------------------------------------ //
+	//  Run the benchmarks                                                  //
+	// ------------------------------------------------------------------ //
+	fact_obj_t f;
+	init_factobj(&f);
+	copy_factobj(&f, fobj, 1);
+	strcpy(f.flogname, "bench.log");
+
+	{
+		FILE* log = fopen(f.flogname, "a");
+		if (log == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("couldn't open %s for writing\n", f.flogname);
+			exit(1);
+		}
+		fprintf(log, "commencing siqsbench on %s\n", comp_info->idstr);
+		fclose(log);
+	}
+
+	for (int i = 0; i < num_bench; i++)
+	{
+		mpz_set_str(f.qs_obj.gmp_n, list[i], 10);
+		mpz_set(f.input_N, f.qs_obj.gmp_n);
+		mpz_set(f.N, f.qs_obj.gmp_n);
+
+		SIQS(&f);
+
+		// Capture timings before reset_factobj() clears them
+		qs_time[i] = f.qs_obj.qs_time;
+		total_time[i] = f.qs_obj.total_time;
+
+		reset_factobj(&f);
+	}
+
+	strcpy(f.flogname, "bench.log");
+
+	// ------------------------------------------------------------------ //
+	//  Emit Markdown                                                       //
+	// ------------------------------------------------------------------ //
+	//
+	// Rendered table layout:
+	//
+	//   | System                  | Version | 44d | 50d | ... | 85d |
+	//   |:------------------------|:-------:|----:|----:|...|----:|
+	//   | **CPU**<br>OS<br>...    | 2.11    | ... |
+	//
+	// The header is written only when the file has zero length (new file).
+	// ------------------------------------------------------------------ //
+	{
+		const char* mdname = "siqs_bench.md";
+		int write_header = 0;
+
+		// Check whether the file is empty / does not yet exist
+		FILE* probe = fopen(mdname, "r");
+		if (probe == NULL)
+		{
+			write_header = 1;   // file absent
+		}
+		else
+		{
+			fseek(probe, 0, SEEK_END);
+			if (ftell(probe) == 0)
+				write_header = 1;   // file present but empty
+			fclose(probe);
+		}
+
+		FILE* md = fopen(mdname, "a");
+		if (md == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("couldn't open %s for writing\n", mdname);
+			free_factobj(&f);
+			return;
+		}
+
+		if (write_header)
+		{
+			fprintf(md,
+				"## SIQS Benchmark Results\n\n"
+				"Times are wall-clock seconds: **qs\\_time** (sieve phase only),\n"
+				"with **total\\_time** (including pre/post-processing) in parentheses.\n"
+				"Digit counts refer to the number of decimal digits in the input.\n\n"
+			);
+
+			// Header row: System, Version, then one column per digit size
+			fprintf(md, "| System | Version |");
+			for (int i = 0; i < num_bench; i++)
+				fprintf(md, " %dd |", digit_sizes[i]);
+			fprintf(md, "\n");
+
+			// Separator: System left-aligned, Version centered, timings right-aligned
+			fprintf(md, "|:-------|:-------:|");
+			for (int i = 0; i < num_bench; i++)
+				fprintf(md, "------:|");
+			fprintf(md, "\n");
+		}
+
+		// Data row
+		fprintf(md, "| %s | %s |", system_cell, fobj->yafu_version);
+		for (int i = 0; i < num_bench; i++)
+			fprintf(md, " %.2f<br>(%.2f) |", qs_time[i], total_time[i]);
+		fprintf(md, "\n");
+
+		fclose(md);
+		printf("Benchmark results appended to %s\n", mdname);
+	}
+
+	free_factobj(&f);
+	return;
+}
+
+void siqsbench_old(fact_obj_t* fobj)
 {
 	//run through the list of benchmark siqs factorizations
 
@@ -475,7 +757,6 @@ void siqsbench(fact_obj_t* fobj)
 	strcpy(list[5], "6470287906463336878241474855987746904297564226439499503918586590778209");
 	strcpy(list[6], "281396163585532137380297959872159569353696836686080935550459706878100362721");
 	strcpy(list[7], "33727095233132290409342213138708322681737322487170896778164145844669592994743377");
-	//strcpy(list[8], "7456482836301983072751757080079609980368702375378513429852397523678294751191007081");
 	strcpy(list[8], "1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
 
 	int num_bench = 9;

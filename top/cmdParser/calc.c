@@ -2890,7 +2890,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set_ui(operands[0], 1);
         new_factorization(fobj, operands[0]);
 
-        siqsbench(fobj);
+        siqsbench(fobj, metadata->comp_info);
         break;
 
     case 65:

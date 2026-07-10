@@ -3194,7 +3194,10 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			fprintf(fid, "\t\"input-argument-string\":\"");
 			for (i = 1; i < fobj->argc; i++)
 			{
-				fprintf(fid, "%s", fobj->argv[i]);
+				if (i == (fobj->argc - 1))
+					fprintf(fid, "%s", fobj->argv[i]);
+				else
+					fprintf(fid, "%s ", fobj->argv[i]);
 			}
 			fprintf(fid, "\",%c", lf);
 		}
@@ -3380,7 +3383,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 			if (fobj->ecm_obj.total_work > 0.0)
 			{
-				fprintf(fid, "\"ecm-sum\":%1.2f,%c", fobj->ecm_obj.total_work, lf);
+				fprintf(fid, "\t\"ecm-sum\":%1.2f,%c", fobj->ecm_obj.total_work, lf);
 			}
 		}
 
