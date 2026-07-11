@@ -47,7 +47,7 @@ Files YAFU writes (logs, savefiles, `yafu.ini`) go next to the executable. No in
 
 ## Building from source
 
-Pre-built Windows binaries are provided, but **building yourself, tuned to your CPU, will very likely be faster.** The whole build is driven by `Makefile.new`, configured per-machine through `config.mk`.
+Pre-built Windows binaries are provided, but **building yourself, tuned to your CPU, will very likely be faster.** The whole build is driven by a `Makefile`, configured per-machine through `config.mk`.
 
 ### Dependencies
 
@@ -63,32 +63,32 @@ As of YAFU 3.0, `ytools`, `ysieve`, and `msieve` are bundled in this repository 
 
 ```bash
 cp config.mk.example config.mk          # first time only — edit paths as needed
-make -f Makefile.new yafu                # builds with sensible defaults (gcc)
+make yafu                               # builds with sensible defaults (gcc)
 ```
 
-Pass feature/ISA flags either on the command line or by uncommenting them in `config.mk`. The most useful ones are listed below. For the complete set, see the [Building YAFU](../../wiki/Building-YAFU) wiki page or run `make -f Makefile.new help`.
+Pass feature/ISA flags either on the command line or by uncommenting them in `config.mk`. The most useful ones are listed below. For the complete set, see the [Building YAFU](../../wiki/Building-YAFU) wiki page or run `make help`.
 
 ```bash
 # Inspect the resolved configuration before/during a build
-make -f Makefile.new info
-make -f Makefile.new help
+make info
+make help
 
 # Using config.mk for configuration of ISA and features
-make -f Makefile.new yafu
+make yafu
 
 or
 
-make -f Makefile.new all
+make all
 
 # ISA selection — overriding config.mk with specified ISA
-make -f Makefile.new yafu USE_AVX2=1
-make -f Makefile.new yafu USE_AVX512=1          # Skylake-X, Cascade Lake, Zen 4, etc.
-make -f Makefile.new yafu USE_AVX512IFMA=1      # Ice Lake and newer
+make yafu USE_AVX2=1
+make yafu USE_AVX512=1          # Skylake-X, Cascade Lake, Zen 4, etc.
+make yafu USE_AVX512IFMA=1      # Ice Lake and newer
 
 # ISA selection — overriding config.mk with feature flags or compiler options
-make -f Makefile.new yafu ECM=1 OMP=1           # link GMP-ECM, enable OpenMP
-make -f Makefile.new yafu CC=clang              # use clang
-make -f Makefile.new yafu DEBUG=1               # debug build
+make yafu ECM=1 OMP=1           # link GMP-ECM, enable OpenMP
+make yafu CC=clang              # use clang
+make yafu DEBUG=1               # debug build
 
 ```
 
@@ -136,13 +136,13 @@ The free Intel compiler also works inside Visual Studio 2022.
 
 YAFU's release artifacts (the matrix of Windows `.exe` files shown above) are produced by an **automated GitHub Actions pipeline** that exercises:
 
-- **Linux / gcc**, via `Makefile.new`
-- **Windows / MSYS2 / MinGW-w64 gcc**, via `Makefile.new` with `STATIC_WIN=1` for the fully-static binaries
+- **Linux / gcc**, via `Makefile`
+- **Windows / MSYS2 / MinGW-w64 gcc**, via `Makefile` with `STATIC_WIN=1` for the fully-static binaries
 - **Windows / MSVC**, via the `build.vc22/` solution and property sheets (this leg is being expanded for CI)
 
 For every push, the CI builds the full matrix of ISA targets (`generic`, `sse41`, `avx2`, `avx512`, `avx512ifma`) on each platform. On tagged releases (e.g. `v3.1.2`), the resulting binaries are attached to the release page.
 
-See the [Continuous Integration](../../wiki/Continuous-Integration) wiki page for details on the matrix, the artifacts, and how the same `Makefile.new` flags drive both CI and local builds.
+See the [Continuous Integration](../../wiki/Continuous-Integration) wiki page for details on the matrix, the artifacts, and how the same `Makefile` flags drive both CI and local builds.
 
 ---
 
