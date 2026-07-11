@@ -1004,56 +1004,13 @@ void nfs_sieve_sync(void* vptr)
 	}
 
 	// done with the temporary output file for this thread.
-	int i = 0;
-	//MySleep(100);
-	while (1)
-	{
-#if 0 //def __MINGW32__
+	int status = remove(udata->thread_data[tid].outfilename);
 
-		printf("attempting to remove temporary file %s\n",
-			udata->thread_data[tid].outfilename);
-		int status = DeleteFileA(udata->thread_data[tid].outfilename);
-		
-		MySleep(1000);
-
-		// deleteFileA status is unreliable?
-		if (access(udata->thread_data[tid].outfilename, F_OK) == 0)
-		{
-			printf("attempt failed, file still exists\n");
-			status = 1;
-		}
-		else
-		{
-			printf("deletion succeeded\n");
-			status = 0;
-		}
-
-#else
-		int status = remove(udata->thread_data[tid].outfilename);
-#endif
-		// whether or not the file still exists right now, just keep going.
-		// if the file still exists when we go to create a new one
-		// with this thread, we'll make a differently named one.
-		// eventually the OS will catch up and remove the files
-		// we've requested.
-
-		//if (status == 0)
-			break;
-
-		// if working with network mounted drives, sometimes it takes a while
-		// for the OS to remove the file, or for GGNFS to let go of it (?).  
-		// Anyway, I've seen that this is necessary for some of the systems I test on.
-		if (i > 9)
-		{
-			printf("now %d attempts to remove file %s, ", i, udata->thread_data[tid].outfilename);
-			perror("error was");
-		}
-		i++;
-		MySleep(100);
-	}
-
-	if (i > 9)
-		printf("nfs: finished with and removed file %s\n", udata->thread_data[tid].outfilename);
+	// whether or not the file still exists right now, just keep going.
+	// if the file still exists when we go to create a new one
+	// with this thread, we'll make a differently named one.
+	// eventually the OS will catch up and remove the files
+	// we've requested.
 
 	// new temporary filename
 	sprintf(udata->thread_data[tid].outfilename, "rels%d_%d.dat", tid,
@@ -1225,6 +1182,10 @@ void nfs_sieve_dispatch(void* vptr)
 		free(qrange);
 
 		t->job.current_rels = 0;
+
+		// this thread's designated file shouldn't already exist,
+		// but send a remove command to be sure.
+		remove(t->outfilename);
 
 		tdata->work_fcn_id = 0;
 		udata->threads_sieving++;
@@ -2509,7 +2470,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 	{
 		int i;
 		char tmpname[1024];
-		printf("attempting to clean up temporary relations files (max temp num = %d)\n",
+		printf("nfs: attempting to clean up temporary relations files (max temp num = %d)\n",
 			job->filenumber);
 		for (i = 0; i < fobj->THREADS; i++) {
 
@@ -2521,6 +2482,7 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 
 				if (fid != NULL)
 				{
+					fclose(fid);
 					int attempts = 0;
 					while (1)
 					{
@@ -2618,9 +2580,6 @@ void *lasieve_launcher(void *ptr) {
 				"algebraic" : "rational"); // gotta love ?:
 
 	sprintf(batch3lp, fobj->nfs_obj.batch_3lp ? "-d" : "");
-
-	//remove any temporary relation files
-	remove(thread_data->outfilename);
 		
 	gettimeofday(&bstart, NULL);
 
@@ -2690,7 +2649,8 @@ void *lasieve_launcher(void *ptr) {
 
 		sprintf(infile, "%s.raw", thread_data->outfilename);
 		thread_data->job.current_rels += 
-			process_batch(thread_data, prime_prod, infile, thread_data->outfilename, fobj->VFLAG);
+			process_batch(thread_data, prime_prod, infile, 
+				thread_data->outfilename, fobj->VFLAG);
 		MySleep(100);
 		remove(infile);
 	}
@@ -2719,9 +2679,6 @@ void* lasieve_launcher_tdata(void* ptr) {
 		"algebraic" : "rational"); // gotta love ?:
 
 	sprintf(batch3lp, fobj->nfs_obj.batch_3lp ? "-d" : "");
-
-	//remove any temporary relation files
-	remove(thread_data->outfilename);
 
 	gettimeofday(&bstart, NULL);
 

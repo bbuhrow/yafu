@@ -76,6 +76,13 @@
 
 #include "arith.h"
 #include "common.h"
+#include "ytools.h"
+
+// Suppress MSVC warning 4505 (unreferenced local function removed) for
+// static utility functions in this header that are not called in every TU.
+#ifdef _MSC_VER
+#pragma warning(disable: 4505)
+#endif
 
 /********************* arbitrary-precision Montgomery arith **********************/
 // generic Montgomery arithmetic using gmp
@@ -99,7 +106,7 @@ typedef struct
 
 } monty_t;
 
-monty_t * monty_alloc();
+monty_t * monty_alloc(void);
 void monty_init(mpz_t n, monty_t *mdata);
 void to_monty(monty_t *mdata, mpz_t x);
 void monty_add(monty_t *mdata, mpz_t x, mpz_t y, mpz_t res);
@@ -194,7 +201,8 @@ __inline static uint64_t mulredc_pos_alt(uint64_t x, uint64_t y, uint64_t N, uin
 	return result;
 }
 
-static uint64_t bin_gcd64(uint64_t u, uint64_t v)
+static UNUSED_FUNC uint64_t bin_gcd64(uint64_t u, uint64_t v);
+static UNUSED_FUNC uint64_t bin_gcd64(uint64_t u, uint64_t v)
 {
 #if 1
 	if (u == 0) {
@@ -219,7 +227,7 @@ static uint64_t bin_gcd64(uint64_t u, uint64_t v)
 			// testing can begin on u-v without waiting for abs(u-v) to be
 			// determined."  Hence we are able to use sub1 for the argument.
 			// By removing the dependency on abs(u-v), the CPU can execute
-			// _trail_zcnt64() at the same time as abs(u-v).
+			// _trail_zcnt64(void) at the same time as abs(u-v).
 			j = _trail_zcnt64(sub1);
 			v = (uint64_t)(v >> j);
 		}
@@ -967,7 +975,7 @@ __inline static __m512i _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mma
     __m512i t = _mm512_sub_epi64(a, b);
     *cout = _mm512_cmpgt_epu64_mask(b, a);
     __m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));
-    *cout = _mm512_kor(*cout, _mm512_cmpgt_epu64_mask(t2, t));
+    *cout = (__mmask8)_mm512_kor(*cout, _mm512_cmpgt_epu64_mask(t2, t));
     t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
     return t2;
 }
@@ -976,7 +984,7 @@ __inline static __m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c,
     __m512i t = _mm512_mask_sub_epi64(a, m, a, b);
     *cout = _mm512_mask_cmpgt_epu64_mask(m, b, a);
     __m512i t2 = _mm512_mask_sub_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
-    *cout = _mm512_kor(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
+    *cout = (__mmask8)_mm512_kor(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
     t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
     return t2;
 }
@@ -1022,7 +1030,7 @@ void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0
 //void submod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
 //	__m512i b1, __m512i b0, __m512i n1, __m512i n0);
 
-void init_monty104();
+void init_monty104(void);
 
 __inline static void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
 	__m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0, __m512i vrho)
@@ -1038,14 +1046,14 @@ __inline static void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulm
 	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
 	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
 	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-	int biascount = 0;
-	__m512i i0, i1;
+	UNUSED_VAR int biascount = 0;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	__mmask8 scarry2;
+	UNUSED_VAR __mmask8 scarry2;
 	__mmask8 scarry;
 
 	t0 = t1 = t2 = t3 = C1 = C2 = zero;
@@ -1126,14 +1134,14 @@ __inline static void mulredc104_vec(__m512i* c1, __m512i* c0,
 	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
 	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
 	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-	int biascount = 0;
-	__m512i i0, i1;
+	UNUSED_VAR int biascount = 0;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	__mmask8 scarry2;
+	UNUSED_VAR __mmask8 scarry2;
 	__mmask8 scarry;
 
 	t0 = t1 = t2 = t3 = C1 = C2 = zero;
@@ -1212,14 +1220,14 @@ __inline static void sqrredc104_vec(__m512i* c1, __m512i* c0,
 	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
 	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
 	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-	int biascount = 0;
-	__m512i i0, i1;
+	UNUSED_VAR int biascount = 0;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	__mmask8 scarry2;
+	UNUSED_VAR __mmask8 scarry2;
 	__mmask8 scarry;
 
 	t0 = t1 = t2 = t3 = C1 = C2 = sqr_lo = sqr_hi = zero;
@@ -1291,14 +1299,14 @@ __inline static void mask_sqrredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulm
 	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
 	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
 	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-	int biascount = 0;
-	__m512i i0, i1;
+	UNUSED_VAR int biascount = 0;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	__mmask8 scarry2;
+	UNUSED_VAR __mmask8 scarry2;
 	__mmask8 scarry;
 
 	t0 = t1 = t2 = C1 = C2 = C3 = sqr_lo = sqr_hi = zero;
@@ -1378,14 +1386,14 @@ __inline static void mask_sqrredc104_vec_pos(__m512i* c1, __m512i* c0, __mmask8 
 	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
 	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
 	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-	int biascount = 0;
-	__m512i i0, i1;
+	UNUSED_VAR int biascount = 0;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	__mmask8 scarry2;
+	UNUSED_VAR __mmask8 scarry2;
 	__mmask8 scarry;
 
 	t0 = t1 = t2 = C1 = C2 = C3 = sqr_lo = sqr_hi = zero;
@@ -1462,14 +1470,14 @@ __inline static void mask_sqrredc104_exact_vec(__m512i* c1, __m512i* c0, __mmask
 	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
 	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
 	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
-	int biascount = 0;
-	__m512i i0, i1;
+	UNUSED_VAR int biascount = 0;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
-	__mmask8 scarry2;
+	UNUSED_VAR __mmask8 scarry2;
 	__mmask8 scarry;
 
 	t0 = t1 = t2 = C1 = C2 = C3 = sqr_lo = sqr_hi = zero;
@@ -1681,11 +1689,12 @@ __m512i multiplicative_inverse104_x8(uint64_t* a);
 
 #if defined(__SIZEOF_INT128__) && (__SIZEOF_INT128__ == 16)
 
-static void gcd128(uint64_t* u, uint64_t* v, uint64_t* w)
+static UNUSED_FUNC void gcd128(uint64_t* u, uint64_t* v, uint64_t* w);
+static UNUSED_FUNC void gcd128(uint64_t* u, uint64_t* v, uint64_t* w)
 {
 	uint128_t a, b, c;
-	a = (uint128_t)u[1] << 64 + (uint128_t)u[0]; 
-	b = (uint128_t)v[1] << 64 + (uint128_t)v[0];
+	a = ((uint128_t)u[1] << 64) + (uint128_t)u[0];
+	b = ((uint128_t)v[1] << 64) + (uint128_t)v[0];
 	while (b != 0)
 	{
 		c = a % b;
@@ -1697,7 +1706,8 @@ static void gcd128(uint64_t* u, uint64_t* v, uint64_t* w)
 	return;
 }
 
-static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
+static UNUSED_FUNC void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w);
+static UNUSED_FUNC void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 {
 	//w = gcd(u, v);
 	if ((u[1] == 0) && (u[0] == 0))
@@ -1707,7 +1717,7 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 		return;
 	}
 	if ((v[1] != 0) || (v[0] != 0)) {
-		int j = my_ctz128(v[0], v[1]);
+		int j = (int)my_ctz128(v[0], v[1]);
 		//v = (uint64_t)(v >> j);
 		//if (j > 64) printf("j overflow\n");
 		v[0] >>= j;
@@ -1748,7 +1758,7 @@ static void bin_gcd128(uint64_t *u, uint64_t *v, uint64_t *w)
 			// determined."  Hence we are able to use sub1 for the argument.
 			// By removing the dependency on abs(u-v), the CPU can execute
 			// _trail_zcnt64() at the same time as abs(u-v).
-			j = my_ctz128((uint64_t)s1, (uint64_t)(s1 >> 64));
+			j = (int)my_ctz128((uint64_t)s1, (uint64_t)(s1 >> 64));
 			//v = (uint64_t)(v >> j);
 			//if (j > 64) printf("j overflow\n");
 			v[0] >>= j;

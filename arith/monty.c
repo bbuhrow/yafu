@@ -102,11 +102,11 @@ int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat);
 
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t r2modn, mpz_t n)
 {
-    int nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS + 
+    size_t nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS +
         ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0);
 
     mpz_set_ui(r, 1);
-    mpz_mul_2exp(r, r, nfullwords * GMP_LIMB_BITS);
+    mpz_mul_2exp(r, r, (mp_bitcnt_t)(nfullwords * GMP_LIMB_BITS));
 
     return;
 }
@@ -692,7 +692,7 @@ void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 #ifdef _MSC_VER
 	uint64_t a_lo = *res_lo, a_hi = *res_hi;
 	uint64_t cshi, cslo, cchi, cclo;
-	uint64_t t0, t1, t2, t3, m, ignore;
+	uint64_t t0, t1, t2, t3, m;
 
 	//cc = (uint128_t)a_lo * b_lo;	// #1
 	//t0 = (uint64_t)cc;
@@ -821,7 +821,7 @@ void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 #else
 	uint64_t a_lo = *res_lo, a_hi = *res_hi;
 	uint128_t cs, cc;
-	uint64_t t0, t1, t2, t3, m, ignore;
+	uint64_t t0, t1, t2, t3, m;
 
 	cc = (uint128_t)a_lo * b_lo;	// #1
 	t0 = (uint64_t)cc;
@@ -904,7 +904,7 @@ void ciosModSqr128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 	ciosModMul128(res_lo, res_hi, b_lo, b_hi, mod_lo, mod_hi, mmagic);
 #else
 	uint128_t cs, cc, b_lohi;
-	uint64_t t0, t1, t2, t3, m, ignore;
+	uint64_t t0, t1, t2, t3, m;
 
 	cc = (uint128_t)b_lo * b_lo;	// #1
 	t0 = (uint64_t)cc;
@@ -1545,13 +1545,12 @@ void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0
 #ifndef IFMA
 	__m512d prod1_hd, prod2_hd;
 	__m512d prod1_ld, prod2_ld;
-	__m512i i0, i1;
+	UNUSED_VAR __m512i i0, i1;
 #endif
 
 	__m512i zero = _mm512_set1_epi64(0);
-	__m512i one = _mm512_set1_epi64(1);
-	__mmask8 scarry2;
-	__mmask8 scarry;
+	UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
+	UNUSED_VAR __mmask8 scarry2;
 
 	t0 = t1 = C1 = zero;
 
@@ -1585,7 +1584,7 @@ void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0
 __m512i multiplicative_inverse104_x8(uint64_t* a)
 {
 	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
-	__m512i x0, x1, x2, x3, x4, x5, y, n, i0, i1;
+	__m512i x0, x1, x2, x3, x4, y, n;
 	__m512i three = _mm512_set1_epi64(3), two = _mm512_set1_epi64(2), one = _mm512_set1_epi64(1);
 	__m512i lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
 

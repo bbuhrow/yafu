@@ -136,6 +136,45 @@ extern "C" {
 #define DEFAULT_L2_CACHE_SIZE (512 * 1024)
 
 // ============================================================================
+// compiler compatibility
+// ============================================================================
+
+// UNUSED_VAR: suppress "unreferenced local variable" warnings for a variable
+// that is intentionally kept (e.g. debug scaffolding, conditionally-used vars).
+// Place before the type in a declaration:
+//     UNUSED_VAR int x = 0;
+//     UNUSED_VAR __m512i one = _mm512_set1_epi64(1);
+//
+// UNUSED_FUNC: suppress "unreferenced local function" warnings for a static
+// function not called in every translation unit that includes its header.
+// Place between 'static' and the return type:
+//     static UNUSED_FUNC uint64_t my_helper(uint64_t x) { ... }
+
+#if defined(_MSC_VER)
+// __pragma(warning(suppress:N)) silences warning N on the immediately
+// following line only -- safe for per-variable use.
+// 4101 = unreferenced local variable
+// 4100 = unreferenced formal parameter
+#define UNUSED_VAR __pragma(warning(suppress: 4100 4101))
+// 4505 = unreferenced local function removed.
+// MSVC has no per-symbol attribute equivalent, so UNUSED_FUNC is empty here.
+// In any header that defines intentionally-unused static functions, add:
+//     #pragma warning(disable: 4505)
+// once near the top of that header (inside its include guard).
+#define UNUSED_FUNC
+#elif defined(__GNUC__) || defined(__clang__) || \
+      defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+// GCC, Clang, ICC (classic), and Intel LLVM (icx) all support
+// __attribute__((unused)) on both variables and functions.
+#define UNUSED_VAR __attribute__((unused))
+#define UNUSED_FUNC __attribute__((unused))
+#else
+// Unknown compiler: macros expand to nothing; warnings may still appear.
+#define UNUSED_VAR
+#define UNUSED_FUNC
+#endif
+
+// ============================================================================
 // precision time
 // ============================================================================
 
