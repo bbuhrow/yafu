@@ -365,6 +365,7 @@ typedef struct
     int poly_testsieve;
     int poly_percent_max;
     int batch_3lp;
+    int keep_afb;          // reuse the siever factor base cache (<jobfile>.afb.0) across q-ranges
 
 	double gnfs_exponent;
 	double gnfs_multiplier;

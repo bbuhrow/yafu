@@ -161,6 +161,8 @@ typedef struct
     struct timeval jobstart;
     snfs_t* snfs; // NULL if GNFS
     int filenumber;
+    int afb_cache_state;    // factor base cache: 0 = not primed yet, 1 = primed
+                            // and validated, -1 = disabled for this job
 } nfs_job_t;
 
 typedef struct {

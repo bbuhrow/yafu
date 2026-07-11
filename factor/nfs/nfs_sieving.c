@@ -1949,8 +1949,159 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 	return rb->num_success;
 }
 
+// The lattice sievers auto-load <jobfile>.afb.<side> whenever the file
+// exists (no command line switch needed), so a factor base cache must only
+// ever be on disk in a form that any siever in ggnfs_dir can use safely.
+// Sievers with cache validation append a 20-byte trailer (magic 0xafb00004)
+// when writing the cache, verify it against the current poly/params when
+// reading, and trim a full-alim cache down to the lowered FB bound that
+// applies while special-q < alim. Older sievers do none of this: they would
+// load a full-alim cache untrimmed at q < alim and silently produce a
+// different relation set. The trailer is therefore used as the capability
+// test: prime the cache once per nfs() run, and if the file comes back
+// without a trailer the siever is too old to trust with one.
+// these must match the trailer the sievers write: AFB_EXT_WORDS u32s
+// ending the file, the first of which is AFB_EXT_MAGIC (gnfs-lasieve4e.c)
+#define AFB_TRAILER_BYTES 20
+#define AFB_TRAILER_MAGIC 0xafb00004u
+
+// classify <jobfile>.afb.0: 1 = complete with validation trailer,
+// 0 = complete legacy format (pre-validation siever), -1 = missing/malformed
+static int nfs_afb_cache_kind(const char* afbname)
+{
+	FILE* f;
+	uint32_t fbsize, magic;
+	long len, legacy;
+
+	f = fopen(afbname, "rb");
+	if (f == NULL)
+		return -1;
+	if (fread(&fbsize, sizeof(uint32_t), 1, f) != 1)
+	{
+		fclose(f);
+		return -1;
+	}
+	if (fseek(f, 0, SEEK_END) != 0 || (len = ftell(f)) < 0)
+	{
+		fclose(f);
+		return -1;
+	}
+	// legacy layout: [u32 count][count primes][count roots][u32 xFB count]
+	legacy = (long)(2 * sizeof(uint32_t) + 2 * (size_t)fbsize * sizeof(uint32_t));
+	if (len == legacy + AFB_TRAILER_BYTES)
+	{
+		if (fseek(f, -AFB_TRAILER_BYTES, SEEK_END) != 0 ||
+			fread(&magic, sizeof(uint32_t), 1, f) != 1)
+		{
+			fclose(f);
+			return -1;
+		}
+		fclose(f);
+		return (magic == AFB_TRAILER_MAGIC) ? 1 : -1;
+	}
+	fclose(f);
+	return (len == legacy) ? 0 : -1;
+}
+
+// a cache we've decided not to trust must actually be gone: whatever
+// siever runs next would auto-load it
+static void nfs_afb_remove(const char* afbname)
+{
+	if (remove(afbname) != 0 && errno != ENOENT)
+	{
+		printf("nfs: could not remove %s (%s); sievers will auto-load it!\n",
+			afbname, strerror(errno));
+	}
+}
+
+static void nfs_afb_prime_cache(fact_obj_t* fobj, nfs_job_t* job)
+{
+	char afbname[GSTR_MAXSIZE + 8];
+	char syscmd[2 * GSTR_MAXSIZE + 32];
+
+	snprintf(afbname, sizeof(afbname), "%s.afb.0", fobj->nfs_obj.job_infile);
+
+	if (!fobj->nfs_obj.keep_afb)
+	{
+		// a cache left behind by an earlier keep_afb run (or seeded by hand)
+		// would still be auto-loaded by whatever siever runs next, so don't
+		// leave one around unless the user asked for caching
+		if (remove(afbname) == 0)
+		{
+			if (fobj->VFLAG > 0)
+				printf("nfs: removed factor base cache %s (keep_afb not set)\n",
+					afbname);
+		}
+		else if (errno != ENOENT)
+		{
+			printf("nfs: could not remove %s (%s); sievers will auto-load it!\n",
+				afbname, strerror(errno));
+		}
+		return;
+	}
+
+	if (job->afb_cache_state != 0)
+		return;		// already primed (1) or disabled (-1) for this job
+
+	// -c 0 builds the factor bases and exits without sieving anything;
+	// unlike a normal sieving run it skips the q-dependent FB_bound
+	// lowering, so the cache holds the complete factor base up to alim
+	// no matter where sieving starts. -F overwrites any stale file.
+	if (fobj->VFLAG > 0)
+		printf("nfs: building factor base cache %s\n", afbname);
+	snprintf(syscmd, sizeof(syscmd), "%s -b %s -k -c 0 -F",
+		job->sievername, fobj->nfs_obj.job_infile);
+	if (fobj->VFLAG > 1) printf("syscmd: %s\n", syscmd);
+	fflush(stdout);
+
+	if (system(syscmd) != 0)
+	{
+		// don't inspect what a failed call left behind: a stale but
+		// well-formed cache from an earlier job could pass the checks
+		if (fobj->VFLAG >= 0)
+			printf("nfs: factor base cache generation failed; "
+				"continuing without a cache\n");
+		logprint_oc(fobj->flogname, "a",
+			"nfs: factor base cache generation failed; keep_afb disabled\n");
+		nfs_afb_remove(afbname);
+		job->afb_cache_state = -1;
+		return;
+	}
+
+	switch (nfs_afb_cache_kind(afbname))
+	{
+	case 1:
+		job->afb_cache_state = 1;
+		logprint_oc(fobj->flogname, "a",
+			"nfs: factor base cache ready: %s\n", afbname);
+		break;
+	case 0:
+		if (fobj->VFLAG >= 0)
+			printf("nfs: %s does not support factor base cache validation; "
+				"ignoring keep_afb (update the sievers in ggnfs_dir to enable it)\n",
+				job->sievername);
+		logprint_oc(fobj->flogname, "a",
+			"nfs: siever lacks factor base cache validation; keep_afb disabled\n");
+		nfs_afb_remove(afbname);
+		job->afb_cache_state = -1;
+		break;
+	default:
+		if (fobj->VFLAG >= 0)
+			printf("nfs: unrecognized factor base cache format; "
+				"continuing without a cache\n");
+		logprint_oc(fobj->flogname, "a",
+			"nfs: unrecognized factor base cache format; keep_afb disabled\n");
+		nfs_afb_remove(afbname);
+		job->afb_cache_state = -1;
+		break;
+	}
+}
+
 void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
 {
+	// settle the factor base cache (build it, or remove a disallowed one)
+	// before any siever process is launched that could auto-load it
+	nfs_afb_prime_cache(fobj, job);
 
 #ifdef USE_THREADPOOL
 
@@ -2192,22 +2343,6 @@ void do_sieving_nfs(fact_obj_t *fobj, nfs_job_t *job)
             fclose(logfile);
         }
     }
-
-	if (0)
-	{
-		// it would be faster to write the .afb once rather than
-		// recompute it for every qrange that is run.  But if it
-		// doesn't get deleted when the job completes that could
-		// be problematic.  Need a way to query if existing .afb's
-		// are valid for the current run.  Not sure how to do that yet.
-		char syscmd[1024];
-		
-		sprintf(syscmd, "%s -b %s -k -c 0 -F", job->sievername, fobj->nfs_obj.job_infile);
-
-		if (fobj->VFLAG > 1) printf("syscmd: %s\n", syscmd);
-		if (fobj->VFLAG > 1) fflush(stdout);
-		system(syscmd);
-	}
 
 	// create a new lasieve process in each thread and watch it
 	for (i = 0; i < fobj->THREADS; i++)
