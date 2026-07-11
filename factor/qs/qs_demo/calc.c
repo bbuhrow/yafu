@@ -2351,7 +2351,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 42:
         // siqsbench
         if (check_args(funcnum, nargs)) break;
-        siqsbench(fobj);
+        siqsbench(fobj, metadata->comp_info);
         break;
 
 

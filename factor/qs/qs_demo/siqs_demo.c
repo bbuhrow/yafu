@@ -167,6 +167,7 @@ int main(int argc, char *argv[])
 #endif	
 
     calc_metadata.fobj = fobj;
+    calc_metadata.comp_info = &comp_info;
 
 	// check/process input arguments
 	run_type = check_expression(options);

@@ -45,6 +45,7 @@ extern "C" {
 #include "gmp.h"
 #include "factor.h"
 #include "soe.h"
+#include "ytools.h"
 
 // maximum length of strings, or characters in a string to process
 // as a chunk
@@ -117,6 +118,7 @@ typedef struct
 {
     fact_obj_t* fobj;
     soe_staticdata_t* sdata;
+    info_t* comp_info;
 } meta_t;
 
 // arbitrary precision calculator interface

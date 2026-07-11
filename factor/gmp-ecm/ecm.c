@@ -25,6 +25,9 @@ code to the public domain.
 #include <signal.h>
 #include <time.h>
 #include <math.h>
+#ifdef HAVE_GMP_ECM
+#include <ecm.h>
+#endif
 
 #ifdef __MINGW32__
 #include <sys/time.h>
@@ -575,13 +578,14 @@ void ecm_process_init(fact_obj_t* fobj)
 
 #if defined(HAVE_GMP_ECM) && defined(ECM_VERSION)
         sscanf(ECM_VERSION, "%f", &ver);
+        if (fobj->VFLAG > 1)
+        {
+            printf("ecm: found version %s (%1.2f)\n", ECM_VERSION, ver);
+        }
 #else
         ver = 6;
 #endif
 
-        //printf("ecm version: %f, string version: %s\n", ver, ECM_VERSION);
-
-        
         if (!fobj->ecm_obj.use_external)
         {
             if (ver >= 7.0)
