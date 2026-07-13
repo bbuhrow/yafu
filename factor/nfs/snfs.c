@@ -1060,22 +1060,26 @@ void find_direct_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
             for (i = 0, deg = 0; i < 7; i++)
             {
                 mpz_mod(r, t, m);
-                if (mpz_cmp_ui(r, 10000) < 1)
-                {
-                    deg = i;
+                if ((mpz_cmp_ui(r, 10000) < 1))
+				{
+					if (mpz_cmp_ui(r, 0) > 0)
+						deg = i;
                     c[i] = mpz_get_ui(r);
                     mpz_sub_ui(t, t, c[i]);
                     mpz_tdiv_q(t, t, m);
+					//printf("found coeff x^%d = %d, degree is now %d\n", i, c[i], deg);
                 }
                 else
                 {
                     mpz_sub(r, m, r);
-                    if (mpz_cmp_ui(r, 10000) < 1)
+					if ((mpz_cmp_ui(r, 10000) < 1))
                     {
-                        deg = i;
+						if (mpz_cmp_ui(r, 0) > 0)
+							deg = i;
                         c[i] = -(int)mpz_get_ui(r);
                         mpz_add_ui(t, t, -c[i]);
                         mpz_tdiv_q(t, t, m);
+						//printf("found coeff x^%d = %d, degree is now %d\n", i, c[i], deg);
                     }
                     else
                     {
