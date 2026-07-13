@@ -167,7 +167,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 2, 2, 1,          //  "extgcd", "fac2", "facm", "binom", "randp",
     2, 1, 1,                //  "hamdist", "rsa", "factor", 
     1,                      //  "siqs",
-    0                      //  "siqsbench"
+    1                      //  "siqsbench"
 };
 
 
@@ -2350,8 +2350,27 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
     case 42:
         // siqsbench
-        if (check_args(funcnum, nargs)) break;
-        siqsbench(fobj, metadata->comp_info);
+        if (nargs == 1)
+        {
+            uint32_t digit_limit = mpz_get_ui(operands[0]);
+            mpz_set_ui(operands[0], 1);
+            new_factorization(fobj, operands[0]);
+
+            siqsbench(fobj, metadata->comp_info, digit_limit);
+        }
+        else if (nargs == 0)
+        {
+            // set up a new factorization of the provided input
+            mpz_set_ui(operands[0], 1);
+            new_factorization(fobj, operands[0]);
+
+            siqsbench(fobj, metadata->comp_info, 90);
+        }
+        else
+        {
+            printf("wrong number of arguments in %s, expected %d (received %d)\n",
+                function_names[funcnum], function_nargs[funcnum], nargs);
+        }
         break;
 
 
