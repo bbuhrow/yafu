@@ -2314,6 +2314,7 @@ exit:
 			gmp_printf("gen: Aurifeuillian L-polynomial is possible for input %Zd^%d - %Zd^%d\n", x, n, y, n);
 	}
 	mpz_clear(r);
+
 	return success;
 }
 
@@ -3638,7 +3639,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	int is_aurif = 0;
 	int lm;
 
-	if (check_aurif(fobj->nfs_obj.gmp_n, poly->base1, poly->base2, poly->exp1, poly->coeff2))
+	if (!(poly->form_type == SNFS_DIRECT) &&
+		check_aurif(fobj->nfs_obj.gmp_n, poly->base1, poly->base2, poly->exp1, poly->coeff2))
 	{
 		polys = (snfs_t*)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -4172,9 +4174,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// compute skew
 		skew = pow(fabs(mpz_get_d(poly->c[0])) / mpz_get_d(poly->c[deg]), 1. / (double)deg);
 
-		//printf("degree is %d\n", deg);
-		//printf("skew is %lf\n", skew);
-		//printf("difficulty is %lf\n", d);
+		//printf("gen: DIRECT POLY degree is %d\n", deg);
+		//printf("gen: DIRECT POLY skew is %lf\n", skew);
+		//printf("gen: DIRECT POLY difficulty is %lf\n", d);
 
 		poly->difficulty = d;
 		mpz_set(poly->poly->m, m);
