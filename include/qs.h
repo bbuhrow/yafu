@@ -27,7 +27,7 @@ code to the public domain.
 
 
 extern void SIQS(fact_obj_t* qsobj);
-extern void siqsbench(fact_obj_t* qsobj, info_t *comp_info);
+extern void siqsbench(fact_obj_t* qsobj, info_t *comp_info, uint32_t digit_limit);
 
 #endif /* _SIQS_H_ */
 

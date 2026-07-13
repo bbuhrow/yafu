@@ -458,7 +458,7 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 	return 0;
 }
 
-void siqsbench(fact_obj_t* fobj, info_t* comp_info)
+void siqsbench(fact_obj_t* fobj, info_t* comp_info, uint32_t digit_limit)
 {
 	// Run through the list of benchmark SIQS factorizations and emit
 	// a Markdown results row to siqs_bench.md for use on the YAFU wiki.
@@ -471,9 +471,9 @@ void siqsbench(fact_obj_t* fobj, info_t* comp_info)
 	// The file is opened in append mode so successive runs accumulate rows.
 	// A header block is written only when the file is empty / newly created.
 
-	// ------------------------------------------------------------------ //
-	//  Benchmark inputs (digit counts: 44 50 55 60 65 70 74 80 85)       //
-	// ------------------------------------------------------------------ //
+	// -------------------------------------------------------------------------//
+	//  Benchmark inputs (digit counts: 44 50 55 60 65 70 74 80 85 90 95 100)   //
+	// -------------------------------------------------------------------------//
 	const char* list[] = {
 		"405461849292216354219321922871108605045931309",                             /* 44 */
 		"29660734457033883936073030405220515257819037444591",                        /* 50 */
@@ -483,16 +483,19 @@ void siqsbench(fact_obj_t* fobj, info_t* comp_info)
 		"6470287906463336878241474855987746904297564226439499503918586590778209",    /* 70 */
 		"281396163585532137380297959872159569353696836686080935550459706878100362721",           /* 74 */
 		"33727095233132290409342213138708322681737322487170896778164145844669592994743377",      /* 80 */
-		"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561"  /* 85 */
+		"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561",  /* 85 */
+		"427351849650748515507228344120452096326780093349980867041485502247153375067354165128307841",
+		"48404068520546498995797968938385187958997290617596242601254422967869040251141325866025672337021",
+		"1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729"
 	};
-	const int digit_sizes[] = { 44, 50, 55, 60, 65, 70, 74, 80, 85 };
-	int num_bench = 9;
+	const int digit_sizes[] = { 44, 50, 55, 60, 65, 70, 74, 80, 85, 90, 95, 100 };
+	int num_bench = 12;
 
 	// ------------------------------------------------------------------ //
 	//  Storage for per-input timings captured before reset_factobj()      //
 	// ------------------------------------------------------------------ //
-	double qs_time[9];
-	double total_time[9];
+	double qs_time[12];
+	double total_time[12];
 
 	// ------------------------------------------------------------------ //
 	//  Build the System cell content                                       //
@@ -621,7 +624,7 @@ void siqsbench(fact_obj_t* fobj, info_t* comp_info)
 
 	// Compose System cell: bold CPU name, then one line per attribute
 	snprintf(system_cell, sizeof(system_cell),
-		"**%s**<br>%s<br>%s<br>%s<br>%d threads",
+		"**%s** <br>%s<br>%s<br>%s<br>%d threads",
 		comp_info->idstr,
 		os_str,
 		compiler_str,
@@ -650,6 +653,10 @@ void siqsbench(fact_obj_t* fobj, info_t* comp_info)
 
 	for (int i = 0; i < num_bench; i++)
 	{
+		if (digit_sizes[i] > digit_limit)
+		{
+			break;
+		}
 		mpz_set_str(f.qs_obj.gmp_n, list[i], 10);
 		mpz_set(f.input_N, f.qs_obj.gmp_n);
 		mpz_set(f.N, f.qs_obj.gmp_n);
@@ -729,7 +736,17 @@ void siqsbench(fact_obj_t* fobj, info_t* comp_info)
 		// Data row
 		fprintf(md, "| %s | %s |", system_cell, fobj->yafu_version);
 		for (int i = 0; i < num_bench; i++)
-			fprintf(md, " %.2f<br>(%.2f) |", qs_time[i], total_time[i]);
+		{
+			if (digit_sizes[i] > digit_limit)
+			{
+				fprintf(md, " |");
+			}
+			else
+			{
+				fprintf(md, " %.2f<br>(%.2f) |", qs_time[i], total_time[i]);
+			}
+		}
+			
 		fprintf(md, "\n");
 
 		fclose(md);
