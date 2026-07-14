@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #define _POSIX_C_SOURCE 200809L
+#include <inttypes.h>
 #include "siqs_demo.h"
 #include "soe.h"
 #include "calc.h"

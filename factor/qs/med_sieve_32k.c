@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 
+#include <inttypes.h>
 #include "qs_impl.h"
 #include "sieve_macros_32k.h"
 

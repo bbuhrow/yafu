@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include "yafu.h"
 #include "microecm.h"
 #include "tinyecm.h"

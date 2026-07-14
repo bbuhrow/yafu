@@ -18,6 +18,7 @@ improved to handle relations with LPB larger than 32 bits on
 either or both sides.
 --------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include <stdint.h>
 #include "batch_factor.h"
 #include "monty.h"

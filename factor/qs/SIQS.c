@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include "factor.h"
 #include "qs.h"
 #include "qs_impl.h"

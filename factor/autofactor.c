@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 3/26/10
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include <stdio.h>
 #include "yafu.h"
 #include "soe.h"

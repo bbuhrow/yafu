@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include <inttypes.h>
 #include "soe.h"
 #include "soe_impl.h"
 #include "ytools.h"

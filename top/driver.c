@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #define _POSIX_C_SOURCE 200112L
+#include <inttypes.h>
 #include "yafu.h"
 #include "soe.h"
 #include "calc.h"

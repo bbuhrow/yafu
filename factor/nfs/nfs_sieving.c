@@ -14,6 +14,7 @@ benefit from your work.
 
 #define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
+#include <inttypes.h>
 #include "ytools.h"
 #include "nfs_impl.h"
 #include "batch_factor.h"

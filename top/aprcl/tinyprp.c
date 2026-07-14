@@ -42,6 +42,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <immintrin.h>
 #include <stdlib.h>

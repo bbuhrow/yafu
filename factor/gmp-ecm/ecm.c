@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/2/10
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include "yafu_ecm.h"
 #include "factor.h"
 #include "calc.h"
