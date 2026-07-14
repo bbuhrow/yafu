@@ -2545,7 +2545,7 @@ void* process_poly(void* vptr)
             int bi;
             int cb;
             uint32_t bv;
-            int** ptr;
+            int* ptr;
             uint32_t* sl_p;
             uint32_t* sl_n;
             uint32_t* np_p;

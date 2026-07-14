@@ -89,12 +89,12 @@
 #else
 #define USE_SSE41 1
 #endif
-
-//#define USE_AVX2 1
 #endif
 
-// assume we have SSE2 available
+// assume we have SSE2 available on x86 architectures
+#ifdef __x86_64__
 #define D_HAS_SSE2
+#endif
 
 #if (defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)) || \
     (defined(_MSC_VER) && defined(__clang__))
