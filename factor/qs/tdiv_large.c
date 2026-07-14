@@ -910,6 +910,210 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     return;
 }
+#else
+
+void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    int i, j, k;
+    uint32_t basebucket, prime;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    uint32_t* bptr;
+    uint32_t* fb = sconf->sieve_primes;
+    uint32_t block_loc;
+    uint64_t mask;
+    uint16_t buffer[32];
+
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
+    int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
+    int pnum;
+
+    if (dconf->numB == 1)
+    {
+        poly_offset = 0;
+    }
+    else if (poly_offset < 0)
+    {
+        poly_offset += dconf->poly_batchsize;
+    }
+    pnum = poly_offset;
+    poly_offset = poly_offset * 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+#endif
+
+    fb_offsets = &dconf->fb_offsets[report_num][0];
+    smooth_num = dconf->smooth_num[report_num];
+    block_loc = dconf->reports[report_num];
+
+    mask = ((uint64_t)block_loc << 32) | (uint64_t)block_loc;
+
+    //primes bigger than med_B are bucket sieved, so we need
+    //only search through the bucket and see if any locations match the
+    //current block index.
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
+    bptr = dconf->buckets->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
+#else
+    bptr = dconf->buckets->list + (bnum << BUCKET_BITS);
+#endif
+
+    if (parity)
+    {
+        bptr += (sconf->num_blocks << BUCKET_BITS);
+        basebucket = sconf->num_blocks;
+    }
+    else
+    {
+        basebucket = 0;
+    }
+
+#if defined(USE_BATCHPOLY_X2)
+    for (k = 0; (uint32_t)k < dconf->buckets->num_slices_batch[pnum]; k++)
+#else
+    for (k = 0; (uint32_t)k < dconf->buckets->num_slices; k++)
+#endif
+    {
+
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
+        uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
+#else
+        uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket);
+        //uint32_t lpnum = bptr[0];
+#endif
+
+        int r, q;
+#if defined(USE_BATCHPOLY_X2)
+        uint32_t fb_bound = *(dconf->buckets->fb_bounds + k + pnum * dconf->buckets->alloc_slices);
+#else
+        uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
+#endif
+        uint32_t result = 0;
+
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
+        {
+            // noticably faster to not put these in a loop!
+            if ((bptr[j] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 1] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 1] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 2] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 2] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 3] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 3] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+
+            if ((bptr[j + 4] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 4] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 5] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 5] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 6] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 6] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 7] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 7] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+
+            if ((bptr[j + 8] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 8] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 9] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 9] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 10] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 10] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 11] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 11] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+
+            if ((bptr[j + 12] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 12] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 13] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 13] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 14] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 14] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 15] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 15] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+
+        }
+
+        // leftover bucket elements to check after doing 16x at a time
+        for (; (uint32_t)j < lpnum; j++)
+        {
+            if ((bptr[j] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+        //point to the next slice of primes
+        bptr += (sconf->num_blocks << (BUCKET_BITS + 1));
+        basebucket += (sconf->num_blocks << 1);
+    }
+
+
+    dconf->smooth_num[report_num] = smooth_num;
+    return;
+}
+
 #endif
 
 #if defined(USE_AVX512F)

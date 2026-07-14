@@ -2542,9 +2542,28 @@ void* process_poly(void* vptr)
 
         if (sconf->obj->HAS_AVX512F)
         {
-            //nextRoots_32k_avx2_intrin(sconf, dconf);
+            int bi;
+            int cb;
+            uint32_t bv;
+            int** ptr;
+            uint32_t* sl_p;
+            uint32_t* sl_n;
+            uint32_t* np_p;
+            uint32_t* np_n;
+
             nextRoots_32k_avx2_small(sconf, dconf);
-            nextRoots_32k_knl_bucket(sconf, dconf);
+
+            if (num_blocks > 16)
+                nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
+                    &ptr, &np_p, &np_n, &sl_p, &sl_n);
+            else
+                nextRoots_32k_knl_medbucket(sconf, dconf, &bi, &cb, &bv,
+                    &ptr, &np_p, &np_n, &sl_p, &sl_n);
+            
+            nextRoots_32k_knl_largebucket(sconf, dconf, bi, cb, bv,
+                ptr, np_p, np_n, sl_p, sl_n);
+
+            //nextRoots_32k_knl_bucket(sconf, dconf);
         }
         else
         {
@@ -4350,17 +4369,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         }
 	}
 
-	// based on the size of the input, determine how to proceed.
-    // this should maybe be tuned based on machine type and/or other
-    // factors as well, not just instruction set used during compile.
-#if (defined(USE_AVX2) || defined(USE_SSE41))
-    if (sconf->obj->HAS_SSE41 || sconf->obj->HAS_AVX2 || sconf->obj->HAS_AVX512F)
-        dlp_cutoff = 70;
-    else
-        dlp_cutoff = 77;
-#else
-    dlp_cutoff = 77;
-#endif
+    // start using DLP at 70 digits
+    dlp_cutoff = 70;
 
     // don't use tlp unless forced.  too much can go wrong still.
     tlp_cutoff = 221;
