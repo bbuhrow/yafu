@@ -1,11 +1,11 @@
 # .github/workflows/build-linux.yml
 #
 # GitHub Actions CI/CD for YAFU — Linux (Ubuntu)
-# Uses unified Linux/MSYS2 makefile
+# Uses Makefile.new (unified Linux/MSYS2 makefile)
 #
 # GMP:     Installed via apt (libgmp-dev). gmp.h lands in /usr/include and
 #          libgmp.a/.so in /usr/lib/x86_64-linux-gnu, both of which are in
-#          the Makefile's default SYS_INC_PATHS / SYS_LIB_PATHS for Linux.
+#          Makefile.new's default SYS_INC_PATHS / SYS_LIB_PATHS for Linux.
 #          GMP_PREFIX is passed explicitly to remove any ambiguity.
 #
 # GMP-ECM: Built from source and cached, same approach as build-windows.yml.
@@ -37,6 +37,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: ubuntu:20.04   # GLIBC 2.31 — maximises compatibility with older Linux systems
     name: ${{ matrix.artifact_name }}
 
     strategy:
@@ -47,27 +49,27 @@ jobs:
 
           # Any x86-64 CPU — widest compatibility
           - target:        generic
-            make_flags:    "ECM=1 OMP=1"
+            make_flags:    "ECM=1"
             artifact_name: yafu-linux-generic
 
           # SSE 4.1 — Intel Core 2 / Penryn (2008) and newer
           - target:        sse41
-            make_flags:    "ECM=1 OMP=1 USE_SSE41=1"
+            make_flags:    "ECM=1 USE_SSE41=1"
             artifact_name: yafu-linux-sse41
 
           # AVX2 + BMI2 — Haswell (2013) and newer, recommended for most users
           - target:        avx2
-            make_flags:    "ECM=1 OMP=1 USE_AVX2=1 USE_BMI2=1"
+            make_flags:    "ECM=1 USE_AVX2=1 USE_BMI2=1"
             artifact_name: yafu-linux-avx2
 
           # AVX-512 F/BW — Skylake-X, Cascade Lake, Zen 4
           - target:        avx512
-            make_flags:    "ECM=1 OMP=1 USE_AVX512=1"
+            make_flags:    "ECM=1 USE_AVX512=1"
             artifact_name: yafu-linux-avx512
 
           # AVX-512 + IFMA — Ice Lake and later, best ECM performance
           - target:        avx512ifma
-            make_flags:    "ECM=1 OMP=1 USE_AVX512IFMA=1"
+            make_flags:    "ECM=1 USE_AVX512IFMA=1"
             artifact_name: yafu-linux-avx512ifma
 
     steps:
@@ -78,14 +80,16 @@ jobs:
       # ── 2. Install GMP and build tools via apt ────────────────────────────────
       - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
+          DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
             gcc \
             make \
             libgmp-dev \
             autoconf \
             automake \
-            libtool
+            libtool \
+            git \
+            curl
           echo "=== GMP install verification ==="
           find /usr -name "gmp.h" 2>/dev/null
           find /usr -name "libgmp.*" 2>/dev/null
@@ -116,7 +120,7 @@ jobs:
           autoreconf -i
           ./configure \
             --prefix="$HOME/ecm-install" \
-            --enable-shared \
+            --disable-shared \
             --enable-static
           make -j$(nproc)
           make install
@@ -129,7 +133,7 @@ jobs:
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
             ECM_PREFIX="$HOME/ecm-install" \
-            STATIC_LIBS="-static"
+            USER_LDFLAGS="-static"
 
       # ── 5. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
@@ -139,7 +143,7 @@ jobs:
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
             ECM_PREFIX="$HOME/ecm-install" \
-            STATIC_LIBS="-static"
+            USER_LDFLAGS="-static"
 
       # ── 6. Rename to target-specific name ────────────────────────────────────
       - name: Stage artifact
@@ -181,7 +185,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   release:
     needs: build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04  # release job just uploads — no container needed
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write

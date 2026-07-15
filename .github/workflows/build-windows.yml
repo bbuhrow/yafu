@@ -49,27 +49,27 @@ jobs:
 
           # Any x86-64 CPU — widest compatibility
           - target:        generic
-            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1"
+            make_flags:    "ECM=1 MINGW=1 STATIC_WIN=1"
             artifact_name: yafu-windows-generic.exe
 
           # SSE 4.1 — Intel Core 2 / Penryn (2008) and newer
           - target:        sse41
-            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_SSE41=1"
+            make_flags:    "ECM=1 MINGW=1 STATIC_WIN=1 USE_SSE41=1"
             artifact_name: yafu-windows-sse41.exe
 
           # AVX2 + BMI2 — Haswell (2013) and newer, recommended for most users
           - target:        avx2
-            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_AVX2=1 USE_BMI2=1"
+            make_flags:    "ECM=1 MINGW=1 STATIC_WIN=1 USE_AVX2=1 USE_BMI2=1"
             artifact_name: yafu-windows-avx2.exe
 
           # AVX-512 F/BW — Skylake-X, Cascade Lake, Zen 4
           - target:        avx512
-            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_AVX512=1"
+            make_flags:    "ECM=1 MINGW=1 STATIC_WIN=1 USE_AVX512=1"
             artifact_name: yafu-windows-avx512.exe
 
           # AVX-512 + IFMA — Ice Lake and later, best ECM performance
           - target:        avx512ifma
-            make_flags:    "ECM=1 OMP=1 MINGW=1 STATIC_WIN=1 USE_AVX512IFMA=1"
+            make_flags:    "ECM=1 MINGW=1 STATIC_WIN=1 USE_AVX512IFMA=1"
             artifact_name: yafu-windows-avx512ifma.exe
 
     steps:
