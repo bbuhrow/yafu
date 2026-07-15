@@ -1,11 +1,11 @@
 # .github/workflows/build-linux.yml
 #
 # GitHub Actions CI/CD for YAFU — Linux (Ubuntu)
-# Uses Makefile.new (unified Linux/MSYS2 makefile)
+# Uses unified Linux/MSYS2 makefile
 #
 # GMP:     Installed via apt (libgmp-dev). gmp.h lands in /usr/include and
 #          libgmp.a/.so in /usr/lib/x86_64-linux-gnu, both of which are in
-#          Makefile.new's default SYS_INC_PATHS / SYS_LIB_PATHS for Linux.
+#          the Makefile's default SYS_INC_PATHS / SYS_LIB_PATHS for Linux.
 #          GMP_PREFIX is passed explicitly to remove any ambiguity.
 #
 # GMP-ECM: Built from source and cached, same approach as build-windows.yml.
@@ -124,7 +124,7 @@ jobs:
       # ── 4. Show resolved build configuration (useful for debugging failures) ──
       - name: Show build config (${{ matrix.target }})
         run: |
-          make -f Makefile.new info \
+          make info \
             ${{ matrix.make_flags }} \
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
@@ -134,7 +134,7 @@ jobs:
       # ── 5. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
         run: |
-          make -f Makefile.new yafu \
+          make yafu \
             ${{ matrix.make_flags }} \
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
