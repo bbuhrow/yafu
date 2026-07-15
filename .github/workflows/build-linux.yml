@@ -78,16 +78,14 @@ jobs:
       # ── 2. Install GMP and build tools via apt ────────────────────────────────
       - name: Install dependencies
         run: |
-          DEBIAN_FRONTEND=noninteractive apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          sudo apt-get update -qq
+          sudo apt-get install -y \
             gcc \
             make \
             libgmp-dev \
             autoconf \
             automake \
-            libtool \
-            git \
-            curl
+            libtool
           echo "=== GMP install verification ==="
           find /usr -name "gmp.h" 2>/dev/null
           find /usr -name "libgmp.*" 2>/dev/null
