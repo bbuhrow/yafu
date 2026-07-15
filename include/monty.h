@@ -780,25 +780,17 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 #include <immintrin.h>
 
 
-#define and64 _mm512_and_epi64
-#define store64 _mm512_store_epi64
-#ifdef __clang__
+#define and64 _mm512_and_si512
+#define store64 _mm512_store_si512
 #define storeu64 _mm512_storeu_si512
-#else
-#define storeu64 _mm512_storeu_epi64
-#endif
-#define mstoreu64 _mm512_mask_storeu_epi64
+#define mstoreu64 _mm512_mask_storeu_si512
 #define storeu512 _mm512_storeu_si512
 #define add64 _mm512_add_epi64
 #define sub64 _mm512_sub_epi64
 #define set64 _mm512_set1_epi64
 #define srli64 _mm512_srli_epi64
-#define load64 _mm512_load_epi64
-#ifdef __clang__
+#define load64 _mm512_load_si512
 #define loadu64 _mm512_loadu_si512
-#else
-#define loadu64 _mm512_loadu_epi64
-#endif
 #define loadu512 _mm512_loadu_si512
 #define castpd _mm512_castsi512_pd
 #define castepu _mm512_castpd_si512
