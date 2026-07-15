@@ -173,8 +173,8 @@ If you have AVX-512 on your CPU, YAFU will also use **AVX-ECM** as the default E
 # Exercises many of yafu's algorithms
 yafu "factor(2056802480868100646375721251575555494408897387375737955882170045672576386016591560879707933101909539325829251496440620798637813)"
 
-# Neat ECM example
-yafu "ecm(140870298550359924914704160737419905257747544866892632000062896476968602578482966342704)"
+# Neat example involving ecm and siqs
+yafu "factor(140870298550359924914704160737419905257747544866892632000062896476968602578482966342704)"
 ```
 
 If you build YAFU on a new platform or with a new compiler — or build a binary that beats one of the pre-compiled releases for a specific CPU — the maintainer would like to hear about it.
