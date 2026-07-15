@@ -25,7 +25,11 @@ Purpose:	Port into Yafu-1.14.
 #include <pthread.h>
 #endif
 
+
+#if defined(__x86_64__) && !defined(FORCE_GENERIC)
+// protect non-x86 builds
 #define HAS_MMX
+#endif
 #define HAS_CMOV
 
 #ifdef __cplusplus

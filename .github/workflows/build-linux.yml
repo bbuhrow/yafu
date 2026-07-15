@@ -36,7 +36,7 @@ jobs:
   # BUILD — one parallel runner per CPU target
   # ─────────────────────────────────────────────────────────────────────────────
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: ${{ matrix.artifact_name }}
 
     strategy:
@@ -124,27 +124,30 @@ jobs:
       # ── 4. Show resolved build configuration (useful for debugging failures) ──
       - name: Show build config (${{ matrix.target }})
         run: |
-          make info \
+          make -f Makefile.new info \
             ${{ matrix.make_flags }} \
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
-            ECM_PREFIX="$HOME/ecm-install"
+            ECM_PREFIX="$HOME/ecm-install" \
+            STATIC_LIBS="-static"
 
       # ── 5. Build ──────────────────────────────────────────────────────────────
       - name: Build (${{ matrix.target }})
         run: |
-          make yafu \
+          make -f Makefile.new yafu \
             ${{ matrix.make_flags }} \
             GMP_INCDIR="$GMP_INC" \
             GMP_LIBDIR="$GMP_LIB" \
-            ECM_PREFIX="$HOME/ecm-install"
+            ECM_PREFIX="$HOME/ecm-install" \
+            STATIC_LIBS="-static"
 
       # ── 6. Rename to target-specific name ────────────────────────────────────
       - name: Stage artifact
         run: cp yafu ${{ matrix.artifact_name }}
 
-      # ── 7. Show shared library dependencies ──────────────────────────────────
-      # Dynamic linking against system libs is normal and expected on Linux.
+      # ── 7. Verify static linkage ─────────────────────────────────────────────
+      # Builds are fully static (-static) so ldd should show only the vdso
+      # and the dynamic linker itself. libecm, libgmp, libc etc. must not appear.
       # This step prints deps to the log for visibility but does not fail.
       - name: Show shared library dependencies (${{ matrix.target }})
         run: |
@@ -178,7 +181,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write

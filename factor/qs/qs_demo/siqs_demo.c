@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 	// set defaults for various things and read the .ini file, if any.
 	siqs_init(&obj);
     options = initOpt();
-    readINI("siqs.ini", options);
+    //readINI("siqs.ini", options);
 
     // then process the command line, overriding any .ini settings.
     processOpts(argc, argv, options);
@@ -540,65 +540,118 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 	if (VFLAG >= 0)
 		printf("\n\n");
 
-	if (VFLAG > 0)
-	{	
-		logprint(NULL,"System/Build Info: \n");
-        fflush(stdout);
-	}
-    logprint(logfile, "=====================================\n");
-	logprint(logfile,"System/Build Info: \n");
-
-    if (VFLAG > 0)
+    if ((VFLAG > 0) || !is_cmdline_run)
     {
+        logprint(NULL, "System/Build Info: \n");
+        fflush(stdout);
+    }
+    logprint(logfile, "=====================================\n");
+    logprint(logfile, "System/Build Info: \n");
+
+    if ((VFLAG > 0) || !is_cmdline_run)
+    {
+        //printf("YAFU Version %s\n", YAFU_VERSION_STRING);
+        //logprint(logfile, "YAFU Version %s\n", YAFU_VERSION_STRING);
 #ifdef _MSC_VER
 #if defined(__INTEL_COMPILER)
         printf("Built with Microsoft Visual Studio %d and Intel Compiler %d\n", _MSC_VER, __INTEL_COMPILER);
+        logprint(logfile, "Built with Microsoft Visual Studio %d and Intel Compiler %d\n", _MSC_VER, __INTEL_COMPILER);
 #elif defined(__INTEL_LLVM_COMPILER)
         printf("Built with Microsoft Visual Studio %d and Intel LLVM Compiler %d\n", _MSC_VER, __clang_version__);
+        logprint(logfile, "Built with Microsoft Visual Studio %d and Intel LLVM Compiler %d\n", _MSC_VER, __clang_version__);
+#elif defined(__clang_version__)
+        printf("Built with Microsoft Visual Studio %d and LLVM Compiler %s\n", _MSC_VER, __clang_version__);
+        logprint(logfile, "Built with Microsoft Visual Studio %d and LLVM Compiler %s\n", _MSC_VER, __clang_version__);
 #else
         printf("Built with Microsoft Visual Studio %d\n", _MSC_VER);
+        logprint(logfile, "Built with Microsoft Visual Studio % d\n", _MSC_VER);
 #endif
 #elif defined (__INTEL_COMPILER)
         printf("Built with Intel Compiler %d\n", __INTEL_COMPILER);
-#elif defined (__INTEL_LLVM_COMPILER)
+        logprint(logfile, "Built with Intel Compiler %d\n", __INTEL_COMPILER);
+#elif defined(__INTEL_LLVM_COMPILER)
         printf("Built with Intel LLVM Compiler %s\n", __clang_version__);
+        logprint(logfile, "Built with Intel LLVM Compiler %s\n", __clang_version__);
+#elif defined(__clang_version__)
+        printf("Built with llvm compiler %s\n", __clang_version__);
+        logprint(logfile, "Built with llvm compiler %s\n", __clang_version__);
 #elif defined (__GNUC__)
         printf("Built with GCC %d\n", __GNUC__);
+        logprint(logfile, "Built with GCC %d\n", __GNUC__);
 #else 
         printf("Built with undefined compiler\n");
+        logprint(logfile, "Built with undefined compiler\n");
 #endif
 
 #ifdef _MSC_MPIR_VERSION
         printf("Powered by MPIR %s\n", _MSC_MPIR_VERSION);
-        logprint(logfile,"Powered by MPIR %s\n",_MSC_MPIR_VERSION);
+        logprint(logfile, "Powered by MPIR %s\n", _MSC_MPIR_VERSION);
+#else
+#ifdef __GNU_MP_VERSION
+        printf("Powered by GMP %d.%d.%d\n", 
+            __GNU_MP_VERSION, __GNU_MP_VERSION_MINOR, __GNU_MP_VERSION_PATCHLEVEL);
+        logprint(logfile, "Powered by GMP %d.%d.%d\n", 
+            __GNU_MP_VERSION, __GNU_MP_VERSION_MINOR, __GNU_MP_VERSION_PATCHLEVEL);
 #else
         printf("Powered by GMP\n");
-        logprint(logfile,"Powered by GMP\n");
+        logprint(logfile, "Powered by GMP\n");
+#endif
+
 #endif
 
         fflush(stdout);
     }
 
-    logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-		comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
-    if (numwit == 1)
-    {
-        logprint(logfile, "using %u random witness for Rabin-Miller PRP checks\n", numwit);
-    }
-    else
-    {
-        logprint(logfile, "using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
-    }
+    logprint(logfile, "detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
+        comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
 
-	if (VFLAG > 0)
-	{		
-		printf("Detected %s\nDetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
+    logprint(logfile, "CPU features enabled: ");
+#ifdef USE_SSE41 
+    if (comp_info->bSSE41Extensions) logprint(logfile, "SSE41 ");
+#endif
+#ifdef USE_AVX2
+    if (comp_info->AVX2) logprint(logfile, "AVX2 ");
+#endif
+#ifdef USE_BMI2
+    if (comp_info->BMI2) logprint(logfile, "BMI2 ");
+#endif
+#ifdef USE_AVX512F
+    if (comp_info->AVX512F) logprint(logfile, "AVX512F ");
+#endif
+#ifdef USE_AVX512BW
+    if (comp_info->AVX512BW) logprint(logfile, "AVX512BW ");
+#endif
+#ifdef IFMA
+    if (comp_info->AVX512IFMA) logprint(logfile, "AVX512IFMA ");
+#endif
+    logprint(logfile, "\n");
+
+    if (VFLAG > 0 || !is_cmdline_run)
+    {
+        printf("Detected %s\nDetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
             comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
-        if (numwit == 1)
-		    printf("Using %u random witness for Rabin-Miller PRP checks\n\n", numwit);
-        else
-            printf("Using %u random witnesses for Rabin-Miller PRP checks\n\n", numwit);
-	}
+
+        printf("CPU features enabled: ");
+#ifdef USE_SSE41 
+        if (comp_info->bSSE41Extensions) printf("SSE41 ");
+#endif
+#ifdef USE_AVX2
+        if (comp_info->AVX2) printf("AVX2 ");
+#endif
+#ifdef USE_BMI2
+        if (comp_info->BMI2) printf("BMI2 ");
+#endif
+#ifdef USE_AVX512F
+        if (comp_info->AVX512F) printf("AVX512F ");
+#endif
+#ifdef USE_AVX512BW
+        if (comp_info->AVX512BW) printf("AVX512BW ");
+#endif
+#ifdef IFMA 
+        if (comp_info->AVX512IFMA) printf("AVX512IFMA ");
+#endif
+        printf("\n");
+    }
 
 	return;
 }

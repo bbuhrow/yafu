@@ -281,7 +281,11 @@ enum cpu_type get_cpu_type(void);
    the classic Pentium */
 
 #define HAS_CMOV
+
+#if defined(__x86_64__) && !defined(FORCE_GENERIC)
+// protect non-x86 builds
 #define HAS_MMX
+#endif
 
 #if defined(CPU_GENERIC)
 	#define MANUAL_PREFETCH
