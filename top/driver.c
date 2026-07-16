@@ -30,7 +30,9 @@ code to the public domain.
 #include "microecm.h"
 #include "cofactorize.h"
 #include <ecm.h>
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #include <stdio.h>
 #include "tinyecm.h"
 

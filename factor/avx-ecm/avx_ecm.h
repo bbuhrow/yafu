@@ -30,7 +30,9 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include "ytools.h"
 #include <stdint.h>
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 #define INV_2_POW_64 5.4210108624275221700372640043497e-20
 

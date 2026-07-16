@@ -53,7 +53,9 @@ SOFTWARE.
 #include "arith.h"
 #include "gmp.h"
 #include <stdint.h>
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #include <stdio.h>
 
 #ifdef __GNUC__

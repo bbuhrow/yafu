@@ -79,7 +79,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 #else
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #endif
 
 // Using the inline asm in this file can increase performance by ~20-25%

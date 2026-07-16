@@ -44,7 +44,9 @@
 
 #include <inttypes.h>
 #include <stdint.h>
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include "tinyprp.h"

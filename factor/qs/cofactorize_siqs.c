@@ -9,7 +9,9 @@
 #include <time.h>
 #include "common.h"
 #include "cofactorize.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 #ifndef M_LN2
 #define M_LN2 0.69314718055994530942

@@ -28,7 +28,9 @@ code to the public domain.
 #include <stdlib.h>
 #include <stdio.h>
 #include "cmdOptions.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #ifdef _MSC_VER
 #include <io.h> //_isatty
 #endif

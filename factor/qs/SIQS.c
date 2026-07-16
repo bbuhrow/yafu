@@ -26,7 +26,9 @@ code to the public domain.
 #include "gmp_xface.h"
 #include "threadpool.h"
 #include "cofactorize.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 #ifdef USE_BATCH_FACTOR
 #include "batch_factor.h"

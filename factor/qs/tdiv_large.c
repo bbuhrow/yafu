@@ -54,7 +54,9 @@ this file contains code implementing 5)
 
 */
 
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 0x10, 0x20, 0x40, 0x80,

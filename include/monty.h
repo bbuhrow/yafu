@@ -652,8 +652,10 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 // are spread out locally where they are needed instead of being gathered here,
 // apologies for the uglyness.
 
+#ifndef __aarch64__
 #include <immintrin.h>
 #include <intrin.h>
+#endif
 
 __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
