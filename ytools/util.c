@@ -42,7 +42,6 @@ SOFTWARE.
 #define _POSIX_C_SOURCE 200112L
 #include "ytools.h"
 #include <stdlib.h>
-#include <malloc.h>
 #include <math.h>
 #include <time.h>
 
