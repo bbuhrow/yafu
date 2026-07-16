@@ -543,11 +543,11 @@ void* xrealloc(void* iptr, size_t len) {
 void ytools_get_computer_info(info_t* info, int do_print)
 {
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__aarch64__)
     // something in extended cpuid causes a segfault on mac builds.
     // just disable it for now - this information is typically not critical for
     // program operation.
-    strcpy(idstr, "N/A");
+    strcpy(info->idstr, "N/A");
     info->L1cache = DEFAULT_L1_CACHE_SIZE;
     info->L2cache = DEFAULT_L2_CACHE_SIZE;
 
@@ -939,6 +939,7 @@ enum cpu_type ytools_get_cpu_type(void) {
 
 
 
+#ifndef __aarch64__
 int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extensions,
     char* BMI1, char* AVX, char* AVX2, char* BMI2, char* AVX512F, char* AVX512BW, char* AVX512ER,
     char* AVX512PF, char* AVX512CD, char* AVX512VL, char* AVX512IFMA, char* AVX512DQ, int do_print)
@@ -1479,6 +1480,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
 
     return  nRet;
 }
+#endif // !__aarch64__
 
 
 
