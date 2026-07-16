@@ -1025,7 +1025,7 @@ load_sort_engine(msieve_obj *obj, device_data_t *d)
 		}
 	}
 
-#ifdef _MSC_VER && _MSC_VER >= 1900
+#if defined(_MSC_VER) && (_MSC_VER >= 1900)
 /*  convert the sort engine file path to an absolute path using
     backslash directory separators  */
 	char libpath[256], *p, *q;

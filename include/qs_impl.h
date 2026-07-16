@@ -92,7 +92,7 @@
 #endif
 
 // assume we have SSE2 available on x86 architectures
-#ifdef __x86_64__ && !defined(FORCE_GENERIC)
+#if defined(__x86_64__) && !defined(FORCE_GENERIC)
 #define D_HAS_SSE2
 #endif
 

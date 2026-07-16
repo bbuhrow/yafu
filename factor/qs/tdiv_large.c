@@ -992,125 +992,106 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
+            // noticably faster to not put these in a loop!
+            if ((bptr[j] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 1] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 1] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 2] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 2] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 3] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 3] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+
+            if ((bptr[j + 4] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 4] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 5] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 5] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 6] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 6] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 7] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 7] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
             SCAN_16X;
 
-            if (result == 0)
-                continue;
-
-            //noticably faster to not put these in a loop!
-            if (result & 0x2)
+            if ((bptr[j + 8] & 0x0000ffff) == block_loc)
             {
-                // could be j = 0, 4, 8, or 12
-                if ((bptr[j] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 4] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 4] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 8] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 8] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 12] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 12] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
+                i = fb_bound + (bptr[j + 8] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
             }
-            if (result & 0x20)
+            if ((bptr[j + 9] & 0x0000ffff) == block_loc)
             {
-                // could be j = 1, 5, 9, or 13
-                if ((bptr[j + 1] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 1] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 5] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 5] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 9] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 9] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 13] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 13] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
+                i = fb_bound + (bptr[j + 9] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
             }
-            if (result & 0x200)
+            if ((bptr[j + 10] & 0x0000ffff) == block_loc)
             {
-                // could be j = 2, 6, 10, or 14
-                if ((bptr[j + 2] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 2] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 6] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 6] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 10] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 10] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 14] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 14] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
+                i = fb_bound + (bptr[j + 10] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
             }
-            if (result & 0x2000)
+            if ((bptr[j + 11] & 0x0000ffff) == block_loc)
             {
-                // could be j= 3, 7, 11, or 15
-                if ((bptr[j + 3] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 3] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 7] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 7] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 11] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 11] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
-                if ((bptr[j + 15] & 0x0000ffff) == block_loc)
-                {
-                    i = fb_bound + (bptr[j + 15] >> 16);
-                    prime = fb[i];
-                    DIVIDE_ONE_PRIME;
-                }
+                i = fb_bound + (bptr[j + 11] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
             }
-
+            if ((bptr[j + 12] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 12] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 13] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 13] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 14] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 14] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
+            if ((bptr[j + 15] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j + 15] >> 16);
+                prime = fb[i];
+                DIVIDE_ONE_PRIME;
+            }
         }
 
         // leftover bucket elements to check after doing 16x at a time

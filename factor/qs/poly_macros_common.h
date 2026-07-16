@@ -4,8 +4,6 @@
 #ifndef _POLY_COMMON_H_
 #define _POLY_COMMON_H_
 
-#define USE_SSE2
-
 typedef struct 
 {
 	//read/write data inputs
@@ -315,7 +313,7 @@ typedef struct
 
 #elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC)
 
-#ifdef USE_SSE2
+// assume SSE2 is available unless FORCE_GENERIC is defined
 
 	#define COMPUTE_8X_SMALL_PROOTS	\
 		__asm (	\
@@ -482,9 +480,7 @@ typedef struct
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 
-#endif
-
-#elif defined(GCC_ASM32X)
+#elif defined(GCC_ASM32X) && !defined(FORCE_GENERIC)
 
 	#define COMPUTE_4_PROOTS(j)								\
 		ASM_G (											\
@@ -530,10 +526,15 @@ typedef struct
 			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
+#else
+
+	
+
 
 #endif
 
 #if defined (GCC_ASM64X) && !defined(FORCE_GENERIC)
+
 	#define CHECK_NEW_SLICE_ASM \
 		"cmpl   104(%%rsi),%%r15d	\n\t"		/* compare j with check_bound */ \
 			/* note this is the counter j, not the byte offset j */ \
