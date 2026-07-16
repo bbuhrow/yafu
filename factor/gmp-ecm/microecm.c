@@ -374,6 +374,20 @@ MICRO_ECM_FORCE_INLINE uint64_t uecm_addmod(uint64_t x, uint64_t y, uint64_t n)
 
 #else
 
+// TODO: these defines should be shared with other files that use _addcarry_u64/_subborrow_u64
+#if defined(_MSC_VER)
+#define rettype unsigned char
+#else
+// unsigned char _addcarry_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
+// unsigned char _subborrow_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
+//
+// unsigned long long int __builtin_addcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
+// unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
+#define rettype uint64_t
+//#define _addcarry_u64(c_in, a, b, c_out)  __builtin_addcll(a, b, c_in, c_out)
+#define _subborrow_u64(c_in, a, b, c_out) __builtin_subcll(a, b, c_in, c_out)
+#endif
+
 MICRO_ECM_FORCE_INLINE uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n)
 {
     uint64_t r0;
