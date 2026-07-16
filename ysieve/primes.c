@@ -499,8 +499,13 @@ uint32_t compute_8_bytes(soe_staticdata_t *sdata,
             // copy into the main prime array.
             for (j = 0; j < pcounts[i] / 2; j++)
             {
+#ifdef __aarch64__
+                __uint128_t t = *(__uint128_t *)&pqueues[i][j * 2];
+                *(__uint128_t *)&primes[GLOBAL_OFFSET + pcount] = t;
+#else
                 __m128i t = _mm_loadu_si128((__m128i*)(&pqueues[i][j * 2]));
                 _mm_storeu_si128((__m128i*)(&primes[GLOBAL_OFFSET + pcount]), t);
+#endif
                 pcount += 2;
             }
             for (j *= 2; j < pcounts[i]; j++)
@@ -539,8 +544,13 @@ uint32_t compute_8_bytes(soe_staticdata_t *sdata,
             // if depth-based sieving then these are candidate gaps.
             for (j = 0; j < pcounts[i] / 2; j++)
             {
+#ifdef __aarch64__
+                __uint128_t t = *(__uint128_t *)&pqueues[i][j * 2];
+                *(__uint128_t *)&primes[GLOBAL_OFFSET + pcount] = t;
+#else
                 __m128i t = _mm_loadu_si128((__m128i*)(&pqueues[i][j * 2]));
                 _mm_storeu_si128((__m128i*)(&primes[GLOBAL_OFFSET + pcount]), t);
+#endif
                 pcount += 2;
             }
             for (j *= 2; j < pcounts[i]; j++)
