@@ -1554,7 +1554,7 @@ int qcomp_double(const void *x, const void *y)
 
 
 
-uint32_t* mergesort(uint32_t* a, uint32_t* b, int sz_a, int sz_b)
+uint32_t* merge_sort(uint32_t* a, uint32_t* b, int sz_a, int sz_b)
 {
     uint32_t* c = (uint32_t*)malloc((sz_a + sz_b) * sizeof(uint32_t));
     int i = 0, j = 0, k = 0;
