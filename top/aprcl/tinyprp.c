@@ -1102,19 +1102,22 @@ static inline uint64_t my_rdtsc(void)
 	return __builtin_ia32_rdtsc();
 #elif defined(_MSC_VER)
 	return __rdtsc();
-#elif INLINE_ASM && defined(__aarch64__)
+#elif defined(__aarch64__)
 	// should be a 64 bits wallclock counter
 	// document for old/recent architecture and/or BMC chipsets mention it
 	// could be a 56 bit counter.
 	uint64_t val;
 
-	asm volatile ("mrs %0, cntvct_el0":"=r" (val));
+	__asm__ ("mrs %0, cntvct_el0":"=r" (val));
 
+#ifdef __APPLE__
+        // TODO: The timer frequency depends on the Apple chip.
 	// I am not sure what the clock unit is, it depends on pre-scaler setup
 	// A multiplication by 32 might be needed on my platform 
 	return val * 32;	// aarch64 emulation on x86_64 ?
 	return ((val / 3) * 25) << 4;	// maybe for ARM M1 ?
 	return val;
+#endif // __APPLE__
 #else
 #error "todo : unsupported _rdtsc implementation\n"
 	return 0;
