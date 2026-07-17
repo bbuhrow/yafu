@@ -366,7 +366,6 @@ CFLAGS := \
     -fno-common \
     -m64 \
     -std=c11 \
-    -DUSE_SSE2 \
     -fPIE \
     -DUSE_NFS \
     -D_FILE_OFFSET_BITS=64 \
