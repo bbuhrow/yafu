@@ -2019,7 +2019,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
-		//find a^-1 mod p = inv(a mod p) mod p
+		// find a^-1 mod p = inv(a mod p) mod p
         if (sconf->knmod8 == 1)
         {
             inv = modinv_1(2 * amodp, prime);
@@ -2047,7 +2047,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		tmp = q64 >> 32; 
 		root2 = t2 - tmp * prime;
 	
-		//we don't sieve these primes, so ordering doesn't matter
+		// we don't sieve these primes, so ordering doesn't matter
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
 
@@ -2055,18 +2055,18 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		fb_p->root2[i] = (uint16_t)root2;
 		fb_n->root1[i] = (uint16_t)(prime - root2);
 		fb_n->root2[i] = (uint16_t)(prime - root1);
-		//if we were sieving, this would double count the location on the 
-		//positive side.  but since we're not, its easier to check for inclusion
-		//on the progression if we reset the negative root to zero if it is == prime
+		// if we were sieving, this would double count the location on the 
+		// positive side.  but since we're not, its easier to check for inclusion
+		// on the progression if we reset the negative root to zero if it is == prime
 		if (fb_n->root1[i] == prime)
 			fb_n->root1[i] = 0;
 		if (fb_n->root2[i] == prime)
 			fb_n->root2[i] = 0;
 
-		//for this factor base prime, compute the rootupdate value for all s
-		//Bl values.  amodp holds a^-1 mod p
-		//the rootupdate value is given by 2*Bj*amodp
-		//Bl[j] now holds 2*Bl
+		// for this factor base prime, compute the rootupdate value for all s
+		// Bl values.  amodp holds a^-1 mod p
+		// the rootupdate value is given by 2*Bj*amodp
+		// Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
@@ -2093,7 +2093,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
-		//find a^-1 mod p = inv(a mod p) mod p
+		// find a^-1 mod p = inv(a mod p) mod p
         if (sconf->knmod8 == 1)
         {
             inv = modinv_1(2 * amodp, prime);
@@ -2137,10 +2137,10 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			fb_n->root2[i] = (uint16_t)(prime - root1);
 		}
 
-		//for this factor base prime, compute the rootupdate value for all s
-		//Bl values.  amodp holds a^-1 mod p
-		//the rootupdate value is given by 2*Bj*amodp
-		//Bl[j] now holds 2*Bl
+		// for this factor base prime, compute the rootupdate value for all s
+		// Bl values.  amodp holds a^-1 mod p
+		// the rootupdate value is given by 2*Bj*amodp
+		// Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
@@ -2168,7 +2168,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
-		//find a^-1 mod p = inv(a mod p) mod p
+		// find a^-1 mod p = inv(a mod p) mod p
         if (sconf->knmod8 == 1)
         {
             inv = modinv_1(2 * amodp, prime);
@@ -2251,10 +2251,10 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			dconf->firstroot2[i] = (uint32_t)((uint64_t)inv * (uint64_t)bmodp % (uint64_t)prime);
 		}
 #endif
-		//for this factor base prime, compute the rootupdate value for all s
-		//Bl values.  amodp holds a^-1 mod p
-		//the rootupdate value is given by 2*Bj*amodp
-		//Bl[j] now holds 2*Bl
+		// for this factor base prime, compute the rootupdate value for all s
+		// Bl values.  amodp holds a^-1 mod p
+		// the rootupdate value is given by 2*Bj*amodp
+		// Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
@@ -2283,7 +2283,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
-		//find a^-1 mod p = inv(a mod p) mod p
+		// find a^-1 mod p = inv(a mod p) mod p
         if (sconf->knmod8 == 1)
         {
             inv = modinv_1(2 * amodp, prime);
@@ -2346,10 +2346,10 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 #endif
 
-		//for this factor base prime, compute the rootupdate value for all s
-		//Bl values.  amodp holds a^-1 mod p
-		//the rootupdate value is given by 2*Bj*amodp
-		//Bl[j] now holds 2*Bl
+		// for this factor base prime, compute the rootupdate value for all s
+		// Bl values.  amodp holds a^-1 mod p
+		// the rootupdate value is given by 2*Bj*amodp
+		// Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
@@ -2436,11 +2436,11 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 #endif
 
-        //for this factor base prime, compute the rootupdate value for all s
-        //Bl values.  amodp holds a^-1 mod p
-        //the rootupdate value is given by 2*Bj*amodp
-        //Bl[j] now holds 2*Bl
-        //s is the number of primes in 'a'
+        // for this factor base prime, compute the rootupdate value for all s
+        // Bl values.  amodp holds a^-1 mod p
+        // the rootupdate value is given by 2*Bj*amodp
+        // Bl[j] now holds 2*Bl
+        // s is the number of primes in 'a'
         for (j = 0; j < s; j++)
         {
             x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);

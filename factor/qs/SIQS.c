@@ -2834,6 +2834,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 #elif defined(USE_SSE41)
     if (sconf->obj->HAS_SSE41) strcpy(inst_set, "SSE41");
     else strcpy(inst_set, "SSE2");
+#elif defined (FORCE_GENERIC)
+    strcpy(inst_set, "Generic C")
 #else
     strcpy(inst_set, "SSE2");
 #endif
@@ -4684,11 +4686,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, sconf->sieve_interval);
 #endif
 	
+    // https://www.mersenneforum.org/node/17433?p=647129#post647129
+    // http://www.karlin.mff.cuni.cz/~krypto/Implementace_MPQS_SIQS_files/main_file.pdf
+    // Q2(x) polynomials when kn mod 8 == 1
+    // choose A one bit smaller (to keep resulting polynomial values in same range)
+    // then use poly (2ax+b)^2 -kN and Q2(x) will be divisible by 4A instead of just A.
     if (sconf->knmod8 == 1)
     {
         mpz_tdiv_q_2exp(sconf->target_a, sconf->target_a, 1);
     }
-
 
 	// compute the number of bits in M/2*sqrt(N/2), the approximate value
 	// of residues in the sieve interval.  Then subtract some slack.

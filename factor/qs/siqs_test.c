@@ -179,23 +179,12 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 	{
 		// run MPQS, as the main SIQS doesn't work for smaller inputs
 		int i;
-		mpz_t f1, f2, f3;
+		mpz_t f1, f2, f3, f;
 
 		mpz_init(f1);
 		mpz_init(f2);
 		mpz_init(f3);
-
-		// we've verified that the input is not even or prime.  also, if
-		// autofactoring is not active then do some very quick trial division 
-		// before calling smallmpqs.
-		// if (!fobj->autofact_obj.autofact_active)
-		// {
-		//     for (i = 1; i < 25; i++)
-		//     {
-		//         if (mpz_tdiv_ui(fobj->gmp_n, siqs_primes[i]) == 0)
-		//             mpz_tdiv_q_ui(fobj->gmp_n, fobj->gmp_n, siqs_primes[i]);
-		//     }
-		// }
+		mpz_init(f);
 
 		if (fobj->qs_obj.flags != 12345)
 		{
@@ -221,40 +210,41 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			{
 				if (j == 0)
 				{
-					add_to_factor_list(fobj->factors, f1,
-						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+					if (mpz_divisible_p(fobj->qs_obj.gmp_n, f1) == 0)
+						continue;
 
-					if (fobj->qs_obj.flags != 12345)
-					{
-						if (fobj->logfile != NULL)
-						{
-							char* s = mpz_get_str(NULL, 10, f1);
-							logprint(fobj->logfile,
-								"prp%d = %s\n", gmp_base10(f1), s);
-							free(s);
-						}
-					}
-
-					mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
+					mpz_set(f, f1);
 				}
-				else
+				else if (j == 1)
 				{
-					add_to_factor_list(fobj->factors, f2,
-						fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+					if (mpz_divisible_p(fobj->qs_obj.gmp_n, f2) == 0)
+						continue;
 
-					if (fobj->qs_obj.flags != 12345)
-					{
-						if (fobj->logfile != NULL)
-						{
-							char* s = mpz_get_str(NULL, 10, f2);
-							logprint(fobj->logfile,
-								"prp%d = %s\n", gmp_base10(f2), s);
-							free(s);
-						}
-					}
-
-					mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f2);
+					mpz_set(f, f2);
 				}
+				else if (j == 2)
+				{
+					if (mpz_divisible_p(fobj->qs_obj.gmp_n, f3) == 0)
+						continue;
+
+					mpz_set(f, f3);
+				}
+
+				add_to_factor_list(fobj->factors, f,
+					fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+
+				if (fobj->qs_obj.flags != 12345)
+				{
+					if (fobj->logfile != NULL)
+					{
+						char* s = mpz_get_str(NULL, 10, f);
+						logprint(fobj->logfile,
+							"prp%d = %s\n", gmp_base10(f1), s);
+						free(s);
+					}
+				}
+
+				mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f);
 			}
 
 			if (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0)
@@ -280,17 +270,19 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			}
 		}
 
-
-		if (i == 0)
+		if ((i == 0) || (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0))
 		{
-			// didn't find anything (rare).  try a different method.
+			// didn't find anything or not completely factored (rare).  
+			// try a different method.
 			if (fobj->flags != 12345)
 			{
 				if (fobj->logfile != NULL)
 				{
 					char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
 					logprint(fobj->logfile,
-						"tiny_qs failed to find factors; starting tiny-ecm on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+						"tiny_qs failed to fully factor; "
+						"starting tiny-ecm on C%d = %s\n", 
+						gmp_base10(fobj->qs_obj.gmp_n), s);
 					free(s);
 				}
 			}
@@ -351,6 +343,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 		mpz_clear(f1);
 		mpz_clear(f2);
 		mpz_clear(f3);
+		mpz_clear(f);
 
 		return 1;
 	}
