@@ -184,13 +184,12 @@ int main(int argc, char *argv[])
 
     // get_computer_info has issues with AMD chips?
     // processor name string is empty and many flags are not set.
-#if !defined(__APPLE__)
+
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
     ytools_get_computer_info(&comp_info, options->vproc);
     strncpy(yafu_obj.CPU_ID_STR, comp_info.idstr, 255);
-#endif
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,

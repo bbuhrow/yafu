@@ -110,12 +110,10 @@ int main(int argc, char *argv[])
         obj.USERSEED = 1;
     }
 
-#if !defined(__APPLE__)
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
     ytools_get_computer_info(&comp_info, options->vproc);
-#endif
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
