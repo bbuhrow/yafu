@@ -56,7 +56,8 @@ double* parsewords_balanced(mpz_t a, int b, int fftlen)
 	int64_t W = (1ULL << b);
 	int64_t mask = W - 1;
 	int64_t b2 = W / 2;
-	uint64_t* n = a->_mp_d;
+	// TODO: this assumes that mp_limb_t is 64-bit
+	uint64_t* n = (uint64_t *)a->_mp_d;
 
 	mpz_init(aa);
 	mpz_set(aa, a);
@@ -116,7 +117,8 @@ double* fastparse_balanced(mpz_t a, int b, int fftlen)
 	int64_t W = (1ULL << b);
 	int64_t mask = W - 1;
 	int64_t b2 = W / 2;
-	uint64_t* n = a->_mp_d;
+	// TODO: this assumes that mp_limb_t is 64-bit
+	uint64_t* n = (uint64_t *)a->_mp_d;
 	int64_t carry = 0;
 	int j = 0;
 
@@ -839,7 +841,8 @@ void fast_reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 	int b = bits_per_word;
 	mpz_set_ui(c, 1);
 	mpz_mul_2exp(c, c, bits_per_word * fftlen);
-	uint64_t* n = c->_mp_d;
+	// TODO: this assumes that mp_limb_t is 64-bit
+	uint64_t* n = (uint64_t *)c->_mp_d;
 
 	while (j < (s - b))
 	{
