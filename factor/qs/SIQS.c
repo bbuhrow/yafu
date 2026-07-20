@@ -2835,7 +2835,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     if (sconf->obj->HAS_SSE41) strcpy(inst_set, "SSE41");
     else strcpy(inst_set, "SSE2");
 #elif defined (FORCE_GENERIC)
-    strcpy(inst_set, "Generic C")
+    strcpy(inst_set, "Generic C");
 #else
     strcpy(inst_set, "SSE2");
 #endif
