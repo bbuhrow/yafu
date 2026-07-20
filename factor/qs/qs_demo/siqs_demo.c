@@ -135,6 +135,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512f"))
 #else
@@ -146,6 +148,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512BW))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512bw"))
 #else
