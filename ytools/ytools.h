@@ -334,7 +334,7 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
     extern int qcomp_uint32(const void* x, const void* y);
     extern int qcomp_uint64(const void* x, const void* y);
     extern int qcomp_double(const void* x, const void* y);
-    extern uint32_t* mergesort(uint32_t* a, uint32_t* b, int sz_a, int sz_b);
+    extern uint32_t* merge_sort(uint32_t* a, uint32_t* b, int sz_a, int sz_b);
 
 // ============================================================================
 // searching

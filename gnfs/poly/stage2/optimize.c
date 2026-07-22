@@ -13,7 +13,9 @@ $Id: optimize.c 839 2013-01-13 14:31:02Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "stage2.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 typedef double (*norm_t)(double* a, uint32 degree, double s);
 

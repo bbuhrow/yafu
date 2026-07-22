@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include "factor.h"
 #include "soe.h"
 #include "gmp_xface.h"

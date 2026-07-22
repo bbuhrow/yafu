@@ -34,7 +34,9 @@ extern "C" {
 #if defined(_MSC_VER) && defined(__clang__)
 #include <x86intrin.h>
 #else
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #endif
 #include "gmp.h"
 #include "ytools.h"

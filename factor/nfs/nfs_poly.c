@@ -12,6 +12,7 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <gmp.h>
 #include "nfs_impl.h"

@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include <inttypes.h>
 #include "soe.h"
 #include "soe_impl.h"
 #include "ytools.h"
@@ -29,7 +30,9 @@ SOFTWARE.
 #if defined(_MSC_VER) && defined(__clang__)
 #include <x86intrin.h>
 #else
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #endif
 #include "threadpool.h"
 #include "tinyprp.h"

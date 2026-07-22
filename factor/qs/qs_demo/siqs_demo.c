@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #define _POSIX_C_SOURCE 200809L
+#include <inttypes.h>
 #include "siqs_demo.h"
 #include "soe.h"
 #include "calc.h"
@@ -27,7 +28,9 @@ code to the public domain.
 #include <stdlib.h>
 #include <stdio.h>
 #include "cmdOptions.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #ifdef _MSC_VER
 #include <io.h> //_isatty
 #endif
@@ -107,12 +110,10 @@ int main(int argc, char *argv[])
         obj.USERSEED = 1;
     }
 
-#if !defined(__APPLE__)
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
     ytools_get_computer_info(&comp_info, options->vproc);
-#endif
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -134,6 +135,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512f"))
 #else
@@ -145,6 +148,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512BW))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512bw"))
 #else

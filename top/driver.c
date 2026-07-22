@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #define _POSIX_C_SOURCE 200112L
+#include <inttypes.h>
 #include "yafu.h"
 #include "soe.h"
 #include "calc.h"
@@ -29,7 +30,9 @@ code to the public domain.
 #include "microecm.h"
 #include "cofactorize.h"
 #include <ecm.h>
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 #include <stdio.h>
 #include "tinyecm.h"
 
@@ -181,13 +184,12 @@ int main(int argc, char *argv[])
 
     // get_computer_info has issues with AMD chips?
     // processor name string is empty and many flags are not set.
-#if !defined(__APPLE__)
+
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
     ytools_get_computer_info(&comp_info, options->vproc);
     strncpy(yafu_obj.CPU_ID_STR, comp_info.idstr, 255);
-#endif
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -214,6 +216,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_SSE4_1))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("sse4.1"))
 #else
@@ -225,6 +229,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX2))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx2"))
 #else
@@ -236,6 +242,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx"))
 #else
@@ -247,6 +255,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_BMI))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("bmi2"))
 #else
@@ -258,6 +268,8 @@ int main(int argc, char *argv[])
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512f"))
 #else
@@ -269,6 +281,8 @@ int main(int argc, char *argv[])
 
 #if defined( __INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512BW))
+#elif defined(__aarch64__)
+    if (0)
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512bw"))
 #else

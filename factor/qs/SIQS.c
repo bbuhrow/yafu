@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include <inttypes.h>
 #include "factor.h"
 #include "qs.h"
 #include "qs_impl.h"
@@ -25,7 +26,9 @@ code to the public domain.
 #include "gmp_xface.h"
 #include "threadpool.h"
 #include "cofactorize.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 #ifdef USE_BATCH_FACTOR
 #include "batch_factor.h"
@@ -2835,7 +2838,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     if (sconf->obj->HAS_SSE41) strcpy(inst_set, "SSE41");
     else strcpy(inst_set, "SSE2");
 #elif defined (FORCE_GENERIC)
-    strcpy(inst_set, "Generic C")
+    strcpy(inst_set, "Generic C");
 #else
     strcpy(inst_set, "SSE2");
 #endif

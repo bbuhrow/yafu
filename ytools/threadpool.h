@@ -26,7 +26,6 @@ SOFTWARE.
 #define _THREADPOOL_H
 
 #include <stdlib.h>
-#include <malloc.h>
 
 #ifdef __cplusplus
 extern "C" {

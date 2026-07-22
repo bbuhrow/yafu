@@ -509,7 +509,7 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 }
 
 
-#else
+#else // !USE_AVX512F && !USE_BMI2
 
 
 __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
@@ -642,18 +642,45 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
     return x;
 }
 
-#endif
+#endif // !USE_AVX512F && !USE_BMI2
 
 
-#elif _MSC_VER
+#else // (!GCC_ASM64X && !__MINGW64__) || ASM_ARITH_DEBUG
 
 // TODO: need something portable to replace 64-bit assembler versions
 // of modular multiplication.  This is getting closer, but for now these things
 // are spread out locally where they are needed instead of being gathered here,
 // apologies for the uglyness.
 
+#ifndef __aarch64__
 #include <immintrin.h>
 #include <intrin.h>
+#endif
+
+// TODO: these defines should be shared with other files that use _addcarry_u64/_subborrow_u64
+#if defined(_MSC_VER)
+#define rettype unsigned char
+#else
+// unsigned char _addcarry_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
+// unsigned char _subborrow_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
+// unsigned char _subborrow_u32(unsigned char c_in, unsigned int src1, unsigned int src2, unsigned int *diff_out)
+
+//
+// unsigned long long int __builtin_addcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
+// unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
+// int __builtin_subc (unsigned int a, unsigned int b, unsigned int carry_in, unsigned int *carry_out)
+#define rettype uint64_t
+#define _addcarry_u64(c_in, a, b, c_out)  __builtin_addcll(a, b, c_in, c_out)
+#define _subborrow_u64(c_in, a, b, c_out) __builtin_subcll(a, b, c_in, c_out)
+#define _subborrow_u32(c_in, a, b, c_out) __builtin_subc(a, b, c_in, c_out)
+
+static __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
+{
+    __uint128_t prod = (__uint128_t)x * (__uint128_t)y;
+    *hi = (uint64_t)(prod >> 64);
+    return (uint64_t)prod;
+}
+#endif
 
 __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
@@ -771,7 +798,7 @@ __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 // this works if inputs are 62 bits or less
 #define addmod60(x, y, n) ((x) + (y))
 
-#endif
+#endif // (!GCC_ASM64X && !__MINGW64__) || ASM_ARITH_DEBUG
 
 /********************* vector Montgomery arith **********************/
 

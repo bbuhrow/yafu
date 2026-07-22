@@ -1,5 +1,7 @@
 #include "common.h"
+#ifndef __aarch64__
 #include <immintrin.h>
+#endif
 
 #ifndef _POLY_COMMON_H_
 #define _POLY_COMMON_H_

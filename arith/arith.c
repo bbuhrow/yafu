@@ -114,6 +114,121 @@ int bits64(uint64_t n)
     return i;
 }
 
+
+// make a _udiv128 for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
+// For MSVC, use the intrinsic
+#if defined(_MSC_VER) && (!defined(__clang__))
+#include <intrin.h>
+#pragma intrinsic(_udiv128)
+#else
+// For other compilers, we'll implement a fallback or use inline assembly
+// This is a simplified implementation for demonstration
+static __inline uint64_t _udiv128(uint64_t high, uint64_t low, uint64_t divisor, uint64_t* remainder) {
+
+    // Use __int128 if available (GCC/Clang)
+#if (defined(__clang__) || defined(__INTEL_COMPILER)) && defined(GCC_ASM64X)
+
+    __asm__("divq %4"
+        : "=a"(low), "=d"(high)
+        : "1"(high), "0"(low), "r"(divisor));
+
+    *remainder = high;
+    return low;
+
+#elif defined(HAS_UINT128)
+
+    __uint128_t dividend = ((__uint128_t)high << 64) | low;
+    __uint128_t quotient = dividend / divisor;
+    *remainder = dividend % divisor;
+    return (uint64_t)quotient;
+
+#else
+
+// Fallback implementation using double-precision division
+// This is not as accurate but works for demonstration
+    double d_dividend = (double)high * (1.0 * (1ULL << 32) * (1ULL << 32)) + (double)low;
+    double d_quotient = d_dividend / (double)divisor;
+    uint64_t quotient = (uint64_t)d_quotient;
+
+    // brb added.  I think all compiler cases that I support are covered but in
+    // case not, spam this message.
+    printf("warning: _udiv128 is not accurate\n");
+
+    // Calculate remainder more accurately
+    uint64_t temp_high, temp_low;
+    // Multiply quotient * divisor
+    temp_low = quotient * divisor; // This may overflow, but that's handled below
+
+    // Subtract from original dividend to get remainder
+    if (low >= temp_low) {
+        *remainder = low - temp_low;
+    }
+    else {
+        *remainder = (UINT64_MAX - temp_low + 1) + low;
+        quotient--;
+    }
+
+    return quotient;
+
+#endif
+}
+
+#endif
+
+
+// make a _umul128 for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#include <immintrin.h>
+#pragma intrinsic(_umul128)
+#else
+// For other compilers, we'll implement a fallback or use inline assembly
+// This is a simplified implementation for demonstration
+static __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi) {
+
+#if (defined(__clang__) || defined(__INTEL_COMPILER)) && defined(GCC_ASM64X)
+
+    {
+        __asm__(
+            "mulq %3	\n\t"
+            : "=&a"(x), "=&d"(y)
+            : "0"(x), "1"(y)
+            : "cc"
+        );
+
+        *hi = y;
+        return x;
+    }
+
+// Use __int128 if available (GCC/Clang)
+#elif defined(HAS_UINT128)
+
+    __uint128_t prod = (__uint128_t)x * (__uint128_t)y;
+    *hi = (uint64_t)(prod >> 64);
+    return (uint64_t)prod;
+
+#else
+
+    // Fallback: split into 32-bit parts
+    uint64_t x_low = x & 0xFFFFFFFF;
+    uint64_t x_high = x >> 32;
+    uint64_t y_low = y & 0xFFFFFFFF;
+    uint64_t y_high = y >> 32;
+
+    uint64_t p0 = x_low * y_low;
+    uint64_t p1 = x_low * y_high;
+    uint64_t p2 = x_high * y_low;
+    uint64_t p3 = x_high * y_high;
+
+    uint64_t middle = p1 + p2 + (p0 >> 32);
+    *hi = p3 + (middle >> 32);
+    return p0 + (middle << 32);
+
+
+#endif
+}
+
+#endif
+
 #if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
 
 
@@ -376,7 +491,7 @@ void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t* w)
 }
 
 
-#else
+#else // !GCC_ASM64X || ASM_ARITH_DEBUG
 
 uint64_t spDivide(uint64_t * q, uint64_t * r, uint64_t u[2], uint64_t v)
 {
@@ -390,6 +505,20 @@ void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
     return;
 }
 
+// TODO: these defines should be shared with other files that use _addcarry_u64/_subborrow_u64
+#if defined(COMPILER_MSVC)
+#define rettype unsigned char
+#else
+// unsigned char _addcarry_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
+// unsigned char _subborrow_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
+//
+// unsigned long long int __builtin_addcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
+// unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
+#define rettype uint64_t
+#define _addcarry_u64(c_in, a, b, c_out)  __builtin_addcll(a, b, c_in, c_out)
+#define _subborrow_u64(c_in, a, b, c_out) __builtin_subcll(a, b, c_in, c_out)
+#endif
+
 void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
 {
     *carry = _addcarry_u64(0, u, v, sum);
@@ -398,7 +527,7 @@ void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
 
 void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sum, uint64_t* carry)
 {
-    unsigned char c;
+    rettype c;
     *carry = _addcarry_u64(0, u, v, sum);
     c = _addcarry_u64(*carry, *sum, w, sum);
     *carry += c;
@@ -407,7 +536,7 @@ void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sum, uint64_t* carry)
 
 void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sub, uint64_t* borrow)
 {
-    unsigned char b;
+    rettype b;
     *borrow = _subborrow_u64(0, u, v, sub);
     b = _subborrow_u64(0, *sub, w, sub);
     *borrow += b;
@@ -440,124 +569,9 @@ void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t* w)
     return;
 }
 
-#endif
+#endif // !GCC_ASM64X || ASM_ARITH_DEBUG
 
 
-
-// make a _udiv128 for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
-// For MSVC, use the intrinsic
-#if defined(_MSC_VER) && (!defined(__clang__))
-#include <intrin.h>
-#pragma intrinsic(_udiv128)
-#else
-// For other compilers, we'll implement a fallback or use inline assembly
-// This is a simplified implementation for demonstration
-static __inline uint64_t _udiv128(uint64_t high, uint64_t low, uint64_t divisor, uint64_t* remainder) {
-
-    // Use __int128 if available (GCC/Clang)
-#if (defined(__clang__) || defined(__INTEL_COMPILER))
-
-    __asm__("divq %4"
-        : "=a"(low), "=d"(high)
-        : "1"(high), "0"(low), "r"(divisor));
-
-    *remainder = high;
-    return low;
-
-#elif defined(HAS_UINT128)
-
-    __uint128_t dividend = ((__uint128_t)high << 64) | low;
-    __uint128_t quotient = dividend / divisor;
-    *remainder = dividend % divisor;
-    return (uint64_t)quotient;
-
-#else
-
-// Fallback implementation using double-precision division
-// This is not as accurate but works for demonstration
-    double d_dividend = (double)high * (1.0 * (1ULL << 32) * (1ULL << 32)) + (double)low;
-    double d_quotient = d_dividend / (double)divisor;
-    uint64_t quotient = (uint64_t)d_quotient;
-
-    // brb added.  I think all compiler cases that I support are covered but in
-    // case not, spam this message.
-    printf("warning: _udiv128 is not accurate\n");
-
-    // Calculate remainder more accurately
-    uint64_t temp_high, temp_low;
-    // Multiply quotient * divisor
-    temp_low = quotient * divisor; // This may overflow, but that's handled below
-
-    // Subtract from original dividend to get remainder
-    if (low >= temp_low) {
-        *remainder = low - temp_low;
-    }
-    else {
-        *remainder = (UINT64_MAX - temp_low + 1) + low;
-        quotient--;
-    }
-
-    return quotient;
-
-#endif
-}
-
-#endif
-
-
-
-// make a _umul128 for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#include <immintrin.h>
-#pragma intrinsic(_umul128)
-#else
-// For other compilers, we'll implement a fallback or use inline assembly
-// This is a simplified implementation for demonstration
-static __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi) {
-
-#if (defined(__clang__) || defined(__INTEL_COMPILER))
-
-    {
-        __asm__(
-            "mulq %3	\n\t"
-            : "=&a"(x), "=&d"(y)
-            : "0"(x), "1"(y)
-            : "cc"
-        );
-
-        *hi = y;
-        return x;
-    }
-
-// Use __int128 if available (GCC/Clang)
-#elif defined(HAS_UINT128)
-
-    __uint128_t prod = (__uint128_t)x * (__uint128_t)y;
-    *hi = (uint64_t)(prod >> 64);
-    return (uint64_t)prod;
-
-#else
-
-    // Fallback: split into 32-bit parts
-    uint64_t x_low = x & 0xFFFFFFFF;
-    uint64_t x_high = x >> 32;
-    uint64_t y_low = y & 0xFFFFFFFF;
-    uint64_t y_high = y >> 32;
-
-    uint64_t p0 = x_low * y_low;
-    uint64_t p1 = x_low * y_high;
-    uint64_t p2 = x_high * y_low;
-    uint64_t p3 = x_high * y_high;
-
-    uint64_t middle = p1 + p2 + (p0 >> 32);
-    *hi = p3 + (middle >> 32);
-    return p0 + (middle << 32);
-
-
-#endif
-}
-
-#endif
 
 
 // make a 128-bit add/sub for all supported compilers (Windows: msvc, msvc+clang, msvc+intel; Linux: intel, clang, gcc)
