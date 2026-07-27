@@ -1428,7 +1428,7 @@ void print_factors(fact_obj_t *fobj)
     {
         // what to do if the product of factors doesn't equal the input?
         // clearly something went wrong somewhere, log the error.
-        printf("err: product of factors %Zd doesn't equal input %Zd\n", prod, flist->N);
+        gmp_printf("err: product of factors %Zd doesn't equal input %Zd\n", prod, flist->N);
         logprint_oc(fobj->flogname, "a", "err: product of factors doesn't equal input\n");
     }
 

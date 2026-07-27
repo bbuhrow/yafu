@@ -553,7 +553,7 @@ void siqs_dispatch(void *vptr)
     {
         static_conf->flag = 1;
 		//printf("thread %d stopping work\n", tid);
-        //printf("thread %d stopping work: found %d, %d in flight, need %d\n",
+        //printf("thread %d stopping work: found %d, %d estimated in flight, need %d\n",
         //    tid, udata->num_found, (int)in_flight_rels, udata->num_needed);
         tdata->work_fcn_id = tdata->num_work_fcn;
         //printf("stopping work with %d poly-a's\n", static_conf->total_poly_a + 1);
@@ -2583,15 +2583,15 @@ void* process_poly(void* vptr)
         gettimeofday(&stop1, NULL);
         t_update_buckets += ytools_difftime(&start1, &stop1);
 
-        if (sconf->obj->THREADS >= 32)
-        {
-            // other threads may have got us past the threshold while we
-            // are still working on this 'A' poly... check if we can stop.
-            if ((sconf->num_found > sconf->num_needed) || (sconf->flag == 1))
-            {
-                break;
-            }
-        }
+        //if (sconf->obj->THREADS >= 32)
+        //{
+        //    // other threads may have got us past the threshold while we
+        //    // are still working on this 'A' poly... check if we can stop.
+        //    if ((sconf->num_found > sconf->num_needed) || (sconf->flag == 1))
+        //    {
+        //        break;
+        //    }
+        //}
     }
 
     //exit(0);

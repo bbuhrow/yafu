@@ -739,7 +739,7 @@ int find_brent_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 
 	if (mpz_cmp_ui(n, 1) <= 0)
 	{
-		printf("nfs: input %Zd too small in find_brent_form\n", n);
+		gmp_printf("nfs: input %Zd too small in find_brent_form\n", n);
 		exit(1);
 	}
 		
