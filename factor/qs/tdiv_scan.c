@@ -1052,10 +1052,11 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     dconf->total_reports += dconf->num_reports;
     dconf->total_blocks++;
 
-    //remove small primes, and test if its worth continuing for each report
+    // remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	//tdiv_LP_avx512_allreports(parity, blocknum, sconf, dconf);
 
     // factor all reports in this block
     for (j = 0; j < dconf->num_reports; j++)

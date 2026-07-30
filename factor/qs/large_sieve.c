@@ -65,15 +65,15 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
     int pnum = 0;
 #endif
 
-	//finally, dump the buckets into the now cached 
-	//sieve block in prefetched batches
-	//the starting address for this slice and bucket can be computed as an offset from
-	//lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
-	//2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
-	//positive buckets, thus we have numblocks positive buckets followed by numblocks
-	//negative buckets in every slice.  each slice is a complete set of such buckets.  slices
-	//are contiguous in memory, so the whole thing is physically one giant linear list of
-	//bucket hits which we have subdivided.  
+	// finally, dump the buckets into the now cached 
+	// sieve block in prefetched batches
+	// the starting address for this slice and bucket can be computed as an offset from
+	// lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
+	// 2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
+	// positive buckets, thus we have numblocks positive buckets followed by numblocks
+	// negative buckets in every slice.  each slice is a complete set of such buckets.  slices
+	// are contiguous in memory, so the whole thing is physically one giant linear list of
+	// bucket hits which we have subdivided.  
 
 #if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     bptr = lp->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
@@ -91,8 +91,8 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
         basebucket = 0;
     }
 
-	//use x8 when cache line has 32 bytes
-	//use x16 when chache line has 64 bytes
+	// use x8 when cache line has 32 bytes
+	// use x16 when chache line has 64 bytes
 #if defined(USE_BATCHPOLY_X2)
     for (j = 0; j < dconf->buckets->num_slices_batch[pnum]; j++)
 #else
@@ -179,15 +179,15 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     int pnum = 0;
 #endif
 
-    //finally, dump the buckets into the now cached 
-    //sieve block in prefetched batches
-    //the starting address for this slice and bucket can be computed as an offset from
-    //lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
-    //2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
-    //positive buckets, thus we have numblocks positive buckets followed by numblocks
-    //negative buckets in every slice.  each slice is a complete set of such buckets.  slices
-    //are contiguous in memory, so the whole thing is physically one giant linear list of
-    //bucket hits which we have subdivided.  
+    // finally, dump the buckets into the now cached 
+    // sieve block in prefetched batches
+    // the starting address for this slice and bucket can be computed as an offset from
+    // lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
+    // 2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
+    // positive buckets, thus we have numblocks positive buckets followed by numblocks
+    // negative buckets in every slice.  each slice is a complete set of such buckets.  slices
+    // are contiguous in memory, so the whole thing is physically one giant linear list of
+    // bucket hits which we have subdivided.  
 
 #if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     bptr = lp->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
@@ -262,6 +262,47 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         basebucket += (numblocks << 1);
     }
 
+#ifdef TRY_COMPRESS_SORT_LARGEP
+    // drop in large prime hits for this block on the indicated side
+    bptr = lp->lp_list;
+    uint32_t* id_ptr;
+    if (side)
+    {
+        bptr += lp->lp_alloc_slices * 64;
+        id_ptr = lp->lp_id_n;
+    }
+    else
+    {
+        id_ptr = lp->lp_id_p;
+    }
+        
+    printf("lpsieve on %u lp slices\n", lp->lp_num_slices);
+    for (j = 0; j < lp->lp_num_slices; j++)
+    {
+        logp = lp->lp_logp[j];
+        int k;
+        printf("slice %u index is %u for block %u\n", j, id_ptr[j], bnum);
+
+        for (k = id_ptr[j]; k < 64; k++)
+        {
+            uint32_t root = bptr[k] >> 10;
+            uint32_t block = root >> 15;
+
+            if (bnum != block)
+                break;
+
+            if ((j == 0) && (side == 0))
+            {
+                printf("decrementing block %u, loc %u by logp %u\n", 
+                    block, root & 0x7fff, logp);
+            }
+            sieve[root & 0x7fff] -= logp;
+        }
+
+        id_ptr[j] = k;
+        bptr += 64;
+    }
+#endif
 
     return;
 }
@@ -306,15 +347,15 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     int pnum = 0;
 #endif
 
-    //finally, dump the buckets into the now cached 
-    //sieve block in prefetched batches
-    //the starting address for this slice and bucket can be computed as an offset from
-    //lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
-    //2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
-    //positive buckets, thus we have numblocks positive buckets followed by numblocks
-    //negative buckets in every slice.  each slice is a complete set of such buckets.  slices
-    //are contiguous in memory, so the whole thing is physically one giant linear list of
-    //bucket hits which we have subdivided.  
+    // finally, dump the buckets into the now cached 
+    // sieve block in prefetched batches
+    // the starting address for this slice and bucket can be computed as an offset from
+    // lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
+    // 2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
+    // positive buckets, thus we have numblocks positive buckets followed by numblocks
+    // negative buckets in every slice.  each slice is a complete set of such buckets.  slices
+    // are contiguous in memory, so the whole thing is physically one giant linear list of
+    // bucket hits which we have subdivided.  
 
 #if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     bptr = lp->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
@@ -332,8 +373,8 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         basebucket = 0;
     }
 
-    //use x8 when cache line has 32 bytes
-    //use x16 when chache line has 64 bytes
+    // use x8 when cache line has 32 bytes
+    // use x16 when chache line has 64 bytes
 #if defined(USE_BATCHPOLY_X2)
     for (j = 0; j < dconf->buckets->num_slices_batch[pnum]; j++)
 #else
@@ -380,6 +421,45 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         bptr += (numblocks << (BUCKET_BITS + 1));
         basebucket += (numblocks << 1);
     }
+
+
+
+#ifdef TRY_COMPRESS_SORT_LARGEP
+#define SLICE_SZ 256
+
+    // drop in large prime hits for this block on the indicated side
+    bptr = lp->lp_list;
+    uint32_t* id_ptr;
+    if (side)
+    {
+        bptr += lp->lp_alloc_slices * SLICE_SZ;
+        id_ptr = lp->lp_id_n;
+    }
+    else
+    {
+        id_ptr = lp->lp_id_p;
+    }
+
+    for (j = 0; j < lp->lp_num_slices; j++)
+    {
+        logp = lp->lp_logp[j];
+        int k;
+
+        for (k = id_ptr[j]; k < SLICE_SZ; k++)
+        {
+            uint32_t root = bptr[k] >> 10;
+            uint32_t block = root >> 15;
+
+            if (bnum != block)
+                break;
+
+            sieve[root & 0x7fff] -= logp;
+        }
+        bptr += SLICE_SZ;
+        id_ptr[j] = k;
+    }
+#endif
+
 
 #ifdef DEBUGPRINT_BATCHPOLY
     printf("complete.\n"); fflush(stdout);

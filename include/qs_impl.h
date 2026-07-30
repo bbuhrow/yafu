@@ -72,6 +72,9 @@
 // harebrained idea, didn't work :(
 #define NUM_ALP 0
 
+// new largep bucket sorting idea
+//#define TRY_COMPRESS_SORT_LARGEP 1
+
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
 // so that a synthetic data set resembling this real one can
@@ -299,6 +302,15 @@ typedef struct
     uint32_t num_slices;		// the number of fb slices needed
     uint32_t alloc_slices;	    // the number of fb slices allocated
     uint32_t *num_slices_batch;	// the number of fb slices needed
+#ifdef TRY_COMPRESS_SORT_LARGEP
+    uint32_t lp_alloc_slices;	    // the number of large prime fb slices allocated
+    uint32_t lp_num_slices;		    // the number of large prime fb slices currently used
+    uint32_t* lp_id_p;			    // array of current id in each slice
+    uint32_t* lp_id_n;			    // array of current id in each slice
+    uint32_t* lp_fb_bounds;		    // array of fb offsets for each slice
+    uint8_t* lp_logp;			    // array of logp values for each slice
+    uint32_t* lp_list;			    // contiguous space for all lp entries
+#endif
     uint32_t list_size;		    // number of contiguous buckets allocated
     uint32_t* list;			    // contiguous space for all buckets
 } lp_bucket;
@@ -442,7 +454,7 @@ typedef struct {
     double large_prime_max4;		// the cutoff value for factoring qlp-partials 
     double qlp_exp;                 // large_prime_max4 = large_prime_max ^ qlp_exp
 
-    //master list of cycles
+    // master list of cycles
     qs_cycle_t* cycle_table;		/* list of all the vertices in the graph */
     uint32_t cycle_table_size;	/* number of vertices filled in the table */
     uint32_t cycle_table_alloc;	/* number of cycle_t structures allocated */
@@ -458,7 +470,7 @@ typedef struct {
     uint32_t num_full;
     uint32_t num_lp;
 
-    //used to check on progress of the factorization	
+    // used to check on progress of the factorization	
     struct timeval update_start;	// time at which we last assessed the situation
     double t_update;			// ?
     double update_time;			// time at which we should next assess the situation
@@ -493,16 +505,21 @@ typedef struct {
     uint64_t num_scatter_opp;
     uint64_t num_scatter;
 
-    //master time record
+    // master time record
     double t_time1;				// sieve time
     double t_time2;				// relation scanning and trial division
     double t_time3;				// polynomial calculations and large prime sieving
     double t_time4;				// extra?
 
-    //stuff for sqrt
+    double t_mpsieve;
+    double t_lpsieve;
+    double t_tdiv;
+    double t_polyupdate;
+
+    // stuff for sqrt
     factor_list_t factor_list;
 
-    //these are used during linear algebra and sqrt root
+    // these are used during linear algebra and sqrt root
     uint32_t total_poly_a;		// used during sieving: total number of polynomial 'a' values 
     mpz_t* poly_a_list;			// used during sieving: list of 'a' values for MPQS polys 
     uint32_t filt_total_poly_a;	// used during filtering: total number of polynomial 'a' values 
@@ -511,7 +528,7 @@ typedef struct {
     uint32_t poly_list_alloc;
     uint32_t apoly_alloc;
 
-    //these are used during filtering
+    // these are used during filtering
     mpz_t curr_a;	  			// the current 'a' value in filtering
     mpz_t* curr_b;				// list of all the 'b' values for that 'a' 
     uint32_t bpoly_alloc;			// size of allocated curr_b
@@ -524,7 +541,7 @@ typedef struct {
     int in_mem;
     int flag;
 
-    //storage of relations found during in-mem sieving
+    // storage of relations found during in-mem sieving
     uint32_t buffered_rels;
     uint32_t buffered_rel_alloc;
     siqs_r* in_mem_relations;
@@ -691,6 +708,11 @@ typedef struct {
     relation_batch_t rb;
 #endif
 
+    double t_mpsieve;
+    double t_lpsieve;
+    double t_tdiv;
+    double t_polyupdate;
+
     uint64_t lcg_state;
 
 #if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
@@ -753,6 +775,9 @@ void tdiv_LP_avx2(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+
 extern void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
     static_conf_t* , dynamic_conf_t* );
 

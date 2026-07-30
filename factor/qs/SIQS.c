@@ -18,6 +18,9 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#define _POSIX_C_SOURCE 199309L
+#include <time.h>
+
 #include <inttypes.h>
 #include "factor.h"
 #include "qs.h"
@@ -141,6 +144,11 @@ void siqs_start(void *vptr)
     // get best parameters, multiplier, and factor base for the job
     // initialize and fill out the static part of the job data structure
     siqs_static_init(udata->thread_data[0].sconf, 0);
+
+    static_conf->t_mpsieve = 0.0;
+    static_conf->t_lpsieve = 0.0;
+    static_conf->t_tdiv = 0.0;
+    static_conf->t_polyupdate = 0.0;
 
     // allocate structures for use in sieving with threads
     for (i = 0; i < fobj->THREADS; i++)
@@ -589,6 +597,12 @@ void siqsexit(int sig)
 // and find more relations if something goes wrong during post-processing
 // and no factors are found.
 
+static double now_sec(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
 
 void SIQS(fact_obj_t *fobj)
 {
@@ -1622,6 +1636,11 @@ void* process_poly(void* vptr)
     double t_ss_search_total = 0.0;
     struct timeval start1, stop1;
 
+    dconf->t_mpsieve = 0.0;
+    dconf->t_lpsieve = 0.0;
+    dconf->t_tdiv = 0.0;
+    dconf->t_polyupdate = 0.0;
+
     sconf->t_time4 = 0.0;
 
     if ((sconf->factor_base->ss_start_B > 0) &&
@@ -2230,6 +2249,8 @@ void* process_poly(void* vptr)
             }
 #endif
 
+            double tstart = now_sec();
+
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
@@ -2281,17 +2302,25 @@ void* process_poly(void* vptr)
             }
 #endif
 
+            double tstop = now_sec();
+            dconf->t_mpsieve += (tstop - tstart);
+            tstart = tstop;
 
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
 
+            tstop = now_sec();
+            dconf->t_lpsieve += (tstop - tstart);
+            tstart = tstop;
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
             scan_ptr(i, 0, sconf, dconf);
-        }
 
-        
+            tstop = now_sec();
+            dconf->t_tdiv += (tstop - tstart);
+            
+        }
 
 #if defined( USE_SS_SEARCH )
 
@@ -2321,6 +2350,8 @@ void* process_poly(void* vptr)
             }
 #endif
 
+            double tstart = now_sec();
+
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
@@ -2348,12 +2379,24 @@ void* process_poly(void* vptr)
 #endif
                 med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
             }
+
+            double tstop = now_sec();
+            dconf->t_mpsieve += (tstop - tstart);
+            tstart = tstop;
+
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 1, dconf);
+
+            tstop = now_sec();
+            dconf->t_lpsieve += (tstop - tstart);
+            tstart = tstop;
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
             scan_ptr(i, 1, sconf, dconf);
+
+            tstop = now_sec();
+            dconf->t_tdiv += (tstop - tstart);
         }
 
 
@@ -2541,7 +2584,13 @@ void* process_poly(void* vptr)
 
 #else
 
+        double tstart = now_sec();
+
 #if defined(USE_AVX512F)
+
+        //printf("\nnum poly = %u\n", dconf->numB);
+        //if (dconf->numB == 3)
+        //    exit(1);
 
         if (sconf->obj->HAS_AVX512F)
         {
@@ -2563,8 +2612,15 @@ void* process_poly(void* vptr)
                 nextRoots_32k_knl_medbucket(sconf, dconf, &bi, &cb, &bv,
                     &ptr, &np_p, &np_n, &sl_p, &sl_n);
             
+#ifdef TRY_COMPRESS_SORT_LARGEP
+            nextRoots_32k_knl_largebucket_cs(sconf, dconf, bi, cb, bv,
+                ptr, np_p, np_n, sl_p, sl_n);
+            //printf("compress sort needed %u of %u slices\n",
+            //    dconf->buckets->lp_num_slices, dconf->buckets->lp_alloc_slices);
+#else
             nextRoots_32k_knl_largebucket(sconf, dconf, bi, cb, bv,
                 ptr, np_p, np_n, sl_p, sl_n);
+#endif
 
             //nextRoots_32k_knl_bucket(sconf, dconf);
         }
@@ -2579,6 +2635,9 @@ void* process_poly(void* vptr)
 #endif
 
 #endif
+
+        double tstop = now_sec();
+        dconf->t_polyupdate += (tstop - tstart);
 
         gettimeofday(&stop1, NULL);
         t_update_buckets += ytools_difftime(&start1, &stop1);
@@ -2688,6 +2747,11 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
     sconf->lp_scan_failures += dconf->lp_scan_failures;
     sconf->num_scatter_opp += dconf->num_scatter_opp;
     sconf->num_scatter += dconf->num_scatter;
+
+    sconf->t_mpsieve += dconf->t_mpsieve;
+    sconf->t_lpsieve += dconf->t_lpsieve;
+    sconf->t_tdiv += dconf->t_tdiv;
+    sconf->t_polyupdate += dconf->t_polyupdate;
 
 	// compute total relations found so far
 	if (sconf->use_dlp < 2)
@@ -3243,14 +3307,14 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("\tsieve: %d bytes\n", memsize);
     }
 
-    //allocate the Bl array, space for MAX_Bl bigint numbers
+    // allocate the Bl array, space for MAX_Bl bigint numbers
     dconf->Bl = (mpz_t *)malloc(MAX_A_FACTORS * sizeof(mpz_t));
     for (i = 0; i < MAX_A_FACTORS; i++)
     {
         mpz_init(dconf->Bl[i]);
     }
 
-    //copy the unchanging part to the sieving factor bases
+    // copy the unchanging part to the sieving factor bases
     for (i = 2; i < sconf->factor_base->med_B; i++)
     {
         uint32_t p = sconf->factor_base->list->prime[i];
@@ -3271,12 +3335,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->update_data.logp[i] = sconf->factor_base->list->logprime[i];
     }
 
-    //check if we should use bucket sieving, and allocate structures if so
+    // check if we should use bucket sieving, and allocate structures if so
     if (sconf->factor_base->B > sconf->factor_base->med_B)
     {
         dconf->buckets = (lp_bucket *)malloc(sizeof(lp_bucket));
 
-        //test to see how many slices we'll need.
+        // test to see how many slices we'll need.
         testRoots_ptr(sconf, dconf);
 
 #if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
@@ -3410,20 +3474,47 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         mpz_init(dconf->polyb2);
 #endif
 
-        //initialize the bucket lists and auxilary info.
-        //printf("allocating space for buckets with %u blocks, %u slices, and %u polys\n",
-        //    sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
+        // initialize the bucket lists and auxilary info.
 
-        // two entries per block (p and n sides), per slice, and per poly.
-        dconf->buckets->num = (uint32_t *)xmalloc_align(dconf->poly_batchsize *
-            2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32_t));
-        
+#ifdef TRY_COMPRESS_SORT_LARGEP
+
+#define SLICE_SZ 256
+
+        // initialize structures to track the current index per slice,
+        // fb_bounds and logp bounds per slice, and max slices, for the
+        // compressed data set.  32 primes in the worst case can cause
+        // 64 compressed hits, so we make space for this worst case.
+        dconf->buckets->lp_alloc_slices =
+            (sconf->factor_base->B - sconf->factor_base->large_B) / (SLICE_SZ / 2);
+        dconf->buckets->lp_num_slices = 0;
+
+        // two entries per slice (p and n sides)
+        dconf->buckets->lp_id_p = (uint32_t*)xmalloc_align(
+            dconf->buckets->lp_alloc_slices * sizeof(uint32_t));
+        dconf->buckets->lp_id_n = (uint32_t*)xmalloc_align(
+            dconf->buckets->lp_alloc_slices * sizeof(uint32_t));
+
         // one entry per slice to record the starting prime and logp indices per slice.
         // experimental variation: use one entry per slice and per poly, so that we
         // can sort xlarge primes in a batch of polys and other primes one poly at a time.
-        dconf->buckets->fb_bounds = (uint32_t *)malloc(
+        dconf->buckets->lp_fb_bounds = (uint32_t*)malloc(
+            dconf->buckets->lp_alloc_slices * sizeof(uint32_t));
+        dconf->buckets->lp_logp = (uint8_t*)calloc(
+            dconf->buckets->lp_alloc_slices, sizeof(uint8_t));
+
+
+#endif
+
+        // two entries per block (p and n sides), per slice, and per (batch) poly.
+        dconf->buckets->num = (uint32_t*)xmalloc_align(dconf->poly_batchsize *
+            2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32_t));
+
+        // one entry per slice to record the starting prime and logp indices per slice.
+        // experimental variation: use one entry per slice and per poly, so that we
+        // can sort xlarge primes in a batch of polys and other primes one poly at a time.
+        dconf->buckets->fb_bounds = (uint32_t*)malloc(
             dconf->buckets->alloc_slices * dconf->poly_batchsize * sizeof(uint32_t));
-        dconf->buckets->logp = (uint8_t *)calloc(
+        dconf->buckets->logp = (uint8_t*)calloc(
             dconf->buckets->alloc_slices * dconf->poly_batchsize, sizeof(uint8_t));
 
         // the total number of buckets (size of buckets->num)
@@ -3432,11 +3523,37 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
         dconf->buckets->num_slices_batch = (uint32_t*)xmalloc(dconf->poly_batchsize * sizeof(uint32_t));
 
+        printf("allocating space for buckets with %u blocks, %u slices, and %u polys\n",
+            sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
+        
+
         // now allocate space for the bucket entries.  Each entry is a 32-bit integer
         // split into 16 bits for prime id and 16 bits for block location.
         dconf->buckets->list = (uint32_t *)xmalloc_align(
             dconf->buckets->list_size *
             BUCKET_ALLOC * sizeof(uint32_t));
+
+        printf("allocating %u total bytes for bucket sort\n",
+            dconf->buckets->list_size*
+            BUCKET_ALLOC * sizeof(uint32_t));
+
+#ifdef TRY_COMPRESS_SORT_LARGEP
+
+        dconf->buckets->lp_list = (uint32_t*)xmalloc_align(
+            (SLICE_SZ * 2 * dconf->buckets->lp_alloc_slices + SLICE_SZ) * sizeof(uint32_t));
+
+        memset(dconf->buckets->lp_list, 0xff,
+            (SLICE_SZ * 2 * dconf->buckets->lp_alloc_slices + SLICE_SZ) * sizeof(uint32_t));
+        dconf->buckets->lp_list += SLICE_SZ;
+
+        printf("allocating space for lp buckets with %u slices\n",
+            dconf->buckets->lp_alloc_slices);
+        printf("allocating %u total bytes for lp bucket sort\n",
+            SLICE_SZ * 2 * dconf->buckets->lp_alloc_slices * sizeof(uint32_t));
+
+#endif
+
+
     }
     else
     {
@@ -3869,7 +3986,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 #endif
 		
-#if defined( __amd64__ ) && defined(USE_AVX512F)
+#if defined( __amd64__ ) && defined(USE_AVX512F) && !defined(TRY_COMPRESS_SORT_LARGEP)
     // amd eypc (zen4) was slower when using the avx512 variants of these
     lp_sieveblock_ptr = &lp_sieveblock;
     tdiv_LP_ptr = &tdiv_LP_avx2;
@@ -5734,6 +5851,11 @@ int update_final(static_conf_t *sconf)
                 sconf->total_surviving_reports, sconf->total_blocks,
                 (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
             printf("Elapsed time: %1.4f sec\n", t_time);
+            printf("\tMed sieve time: %1.4f sec\n", sconf->t_mpsieve);
+            printf("\tLarge sieve time: %1.4f sec\n", sconf->t_lpsieve);
+            printf("\tTdiv time: %1.4f sec\n", sconf->t_tdiv);
+            printf("\tPoly update time: %1.4f sec\n", sconf->t_polyupdate);
+
 
             //printf("scatter/gather processing: %lu of %lu opportunities\n",
             //    sconf->num_scatter, sconf->num_scatter_opp);

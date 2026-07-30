@@ -24,6 +24,9 @@ code to the public domain.
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
 #include <stdlib.h>
+#ifdef TRY_COMPRESS_SORT_LARGEP
+#include "vec_bitonic_sort.h"
+#endif
 
 #ifdef USE_AVX512F
 
@@ -2680,6 +2683,876 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 #endif
     return;
 }
+
+#ifdef TRY_COMPRESS_SORT_LARGEP
+
+/*
+
+============== ref avx512bw ==============
+
+-------- c75 --------
+26534 rels found: 9429 full + 17105 from 264416 partial, (16114.45 rels/sec) ETA 4 sec)
+
+sieving required 53728 total polynomials (416 'A' polynomials)
+trial division touched 3955531 sieve locations out of 17605591040
+dlp-ecm: 0 failures, 192580 attempts, 1049524 outside range, 907996 prp, 162098 useful
+total reports = 3955531, total surviving reports = 2261847
+total blocks sieved = 537280, avg surviving reports per block = 4.21
+Elapsed time: 16.9938 sec
+        Med sieve time: 4.2359 sec
+        Large sieve time: 1.0324 sec
+        Tdiv time: 4.3665 sec
+        Poly update time: 4.9151 sec
+QS elapsed time = 16.9939 seconds.
+
+-------- c80 --------
+47340 rels found: 18640 full + 28700 from 446394 partial, (13659.36 rels/sec) ETA 0 sec)
+
+sieving required 81090 total polynomials (318 'A' polynomials)
+trial division touched 6878470 sieve locations out of 31885885440
+dlp-ecm: 0 failures, 300226 attempts, 1897588 outside range, 1495220 prp, 256849 useful
+total reports = 6878470, total surviving reports = 3901219
+total blocks sieved = 973080, avg surviving reports per block = 4.01
+Elapsed time: 34.0451 sec
+        Med sieve time: 7.4458 sec
+        Large sieve time: 2.3096 sec
+        Tdiv time: 8.6222 sec
+        Poly update time: 12.0167 sec
+QS elapsed time = 34.0452 seconds.
+
+-------- c85 --------
+59954 rels found: 19724 full + 40230 from 678732 partial, (7068.05 rels/sec) ETA 1 sec))
+
+sieving required 216217 total polynomials (615 'A' polynomials)
+trial division touched 17929338 sieve locations out of 99189981184
+dlp-ecm: 0 failures, 538629 attempts, 4253574 outside range, 2607502 prp, 458824 useful
+total reports = 17929338, total surviving reports = 7639337
+total blocks sieved = 3027038, avg surviving reports per block = 2.52
+Elapsed time: 98.8188 sec
+        Med sieve time: 23.2126 sec
+        Large sieve time: 7.8896 sec
+        Tdiv time: 18.4031 sec
+        Poly update time: 41.0478 sec
+QS elapsed time = 98.8189 seconds.
+
+
+============== cs  avx512bw ==============
+
+-------- c75 --------
+26594 rels found: 9254 full + 17340 from 273465 partial, (11402.70 rels/sec) ETA 7 sec)
+
+sieving required 53859 total polynomials (413 'A' polynomials)
+trial division touched 4292285 sieve locations out of 17648517120
+dlp-ecm: 0 failures, 206091 attempts, 1196436 outside range, 948095 prp, 171349 useful
+total reports = 4292285, total surviving reports = 2461992
+total blocks sieved = 538590, avg surviving reports per block = 4.57
+Elapsed time: 24.7940 sec
+        Med sieve time: 4.3299 sec
+        Large sieve time: 3.0381 sec
+        Tdiv time: 11.3683 sec
+        Poly update time: 3.6634 sec
+QS elapsed time = 24.7942 seconds.
+
+-------- c80 --------
+47459 rels found: 18507 full + 28952 from 458362 partial, (9343.09 rels/sec) ETA 0 sec))
+
+sieving required 81090 total polynomials (318 'A' polynomials)
+trial division touched 7303989 sieve locations out of 31885885440
+dlp-ecm: 0 failures, 321147 attempts, 2044956 outside range, 1559961 prp, 270138 useful
+total reports = 7303989, total surviving reports = 4132795
+total blocks sieved = 973080, avg surviving reports per block = 4.25
+Elapsed time: 51.0397 sec
+        Med sieve time: 7.4739 sec
+        Large sieve time: 7.1916 sec
+        Tdiv time: 24.0829 sec
+        Poly update time: 8.7957 sec
+QS elapsed time = 51.0399 seconds.
+
+-------- c85 --------
+59992 rels found: 19212 full + 40780 from 705781 partial, (5101.74 rels/sec) ETA 3 sec))
+
+sieving required 215190 total polynomials (618 'A' polynomials)
+trial division touched 19567007 sieve locations out of 98718842880
+dlp-ecm: 0 failures, 585900 attempts, 4711385 outside range, 2751654 prp, 488932 useful
+total reports = 19567007, total surviving reports = 8285000
+total blocks sieved = 3012660, avg surviving reports per block = 2.75
+Elapsed time: 142.1071 sec
+        Med sieve time: 24.5125 sec
+        Large sieve time: 24.6000 sec
+        Tdiv time: 54.3415 sec
+        Poly update time: 30.2421 sec
+QS elapsed time = 142.1072 seconds.
+
+
+
+*/
+
+
+#define SLICE_SZ 256
+
+void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dconf,
+    int bound_index, int check_bound, uint32_t bound_val, int* ptr,
+    uint32_t* numptr_p, uint32_t* numptr_n, uint32_t* sliceptr_p, uint32_t* sliceptr_n)
+{
+    //update the roots 
+    int* rootupdates = dconf->rootupdates;
+    update_t update_data = dconf->update_data;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
+
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+
+    lp_bucket* lp_bucket_p = dconf->buckets;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
+    uint32_t xlarge_B = sconf->factor_base->x2_large_B;
+
+    uint32_t j, interval;
+    int k, numblocks, idx;
+
+    uint8_t* slicelogp_ptr = NULL;
+    uint32_t* slicebound_ptr = NULL;
+    uint32_t* bptr;
+    int room;
+    uint8_t logp = 0;
+
+    __m512i vindex = _mm512_setr_epi32(
+        0, 1, 2, 3,
+        4, 5, 6, 7,
+        8, 9, 10, 11,
+        12, 13, 14, 15);
+
+    __m512i vprime, vroot1, vroot2, vpval, vnroot1, vnroot2, vinterval, vpindex;
+    __m512i velement1, velement2, velement3, velement4;
+    __mmask16 mask1, mask2, mask3, mask4;
+
+    ALIGNED_MEM uint32_t e1[128];
+    ALIGNED_MEM uint32_t e2[128];
+
+    numblocks = sconf->num_blocks;
+    interval = numblocks << 15;
+    vinterval = _mm512_set1_epi32(interval);
+
+    if (lp_bucket_p->lp_alloc_slices != 0)
+    {
+        slicelogp_ptr = lp_bucket_p->lp_logp;
+        slicebound_ptr = lp_bucket_p->lp_fb_bounds;
+    }
+    else
+    {
+        return;
+    }
+
+    k = 0;
+    logp = update_data.logp[large_B - 1];
+
+    // force a new slice to start this new algorithm.
+    // old slice gets the current logp
+    slicelogp_ptr[bound_index] = logp;
+    lp_bucket_p->num_slices = bound_index + 1;
+
+    // new slice in the new set of slices
+    bound_index = 0;
+    dconf->buckets->lp_num_slices = 0;
+
+    // new lp fb start index for this slice
+    slicebound_ptr[bound_index] = large_B;
+    bound_val = large_B;
+
+    // set lp bucket pointers
+    sliceptr_p = lp_bucket_p->lp_list;
+    sliceptr_n = lp_bucket_p->lp_list + lp_bucket_p->lp_alloc_slices * SLICE_SZ;
+        
+    // we now compress sections of the factor base into
+    // 64-element fixed-size sorted batches.  These fb sections
+    // are to be no larger than 1024 elements (10 bits)
+    // to accomodate storing the offset in the lower 10 bits
+    // of the bucket element.  The upper 22 bits are the
+    // full root.  If for some reason a 64-element batch
+    // isn't full (i.e., toward the end of the range where 
+    // the compression ratio is very high),
+    // it will be filled with 0xffffffff's.
+#define TRY1
+
+#ifdef TRY1
+    if (sign > 0)
+    {
+        uint32_t nhits1, nhits2, nhits3, nhits4;
+        uint32_t countp = 0;
+        uint32_t countn = 0;
+
+        for (j = large_B; j < bound; )
+        {
+            while ((j < bound) && ((j - bound_val) < 1024))
+            {
+                // compute the root updates and store them (only store positive side)
+                vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+                vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+                vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+                vpval = _mm512_load_epi32((__m512i*)ptr);
+                mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+                mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+                vroot1 = _mm512_sub_epi32(vroot1, vpval);
+                vroot2 = _mm512_sub_epi32(vroot2, vpval);
+                vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vroot1);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vroot2);
+
+                // -side roots
+                vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+                vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+                // mask hits
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+                mask3 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                mask4 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                // count hits
+                nhits1 = _mm_popcnt_u32(mask1);
+                nhits2 = _mm_popcnt_u32(mask2);
+                nhits3 = _mm_popcnt_u32(mask3);
+                nhits4 = _mm_popcnt_u32(mask4);
+
+                // check if this would overfill the slice
+                if (((countp + nhits1 + nhits2) > SLICE_SZ) ||
+                    ((countn + nhits3 + nhits4) > SLICE_SZ))
+                {
+                    break;
+                }
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // prepare for next load/update
+                j += 16, ptr += 16;
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);  
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // next locations
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+
+                // reset hits (so we know how the loop was exited)
+                nhits1 = nhits2 = nhits3 = nhits4 = 0;
+            }
+
+            // sort the p-side
+            for (k = countp; k < SLICE_SZ; k++)
+                sliceptr_p[k] = 0xffffffff;
+            bitonic_sort32(sliceptr_p, SLICE_SZ, 0);
+
+            //if (bound_index == 0)
+            //{
+            //    printf("\nsorted slice %u, p-side, bound_val = %u\n", bound_index, bound_val);
+            //    for (k = 0; k < 64; k++)
+            //    {
+            //        printf("%02d: %08x, %u, %u, %u\n", k, sliceptr_p[k],
+            //            sliceptr_p[k] & 0x3ff, sliceptr_p[k] >> 25,
+            //            (sliceptr_p[k] >> 10) & 0x7fff);
+            //    }
+            //    printf("fb index now %u, large_B = %u, pending hits = %u,%u,%u,%u\n",
+            //        j, large_B, nhits1, nhits2, nhits3, nhits4);
+            //}
+
+            // sort the n-side
+            for (k = countn; k < SLICE_SZ; k++)
+                sliceptr_n[k] = 0xffffffff;
+            bitonic_sort32(sliceptr_n, SLICE_SZ, 0);
+
+            // finalize this slice
+            //if (bound_index > 0)
+            {
+                lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
+            }
+
+            // prepare for lp sieving
+            lp_bucket_p->lp_id_p[bound_index] = 0;
+            lp_bucket_p->lp_id_n[bound_index] = 0;
+
+            // new slice
+            bound_index++;
+            dconf->buckets->lp_num_slices++;
+            bound_val = j;
+            slicebound_ptr[bound_index] = bound_val;
+            sliceptr_p += SLICE_SZ;
+            sliceptr_n += SLICE_SZ;
+            countp = 0;
+            countn = 0;
+
+            if ((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0))
+            {
+                // write the portion that didn't fit in the last 
+                // lp slice into this one
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // prepare for next load/update
+                j += 16, ptr += 16;
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // start next slice after these leftovers we just wrote
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+            }
+        }
+    }
+    else
+    {
+        uint32_t nhits1, nhits2, nhits3, nhits4;
+        uint32_t countp = 0;
+        uint32_t countn = 0;
+
+        for (j = large_B; j < bound; )
+        {
+            while ((j < bound) && ((j - bound_val) < 1024))
+            {
+                // compute the root updates and store them (only store positive side)
+                vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+                vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+                vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+                vpval = _mm512_load_epi32((__m512i*)ptr);
+                vroot1 = _mm512_add_epi32(vroot1, vpval);
+                vroot2 = _mm512_add_epi32(vroot2, vpval);
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+                vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+                vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vroot1);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vroot2);
+
+                // -side roots
+                vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+                vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+                // mask hits
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+                mask3 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                mask4 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                // count hits
+                nhits1 = _mm_popcnt_u32(mask1);
+                nhits2 = _mm_popcnt_u32(mask2);
+                nhits3 = _mm_popcnt_u32(mask3);
+                nhits4 = _mm_popcnt_u32(mask4);
+
+                // check if this would overfill the slice
+                if (((countp + nhits1 + nhits2) > SLICE_SZ) ||
+                    ((countn + nhits3 + nhits4) > SLICE_SZ))
+                {
+                    break;
+                }
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // prepare for next load/update
+                j += 16, ptr += 16;
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // next locations
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+
+                // reset hits (so we know how the loop was exited)
+                nhits1 = nhits2 = nhits3 = nhits4 = 0;
+            }
+
+            // if the last loop iteration took us past 64 elements,
+            // then we save the extra ones for the next batch.  
+            // the problem if we do this to the exact batch size is that it puts
+            // the next set of loads on a non-aligned fb index. The exact j
+            // will most likely no longer be a multiple of 16.
+            // saving the entire last iteration for later preserves 
+            // the aligned loads but then processes less-than-full batches.
+
+            // sort the p-side
+            for (k = countp; k < SLICE_SZ; k++)
+                sliceptr_p[k] = 0xffffffff;
+            bitonic_sort32(sliceptr_p, SLICE_SZ, 0);
+
+            //if (bound_index == 0)
+            //{
+            //    printf("\nsorted slice %u, p-side, bound_val = %u\n", bound_index, bound_val);
+            //    for (k = 0; k < 64; k++)
+            //    {
+            //        printf("%02d: %08x, %u, %u, %u\n", k, sliceptr_p[k],
+            //            sliceptr_p[k] & 0x3ff, sliceptr_p[k] >> 25,
+            //            (sliceptr_p[k] >> 10) & 0x7fff);
+            //    }
+            //    printf("fb index now %u, large_B = %u, pending hits = %u,%u,%u,%u\n",
+            //        j, large_B, nhits1, nhits2, nhits3, nhits4);
+            //}
+
+            // sort the n-side
+            for (k = countn; k < SLICE_SZ; k++)
+                sliceptr_n[k] = 0xffffffff;
+            bitonic_sort32(sliceptr_n, SLICE_SZ, 0);
+
+            // finalize this slice
+            lp_bucket_p->lp_id_p[bound_index] = 0;
+            lp_bucket_p->lp_id_n[bound_index] = 0;
+
+            //if (bound_index > 0)
+            {
+                lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
+            }
+
+            // new slice
+            bound_index++;
+            dconf->buckets->lp_num_slices++;
+            bound_val = j;
+            slicebound_ptr[bound_index] = bound_val;
+            sliceptr_p += SLICE_SZ;
+            sliceptr_n += SLICE_SZ;
+            countp = 0;
+            countn = 0;
+
+            //if (((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0)) &&
+            //    (dconf->buckets->lp_num_slices < dconf->buckets->lp_alloc_slices))
+            if ((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0))
+            {
+                // write the portion that didn't fit in the last 
+                // lp slice into this one
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // prepare for next load/update
+                j += 16, ptr += 16;
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // start next slice after these leftovers we just wrote
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+            }
+        }
+    }
+#endif
+
+
+#ifdef TRY2
+    if (sign > 0)
+    {
+        uint32_t nhits1, nhits2, nhits3, nhits4;
+        uint32_t countp = 0;
+        uint32_t countn = 0;
+
+        for (j = large_B; j < bound; j += 16, ptr += 16)
+        {
+            while ((j < bound) && ((j - bound_val) < 1024))
+            {
+                // compute the root updates and store them (only store positive side)
+                vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+                vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+                vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+                vpval = _mm512_load_epi32((__m512i*)ptr);
+                mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+                mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+                vroot1 = _mm512_sub_epi32(vroot1, vpval);
+                vroot2 = _mm512_sub_epi32(vroot2, vpval);
+                vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vroot1);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vroot2);
+
+                // -side roots
+                vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+                vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+                // mask hits
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+                mask3 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                mask4 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                // count hits
+                nhits1 = _mm_popcnt_u32(mask1);
+                nhits2 = _mm_popcnt_u32(mask2);
+                nhits3 = _mm_popcnt_u32(mask3);
+                nhits4 = _mm_popcnt_u32(mask4);
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // next locations
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+            }
+
+            // create and sort slices on the p-side from the compressed 
+            // roots relative to this fb offset (bound_val)
+            uint32_t count = countp;
+            while (count >= SLICE_SZ)
+            {
+                bitonic_sort32(sliceptr_p, SLICE_SZ, 0);
+                sliceptr_p += SLICE_SZ;
+                count -= SLICE_SZ;
+                // set logp for this slice and starting slice index
+                lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
+                lp_bucket_p->lp_id_p[bound_index] = 0;
+                // new slice at current bound val
+                bound_index++;
+                slicebound_ptr[bound_index] = bound_val;
+            }
+
+            // final possibly-not-full slice relative to this fb offset
+            uint32_t last;
+            if (count <= 64) last = 64;
+            else if (count <= 128) last = 128;
+            else last = 256;
+
+            for (k = count; k < last; k++)
+                sliceptr_p[k] = 0xffffffff;
+            bitonic_sort32(sliceptr_p, last, 0);
+
+            lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
+            lp_bucket_p->lp_id_p[bound_index] = 0;
+            bound_index++;
+
+            // go back and do the same for the n-side
+            uint32_t num_p_slices = bound_index - dconf->buckets->lp_num_slices;
+            bound_index = dconf->buckets->lp_num_slices;
+
+            count = countn;
+            while (count >= SLICE_SZ)
+            {
+                bitonic_sort32(sliceptr_n, SLICE_SZ, 0);
+                sliceptr_n += SLICE_SZ;
+                count -= SLICE_SZ;
+                lp_bucket_p->lp_id_n[bound_index] = 0;
+                bound_index++;
+            }
+
+            if (count <= 64) last = 64;
+            else if (count <= 128) last = 128;
+            else last = 256;
+
+            for (k = count; k < last; k++)
+                sliceptr_n[k] = 0xffffffff;
+            bitonic_sort32(sliceptr_n, last, 0);
+
+            lp_bucket_p->lp_id_n[bound_index] = 0;
+            bound_index++;
+            
+            // are the number of side slices different?  should be very rare.
+            uint32_t num_n_slices = bound_index - dconf->buckets->lp_num_slices;
+            dconf->buckets->lp_num_slices += num_p_slices;
+            if (num_n_slices != num_p_slices)
+            {
+                printf("different number of n and p slices!\n");
+            }
+
+            // now upodate the fb offset for the next set of slices
+            bound_index = dconf->buckets->lp_num_slices;
+            bound_val = j;
+            slicebound_ptr[bound_index] = bound_val;
+
+            countp = 0;
+            countn = 0;
+        }
+    }
+    else
+    {
+        uint32_t nhits1, nhits2, nhits3, nhits4;
+        uint32_t countp = 0;
+        uint32_t countn = 0;
+
+        for (j = large_B; j < bound; )
+        {
+            while ((j < bound) && ((j - bound_val) < 1024))
+            {
+                // compute the root updates and store them (only store positive side)
+                vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+                vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+                vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+                vpval = _mm512_load_epi32((__m512i*)ptr);
+                vroot1 = _mm512_add_epi32(vroot1, vpval);
+                vroot2 = _mm512_add_epi32(vroot2, vpval);
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+                vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+                vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vroot1);
+                _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vroot2);
+
+                // -side roots
+                vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+                vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+                // mask hits
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+                mask3 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                mask4 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                // count hits
+                nhits1 = _mm_popcnt_u32(mask1);
+                nhits2 = _mm_popcnt_u32(mask2);
+                nhits3 = _mm_popcnt_u32(mask3);
+                nhits4 = _mm_popcnt_u32(mask4);
+
+                // check if this would overfill the slice
+                if (((countp + nhits1 + nhits2) > SLICE_SZ) ||
+                    ((countn + nhits3 + nhits4) > SLICE_SZ))
+                {
+                    break;
+                }
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // prepare for next load/update
+                j += 16, ptr += 16;
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // next locations
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+
+                // reset hits (so we know how the loop was exited)
+                nhits1 = nhits2 = nhits3 = nhits4 = 0;
+            }
+
+            // if the last loop iteration took us past 64 elements,
+            // then we save the extra ones for the next batch.  
+            // the problem if we do this to the exact batch size is that it puts
+            // the next set of loads on a non-aligned fb index. The exact j
+            // will most likely no longer be a multiple of 16.
+            // saving the entire last iteration for later preserves 
+            // the aligned loads but then processes less-than-full batches.
+
+            // sort the p-side
+            for (k = countp; k < SLICE_SZ; k++)
+                sliceptr_p[k] = 0xffffffff;
+            bitonic_sort32_dir_128(sliceptr_p, 0);
+
+            //if (bound_index == 0)
+            //{
+            //    printf("\nsorted slice %u, p-side, bound_val = %u\n", bound_index, bound_val);
+            //    for (k = 0; k < 64; k++)
+            //    {
+            //        printf("%02d: %08x, %u, %u, %u\n", k, sliceptr_p[k],
+            //            sliceptr_p[k] & 0x3ff, sliceptr_p[k] >> 25,
+            //            (sliceptr_p[k] >> 10) & 0x7fff);
+            //    }
+            //    printf("fb index now %u, large_B = %u, pending hits = %u,%u,%u,%u\n",
+            //        j, large_B, nhits1, nhits2, nhits3, nhits4);
+            //}
+
+            // sort the n-side
+            for (k = countn; k < SLICE_SZ; k++)
+                sliceptr_n[k] = 0xffffffff;
+            bitonic_sort32_dir_128(sliceptr_n, 0);
+
+            // finalize this slice
+            lp_bucket_p->lp_id_p[bound_index] = 0;
+            lp_bucket_p->lp_id_n[bound_index] = 0;
+
+            if (bound_index > 0)
+            {
+                lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
+            }
+
+            // new slice
+            bound_index++;
+            dconf->buckets->lp_num_slices++;
+            bound_val = j;
+            slicebound_ptr[bound_index] = bound_val;
+            sliceptr_p += SLICE_SZ;
+            sliceptr_n += SLICE_SZ;
+            countp = 0;
+            countn = 0;
+
+            //if (((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0)) &&
+            //    (dconf->buckets->lp_num_slices < dconf->buckets->lp_alloc_slices))
+            if ((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0))
+            {
+                // write the portion that didn't fit in the last 
+                // lp slice into this one
+
+                // low 10 bits: prime index relative to slice boundary
+                // high 22 bits: full root
+                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
+
+                // prepare for next load/update
+                j += 16, ptr += 16;
+
+                // pack root with fb index
+                velement4 = _mm512_slli_epi32(vnroot2, 10);
+                velement3 = _mm512_slli_epi32(vnroot1, 10);
+                velement2 = _mm512_slli_epi32(vroot2, 10);
+                velement1 = _mm512_slli_epi32(vroot1, 10);
+                velement4 = _mm512_or_epi32(velement4, vpindex);
+                velement3 = _mm512_or_epi32(velement3, vpindex);
+                velement2 = _mm512_or_epi32(velement2, vpindex);
+                velement1 = _mm512_or_epi32(velement1, vpindex);
+
+                // compress hits
+                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
+                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
+                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
+                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
+
+                // store hits
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
+                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
+
+                // start next slice after these leftovers we just wrote
+                countp += (nhits1 + nhits2);
+                countn += (nhits3 + nhits4);
+            }
+        }
+    }
+#endif
+
+    if (lp_bucket_p->lp_list != NULL)
+    {
+        // all done bucket sieving, record final logp and number of slices.
+        lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
+    }
+
+    return;
+}
+#endif
 
 void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
