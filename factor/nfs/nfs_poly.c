@@ -2124,6 +2124,7 @@ void *polyfind_launcher(void *ptr)
 			// run with default startq
 			gettimeofday(&startt, NULL);
 			lasieve_launcher_tdata((void*)t);
+			remove(t->outfilename);
 			gettimeofday(&stopt, NULL);
 
 			this_time = ytools_difftime(&startt, &stopt);
@@ -2148,6 +2149,7 @@ void *polyfind_launcher(void *ptr)
 			t->job.current_rels = 0;
 			gettimeofday(&startt, NULL);
 			lasieve_launcher_tdata((void*)t);
+			remove(t->outfilename);
 			gettimeofday(&stopt, NULL);
 
 			this_time = ytools_difftime(&startt, &stopt);
@@ -2162,6 +2164,7 @@ void *polyfind_launcher(void *ptr)
 			t->job.current_rels = 0;
 			gettimeofday(&startt, NULL);
 			lasieve_launcher_tdata((void*)t);
+			remove(t->outfilename);
 			gettimeofday(&stopt, NULL);
 
 			this_time = ytools_difftime(&startt, &stopt);
