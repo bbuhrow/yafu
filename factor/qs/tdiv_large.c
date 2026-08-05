@@ -1260,177 +1260,75 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
         id_ptr = dconf->buckets->lp_id_p;
     }
 
-    //for (j = 0; j < dconf->buckets->lp_num_slices - 4; j += 4)
-    //{
-    //    uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
-    //    // the id_ptr after the sieve points to the 
-    //    // first id of the next potential block.  we
-    //    // start at the one just before that and proceed
-    //    // backwards as long as the root is still in this block.
-    //    for (k = id_ptr[j] - 1; k >= 0; k--)
-    //    {
-    //        uint32_t root = bptr[k] >> 10;
-    //        uint32_t block = root >> 15;
-    //
-    //        if (bnum != block)
-    //            break;
-    //
-    //        if ((root & 0x7fff) == block_loc)
-    //        {
-    //            i = fb_bound + (bptr[k] & 0x3ff);
-    //            prime = fb[i];
-    //            //if (prime == 0)
-    //            //{
-    //            //    printf("\ndividing p = %u (bound %u, index %u) from block %u loc %u, full record: %08x\n",
-    //            //        prime, fb_bound, (bptr[k] & 0x3ff), block, block_loc, bptr[k]);
-    //            //    continue;
-    //            //}
-    //            DIVIDE_RESIEVED_PRIME(i);
-    //        }
-    //    }
-    //    bptr += 128;
-    //}
+    __m512i vmask15 = _mm512_set1_epi32(0x7fff);
+    __m512i vbnum = _mm512_set1_epi32(bnum);
 
-    //for (j = dconf->num_reports - 1; j >= 0; j--)
-    //{
-    //    if (dconf->valid_Qs[j])
-    //        break;
-    //}
-    //int last_report = (j == (int)report_num);
-
-    if (0) //last_report)
+    //for (j = 0; (dconf->buckets->lp_num_slices > 2) && 
+    //    (j < (dconf->buckets->lp_num_slices - 2)); j+=2)
+    if (0)
     {
-#if 0
-        for (j = 0; j < dconf->buckets->lp_num_slices; j++)
-        {
-            uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
+        //uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
+        uint32_t bmsk1 = 0xffff;
+        uint32_t bmsk2 = 0xffff;
+        int k1 = id_ptr[j];
+        int k2 = id_ptr[j+1];
+        uint32_t* p1 = &bptr[k1];
+        uint32_t* p2 = &bptr[k2 + SLICE_SZ];
 
-            for (k = id_ptr[j]; k < SLICE_SZ; k++)
-            {
-                uint32_t root = bptr[k] >> 10;
-                uint32_t block = root >> 15;
+        do {
+            // load the previous 16 hits
+            uint32_t id1, id2;
+            __m512i root1, root2;
 
-                if (bnum != block)
-                    break;
-
-                if ((root & 0x7fff) == block_loc)
-                {
-                    i = fb_bound + (bptr[k] & 0x3ff);
-                    prime = fb[i];
-                    //if (prime == 0)
-                    //{
-                    //    printf("\ndividing p = %u (bound %u, index %u) from block %u loc %u, full record: %08x\n",
-                    //        prime, fb_bound, (bptr[k] & 0x3ff), block, block_loc, bptr[k]);
-                    //    continue;
-                    //}
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-            }
-            bptr += SLICE_SZ;
-            id_ptr[j] = k;
-        }
-#endif
-
-        __m512i vbnum = _mm512_set1_epi32(bnum);
-        __m512i vmask15 = _mm512_set1_epi32(0x7fff);
-
-        for (j = 0; j < dconf->buckets->lp_num_slices; j++)
-        {
-            uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
-            uint32_t bmsk1;
-            k = id_ptr[j];
-            do {
-                // load the next 16 hits
-                __m512i root1 = _mm512_loadu_si512(&bptr[k]);
-
-                // isolate the block number
-                __m512i blk1 = _mm512_srli_epi32(root1, 25);
-                root1 = _mm512_srli_epi32(root1, 10);
-
-                // mask for this block
-                // isolate the root value
-                bmsk1 = _mm512_cmpeq_epu32_mask(blk1, vbnum);
-                root1 = _mm512_and_si512(root1, vmask15);
-
-                // mask for this sieve location
-                uint32_t msk1 = _mm512_mask_cmpeq_epu32_mask(bmsk1, root1, vblock);
-
-                // process any hits
-                while (msk1 > 0)
-                {
-                    uint32_t idx = _trail_zcnt(msk1);
-                    i = fb_bound + (bptr[k + idx] & 0x3ff);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-
-                    msk1 = _reset_lsb(msk1);
-                }
-
-                if (bmsk1 == 0xffff)
-                {
-                    k += 16;
-                }
-                else
-                {
-                    break;
-                }
-
-            } while (1);
-
-            bptr += SLICE_SZ;
-            id_ptr[j] = k + __builtin_popcountl(bmsk1);
-        }
-
-    }
-    else
-    {
-        __m512i vbnum = _mm512_set1_epi32(bnum);
-        __m512i vmask15 = _mm512_set1_epi32(0x7fff);
-
-        //for (j = 0; 
-        //    (dconf->buckets->lp_num_slices >= 4) && 
-        //    (j < (dconf->buckets->lp_num_slices - 4)); j += 4)
-        if (0)
-        {
-            // load the next 16 hits from the next 4 slices
-            __m512i root1 = _mm512_loadu_si512(&bptr[  0 + id_ptr[j + 0]]);
-            __m512i root2 = _mm512_loadu_si512(&bptr[128 + id_ptr[j + 1]]);
-            __m512i root3 = _mm512_loadu_si512(&bptr[256 + id_ptr[j + 2]]);
-            __m512i root4 = _mm512_loadu_si512(&bptr[384 + id_ptr[j + 3]]);
+            //if (k1 >= 16)
+            //{
+            //    id1 = k1 - 16;
+            //    root1 = _mm512_loadu_si512(&bptr[id1]);
+            //    bmsk1 = 0xffff;
+            //}
+            //else
+            //{
+            //    id1 = 0;
+            //    root1 = _mm512_loadu_si512(&bptr[id1]);
+            //    bmsk1 = (1 << k1) - 1;
+            //}
+            //if (k2 >= 16)
+            //{
+            //    id2 = k2 - 16;
+            //    root2 = _mm512_loadu_si512(&bptr[id2 + SLICE_SZ]);
+            //    bmsk2 = 0xffff;
+            //}
+            //else
+            //{
+            //    id2 = 0;
+            //    root2 = _mm512_loadu_si512(&bptr[id2 + SLICE_SZ]);
+            //    bmsk2 = (1 << k2) - 1;
+            //}
+            root1 = _mm512_loadu_si512(p1 - 16);
+            root2 = _mm512_loadu_si512(p2 - 16);
 
             // isolate the block number
             __m512i blk1 = _mm512_srli_epi32(root1, 25);
             __m512i blk2 = _mm512_srli_epi32(root2, 25);
-            __m512i blk3 = _mm512_srli_epi32(root3, 25);
-            __m512i blk4 = _mm512_srli_epi32(root4, 25);
-
-            // mask for this block
-            uint32_t bmsk1 = _mm512_cmpeq_epu32_mask(blk1, vbnum);
-            uint32_t bmsk2 = _mm512_cmpeq_epu32_mask(blk2, vbnum);
-            uint32_t bmsk3 = _mm512_cmpeq_epu32_mask(blk3, vbnum);
-            uint32_t bmsk4 = _mm512_cmpeq_epu32_mask(blk4, vbnum);
-
-            // isolate the root value
             root1 = _mm512_srli_epi32(root1, 10);
             root2 = _mm512_srli_epi32(root2, 10);
-            root3 = _mm512_srli_epi32(root3, 10);
-            root4 = _mm512_srli_epi32(root4, 10);
+
+            // mask for this block
+            // isolate the root value
+            bmsk1 = _mm512_mask_cmpeq_epu32_mask(bmsk1, blk1, vbnum);
+            bmsk2 = _mm512_mask_cmpeq_epu32_mask(bmsk2, blk2, vbnum);
             root1 = _mm512_and_si512(root1, vmask15);
             root2 = _mm512_and_si512(root2, vmask15);
-            root3 = _mm512_and_si512(root3, vmask15);
-            root4 = _mm512_and_si512(root4, vmask15);
 
             // mask for this sieve location
-            uint32_t msk1 = bmsk1 & _mm512_cmpeq_epu32_mask(root1, vblock);
-            uint32_t msk2 = bmsk2 & _mm512_cmpeq_epu32_mask(root2, vblock);
-            uint32_t msk3 = bmsk3 & _mm512_cmpeq_epu32_mask(root3, vblock);
-            uint32_t msk4 = bmsk4 & _mm512_cmpeq_epu32_mask(root4, vblock);
+            uint32_t msk1 = _mm512_mask_cmpeq_epu32_mask(bmsk1, root1, vblock);
+            uint32_t msk2 = _mm512_mask_cmpeq_epu32_mask(bmsk2, root2, vblock);
 
             // process any hits
             while (msk1 > 0)
             {
                 uint32_t idx = _trail_zcnt(msk1);
-                i = dconf->buckets->lp_fb_bounds[j + 0] + (bptr[id_ptr[j + 0] + idx] & 0x3ff);
+                i = dconf->buckets->lp_fb_bounds[j] + (bptr[id1 + idx] & 0x3ff);
                 prime = fb[i];
                 DIVIDE_RESIEVED_PRIME(i);
 
@@ -1440,83 +1338,43 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
             while (msk2 > 0)
             {
                 uint32_t idx = _trail_zcnt(msk2);
-                i = dconf->buckets->lp_fb_bounds[j + 1] + (bptr[id_ptr[j + 1] + 128 + idx] & 0x3ff);
+                i = dconf->buckets->lp_fb_bounds[j+1] + (bptr[id2 + SLICE_SZ + idx] & 0x3ff);
                 prime = fb[i];
                 DIVIDE_RESIEVED_PRIME(i);
 
                 msk2 = _reset_lsb(msk2);
             }
 
-            while (msk3 > 0)
-            {
-                uint32_t idx = _trail_zcnt(msk3);
-                i = dconf->buckets->lp_fb_bounds[j + 2] + (bptr[id_ptr[j + 2] + 256 + idx] & 0x3ff);
-                prime = fb[i];
-                DIVIDE_RESIEVED_PRIME(i);
+            p1 -= 16;
+            p2 -= 16;
 
-                msk3 = _reset_lsb(msk3);
-            }
+            //p1 = &bptr[k1];
+            //p2 = &bptr[k2 + 256];
 
-            while (msk4 > 0)
-            {
-                uint32_t idx = _trail_zcnt(msk4);
-                i = dconf->buckets->lp_fb_bounds[j + 3] + (bptr[id_ptr[j + 3] + 384 + idx] & 0x3ff);
-                prime = fb[i];
-                DIVIDE_RESIEVED_PRIME(i);
+        } while ((bmsk1 == 0xffff) && (bmsk2 == 0xffff));
 
-                msk4 = _reset_lsb(msk4);
-            }
-
-            //if (bmsk1 == 0xffff)
-            bptr += 512;
-        }
-
-        //for (j = 0 ; j < dconf->buckets->lp_num_slices; j++)
-        //{
-        //    uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
-        //
-        //    for (k = id_ptr[j]; k < 128; k++)
-        //    //for (k = id_ptr[j] - 1; k >= 0; k--)
-        //    {
-        //        uint32_t root = bptr[k] >> 10;
-        //        uint32_t block = root >> 15;
-        //
-        //        if (bnum != block)
-        //            break;
-        //
-        //        if ((root & 0x7fff) == block_loc)
-        //        {
-        //            i = fb_bound + (bptr[k] & 0x3ff);
-        //            prime = fb[i];
-        //            DIVIDE_RESIEVED_PRIME(i);
-        //        }
-        //    }
-        //    bptr += 128;
-        //}
-
-
-        for (j = 0; j < dconf->buckets->lp_num_slices; j++)
+        if (bmsk1 == 0xffff)
         {
             uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
-            uint32_t bmsk1 = 0xffff;
-            k = id_ptr[j];
+
             do {
                 // load the previous 16 hits
                 uint32_t id;
                 __m512i root1;
 
-                if (k >= 16)
-                {
-                    id = k - 16;
-                    root1 = _mm512_loadu_si512(&bptr[id]);
-                    bmsk1 = 0xffff;
-                }
-                else
-                {
-                    id = 0;
-                    root1 = _mm512_loadu_si512(&bptr[id]);
-                    bmsk1 = (1 << k) - 1;
-                }
+                //if (k1 >= 16)
+                //{
+                //    id = k1 - 16;
+                //    root1 = _mm512_loadu_si512(&bptr[id]);
+                //    bmsk1 = 0xffff;
+                //}
+                //else
+                //{
+                //    id = 0;
+                //    root1 = _mm512_loadu_si512(&bptr[id]);
+                //    bmsk1 = (1 << k1) - 1;
+                //}
+                root1 = _mm512_loadu_si512(p1);
 
                 // isolate the block number
                 __m512i blk1 = _mm512_srli_epi32(root1, 25);
@@ -1534,21 +1392,140 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 while (msk1 > 0)
                 {
                     uint32_t idx = _trail_zcnt(msk1);
-                    i = fb_bound + (bptr[id + idx] & 0x3ff);
+                    i = fb_bound + p1[idx] & 0x3ff; // (bptr[id + idx] & 0x3ff);
                     prime = fb[i];
                     DIVIDE_RESIEVED_PRIME(i);
 
                     msk1 = _reset_lsb(msk1);
                 }
 
-                k -= 16;
+                p1 -= 16;
 
             } while (bmsk1 == 0xffff);
-
-            bptr += SLICE_SZ;
         }
+
+        if (bmsk2 == 0xffff)
+        {
+            uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j+1];
+
+            do {
+                // load the previous 16 hits
+                uint32_t id;
+                __m512i root1;
+
+                //if (k2 >= 16)
+                //{
+                //    id = k2 - 16;
+                //    root1 = _mm512_loadu_si512(&bptr[id+SLICE_SZ]);
+                //    bmsk2 = 0xffff;
+                //}
+                //else
+                //{
+                //    id = 0;
+                //    root1 = _mm512_loadu_si512(&bptr[id+ SLICE_SZ]);
+                //    bmsk2 = (1 << k2) - 1;
+                //}
+                root1 = _mm512_loadu_si512(p2);
+
+                // isolate the block number
+                __m512i blk1 = _mm512_srli_epi32(root1, 25);
+                root1 = _mm512_srli_epi32(root1, 10);
+
+                // mask for this block
+                // isolate the root value
+                bmsk2 = _mm512_mask_cmpeq_epu32_mask(bmsk2, blk1, vbnum);
+                root1 = _mm512_and_si512(root1, vmask15);
+
+                // mask for this sieve location
+                uint32_t msk1 = _mm512_mask_cmpeq_epu32_mask(bmsk2, root1, vblock);
+
+                // process any hits
+                while (msk1 > 0)
+                {
+                    uint32_t idx = _trail_zcnt(msk1);
+                    i = fb_bound + p2[idx] & 0x3ff; // (bptr[id + SLICE_SZ + idx] & 0x3ff);
+                    prime = fb[i];
+                    DIVIDE_RESIEVED_PRIME(i);
+
+                    msk1 = _reset_lsb(msk1);
+                }
+
+                p2 -= 16;
+
+            } while (bmsk2 == 0xffff);
+        }
+
+        bptr += SLICE_SZ * 2;
     }
-    
+
+    for (j=0 ; j < dconf->buckets->lp_num_slices; j++)
+    {
+        uint32_t fb_bound = dconf->buckets->lp_fb_bounds[j];
+        uint32_t bmsk1 = 0xffff;
+        k = id_ptr[j];
+        uint32_t* p1 = &bptr[k];
+
+        p1 -= 16;
+        k -= 16;
+
+        do {
+            // load the previous 16 hits
+            //uint32_t id;
+            __m512i root1;
+
+            //if (k >= 16)
+            //{
+            //    id = k - 16;
+            //    root1 = _mm512_loadu_si512(&bptr[id]);
+            //    bmsk1 = 0xffff;
+            //}
+            //else
+            //{
+            //    id = 0;
+            //    root1 = _mm512_loadu_si512(&bptr[id]);
+            //    bmsk1 = (1 << k) - 1;
+            //}
+            root1 = _mm512_loadu_si512(p1);
+
+            // isolate the block number
+            __m512i blk1 = _mm512_srli_epi32(root1, 25);
+            root1 = _mm512_srli_epi32(root1, 10);
+
+            // mask for this block
+            // isolate the root value
+            bmsk1 = _mm512_mask_cmpeq_epu32_mask(bmsk1, blk1, vbnum);
+            root1 = _mm512_and_si512(root1, vmask15);
+
+            // mask for this sieve location
+            uint32_t msk1 = _mm512_mask_cmpeq_epu32_mask(bmsk1, root1, vblock);
+
+            // process any hits
+            while (msk1 > 0)
+            {
+                uint32_t idx = _trail_zcnt(msk1);
+                i = fb_bound + (p1[idx] & 0x3ff); // (bptr[id + idx] & 0x3ff);
+                prime = fb[i];
+                if (prime == 0)
+                {
+                    printf("error p=0, slice=%d, k=%d, startk = %d\n", j, k, id_ptr[j]);
+                    for (i = 0; i < 16; i++)
+                        printf("%08x ", p1[i]);
+                    printf("\n");
+                    exit(1);
+                }
+                DIVIDE_RESIEVED_PRIME(i);
+
+                msk1 = _reset_lsb(msk1);
+            }
+
+            p1 -= 16;
+            k -= 16;
+
+        } while (bmsk1 == 0xffff);
+
+        bptr += SLICE_SZ;
+    }
+
 #endif
 
 

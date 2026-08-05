@@ -417,8 +417,8 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_p[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -438,13 +438,13 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -478,8 +478,8 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_n[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -498,13 +498,13 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -683,8 +683,8 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_p[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -704,13 +704,13 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -744,8 +744,8 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_n[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -764,13 +764,13 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -1870,8 +1870,8 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -1937,8 +1937,8 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2038,8 +2038,8 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2100,8 +2100,8 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2198,13 +2198,13 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2257,13 +2257,13 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2356,8 +2356,8 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2416,8 +2416,8 @@ void nextRoots_32k_knl_largebucket(static_conf_t* sconf, dynamic_conf_t* dconf,
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -2864,16 +2864,25 @@ void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dcon
     sliceptr_p = lp_bucket_p->lp_list;
     sliceptr_n = lp_bucket_p->lp_list + lp_bucket_p->lp_alloc_slices * SLICE_SZ;
         
-    // we now compress sections of the factor base into
-    // 64-element fixed-size sorted batches.  These fb sections
+    // we compress large-prime sections of the factor base into
+    // fixed-size sorted batches.  These fb sections
     // are to be no larger than 1024 elements (10 bits)
     // to accomodate storing the offset in the lower 10 bits
     // of the bucket element.  The upper 22 bits are the
-    // full root.  If for some reason a 64-element batch
-    // isn't full (i.e., toward the end of the range where 
-    // the compression ratio is very high),
-    // it will be filled with 0xffffffff's.
-#define TRY1
+    // full root.  This hopefully still allows for fast
+    // avx512-based large prime sieving and trial division, 
+    // because sorted roots can be quickly scanned for roots
+    // in a target block. The fields lp_bucket_p->lp_id_p
+    // and lp_bucket_p->lp_id_n help facilitate this by tracking
+    // the index within each fixed-size batch to the current block's
+    // roots.  this is updated as the sieve proceeds from block
+    // to block.  Note that larger slice sizes result in more
+    // contiguous roots per block, per slice, after the sort, likely
+    // resulting in faster lp sieving and trial division.  
+    // But, sort speed decreases as the slice size increases.
+    // This will be a tunable point.
+
+#define TRY2
 
 #ifdef TRY1
     if (sign > 0)
@@ -3229,9 +3238,65 @@ void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dcon
         uint32_t countp = 0;
         uint32_t countn = 0;
 
-        for (j = large_B; j < bound; j += 16, ptr += 16)
+        // first update and compress the large-prime portion of the factor base.
+        for (j = large_B; j <= bound; j += 16, ptr += 16)
         {
-            while ((j < bound) && ((j - bound_val) < 1024))
+            if (((j - bound_val) >= 1024) || (j == bound))
+            {
+                // how many slices did we fill
+                nhits1 = (countp / SLICE_SZ);
+                nhits1 = (countp % SLICE_SZ) ? nhits1 + 1 : nhits1;
+                nhits2 = (countn / SLICE_SZ);
+                nhits2 = (countn % SLICE_SZ) ? nhits2 + 1 : nhits2;
+
+                //printf("sign %d, j = %u, bound_val = %u, countp = %u, "
+                //    "countn = %u, %u p-slices, %u n-slices, ",
+                //    sign, j, bound_val, countp, countn, nhits1, nhits2);
+
+                // set to max of p and n
+                nhits1 = (nhits1 >= nhits2) ? nhits1 : nhits2;
+
+                //printf("filling %u,%u stop vals\n",
+                //    SLICE_SZ* nhits1 - countp, SLICE_SZ* nhits1 - countn);
+
+                // fill remainder of slices with stop values
+                for (k = countp; k < SLICE_SZ * nhits1; k++)
+                {
+                    sliceptr_p[k] = 0xffffffff;
+                }
+
+                for (k = countn; k < SLICE_SZ * nhits1; k++)
+                {
+                    sliceptr_n[k] = 0xffffffff;
+                }
+
+                // set slice ptr's to next multiple of slice_sz.  
+                sliceptr_p += SLICE_SZ * nhits1;
+                sliceptr_n += SLICE_SZ * nhits1;
+
+                // set metadata for all filled slices
+                for (k = 0; k < nhits1; k++)
+                {
+                    lp_bucket_p->lp_logp[bound_index + k] = update_data.logp[j];
+                    // temporarily store the filled size of these slices for the sort.
+                    lp_bucket_p->lp_id_p[bound_index + k] = countp >= SLICE_SZ ? SLICE_SZ : countp;
+                    lp_bucket_p->lp_id_n[bound_index + k] = countn >= SLICE_SZ ? SLICE_SZ : countn;
+                    slicebound_ptr[bound_index + k] = bound_val;
+                    countp -= lp_bucket_p->lp_id_p[bound_index + k];
+                    countn -= lp_bucket_p->lp_id_n[bound_index + k];
+                }
+
+                // next slice at current bound val
+                bound_index += nhits1;
+                bound_val = j;
+                countp = 0;
+                countn = 0;
+
+                if (j == bound)
+                    break;
+            }
+
+            // update and compress next batch of 16 prime roots
             {
                 // compute the root updates and store them (only store positive side)
                 vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
@@ -3293,78 +3358,27 @@ void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dcon
                 countp += (nhits1 + nhits2);
                 countn += (nhits3 + nhits4);
             }
-
-            // create and sort slices on the p-side from the compressed 
-            // roots relative to this fb offset (bound_val)
-            uint32_t count = countp;
-            while (count >= SLICE_SZ)
-            {
-                bitonic_sort32(sliceptr_p, SLICE_SZ, 0);
-                sliceptr_p += SLICE_SZ;
-                count -= SLICE_SZ;
-                // set logp for this slice and starting slice index
-                lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
-                lp_bucket_p->lp_id_p[bound_index] = 0;
-                // new slice at current bound val
-                bound_index++;
-                slicebound_ptr[bound_index] = bound_val;
-            }
-
-            // final possibly-not-full slice relative to this fb offset
-            uint32_t last;
-            if (count <= 64) last = 64;
-            else if (count <= 128) last = 128;
-            else last = 256;
-
-            for (k = count; k < last; k++)
-                sliceptr_p[k] = 0xffffffff;
-            bitonic_sort32(sliceptr_p, last, 0);
-
-            lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
-            lp_bucket_p->lp_id_p[bound_index] = 0;
-            bound_index++;
-
-            // go back and do the same for the n-side
-            uint32_t num_p_slices = bound_index - dconf->buckets->lp_num_slices;
-            bound_index = dconf->buckets->lp_num_slices;
-
-            count = countn;
-            while (count >= SLICE_SZ)
-            {
-                bitonic_sort32(sliceptr_n, SLICE_SZ, 0);
-                sliceptr_n += SLICE_SZ;
-                count -= SLICE_SZ;
-                lp_bucket_p->lp_id_n[bound_index] = 0;
-                bound_index++;
-            }
-
-            if (count <= 64) last = 64;
-            else if (count <= 128) last = 128;
-            else last = 256;
-
-            for (k = count; k < last; k++)
-                sliceptr_n[k] = 0xffffffff;
-            bitonic_sort32(sliceptr_n, last, 0);
-
-            lp_bucket_p->lp_id_n[bound_index] = 0;
-            bound_index++;
-            
-            // are the number of side slices different?  should be very rare.
-            uint32_t num_n_slices = bound_index - dconf->buckets->lp_num_slices;
-            dconf->buckets->lp_num_slices += num_p_slices;
-            if (num_n_slices != num_p_slices)
-            {
-                printf("different number of n and p slices!\n");
-            }
-
-            // now upodate the fb offset for the next set of slices
-            bound_index = dconf->buckets->lp_num_slices;
-            bound_val = j;
-            slicebound_ptr[bound_index] = bound_val;
-
-            countp = 0;
-            countn = 0;
         }
+
+        // now sort the slices of the compressed data
+        sliceptr_p = lp_bucket_p->lp_list;
+        sliceptr_n = lp_bucket_p->lp_list + lp_bucket_p->lp_alloc_slices * SLICE_SZ;
+        //printf("now sorting %u p-slices: ", bound_index);
+        for (j = 0; j < bound_index; j++)
+        {
+            //printf("%u ", lp_bucket_p->lp_id_p[j]); fflush(stdout);
+            bitonic_sort32(sliceptr_p + SLICE_SZ * j, lp_bucket_p->lp_id_p[j], 0);
+            lp_bucket_p->lp_id_p[j] = 0;
+        }
+        //printf("\n");
+        //printf("now sorting %u n-slices: ", bound_index);
+        for (j = 0; j < bound_index; j++)
+        {
+            //printf("%u ", lp_bucket_p->lp_id_n[j]);  fflush(stdout);
+            bitonic_sort32(sliceptr_n + SLICE_SZ * j, lp_bucket_p->lp_id_n[j], 0);
+            lp_bucket_p->lp_id_n[j] = 0;
+        }
+        //printf("\n");
     }
     else
     {
@@ -3372,9 +3386,65 @@ void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dcon
         uint32_t countp = 0;
         uint32_t countn = 0;
 
-        for (j = large_B; j < bound; )
+        // first update and compress the large-prime portion of the factor base.
+        for (j = large_B; j <= bound; j += 16, ptr += 16)
         {
-            while ((j < bound) && ((j - bound_val) < 1024))
+            if (((j - bound_val) >= 1024) || (j == bound))
+            {
+                // how many slices did we fill
+                nhits1 = (countp / SLICE_SZ);
+                nhits1 = (countp % SLICE_SZ) ? nhits1 + 1 : nhits1;
+                nhits2 = (countn / SLICE_SZ);
+                nhits2 = (countn % SLICE_SZ) ? nhits2 + 1 : nhits2;
+
+                //printf("sign %d, j = %u, bound_val = %u, countp = %u, "
+                //    "countn = %u, %u p-slices, %u n-slices, ",
+                //    sign, j, bound_val, countp, countn, nhits1, nhits2);
+
+                // set to max of p and n
+                nhits1 = (nhits1 >= nhits2) ? nhits1 : nhits2;
+
+                //printf("filling %u,%u stop vals\n",
+                //    SLICE_SZ * nhits1 - countp, SLICE_SZ * nhits1 - countn);
+
+                // fill remainder of slices with stop values
+                for (k = countp; k < SLICE_SZ * nhits1; k++)
+                {
+                    sliceptr_p[k] = 0xffffffff;
+                }
+
+                for (k = countn; k < SLICE_SZ * nhits1; k++)
+                {
+                    sliceptr_n[k] = 0xffffffff;
+                }
+
+                // set slice ptr's to next multiple of slice_sz.  
+                sliceptr_p += SLICE_SZ * nhits1;
+                sliceptr_n += SLICE_SZ * nhits1;
+
+                // set metadata for all filled slices
+                for (k = 0; k < nhits1; k++)
+                {
+                    lp_bucket_p->lp_logp[bound_index + k] = update_data.logp[j];
+                    // temporarily store the filled size of these slices for the sort.
+                    lp_bucket_p->lp_id_p[bound_index + k] = countp >= SLICE_SZ ? SLICE_SZ : countp;
+                    lp_bucket_p->lp_id_n[bound_index + k] = countn >= SLICE_SZ ? SLICE_SZ : countn;
+                    slicebound_ptr[bound_index + k] = bound_val;
+                    countp -= lp_bucket_p->lp_id_p[bound_index + k];
+                    countn -= lp_bucket_p->lp_id_n[bound_index + k];
+                }
+
+                // next slice at current bound val
+                bound_index += nhits1;
+                bound_val = j;
+                countp = 0;
+                countn = 0;
+
+                if (j == bound)
+                    break;
+            }
+
+            // update and compress next batch of 16 prime roots
             {
                 // compute the root updates and store them (only store positive side)
                 vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
@@ -3406,19 +3476,9 @@ void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dcon
                 nhits3 = _mm_popcnt_u32(mask3);
                 nhits4 = _mm_popcnt_u32(mask4);
 
-                // check if this would overfill the slice
-                if (((countp + nhits1 + nhits2) > SLICE_SZ) ||
-                    ((countn + nhits3 + nhits4) > SLICE_SZ))
-                {
-                    break;
-                }
-
                 // low 10 bits: prime index relative to slice boundary
                 // high 22 bits: full root
                 vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
-
-                // prepare for next load/update
-                j += 16, ptr += 16;
 
                 // pack root with fb index
                 velement4 = _mm512_slli_epi32(vnroot2, 10);
@@ -3445,110 +3505,43 @@ void nextRoots_32k_knl_largebucket_cs(static_conf_t* sconf, dynamic_conf_t* dcon
                 // next locations
                 countp += (nhits1 + nhits2);
                 countn += (nhits3 + nhits4);
-
-                // reset hits (so we know how the loop was exited)
-                nhits1 = nhits2 = nhits3 = nhits4 = 0;
             }
 
-            // if the last loop iteration took us past 64 elements,
-            // then we save the extra ones for the next batch.  
-            // the problem if we do this to the exact batch size is that it puts
-            // the next set of loads on a non-aligned fb index. The exact j
-            // will most likely no longer be a multiple of 16.
-            // saving the entire last iteration for later preserves 
-            // the aligned loads but then processes less-than-full batches.
-
-            // sort the p-side
-            for (k = countp; k < SLICE_SZ; k++)
-                sliceptr_p[k] = 0xffffffff;
-            bitonic_sort32_dir_128(sliceptr_p, 0);
-
-            //if (bound_index == 0)
-            //{
-            //    printf("\nsorted slice %u, p-side, bound_val = %u\n", bound_index, bound_val);
-            //    for (k = 0; k < 64; k++)
-            //    {
-            //        printf("%02d: %08x, %u, %u, %u\n", k, sliceptr_p[k],
-            //            sliceptr_p[k] & 0x3ff, sliceptr_p[k] >> 25,
-            //            (sliceptr_p[k] >> 10) & 0x7fff);
-            //    }
-            //    printf("fb index now %u, large_B = %u, pending hits = %u,%u,%u,%u\n",
-            //        j, large_B, nhits1, nhits2, nhits3, nhits4);
-            //}
-
-            // sort the n-side
-            for (k = countn; k < SLICE_SZ; k++)
-                sliceptr_n[k] = 0xffffffff;
-            bitonic_sort32_dir_128(sliceptr_n, 0);
-
-            // finalize this slice
-            lp_bucket_p->lp_id_p[bound_index] = 0;
-            lp_bucket_p->lp_id_n[bound_index] = 0;
-
-            if (bound_index > 0)
-            {
-                lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
-            }
-
-            // new slice
-            bound_index++;
-            dconf->buckets->lp_num_slices++;
-            bound_val = j;
-            slicebound_ptr[bound_index] = bound_val;
-            sliceptr_p += SLICE_SZ;
-            sliceptr_n += SLICE_SZ;
-            countp = 0;
-            countn = 0;
-
-            //if (((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0)) &&
-            //    (dconf->buckets->lp_num_slices < dconf->buckets->lp_alloc_slices))
-            if ((nhits1 > 0) || (nhits2 > 0) || (nhits3 > 0) || (nhits4 > 0))
-            {
-                // write the portion that didn't fit in the last 
-                // lp slice into this one
-
-                // low 10 bits: prime index relative to slice boundary
-                // high 22 bits: full root
-                vpindex = _mm512_add_epi32(_mm512_set1_epi32(j - bound_val), vindex);
-
-                // prepare for next load/update
-                j += 16, ptr += 16;
-
-                // pack root with fb index
-                velement4 = _mm512_slli_epi32(vnroot2, 10);
-                velement3 = _mm512_slli_epi32(vnroot1, 10);
-                velement2 = _mm512_slli_epi32(vroot2, 10);
-                velement1 = _mm512_slli_epi32(vroot1, 10);
-                velement4 = _mm512_or_epi32(velement4, vpindex);
-                velement3 = _mm512_or_epi32(velement3, vpindex);
-                velement2 = _mm512_or_epi32(velement2, vpindex);
-                velement1 = _mm512_or_epi32(velement1, vpindex);
-
-                // compress hits
-                velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                velement3 = _mm512_maskz_compress_epi32(mask3, velement3);
-                velement4 = _mm512_maskz_compress_epi32(mask4, velement4);
-
-                // store hits
-                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + 0]), velement1);
-                _mm512_storeu_si512((__m512i*)(&sliceptr_p[countp + nhits1]), velement2);
-                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + 0]), velement3);
-                _mm512_storeu_si512((__m512i*)(&sliceptr_n[countn + nhits3]), velement4);
-
-                // start next slice after these leftovers we just wrote
-                countp += (nhits1 + nhits2);
-                countn += (nhits3 + nhits4);
-            }
         }
+
+        // now sort the slices of the compressed data
+        sliceptr_p = lp_bucket_p->lp_list;
+        sliceptr_n = lp_bucket_p->lp_list + lp_bucket_p->lp_alloc_slices * SLICE_SZ;
+        //printf("now sorting %u p-slices: ", bound_index);
+        for (j = 0; j < bound_index; j++)
+        {
+            //printf("%u ", lp_bucket_p->lp_id_p[j]);  fflush(stdout);
+            bitonic_sort32(sliceptr_p + SLICE_SZ * j, lp_bucket_p->lp_id_p[j], 0);
+            lp_bucket_p->lp_id_p[j] = 0;
+        }
+        //printf("\n");
+
+        //printf("now sorting %u n-slices: ", bound_index);
+        for (j = 0; j < bound_index; j++)
+        {
+            //printf("%u ", lp_bucket_p->lp_id_n[j]);  fflush(stdout);
+            bitonic_sort32(sliceptr_n + SLICE_SZ * j, lp_bucket_p->lp_id_n[j], 0);
+            lp_bucket_p->lp_id_n[j] = 0;
+        }
+        //printf("\n");
     }
+
+    dconf->buckets->lp_num_slices = bound_index;
+    //exit(1);
 #endif
 
+#ifdef TRY1
     if (lp_bucket_p->lp_list != NULL)
     {
         // all done bucket sieving, record final logp and number of slices.
         lp_bucket_p->lp_logp[bound_index] = update_data.logp[j];
     }
+#endif
 
     return;
 }
@@ -3920,8 +3913,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_p[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -3941,13 +3934,13 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -3981,8 +3974,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_n[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -4001,13 +3994,13 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4102,8 +4095,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4169,8 +4162,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4270,8 +4263,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4332,8 +4325,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4511,8 +4504,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_p[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -4532,13 +4525,13 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4572,8 +4565,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 vbmask = _mm512_add_epi32(vbmask, vone);
                 numptr_n[k] += (idx + _mm_popcnt_u32(mask2));
 
-                _mm512_storeu_epi32((__m512i*)bptr, vt1);
-                _mm512_storeu_epi32((__m512i*)(bptr + idx), vt2);
+                _mm512_storeu_si512((__m512i*)bptr, vt1);
+                _mm512_storeu_si512((__m512i*)(bptr + idx), vt2);
             }
 
             vroot1 = _mm512_add_epi32(vroot1, vprime);
@@ -4592,13 +4585,13 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4688,13 +4681,13 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4747,13 +4740,13 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum1 = _mm512_maskz_compress_epi32(mask1, vbnum1);
                 velement1 = _mm512_maskz_compress_epi32(mask1, velement1);
-                _mm512_storeu_epi32((__m512i*)b1, vbnum1);
-                _mm512_storeu_epi32((__m512i*)e1, velement1);
+                _mm512_storeu_si512((__m512i*)b1, vbnum1);
+                _mm512_storeu_si512((__m512i*)e1, velement1);
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4846,8 +4839,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 
@@ -4906,8 +4899,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 vbnum2 = _mm512_maskz_compress_epi32(mask2, vbnum2);
                 velement2 = _mm512_maskz_compress_epi32(mask2, velement2);
-                _mm512_storeu_epi32((__m512i*)(&(b1[idx])), vbnum2);
-                _mm512_storeu_epi32((__m512i*)(&(e1[idx])), velement2);
+                _mm512_storeu_si512((__m512i*)(&(b1[idx])), vbnum2);
+                _mm512_storeu_si512((__m512i*)(&(e1[idx])), velement2);
 
                 idx += _mm_popcnt_u32(mask2);
 

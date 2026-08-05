@@ -440,12 +440,208 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         id_ptr = lp->lp_id_p;
     }
 
-    for (j = 0; j < lp->lp_num_slices; j++)
+    __m512i vbnum = _mm512_set1_epi32(bnum);
+    vmask = _mm512_set1_epi32(0x00007fff);
+
+    //for (j = 0; (lp->lp_num_slices > 2) && (j < (lp->lp_num_slices - 2)); j+=2)
+    j = 0;
+    if (0)
+    {
+        uint8_t logp = lp->lp_logp[j+1];
+        int k1 = id_ptr[j];
+        int k2 = id_ptr[j+1];
+
+        __m512i vlogp = _mm512_set1_epi32(logp);
+        uint32_t bmsk1 = 0xffff;
+        uint32_t bmsk2 = 0xffff;
+
+        do
+        {
+            __m512i vbuckets1 = _mm512_loadu_si512((__m512i*)(&bptr[k1]));
+            __m512i vbuckets2 = _mm512_loadu_si512((__m512i*)(&bptr[k2 + SLICE_SZ]));
+
+            // isolate the block number and sieve location
+            __m512i blk1 = _mm512_srli_epi32(vbuckets1, 25);
+            __m512i blk2 = _mm512_srli_epi32(vbuckets2, 25);
+
+            vbuckets1 = _mm512_and_epi32(vmask, _mm512_srli_epi32(vbuckets1, 10));
+            vbuckets2 = _mm512_and_epi32(vmask, _mm512_srli_epi32(vbuckets2, 10));
+
+            // mask for this block
+            bmsk1 = _mm512_cmpeq_epu32_mask(blk1, vbnum);
+            bmsk2 = _mm512_cmpeq_epu32_mask(blk2, vbnum);
+
+            // ignore conflicts...
+            __m512i vhisieve1 = _mm512_i32gather_epi32(vbuckets1, sieve, _MM_SCALE_1);
+            __m512i vhisieve2 = _mm512_i32gather_epi32(vbuckets2, sieve, _MM_SCALE_1);
+
+            __m512i vlosieve1 = _mm512_sub_epi8(vhisieve1, vlogp);
+            __m512i vlosieve2 = _mm512_sub_epi8(vhisieve2, vlogp);
+
+            _mm512_mask_i32scatter_epi32(sieve, bmsk1, vbuckets1, vlosieve1, _MM_SCALE_1);
+            _mm512_mask_i32scatter_epi32(sieve, bmsk2, vbuckets2, vlosieve2, _MM_SCALE_1);
+
+            k1 += 16;
+            k2 += 16;
+
+        } while ((bmsk1 == 0xffff) && (bmsk2 == 0xffff));
+
+        if (bmsk1 != 0xffff)
+        {
+            k1 -= 16;
+            k1 += __builtin_popcountl(bmsk1);
+        }
+
+        if (bmsk2 != 0xffff)
+        {
+            k2 -= 16;
+            k2 += __builtin_popcountl(bmsk2);
+        }
+
+        for (; k1 < SLICE_SZ; k1++)
+        {
+            uint32_t root = bptr[k1] >> 10;
+            uint32_t block = root >> 15;
+
+            if (bnum != block)
+                break;
+
+            sieve[root & 0x7fff] -= logp;
+        }
+
+        for (; k2 < SLICE_SZ; k2++)
+        {
+            uint32_t root = bptr[k2 + SLICE_SZ] >> 10;
+            uint32_t block = root >> 15;
+
+            if (bnum != block)
+                break;
+
+            sieve[root & 0x7fff] -= logp;
+        }
+
+        bptr += SLICE_SZ * 2;
+        id_ptr[j] = k1;
+        id_ptr[j+1] = k2;
+    }
+
+
+    for ( ; j < lp->lp_num_slices; j++)
+    {
+        uint8_t logp = lp->lp_logp[j];
+        int k1 = id_ptr[j];
+        
+        // check if slice has at least N elements in this block
+        uint32_t block1 = bptr[k1 + 7] >> 25;
+
+#if 0
+        __m512i vlogp = _mm512_set1_epi32(logp);
+        uint32_t bmsk1 = 0xffff;
+
+        vnextbuckets = _mm512_loadu_epi32((__m512i*)(&bptr[k]));
+
+        for (; (uint32_t)k < (SLICE_SZ & (uint32_t)(~15)); k += 16)
+        {
+            //vbuckets = vnextbuckets;
+            // isolate the block number and sieve location
+            __m512i blk1 = _mm512_srli_epi32(vnextbuckets, 25);
+            vbuckets = _mm512_and_epi32(vmask, _mm512_srli_epi32(vnextbuckets, 10));
+
+            if ((k + 16) < SLICE_SZ)
+            {
+                vnextbuckets = _mm512_loadu_epi32((__m512i*)(&bptr[k + 16]));
+            }
+
+            // mask for this block
+            bmsk1 = _mm512_cmpeq_epu32_mask(blk1, vbnum);
+
+            if (bmsk1 != 0xffff)
+                break;
+
+            // ignore conflicts...
+            vhisieve = _mm512_i32gather_epi32(vbuckets, sieve, _MM_SCALE_1);
+            vlosieve = _mm512_sub_epi8(vhisieve, vlogp);
+            _mm512_i32scatter_epi32(sieve, vbuckets, vlosieve, _MM_SCALE_1);
+        }
+        
+        //for ( ; k < (SLICE_SZ - 16); k += 16)
+        if (0)
+        {
+            vbuckets = _mm512_loadu_epi32((__m512i*)(&bptr[k]));
+        
+            // isolate the block number and sieve location
+            __m512i blk1 = _mm512_srli_epi32(vbuckets, 25);
+            vbuckets = _mm512_and_epi32(vmask, _mm512_srli_epi32(vbuckets, 10));
+        
+            // mask for this block
+            bmsk1 = _mm512_cmpeq_epu32_mask(blk1, vbnum);
+        
+            if (bmsk1 != 0xffff)
+                break;
+
+            // ignore conflicts...
+            vhisieve = _mm512_i32gather_epi32(vbuckets, sieve, _MM_SCALE_1);
+            vlosieve = _mm512_sub_epi8(vhisieve, vlogp);
+            _mm512_i32scatter_epi32(sieve, vbuckets, vlosieve, _MM_SCALE_1);       
+             
+            //sieve[(bptr[k +  0] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  1] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  2] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  3] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  4] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  5] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  6] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  7] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  8] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k +  9] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k + 10] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k + 11] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k + 12] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k + 13] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k + 14] >> 10) & 0x00007fff] -= logp;
+            //sieve[(bptr[k + 15] >> 10) & 0x00007fff] -= logp;
+        }
+        
+#endif
+
+        while (block1 == bnum)
+        {
+            sieve[(bptr[k1 + 0] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 1] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 2] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 3] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 4] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 5] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 6] >> 10) & 0x7fff] -= logp;
+            sieve[(bptr[k1 + 7] >> 10) & 0x7fff] -= logp;
+
+            k1 += 8;
+            block1 = bptr[k1 + 7] >> 25;
+        }
+
+        for ( ; k1 < SLICE_SZ; k1++)
+        {
+            uint32_t root = bptr[k1] >> 10;
+            uint32_t block = root >> 15;
+
+            if (bnum != block)
+                break;
+
+            sieve[root & 0x7fff] -= logp;
+        }
+
+        bptr += SLICE_SZ;;
+        id_ptr[j] = k1;
+    }
+#endif
+
+#if 0
+    for ( ; j < lp->lp_num_slices; j++)
     {
         logp = lp->lp_logp[j];
-        int k;
+        int k = id_ptr[j];
 
-        for (k = id_ptr[j]; k < SLICE_SZ; k++)
+        for (; k < SLICE_SZ; k++)
         {
             uint32_t root = bptr[k] >> 10;
             uint32_t block = root >> 15;
@@ -455,6 +651,7 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 
             sieve[root & 0x7fff] -= logp;
         }
+
         bptr += SLICE_SZ;
         id_ptr[j] = k;
     }

@@ -6191,19 +6191,19 @@ void bitonic_merge32(uint32_t *data, uint32_t sz, int dir)
 
 void bitonic_sort32(uint32_t *data, uint32_t sz, int dir)
 {
-	if (sz == 64)
+	if (sz <= 64)
 	{
-		// base case: do the hardcoded 128-element sort
+		// base case: do the hardcoded 64-element sort
 		bitonic_sort32_dir_64(data, dir);
 		return;
 	}
-	else if (sz == 128)
+	else if (sz <= 128)
 	{
 		// base case: do the hardcoded 128-element sort
 		bitonic_sort32_dir_128(data, dir);
 		return;
 	}
-	else if (sz == 256)
+	else if (sz <= 256)
 	{
 		// base case: do the hardcoded 256-element sort
 		bitonic_sort32_dir_256(data, dir);
