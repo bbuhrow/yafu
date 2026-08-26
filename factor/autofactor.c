@@ -901,7 +901,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		break;
 
 	default:
-		printf("fac: nothing to do for work method %d\n", method);
+		printf("fac: pretest active or max sieve method size exceeded, job finished.\n");
 		break;
 	}
 

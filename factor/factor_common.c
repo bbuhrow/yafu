@@ -1477,6 +1477,7 @@ void print_factors(fact_obj_t *fobj)
     {
         generate_factorization_str(flist);
         gmp_printf("\n***factorization:***\n%s\n", flist->factorization_str);
+        logprint_oc(fobj->flogname, "a", "factorization: %s\n", flist->factorization_str);
     }
 
     mpz_clear(prod);

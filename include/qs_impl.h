@@ -73,7 +73,7 @@
 #define NUM_ALP 0
 
 // new largep bucket sorting idea
-//#define TRY_COMPRESS_SORT_LARGEP 1
+// #define TRY_COMPRESS_SORT_LARGEP 1
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
