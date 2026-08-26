@@ -3523,19 +3523,21 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
         dconf->buckets->num_slices_batch = (uint32_t*)xmalloc(dconf->poly_batchsize * sizeof(uint32_t));
 
-        printf("allocating space for buckets with %u blocks, %u slices, and %u polys\n",
-            sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
-        
-
         // now allocate space for the bucket entries.  Each entry is a 32-bit integer
         // split into 16 bits for prime id and 16 bits for block location.
         dconf->buckets->list = (uint32_t *)xmalloc_align(
             dconf->buckets->list_size *
             BUCKET_ALLOC * sizeof(uint32_t));
 
-        printf("allocating %u total bytes for bucket sort\n",
-            dconf->buckets->list_size*
-            BUCKET_ALLOC * sizeof(uint32_t));
+        if (sconf->obj->VFLAG > 2)
+        {
+            printf("allocating space for buckets with %u blocks, %u slices, and %u polys\n",
+                sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
+
+            printf("allocating %u total bytes for bucket sort\n",
+                dconf->buckets->list_size *
+                BUCKET_ALLOC * sizeof(uint32_t));
+        }
 
 #ifdef TRY_COMPRESS_SORT_LARGEP
 
