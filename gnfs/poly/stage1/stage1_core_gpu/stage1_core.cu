@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: stage1_core.cu 817 2012-11-11 14:58:29Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include "stage1_core.h"
@@ -60,6 +60,11 @@ sieve_kernel_trans_pp32_r32(uint32 *p_array, uint32 num_p, uint32 *start_roots,
 		}
 
 		roots_out[qq_prod_offset] = j;
+		if (j == 0 && num_aprog_vals == 1) {
+			uint32 mm;
+			for (mm = 1; mm < num_roots; mm++)
+				roots_out[qq_prod_offset + mm * num_p] = 0;
+		}
 		qq_prod_offset += num_entries;
 		curr_q++;
 	}
@@ -73,14 +78,19 @@ sieve_kernel_trans_pp32_r32(uint32 *p_array, uint32 num_p, uint32 *start_roots,
 			gcd = gcd32(p, q);
 
 			if (gcd == 1)
-				j = qq_prod = montmul32(qq_prod, 
-						curr_q->pp % pp, 
+				j = qq_prod = montmul32(qq_prod,
+						curr_q->pp % pp,
 						pp, pp_w);
 			else
 				j = 0;
 		}
 
 		roots_out[qq_prod_offset] = j;
+		if (j == 0 && num_aprog_vals == 1) {
+			uint32 mm;
+			for (mm = 1; mm < num_roots; mm++)
+				roots_out[qq_prod_offset + mm * num_p] = 0;
+		}
 		qq_prod_offset += num_entries;
 		curr_q++;
 	}
@@ -246,6 +256,11 @@ sieve_kernel_trans_pp32_r64(uint32 *p_array, uint32 num_p, uint32 *start_roots,
 		}
 
 		p_out[qq_prod_offset] = j;
+		if (j == 0 && num_aprog_vals == 1) {
+			uint32 mm;
+			for (mm = 0; mm < num_roots; mm++)
+				roots_out[qq_prod_offset + mm * num_p] = 0;
+		}
 		qq_prod_offset += num_entries;
 		curr_q++;
 	}
@@ -259,14 +274,19 @@ sieve_kernel_trans_pp32_r64(uint32 *p_array, uint32 num_p, uint32 *start_roots,
 			gcd = gcd32(p, q);
 
 			if (gcd == 1)
-				j = qq_prod = montmul32(qq_prod, 
-						curr_q->pp % pp, 
+				j = qq_prod = montmul32(qq_prod,
+						curr_q->pp % pp,
 						pp, pp_w);
 			else
 				j = 0;
 		}
 
 		p_out[qq_prod_offset] = j;
+		if (j == 0 && num_aprog_vals == 1) {
+			uint32 mm;
+			for (mm = 0; mm < num_roots; mm++)
+				roots_out[qq_prod_offset + mm * num_p] = 0;
+		}
 		qq_prod_offset += num_entries;
 		curr_q++;
 	}
@@ -398,8 +418,8 @@ sieve_kernel_trans_pp32_r64(uint32 *p_array, uint32 num_p, uint32 *start_roots,
 __global__ void
 sieve_kernel_trans_pp64_r64(uint32 *p_array, uint32 num_p, uint64 *start_roots,
 			uint32 num_roots, uint32 *p_out, int64 *roots_out,
-			specialq_t *q_batch, uint32 num_specialq, 
-			uint32 specialq_block, uint32 num_entries, 
+			specialq_t *q_batch, uint32 num_specialq,
+			uint32 specialq_block, uint32 num_entries,
 			uint32 shift, uint32 num_aprog_vals)
 {
 	uint32 p, pp_w, p_offset;
@@ -438,6 +458,11 @@ sieve_kernel_trans_pp64_r64(uint32 *p_array, uint32 num_p, uint64 *start_roots,
 		}
 
 		roots_out[qq_prod_offset] = write_val;
+		if (write_val == 0 && num_aprog_vals == 1) {
+			uint32 mm;
+			for (mm = 1; mm < num_roots; mm++)
+				roots_out[qq_prod_offset + mm * num_p] = 0;
+		}
 		qq_prod_offset += num_entries;
 		curr_q++;
 	}
@@ -451,14 +476,19 @@ sieve_kernel_trans_pp64_r64(uint32 *p_array, uint32 num_p, uint64 *start_roots,
 			gcd = gcd32(p, q);
 
 			if (gcd == 1)
-				write_val = qq_prod = montmul64(qq_prod, 
-						curr_q->pp % pp, 
+				write_val = qq_prod = montmul64(qq_prod,
+						curr_q->pp % pp,
 						pp, pp_w);
 			else
 				write_val = 0;
 		}
 
 		roots_out[qq_prod_offset] = write_val;
+		if (write_val == 0 && num_aprog_vals == 1) {
+			uint32 mm;
+			for (mm = 1; mm < num_roots; mm++)
+				roots_out[qq_prod_offset + mm * num_p] = 0;
+		}
 		qq_prod_offset += num_entries;
 		curr_q++;
 	}

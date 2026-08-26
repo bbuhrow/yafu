@@ -33,10 +33,13 @@ typedef struct {
 	mpz_t gmp_high_coeff_end;
 	uint32 degree;
 	double norm_max;
+	double elapsed;
 	uint32 deadline;
-	double elasped;
+	uint32 high_coeff_multiplier;  /* user override for leading coeff increment (0=auto) */
+	uint32 use_coeff_list;         /* if nonzero, read leading coeffs from coeff_list.txt */
+	uint32 target_poly_count;      /* if nonzero, stop after this many stage-1 polys (num_polys=) */
 	stage1_callback_t callback;
-	void *callback_data;
+	void* callback_data;
 } poly_stage1_t;
 
 void poly_stage1_init(poly_stage1_t *data, 

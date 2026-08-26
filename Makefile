@@ -570,6 +570,9 @@ ifeq ($(USE_AVX512),1)
     USE_AVX2   := 1
     USE_BMI2   := 1
 endif
+ifeq ($(USE_BMI2),1)
+    USE_AVX2   := 1
+endif
 ifeq ($(USE_AVX2),1)
     USE_SSE41  := 1
 endif
@@ -658,11 +661,14 @@ ifdef BATCH_CUDA
 endif
 
 ifdef CUDA_POLY
-    CFLAGS += -DHAVE_CUDA_POLY -Icub
+    CFLAGS += -DHAVE_CUDA_POLY -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) -Icub
+	CUDA_PTX_ARCH ?= compute_$(SM)
+	CUB_ENGINE_ARCH ?= -gencode arch=compute_$(SM),code=sm_$(SM)
     ifeq ($(DETECTED_OS),Windows)
         CUDA_POLY_LIBS := "$(CUDA_LIBDIR)/cuda.lib"
     else
         CUDA_POLY_LIBS := -lcuda -lcudart
+# -L/usr/local/cuda-12.8/targets/x86_64-linux/lib/ -lcuda -lcudart_static
     endif
 endif
 
@@ -742,6 +748,7 @@ endif
 
 # CUDA (polynomial selection)
 ifdef CUDA_POLY
+	LIBS        += $(CUDA_LPATH) $(CUDA_POLY_LIBS)
     MSIEVE_LIBS += $(CUDA_POLY_LIBS)
 endif
 
@@ -861,7 +868,8 @@ COMMON_SRCS = \
     ysieve/soe_util.c \
     ysieve/wrapper.c \
     top/aprcl/mpz_aprcl.c \
-    factor/gpu_cofactorization.c
+    factor/gpu_cofactorization.c \
+	common/vec_bitonic_sort.c
 
 COMMON_BATCH_GPU_SRCS = \
     factor/cuda_tinyecm.cu \
@@ -1271,8 +1279,11 @@ mpqs/sieve_core_generic_64k.qo: mpqs/sieve_core.c | $(DEPS_SUBDIRS)
 	$(CC) $(CFLAGS) -Ignfs -MMD -MP -MF $(DEPS_DIR)/$*.d -c -o $@ $<
 
 # GPU / PTX rules
-stage1_core.ptx: gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu
-	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
+stage1_core.ptx: $(NFS_GPU_HDR)
+	$(NVCC) -arch $(CUDA_PTX_ARCH) -ptx -I. -Icub -Ignfs -Ignfs/poly/stage1 -o $@ $<
+	
+#stage1_core.ptx: gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu
+#	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
 
 lanczos_kernel.ptx: common/lanczos/gpu/lanczos_kernel.cu
 	$(NVCC) -arch sm_$(SM) -ptx -DVBITS=$(VBITS) -o $@ $<
@@ -1280,10 +1291,23 @@ lanczos_kernel.ptx: common/lanczos/gpu/lanczos_kernel.cu
 cuda_ecm$(SM).ptx: $(COMMON_BATCH_GPU_SRCS)
 	$(NVCC) -arch sm_$(SM) -ptx -o $@ $<
 
-cub/built:
-	cd cub && $(MAKE) WIN=$(WIN) WIN64=$(WIN64) VBITS=$(VBITS) sm=$(SM)0 && cd ..
+# cub/built:
+# 	cd cub && $(MAKE) WIN=$(WIN) WIN64=$(WIN64) VBITS=$(VBITS) sm=$(SM)0 && cd ..
 
-
+cub/built: cub/sort_engine.cu cub/collision_engine.cu cub/collision_engine.h cub/collision_bucket.h
+	$(NVCC) $(CUB_ENGINE_ARCH) --shared -Xcompiler -fPIC -o cub/sort_engine.so cub/sort_engine.cu
+# The Gerbicz collision engine uses __match_any_sync, which requires
+# compute capability 7.0 (Volta) or newer. For older GPUs, skip building it;
+# the sort engine is the default and works on sm_60. (Do not pass
+# collengine=gerbicz on such a build - see load_collision_engine().)
+ifeq ($(shell [ -n "$(SM)" ] && [ "$(SM)" -ge 70 ] && echo yes),yes)
+	$(NVCC) $(CUB_ENGINE_ARCH) --shared -Xcompiler -fPIC -I. -Icub -Ignfs -Ignfs/poly/stage1 -o cub/collision_engine.so cub/collision_engine.cu
+else
+	@echo "NOTE: SM=$(SM) < 70 (pre-Volta); skipping the Gerbicz collision engine (requires sm_70+). Building the sort engine only - do not pass collengine=gerbicz."
+	@rm -f cub/collision_engine.so
+endif
+	touch cub/built
+	
 # -----------------------------------------------------------------------------
 # 27. AUTOMATIC DEPENDENCY INCLUSION  (.d files from .deps/)
 # -----------------------------------------------------------------------------

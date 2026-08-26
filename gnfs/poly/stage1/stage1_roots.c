@@ -585,6 +585,51 @@ get_next_enum(sieve_fb_t *s)
 }
 
 /*------------------------------------------------------------------------*/
+uint64
+sieve_fb_count(void* s_in, uint32 p_min, uint32 p_max,
+	uint32 num_roots_min, uint32 num_roots_max)
+{
+	/* count the (p, root) pairs that a factory configured
+	   with the given parameters will hand to the callback in
+	   sieve_fb_next(), without computing any roots. The
+	   enumeration of smooth p tracks the number of roots each
+	   p has, so the count only needs the (cheap) enumeration
+	   and skips the CRT and Hensel lifting.
+
+	   Only factories restricted to smooth p (fb_only nonzero)
+	   can be counted this way; counting large prime p would
+	   need a root-finding call per prime, which is as expensive
+	   as generating them. Return 0 (i.e. unknown) in that case */
+
+	sieve_fb_t* s = (sieve_fb_t*)s_in;
+	uint64 count = 0;
+
+	sieve_fb_reset(s_in, p_min, p_max,
+		num_roots_min, num_roots_max);
+
+	if (s->avail_algos == ALGO_ENUM) {
+
+		p_enum_t* p_enum = &s->p_enum;
+
+		while (get_next_enum(s) != P_SEARCH_DONE) {
+
+			/* mirror combine_roots(), which stops
+			   generating roots at num_roots_max */
+
+			count += MIN(p_enum->curr_num_roots[
+				p_enum->num_factors],
+				num_roots_max);
+		}
+	}
+
+	/* leave the factory ready for a fresh run */
+
+	sieve_fb_reset(s_in, p_min, p_max,
+		num_roots_min, num_roots_max);
+	return count;
+}
+
+/*------------------------------------------------------------------------*/
 uint32
 sieve_fb_next(void *s_in, poly_coeff_t *c,
 		root_callback callback, void *extra)

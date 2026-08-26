@@ -17,6 +17,26 @@ $Id: stage1.c 1023 2018-08-19 00:30:42Z jasonp_sf $
 /* main driver for stage 1 */
 
 /*------------------------------------------------------------------------*/
+
+/* Coefficients for computing optimal norm_max that pushes special_q_max
+   to just below 2^32. Derived from the constraint:
+   special_q_max = p_size_max / p_max^2 = MAX_SPECIAL_Q
+   where p_max depends on sieve_bound via constraint 2 in sieve_lattice_cpu.
+
+   Formula: norm_max_opt = NORM_MAX_COEFF[degree] * m0^NORM_MAX_EXP[degree]
+
+   A 5% safety margin is applied to avoid overshooting due to floating
+   point imprecision or constraint switching. */
+
+#define NORM_MAX_COEFF_DEG4 19855.0   /* 20900 * 0.95 */
+#define NORM_MAX_COEFF_DEG5 1637.8    /* 1724 * 0.95 */
+#define NORM_MAX_COEFF_DEG6 1141.9    /* 1202 * 0.95 */
+
+#define NORM_MAX_EXP_DEG4 0.6         /* m0^0.6 */
+#define NORM_MAX_EXP_DEG5 0.7         /* m0^0.7 */
+#define NORM_MAX_EXP_DEG6 0.714285714 /* m0^(5/7) */
+
+/*------------------------------------------------------------------------*/
 //static
 void
 stage1_bounds_update(poly_search_t *poly, poly_coeff_t *c)
@@ -29,6 +49,29 @@ stage1_bounds_update(poly_search_t *poly, poly_coeff_t *c)
 	double high_coeff = mpz_get_d(c->high_coeff);
 	double m0 = pow(N / high_coeff, 1./degree);
 	double skewness_min, coeff_max;
+	double norm_max_opt, norm_max;
+
+	/* Compute the optimal norm_max that maximizes search area by
+	   pushing special_q_max to just below 2^32. Use the minimum
+	   of this and the user-provided norm_max as a ceiling. */
+
+	switch (degree) {
+	case 4:
+		norm_max_opt = NORM_MAX_COEFF_DEG4 * pow(m0, NORM_MAX_EXP_DEG4);
+		break;
+	case 5:
+		norm_max_opt = NORM_MAX_COEFF_DEG5 * pow(m0, NORM_MAX_EXP_DEG5);
+		break;
+	case 6:
+		norm_max_opt = NORM_MAX_COEFF_DEG6 * pow(m0, NORM_MAX_EXP_DEG6);
+		break;
+	default:
+		norm_max_opt = poly->norm_max;
+		break;
+	}
+
+	/* Use the smaller of optimal and user-provided norm_max */
+	norm_max = MIN(norm_max_opt, poly->norm_max);
 
 	/* we don't know the optimal skewness for this polynomial
 	   but at least can bound the skewness. The value of the
@@ -60,6 +103,7 @@ stage1_bounds_update(poly_search_t *poly, poly_coeff_t *c)
 	c->m0 = m0;
 	c->coeff_max = coeff_max;
 	c->p_size_max = coeff_max / skewness_min;
+	c->norm_max_effective = norm_max;
 
 	/* we perform the collision search on a transformed version
 	   of N and the low-order rational coefficient m. In the
@@ -109,6 +153,10 @@ handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
 	mpz_mul(c->tmp2, c->p, c->p);
 	mpz_sub(c->tmp1, c->trans_N, c->tmp1);
 	mpz_tdiv_r(c->tmp3, c->tmp1, c->tmp2);
+	if (mpz_cmp_ui(c->tmp3, 0)) {
+		//gmp_printf("crap %Zd %Zd %Zd\n", c->high_coeff, c->p, c->m);
+		return 2;
+	}
 
 	// In mingw builds run with multiple threads,
 	// random stuff appears to be getting into 
@@ -171,6 +219,10 @@ poly_search_init(poly_search_t *poly, poly_stage1_t *data)
 
 	poly->degree = data->degree;
 	poly->norm_max = data->norm_max;
+	poly->high_coeff_multiplier = data->high_coeff_multiplier;
+	poly->use_coeff_list = data->use_coeff_list;
+	poly->target_poly_count = data->target_poly_count;
+	poly->poly_count = 0;
 	poly->callback = data->callback;
 	poly->callback_data = data->callback_data;
 }
@@ -199,6 +251,7 @@ poly_coeff_init(void)
 	mpz_init(c->tmp1);
 	mpz_init(c->tmp2);
 	mpz_init(c->tmp3);
+	c->found_count = 0;
 	return c;
 }
 
@@ -223,6 +276,7 @@ poly_coeff_copy(poly_coeff_t *dest, poly_coeff_t *src)
 	dest->coeff_max = src->coeff_max;
 	dest->m0 = src->m0;
 	dest->p_size_max = src->p_size_max;
+	dest->norm_max_effective = src->norm_max_effective;
 
 	mpz_set(dest->high_coeff, src->high_coeff);
 	mpz_set(dest->trans_N, src->trans_N);
@@ -357,7 +411,18 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 	uint32 i, j, p;
 	uint32 digits = mpz_sizeinbase(poly->N, 10);
 
-	if (poly->degree == 4) {
+	/* check if user provided a custom multiplier */
+	if (poly->high_coeff_multiplier != 0) {
+		sieve->high_coeff_multiplier = poly->high_coeff_multiplier;
+		/* use default power limit based on degree/size */
+		if (poly->degree == 4 || digits > 200) {
+			sieve->high_coeff_power_limit = 4;
+		}
+		else {
+			sieve->high_coeff_power_limit = 2;
+		}
+	}
+	else if (poly->degree == 4) {
 		sieve->high_coeff_multiplier = 420;
 		sieve->high_coeff_power_limit = 4;
 	}
@@ -430,76 +495,164 @@ free_ad_sieve(sieve_t *sieve)
 }
 
 /*------------------------------------------------------------------------*/
-//static
-double 
+/* sieve a single leading coefficient and decide whether the search
+   should stop afterwards. Shared by both loops in search_coeffs so the
+   sieve call, per-coefficient reporting and stop conditions live in one
+   place. Returns nonzero if the search should break (interrupt requested,
+   num_polys= target reached, or the overall deadline exceeded). */
+
+int
+run_one_coeff(msieve_obj *obj, poly_search_t *poly, poly_coeff_t *c,
+		void *gpu_data, uint32 deadline, uint32 deadline_per_coeff,
+		double *cumulative_time)
+{
+#ifdef HAVE_CUDA_POLY
+	*cumulative_time = sieve_lattice_gpu(obj, poly, c, gpu_data,
+						deadline_per_coeff);
+#else
+	/* the GPU path reports per-coefficient counts from its worker
+	   thread (see sieve_specialq); the CPU path runs one coefficient
+	   synchronously here, so report it directly once it finishes */
+
+	(void)gpu_data;
+	c->found_count = 0;
+	*cumulative_time += sieve_lattice_cpu(obj, poly, c, deadline_per_coeff);
+	gmp_printf("coeff %Zd: found %u polys (%u total)\n",
+			c->high_coeff, c->found_count, poly->poly_count);
+	fflush(stdout);
+#endif
+
+	if (obj->flags & (MSIEVE_FLAG_STOP_SIEVING |
+			  MSIEVE_FLAG_STOP_SIEVING_SOFT))
+		return 1;
+
+	/* num_polys= target reached: stop starting new leading coefficients
+	   but let the search finish cleanly. This never sets obj->flags, so
+	   unlike a Ctrl-C soft stop it does not abort the factorization */
+
+	if (poly->target_poly_count &&
+	    poly->poly_count >= poly->target_poly_count)
+		return 1;
+
+	if (deadline && *cumulative_time > deadline)
+		return 1;
+
+	return 0;
+}
+
+/*------------------------------------------------------------------------*/
+double
 search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 {
 	double deadline_per_coeff;
 	double cumulative_time = 0;
-	sieve_t ad_sieve;
 	poly_coeff_t *c = poly_coeff_init();
 #ifdef HAVE_CUDA_POLY
 	void *gpu_data = gpu_data_init(obj, poly);
+#else
+	void *gpu_data = NULL;
 #endif
 
-	deadline_per_coeff = deadline; // 8640000;
-
-#if 0
+	deadline_per_coeff = 8640000;
 	printf("deadline: %.0lf CPU-seconds per coefficient\n",
 					deadline_per_coeff);
-#endif
 
-	/* set up lower limit on a_d */
-
-	init_ad_sieve(&ad_sieve, poly);
-
-	mpz_sub_ui(poly->tmp1, poly->gmp_high_coeff_begin, 1);
-	mpz_fdiv_q_ui(poly->tmp1, poly->tmp1, 
-			ad_sieve.high_coeff_multiplier);
-	mpz_add_ui(poly->tmp1, poly->tmp1, 1);
-	mpz_mul_ui(poly->gmp_high_coeff_begin, poly->tmp1, 
-			ad_sieve.high_coeff_multiplier);
-
-	while (1) {
-		double elapsed;
-
-		/* we only use a_d which are composed of
-		   many small prime factors, in order to
-		   have lots of projective roots going
-		   into stage 2 */
-
-		if (find_next_ad(&ad_sieve, poly, c->high_coeff))
-			break;
-
-		/* recalculate internal parameters used
-		   for search */
-
-		stage1_bounds_update(poly, c);
-
-		/* finally, sieve for polynomials using
-		   Kleinjung's improved algorithm */
+	/* advertise that a first Ctrl-C here should finish the
+	   leading coefficients already in flight rather than abort
+	   them; see handle_signal() and gpu_data_free(). This only
+	   applies to the GPU path: it has an async threadpool with
+	   coefficients in flight, whereas the CPU path sieves one
+	   coefficient synchronously and must honor a first Ctrl-C
+	   by aborting it immediately (stage1_sieve_cpu.c) */
 
 #ifdef HAVE_CUDA_POLY
-		cumulative_time = sieve_lattice_gpu(obj, poly, c,
-					gpu_data, deadline_per_coeff);
-#else
-		elapsed = sieve_lattice_cpu(obj, poly, c, deadline_per_coeff);
-		cumulative_time += elapsed;
+	obj->flags |= MSIEVE_FLAG_POLY1_SOFT_STOP;
 #endif
 
-		if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
-			break;
+	if (poly->use_coeff_list) {
+		FILE *coeff_file = fopen("coeff_list.txt", "r");
+		char line[1024];
 
-		if (deadline && cumulative_time > deadline)
-			break;
+		if (coeff_file == NULL) {
+			printf("error: cannot open coeff_list.txt\n");
+			goto cleanup;
+		}
+		logprintf(obj, "reading leading coefficients from coeff_list.txt\n");
+
+		while (fgets(line, sizeof(line), coeff_file)) {
+			if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
+				continue;
+			if (gmp_sscanf(line, "%Zd", c->high_coeff) != 1)
+				continue;
+
+			stage1_bounds_update(poly, c);
+
+			if (run_one_coeff(obj, poly, c, gpu_data, deadline,
+					deadline_per_coeff, &cumulative_time))
+				break;
+		}
+		fclose(coeff_file);
+	}
+	else {
+		sieve_t ad_sieve;
+
+		/* set up lower limit on a_d */
+
+		init_ad_sieve(&ad_sieve, poly);
+
+		mpz_sub_ui(poly->tmp1, poly->gmp_high_coeff_begin, 1);
+		mpz_fdiv_q_ui(poly->tmp1, poly->tmp1,
+				ad_sieve.high_coeff_multiplier);
+		mpz_add_ui(poly->tmp1, poly->tmp1, 1);
+		mpz_mul_ui(poly->gmp_high_coeff_begin, poly->tmp1,
+				ad_sieve.high_coeff_multiplier);
+
+		while (1) {
+			/* we only use a_d which are composed of
+			   many small prime factors, in order to
+			   have lots of projective roots going
+			   into stage 2 */
+
+			if (find_next_ad(&ad_sieve, poly, c->high_coeff))
+				break;
+
+			/* recalculate internal parameters used
+			   for search */
+
+			stage1_bounds_update(poly, c);
+
+			/* finally, sieve for polynomials using
+			   Kleinjung's improved algorithm */
+
+			if (run_one_coeff(obj, poly, c, gpu_data, deadline,
+					deadline_per_coeff, &cumulative_time))
+				break;
+		}
+
+		free_ad_sieve(&ad_sieve);
 	}
 
-	free_ad_sieve(&ad_sieve);
+cleanup:
 #ifdef HAVE_CUDA_POLY
-	gpu_data_free(gpu_data);
-#endif
-	poly_coeff_free(c);
+	/* gpu_data_free() drains the GPU threadpool gracefully as long
+	   as the hard stop flag is unset, so any leading coefficients
+	   still in flight after a soft stop finish here */
 
+	gpu_data_free(gpu_data);
+
+	/* the in-flight coefficients have now completed; promote a
+	   soft stop to a full stop so the rest of the factorization
+	   treats it as an interrupt too, and disarm the soft stop.
+	   Gated to the GPU path, which is the only one that arms it */
+
+	if (obj->flags & MSIEVE_FLAG_STOP_SIEVING_SOFT)
+		obj->flags |= MSIEVE_FLAG_STOP_SIEVING;
+	obj->flags &= ~(MSIEVE_FLAG_POLY1_SOFT_STOP |
+			MSIEVE_FLAG_STOP_SIEVING_SOFT);
+#endif
+
+	poly_coeff_free(c);
+	
 	return cumulative_time;
 }
 
@@ -535,8 +688,8 @@ poly_stage1_run(msieve_obj *obj, poly_stage1_t *data)
 
 	poly_search_init(&poly, data);
 
-	data->elasped = search_coeffs(obj, &poly, data->deadline);
-	if (data->elasped < 1e-9)
+	data->elapsed = search_coeffs(obj, &poly, data->deadline);
+	if (data->elapsed < 1e-9)
 	{
 		printf("No progressions found with the supplied parameters\n");
 	}

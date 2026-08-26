@@ -68,12 +68,37 @@ typedef struct {
 	   a 'stage 1 hit' that obeys the norm bound even for the
 	   high-order algebraic coefficients */
 
-	double norm_max; 
+	double norm_max;
 
 	/* the range on a_d, provided by calling code */
 
 	mpz_t gmp_high_coeff_begin;
 	mpz_t gmp_high_coeff_end;
+
+	/* user override for leading coeff increment (0=auto) */
+
+	uint32 high_coeff_multiplier;
+
+	/* if nonzero, read leading coefficients from coeff_list.txt */
+
+	uint32 use_coeff_list;
+
+	/* if nonzero, stop the search once this many stage-1 polynomials
+	   have been found (the num_polys= flag). poly_count is the running
+	   total. On the GPU path each worker owns its own lock-free count in
+	   device_thread_data_t.polys_found; when a leading coefficient
+	   completes the worker publishes the sum here for the main thread to
+	   read. That publish is a plain cross-thread store of a word-sized
+	   advisory value (only ever advanced) rather than a synchronized
+	   counter, which is fine because reaching the target only stops
+	   starting new coefficients and is already approximate. The CPU path
+	   is single-threaded and increments poly_count directly. poly_count
+	   is only read, never used to drive obj->flags, so reaching the
+	   target stops stage 1 without aborting the rest of the
+	   factorization. */
+
+	uint32 target_poly_count;
+	uint32 poly_count;
 
 	/* function to call when a collision is found */
 
@@ -110,6 +135,11 @@ typedef struct {
 	/* bound on the leading rational poly coefficient */
 
 	double p_size_max;
+	
+	/* effective norm_max used for this coefficient (may be
+	   dynamically computed to maximize special_q range) */
+
+	double norm_max_effective;
 
 	/* internal values used */
 
@@ -120,6 +150,11 @@ typedef struct {
 	mpz_t tmp1;
 	mpz_t tmp2;
 	mpz_t tmp3;
+	
+	/* number of stage-1 polynomials found for this leading coefficient;
+	   reset when the coefficient starts and reported when it finishes */
+
+	uint32 found_count;
 } poly_coeff_t;
 
 poly_coeff_t * poly_coeff_init(void);
@@ -193,6 +228,15 @@ void sieve_fb_init(void *s_in, poly_coeff_t *coeff,
 
 void sieve_fb_reset(void *s_in, uint32 p_min, uint32 p_max,
 			uint32 num_roots_min, uint32 num_roots_max);
+
+/* count the (p, root) pairs the factory will produce for the
+   given parameters, without computing any roots. Only cheap
+   for factories restricted to smooth p (fb_only nonzero);
+   returns 0 (unknown) if large prime p would also be produced.
+   The factory is left reset and ready for a fresh run */
+
+uint64 sieve_fb_count(void* s_in, uint32 p_min, uint32 p_max,
+	uint32 num_roots_min, uint32 num_roots_max);
 
 /* function that 'does something' when a single p 
    and all its roots is found */

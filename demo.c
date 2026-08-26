@@ -137,19 +137,36 @@ void print_usage(char *progname) {
 		 " polynomial selection options:\n"
 #ifdef HAVE_CUDA
 		 "   sortlib=X       use GPU sorting library X\n"
+		 "   collengine=X    use GPU collision engine X (gerbicz)\n"
+		 "   colllib=X       use GPU collision library X\n"
+		 "   collhash=X      hash keys before Gerbicz bucketing "
+		 "(default 1)\n"
+		 "   collstats=X     print Gerbicz collision summary stats\n"
+		 "   colldebug=X     print Gerbicz per-batch diagnostics\n"
 		 "   gpu_mem_mb=X    use X megabytes of GPU memory\n"
 #endif
-		 "   polydegree=X    select polynomials with degree X\n"
-		 "   min_coeff=X     minimum leading coefficient to search\n"
-		 "                   in stage 1\n"
-		 "   max_coeff=X     maximum leading coefficient to search\n"
-		 "                   in stage 1\n"
-		 "   stage1_norm=X   the maximum norm value for stage 1\n"
-		 "   stage2_norm=X   the maximum norm value for stage 2\n"
-		 "   min_evalue=X    the minimum score of saved polyomials\n"
-		 "   poly_deadline=X stop searching after X seconds (0 means\n"
-		 "                   search forever)\n"
-		 "   X,Y             same as 'min_coeff=X max_coeff=Y'\n"
+		 "   polydegree=X      select polynomials with degree X\n"
+		 "   min_coeff=X       minimum leading coefficient to search\n"
+		 "                     in stage 1\n"
+		 "   max_coeff=X       maximum leading coefficient to search\n"
+		 "                     in stage 1\n"
+		 "   high_coeff_mult=X override leading coefficient increment\n"
+		 "                     (default: auto-selected based on size)\n"
+		 "   coeff_list=1      read leading coefficients from coeff_list.txt\n"
+		 "                     (newline-delimited) instead of searching a range\n"
+		 "   num_polys=X       stop stage 1 once at least X polynomials\n"
+		 "                     have been found; coefficients already in\n"
+		 "                     flight finish, so the total can exceed X\n"
+		 "                     (0 = no limit, the default)\n"
+		 "   stage1_norm=X     the maximum norm value for stage 1\n"
+		 "   stage2_norm=X     the maximum norm value for stage 2\n"
+		 "   rootopt_stage2_steps=X number of rootopt stage 2 norm steps\n"
+		 "   rootopt_stage2_start=X first stage 2 norm multiplier\n"
+		 "   rootopt_stage2_mult=X  per-step stage 2 norm multiplier\n"
+		 "   min_evalue=X      the minimum score of saved polyomials\n"
+		 "   poly_deadline=X   stop searching after X seconds (0 means\n"
+		 "                     search forever)\n"
+		 "   X,Y               same as 'min_coeff=X max_coeff=Y'\n"
 		 " line sieving options:\n"
 		 "   X,Y             handle sieve lines X to Y inclusive\n"
 		 " filtering options:\n"
@@ -372,9 +389,7 @@ int main(int argc, char **argv) {
 						char *p;
 						savefile_name = argv[i+1];
 						if((p=strstr(savefile_name, ".gz"))) {
-							//savefile_name = strdup(argv[i+1]);
-							savefile_name = (char*)malloc(strlen(argv[i + 1]) + 1);
-							strcpy(savefile_name, argv[i + 1]);
+							savefile_name = strdup(argv[i+1]);
 							savefile_name[p-argv[i+1]] = 0;
 						}
 					} 

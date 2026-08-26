@@ -80,7 +80,11 @@ typedef enum {
 	GPU_ARG_UINT64
 } gpu_arg_type_t;
 
-#define GPU_MAX_KERNEL_ARGS 15
+/* Bumped 15 → 20 (2026-05-25) to accommodate the fused trans+scatter
+   kernel signature (17 args = 12 original trans args + 5 fusion args).
+   See FUSED_TRANS_SCATTER_PLAN.md v2 status. Leaves headroom without
+   forcing param packing. */
+#define GPU_MAX_KERNEL_ARGS 20
 
 typedef struct {
 	uint32_t num_args;
