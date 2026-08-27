@@ -131,19 +131,19 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	{
 		mpz_t tmp;
 
-		//init locals
+		// init locals
 		mpz_init(tmp);
 		
-		//convert the factor
+		// convert the factor
 		mp_t2gmp(&factor_list->final_factors[i]->factor,tmp);
 
-		//divide it out
+		// divide it out
 		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, tmp);
 
-		//check if its prime and log accordingly
+		// check if its prime and log accordingly
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{
-			//need to convert to yafu bigint to store
+			// need to convert to yafu bigint to store
 			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 			strncpy(c,"prp",4);
 		}
@@ -170,11 +170,11 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             }
         }
 
-		//free locals
+		// free locals
 		mpz_clear(tmp);
 	}
 
-	//log anything left over
+	// log anything left over
 	if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) > 0) 
 	{
 		char c[4];

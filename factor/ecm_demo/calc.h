@@ -120,8 +120,8 @@ typedef struct
 extern char* process_expression(char* input_exp, meta_t* metadata,
     int force_quiet, int no_convert_result);
 extern void reset_preprocessor(void);
-extern void calc_finalize();
-extern int calc_init();
+extern void calc_finalize(void);
+extern int calc_init(void);
 
 
 #ifdef __cplusplus

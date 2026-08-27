@@ -16,11 +16,11 @@
     Change <YafuToolset> below to v144.
 
   To switch back to ClangCL:
-    Change it back, or delete this file.
+    Change <YafuToolset> below to ClangCL, or delete this file.
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="Configuration">
-    <YafuToolset Condition="'$(YafuToolset)'==''">v143</YafuToolset>
+    <YafuToolset Condition="'$(YafuToolset)'==''">ClangCL</YafuToolset>
     <PlatformToolset Condition="'$(PlatformToolset)'==''">$(YafuToolset)</PlatformToolset>
   </PropertyGroup>
 </Project>

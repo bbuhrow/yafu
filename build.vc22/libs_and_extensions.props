@@ -7,7 +7,7 @@
 
   LOCAL DEVELOPMENT:
     Edit mp_dir and ecm_dir below to point at your local MPIR and ECM builds.
-    The ISA target defaults to avx2; edit YafuISA in build_config.props or
+    The ISA target defaults to avx2; edit YafuISA in isa_target.props or
     pass /p:YafuISA=<target> on the command line to change it.
 
   CI / COMMAND-LINE OVERRIDE:
@@ -18,28 +18,21 @@
         /p:ecm_dir=C:\deps\ecm-install\
 
   CHANGES FROM PREVIOUS VERSION:
-    - Hardcoded PreprocessorDefinitions removed (now set by build_config.props)
-    - Hardcoded EnableEnhancedInstructionSet removed (now set by build_config.props)
+    - Hardcoded PreprocessorDefinitions removed (now set by isa_target.props)
+    - Hardcoded EnableEnhancedInstructionSet removed (now set by isa_target.props)
     - Path properties now use Condition="''==''" so CI overrides take precedence
-    - build_config.props imported here so every sub-project gets ISA flags for free
+    - isa_target.props imported here so every sub-project gets ISA flags for free
 -->
 <Project DefaultTargets="Build" ToolsVersion="4.0"
          xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
+	<Import Project="$(MSBuildThisFileDirectory)User.props"
+			Condition="Exists('$(MSBuildThisFileDirectory)User.props')" />
   <!--
-    Import local user overrides first (never committed to git).
-    Create build.vc22/User.props to set YafuToolset, YafuISA, and
-    dependency paths for local development without editing this file.
+    Import ISA target selection first so that $(YafuISADefines) and
+    $(YafuEnhancedISA) are defined before the ItemDefinitionGroup below.
   -->
-  <Import Project="$(MSBuildThisFileDirectory)User.props"
-          Condition="Exists('$(MSBuildThisFileDirectory)User.props')" />
-
-  <!--
-    Import build configuration (toolset + ISA) so that $(YafuISADefines),
-    $(YafuEnhancedISA), and $(PlatformToolset) are defined before the
-    ItemDefinitionGroup below.
-  -->
-  <Import Project="$(MSBuildThisFileDirectory)build_config.props" />
+  <Import Project="$(MSBuildThisFileDirectory)isa_target.props" />
 
   <PropertyGroup Label="UserMacros">
     <!--

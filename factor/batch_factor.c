@@ -539,7 +539,7 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 /*------------------------------------------------------------------*/
 
 // Function to check for BMI1 support
-int check_bmi1_support() {
+int check_bmi1_support(void) {
     info_t comp_info;
 
     ytools_get_computer_info(&comp_info, 0);

@@ -574,7 +574,7 @@ int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32_t a, uint32_t imax);
 void brent_loop(fact_obj_t *fobj);
 uint64_t sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64_t LehmanFactor(uint64_t N, double Tune, int DoTrial, double CutFrac);
-void init_lehman();
+void init_lehman(void);
 void zTrial(fact_obj_t *fobj);
 void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj);
 void factor_perfect_power(fact_obj_t *fobj, mpz_t b);

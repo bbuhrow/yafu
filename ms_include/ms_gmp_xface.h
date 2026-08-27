@@ -50,7 +50,7 @@ static INLINE void gmp2mp(mpz_t src, mp_t *dest) {
 	mp_clear(dest);
 	mpz_export(dest->val, &count, -1, sizeof(uint32),
 			0, (size_t)0, src);
-	dest->nwords = count;
+	dest->nwords = (uint32)count;
 }
 
 /*--------------------------------------------------------------------*/
@@ -103,10 +103,10 @@ static INLINE int64 gmp2int64(mpz_t src) {
 		mpz_neg(src, src);
 		uint64 result = gmp2uint64(src);
 		mpz_neg(src, src);
-		return -result;
+		return -(int64)result;
 	}
 	else {
-       		return gmp2uint64(src);
+       		return (int64)gmp2uint64(src);
 	}
 }
 
