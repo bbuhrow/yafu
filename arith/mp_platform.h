@@ -143,15 +143,17 @@ typedef unsigned char mp_carry_t;
 
 
 /* ======================================================================
-   3. Bit scan / reset  (relocated verbatim from arith.h -- known good)
+   3. Bit scan / reset : Make every path a value-returning inline
    ====================================================================== */
 
 #if defined(USE_BMI2) || defined(TARGET_KNL) || defined(USE_AVX512F)
-  #define _reset_lsb(x)   _blsr_u32(x)
-  #define _reset_lsb64(x) _blsr_u64(x)
+    /* BMI branch (where _blsr_u64/_blsr_u32 are available) */
+    MP_FORCE_INLINE uint64_t _reset_lsb64(uint64_t x) { return _blsr_u64(x); }
+    MP_FORCE_INLINE uint32_t _reset_lsb(uint32_t x) { return _blsr_u32(x); }
 #else
-  #define _reset_lsb(x)   ((x) &= ((x) - 1))
-  #define _reset_lsb64(x) ((x) &= ((x) - 1))
+    /* portable fallback branch */
+    MP_FORCE_INLINE uint64_t _reset_lsb64(uint64_t x) { return x & (x - 1); }
+    MP_FORCE_INLINE uint32_t _reset_lsb(uint32_t x) { return x & (x - 1); }
 #endif
 
 #if defined(__INTEL_COMPILER)

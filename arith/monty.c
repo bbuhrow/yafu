@@ -132,7 +132,7 @@ void to_monty(monty_t *mdata, mpz_t x)
 	return;
 }
 
-monty_t * monty_alloc()
+monty_t * monty_alloc(void)
 {
 	// for a input modulus n, initialize constants for 
 	// montogomery representation
@@ -172,6 +172,8 @@ void monty_init(mpz_t n, monty_t *mdata)
 
     mpz_sub_ui(mdata->r, mdata->r, 1);
 
+	mdata->bits = mpz_sizeinbase(mdata->r, 2);
+
 	return;
 }
 
@@ -179,7 +181,7 @@ void monty_add(monty_t *mdata, mpz_t u, mpz_t v, mpz_t w)
 {
     mpz_add(w, u, v);
 	if (mpz_cmp(w, mdata->n) >= 0)
-        mpz_sub(w, mdata->n, w);
+        mpz_sub(w, w, mdata->n);
 
 	return;
 }
@@ -226,13 +228,15 @@ void monty_free(monty_t *mdata)
 
 void monty_redc(monty_t *mdata, mpz_t x)
 {
-    mpz_and(mdata->tmp, x, mdata->r), mdata->tmp->_mp_size = mdata->r->_mp_size;
+    //mpz_and(mdata->tmp, x, mdata->r), mdata->tmp->_mp_size = mdata->r->_mp_size;
+	mpz_tdiv_r_2exp(mdata->tmp, x, mdata->bits);
     mpz_mul(mdata->tmp, mdata->tmp, mdata->nhat);   
     // q'=a*b*(-n^-1) mod r
-    mpz_and(mdata->tmp, mdata->tmp, mdata->r), mdata->tmp->_mp_size = mdata->r->_mp_size;
+    //mpz_and(mdata->tmp, mdata->tmp, mdata->r), mdata->tmp->_mp_size = mdata->r->_mp_size;
+	mpz_tdiv_r_2exp(mdata->tmp, mdata->tmp, mdata->bits);
     mpz_mul(mdata->tmp, mdata->tmp, mdata->n);      // q'n
     mpz_add(x, mdata->tmp, x);                      // q'n + ab
-    mpz_tdiv_q_2exp(x, x, mpz_sizeinbase(mdata->r, 2));
+    mpz_tdiv_q_2exp(x, x, mdata->bits);
     if (mpz_cmp(x, mdata->n) >= 0)
         mpz_sub(x, x, mdata->n);
 }
