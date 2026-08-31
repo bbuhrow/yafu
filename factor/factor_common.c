@@ -29,7 +29,12 @@ fact_obj_t* new_default_factorization(mpz_t n)
 
     mpz_set(fobj->N, n);            // this one allowed to change if necessary throughout factorization process
     mpz_set(fobj->input_N, n);      // this one remains constant
-    mpz_set(fobj->factors->N, n);   // this one too.
+    
+    // put the input into the factor list.  It will get reduced as factors are
+    // found and added to the list.  
+    add_to_factor_list(fobj->factors, n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+
+    return fobj;
 }
 
 void new_factorization(fact_obj_t* fobj, mpz_t n)
@@ -87,6 +92,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->refactor_depth = 0;
     fobj->OUTPUT_TERSE = 0;
     fobj->VFLAG = 0;
+    fobj->THREADS = 1;
 
     // get space for everything
     alloc_factobj(fobj);

@@ -365,6 +365,7 @@ endif
 CFLAGS := \
     -fno-common \
     -m64 \
+	-g \
     -std=c11 \
     -fPIE \
     -DUSE_NFS \

@@ -132,7 +132,6 @@ void siqs_start(void *vptr)
 	printf("Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
 #endif
 
-
     udata->results[0] = 0.0;
     udata->results[1] = 0.0;
     udata->results[2] = 0.0;

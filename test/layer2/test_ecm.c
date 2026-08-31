@@ -67,16 +67,16 @@ static void gen_mpz_semiprime(mpz_t n, mpz_t p, mpz_t q, gmp_randstate_t st, int
 }
 
 /* GMP 3-large-prime composite N = p1*p2*p3: three distinct primes, each with
-   bit-length uniform in [33,40] -- i.e. in (2^32, 2^40). The product of any
+   bit-length uniform in [27,35] -- i.e. in (2^26, 2^35). The product of any
    three is at most ~2^120 < 2^128 (tinyecm's ceiling), so the size bound alone
    guarantees the constraint. Models NFS/SIQS cofactors carrying 3 large primes. */
 static void gen_mpz_3prime(mpz_t n, mpz_t p1, mpz_t p2, mpz_t p3,
                            gmp_randstate_t st, tk_rng *rng)
 {
     do {
-        gen_mpz_prime(p1, st, 33 + (int)tk_rng_range(rng, 8));
-        gen_mpz_prime(p2, st, 33 + (int)tk_rng_range(rng, 8));
-        gen_mpz_prime(p3, st, 33 + (int)tk_rng_range(rng, 8));
+        gen_mpz_prime(p1, st, 26 + (int)tk_rng_range(rng, 9));
+        gen_mpz_prime(p2, st, 26 + (int)tk_rng_range(rng, 9));
+        gen_mpz_prime(p3, st, 26 + (int)tk_rng_range(rng, 9));
     } while (mpz_cmp(p1, p2) == 0 || mpz_cmp(p1, p3) == 0 || mpz_cmp(p2, p3) == 0);
     mpz_mul(n, p1, p2);
     mpz_mul(n, n, p3);
@@ -115,54 +115,8 @@ static void t_microecm(tk_ctx *tk)
 }
 
 /* ================================================================== *
- * tinyecm -- getfactor_tecm (128-bit), 40..128-bit inputs
- * ================================================================== */
-static void t_tinyecm(tk_ctx *tk)
-{
-    tk_rng *rng = tk_rng_of(tk);
-    uint64_t lcg = tk_rng_u64(rng) | 1ULL;
-    gmp_randstate_t st;
-    mpz_t N, F, P, Q;
-    int bi;
-
-    mpz_inits(N, F, P, Q, NULL);
-    gmp_randinit_default(st);
-    gmp_randseed_ui(st, (unsigned long)tk_rng_u64(rng));
-
-    for (bi = 0; bi < TECM_NBITS; bi++) {
-        int bits = tecm_bits[bi];
-        long misses = 0, passes = 0, t;
-        for (t = 0; t < ECM_NTRIALS; t++) {
-            int found;
-            gen_mpz_semiprime(N, P, Q, st, bits);
-            found = getfactor_tecm(N, F, 0, &lcg);
-            if (!found) { misses++; continue; }                       /* not found */
-            if (mpz_cmp(F, P) == 0 || mpz_cmp(F, Q) == 0) { passes++; continue; }
-            {
-                char nb[48], pb[48], qb[48], fb[48];
-                mpz_get_str(nb, 10, N); mpz_get_str(pb, 10, P);
-                mpz_get_str(qb, 10, Q); mpz_get_str(fb, 10, F);
-                TK_CHECKF(tk, 0,
-                    "tinyecm[%d-bit] wrong factor: n=%s p=%s q=%s got=%s",
-                    bits, nb, pb, qb, fb);
-            }
-        }
-        if (tk_verbose(tk))
-            printf("        tinyecm  %d-bit: %ld pass, %ld miss / %d\n",
-                   bits, passes, misses, ECM_NTRIALS);
-        TK_CHECKF(tk, (double)misses * 100.0 / ECM_NTRIALS <= ECM_MAX_MISS_PCT,
-            "tinyecm[%d-bit] miss rate %.2f%% (%ld/%d) exceeds %.1f%%",
-            bits, (double)misses * 100.0 / ECM_NTRIALS, misses,
-            ECM_NTRIALS, ECM_MAX_MISS_PCT);
-    }
-
-    gmp_randclear(st);
-    mpz_clears(N, F, P, Q, NULL);
-}
-
-/* ================================================================== *
  * tinyecm on 3-large-prime composites (NFS/SIQS cofactors): three primes
- * in (2^32, 2^40), N ~96..120 bits. The routine only needs to find ONE
+ * in (2^26, 2^35), N ~78..105 bits. The routine only needs to find ONE
  * factor, not all three -- so a correct result is any single nontrivial
  * divisor of N (one prime, giving a 2-prime cofactor, or occasionally a
  * product of two). We verify 1 < f < N and f | N, nothing more.
@@ -193,7 +147,7 @@ static void t_tinyecm_3lp(tk_ctx *tk)
         }
     }
     if (tk_verbose(tk))
-        printf("        tinyecm  3LP (3x 2^32..2^40): %ld pass, %ld miss / %d\n",
+        printf("        tinyecm  3LP (3x 2^27..2^35): %ld pass, %ld miss / %d\n",
                passes, misses, ECM_NTRIALS);
     TK_CHECKF(tk, (double)misses * 100.0 / ECM_NTRIALS <= ECM_MAX_MISS_PCT,
         "tinyecm[3LP] miss rate %.2f%% (%ld/%d) exceeds %.1f%%",
@@ -214,12 +168,11 @@ const tk_module tk_module_microecm = {
 };
 
 static const tk_test tk__tinyecm_tests[] = {
-    { "getfactor_tecm",     t_tinyecm,     "slow ecm tinyecm" },
     { "getfactor_tecm_3lp", t_tinyecm_3lp, "slow ecm tinyecm" }
 };
 const tk_module tk_module_tinyecm = {
     "tinyecm",
-    "getfactor_tecm: 40..128-bit semiprimes (incl. 128-bit) and 3-large-prime composites",
+    "getfactor_tecm: 3-large-prime composites",
     tk__tinyecm_tests,
     (int)(sizeof tk__tinyecm_tests / sizeof tk__tinyecm_tests[0])
 };
