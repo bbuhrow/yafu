@@ -73,6 +73,14 @@ either expressed or implied, of the FreeBSD Project.
 #error "DIGITBITS must be either 52 or 32"
 #endif
 
+// Signed-int aliases for VECLEN and BLOCKWORDS.
+// Use these in pointer arithmetic expressions that mix int loop variables
+// with VECLEN/BLOCKWORDS to avoid -Wsign-conversion warnings.
+// e.g.:  a->data + (i * BLOCKWORDS_I + j) * VECLEN_I
+// instead of: a->data + (i * BLOCKWORDS + j) * VECLEN
+#define VECLEN_I     ((int)VECLEN)
+#define BLOCKWORDS_I ((int)BLOCKWORDS)
+
 typedef struct
 {
     base_t *data;

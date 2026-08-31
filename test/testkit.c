@@ -49,13 +49,8 @@ const char *tk_compiler_id(void)
 #elif defined(__INTEL_COMPILER)
     snprintf(buf, sizeof buf, "icc %d", __INTEL_COMPILER);
 #elif defined(__clang__)
-#if defined(_MSC_VER)
-    snprintf(buf, sizeof buf, "msvc clang-cl %d.%d.%d",
-        __clang_major__, __clang_minor__, __clang_patchlevel__);
-#else
     snprintf(buf, sizeof buf, "clang %d.%d.%d",
              __clang_major__, __clang_minor__, __clang_patchlevel__);
-#endif
 #elif defined(_MSC_VER)
     snprintf(buf, sizeof buf, "msvc %d", _MSC_VER);
 #elif defined(__GNUC__)
@@ -388,6 +383,7 @@ int tk_run(const tk_module *const *modules, int nmodules, int argc, char **argv)
             const tk_test *t = &mod->tests[j];
             tk_ctx tk;
             int k;
+            double tk__elapsed = 0.0;
 
             total_tests++;
             if (!tk__tag_selected(&cfg, t->tags)) continue;
@@ -407,15 +403,19 @@ int tk_run(const tk_module *const *modules, int nmodules, int argc, char **argv)
             tk_rng_seed(&tk.rng, cfg.seed + 0x1000ULL * (uint64_t)(i + 1)
                                           + (uint64_t)(j + 1));
 
-            tk__run_one(&tk, t);
+            {
+                double tk__t0 = tk_now_sec();
+                tk__run_one(&tk, t);
+                tk__elapsed = tk_now_sec() - tk__t0;
+            }
 
             total_run++;
             total_checks += tk.checks;
             total_fails  += tk.fails;
 
-            printf("  %-24s %5ld checks  %s\n",
+            printf("  %-24s %6ld checks  %-4s  %9.3fs\n",
                    t->name, tk.checks,
-                   tk.fails == 0 ? "ok" : "FAIL");
+                   tk.fails == 0 ? "ok" : "FAIL", tk__elapsed);
             for (k = 0; k < tk.nbench; k++) {
                 if (tk.bench[k].speedup > 0.0)
                     printf("        bench %-28s %10.3f ns/op  %6.2fx\n",
@@ -424,6 +424,7 @@ int tk_run(const tk_module *const *modules, int nmodules, int argc, char **argv)
                     printf("        bench %-28s %10.3f ns/op\n",
                            tk.bench[k].label, tk.bench[k].ns);
             }
+            fflush(stdout);   /* live progress for long-running tests */
 
             if (cfg.stop_on_fail && tk.fails > 0) {
                 printf("\n[--stop] halting after first failing test\n");

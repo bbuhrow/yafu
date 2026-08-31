@@ -60,6 +60,12 @@ extern const tk_module tk_module_mp_bitscan;
 extern const tk_module tk_module_sp_arith;
 extern const tk_module tk_module_modular;
 extern const tk_module tk_module_primality;
+extern const tk_module tk_module_sieve;
+extern const tk_module tk_module_microecm;
+extern const tk_module tk_module_tinyecm;
+#ifdef TK_WITH_LAYER3
+extern const tk_module tk_module_siqs;   /* Layer 3: links the full factoring archives */
+#endif
 #endif
 
 static const tk_module *const modules[] = {
@@ -71,6 +77,12 @@ static const tk_module *const modules[] = {
     &tk_module_sp_arith,
     &tk_module_modular,
     &tk_module_primality,
+    &tk_module_sieve,
+    &tk_module_microecm,
+    &tk_module_tinyecm,
+#ifdef TK_WITH_LAYER3
+    &tk_module_siqs,
+#endif
 #endif
 };
 

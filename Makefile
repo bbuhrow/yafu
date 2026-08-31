@@ -21,9 +21,6 @@
 #   make DEBUG=1 yafu                # debug build
 #   make info                        # show fully resolved configuration
 #   make help                        # show feature-flag reference
-#   make test           			 # build the test suite (yafu_test)"
-#   make test-run       			 # build and run the test suite"
-#   make test-clean     			 # remove test build artefacts"
 #   make clean                       # remove all build artefacts
 #
 # Feature flags (pass on command line or set in config.mk):
@@ -851,7 +848,7 @@ COMMON_SRCS = \
     factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c \
     ytools/threadpool.c \
-    ytools/util.c \
+    ytools/ytools.c \
     ysieve/presieve.c \
     ysieve/count.c \
     ysieve/offsets.c \
@@ -1251,7 +1248,9 @@ TEST_SRCS := \
     $(TEST_DIR)/layer0/test_mp_bitscan.c \
     $(TEST_DIR)/layer1/test_sp_arith.c \
     $(TEST_DIR)/layer1/test_modular.c \
-    $(TEST_DIR)/layer1/test_primality.c
+    $(TEST_DIR)/layer1/test_primality.c \
+    $(TEST_DIR)/layer1/test_sieve.c \
+    $(TEST_DIR)/layer2/test_ecm.c
 TEST_OBJS := $(TEST_SRCS:.c=$(OBJ_EXT))
 TEST_BIN  := yafu_test$(EXE_EXT)
 
@@ -1277,7 +1276,55 @@ test-run: test
 	./$(TEST_BIN)
 
 test-clean:
-	$(RM_RF) $(TEST_OBJS) libyafu_common.a $(TEST_BIN)
+	$(RM_RF) $(TEST_OBJS) libyafu_common.a $(TEST_BIN) 0TEST_FULL_BIN)
+
+
+# -----------------------------------------------------------------------------
+# 25b. TEST SUITE -- Layer 3 (individual big-int routines: SIQS, ...)
+#
+#   make test-full       build+link Layers 0-3 (adds the factoring archives)
+#   make test-full-run   build and run it
+#
+# Unlike Layers 0-2, these call into the full factoring library (SIQS/ECM/NFS/
+# msieve), so we link the same four archives yafu itself uses -- but with the
+# test's own main(), so none of YAFU_OBJS (driver.o/calc.o) is needed. Test
+# sources are compiled straight into the link with -DTK_WITH_LAYER3 (not the
+# shared %.o objects), so the Layer-3 build never collides with the lean
+# `make test` objects.
+# -----------------------------------------------------------------------------
+.PHONY: test-full test-full-run
+
+TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c
+TEST_FULL_BIN := yafu_test_full$(EXE_EXT)
+TEST_ARCHIVES := libysiqs.a libyecm.a libynfs.a libmsieve.a
+
+# Standalone archive rules mirroring the inline `ar` steps in the yafu/msieve
+# recipes (same member sets), so test-full can depend on them directly.
+libysiqs.a: $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
+	rm -f $@
+	ar r  $@ $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
+	ranlib $@
+libyecm.a: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	rm -f $@
+	ar r  $@ $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	ranlib $@
+libynfs.a: $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
+	rm -f $@
+	ar r  $@ $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
+	ranlib $@
+libmsieve.a: $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	rm -f $@
+	ar r  $@ $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib $@
+
+test-full: _dep_status $(TEST_ARCHIVES)
+	$(CC) $(CFLAGS) -DTK_WITH_LAYER3 -I$(TEST_DIR) \
+	    $(TEST_SRCS) $(TEST_L3_SRCS) -o $(TEST_FULL_BIN) \
+	    $(TEST_ARCHIVES) $(LIBS)
+	@echo "built $(TEST_FULL_BIN) -- Layers 0-3 (incl. SIQS integration)"
+
+test-full-run: test-full
+	./$(TEST_FULL_BIN)
 
 
 # -----------------------------------------------------------------------------
@@ -1443,6 +1490,8 @@ help:
 	@echo "    make test            build the test suite (yafu_test)"
 	@echo "    make test-run        build and run the test suite"
 	@echo "    make test-clean      remove test build artefacts"
+	@echo "    make test-full       build+run Layers 0-3 (SIQS integration)"
+	@echo "    make test-full-run   build and run Layers 0-3"
 	@echo "    make lasieve         build NFS sieve libraries (factor/lasieve5_64)"
 	@echo "    make clean           remove yafu build artefacts (not lasieve)"
 	@echo "    make lasieve-clean   remove lasieve build artefacts"

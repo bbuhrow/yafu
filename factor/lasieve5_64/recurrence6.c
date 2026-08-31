@@ -17,7 +17,7 @@
 
 #include <sys/types.h>
 #include <limits.h>
-
+#include <stdint.h>
 #include "asm/siever-config.h"
 #include "if.h"
 #include "recurrence6.h"
@@ -368,6 +368,89 @@ done:
             //    _mm512_castsi512_ps(_mm512_set1_epi32(0x4B000000)));
         }
 
+
+        void divrem16xu32_avx512(uint32_t* out, uint32_t* rem, uint32_t* dividend, uint32_t* divisor) {
+            __m512i zmm4 = _mm512_loadu_si512(dividend);
+            __m512i zmm5 = _mm512_loadu_si512(divisor);
+            __m512i zmm7 = _mm512_set1_epi32(-1);
+            __m512  zmm3 = _mm512_set1_ps(1.0f);
+
+            // Convert to float: dividend rounds down, divisor rounds up.
+            // Rounding divisor up biases its reciprocal slightly low,
+            // ensuring the FP quotient never overshoots the true value.
+            __m512 zmm0 = _mm512_cvt_roundepu32_ps(zmm4, _MM_FROUND_NO_EXC);
+            __m512 zmm1 = _mm512_cvt_roundepu32_ps(zmm5, _MM_FROUND_NO_EXC);
+
+            // Reciprocal of divisor, rounded down
+            zmm1 = _mm512_div_round_ps(zmm3, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+
+            // --- Single Newton iteration ---
+            zmm0 = _mm512_mul_round_ps(zmm0, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+            __m512i zmm3i = _mm512_cvt_roundps_epu32(zmm0, _MM_FROUND_NO_EXC);
+
+            __m512i zmm2 = _mm512_mullo_epi32(zmm3i, zmm5);   // quotient * divisor
+            zmm4 = _mm512_sub_epi32(zmm4, zmm2);              // remainder
+
+            // --- Off-by-one correction ---
+            __mmask16 k1 = _mm512_cmpge_epu32_mask(zmm4, zmm5);
+
+            zmm3i = _mm512_mask_sub_epi32(zmm3i, k1, zmm3i, zmm7); // quotient += 1
+            zmm4 = _mm512_mask_sub_epi32(zmm4, k1, zmm4, zmm5); // remainder -= divisor
+
+            _mm512_storeu_si512(out, zmm3i);
+            _mm512_storeu_si512(rem, zmm4);
+        }
+
+        void div16xu32_avx512_mask(uint32_t* out, __mmask16 mask, uint32_t* dividend, uint32_t* divisor) {
+            __m512i zmm4 = _mm512_loadu_si512(dividend);
+            __m512i zmm5 = _mm512_loadu_si512(divisor);
+            __m512i zmm7 = _mm512_set1_epi32(-1);
+            __m512  zmm3 = _mm512_set1_ps(1.0f);
+
+            __m512 zmm0 = _mm512_cvt_roundepu32_ps(zmm4, _MM_FROUND_NO_EXC);
+            __m512 zmm1 = _mm512_cvt_roundepu32_ps(zmm5, _MM_FROUND_NO_EXC);
+            zmm1 = _mm512_div_round_ps(zmm3, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+
+            // --- Single iteration ---
+            zmm0 = _mm512_mul_round_ps(zmm0, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+            __m512i zmm3i = _mm512_cvt_roundps_epu32(zmm0, _MM_FROUND_NO_EXC);
+
+            __m512i zmm2 = _mm512_mullo_epi32(zmm3i, zmm5);  // quotient * divisor
+            zmm4 = _mm512_sub_epi32(zmm4, zmm2);             // remainder
+
+            // --- Off-by-one correction ---
+            __mmask16 k1 = _mm512_cmpge_epu32_mask(zmm4, zmm5);
+            zmm3i = _mm512_mask_sub_epi32(zmm3i, k1, zmm3i, zmm7); // quotient += 1
+
+            // Masked store: only lanes set in `mask` are written back to out[]
+            _mm512_mask_storeu_epi32(out, mask, zmm3i);
+        }
+
+        void div16xu32_avx512_mask_rem(uint32_t* rem, __mmask16 mask, uint32_t* dividend, uint32_t* divisor) {
+            __m512i zmm4 = _mm512_loadu_si512(dividend);
+            __m512i zmm5 = _mm512_loadu_si512(divisor);
+            __m512i zmm7 = _mm512_set1_epi32(-1);
+            __m512  zmm3 = _mm512_set1_ps(1.0f);
+
+            __m512 zmm0 = _mm512_cvt_roundepu32_ps(zmm4, _MM_FROUND_NO_EXC);
+            __m512 zmm1 = _mm512_cvt_roundepu32_ps(zmm5, _MM_FROUND_NO_EXC);
+            zmm1 = _mm512_div_round_ps(zmm3, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+
+            // --- Single iteration ---
+            zmm0 = _mm512_mul_round_ps(zmm0, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+            __m512i zmm3i = _mm512_cvt_roundps_epu32(zmm0, _MM_FROUND_NO_EXC);
+
+            __m512i zmm2 = _mm512_mullo_epi32(zmm3i, zmm5);  // quotient * divisor
+            zmm4 = _mm512_sub_epi32(zmm4, zmm2);             // remainder
+
+            // --- Off-by-one correction (remainder only, no quotient needed) ---
+            __mmask16 k1 = _mm512_cmpge_epu32_mask(zmm4, zmm5);
+            zmm4 = _mm512_mask_sub_epi32(zmm4, k1, zmm4, zmm5); // remainder -= divisor
+
+            // Masked store: only lanes set in `mask` are written back to rem[]
+            _mm512_mask_storeu_epi32(rem, mask, zmm4);
+        }
+
         __m512i div_epu32_x16(__m512i n, __m512i d)
         {
             //_MM_SET_ROUNDING_MODE(_MM_ROUND_TOWARD_ZERO);
@@ -376,13 +459,8 @@ done:
             __m512 n1ps = tmp_cvt_epu32_ps(n);
             __m512i q2, q, r;
 
-#if 0 //defined(INTEL_COMPILER) || defined(INTEL_LLVM_COMPILER)
-            n1ps = _mm512_div_ps(n1ps, d1ps);
-            q = tmp_cvtround_ps_epu32(n1ps, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-#else
             n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
             q = _mm512_cvttps_epu32(n1ps);
-#endif
 
             __m512i qd = _mm512_mullo_epi32(q, d);
             r = _mm512_sub_epi32(n, qd);
@@ -395,16 +473,9 @@ done:
             if (err)
             {
                 n1ps = tmp_cvt_epu32_ps(_mm512_sub_epi32(_mm512_set1_epi32(0), r));
-                
 
-#if 0 //defined(INTEL_COMPILER) || defined(INTEL_LLVM_COMPILER)
-                n1ps = _mm512_div_ps(n1ps, d1ps);
-                q2 = _mm512_add_epi32(_mm512_set1_epi32(1), tmp_cvtround_ps_epu32(n1ps,
-                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)));
-#else
                 n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
                 q2 = _mm512_add_epi32(_mm512_set1_epi32(1), _mm512_cvttps_epu32(n1ps));
-#endif
 
                 q = _mm512_mask_sub_epi32(q, err, q, q2);
                 r = _mm512_mask_add_epi32(r, err, r, _mm512_mullo_epi32(q2, d));
@@ -416,14 +487,8 @@ done:
             {
                 n1ps = tmp_cvt_epu32_ps(r);               
 
-#if 0 //defined(INTEL_COMPILER) || defined(INTEL_LLVM_COMPILER)
-                n1ps = _mm512_div_ps(n1ps, d1ps);
-                q2 = tmp_cvtround_ps_epu32(n1ps,
-                    (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-#else
                 n1ps = _mm512_div_round_ps(n1ps, d1ps, ROUNDING_MODE);
                 q2 = _mm512_cvttps_epu32(n1ps);
-#endif
 
                 q = _mm512_mask_add_epi32(q, err, q, q2);
                 r = _mm512_mask_sub_epi32(r, err, r, _mm512_mullo_epi32(q2, d));
@@ -736,55 +801,42 @@ done:
             return r;
         }
 
-        // should look at this approach, seems like it could be faster.
-        /*  https://sneller.ai/blog/avx512-int-div/
-        //   void div8xi64_avx512(int64_t* out, int64_t* dividend, int64_t* divisor)
-//
-// Using a standard AMD64 Calling Convention:
-//
-//   out      <- rdi
-//   dividend <- rsi
-//   divisor  <- rdx
+        void div8xu64_avx512(uint64_t* out, uint64_t* rem, uint64_t* dividend, uint64_t* divisor) {
+            __m512i zmm4 = _mm512_loadu_si512(dividend);
+            __m512i zmm5 = _mm512_loadu_si512(divisor);
+            __m512i zmm7 = _mm512_set1_epi64(-1LL);
+            __m512d zmm3 = _mm512_set1_pd(1.0);
 
-    // div8xi64_avx512:
-    // Calculate absolute values of inputs and prepare some constants.
-    __m512i f1 = _mm512_set1_epi64(0x3FF0000000000000ull);      // vbroadcastsd zmm3, [div8xi64_consts] // zmm3 <- constant f64(1.0)
-    __m512i vdividend = _mm512_load_epi64(dividend);            // vmovdqu64 zmm0, [rsi]                // zmm0 <- dividend
-    __m512i vdivisor = _mm512_load_epi64(divisor);              // vmovdqu64 zmm1, [rdx]                // zmm1 <- divisor
-    __m512i vxor = _mm512_xor_epi64(vdividend, vdivisor);       // vpxorq zmm2, zmm0, zmm1              // zmm2 <- dividend ^ divisor
-    __m512i vabsdividend = vdividend;                           // vpabsq zmm4, zmm0                    // zmm4 <- abs(dividend)
-    __m512i vabsdivisor = vdivisor;                             // vpabsq zmm5, zmm1                    // zmm5 <- abs(divisor)
-    __m512i vzero = _mm512_set1_epi64(0);                       // vpxorq zmm6, zmm6, zmm6              // zmm6 <- constant i64(0)
-    __m512i vneg1 = _mm512_ternarylogic_epi64(                    vpternlogq zmm7, zmm6, zmm6, 255     // zmm7 <- constant i64(-1) (all bites set to one)
-    __mmask8 negmask = 0; //_mm512_movepi64_mask(vxor);              // vpmovq2m k2, zmm2                    // k2 <- mask of lanes that must be negative
+            __m512d zmm0 = _mm512_cvt_roundepu64_pd(zmm4, _MM_FROUND_NO_EXC);
+            __m512d zmm1 = _mm512_cvt_roundepu64_pd(zmm5, _MM_FROUND_NO_EXC);
+            zmm1 = _mm512_div_round_pd(zmm3, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
 
-                        vcvtuqq2pd zmm0, zmm4, { rd - sae }      // zmm0 <- double(dividend)
-                        vcvtuqq2pd zmm1, zmm5, { ru - sae }      // zmm1 <- double(divisor)
-                        vdivpd zmm1, zmm3, zmm1, { rd - sae }    // zmm1 <- reciprocal of divisor
+            // --- First iteration ---
+            zmm0 = _mm512_mul_round_pd(zmm0, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+            __m512i zmm3i = _mm512_cvtt_roundpd_epu64(zmm0, _MM_FROUND_NO_EXC);
 
-                        vmulpd zmm0, zmm0, zmm1, { rd - sae }    // zmm0 <- first (1st iteration result as double)
-                        vcvtpd2uqq zmm3, zmm0, { rd - sae }      // zmm3 <- first (1st iteration result as uint64_t)
+            __m512i zmm2 = _mm512_mullox_epi64(zmm3i, zmm5);  // first * divisor
+            zmm4 = _mm512_sub_epi64(zmm4, zmm2);              // remainder after 1st iteration
 
-                        vpmullq zmm2, zmm3, zmm5             // zmm2 <- first * divisor
-                        vpsubq zmm4, zmm4, zmm2              // zmm4 <- dividend - first * divisor
-                        vcvtuqq2pd zmm0, zmm4, { rd - sae }      // zmm0 <- double(dividend - first * divisor)
+            // --- Second iteration ---
+            zmm0 = _mm512_cvt_roundepu64_pd(zmm4, _MM_FROUND_NO_EXC);
+            zmm0 = _mm512_mul_round_pd(zmm0, zmm1, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+            __m512i zmm2i = _mm512_cvtt_roundpd_epu64(zmm0, _MM_FROUND_NO_EXC);
 
-                        vmulpd zmm0, zmm0, zmm1, { rd - sae }    // zmm0 <- second (2nd iteration result as double)
-                        vcvtpd2uqq zmm2, zmm0, { rd - sae }      // zmm2 <- second (2nd iteration result as uint64_t)
-                        vpaddq zmm3, zmm3, zmm2              // zmm3 <- first + second
+            __m512i zmm3_final = _mm512_add_epi64(zmm3i, zmm2i);  // first + second
 
-                        vpmullq zmm2, zmm2, zmm5             // zmm2 <- second * divisor
-                        vpsubq zmm4, zmm4, zmm2              // zmm4 <- dividend - (first + second) * divisor
+            zmm2 = _mm512_mullox_epi64(zmm2i, zmm5);              // second * divisor
+            zmm4 = _mm512_sub_epi64(zmm4, zmm2);                  // final remainder before correction
 
-                        vpcmpuq k1, zmm4, zmm5, 5            // k1 <- lanes that are off by 1 and needs correction
-                        vpsubq zmm3{ k1 }, zmm3, zmm7         // zmm3 <- first + second + off_by_1_correction
-                        vpsubq zmm3{ k2 }, zmm6, zmm3         // zmm3 <- flip signs of lanes that must be negative
-                        vmovdqu[rdi], zmm3                  // [rdi] <- store results to [rdi]
+            // --- Off-by-one correction (applied to both quotient and remainder) ---
+            __mmask8 k1 = _mm512_cmpge_epu64_mask(zmm4, zmm5);
 
-                        align 8
-                        div8xi64_consts:
-                    dq 0x3FF0000000000000                // constant f64(1.0)
-                    */
+            zmm3_final = _mm512_mask_sub_epi64(zmm3_final, k1, zmm3_final, zmm7); // quotient += 1
+            zmm4 = _mm512_mask_sub_epi64(zmm4, k1, zmm4, zmm5); // remainder -= divisor
+
+            _mm512_storeu_si512(out, zmm3_final);
+            _mm512_storeu_si512(rem, zmm4);
+        }
 
 
 #if I_bits == 16
