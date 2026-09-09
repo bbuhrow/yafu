@@ -15,9 +15,7 @@
 
    microecm covers 40/50/60/64-bit inputs (its 64-bit ceiling), semiprimes
    from tk_gen_semiprime_u64.
-   tinyecm covers 40..128-bit inputs, including the full 128-bit max case
-   (two ~64-bit factors -- its SIQS double-large-prime workload), semiprimes
-   built with GMP so the >64-bit sizes are reachable.
+   tinyecm covers 3LP splits of up to 105-bit inputs, its most common usage.
 
  Entry points (note the differing "not found" conventions):
    uint64_t getfactor_uecm(uint64_t n, int is_arbitrary, uint64_t *pran);
@@ -41,9 +39,6 @@
 static const int uecm_bits[] = { 40, 50, 60, 64 };
 #define UECM_NBITS (int)(sizeof uecm_bits / sizeof uecm_bits[0])
 
-static const int tecm_bits[] = { 40, 50, 60, 64, 80, 104, 128 };
-#define TECM_NBITS (int)(sizeof tecm_bits / sizeof tecm_bits[0])
-
 /* one prime of exactly b bits (the size retry rejects a nextprime carry) */
 static void gen_mpz_prime(mpz_t p, gmp_randstate_t st, int b)
 {
@@ -54,18 +49,6 @@ static void gen_mpz_prime(mpz_t p, gmp_randstate_t st, int b)
     } while ((int)mpz_sizeinbase(p, 2) != b);
 }
 
-/* GMP balanced semiprime N = p*q, each factor exactly bits/2 (or +1) bits, so
-   for bits=128 both factors are 64-bit and N stays < 2^128. */
-static void gen_mpz_semiprime(mpz_t n, mpz_t p, mpz_t q, gmp_randstate_t st, int bits)
-{
-    int pb = bits / 2, qb = bits - pb;
-    do {
-        gen_mpz_prime(p, st, pb);
-        gen_mpz_prime(q, st, qb);
-    } while (mpz_cmp(p, q) == 0);
-    mpz_mul(n, p, q);
-}
-
 /* GMP 3-large-prime composite N = p1*p2*p3: three distinct primes, each with
    bit-length uniform in [27,35] -- i.e. in (2^26, 2^35). The product of any
    three is at most ~2^120 < 2^128 (tinyecm's ceiling), so the size bound alone
@@ -74,9 +57,9 @@ static void gen_mpz_3prime(mpz_t n, mpz_t p1, mpz_t p2, mpz_t p3,
                            gmp_randstate_t st, tk_rng *rng)
 {
     do {
-        gen_mpz_prime(p1, st, 26 + (int)tk_rng_range(rng, 9));
-        gen_mpz_prime(p2, st, 26 + (int)tk_rng_range(rng, 9));
-        gen_mpz_prime(p3, st, 26 + (int)tk_rng_range(rng, 9));
+        gen_mpz_prime(p1, st, 27 + (int)tk_rng_range(rng, 9));
+        gen_mpz_prime(p2, st, 27 + (int)tk_rng_range(rng, 9));
+        gen_mpz_prime(p3, st, 27 + (int)tk_rng_range(rng, 9));
     } while (mpz_cmp(p1, p2) == 0 || mpz_cmp(p1, p3) == 0 || mpz_cmp(p2, p3) == 0);
     mpz_mul(n, p1, p2);
     mpz_mul(n, n, p3);
