@@ -365,11 +365,13 @@ endif
 CFLAGS := \
     -fno-common \
     -m64 \
-    -std=c11 \
+	-g \
+    -std=gnu11 \
     -fPIE \
     -DUSE_NFS \
     -D_FILE_OFFSET_BITS=64 \
     -D_LARGEFILE64_SOURCE \
+	-DHAVE_CPU_HASHTABLE \
     -Wall \
     -Wconversion
 
@@ -667,7 +669,8 @@ ifdef CUDA_POLY
     ifeq ($(DETECTED_OS),Windows)
         CUDA_POLY_LIBS := "$(CUDA_LIBDIR)/cuda.lib"
     else
-        CUDA_POLY_LIBS := -lcuda -lcudart
+        CUDA_POLY_LIBS := -lcuda 
+#-lcudart
 # -L/usr/local/cuda-12.8/targets/x86_64-linux/lib/ -lcuda -lcudart_static
     endif
 endif
@@ -970,9 +973,13 @@ NFS_SRCS = \
     gnfs/poly/poly.c \
     gnfs/poly/poly_param.c \
     gnfs/poly/poly_skew.c \
+	gnfs/poly/poly_stats.c \
     gnfs/poly/polyutil.c \
     gnfs/poly/root_score.c \
     gnfs/poly/size_score.c \
+	gnfs/poly/stage1/stage1_sieve_cpu_hashtable.c \
+	gnfs/poly/stage1/stage1_sieve_cpu.c \
+	gnfs/poly/stage1/stage1_engine.c \
     gnfs/poly/stage1/stage1.c \
     gnfs/poly/stage1/stage1_roots.c \
     gnfs/poly/stage2/optimize.c \
@@ -1000,7 +1007,8 @@ NFS_SRCS = \
     gnfs/relation.c
 
 NFS_GPU_SRCS  = gnfs/poly/stage1/stage1_sieve_gpu.c
-NFS_NOGPU_SRCS = gnfs/poly/stage1/stage1_sieve_cpu.c
+NFS_NOGPU_SRCS = 
+#gnfs/poly/stage1/stage1_sieve_cpu.c
 
 ifeq ($(CUDA_POLY),1)
     NFS_SRCS += $(NFS_GPU_SRCS)
@@ -1178,7 +1186,7 @@ $(DEPS_SUBDIRS):
 yafu: _dep_status \
       $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) \
       $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
-      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(BATCH_GPU_OBJS)
+      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(BATCH_GPU_OBJS) $(GPU_OBJS)
 	rm -f libmsieve.a
 	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
 	ranlib libmsieve.a
@@ -1279,7 +1287,7 @@ mpqs/sieve_core_generic_64k.qo: mpqs/sieve_core.c | $(DEPS_SUBDIRS)
 	$(CC) $(CFLAGS) -Ignfs -MMD -MP -MF $(DEPS_DIR)/$*.d -c -o $@ $<
 
 # GPU / PTX rules
-stage1_core.ptx: $(NFS_GPU_HDR)
+stage1_core.ptx: gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu $(NFS_GPU_HDR)
 	$(NVCC) -arch $(CUDA_PTX_ARCH) -ptx -I. -Icub -Ignfs -Ignfs/poly/stage1 -o $@ $<
 	
 #stage1_core.ptx: gnfs/poly/stage1/stage1_core_gpu/stage1_core.cu

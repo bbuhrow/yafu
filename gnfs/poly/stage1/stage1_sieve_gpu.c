@@ -16,6 +16,7 @@ $Id: stage1_sieve_gpu.c 1056 2024-06-09 13:04:11Z brgladman $
 #include <collision_engine.h> /* interface to GPU collision library */
 #include <stage1.h>
 #include <stage1_core_gpu/stage1_core.h>
+#include "stage1_engine.h"
 
 /* On an interactive terminal we can rewrite the progress line in
    place with '\r'; when stdout is redirected (or several GPU threads
@@ -311,7 +312,7 @@ p_soa_array_start(p_soa_array_t *s, uint32 pp_is_64,
 }
 
 static void
-store_p_soa(uint32 p, uint32 num_roots, uint64 *roots, void *extra)
+store_p_soa(uint64 p, uint32 num_roots, mpz_t* roots, void* extra)
 {
 	uint32 i, j;
 	p_soa_array_t *s = (p_soa_array_t *)extra;
@@ -349,9 +350,9 @@ store_p_soa(uint32 p, uint32 num_roots, uint64 *roots, void *extra)
 					soa->num_roots * sizeof(uint64)))
 		}
 
-		soa->p[num_p] = p;
+		soa->p[num_p] = (uint32)p;
 		for (j = 0; j < num_roots; j++)
-			soa->start_roots[num_p * num_roots + j] = roots[j];
+			soa->start_roots[num_p * num_roots + j] = gmp2uint64(roots[j]);
 		soa->num_p++;
 		return;
 	}
@@ -425,7 +426,7 @@ specialq_array_start(specialq_array_t *q_array,
 }
 
 static void
-store_specialq(uint32 q, uint32 num_roots, uint64 *roots, void *extra)
+store_specialq(uint64 q, uint32 num_roots, mpz_t* roots, void* extra)
 {
 	uint32 i;
 	uint64 q2 = (uint64)q * q;
@@ -448,9 +449,9 @@ store_specialq(uint32 q, uint32 num_roots, uint64 *roots, void *extra)
 		specialq_t *s = q_array->specialq + 
 				q_array->num_specialq + i;
 
-		s->p = q;
+		s->p = (uint32)q;
 		s->pp = q2;
-		s->root = roots[i];
+		s->root = gmp2uint64(roots[i]);        /* was roots[i] as uint64 */
 	}
 
 	q_array->num_specialq += num_roots;
@@ -546,8 +547,6 @@ typedef struct {
 	uint32 num_threads;
 	device_thread_data_t *threads;
 
-	struct threadpool *gpu_threadpool;
-	struct threadpool *stage2_threadpool;
 
 } device_data_t;
 
@@ -601,45 +600,20 @@ static void emergency_gpu_cleanup(void)
 /*------------------------------------------------------------------------*/
 /* infrastructure for submitting stage 1 hits to the stage 2 thread pool */
 
-typedef struct {
-	stage1_callback_t callback;
-	void *callback_data;
-
-	mpz_t ad;
-	mpz_t p;
-	mpz_t m;
-
-} stage1_hit_data_t;
-
-static void
-stage1_hit_free(void *data, int threadid)
+static uint128
+gpu_promote128(uint64 r)
 {
-	stage1_hit_data_t *hit_data = (stage1_hit_data_t *)data;
-
-	mpz_clear(hit_data->ad);
-	mpz_clear(hit_data->p);
-	mpz_clear(hit_data->m);
-	free(hit_data);
-}
-
-static void
-stage1_hit_run(void *data, int threadid)
-{
-	stage1_hit_data_t *hit_data = (stage1_hit_data_t *)data;
-
-	hit_data->callback(hit_data->ad,
-			   hit_data->p,
-			   hit_data->m,
-			   hit_data->callback_data);
+	uint128 u;
+	u.w[0] = (uint32)r; u.w[1] = (uint32)(r >> 32); u.w[2] = 0; u.w[3] = 0;
+	return u;
 }
 
 static void
 check_found_array(poly_coeff_t *c, device_data_t *d,
-			device_thread_data_t *t)
+			device_thread_data_t *t, task_data_t* task)
 {
 	uint32 i;
 	uint32 found_array_size;
-	uint32 crap = 0;
 	found_t *found_array = t->found_array;
 
 	CUDA_TRY(cuMemcpyDtoHAsync(found_array, t->gpu_found_array,
@@ -667,7 +641,7 @@ check_found_array(poly_coeff_t *c, device_data_t *d,
 				sizeof(found_t), t->stream))
 
 	for (i = 1; i <= found_array_size; i++) {
-		found_t *found = found_array + i;
+		found_t* found = found_array + i;
 		uint32 p1 = found->p1;
 		uint32 p2 = found->p2;
 		uint32 q = found->q;
@@ -675,53 +649,16 @@ check_found_array(poly_coeff_t *c, device_data_t *d,
 		int64 offset = found->offset;
 
 		double dp = (double)q * p1 * p2;
-		double coeff = c->m0 * fabs((double)qroot + 
-					(double)offset * q * q) /
-					(dp * dp);
+		double coeff = c->m0 * fabs((double)qroot +
+			(double)offset * q * q) /
+			(dp * dp);
 
 		if (coeff <= c->coeff_max)
 		{
-			uint32 status = handle_collision(c, (uint64)p1 * p2, q,
-				qroot, offset);
-
-			if (status == 1)
-			{
-
-				/* submit the hit to the stage 2 thread pool */
-
-				task_control_t task_control;
-				stage1_hit_data_t* hit_data = (stage1_hit_data_t*)
-					xmalloc(sizeof(stage1_hit_data_t));
-
-				/* count the poly here (on this coefficient's own
-				   worker thread) rather than on the stage-2 pool, so
-				   the per-coefficient tally is attributable and needs
-				   no locking */
-
-				c->found_count++;
-
-				hit_data->callback = d->poly->callback;
-				hit_data->callback_data = d->poly->callback_data;
-				mpz_init_set(hit_data->ad, c->high_coeff);
-				mpz_init_set(hit_data->p, c->p);
-				mpz_init_set(hit_data->m, c->m);
-
-				task_control.init = NULL;
-				task_control.run = stage1_hit_run;
-				task_control.shutdown = stage1_hit_free;
-				task_control.data = hit_data;
-
-				threadpool_add_task(d->stage2_threadpool,
-					&task_control, 1);
-			}
-			else if (status == 2)
-			{
-				crap++;
-			}
+			handle_collision(task, (uint64)p1 * p2, (uint64)q,
+				gpu_promote128(qroot), offset);
 		}
 	}
-
-	//printf("ignored %u crap messages\n", crap);
 }
 
 #define MAX_SPECIAL_Q ((uint32)(-1))
@@ -967,7 +904,7 @@ format_local_time(char *buf, size_t len)
 static uint32
 sieve_specialq(msieve_obj *obj,
 		poly_coeff_t *c, device_data_t *d,
-		device_thread_data_t *t,
+		device_thread_data_t *t, task_data_t* task,
 		uint32 special_q_min, uint32 special_q_max,
 		uint32 p_min, uint32 p_max, 
 		uint32 max_aprog_vals, double deadline)
@@ -1014,7 +951,7 @@ sieve_specialq(msieve_obj *obj,
 	t->found_batches = 0;
 	t->found_saturated_batches = 0;
 	t->found_total = 0;
-	c->found_count = 0;
+	//c->found_count = 0;
 
 	/* build all the arithmetic progressions */
 
@@ -1058,8 +995,10 @@ sieve_specialq(msieve_obj *obj,
 	   that progress and an ETA can be reported as batches
 	   complete; include any trivial special-q already stored */
 
-	total_qroots = sieve_fb_count(q_fb, special_q_min,
-				special_q_max, degree, MAX_ROOTS);
+	/* GPU-side ETA off; poly_stats roll-up reports progress */
+   // sieve_fb_count(q_fb, special_q_min, special_q_max, degree, MAX_ROOTS);
+
+	total_qroots = 0; 
 	if (total_qroots != 0)
 		total_qroots += q_array->num_specialq;
 
@@ -1129,7 +1068,7 @@ sieve_specialq(msieve_obj *obj,
 		quit = handle_special_q_batch(obj, d, t, batch_size, 
 				32 - unused_bits, key_bits, num_aprog_vals);
 
-		check_found_array(c, d, t);
+		check_found_array(c, d, t, task);
 
 		specialq_array_nextbatch(q_array, batch_size);
 
@@ -1293,7 +1232,7 @@ sieve_specialq(msieve_obj *obj,
 		}
 
 	if (t->found_batches != 0) {
-		logprintf(obj, "found_array stats: batches %u peak %u "
+		logprintf(obj, "\nfound_array stats: batches %u peak %u "
 				"saturated %u total %" PRIu64 " cap %u\n",
 				t->found_batches, t->found_peak,
 				t->found_saturated_batches,
@@ -1304,6 +1243,7 @@ sieve_specialq(msieve_obj *obj,
 	   Each worker owns its own polys_found, so that accumulation never
 	   races; the grand total is the sum across workers. */
 
+#if 0
 	t->polys_found += c->found_count;
 	{
 		uint32 i, total = 0;
@@ -1328,21 +1268,26 @@ sieve_specialq(msieve_obj *obj,
 				timebuf, c->high_coeff, c->found_count, total);
 		fflush(stdout);
 	}
+#endif
 
 	t->cumulative_elapsed += elapsed;
 	return quit;
 }
 
 /*------------------------------------------------------------------------*/
-static void
-sieve_lattice_gpu_core(msieve_obj *obj,
-		poly_coeff_t *c, device_data_t *d, 
-		device_thread_data_t *t, double deadline)
+//static 
+void
+stage1_specialq_gpu(task_data_t* task, uint32 threadid,
+	uint64 special_q_min, uint64 special_q_max,
+	uint32 p_min, uint32 p_max)
 {
-	uint32 degree = d->poly->degree;
+	poly_coeff_t* c = task->c;
+	msieve_obj* obj = task->obj;
+	device_data_t* gd = (device_data_t*)task->d->hw_data;
+	device_thread_data_t* t = gd->threads + threadid;
+
+	uint32 degree = gd->poly->degree;
 	uint32 num_pieces;
-	uint32 p_min, p_max;
-	uint32 special_q_min, special_q_max;
 	uint32 special_q_min2, special_q_max2;
 	uint32 special_q_fb_max;
 	double target = c->coeff_max / c->m0;
@@ -1355,39 +1300,6 @@ sieve_lattice_gpu_core(msieve_obj *obj,
 
 	if (obj->flags & MSIEVE_FLAG_STOP_SIEVING_SOFT)
 		return;
-
-	/* likewise skip queued coefficients once the num_polys= target
-	   has been reached; the ones already in flight finish and drain */
-
-	if (d->poly->target_poly_count &&
-	    d->poly->poly_count >= d->poly->target_poly_count)
-		return;
-
-	/* Kleinjung shows that the third-to-largest algebraic
-	   polynomial coefficient is of size approximately
-
-	             (correction to m0) * m0
-		    --------------------------
-		    (leading rational coeff)^2
-	
-	   We have a bound 'coeff_max' on what this number is 
-	   supposed to be, and we know m0 and an upper bound on 
-	   the size of the leading rational coefficient P. Let 
-	   P = p1*p2*q, where p1 and p2 are drawn from a fixed
-	   set of candidates, and q (the 'special-q') is arbitrary
-	   except that gcd(q,p1,p2)=1. Then the correction 'C' to 
-	   m0 is < max(p1,p2)^2 */
-	   
-	p_max = MIN(MAX_OTHER, sqrt(c->p_size_max));
-	p_max = MIN(p_max, sqrt(0.5 / target));
-
-	special_q_max = MIN(MAX_SPECIAL_Q, 
-			    c->p_size_max / p_max / p_max);
-	special_q_max = MAX(special_q_max, 1);
-	
-	p_max *= 64;
-	p_min = MAX(1, p_max / P_SCALE);
-	special_q_min = 1;
 
 	/* set up the special q factory; special-q may have 
 	   arbitrary factors, but many small factors are 
@@ -1439,7 +1351,7 @@ sieve_lattice_gpu_core(msieve_obj *obj,
 		special_q_min2 = special_q_min;
 		special_q_max2 = special_q_max;
 	}
-#if 1
+#if 0
 	{
 		char timebuf[32];
 
@@ -1451,9 +1363,9 @@ sieve_lattice_gpu_core(msieve_obj *obj,
 				p_min, p_max);
 	}
 #endif
-	sieve_specialq(obj, c, d, t,
+	sieve_specialq(obj, c, gd, t, task,
 			special_q_min2, special_q_max2, p_min, p_max,
-			max_aprog_vals, deadline);
+			max_aprog_vals, (double)task->coeff_deadline);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1468,11 +1380,12 @@ read_collision_engine_args(msieve_obj *obj, device_data_t *d)
 	if (obj->nfs_args != NULL) {
 		char *tmp = strstr(obj->nfs_args, "collengine=");
 
-		if (tmp != NULL) {
-			tmp += 11;
-			if (strncmp(tmp, "gerbicz", 7) == 0)
-				d->use_collision_engine = 1;
-		}
+		// The id drives the engine choice now
+		//if (tmp != NULL) {
+		//	tmp += 11;
+		//	if (strncmp(tmp, "gerbicz", 7) == 0)
+		//		d->use_collision_engine = 1;
+		//}
 
 		tmp = strstr(obj->nfs_args, "collhash=");
 		if (tmp != NULL)
@@ -1642,19 +1555,23 @@ load_collision_engine(msieve_obj *obj, device_data_t *d)
 
 
 /*------------------------------------------------------------------------*/
-static void
+void
 gpu_thread_data_init(void *data, int threadid)
 {
 	uint32 i, j;
-	device_data_t *d = (device_data_t *)data;
-	device_thread_data_t *t = d->threads + threadid;
+	stage1_sieve_data_t* d = (stage1_sieve_data_t*)data;
+	device_data_t* gd = (device_data_t*)d->hw_data;
+	device_thread_data_t* t = gd->threads + threadid;
+
+	/* contract doesn't pass poly to sieve_data_init, so bridge it here */
+	gd->poly = d->poly;          
 
 	/* every thread needs its own context; making all
 	   threads share the same context causes problems
 	   with the sort engine, because apparently it
 	   changes the GPU cache size on the fly */
 
-#if CUDA_VERSION >= 13000
+#if TOOLKIT_VERSION >= 13 //CUDA_VERSION >= 13000
 	CUDA_TRY(cuCtxCreate(&t->gpu_context,
 			NULL,
 			CU_CTX_BLOCKING_SYNC,
@@ -1662,7 +1579,7 @@ gpu_thread_data_init(void *data, int threadid)
 #else
 	CUDA_TRY(cuCtxCreate(&t->gpu_context,
 			CU_CTX_BLOCKING_SYNC,
-			d->gpu_info->device_handle))
+			gd->gpu_info->device_handle))
 #endif
 
 	/* load GPU kernels */
@@ -1708,34 +1625,37 @@ gpu_thread_data_init(void *data, int threadid)
 	t->sieve_p_fb = sieve_fb_alloc();
 	t->sieve_q_fb = sieve_fb_alloc();
 
-	t->p_array = p_soa_array_init(d->poly->degree);
+	t->p_array = p_soa_array_init(gd->poly->degree);
 	t->q_array = specialq_array_init();
 
-	i = sizeof(uint32) * MAX(d->max_sort_entries32, d->max_sort_entries64);
-	j = MAX(d->max_sort_entries32 * sizeof(uint32),
-	        d->max_sort_entries64 * sizeof(uint64));
+	i = sizeof(uint32) * MAX(gd->max_sort_entries32, gd->max_sort_entries64);
+	j = MAX(gd->max_sort_entries32 * sizeof(uint32),
+	        gd->max_sort_entries64 * sizeof(uint64));
 
 	CUDA_TRY(cuMemAlloc(&t->gpu_p_array, i))
 	CUDA_TRY(cuMemAlloc(&t->gpu_p_array_scratch, i))
 	CUDA_TRY(cuMemAlloc(&t->gpu_root_array, j))
 	CUDA_TRY(cuMemAlloc(&t->gpu_root_array_scratch, j))
 
-	if (d->use_collision_engine)
-		t->collision_engine = d->collision_engine_init();
+	if (gd->use_collision_engine)
+		t->collision_engine = gd->collision_engine_init();
 	else
-		t->sort_engine = d->sort_engine_init();
+		t->sort_engine = gd->sort_engine_init();
 
 	CUDA_TRY(cuEventCreate(&t->start_event, CU_EVENT_BLOCKING_SYNC))
 	CUDA_TRY(cuEventCreate(&t->end_event, CU_EVENT_BLOCKING_SYNC))
+
+	d->threads[threadid].hw_thread_data = t;
 }
 
 
 /*------------------------------------------------------------------------*/
-static void
+void
 gpu_thread_data_free(void *data, int threadid)
 {
-	device_data_t *d = (device_data_t *)data;
-	device_thread_data_t *t = d->threads + threadid;
+	stage1_sieve_data_t* d = (stage1_sieve_data_t*)data;
+	device_data_t* gd = (device_data_t*)d->hw_data;
+	device_thread_data_t* t = gd->threads + threadid;
 
 	/* Synchronize context before destroying to ensure all GPU work completes.
 	   This is critical to prevent GPU resources from persisting after cleanup.
@@ -1747,10 +1667,10 @@ gpu_thread_data_free(void *data, int threadid)
 	CUDA_TRY(cuEventDestroy(t->start_event))
 	CUDA_TRY(cuEventDestroy(t->end_event))
 
-	if (d->use_collision_engine)
-		d->collision_engine_free(t->collision_engine);
+	if (gd->use_collision_engine)
+		gd->collision_engine_free(t->collision_engine);
 	else
-		d->sort_engine_free(t->sort_engine);
+		gd->sort_engine_free(t->sort_engine);
 
 	CUDA_TRY(cuMemFree(t->gpu_p_array))
 	CUDA_TRY(cuMemFree(t->gpu_p_array_scratch))
@@ -1774,16 +1694,13 @@ gpu_thread_data_free(void *data, int threadid)
 }
 
 /*------------------------------------------------------------------------*/
-void *
-gpu_data_init(msieve_obj *obj, poly_search_t *poly)
+void*
+gpu_sieve_data_init(msieve_obj* obj, uint32 num_threads, uint32 id)
 {
 	device_data_t *d;
 	gpu_config_t gpu_config;
 	gpu_info_t *gpu_info;
 	size_t gpu_mem;
-
-	uint32 num_threads;
-	thread_control_t thread_control;
 
 	gpu_init(&gpu_config);
 	if (gpu_config.num_gpu == 0) {
@@ -1809,16 +1726,11 @@ gpu_data_init(msieve_obj *obj, poly_search_t *poly)
 			gpu_info->compute_version_minor);
 
 	read_collision_engine_args(obj, d);
-	if (d->use_collision_engine) {
-		logprintf(obj, "using Gerbicz GPU collision engine%s%s%s\n",
-				d->collision_bucket_hash ? " with bucket hashing" : "",
-				d->collision_stats ? " with stats" : "",
-				d->collision_debug ? " with debug diagnostics" : "");
+	d->use_collision_engine = (id == STAGE1_ENGINE_GPU_GERBICZ);   /* from engine registry */
+	if (d->use_collision_engine)
 		load_collision_engine(obj, d);
-	}
-	else {
+	else
 		load_sort_engine(obj, d);
-	}
 
 	/* a single transformed array will not have enough
 	   elements for the GPU to sort efficiently; instead,
@@ -1873,25 +1785,13 @@ gpu_data_init(msieve_obj *obj, poly_search_t *poly)
 	   a few leading coefficients at a time, but the stage 2 thread
 	   pool should have a deeper queue of work */
 
-	d->poly = poly;
 	num_threads = MAX(1, obj->num_threads);
-	d->num_threads = num_threads = MIN(4, num_threads);
+	d->num_threads = num_threads;                        /* param, already capped */
 	d->max_sort_entries32 /= num_threads;
 	d->max_sort_entries64 /= num_threads;
-	d->threads = (device_thread_data_t *)xcalloc(num_threads,
-					sizeof(device_thread_data_t));
+	d->threads = (device_thread_data_t*)xcalloc(num_threads,
+		sizeof(device_thread_data_t));
 
-	thread_control.init = gpu_thread_data_init;
-	thread_control.shutdown = gpu_thread_data_free;
-	thread_control.data = d;
-	d->gpu_threadpool = threadpool_init(num_threads,
-					MAX(10, num_threads),
-					&thread_control);
-
-	thread_control.init = NULL;
-	thread_control.shutdown = NULL;
-	thread_control.data = NULL;
-	d->stage2_threadpool = threadpool_init(1, 1000, &thread_control);
 
 	/* Register emergency cleanup handler and set global pointer.
 	   This ensures GPU resources are cleaned up even on ungraceful exit */
@@ -1902,24 +1802,9 @@ gpu_data_init(msieve_obj *obj, poly_search_t *poly)
 }
 
 /*------------------------------------------------------------------------*/
-void gpu_data_free(void *gpu_data)
+void gpu_sieve_data_free(void *gpu_data)
 {
 	device_data_t *d = (device_data_t *)gpu_data;
-
-	if (!(d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)) {
-		/* we're allowed to try to shut down gracefully */
-
-		threadpool_drain(d->gpu_threadpool, 1);
-	}
-
-	/* shut down the GPU threadpool first, since
-	   we don't want it feeding the stage 2 threadpool
-	   after it's been freed */
-
-	threadpool_free(d->gpu_threadpool);
-	threadpool_free(d->stage2_threadpool);
-
-	free(d->threads);
 
 	if (d->use_collision_engine)
 		unload_dynamic_lib(d->collision_engine_handle);
@@ -1939,70 +1824,3 @@ void gpu_data_free(void *gpu_data)
 	free(d);
 }
 
-/*------------------------------------------------------------------------*/
-/* infrastructure for submitting new leading
-   coeffs to the GPU thread pool */
-
-typedef struct {
-	msieve_obj *obj;
-	poly_coeff_t *c;
-	device_data_t *d;
-	uint32 deadline;
-} task_data_t;
-
-static void
-task_data_free(void *data, int threadid)
-{
-	task_data_t *task_data = (task_data_t *)data;
-
-	poly_coeff_free(task_data->c);
-	free(task_data);
-}
-
-static void
-task_data_run(void *data, int threadid)
-{
-	task_data_t *task_data = (task_data_t *)data;
-
-	sieve_lattice_gpu_core(task_data->obj, task_data->c, task_data->d,
-				task_data->d->threads + threadid,
-				task_data->deadline);
-}
-
-/* external entry point */
-double sieve_lattice_gpu(msieve_obj *obj, poly_search_t *poly,
-			poly_coeff_t *c, void *gpu_data,
-			double deadline)
-{
-	/* submit a leading coefficient asynchronously to the
-	   GPU thread pool; we copy the coefficient so the input
-	   one can be overwritten by calling code */
-
-	uint32 i;
-	task_control_t task_control;
-	task_data_t *task_data = (task_data_t *)xmalloc(sizeof(task_data_t));
-	device_data_t *d = (device_data_t *)gpu_data;
-	poly_coeff_t *c2 = poly_coeff_init();
-	double cumulative_elapsed = 0;
-
-	poly_coeff_copy(c2, c);
-
-	task_data->obj = obj;
-	task_data->c = c2;
-	task_data->d = d;
-	task_data->deadline = deadline;
-
-	task_control.init = NULL;
-	task_control.run = task_data_run;
-	task_control.shutdown = task_data_free;
-	task_control.data = task_data;
-
-	threadpool_add_task(d->gpu_threadpool, &task_control, 1);
-
-	/* return total time spent by all stage 1 threads */
-
-	for (i = 0; i < d->num_threads; i++)
-		cumulative_elapsed += d->threads[i].cumulative_elapsed;
-
-	return cumulative_elapsed;
-}

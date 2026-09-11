@@ -383,6 +383,7 @@ typedef struct
 	// an object used to carry around information needed by the msieve library
 	msieve_obj *mobj;
 
+    char stage1_args[GSTR_MAXSIZE]; // poly-select options
 	char filearg[GSTR_MAXSIZE]; // used to facilitate external trial sieving
 
     uint32_t cadoMsieve;

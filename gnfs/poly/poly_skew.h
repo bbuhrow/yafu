@@ -16,6 +16,7 @@ $Id: poly_skew.h 1025 2018-08-19 02:20:28Z jasonp_sf $
 #define _GNFS_POLY_POLY_SKEW_H_
 
 #include "poly.h"
+#include "poly_stats.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,30 +24,8 @@ extern "C" {
 
 /* external interface to skewed polynomial selector */
 
-/* interface to stage 1 */
 
-typedef void (*stage1_callback_t)(mpz_t ad, mpz_t p, mpz_t m, void *extra);
 
-typedef struct {
-	mpz_t gmp_N;
-	mpz_t gmp_high_coeff_begin;
-	mpz_t gmp_high_coeff_end;
-	uint32 degree;
-	double norm_max;
-	double elapsed;
-	uint32 deadline;
-	uint32 high_coeff_multiplier;  /* user override for leading coeff increment (0=auto) */
-	uint32 use_coeff_list;         /* if nonzero, read leading coeffs from coeff_list.txt */
-	uint32 target_poly_count;      /* if nonzero, stop after this many stage-1 polys (num_polys=) */
-	stage1_callback_t callback;
-	void* callback_data;
-} poly_stage1_t;
-
-void poly_stage1_init(poly_stage1_t *data, 
-			stage1_callback_t callback,
-			void *callback_data);
-void poly_stage1_free(poly_stage1_t *data);
-void poly_stage1_run(msieve_obj *obj, poly_stage1_t *data);
 
 
 /* interface to size optimization */
@@ -112,11 +91,14 @@ typedef struct {
 typedef struct {
 	FILE* all_poly_file;
 	poly_config_t* config;
+	poly_stage_stats_t* stats;
+	mutex_t* file_lock;   /* shared; serializes all_poly_file + save_poly */
 } rootopt_callback_data_t;
 
 typedef struct {
 	poly_rootopt_t* rootopt;
 	rootopt_callback_data_t* rootopt_callback;
+	poly_stage_stats_t* stats;
 } sizeopt_callback_data_t;
 
 
@@ -127,6 +109,46 @@ void poly_rootopt_free(poly_rootopt_t *data);
 void poly_rootopt_run(poly_rootopt_t *data, mpz_t *alg_coeffs, 
 			mpz_t *rat_coeffs, double sizeopt_norm, 
 			double projective_alpha);
+
+
+/* one per stage-2 worker: private sizeopt/rootopt state, shared file/best/stats */
+typedef struct {
+	poly_sizeopt_t          sizeopt_data;
+	poly_rootopt_t          rootopt_data;
+	sizeopt_callback_data_t sizeopt_callback_data;
+	rootopt_callback_data_t rootopt_callback_data;
+} stage2_worker_t;
+
+/* interface to stage 1 */
+
+typedef void (*stage1_callback_t)(mpz_t ad, mpz_t p, mpz_t m, void* extra);
+
+
+typedef struct {
+	mpz_t gmp_N;
+	mpz_t gmp_high_coeff_begin;
+	mpz_t gmp_high_coeff_end;
+	uint32 degree;
+	double norm_max;
+	double elapsed;
+	uint32 deadline;
+	uint32 high_coeff_multiplier;  /* user override for leading coeff increment (0=auto) */
+	uint32 use_coeff_list;         /* if nonzero, read leading coeffs from coeff_list.txt */
+	uint32 target_poly_count;      /* if nonzero, stop after this many stage-1 polys (num_polys=) */
+	stage1_callback_t callback;
+	void* callback_data;
+	poly_stage_stats_t* stats;
+
+	stage2_worker_t* stage2_workers;   /* S bundles */
+	uint32 num_stage2_workers;
+} poly_stage1_t;
+
+void poly_stage1_init(poly_stage1_t* data,
+	stage1_callback_t callback,
+	void* callback_data);
+void poly_stage1_free(poly_stage1_t* data);
+void poly_stage1_run(msieve_obj* obj, poly_stage1_t* data);
+
 
 #ifdef __cplusplus
 }

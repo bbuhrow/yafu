@@ -231,6 +231,7 @@ void init_factobj(fact_obj_t* fobj)
     strcpy(fobj->nfs_obj.outputfile, "nfs.dat");			//default
     strcpy(fobj->nfs_obj.logfile, "nfs.log");			//default
     strcpy(fobj->nfs_obj.fbfile, "nfs.fb");				//default
+    strcpy(fobj->nfs_obj.stage1_args, "");
     fobj->nfs_obj.sq_side = 0;					//default = algebraic
     fobj->nfs_obj.timeout = 1u<<31;					//default, not used
     strcpy(fobj->nfs_obj.job_infile, "nfs.job");			//default
@@ -641,6 +642,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     strcpy(dest->nfs_obj.outputfile, src->nfs_obj.outputfile);
     strcpy(dest->nfs_obj.logfile, src->nfs_obj.logfile);
     strcpy(dest->nfs_obj.fbfile, src->nfs_obj.fbfile);
+    strcpy(dest->nfs_obj.stage1_args, src->nfs_obj.stage1_args);
     dest->nfs_obj.sq_side = src->nfs_obj.sq_side;
     dest->nfs_obj.timeout = src->nfs_obj.timeout;
     strcpy(dest->nfs_obj.job_infile, src->nfs_obj.job_infile);

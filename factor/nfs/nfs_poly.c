@@ -905,6 +905,12 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
     char quality[8];
 	int have_new_best = 0;
 	int poly_time_exceeded = 0;
+	int poly_owns_threading = !fobj->nfs_obj.nps && !fobj->nfs_obj.npr;
+	int saved_threads = fobj->THREADS;
+
+	if (poly_owns_threading)
+		fobj->THREADS = 1;          /* -np / -np1: one worker, msieve threads internally */
+	/* else -nps/-npr: leave THREADS alone so split_file + the spawn loop stay N-way */
 
 	//an array of thread data objects
 	nfs_threaddata_t *thread_data;
@@ -1005,6 +1011,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			//also create a .fb file
 			ggnfs_to_msieve(fobj, job);
 
+			if (poly_owns_threading)
+				fobj->THREADS = saved_threads;
 			return;
 		}
 		else
@@ -1252,7 +1260,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 		// create thread data with dummy range for now
 		init_poly_threaddata(t, obj, mpN, factor_list, i, flags,
-			deadline, (uint64_t)1, (uint64_t)1001);
+			deadline, (uint64_t)1, (uint64_t)1001, saved_threads);
 
 		//give this thread a unique index
 		t->tindex = i;
@@ -1604,7 +1612,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 								// initialize the thread for poly select on
 								// a new range of coefficients.
 								init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,
-									deadline, start, start + range);
+									deadline, start, start + range, saved_threads);
 
 								if (fobj->nfs_obj.poly_option == 2)
 								{
@@ -1791,6 +1799,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		ggnfs_to_msieve(fobj, job);
 	}
 
+	if (poly_owns_threading)
+		fobj->THREADS = saved_threads;
 	return;
 }
 
@@ -1909,7 +1919,7 @@ void get_default_poly5_norms(double digits, double* norm1, double* norm2, double
 
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags,
-	uint32_t deadline, uint64_t start, uint64_t stop)
+	uint32_t deadline, uint64_t start, uint64_t stop, int num_msieve_threads)
 {
 	fact_obj_t *fobj = t->fobj;
 	char *nfs_args = (char *)xmalloc(1024 * sizeof(char));
@@ -1982,9 +1992,10 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	// we want to make sure we actually find some polynomials when running on 
 	// really small inputs.  The default msieve values don't seem to allow
 	// enough polys to be found... here we tweak them a little bit.
-#ifdef HAVE_CUDA
+#if 0 //def HAVE_CUDA
 	strcpy(nfs_args, "");
 #else
+
 	if (digits < 115.0)
 	{
 		norm1 *= 0.8;
@@ -1999,6 +2010,14 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 		sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d",
 			start, stop, deadline_per_coeff);
 	}
+
+	if (strlen(fobj->nfs_obj.stage1_args) > 0)
+		sprintf(nfs_args + strlen(nfs_args), " %s", fobj->nfs_obj.stage1_args);
+
+	sprintf(nfs_args + strlen(nfs_args), " poly_verbose=%d",
+		t->fobj->VFLAG);
+
+	printf("nfs: polyselect args are: %s\n", nfs_args);
 
 	if ((t->fobj->VFLAG > 0) && (tid == 0))
 	{
@@ -2024,12 +2043,12 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename,
 		fobj->seed1, fobj->seed2, (uint32_t)0,
 		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
-		(uint32_t)fobj->THREADS, (uint32_t)0, NULL);
+		(uint32_t)num_msieve_threads, (uint32_t)0, NULL);
 #else
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename, 
 		fobj->seed1, fobj->seed2, (uint32_t)0,
 		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
-        (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
+        (uint32_t)num_msieve_threads, (uint32_t)0, nfs_args);	// fobj->THREADS
 #endif
 	//pointers to things that are static during poly select
 	t->mpN = mpN;

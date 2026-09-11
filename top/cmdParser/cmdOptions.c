@@ -84,7 +84,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "obase", "minrels", "stopk", "stop_strict", "terse",
     "max_siqs", "max_nfs", "np1", "nps", "npr",
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
-    "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb"};
+    "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
+    "nfs_stage1_args"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -219,7 +220,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Floating point)  : Exponent of SIQS QLP: attempt to split residues up to LPB^exponent",
     "                  : Use batch factorization of 3LP cofactors in NFS",
     "(Integer < 32-bit): analysis type for the sieve of Eratosthenes (default = 1 (find primes), 2 (find twins)",
-    "                  : NFS: build the siever factor base cache once per job (needs sievers with cache validation)"
+    "                  : NFS: build the siever factor base cache once per job (needs sievers with cache validation)",
+    "(String)          : raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -253,7 +255,8 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,0,0,   //"obase", "minrels", "stopk", "stop_strict", "terse"
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
     1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
-    0,1,0,1,0     // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis, keep_afb
+    0,1,0,1,0,     // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis, keep_afb
+    1
 };
 
 // command line option aliases, specified by '--'
@@ -285,7 +288,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", ""
+    "", "", "", "", "",
+    ""
 };
 
 
@@ -1305,6 +1309,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         else
             options->keep_afb = (atoi(arg) != 0);
     }
+    else if (strcmp(opt, OptionArray[130]) == 0)
+    {
+        //argument "nfs_stage1_args"
+        strcpy(options->nfs_stage1_args, arg);
+    }
     else
     {
         int i;
@@ -1443,6 +1452,7 @@ options_t* initOpt(void)
     options->poly_testsieve = 390;
     options->nfs_batch_3lp = 0;
     options->keep_afb = 0;
+    strcpy(options->nfs_stage1_args, "");
 
     // prime finding options
     options->soe_blocksize = 32768;

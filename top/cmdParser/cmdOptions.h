@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 130
+#define NUMOPTIONS 131
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -131,6 +131,7 @@ typedef struct
     char poly_method[MAXARGLEN];
     char testsieve[MAXARGLEN];
     char params_file[MAXARGLEN];
+    char nfs_stage1_args[MAXARGLEN];   // in options_t, near the other nfs_* strings
     uint32_t nfs_resume;
     uint32_t poly_batch;
     uint32_t sieveQstart, sieveQstop;

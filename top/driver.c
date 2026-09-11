@@ -1931,6 +1931,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     fobj->nfs_obj.timeout = options->nfs_timeout;
     strcpy(fobj->nfs_obj.job_infile, options->nfs_jobfile);
+    strcpy(fobj->nfs_obj.stage1_args, options->nfs_stage1_args);
 
     // default = fast search
     fobj->nfs_obj.poly_option = 4;
