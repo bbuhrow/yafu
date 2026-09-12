@@ -1996,37 +1996,44 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	strcpy(nfs_args, "");
 #else
 
-	if (digits < 115.0)
-	{
-		norm1 *= 0.8;
-		min_e *= 0.9;
+	//if (digits < 115.0)
+	//{
+	//	norm1 *= 0.8;
+	//	min_e *= 0.9;
+	//
+	//	sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d "
+	//		"stage1_norm=%1.4e stage2_norm=%1.4e min_evalue=%1.4e",
+	//		start, stop, deadline_per_coeff, norm1, norm2, min_e);
+	//}
+	//else
+	
 
-		sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d "
-			"stage1_norm=%1.4e stage2_norm=%1.4e min_evalue=%1.4e",
-			start, stop, deadline_per_coeff, norm1, norm2, min_e);
-	}
-	else
-	{
-		sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d",
-			start, stop, deadline_per_coeff);
-	}
-
-	if (strlen(fobj->nfs_obj.stage1_args) > 0)
-		sprintf(nfs_args + strlen(nfs_args), " %s", fobj->nfs_obj.stage1_args);
+	//if (strlen(fobj->nfs_obj.stage1_args) > 0)
+	//	sprintf(nfs_args + strlen(nfs_args), " %s", fobj->nfs_obj.stage1_args);
+	//else
+		strcpy(nfs_args, fobj->nfs_obj.stage1_args);
 
 	sprintf(nfs_args + strlen(nfs_args), " poly_verbose=%d",
 		t->fobj->VFLAG);
 
+	// if any of these are specifed by the user in fobj->nfs_obj.stage1_args, then
+	// the user ones will take precedence (msieve will ignore a second instance
+	// of the arg).
+	{
+		sprintf(nfs_args + strlen(nfs_args), " min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d",
+			start, stop, deadline_per_coeff);
+	}
+
 	printf("nfs: polyselect args are: %s\n", nfs_args);
 
-	if ((t->fobj->VFLAG > 0) && (tid == 0))
-	{
-		printf("nfs: flags = %08x\n", flags);
-		printf("nfs: stage 1 norm = %0.4le\n", norm1);
-		printf("nfs: stage 2 norm = %0.4le\n", norm2);
-		printf("nfs: min E score  = %0.4le\n", min_e);
-		printf("nfs: degree = %d\n", degree);
-	}
+	//if ((t->fobj->VFLAG > 0) && (tid == 0))
+	//{
+	//	printf("nfs: flags = %08x\n", flags);
+	//	printf("nfs: stage 1 norm = %0.4le\n", norm1);
+	//	printf("nfs: stage 2 norm = %0.4le\n", norm2);
+	//	printf("nfs: min E score  = %0.4le\n", min_e);
+	//	printf("nfs: degree = %d\n", degree);
+	//}
 #endif
 
 	sprintf(t->polyfilename,"%s.%d",fobj->nfs_obj.outputfile,tid);

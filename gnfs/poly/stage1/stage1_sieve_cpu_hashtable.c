@@ -761,12 +761,15 @@ sieve_specialq_64(task_data_t *task, int64 sieve_size,
 	num_p = hash_array.num_p;
 	num_roots = hash_array.num_roots;
 
-#if 0
-	printf("aprogs: %u entries, %u roots\n", num_p, num_roots);
-#endif
+
 
 	block_size = (uint64)p_min * p_min;
 	block_size = MIN(block_size, (uint64)2 * sieve_size);
+
+#if 0
+	printf("aprogs: %u entries, %u roots, block_size = %lu, sieve_size = %lu\n", 
+		num_p, num_roots, block_size, sieve_size);
+#endif
 
 	/* estimate how many entries each hashtable will contain,
 	   in order to allocate just enough memory to hold all the

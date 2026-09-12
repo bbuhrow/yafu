@@ -124,6 +124,7 @@ handle_collision(task_data_t *task,
 	   special q' has special_q = 1 and special_q_root = 0 */
 
 	poly_coeff_t *c = task->c;
+
 	uint64_2gmp(p, c->p);
 	uint64_2gmp(special_q, c->tmp1);
 	mpz_gcd(c->tmp2, c->p, c->tmp1);
@@ -189,6 +190,13 @@ handle_collision(task_data_t *task,
 	/* solve for real_m */
 	mpz_submul(c->m, c->tmp2, c->p);
 	mpz_tdiv_q(c->m, c->m, c->tmp1);
+
+	//if (task->d->test_mode) {
+	//	if (task->d->test_dump)
+	//		gmp_fprintf(task->d->test_dump, "%Zd %Zd %Zd\n",
+	//			c->high_coeff, c->p, c->m);
+	//	//return;                           /* skip stage 2 entirely */
+	//}
 
 	{
 		/* submit the hit to the stage 2 thread pool */
@@ -502,6 +510,33 @@ stage1_sieve_data_init(stage1_sieve_data_t *d,
 	d->poly = poly;
 	d->engine = v;
 
+	//d->test_mode = 0;
+	//mpz_init(d->test_ad);
+	//d->test_dump = NULL;
+	//if (obj->nfs_args != NULL) {
+	//	const char* tmp;
+	//	if ((tmp = strstr(obj->nfs_args, "test_ad=")) != NULL) {
+	//		uint64 ad = strtoull(tmp + 8, NULL, 10);   /* stops at the space */
+	//		mpz_set_ui(d->test_ad, ad);                /* a_d always fits a word */
+	//		d->test_mode = 1;
+	//	}
+	//	if ((tmp = strstr(obj->nfs_args, "test_pmin=")) != NULL) d->test_pmin = strtoul(tmp + 10, NULL, 10);
+	//	if ((tmp = strstr(obj->nfs_args, "test_pmax=")) != NULL) d->test_pmax = strtoul(tmp + 10, NULL, 10);
+	//	if ((tmp = strstr(obj->nfs_args, "test_qmin=")) != NULL) d->test_qmin = strtoull(tmp + 10, NULL, 10);
+	//	if ((tmp = strstr(obj->nfs_args, "test_qmax=")) != NULL) d->test_qmax = strtoull(tmp + 10, NULL, 10);
+	//}
+	//if (d->test_mode) {
+	//	char fn[256];
+	//	num_threads = 1;                         /* single writer -> no dump lock */
+	//	sprintf(fn, "test_%s.hits", v->name);
+	//	d->test_dump = fopen(fn, "w");
+	//	logprintf(obj, "TEST MODE %s: a_d=%" PRIu64
+	//		"  p[%u,%u]  q[%" PRIu64 ",%" PRIu64 "] -> %s\n",
+	//		v->name, (uint64)mpz_get_ui(d->test_ad),
+	//		d->test_pmin, d->test_pmax,
+	//		d->test_qmin, d->test_qmax, fn);
+	//}
+
 	/* account for multiple threads; we allocate a thread pool
 	   with a number of threads requested, where each thread
 	   deals with a single leading coefficient. We also allocate
@@ -560,6 +595,10 @@ void stage1_sieve_data_free(stage1_sieve_data_t *d)
 	threadpool_free(d->stage1_threadpool);
 	threadpool_drain(d->stage2_threadpool, 1);   /* process the stragglers */
 	threadpool_free(d->stage2_threadpool);
+
+	//if (d->test_dump)
+	//	fclose(d->test_dump);
+	//mpz_clear(d->test_ad);
 
 	for (i = 0; i < d->num_threads; i++) {
 		sieve_fb_free(d->threads[i].sieve_p_fb);
@@ -621,6 +660,13 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	special_q_max = MAX(special_q_max, 1);
 	special_q_min = 1;
 
+	//if (d->test_mode) {
+	//	p_min = d->test_pmin;
+	//	p_max = d->test_pmax;
+	//	special_q_min = d->test_qmin;
+	//	special_q_max = d->test_qmax;
+	//}
+
 	/* set up the special q factory; special-q may have 
 	   arbitrary factors, but many small factors are 
 	   preferred since that will allow for many more roots
@@ -649,7 +695,7 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	   a_d will likely generate different results */
 
 	num_pieces = 1;
-	if (special_q_max - special_q_min > 500000)
+	if ((special_q_max - special_q_min > 500000)) //(!d->test_mode) && 
 		num_pieces = MIN(200, (double)special_q_max * p_max
 				/ log(special_q_max) / log(p_max)
 				/ 3e10);
@@ -760,6 +806,19 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 	poly_coeff_t *c = poly_coeff_init();
 
 	deadline_per_coeff = 8640000;
+
+	//if (d->test_mode) {
+	//	mpz_set(c->high_coeff, d->test_ad);
+	//	stage1_bounds_update(poly, c);
+	//	search_coeff_async(d, c, deadline_per_coeff);
+	//	threadpool_drain(d->stage1_threadpool, 1);      /* finish it + its dumps */
+	//	d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;       /* stop the re-dispatch */
+	//	poly_coeff_free(c);
+	//	fflush(d->test_dump);
+	//	fclose(d->test_dump);
+	//	exit(0);
+	//	return;
+	//}
 
 	/* set up lower limit on a_d */
 

@@ -249,6 +249,13 @@ typedef struct {
 	stage2_worker_t* stage2_workers;
 	uint32 num_stage2_workers;
 
+	/* stage-1 cross-check test mode (0 = off) */
+	int    test_mode;
+	mpz_t  test_ad;
+	uint32 test_pmin, test_pmax;
+	uint64 test_qmin, test_qmax;
+	FILE* test_dump;
+
 } stage1_sieve_data_t;
 
 typedef struct {
