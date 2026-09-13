@@ -660,12 +660,12 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	special_q_max = MAX(special_q_max, 1);
 	special_q_min = 1;
 
-	//if (d->test_mode) {
-	//	p_min = d->test_pmin;
-	//	p_max = d->test_pmax;
-	//	special_q_min = d->test_qmin;
-	//	special_q_max = d->test_qmax;
-	//}
+	if (d->test_mode) {
+		p_min = d->test_pmin;
+		p_max = d->test_pmax;
+		special_q_min = d->test_qmin;
+		special_q_max = d->test_qmax;
+	}
 
 	/* set up the special q factory; special-q may have 
 	   arbitrary factors, but many small factors are 

@@ -211,6 +211,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->div_obj.fmtlimit = 1000000;
 
     //initialize stuff for nfs
+    fobj->nfs_obj.murphy_e_heuristic = -1.0;
     fobj->nfs_obj.snfs = 0;
     fobj->nfs_obj.gnfs = 0;
     fobj->nfs_obj.gnfs_exponent = 0;
@@ -623,6 +624,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
         mpz_set(dest->nfs_obj.gmp_n, src->nfs_obj.gmp_n);
         mpz_set(dest->nfs_obj.snfs_fullinput, src->nfs_obj.snfs_fullinput);
     }
+    dest->nfs_obj.murphy_e_heuristic = src->nfs_obj.murphy_e_heuristic;
     dest->nfs_obj.snfs = src->nfs_obj.snfs;
     dest->nfs_obj.gnfs = src->nfs_obj.gnfs;
     dest->nfs_obj.gnfs_exponent = src->nfs_obj.gnfs_exponent;

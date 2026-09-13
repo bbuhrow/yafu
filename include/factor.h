@@ -376,6 +376,7 @@ typedef struct
     double la_time;
     double sqrt_time;
 	uint32_t min_digits;
+    double murphy_e_heuristic;
 
 	uint32_t num_factors;			//number of factors found in this method
 	double ttime;

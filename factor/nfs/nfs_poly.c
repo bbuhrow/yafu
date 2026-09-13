@@ -1135,7 +1135,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
         // quality mulitplier really high.  If we find
         // one above this value surely it is ok to stop,
         // even if e.g., 'deep' was specified.
-        quality_mult = 1.4;
+		
+		// this sets the murphy_e_heuristic negative which is ignored by msieve.
+		quality_mult = -1; // 1.4;
         strcpy(quality, "awesome");
 
         fobj->nfs_obj.poly_option == 4;
@@ -1157,6 +1159,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
         quality_mult = 1.036;
         strcpy(quality, "avg");
     }
+
+	// an early abort for msieve polyselect
+	fobj->nfs_obj.murphy_e_heuristic = e0 * quality_mult;
 
 	//start a counter for the poly selection
 	gettimeofday(&startt, NULL);
@@ -2015,6 +2020,11 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 
 	sprintf(nfs_args + strlen(nfs_args), " poly_verbose=%d",
 		t->fobj->VFLAG);
+
+	if (fobj->nfs_obj.murphy_e_heuristic > 0.0) {
+		sprintf(nfs_args + strlen(nfs_args), " murphy_e_threshold=%.4e",
+			fobj->nfs_obj.murphy_e_heuristic);
+	}
 
 	// if any of these are specifed by the user in fobj->nfs_obj.stage1_args, then
 	// the user ones will take precedence (msieve will ignore a second instance
