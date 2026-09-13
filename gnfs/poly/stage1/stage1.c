@@ -191,12 +191,12 @@ handle_collision(task_data_t *task,
 	mpz_submul(c->m, c->tmp2, c->p);
 	mpz_tdiv_q(c->m, c->m, c->tmp1);
 
-	//if (task->d->test_mode) {
-	//	if (task->d->test_dump)
-	//		gmp_fprintf(task->d->test_dump, "%Zd %Zd %Zd\n",
-	//			c->high_coeff, c->p, c->m);
-	//	//return;                           /* skip stage 2 entirely */
-	//}
+	if (task->d->test_mode) {
+		if (task->d->test_dump)
+			gmp_fprintf(task->d->test_dump, "%Zd %Zd %Zd\n",
+				c->high_coeff, c->p, c->m);
+		return;                           /* skip stage 2 entirely */
+	}
 
 	{
 		/* submit the hit to the stage 2 thread pool */
@@ -510,32 +510,32 @@ stage1_sieve_data_init(stage1_sieve_data_t *d,
 	d->poly = poly;
 	d->engine = v;
 
-	//d->test_mode = 0;
-	//mpz_init(d->test_ad);
-	//d->test_dump = NULL;
-	//if (obj->nfs_args != NULL) {
-	//	const char* tmp;
-	//	if ((tmp = strstr(obj->nfs_args, "test_ad=")) != NULL) {
-	//		uint64 ad = strtoull(tmp + 8, NULL, 10);   /* stops at the space */
-	//		mpz_set_ui(d->test_ad, ad);                /* a_d always fits a word */
-	//		d->test_mode = 1;
-	//	}
-	//	if ((tmp = strstr(obj->nfs_args, "test_pmin=")) != NULL) d->test_pmin = strtoul(tmp + 10, NULL, 10);
-	//	if ((tmp = strstr(obj->nfs_args, "test_pmax=")) != NULL) d->test_pmax = strtoul(tmp + 10, NULL, 10);
-	//	if ((tmp = strstr(obj->nfs_args, "test_qmin=")) != NULL) d->test_qmin = strtoull(tmp + 10, NULL, 10);
-	//	if ((tmp = strstr(obj->nfs_args, "test_qmax=")) != NULL) d->test_qmax = strtoull(tmp + 10, NULL, 10);
-	//}
-	//if (d->test_mode) {
-	//	char fn[256];
-	//	num_threads = 1;                         /* single writer -> no dump lock */
-	//	sprintf(fn, "test_%s.hits", v->name);
-	//	d->test_dump = fopen(fn, "w");
-	//	logprintf(obj, "TEST MODE %s: a_d=%" PRIu64
-	//		"  p[%u,%u]  q[%" PRIu64 ",%" PRIu64 "] -> %s\n",
-	//		v->name, (uint64)mpz_get_ui(d->test_ad),
-	//		d->test_pmin, d->test_pmax,
-	//		d->test_qmin, d->test_qmax, fn);
-	//}
+	d->test_mode = 0;
+	mpz_init(d->test_ad);
+	d->test_dump = NULL;
+	if (obj->nfs_args != NULL) {
+		const char* tmp;
+		if ((tmp = strstr(obj->nfs_args, "test_ad=")) != NULL) {
+			uint64 ad = strtoull(tmp + 8, NULL, 10);   /* stops at the space */
+			mpz_set_ui(d->test_ad, ad);                /* a_d always fits a word */
+			d->test_mode = 1;
+		}
+		if ((tmp = strstr(obj->nfs_args, "test_pmin=")) != NULL) d->test_pmin = strtoul(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_pmax=")) != NULL) d->test_pmax = strtoul(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_qmin=")) != NULL) d->test_qmin = strtoull(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_qmax=")) != NULL) d->test_qmax = strtoull(tmp + 10, NULL, 10);
+	}
+	if (d->test_mode) {
+		char fn[256];
+		num_threads = 1;                         /* single writer -> no dump lock */
+		sprintf(fn, "test_%s.hits", v->name);
+		d->test_dump = fopen(fn, "w");
+		logprintf(obj, "TEST MODE %s: a_d=%" PRIu64
+			"  p[%u,%u]  q[%" PRIu64 ",%" PRIu64 "] -> %s\n",
+			v->name, (uint64)mpz_get_ui(d->test_ad),
+			d->test_pmin, d->test_pmax,
+			d->test_qmin, d->test_qmax, fn);
+	}
 
 	/* account for multiple threads; we allocate a thread pool
 	   with a number of threads requested, where each thread
@@ -596,9 +596,9 @@ void stage1_sieve_data_free(stage1_sieve_data_t *d)
 	threadpool_drain(d->stage2_threadpool, 1);   /* process the stragglers */
 	threadpool_free(d->stage2_threadpool);
 
-	//if (d->test_dump)
-	//	fclose(d->test_dump);
-	//mpz_clear(d->test_ad);
+	if (d->test_dump)
+		fclose(d->test_dump);
+	mpz_clear(d->test_ad);
 
 	for (i = 0; i < d->num_threads; i++) {
 		sieve_fb_free(d->threads[i].sieve_p_fb);
@@ -807,18 +807,18 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 
 	deadline_per_coeff = 8640000;
 
-	//if (d->test_mode) {
-	//	mpz_set(c->high_coeff, d->test_ad);
-	//	stage1_bounds_update(poly, c);
-	//	search_coeff_async(d, c, deadline_per_coeff);
-	//	threadpool_drain(d->stage1_threadpool, 1);      /* finish it + its dumps */
-	//	d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;       /* stop the re-dispatch */
-	//	poly_coeff_free(c);
-	//	fflush(d->test_dump);
-	//	fclose(d->test_dump);
-	//	exit(0);
-	//	return;
-	//}
+	if (d->test_mode) {
+		mpz_set(c->high_coeff, d->test_ad);
+		stage1_bounds_update(poly, c);
+		search_coeff_async(d, c, deadline_per_coeff);
+		threadpool_drain(d->stage1_threadpool, 1);      /* finish it + its dumps */
+		d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;       /* stop the re-dispatch */
+		poly_coeff_free(c);
+		//fflush(d->test_dump);
+		//fclose(d->test_dump);
+		//exit(0);
+		return;
+	}
 
 	/* set up lower limit on a_d */
 
