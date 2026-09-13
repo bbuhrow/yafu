@@ -986,9 +986,13 @@ sieve_specialq(msieve_obj *obj,
 	specialq_array_reset(q_array);
 
 	if (special_q_min == 1) {
-		uint64 trivroots[1] = { 0 };
+		//uint64 trivroots[1] = { 0 };
+		mpz_t tr;
+		mpz_init(tr);
+		mpz_set_ui(tr, 0);
 
-		store_specialq(1, 1, trivroots, q_array);
+		store_specialq(1, 1, tr, q_array);
+		mpz_clear(tr);
 	}
 
 	/* count the special-q roots in the range up front, so

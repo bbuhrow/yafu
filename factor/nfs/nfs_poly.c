@@ -1094,7 +1094,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 #else
 	{ /* SB: tried L[1/3,c] fit; it is no better than this */
 		// from msieve source...
-		int digits = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+		int digits = gmp_base10(fobj->nfs_obj.gmp_n); // mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 		int degree = fobj->nfs_obj.pref_degree;
 
 		e0 = 0.0625 * digits + 1.69;
@@ -2082,10 +2082,10 @@ void get_polysearch_params(fact_obj_t *fobj, uint64_t*start, uint64_t*range)
 	//search smallish chunks of the space in parallel until we've hit our deadline
 	if (fobj->nfs_obj.polystart > 0)
 		*start = fobj->nfs_obj.polystart;
-	else if (gmp_base10(fobj->nfs_obj.gmp_n) <= 120)
+	else //if (gmp_base10(fobj->nfs_obj.gmp_n) <= 120)
 		*start = 120ULL;		// default leading coefficient
-	else
-		*start = 2048ULL;		// default leading coefficient
+	//else
+	//	*start = 2048ULL;		// default leading coefficient
 	
 	if (fobj->nfs_obj.polyrange > 0)
 	{
