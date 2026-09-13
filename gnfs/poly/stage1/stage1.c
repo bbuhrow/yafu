@@ -195,7 +195,7 @@ handle_collision(task_data_t *task,
 		if (task->d->test_dump)
 			gmp_fprintf(task->d->test_dump, "%Zd %Zd %Zd\n",
 				c->high_coeff, c->p, c->m);
-		return;                           /* skip stage 2 entirely */
+		//return;                           /* skip stage 2 entirely */
 	}
 
 	{
@@ -695,10 +695,12 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	   a_d will likely generate different results */
 
 	num_pieces = 1;
-	if ((special_q_max - special_q_min > 500000)) //(!d->test_mode) && 
+	if ((!d->test_mode) && (special_q_max - special_q_min > 500000))
+	{
 		num_pieces = MIN(200, (double)special_q_max * p_max
-				/ log(special_q_max) / log(p_max)
-				/ 3e10);
+			/ log(special_q_max) / log(p_max)
+			/ 3e10);
+	}
 
 	if (num_pieces > 51) { /* randomize the special_q range */
 		uint32 piece_length = (special_q_max - special_q_min)

@@ -1162,6 +1162,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 	// an early abort for msieve polyselect
 	fobj->nfs_obj.murphy_e_heuristic = e0 * quality_mult;
+	if (fobj->VFLAG > 0)
+		printf("nfs: accepting Murphy-E quality above %1.4e\n", fobj->nfs_obj.murphy_e_heuristic);
 
 	//start a counter for the poly selection
 	gettimeofday(&startt, NULL);
