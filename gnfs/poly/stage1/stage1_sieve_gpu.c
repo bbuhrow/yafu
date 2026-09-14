@@ -610,7 +610,7 @@ gpu_promote128(uint64 r)
 
 static void
 check_found_array(poly_coeff_t *c, device_data_t *d,
-			device_thread_data_t *t, task_data_t* task)
+			device_thread_data_t *t, task_data_t* task, int threadid)
 {
 	uint32 i;
 	uint32 found_array_size;
@@ -655,7 +655,7 @@ check_found_array(poly_coeff_t *c, device_data_t *d,
 
 		if (coeff <= c->coeff_max)
 		{
-			handle_collision(task, (uint64)p1 * p2, (uint64)q,
+			handle_collision(task, threadid, (uint64)p1 * p2, (uint64)q,
 				gpu_promote128(qroot), offset);
 		}
 	}
@@ -908,7 +908,7 @@ format_local_time(char *buf, size_t len)
 static uint32
 sieve_specialq(msieve_obj *obj,
 		poly_coeff_t *c, device_data_t *d,
-		device_thread_data_t *t, task_data_t* task,
+		device_thread_data_t *t, task_data_t* task, int threadid, 
 		uint32 special_q_min, uint32 special_q_max,
 		uint32 p_min, uint32 p_max, 
 		uint32 max_aprog_vals, double deadline)
@@ -1102,7 +1102,7 @@ sieve_specialq(msieve_obj *obj,
 		quit = handle_special_q_batch(obj, d, t, batch_size, 
 				32 - unused_bits, key_bits, num_aprog_vals);
 
-		check_found_array(c, d, t, task);
+		check_found_array(c, d, t, task, threadid);
 
 		specialq_array_nextbatch(q_array, batch_size);
 
@@ -1397,7 +1397,7 @@ stage1_specialq_gpu(task_data_t* task, uint32 threadid,
 				p_min, p_max);
 	}
 #endif
-	sieve_specialq(obj, c, gd, t, task,
+	sieve_specialq(obj, c, gd, t, task, threadid, 
 			special_q_min2, special_q_max2, p_min, p_max,
 			max_aprog_vals, (double)task->coeff_deadline);
 }
