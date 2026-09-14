@@ -236,9 +236,9 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 
 double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 {
-	//using rough empirical scaling equations, number size, information
-	//on cpu type, architecture, speed, and compilation options, 
-	//compute how long we think gnfs would take to finish a factorization
+	// using rough empirical scaling equations, number size, information
+	// on cpu type, architecture, speed, and compilation options, 
+	// compute how long we think gnfs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
 	double freq = fobj->MEAS_CPU_FREQUENCY;
@@ -247,9 +247,9 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	cpu = ytools_get_cpu_type();
 	estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
 
-	//adjust for multi-threaded nfs
-	//if we assume threading is perfect, we'll get a smaller estimate for
-	//nfs than we can really achieve, resulting in less ECM, so fudge it a bit
+	// adjust for multi-threaded nfs
+	// if we assume threading is perfect, we'll get a smaller estimate for
+	// nfs than we can really achieve, resulting in less ECM, so fudge it a bit
 	if (fobj->THREADS > 1)
 	{
 		switch (cpu)

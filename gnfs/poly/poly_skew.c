@@ -328,6 +328,7 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 			logprintf(obj, "time limit set to %.2f CPU-hours\n",
 				stage1_data.deadline / 3600.0);
 
+		
 		{ /* SB: tried L[1/3,c] fit; it is no better than this */
 			double e0 = 0.0625 * params->digits + 1.69;
 			if (degree > 4)
