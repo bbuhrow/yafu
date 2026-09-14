@@ -885,7 +885,7 @@ finish_search(task_data_t *task, uint32 threadid, uint32 match_bits)
 			if (mp_gcd_1(p0, p1) != 1)
 				continue;
 
-			handle_collision(task, (uint64)p0 * p1,
+			handle_collision(task, threadid, (uint64)p0 * p1,
 				   td->curr_q, td->curr_q_root,
 				   (int64)td->match[i].key - sieve_size / 2);
 		}
@@ -1207,7 +1207,7 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 	uint32 num_p_roots;
 	uint32 sort_key_bits;
 	uint64 sieve_size;
-	double cpu_start_time = get_cpu_time();
+	double cpu_start_time = get_wall_time(); // get_cpu_time();
 
 	msieve_obj * obj = task->obj;
 	stage1_sieve_data_t *d = task->d;
@@ -1280,6 +1280,7 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 
 	sieve_fb_reset(t->sieve_q_fb, special_q_min, 
 			special_q_max, 1, MAX_ROOTS);
+
 	while (1) {
 		q_packed_t * qptr;
 		uint64 * inv_array;
@@ -1318,6 +1319,9 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 		for (i = 0; i < q_array->num_q; 
 			i++, inv_array += num_p, qptr = q_packed_next(qptr)) {
 
+			// every so often update poly_stats for roll-up percent complete.
+			// ...
+
 			td->curr_q = qptr->q;
 			for (j = 0; j < qptr->num_roots; 
 						j++, num_q_roots++) {
@@ -1332,10 +1336,18 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 
 				if ((obj->flags & MSIEVE_FLAG_STOP_SIEVING) ||
 				    (task->coeff_deadline && 
-				     (num_q_roots+1) % 1000 == 0 && 
-				      (get_cpu_time() - cpu_start_time) > 
-						task->coeff_deadline)) {
-					goto finished;
+				     (((num_q_roots+1) & 16383) == 0)))
+				{
+					//printf("elapsed wall clock in thread %1.2f: %u (deadline %u)\n", 
+					//	get_wall_time() - cpu_start_time, threadid, task->coeff_deadline);
+
+					if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+						goto finished;
+
+					if ((get_wall_time() - cpu_start_time) >
+						task->coeff_deadline) {
+						goto finished;
+					}
 				}
 			}
 		}

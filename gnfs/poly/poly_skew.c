@@ -471,6 +471,9 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 			const char* sa = obj->nfs_args ?
 				strstr(obj->nfs_args, "stage2_threads=") : NULL;
 			if (sa) num_s2 = MAX(1, atoi(sa + 15));
+			num_s2 = MAX(num_s2, obj->num_threads);   /* NEW: guarantee one bundle
+												  per producer thread for
+												  the CPU inline path */
 			if (num_s2 > 1) {
 				mutex_init(&s2_file_lock);
 				workers = build_stage2_workers(num_s2, obj, n, degree,

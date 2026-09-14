@@ -307,7 +307,7 @@ ht_promote128(uint64 r)
 }
 
 static uint32
-handle_special_q(msieve_obj *obj,
+handle_special_q(msieve_obj *obj, int threadid, 
 		hash_entry_t *hashtable, uint32 hashtable_size_log2,
 		p_packed_var_t *hash_array, uint32 special_q,
 		uint64 special_q_root, uint64 block_size, uint64 *inv_array,
@@ -624,7 +624,7 @@ handle_special_q(msieve_obj *obj,
 						p = p * hashtable[key].p;
 
 						(*num_sizeopt)++;
-						handle_collision(hash_array->task,
+						handle_collision(hash_array->task, threadid, 
 							(uint64)p, (uint64)special_q,
 							ht_promote128(special_q_root),
 							offset);
@@ -713,7 +713,7 @@ batch_invert(uint32 *qlist, uint32 num_q, uint64 *invlist,
 
 /*------------------------------------------------------------------------*/
 static uint32
-sieve_specialq_64(task_data_t *task, int64 sieve_size,
+sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 		void *sieve_special_q, void *sieve_p, 
 		uint32 special_q_min, uint32 special_q_max, 
 		uint32 p_min, uint32 p_max, double deadline, 
@@ -798,7 +798,7 @@ sieve_specialq_64(task_data_t *task, int64 sieve_size,
 
 	/* handle trivial lattice */
 	if (special_q_min == 1) {
-		quit = handle_special_q(obj, hashtable,
+		quit = handle_special_q(obj, threadid, hashtable,
 				hashtable_size_log2, &hash_array,
 				1, 0, block_size, NULL, &num_sizeopt);
 		if (quit || special_q_max == 1)
@@ -933,7 +933,7 @@ sieve_specialq_64(task_data_t *task, int64 sieve_size,
 			invtmp += num_p;
 #else
 			for (j = 0; j < qptr->num_roots; j++) {
-				quit = handle_special_q(obj,
+				quit = handle_special_q(obj, threadid, 
 						hashtable, hashtable_size_log2,
 						&hash_array, qptr->p, 
 						qptr->roots[j].start_offset,
@@ -1010,7 +1010,7 @@ stage1_specialq_cpu_hashtable(task_data_t *task, uint32 threadid,
 	/* the driver's envelope check guarantees special_q_max < 2^32 and
 	   p_max < 2^27, so the casts below cannot truncate. One pass over the
 	   forced window -- the driver owns p/q range selection. */
-	sieve_specialq_64(task, sieve_size,
+	sieve_specialq_64(task, threadid, sieve_size,
 			t->sieve_q_fb, t->sieve_p_fb,
 			(uint32)special_q_min, (uint32)special_q_max,
 			p_min, p_max,

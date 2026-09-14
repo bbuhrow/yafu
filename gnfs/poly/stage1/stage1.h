@@ -287,7 +287,7 @@ typedef struct {
 	uint32 w[4];
 } uint128;
 
-void handle_collision(task_data_t *task, 
+void handle_collision(task_data_t *task, uint32 threadid,
 			uint64 p, uint64 special_q,
 			uint128 special_q_root, int64 res);
 

@@ -115,7 +115,7 @@ stage1_hit_run(void* data, int threadid)
 }
 
 void
-handle_collision(task_data_t *task, 
+handle_collision(task_data_t *task, uint32 threadid,
 		uint64 p, uint64 special_q,
 		uint128 special_q_root, int64 res)
 {
@@ -200,30 +200,45 @@ handle_collision(task_data_t *task,
 
 	{
 		/* submit the hit to the stage 2 thread pool */
-
-		task_control_t task_control;
-		stage1_sieve_data_t *d = task->d;
-		stage1_hit_data_t *hit_data = (stage1_hit_data_t *)
-					xmalloc(sizeof(stage1_hit_data_t));
-
-		hit_data->callback = d->poly->callback;
-		hit_data->callback_data = d->poly->callback_data;
-		hit_data->stats = d->stats;
-		hit_data->d = d;
-		mpz_init_set(hit_data->ad, c->high_coeff);
-		mpz_init_set(hit_data->p, c->p);
-		mpz_init_set(hit_data->m, c->m);
+		stage1_sieve_data_t* d = task->d;
 
 		if (d->stats)
 			poly_stats_add_hit(d->stats);
 
-		task_control.init = NULL;
-		task_control.run = stage1_hit_run;
-		task_control.shutdown = stage1_hit_free;
-		task_control.data = hit_data;
+		if (d->engine->envelope.is_gpu) {
+			task_control_t task_control;
+			stage1_sieve_data_t* d = task->d;
+			stage1_hit_data_t* hit_data = (stage1_hit_data_t*)
+				xmalloc(sizeof(stage1_hit_data_t));
 
-		threadpool_add_task(d->stage2_threadpool,
-					&task_control, 1);
+			hit_data->callback = d->poly->callback;
+			hit_data->callback_data = d->poly->callback_data;
+			hit_data->stats = d->stats;
+			hit_data->d = d;
+			mpz_init_set(hit_data->ad, c->high_coeff);
+			mpz_init_set(hit_data->p, c->p);
+			mpz_init_set(hit_data->m, c->m);
+
+			task_control.init = NULL;
+			task_control.run = stage1_hit_run;
+			task_control.shutdown = stage1_hit_free;
+			task_control.data = hit_data;
+
+			threadpool_add_task(d->stage2_threadpool,
+				&task_control, 1);
+		}
+		else {
+			/* CPU: run stage 2 right here, on this producer thread,
+			   using its own private bundle -- no queue, no dispatch. */
+			void* extra = (d->num_stage2_workers > 0)
+				? &d->stage2_workers[threadid].sizeopt_data
+				: d->poly->callback_data;  /* single-worker fallback */
+
+			d->poly->callback(c->high_coeff, c->p, c->m, extra);
+
+			if (d->stats)
+				poly_stats_stage2_done(d->stats);
+		}
 	}
 }
 
@@ -611,6 +626,10 @@ void stage1_sieve_data_free(stage1_sieve_data_t *d)
 }
 
 /*------------------------------------------------------------------------*/
+#define STAGE1_QCHUNK_DIVISOR 20     /* window split into this many pieces */
+#define STAGE1_QCHUNK_MAX     2000000 /* ...but no chunk larger than this */
+
+
 static void
 search_coeff_core(task_data_t * task, uint32 threadid)
 {
@@ -716,17 +735,68 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 		special_q_max2 = special_q_max;
 	}
 
-	// gmp_printf("coeff %Zd specialq %" PRId64 " - %" PRId64 " p %u - %u\n",
-	// 		c->high_coeff,
-	// 		special_q_min2, special_q_max2,
-	// 		p_min, p_max);
+	
+	// chunk-q implementation
+	if (0)
+	{
+		const stage1_engine_vtable_t* v = d->engine;
+		uint64 q_min = special_q_min2;
+		uint64 q_max = special_q_max2;
 
+		if (!stage1_engine_cell_fits(v, p_max, &q_max)) {
+			logprintf(obj, "stage1 %s: skipping coeff, p_max %u "
+				"exceeds engine cap %u\n",
+				v->name, p_max, v->envelope.max_p);
+			return;
+		}
+
+		/* GPU is latency-bound on the device, not a CPU scheduling
+		   slot -- chunking exists to create wall-clock deadline
+		   checkpoints for CPU engines, so GPU keeps one whole-window
+		   call as before. */
+		if (v->envelope.is_gpu) {
+			v->specialq(task, threadid, q_min, q_max, p_min, p_max);
+			return;
+		}
+
+		{
+			uint64 chunk_size = MAX(1,
+				(q_max - q_min) / STAGE1_QCHUNK_DIVISOR);
+			uint64 chunk_lo = q_min;
+			double deadline_end = get_wall_time() +
+				task->coeff_deadline;
+
+			chunk_size = MIN(chunk_size, STAGE1_QCHUNK_MAX);
+
+			while (chunk_lo < q_max) {
+				uint64 chunk_hi = MIN(q_max,
+					chunk_lo + chunk_size);
+
+				v->specialq(task, threadid, chunk_lo, chunk_hi,
+					p_min, p_max);
+
+				if (d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+					return;
+
+				//if (get_wall_time() >= deadline_end) {
+				//	logprintf(obj, "stage1: coeff_deadline "
+				//		"hit, aborting a_d early "
+				//		"(q %" PRIu64 " of %" PRIu64
+				//		")\n", chunk_hi, q_max);
+				//	return;
+				//}
+
+				chunk_lo = chunk_hi;
+			}
+		}
+	}
 	/* dispatch to the selected engine. The registry replaces the old
 	   compile-time CPU/GPU switch; the same call shape serves all four.
 	   Route around anything outside the engine's envelope rather than
 	   letting a capped engine crash: an over-p a_d is skipped, an over-q
 	   window is clamped in place. (a_d-level routing ultimately belongs
 	   in search_coeffs; skipping here is the safe interim.) */
+	else
 	{
 		const stage1_engine_vtable_t *v = d->engine;
 		uint64 q_min = special_q_min2;
@@ -775,7 +845,7 @@ static double search_coeff_async(stage1_sieve_data_t * d,
 	task_control_t task_control;
 	task_data_t *task_data = (task_data_t *)xmalloc(sizeof(task_data_t));
 	poly_coeff_t *c2 = poly_coeff_init();
-	double cumulative_elapsed = 0;
+	double cumulative_elapsed = get_wall_time();
 
 	poly_coeff_copy(c2, c);
 
@@ -791,8 +861,10 @@ static double search_coeff_async(stage1_sieve_data_t * d,
 
 	threadpool_add_task(d->stage1_threadpool, &task_control, 1);
 
-	for (i = 0; i < d->num_threads; i++)
-		cumulative_elapsed += d->threads[i].cumulative_elapsed;
+	// yafu asks for a wall-time
+	// for (i = 0; i < d->num_threads; i++)
+	// 	cumulative_elapsed += d->threads[i].cumulative_elapsed;
+	cumulative_elapsed = get_wall_time() - cumulative_elapsed;
 	return cumulative_elapsed;
 }
 
@@ -808,6 +880,11 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 	poly_coeff_t *c = poly_coeff_init();
 
 	deadline_per_coeff = 8640000;
+	if (d->obj->nfs_args) {
+		const char* tmp = strstr(d->obj->nfs_args, "coeff_deadline=");
+		if (tmp)
+			deadline_per_coeff = atof(tmp + 15);
+	}
 
 	if (d->test_mode) {
 		mpz_set(c->high_coeff, d->test_ad);
@@ -816,9 +893,6 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 		threadpool_drain(d->stage1_threadpool, 1);      /* finish it + its dumps */
 		d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;       /* stop the re-dispatch */
 		poly_coeff_free(c);
-		//fflush(d->test_dump);
-		//fclose(d->test_dump);
-		//exit(0);
 		return;
 	}
 
@@ -851,6 +925,7 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 		d->stats->ad_total = ad_count;
 	}
 
+	cumulative_time = 0.0;
 	while (1) {
 		/* we only use a_d which are composed of
 		   many small prime factors, in order to
@@ -874,14 +949,21 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 
 		/* execute search */
 
-		cumulative_time = search_coeff_async(
+		cumulative_time += search_coeff_async(
 					d, c, deadline_per_coeff);
 
 		if (d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+		{
+			printf("recieved break signal\n");
 			break;
+		}
 
 		if (deadline && cumulative_time > deadline)
+		{
+			printf("\ncumulative time > deadline (%1.2f > %u)\n", cumulative_time, deadline);
+			printf("threadpools draining...\n");
 			break;
+		}
 	}
 
 	free_ad_sieve(&ad_sieve);

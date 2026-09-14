@@ -296,59 +296,51 @@ Set by `handle_special_q_batch`, consumed by `collision_engine_run`:
 
 ---
 
-## 7. Known failure mode: candidate overflow on small `key_bits` targets
+## 7. Known failure mode: candidate overflow on small inputs
 
 **Symptom**: `collision_engine: candidate overflow <N> > 4194304` and
 `exit(-1)` in `collision_engine_run`, with `<N>` a large multiple of
 `CANDIDATE_CAP` (observed: 49,683,408 ≈ 11.8×, at `n=49,999,884`,
-`key_bits=23`, `LOG2_NUM_BUCKETS=14`).
+`key_bits=23`, `LOG2_NUM_BUCKETS=14`). Triggers mainly on small inputs
+(< ~480 bits).
 
-**Root cause**: `n` is sized purely from GPU memory
-(`max_sort_entries{32,64}` in `gpu_sieve_data_init`/`sieve_specialq`, §2.2),
-with **no dependence on `key_bits`**. `key_bits` shrinks with the
-factorization target's size (smaller `p_max`). When `n / 2^key_bits`
-becomes large (here, `2^23 ≈ 8.4M` vs `n ≈ 50M` ⇒ ~6 expected occupants per
-key value), the vast majority of items *genuinely* collide at full key
-resolution — this isn't filter false-positive noise to be tuned away
-(§3.3's shift-wraparound convergence can independently make things worse,
-but isn't the primary driver at this ratio). `CANDIDATE_CAP` is a fixed
-`2^22` regardless of `key_bits`, so it was implicitly sized assuming sparse
-(large-`key_bits`) collision domains — the regime `gpu_gerbicz` /
-kyleaskine's original engine was tuned for.
+**Root cause, corrected**: my first-pass diagnosis (a clean `n / 2^key_bits`
+occupancy-ratio story, with a `key_bits`-scaled batch cap as the fix) was an
+oversimplification — the actual relationship between special-q batch size,
+`key_bits`, `shift` (`32 - unused_bits`, the unused top-bit count of
+`p_max`), and the resulting `n` fed to the collision engine is more
+entangled than that (batch size interacts with `key_bits` and `shift`
+together, and `n` can grow disproportionately fast as batch size grows —
+not a clean linear/ratio relationship). Not fully re-derived; treat the
+clean formula above as **wrong**, not just approximate.
 
-**Fix (agreed, not yet applied to these files)**: cap the batch size by
-`key_bits`, not just by GPU memory — computed once in `sieve_specialq` next
-to `max_batch_specialq{32,64}` (§2.2), using `key_bits_est` from `p_max`
-alone (valid for the dominant `num_aprog_vals==1` case):
+**Fix actually applied**: rather than compute a `key_bits`-derived cap, just
+hard-cap the special-q batch size outright when the collision engine is in
+use, in `sieve_specialq` where `max_batch_size` is set (§2.2):
 
 ```c
-uint32 key_bits_est = (uint32)ceil(log((double)p_max * p_max) / M_LN2);
-double domain  = pow(2.0, (double)key_bits_est);
-double safe_n  = domain * COLLISION_SAFE_OCCUPANCY;   /* tune, start 0.25-0.5 */
-uint32 safe_batch = MAX(1u, (uint32)(safe_n / t->num_entries));
 if (d->use_collision_engine) {
-    max_batch_specialq32 = MIN(max_batch_specialq32, safe_batch);
-    max_batch_specialq64 = MIN(max_batch_specialq64, safe_batch);
+	// hard cap for gpu_gerbicz, which has some built-in
+	// caps on candidate counts that too-large of batch
+	// can exceed.  triggers mainly on small inputs (< 480 bits).
+	max_batch_size = MIN(max_batch_size, 16384);
 }
 ```
 
-Gated on `d->use_collision_engine` (the plain CUB-sort path has no
-`CANDIDATE_CAP` and isn't affected). Verified this doesn't get undone by the
-`num_aprog_vals` boost branch (batch tail < `max_batch_size/3`): that branch
-*increases* `key_bits` (bakes `num_aprog_vals` into it), which only widens
-the domain further — occupancy moves away from overflow, not toward it.
+This resolved the overflow in practice. `16384` was arrived at empirically,
+not derived from `CANDIDATE_CAP`/`key_bits`/`shift` analytically — the exact
+relationship between batch size and worst-case `n` (and thus how much
+headroom this constant actually has, or whether it needs to vary with
+`key_bits`/`shift` for other target sizes) is still an open question worth
+revisiting if overflows resurface at a different size regime.
 
-**Tuning `COLLISION_SAFE_OCCUPANCY` / open question**: the existing
-`collision_stats` output (`candidate_count`, `dedup_count`,
-`filter_iters_hist` converged/cap-hit split, `bucket_grow_count`) is exactly
-the diagnostic needed to tune this constant up from a conservative start —
-watch for `candidate_count` approaching `CANDIDATE_CAP`. Risk in the other
-direction: too small a `safe_batch` on small-`p_max` targets could
-under-utilize the GPU (more, smaller batches ⇒ more kernel-launch/host-loop
-overhead) — not yet measured. Longer-term, `CANDIDATE_CAP` itself being a
-compile-time constant independent of `key_bits` is the more fundamental
-mismatch; the batch cap above is a host-side fix that avoids touching the
-`.cu` file, not a structural resolution of that.
+The GPU-underutilization risk flagged in earlier drafts of this doc is a
+non-issue in practice: this cap only bites on small inputs (< ~480 bits),
+where poly hits are plentiful and cheap regardless — losing some GPU
+efficiency there doesn't cost wall-clock time the way it would on a large,
+hit-starved target. That's part of why the empirical hard cap is an
+acceptable stopping point rather than something that needs the clean
+derivation.
 
 ---
 

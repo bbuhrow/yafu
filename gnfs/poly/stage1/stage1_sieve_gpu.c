@@ -801,6 +801,10 @@ handle_special_q_batch(msieve_obj *obj, device_data_t *d,
 		collision_data.collect_stats = d->collision_stats;
 		collision_data.stream = t->stream;
 
+		// printf("n elem  : %u\n", collision_data.num_elements);
+		// printf("key bits: %u\n", key_bits);
+		// printf("shift   : %u\n", shift);
+
 		d->collision_engine_run(t->collision_engine, &collision_data);
 
 		if (d->collision_stats) {
@@ -978,8 +982,23 @@ sieve_specialq(msieve_obj *obj,
 	while (!(p_max & (1 << (31 - unused_bits))))
 		unused_bits++;
 
+	// assume num_aprog_vals == 1, i.e., no extra offsets to increase
+	// occupancy in the case of small special_q batch sizes.
+	uint32 key_bits_est = (uint32)ceil(log((double)p_max * p_max) / M_LN2);
+	double domain = pow(2.0, (double)key_bits_est);
+	double safe_n = domain * 0.1; // COLLISION_SAFE_OCCUPANCY;   /* tune, start 0.25-0.5 */
+	uint32 safe_batch = MAX(1u, (uint32)(safe_n / t->num_entries));
+	
 	max_batch_specialq32 = d->max_sort_entries32 / t->num_entries;
 	max_batch_specialq64 = d->max_sort_entries64 / t->num_entries;
+
+	//printf("pmax = %u, est_key_bits = %u, "
+	//	"domain %1.2e, max_sort_entries32,64 = %u,%u, t->num_entries = %u\n",
+	//	p_max, key_bits_est, domain, 
+	//	d->max_sort_entries32, d->max_sort_entries64, t->num_entries);
+	//
+	//printf("max_batch_specialq32,64 = %u,%u; estimated safe_batch = %u; hard_batch_cap = 16384\n",
+	//	max_batch_specialq32, max_batch_specialq64, safe_batch);
 
 	/* account for 'trivial' special-q */
 
@@ -1025,6 +1044,15 @@ sieve_specialq(msieve_obj *obj,
 				max_batch_specialq32;
 		max_batch_size = MIN(max_batch_size, 
 				(uint32)1 << unused_bits);
+		
+		if (d->use_collision_engine) {
+			// hard cap for gpu_gerbicz, which has some built-in
+			// caps on candidate counts that too-large of batch
+			// can exceed.  triggers mainly on small inputs (< 480 bits).
+			max_batch_size = MIN(max_batch_size,
+				16384);
+		}
+
 		if (max_batch_size == 0) {
 			printf("error: max_batch_size == 0\n");
 			exit(-1);
@@ -1069,6 +1097,8 @@ sieve_specialq(msieve_obj *obj,
 		if (num_aprog_vals > 1)
 			key_bits++;
 
+		// printf("q_batch: key_bits = %u, num_aprog_vals = %u, (num_spq) batch_size = %u, shift = %u\n",
+		// 	key_bits, num_aprog_vals, batch_size, 32 - unused_bits);
 		quit = handle_special_q_batch(obj, d, t, batch_size, 
 				32 - unused_bits, key_bits, num_aprog_vals);
 

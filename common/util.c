@@ -122,6 +122,21 @@ get_cpu_time(void) {
 }
 
 
+double
+get_wall_time(void)
+{
+#if defined(WIN32) || defined(_WIN64)
+	LARGE_INTEGER freq, counter;
+	QueryPerformanceFrequency(&freq);
+	QueryPerformanceCounter(&counter);
+	return (double)counter.QuadPart / (double)freq.QuadPart;
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec / 1e9;
+#endif
+}
+
 #if defined(_MSC_VER)
 
 #if defined(__clang__)
