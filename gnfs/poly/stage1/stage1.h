@@ -280,6 +280,8 @@ void cpu_thread_data_free(void *data, int threadid);
 void stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 			uint64 special_q_min, uint64 special_q_max, 
 			uint32 p_min, uint32 p_max);
+uint64 count_total_q(task_data_t* task, uint32 threadid,
+	uint64 special_q_min, uint64 special_q_max);
 
 /* 128-bit integers */
 

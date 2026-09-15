@@ -1193,6 +1193,7 @@ batch_invert(p_packed_var_t * p_array, q_packed_var_t * q_array,
 	}
 }
 
+
 /*------------------------------------------------------------------------*/
 void
 stage1_specialq_cpu(task_data_t *task, uint32 threadid,
@@ -1281,6 +1282,9 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 	sieve_fb_reset(t->sieve_q_fb, special_q_min, 
 			special_q_max, 1, MAX_ROOTS);
 
+	uint64 q_tot = 0;
+	uint64 q_last = 0;
+
 	while (1) {
 		q_packed_t * qptr;
 		uint64 * inv_array;
@@ -1289,8 +1293,15 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 		   roots they use */
 
 		q_packed_reset(q_array);
-		while (sieve_fb_next(t->sieve_q_fb, c, store_q_packed,
-					q_array) != P_SEARCH_DONE) {
+		uint64 exitcond = 0;
+		while (1) {
+
+			exitcond = sieve_fb_next(t->sieve_q_fb, c, store_q_packed,
+				q_array);
+			
+			if (exitcond == P_SEARCH_DONE)
+				break;
+
 			if (q_array->num_q == SPECIALQ_BATCH_SIZE)
 				break;
 		}
@@ -1299,7 +1310,9 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 				q_array->num_q, q_array->num_roots);
 #endif
 		if (q_array->num_q == 0)
+		{
 			break;
+		}
 
 		/* invert all the special-q at once modulo each p in 
 		   hash_array.
@@ -1313,14 +1326,13 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 		batch_invert(p_array, q_array, td->invtable);
 
 		/* for each root of each special-q */
-
 		qptr = q_array->packed_array;
 		inv_array = td->invtable;
 		for (i = 0; i < q_array->num_q; 
 			i++, inv_array += num_p, qptr = q_packed_next(qptr)) {
 
 			// every so often update poly_stats for roll-up percent complete.
-			// ...
+			q_tot++;
 
 			td->curr_q = qptr->q;
 			for (j = 0; j < qptr->num_roots; 
@@ -1342,7 +1354,9 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 					//	get_wall_time() - cpu_start_time, threadid, task->coeff_deadline);
 
 					if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+					{
 						goto finished;
+					}
 
 					if ((get_wall_time() - cpu_start_time) >
 						task->coeff_deadline) {
@@ -1351,9 +1365,23 @@ stage1_specialq_cpu(task_data_t *task, uint32 threadid,
 				}
 			}
 		}
+
+		// every so often update poly_stats for roll-up percent complete.
+		if (d->stats)
+		{
+			poly_stats_add_qdone(d->stats, q_tot - q_last);
+			q_last = q_tot;
+		}
 	}
 
 finished:
 	//logprintf(obj, "searched %u special-q\n", num_q_roots);
 	t->cumulative_elapsed += get_cpu_time() - cpu_start_time;
+
+	//if (d->stats)
+	//{
+	//	// reset the amount we have done this range.
+	//	poly_stats_sub_qdone(d->stats, q_tot);
+	//}
+
 }

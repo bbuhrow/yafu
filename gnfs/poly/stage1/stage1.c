@@ -726,7 +726,7 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 				/ num_pieces;
 		uint32 piece = get_rand(&obj->seed1, &obj->seed2)
 				% num_pieces;
-        piece = 100;
+        //piece = 100;
 		special_q_min2 = special_q_min + piece * piece_length;
 		special_q_max2 = special_q_min2 + piece_length;
 	}
@@ -809,13 +809,59 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 			return;
 		}
 
+		//uint64 tot_q = count_total_q(task, threadid, q_min, q_max);
+		//
+		//stage1_sieve_data_t* d = task->d;
+		//
+		//if (d->stats)
+		//{
+		//	//printf("qmin = %llu, qmax = %llu, adding %llu to qrange\n", 
+		//	//	q_min, q_max, tot_q);
+		//	poly_stats_add_qrange(d->stats, tot_q);
+		//}
+
 		v->specialq(task, threadid, q_min, q_max, p_min, p_max);
+
+		//if (d->stats)
+		//{
+		//	// reset this range.
+		//	poly_stats_sub_qrange(d->stats, tot_q);
+		//}
 	}
 }
 
 /*------------------------------------------------------------------------*/
 /* infrastructure for submitting new leading
    coeffs to the stage 1 thread pool */
+
+typedef struct {
+	uint64 count;
+} q_count_ctx_t;
+
+static void
+count_q_callback(uint64 p, uint32 num_roots, mpz_t* roots, void* extra)
+{
+	q_count_ctx_t* ctx = (q_count_ctx_t*)extra;
+	ctx->count++;
+}
+
+uint64
+count_total_q(task_data_t* task, uint32 threadid,
+	uint64 special_q_min, uint64 special_q_max)
+{
+	stage1_sieve_data_t* d = task->d;
+	stage1_sieve_thread_data_t* t = d->threads + threadid;
+	poly_coeff_t* c = task->c;
+	q_count_ctx_t ctx = { 0 };
+
+	sieve_fb_reset(t->sieve_q_fb, special_q_min, special_q_max, 1, MAX_ROOTS);
+
+	while (sieve_fb_next(t->sieve_q_fb, c, count_q_callback, &ctx)
+		!= P_SEARCH_DONE)
+		;
+
+	return ctx.count;
+}
 
 static void
 task_data_free(void *data, int threadid)
@@ -907,6 +953,141 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 	mpz_mul_ui(poly->gmp_high_coeff_begin, poly->tmp1, 
 			ad_sieve.high_coeff_multiplier);
 
+#if 1
+
+	if (d->stats) {
+		sieve_t count_sieve;
+		poly_coeff_t* cc = poly_coeff_init();
+		mpz_t save_begin;
+		uint64 ad_count = 0;
+		uint64 q_total = 0;
+
+		mpz_init_set(save_begin, poly->gmp_high_coeff_begin);
+		init_ad_sieve(&count_sieve, poly);
+
+		// this builds all of the exact q-sets prior to running
+		// the job.  There is a lot of real work here, too high
+		// just to get the scale of the job for stats purposes.
+		// edit, using only part of the q-range and ad range as 
+		// an estimate makes this fast enough to include.  The exact
+		// value won't be needed most of the time because yafu
+		// will likely not allocate enough time to polyselect to
+		// search the entire range.  And even if it does, finishing
+		// with slightly more or less than 100% on the counter isn't a big deal.
+		uint64 q_estimate = 0;
+		while (find_next_ad(&count_sieve, poly, cc->high_coeff) == 0)
+		{
+			ad_count++;
+
+			if ((!d->engine->envelope.is_gpu) && ((ad_count & 7) == 0)) {
+				task_data_t count_task;
+				uint32 p_min, p_max;
+				uint64 special_q_min, special_q_max;
+				uint64 special_q_min2, special_q_max2;
+				uint32 special_q_fb_max;
+				uint32 num_pieces;
+				uint32 degree = d->poly->degree;
+
+				//gmp_printf("a_d %Zd, enumerating q... ", cc->high_coeff);
+
+				stage1_bounds_update(poly, cc);
+
+				/* duplicate search_coeff_core's p/q bound
+				   derivation just enough to know the q range
+				   that will actually be searched */
+				p_max = MIN(MAX_P, sqrt(cc->p_size_max));
+				p_max = MIN(p_max, P_SCALE * P_SCALE *
+					sqrt(0.5 * cc->m0 / cc->coeff_max));
+				p_min = MAX(1, p_max / P_SCALE);
+
+				special_q_max = MIN(MAX_SPECIAL_Q,
+					cc->p_size_max / p_min / p_min);
+				special_q_max = MAX(special_q_max, 1);
+				special_q_min = 1;
+
+				if (d->test_mode) {
+					p_min = d->test_pmin;
+					p_max = d->test_pmax;
+					special_q_min = d->test_qmin;
+					special_q_max = d->test_qmax;
+				}
+
+				/* replicate the piece-selection logic --
+				   without this, q_total would count the
+				   full range even on a_d's that only ever
+				   search a random 1/num_pieces slice of it,
+				   making the total badly overstate the
+				   actual job size */
+				num_pieces = 1;
+				if ((!d->test_mode) &&
+					(special_q_max - special_q_min > 500000))
+				{
+					num_pieces = MIN(200,
+						(double)special_q_max * p_max
+						/ log(special_q_max) / log(p_max)
+						/ 3e10);
+				}
+
+				if (num_pieces > 51) {
+					uint32 piece_length =
+						(special_q_max - special_q_min)
+						/ num_pieces;
+					special_q_min2 = special_q_min;
+					special_q_max2 = special_q_min + piece_length;
+				}
+				else {
+					special_q_min2 = special_q_min;
+					special_q_max2 = special_q_max;
+				}
+
+				/* because special-q can have any factors, we require that
+				   the progressions we generate use p that have somewhat
+				   large factors. This minimizes the chance that a given
+				   special-q has factors in common with many progressions
+				   in the set */
+
+				sieve_fb_init(d->threads[0].sieve_p_fb, cc,
+					100, 5000,
+					1, degree,
+					0);
+
+				special_q_fb_max = MIN(200000, special_q_max2);
+				sieve_fb_init(d->threads[0].sieve_q_fb, cc,
+					2, special_q_fb_max,
+					1, degree,
+					1);
+
+				count_task.obj = d->obj;
+				count_task.c = cc;
+				count_task.d = d;
+				count_task.coeff_deadline = 0;
+
+				uint64 sample_max = special_q_min2 + (special_q_max2 - special_q_min2) / 100;
+				uint64 sample_q = count_total_q(&count_task, 0, special_q_min2, sample_max);
+				q_estimate = sample_q * 100;
+
+				//uint64 qcount = count_total_q(&count_task, 0,
+				//	special_q_min2, special_q_max2);
+
+				q_total += q_estimate * 8;
+				//printf(" estimating %llu from a count of %llu\n", q_estimate, sample_q);
+			}
+		}
+
+		if ((!d->engine->envelope.is_gpu) && ((ad_count & 7) != 0)) {
+			q_total += q_estimate * (ad_count & 7);
+		}
+
+		free_ad_sieve(&count_sieve);
+		poly_coeff_free(cc);
+		mpz_set(poly->gmp_high_coeff_begin, save_begin);
+		mpz_clear(save_begin);
+		d->stats->ad_total = ad_count;
+		d->stats->q_total = q_total;
+
+	}
+
+#else
 	/* count the a_d in range for the progress fraction */
 	if (d->stats) {
 		sieve_t count_sieve;
@@ -917,14 +1098,16 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 		mpz_init_set(save_begin, poly->gmp_high_coeff_begin);
 		init_ad_sieve(&count_sieve, poly);
 		while (find_next_ad(&count_sieve, poly, cc->high_coeff) == 0)
+		{
 			ad_count++;
+		}
 		free_ad_sieve(&count_sieve);
 		poly_coeff_free(cc);
 		mpz_set(poly->gmp_high_coeff_begin, save_begin);
 		mpz_clear(save_begin);
 		d->stats->ad_total = ad_count;
 	}
-
+#endif
 	cumulative_time = 0.0;
 	while (1) {
 		/* we only use a_d which are composed of
@@ -940,6 +1123,7 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 			gmp_snprintf(adbuf, sizeof(adbuf), "%Zd",
 				c->high_coeff);
 			poly_stats_set_ad(d->stats, adbuf, ++ad_index);
+			//gmp_printf("new_ad: %Zd\n", c->high_coeff);
 		}
 
 		/* recalculate internal parameters used

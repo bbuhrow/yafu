@@ -38,7 +38,7 @@ report_locked(poly_stage_stats_t *s, int force)
 {
 	struct timeval now;
 	double t;
-	char hbuf[16], sbuf[16], rbuf[16], adbuf[96], bestbuf[96];
+	char hbuf[16], sbuf[16], rbuf[16], adbuf[96], qdbuf[16], qtbuf[16], qobuf[16], bestbuf[96];
 	uint64 depth;
 
 	if (s->vflag < 1)
@@ -53,6 +53,10 @@ report_locked(poly_stage_stats_t *s, int force)
 	fmt_count(hbuf, sizeof(hbuf), s->hits);
 	fmt_count(sbuf, sizeof(sbuf), s->sizeopt_pass);
 	fmt_count(rbuf, sizeof(rbuf), s->rootopt_pass);
+	fmt_count(qdbuf, sizeof(qdbuf), s->q_done);
+	fmt_count(qtbuf, sizeof(qtbuf), s->q_total);
+	fmt_count(qobuf, sizeof(qobuf), s->q_overall);
+
 	depth = (s->hits >= s->stage2_done) ? (s->hits - s->stage2_done) : 0;
 
 	if (s->ad_total)
@@ -72,8 +76,13 @@ report_locked(poly_stage_stats_t *s, int force)
 
 	/* pad with trailing spaces so a shrinking line fully overwrites the
 	   previous one; \r returns to column 0 without a newline */
-	fprintf(stderr, "\r%s | hits %s  cand %s  saved %s | q %llu | %s | %.0fs      ",
-		adbuf, hbuf, sbuf, rbuf, (unsigned long long)depth, bestbuf, t);
+	fprintf(stderr, "\r%s | spq: %s/%s (%1.1f%%) | hits %s  cand %s  saved %s | q %llu | %s | %.0fs      ",
+		adbuf, qdbuf, qtbuf, (double)s->q_done / (double)s->q_total * 100.0, 
+		hbuf, sbuf, rbuf, (unsigned long long)depth, bestbuf, t);
+
+	//fprintf(stderr, "\r%s | hits %s  cand %s  saved %s | q %llu | %s | %.0fs      ",
+	//	adbuf, hbuf, sbuf, rbuf, (unsigned long long)depth, bestbuf, t);
+
 	if (force || s->vflag >= 2)
 		fprintf(stderr, "\n");   /* -vv scrolls; final line terminates */
 	else
@@ -88,6 +97,8 @@ poly_stats_init(poly_stage_stats_t *s, int vflag, uint64 ad_total)
 	mutex_init(&s->lock);
 	s->vflag = vflag;
 	s->ad_total = ad_total;
+	s->q_done = 0;
+	s->q_total = 0;
 	s->interval = 0.5;
 	s->best_e = 0.0;
 	msieve_gettimeofday(&s->start, NULL);
@@ -112,6 +123,43 @@ poly_stats_set_ad(poly_stage_stats_t *s, const char *ad_str, uint64 ad_index)
 		s->cur_ad[POLY_STATS_ADSTRLEN - 1] = 0;
 	}
 	s->ad_done = ad_index;
+	report_locked(s, 0);
+	mutex_unlock(&s->lock);
+}
+
+void
+poly_stats_add_qrange(poly_stage_stats_t* s, uint64 numq)
+{
+	mutex_lock(&s->lock);
+	s->q_total += numq;
+	report_locked(s, 0);
+	mutex_unlock(&s->lock);
+}
+
+void
+poly_stats_add_qdone(poly_stage_stats_t* s, uint64 numq)
+{
+	mutex_lock(&s->lock);
+	s->q_done += numq;
+	s->q_overall += numq;
+	report_locked(s, 0);
+	mutex_unlock(&s->lock);
+}
+
+void
+poly_stats_sub_qrange(poly_stage_stats_t* s, uint64 numq)
+{
+	mutex_lock(&s->lock);
+	s->q_total -= numq;
+	report_locked(s, 0);
+	mutex_unlock(&s->lock);
+}
+
+void
+poly_stats_sub_qdone(poly_stage_stats_t* s, uint64 numq)
+{
+	mutex_lock(&s->lock);
+	s->q_done -= numq;
 	report_locked(s, 0);
 	mutex_unlock(&s->lock);
 }

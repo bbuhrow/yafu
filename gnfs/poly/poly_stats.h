@@ -50,6 +50,9 @@ typedef struct {
 	char   cur_ad[POLY_STATS_ADSTRLEN];
 	uint64 ad_done;
 	uint64 ad_total;      /* 0 if unknown */
+	uint64 q_done;
+	uint64 q_total;
+	uint64 q_overall;
 
 	/* reporting */
 	int    vflag;         /* 0 silent, 1 roll-up, 2 detail (roll-up off) */
@@ -73,7 +76,11 @@ void poly_stats_free(poly_stage_stats_t *s);
 void poly_stats_set_ad(poly_stage_stats_t *s, const char *ad_str,
 			uint64 ad_index);
 
-/* the three funnel hooks; safe to call from any thread */
+/* funnel hooks; safe to call from any thread */
+void poly_stats_add_qdone(poly_stage_stats_t* s, uint64 numq);
+void poly_stats_add_qrange(poly_stage_stats_t* s, uint64 numq);
+void poly_stats_sub_qdone(poly_stage_stats_t* s, uint64 numq);
+void poly_stats_sub_qrange(poly_stage_stats_t* s, uint64 numq);
 void poly_stats_add_hit(poly_stage_stats_t *s);
 void poly_stats_add_sizeopt(poly_stage_stats_t *s);
 void poly_stats_add_rootopt(poly_stage_stats_t *s, double combined_e,
