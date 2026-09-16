@@ -835,7 +835,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
         //distribute to each thread in threaded NFS poly selection.
         options->poly_batch = strtoul(arg, NULL, 10);
         if (options->poly_batch == 0)
-            options->poly_batch = 250;
+            options->poly_batch = 5000;
     }
     else if (strcmp(opt, OptionArray[51]) == 0)
     {
@@ -1436,7 +1436,7 @@ options_t* initOpt(void)
     strcpy(options->testsieve, "");
     strcpy(options->poly_method, "avg");
     options->nfs_resume = 0;
-    options->poly_batch = 250;
+    options->poly_batch = 5000;
     options->ggnfs_siever = 0;
 #if defined(_WIN64)
     strcpy(options->ggnfs_dir, ".\\");

@@ -815,6 +815,9 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 			1, MAX_ROOTS);
 
 
+	uint64 q_tot = 0;
+	uint64 q_last = 0;
+
 	while (1) {
 		p_packed_t *qptr = specialq_array.packed_array;
 		uint32 num_q;
@@ -912,6 +915,8 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 		invtmp = invtable;
 		for (i = 0; i < num_q; i++) {
 
+			q_tot++;
+
 #ifdef NEW_P_PACKED
 			for (j = 0; j < qptr[i].num_roots; j++) {
 				quit = handle_special_q(obj, poly, c,
@@ -952,6 +957,13 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 			qptr = p_packed_next(qptr);
 			invtmp += num_p;
 #endif
+		}
+
+		// every so often update poly_stats for roll-up percent complete.
+		if (task->d->stats)
+		{
+			poly_stats_add_qdone(task->d->stats, q_tot - q_last);
+			q_last = q_tot;
 		}
 
 	}

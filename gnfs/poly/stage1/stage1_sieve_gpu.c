@@ -1032,6 +1032,9 @@ sieve_specialq(msieve_obj *obj,
 
 	wall_start = last_progress = time(NULL);
 
+	uint64 q_tot = 0;
+	uint64 q_last = 0;
+
 	while (!quit && !all_q_done) {
 
 		uint32 batch_size;
@@ -1114,19 +1117,27 @@ sieve_specialq(msieve_obj *obj,
 		   based on the fraction of special-q roots completed
 		   and the wall time spent on them so far */
 
+		q_tot += batch_size;
+
+		if (task->d->stats)
+		{
+			poly_stats_add_qdone(task->d->stats, q_tot - q_last);
+			q_last = q_tot;
+		}
+
 		done_qroots += batch_size;
 
 		if (!quit && total_qroots != 0 &&
-		    done_qroots < total_qroots) {
+			done_qroots < total_qroots) {
 
 			time_t now = time(NULL);
 
-			if (now - last_progress >= 60) {
+			if (0) { //now - last_progress >= 60) {
 
 				double done_frac = (double)done_qroots /
-							total_qroots;
+					total_qroots;
 				uint32 eta_sec = (uint32)((now - wall_start) *
-						(1.0 / done_frac - 1.0) + 0.5);
+					(1.0 / done_frac - 1.0) + 0.5);
 
 				if (inplace_progress) {
 					/* rewrite the same line in place
@@ -1136,20 +1147,20 @@ sieve_specialq(msieve_obj *obj,
 					   from a longer previous line */
 
 					gmp_printf("\rcoeff %Zd: %.1f%% done, "
-							"ETA %uh%02um    ",
-							c->high_coeff,
-							100.0 * done_frac,
-							eta_sec / 3600,
-							(eta_sec % 3600) / 60);
+						"ETA %uh%02um    ",
+						c->high_coeff,
+						100.0 * done_frac,
+						eta_sec / 3600,
+						(eta_sec % 3600) / 60);
 					progress_shown = 1;
 				}
 				else {
 					gmp_printf("coeff %Zd: %.1f%% done, "
-							"ETA %uh%02um\n",
-							c->high_coeff,
-							100.0 * done_frac,
-							eta_sec / 3600,
-							(eta_sec % 3600) / 60);
+						"ETA %uh%02um\n",
+						c->high_coeff,
+						100.0 * done_frac,
+						eta_sec / 3600,
+						(eta_sec % 3600) / 60);
 				}
 				fflush(stdout);
 				last_progress = now;

@@ -228,6 +228,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.np1 = 0;
     fobj->nfs_obj.nps = 0;
     fobj->nfs_obj.npr = 0;
+    fobj->nfs_obj.polybatch = 5000;
     strcpy(fobj->nfs_obj.params_file, "");          // default: use built-in table
     strcpy(fobj->nfs_obj.outputfile, "nfs.dat");			//default
     strcpy(fobj->nfs_obj.logfile, "nfs.log");			//default

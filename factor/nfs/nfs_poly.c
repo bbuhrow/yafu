@@ -994,6 +994,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	//		  (double)high->seconds * (i - low->bits)) / dist);
 	//}    
 
+	// the overall deadline for poly-select.
+	// gets divided into coefficient deadlines by init_poly_threaddata
 	deadline = params.deadline;
 
 	// initialize the variable tracking the total time spent (over all threads)
@@ -1047,18 +1049,6 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			deadline -= job->poly_time;
 		}
 	}		
-
-    // now we always do "fast", i.e., divide deadline by number of threads,
-    // and search for an "avg" poly score by default.
-	if (1) //fobj->nfs_obj.poly_option == 0)
-	{
-		// 'fast' search.  scale by number of threads
-		deadline /= fobj->THREADS;
-
-		// msieve poly-select wants a nonzero deadline
-		if (deadline == 0)
-			deadline = 1;
-	}
 
 	if ((fobj->nfs_obj.timeout < deadline) && (fobj->nfs_obj.timeout > 1.0))
 	{
@@ -1998,34 +1988,13 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	// deadline is an overall job deadline... reduce it now that msieve enforces coefficient deadlines
 	// deadline_per_coeff = deadline;
 	// this gets us at least 4 new sets of a_d throughout the run
-	deadline_per_coeff = deadline / 4;
+	deadline_per_coeff = deadline / 1;
+	if (deadline_per_coeff == 0)
+		deadline_per_coeff = 1;
 
 	t->logfilename = (char *)malloc(80 * sizeof(char));
 	t->polyfilename = (char *)malloc(80 * sizeof(char));
 	t->fbfilename = (char *)malloc(80 * sizeof(char));
-
-    
-	double norm1, norm2, min_e;
-	if (digits < 108.0)
-    {
-        //get_default_poly4_norms(digits, &norm1, &norm2, &min_e);
-		poly_params_t params;
-		get_default_params(digits, &params, params_deg4, num_params_deg4);
-		norm1 = params.stage1_norm;
-		norm2 = params.stage2_norm;
-		min_e = params.final_norm;
-		degree = 4;
-    }
-    else
-    {
-		//get_default_poly5_norms(digits, &norm1, &norm2, &min_e);
-		poly_params_t params;
-		get_default_params(digits, &params, params_deg5, num_params_deg5);
-		norm1 = params.stage1_norm;
-		norm2 = params.stage2_norm;
-		min_e = params.final_norm;
-		degree = 5;
-    }
 
 	// use any user parameters first
 	strcpy(nfs_args, fobj->nfs_obj.stage1_args);

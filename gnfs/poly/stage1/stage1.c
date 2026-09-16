@@ -778,13 +778,13 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 				if (d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)
 					return;
 
-				//if (get_wall_time() >= deadline_end) {
-				//	logprintf(obj, "stage1: coeff_deadline "
-				//		"hit, aborting a_d early "
-				//		"(q %" PRIu64 " of %" PRIu64
-				//		")\n", chunk_hi, q_max);
-				//	return;
-				//}
+				if (get_wall_time() >= deadline_end) {
+					//logprintf(obj, "stage1: coeff_deadline "
+					//	"hit, aborting a_d early "
+					//	"(q %" PRIu64 " of %" PRIu64
+					//	")\n", chunk_hi, q_max);
+					return;
+				}
 
 				chunk_lo = chunk_hi;
 			}
@@ -809,24 +809,8 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 			return;
 		}
 
-		//uint64 tot_q = count_total_q(task, threadid, q_min, q_max);
-		//
-		//stage1_sieve_data_t* d = task->d;
-		//
-		//if (d->stats)
-		//{
-		//	//printf("qmin = %llu, qmax = %llu, adding %llu to qrange\n", 
-		//	//	q_min, q_max, tot_q);
-		//	poly_stats_add_qrange(d->stats, tot_q);
-		//}
-
 		v->specialq(task, threadid, q_min, q_max, p_min, p_max);
 
-		//if (d->stats)
-		//{
-		//	// reset this range.
-		//	poly_stats_sub_qrange(d->stats, tot_q);
-		//}
 	}
 }
 
@@ -961,6 +945,8 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 		mpz_t save_begin;
 		uint64 ad_count = 0;
 		uint64 q_total = 0;
+		uint64 ad_est_freq = 8;
+		uint64 est_thresh = 8;
 
 		mpz_init_set(save_begin, poly->gmp_high_coeff_begin);
 		init_ad_sieve(&count_sieve, poly);
@@ -975,11 +961,11 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 		// search the entire range.  And even if it does, finishing
 		// with slightly more or less than 100% on the counter isn't a big deal.
 		uint64 q_estimate = 0;
+		uint64 num_est = 0;
+		printf("estimating total special-q over requested a_d range\n");
 		while (find_next_ad(&count_sieve, poly, cc->high_coeff) == 0)
 		{
-			ad_count++;
-
-			if ((!d->engine->envelope.is_gpu) && ((ad_count & 7) == 0)) {
+			if ((ad_count & (ad_est_freq - 1)) == 0) {
 				task_data_t count_task;
 				uint32 p_min, p_max;
 				uint64 special_q_min, special_q_max;
@@ -988,8 +974,7 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 				uint32 num_pieces;
 				uint32 degree = d->poly->degree;
 
-				//gmp_printf("a_d %Zd, enumerating q... ", cc->high_coeff);
-
+				//gmp_printf("a_d %Zd, enumerating q... ", cc->high_coeff);				
 				stage1_bounds_update(poly, cc);
 
 				/* duplicate search_coeff_core's p/q bound
@@ -1066,16 +1051,25 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 				uint64 sample_q = count_total_q(&count_task, 0, special_q_min2, sample_max);
 				q_estimate = sample_q * 100;
 
-				//uint64 qcount = count_total_q(&count_task, 0,
-				//	special_q_min2, special_q_max2);
-
-				q_total += q_estimate * 8;
+				if (ad_count > 0) {
+					q_total += q_estimate * ad_est_freq;
+				}
 				//printf(" estimating %llu from a count of %llu\n", q_estimate, sample_q);
+
+				num_est++;
+				if (num_est > est_thresh)
+				{
+					ad_est_freq *= 2;
+					num_est = 0;
+					//printf("now estimating every %llu ad's\n", ad_est_freq);
+				}
 			}
+
+			ad_count++;
 		}
 
-		if ((!d->engine->envelope.is_gpu) && ((ad_count & 7) != 0)) {
-			q_total += q_estimate * (ad_count & 7);
+		if ((ad_count & (ad_est_freq - 1)) != 0) {
+			q_total += q_estimate * (ad_count % ad_est_freq);
 		}
 
 		free_ad_sieve(&count_sieve);
@@ -1146,6 +1140,12 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 		{
 			printf("\ncumulative time > deadline (%1.2f > %u)\n", cumulative_time, deadline);
 			printf("threadpools draining...\n");
+			// the easiest way to interrupt running threads is with
+			// the flag, since thread data structures all store a
+			// pointer back to the msieve object flags and check
+			// it periodically during special-q processing.
+			d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;
+			
 			break;
 		}
 	}
