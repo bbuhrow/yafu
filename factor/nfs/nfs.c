@@ -35,6 +35,12 @@ benefit from your work.
 
 #ifdef USE_NFS
 
+// Smallest input that GNFS polynomial search can handle.  The degree-4
+// parameter table in nfs_poly.c starts at 80 digits and the search compares
+// log10(n) against that bound, so an 81-digit input is the first one that
+// clears it.  Keep in sync with params_deg4[0].digits.
+#define NFS_GNFS_POLY_MIN_DIGITS 81
+
 int NFS_ABORT;
 int IGNORE_NFS_ABORT;
 msieve_obj *obj_ptr;
@@ -403,7 +409,39 @@ void nfs(fact_obj_t *fobj)
 						}
 					}
 
-					// for sure not snfs.  check if siqs or gnfs
+					// for sure not snfs.  check if siqs or gnfs.
+					// The polynomial-search parameter tables start at 80
+					// digits (params_deg4 in nfs_poly.c) and the search
+					// compares log10(n) against that, so an input needs at
+					// least 81 decimal digits.  Below that there are no norm
+					// bounds to search with and the code underneath aborts
+					// the whole program; send these to SIQS instead of the
+					// crossover, which is only about which method is faster.
+					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < NFS_GNFS_POLY_MIN_DIGITS)
+					{
+						if (fobj->VFLAG >= 0)
+						{
+							printf("nfs: input of size %d is below the GNFS polynomial-search "
+								"minimum of %d digits, using siqs\n",
+								(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+								NFS_GNFS_POLY_MIN_DIGITS);
+							fflush(stdout);
+						}
+
+						logprint_oc(fobj->flogname, "a",
+							"nfs: input of size %d is below the GNFS polynomial-search "
+							"minimum of %d digits, using siqs\n",
+							(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+							NFS_GNFS_POLY_MIN_DIGITS);
+
+						mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+						SIQS(fobj);
+						mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+						nfs_state = NFS_STATE_CLEANUP;
+						break;
+					}
+
 					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
 					{
 						if (fobj->VFLAG >= 0)

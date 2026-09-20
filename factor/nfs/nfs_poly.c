@@ -955,7 +955,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	// compute digits the same way msieve does.
 	double digits = log(mpz_get_d(fobj->nfs_obj.gmp_n)) / log(10.0);
 
-	poly_params_t params;
+	poly_params_t params = { 0 };
 
     if (digits < 108.0) 		/* <= 110 digits */
     {
@@ -994,6 +994,22 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	//		 ((double)low->seconds * (high->bits - i) +
 	//		  (double)high->seconds * (i - low->bits)) / dist);
 	//}    
+
+	// get_default_params() fills in nothing when the input falls outside the
+	// table's span (below 80 digits, or above the largest entry).  A zero norm
+	// bound means the search has nothing to work with, and the msieve code
+	// underneath calls exit(-1) when it is handed one ("error: stage 2 size
+	// bound not provided").  Report it and return; the caller then treats this
+	// as "no polynomial found".
+	if ((params.stage2_norm == 0.0) || (params.deadline == 0))
+	{
+		printf("nfs: no polynomial-search parameters for a %1.2f-digit input "
+			"(degree-%d table starts at %.0f digits) - input too small for GNFS\n",
+			digits, fobj->nfs_obj.pref_degree, params_deg4[0].digits);
+		logprint_oc(fobj->flogname, "a",
+			"nfs: no polynomial-search parameters for a %1.2f-digit input\n", digits);
+		return;
+	}
 
 	// the overall deadline for poly-select.
 	// gets divided into coefficient deadlines by init_poly_threaddata
