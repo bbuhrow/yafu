@@ -128,12 +128,12 @@ typedef enum {
     GPU_ARG_INT64,
     GPU_ARG_UINT64,
     /* Phase 3 addition: dynamically-sized __local kernel argument, the
-        * OpenCL equivalent of CUDA's per-launch dynamic shared memory
-        * (cudaFuncSetAttribute + the 3rd <<<>>> launch parameter) used by
-        * filter_per_bucket_kernel's runtime-sized hash table. Has no
-        * associated device-side value -- gpu_arg_t.uint32_arg repurposed
-        * to hold the BYTE SIZE of the local allocation; gpu_launch_set
-        * calls clSetKernelArg(kernel, idx, size, NULL) for this case. */
+     * OpenCL equivalent of CUDA's per-launch dynamic shared memory
+     * (cudaFuncSetAttribute + the 3rd <<<>>> launch parameter) used by
+     * filter_per_bucket_kernel's runtime-sized hash table. Has no
+     * associated device-side value -- gpu_arg_t.uint32_arg repurposed
+     * to hold the BYTE SIZE of the local allocation; gpu_launch_set
+     * calls clSetKernelArg(kernel, idx, size, NULL) for this case. */
     GPU_ARG_LOCAL
 } gpu_arg_type_t;
 
