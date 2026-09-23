@@ -85,7 +85,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "max_siqs", "max_nfs", "np1", "nps", "npr",
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
-    "nfs_stage1_args"};
+    "nfs_stage1_args", "cuda_sieve", "cuda_dev" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -221,7 +221,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Use batch factorization of 3LP cofactors in NFS",
     "(Integer < 32-bit): analysis type for the sieve of Eratosthenes (default = 1 (find primes), 2 (find twins)",
     "                  : NFS: build the siever factor base cache once per job (needs sievers with cache validation)",
-    "(String)          : raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable"
+    "(String)          : raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable",
+    "(String)          : NFS: path to the cuda-sieve executable; sieve with it instead of gnfs-lasieve",
+    "(String)          : NFS: comma separated CUDA device list for cuda_sieve, e.g. 0,1 (default 0)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -256,7 +258,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
     1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
     0,1,0,1,0,     // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis, keep_afb
-    1
+    1,1,1          // nfs_stage1_args, cuda_sieve, cuda_dev
 };
 
 // command line option aliases, specified by '--'
@@ -289,7 +291,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    ""
+    "", "", ""
 };
 
 
@@ -1314,6 +1316,44 @@ void applyOpt(char* opt, char* arg, options_t* options)
         //argument "nfs_stage1_args"
         strcpy(options->nfs_stage1_args, arg);
     }
+    else if (strcmp(opt, OptionArray[131]) == 0)
+    {
+        //argument "cuda_sieve": path to the cuda-sieve executable (bench).
+        // giving one selects the cuda siever for NFS sieving.
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->cuda_sieve, arg);
+        }
+        else
+        {
+            printf("*** argument to cuda_sieve too long, ignoring ***\n");
+        }
+        }
+    else if (strcmp(opt, OptionArray[132]) == 0)
+    {
+        //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
+        // only digits and single commas between numbers are accepted.
+        size_t k, len = strlen(arg);
+        int ok = (len > 0 && len < MAXARGLEN);
+
+        for (k = 0; ok && k < len; k++)
+        {
+            if (arg[k] == ',')
+            {
+                if (k == 0 || k == len - 1 || arg[k - 1] == ',') ok = 0;
+            }
+            else if (!isdigit((unsigned char)arg[k])) ok = 0;
+        }
+
+        if (ok)
+        {
+            strcpy(options->cuda_dev, arg);
+        }
+        else
+        {
+            printf("*** argument to cuda_dev must look like 0 or 0,1 ; ignoring ***\n");
+        }
+        }
     else
     {
         int i;
@@ -1453,6 +1493,8 @@ options_t* initOpt(void)
     options->nfs_batch_3lp = 0;
     options->keep_afb = 0;
     strcpy(options->nfs_stage1_args, "");
+    strcpy(options->cuda_sieve, "");
+    strcpy(options->cuda_dev, "");
 
     // prime finding options
     options->soe_blocksize = 32768;

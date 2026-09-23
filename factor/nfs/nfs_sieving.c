@@ -39,6 +39,11 @@ benefit from your work.
 #include <sys/time.h>
 #endif
 
+#if !defined(WIN32) && !defined(_WIN64)
+#include <sys/wait.h>		// WIFEXITED/WEXITSTATUS for the cuda siever
+#endif
+
+
 #ifdef USE_NFS
 
 #define USE_THREADPOOL
@@ -390,6 +395,243 @@ qrange_t* get_next_range(qrange_data_t* qrange_data, char side)
 	return qrange;
 }
 
+/*----------------------------------------------------------------------
+   External cuda-sieve backend (https://github.com/kyleaskine/cuda-sieve).
+
+   cuda-sieve is run once per q-range, like gnfs-lasieve, but it has its own
+   command line, cofactors on the GPU (so there is no -d/.raw batch step), and
+   reports a clean stop with exit status 0 while leaving only <out>.part behind.
+   See its RUNBOOK, "Stopping and resuming".
+----------------------------------------------------------------------*/
+
+// number of trailing lines of the siever's log to show when it fails
+#define CUDA_LOG_TAIL_LINES 12
+
+// number of devices in the user's cuda_dev list (1 if none was given)
+static int nfs_cuda_ndev(fact_obj_t* fobj)
+{
+	const char* p = fobj->nfs_obj.cuda_dev;
+	int n = 1;
+
+	if (*p == '\0') return 1;
+
+	while ((p = strchr(p, ',')) != NULL)
+	{
+		n++;
+		p++;
+	}
+
+	return n;
+}
+
+// CUDA device for a worker thread: round robin over the user's list, 0 if none.
+static int nfs_cuda_device(fact_obj_t* fobj, int tid)
+{
+	const char* p = fobj->nfs_obj.cuda_dev;
+	int i;
+
+	if (*p == '\0') return 0;
+
+	// safe: the list has nfs_cuda_ndev() entries and i is below that
+	for (i = tid % nfs_cuda_ndev(fobj); i > 0; i--)
+		p = strchr(p, ',') + 1;
+
+	return atoi(p);
+}
+
+// decode the value returned by system() into the exit status of the command.
+// returns -1 if the shell could not be started or the command was killed
+// by a signal.
+static int nfs_exit_status(int sysret)
+{
+#if defined(WIN32) || defined(_WIN64)
+	return sysret;
+#else
+	if (sysret == -1) return -1;
+	if (WIFEXITED(sysret)) return WEXITSTATUS(sysret);
+	return -1;
+#endif
+}
+
+static int nfs_cuda_file_exists(const char* name)
+{
+	FILE* f = fopen(name, "rb");
+
+	if (f == NULL) return 0;
+	fclose(f);
+	return 1;
+}
+
+// remove everything cuda-sieve may leave next to an output file.
+static void nfs_cuda_cleanup(const char* out)
+{
+	static const char* suffix[] = { ".part", ".part.ckpt", ".part.ckpt.tmp",
+		".part.recover", ".part.recover.tmp", ".lock" };
+	char name[GSTR_MAXSIZE];
+	size_t i;
+
+	for (i = 0; i < sizeof(suffix) / sizeof(suffix[0]); i++)
+	{
+		snprintf(name, sizeof(name), "%s%s", out, suffix[i]);
+		remove(name);
+	}
+}
+
+static void nfs_cuda_print_log_tail(const char* logname)
+{
+	char buf[CUDA_LOG_TAIL_LINES][256];
+	int count = 0, i, first;
+	FILE* f = fopen(logname, "r");
+
+	if (f == NULL) return;
+
+	while (fgets(buf[count % CUDA_LOG_TAIL_LINES], 256, f) != NULL)
+		count++;
+	fclose(f);
+
+	if (count == 0) return;
+
+	first = (count > CUDA_LOG_TAIL_LINES) ? (count - CUDA_LOG_TAIL_LINES) : 0;
+	printf("nfs: last lines of %s:\n", logname);
+	for (i = first; i < count; i++)
+	{
+		const char* s = buf[i % CUDA_LOG_TAIL_LINES];
+		size_t len = strlen(s);
+
+		printf("  %s%s", s, (len > 0 && s[len - 1] == '\n') ? "" : "\n");
+	}
+}
+
+static void nfs_cuda_set_abort(void)
+{
+	if (NFS_ABORT < 1)
+	{
+		printf("\nnfs: setting NFS_ABORT\n");
+		NFS_ABORT = 1;
+	}
+}
+
+// sieve one q-range with cuda-sieve.  This is the cuda counterpart of the
+// lasieve branch of lasieve_launcher.  On return thread_data->job.current_rels is
+// the number of relations in thread_data->outfilename (0 if there is none),
+// and NFS_ABORT is set if the siever failed or was stopped.
+//
+// cuda-sieve writes <out>.part and renames it to <out> only when the range is
+// finished, so the existence of <out> is what says the range is complete.
+// Partial output from a stopped or failed run is discarded for now.
+static void nfs_cuda_sieve_range(fact_obj_t* fobj, nfs_threaddata_t* thread_data)
+{
+	char syscmd[GSTR_MAXSIZE], tmpstr[GSTR_MAXSIZE];
+	char logname[GSTR_MAXSIZE], partname[GSTR_MAXSIZE];
+	const char* out = thread_data->outfilename;
+	const int side = (thread_data->job.poly->side == ALGEBRAIC_SPQ) ? 1 : 0;
+	const uint32_t logI = thread_data->siever;
+	const uint64_t q0 = thread_data->job.startq;
+	uint64_t q1;
+	int status, n;
+	FILE* fid;
+
+	thread_data->job.current_rels = 0;
+
+	if (thread_data->job.qrange == 0)
+		return;
+
+	if ((logI < 2) || (logI > 20))
+	{
+		printf("\nnfs: siever %u cannot be used with cuda-sieve (need 2 <= logI <= 20)\n", logI);
+		nfs_cuda_set_abort();
+		return;
+	}
+
+	// yafu's ranges are [start, start + qrange); cuda-sieve's are inclusive.
+	q1 = q0 + thread_data->job.qrange - 1;
+
+	snprintf(logname, sizeof(logname), "%s.log", out);
+	snprintf(partname, sizeof(partname), "%s.part", out);
+
+	n = snprintf(syscmd, sizeof(syscmd),
+		"%s --pipeline --cofactor --poly %s --logI %u --region %u --qrange %" PRIu64 ":%" PRIu64
+		" --sq-side %d --relations %s --restart --device %d > %s 2>&1",
+		thread_data->job.sievername, fobj->nfs_obj.job_infile, logI, logI - 1, q0, q1,
+		side, out, nfs_cuda_device(fobj, thread_data->tindex), logname);
+
+	if ((n < 0) || (n >= (int)sizeof(syscmd)))
+	{
+		printf("\nnfs: cuda-sieve command line is too long\n");
+		nfs_cuda_set_abort();
+		return;
+	}
+
+	if (fobj->VFLAG >= 0)
+	{
+		printf("nfs: commencing %s side lattice sieving over range: %" PRIu64 " - %" PRIu64 "\n",
+			side ? "algebraic" : "rational", q0, q1 + 1);
+	}
+	if (fobj->VFLAG > 1) printf("syscmd: %s\n", syscmd);
+	if (fobj->VFLAG > 1) fflush(stdout);
+
+	// start clean: nothing left from an earlier run may be mistaken for this one.
+	nfs_cuda_cleanup(out);
+	remove(logname);
+
+	status = nfs_exit_status(system(syscmd));
+	MySleep(100);
+
+	if (status == 0)
+	{
+		fid = fopen(out, "r");
+		if (fid != NULL)
+		{
+			// range finished.  count the relations.
+			while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+				thread_data->job.current_rels++;
+			fclose(fid);
+			remove(logname);
+			return;
+		}
+
+		if (nfs_cuda_file_exists(partname))
+		{
+			// a clean stop (ctrl-c or a stop file) exits 0 but leaves only the .part.
+			// system() hides ctrl-c from us, so this is how we find out.
+			printf("\nnfs: cuda-sieve stopped before finishing range %" PRIu64 " - %" PRIu64 "\n",
+				q0, q1 + 1);
+		}
+		else
+		{
+			printf("\nnfs: cuda-sieve exited without producing %s, possibly a bad path to the siever\n", out);
+			nfs_cuda_print_log_tail(logname);
+		}
+	}
+	else
+	{
+		printf("\nnfs: cuda-sieve returned code %d\n", status);
+
+		switch (status)
+		{
+		case 3:
+			printf("nfs: this cuda-sieve build cannot sieve the job (norms too wide); "
+				"rebuild it with a larger BN_LIMBS\n");
+			break;
+		case 4:
+			printf("nfs: cuda-sieve stopped making progress (watchdog)\n");
+			break;
+		case 5:
+			printf("nfs: cuda-sieve skipped too much of the band to trust its yield "
+				"(bucket overflow or large prime list truncation)\n");
+			break;
+		default:
+			break;
+		}
+
+		nfs_cuda_print_log_tail(logname);
+	}
+
+	nfs_cuda_cleanup(out);
+	nfs_cuda_set_abort();
+	return;
+}
+
 #ifdef USE_THREADPOOL
 void nfs_sieve_start(void* vptr)
 {
@@ -405,7 +647,8 @@ void nfs_sieve_start(void* vptr)
 	int is_3lp = ((job->mfbr > (2.5 * job->lpbr)) ||
 		(job->mfba > (2.5 * job->lpba))) ? 1 : 0;
 
-	is_3lp = is_3lp && fobj->nfs_obj.batch_3lp;
+	// cuda-sieve cofactors inline on the GPU: no raw files, no relation batch.
+	is_3lp = is_3lp && fobj->nfs_obj.batch_3lp && !NFS_USE_CUDA(fobj);
 	udata->is_3lp = is_3lp;
 
 	if (is_3lp && !job->has_3lp_batch)
@@ -545,9 +788,24 @@ void nfs_sieve_start(void* vptr)
 	}
 
 #if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
-	printf("creating gpu device context\n");
-	device_ctx_t* dev = gpu_device_init(0, fobj->VFLAG >= 0);
+	device_ctx_t* dev = NULL;
+	if (!NFS_USE_CUDA(fobj))
+	{
+		printf("creating gpu device context\n");
+		dev = gpu_device_init(0, fobj->VFLAG >= 0);
+	}
 #endif
+
+	if (NFS_USE_CUDA(fobj))
+	{
+		int ndev = nfs_cuda_ndev(fobj);
+
+		if (fobj->VFLAG >= 0)
+			printf("nfs: sieving with cuda-sieve on %d device(s) using %d thread(s)\n", ndev, (int)fobj->THREADS);
+		if ((int)fobj->THREADS > ndev)
+			printf("nfs: WARNING: %d threads will share %d cuda device(s); this needs a lot of GPU memory\n",
+				(int)fobj->THREADS, ndev);
+	}
 
 	for (i = 0; i < fobj->THREADS; i++)
 	{
@@ -2020,6 +2278,10 @@ static void nfs_afb_prime_cache(fact_obj_t* fobj, nfs_job_t* job)
 	char afbname[GSTR_MAXSIZE + 8];
 	char syscmd[2 * GSTR_MAXSIZE + 32];
 
+	// cuda-sieve does not read or write the lasieve <jobfile>.afb.0 cache
+	if (NFS_USE_CUDA(fobj))
+		return;
+
 	snprintf(afbname, sizeof(afbname), "%s.afb.0", fobj->nfs_obj.job_infile);
 
 	if (!fobj->nfs_obj.keep_afb)
@@ -2718,6 +2980,16 @@ void *lasieve_launcher(void *ptr) {
 	sprintf(batch3lp, fobj->nfs_obj.batch_3lp ? "-d" : "");
 		
 	gettimeofday(&bstart, NULL);
+
+	if (NFS_USE_CUDA(fobj))
+	{
+		// external cuda-sieve: own command line, no -d/.raw batch step
+		nfs_cuda_sieve_range(fobj, thread_data);
+
+		gettimeofday(&bstop, NULL);
+		thread_data->test_time = ytools_difftime(&bstart, &bstop);
+		return 0;
+	}
 
 	//start ggnfs binary - new win64 ASM enabled binaries current have a problem with this:
 	//sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s -n %d",

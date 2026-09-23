@@ -390,6 +390,8 @@ typedef struct
     uint32_t cadoMsieve;
     char cado_dir[GSTR_MAXSIZE];
     char convert_poly_path[GSTR_MAXSIZE];
+    char cuda_sieve[GSTR_MAXSIZE];  // path to the cuda-sieve executable; non-empty selects the cuda siever
+    char cuda_dev[GSTR_MAXSIZE];    // comma separated CUDA device list for the cuda siever (empty = device 0)
 } nfs_obj_t;
 
 // enum for implementing the "plan" and "pretest" switches

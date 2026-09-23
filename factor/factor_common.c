@@ -273,6 +273,9 @@ void init_factobj(fact_obj_t* fobj)
 
     fobj->nfs_obj.cadoMsieve = 0;
     strcpy(fobj->nfs_obj.convert_poly_path, "");
+    strcpy(fobj->nfs_obj.stage1_args, "");
+    strcpy(fobj->nfs_obj.cuda_dev, "");
+    strcpy(fobj->nfs_obj.cuda_sieve, "");
     fobj->nfs_obj.skip_snfs_check = 0;
 
     //initialize autofactor object

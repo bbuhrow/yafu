@@ -150,7 +150,10 @@
     <ClCompile Include="..\..\gnfs\ffpoly.c" />
     <ClCompile Include="..\..\gnfs\gf2.c" />
     <ClCompile Include="..\..\gnfs\gnfs.c" />
+    <ClCompile Include="..\..\gnfs\poly\poly_stats.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_engine.c" />
     <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu_hashtable.c" />
     <ClCompile Include="..\..\gnfs\poly\stage2\optimize_deg6.c" />
     <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg45_x.c" />
     <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg5_xy.c" />
@@ -182,6 +185,8 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\pthreads\config.h" />
     <ClInclude Include="..\..\gnfs\filter\filter.h" />
+    <ClInclude Include="..\..\gnfs\poly\poly_stats.h" />
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1_engine.h" />
     <ClInclude Include="..\..\gnfs\sieve\sieve.h" />
     <ClInclude Include="..\..\include\dd.h" />
     <ClInclude Include="..\..\common\filter\filter.h" />

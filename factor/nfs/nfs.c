@@ -1572,13 +1572,31 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 	{
 		FILE *test;
 		char name[1024];
-		int found, i;
+		int found = 0, i;
+
+		if (NFS_USE_CUDA(fobj))
+		{
+			// the user asked for the external cuda siever: look for that one binary
+			// instead of the lasieve set.  Don't fall back to siqs: the request
+			// was explicit.
+			test = fopen(fobj->nfs_obj.cuda_sieve, "rb");
+			if (test != NULL)
+			{
+				fclose(test);
+				return 0;
+			}
+
+			printf("nfs: could not find cuda-sieve executable %s\n", fobj->nfs_obj.cuda_sieve);
+			logprint_oc(fobj->flogname, "a", "nfs: could not find cuda-sieve executable %s\n",
+				fobj->nfs_obj.cuda_sieve);
+			return 1;
+		}
 
 		for (i=11; i<=16; i++)
 		{
 			sprintf(name, "%sggnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, i);
 #if defined(WIN32)
-			sprintf(name, "%s.exe", name);
+			strcat(name, ".exe");
 #endif
 			// test for existence of the siever
 			test = fopen(name, "rb");
@@ -1591,7 +1609,7 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 
             sprintf(name, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, i);
 #if defined(WIN32)
-            sprintf(name, "%s.exe", name);
+			strcat(name, ".exe");
 #endif
             // test for existence of the siever
             test = fopen(name, "rb");
@@ -1622,6 +1640,27 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 
 	return 0;
 }
+
+// set the name of the siever executable for this job.
+// the lasieve name is unchanged from what get_ggnfs_params always produced.
+void nfs_set_sievername(fact_obj_t* fobj, nfs_job_t* job)
+{
+	if (NFS_USE_CUDA(fobj))
+	{
+		// the external cuda siever is given by full path and used as is.
+		snprintf(job->sievername, sizeof(job->sievername), "%s", fobj->nfs_obj.cuda_sieve);
+		return;
+	}
+
+#if defined(WIN32)
+	snprintf(job->sievername, sizeof(job->sievername), "%sgnfs-lasieve4I%de.exe",
+		fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
+#else
+	snprintf(job->sievername, sizeof(job->sievername), "%sgnfs-lasieve4I%de",
+		fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
+#endif
+}
+
 
 int est_gnfs_size(nfs_job_t *job)
 {
@@ -2356,6 +2395,10 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		}
 	}
 
+	if (NFS_USE_CUDA(fobj) && (job->qrange < 10000)) {
+		job->qrange *= 10;
+	}
+
 	job->test_score = 9999999.0;		// haven't tested it yet.
 	
 	// if there is no min_rels in the table, use the equation
@@ -2390,10 +2433,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->startq = fobj->nfs_obj.startq;
 	}
 
-	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
-#if defined(WIN32)
-	sprintf(job->sievername, "%s.exe", job->sievername);
-#endif
+	nfs_set_sievername(fobj, job);
 
 	return betterskew;
 }

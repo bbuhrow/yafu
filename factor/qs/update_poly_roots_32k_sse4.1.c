@@ -650,8 +650,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			FILL_ONE_PRIME_LOOP_P(j);
 
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
+			nroot1 = (prime - update_data.firstroots1[j]);
+			nroot2 = (prime - update_data.firstroots2[j]);
 
 			FILL_ONE_PRIME_LOOP_N(j);
 		}
@@ -1525,8 +1525,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			FILL_ONE_PRIME_LOOP_P(j);
 
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
+			nroot1 = (prime - update_data.firstroots1[j]);
+			nroot2 = (prime - update_data.firstroots2[j]);
 
 			FILL_ONE_PRIME_LOOP_N(j);
 		}

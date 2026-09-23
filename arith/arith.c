@@ -506,7 +506,7 @@ void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
 }
 
 // TODO: these defines should be shared with other files that use _addcarry_u64/_subborrow_u64
-#if defined(COMPILER_MSVC)
+#if defined(_MSC_VER)
 #define rettype unsigned char
 #else
 // unsigned char _addcarry_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)

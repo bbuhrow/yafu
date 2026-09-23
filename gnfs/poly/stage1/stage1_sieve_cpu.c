@@ -496,7 +496,11 @@ prune_dup_arrays(cpu_thread_data_t *td, uint32 match_bits,
 		uint32 dup_array_bits, uint32 num_prefix,
 		uint32 estimated_dups)
 {
+#if defined(_MSC_VER)
+#define max_iter 20
+#else
 	const uint32 max_iter = 20;
+#endif
 	uint32 i, j;
 	uint32 *T = td->dup0;
 	uint32 *T2 = td->dup1;

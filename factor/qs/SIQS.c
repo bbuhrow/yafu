@@ -599,9 +599,15 @@ void siqsexit(int sig)
 
 static double now_sec(void)
 {
+#ifdef _MSC_VER
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)tv.tv_usec * 1e-6;
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+#endif
 }
 
 void SIQS(fact_obj_t *fobj)
