@@ -5599,7 +5599,7 @@ void sort(uint64_t *data, uint32_t sz, int dir)
 	
 	if (!is_aligned)
 	{
-		adata = (uint64_t*)aligned_malloc(new_sz * sizeof(uint64_t), 64);
+		adata = (uint64_t*)xmalloc_align(new_sz * sizeof(uint64_t));
 		memcpy(adata, data, sz * sizeof(uint64_t));
 	}
 	else
@@ -5620,7 +5620,7 @@ void sort(uint64_t *data, uint32_t sz, int dir)
 	if (!is_aligned)
 	{
 		memcpy(data, adata, sz * sizeof(uint64_t));
-		aligned_free(adata);
+		align_free(adata);
 	}
 	
 	return;
@@ -6255,7 +6255,7 @@ void sort32(uint32_t *data, uint32_t sz, int dir)
 	
 	if (!is_aligned)
 	{
-		adata = (uint32_t*)aligned_malloc(new_sz * sizeof(uint32_t), 64);
+		adata = (uint32_t*)xmalloc_align(new_sz * sizeof(uint32_t));
 		memcpy(adata, data, sz * sizeof(uint32_t));
 	}
 	else
@@ -6276,7 +6276,7 @@ void sort32(uint32_t *data, uint32_t sz, int dir)
 	if (!is_aligned)
 	{
 		memcpy(data, adata, sz * sizeof(uint32_t));
-		aligned_free(adata);
+		align_free(adata);
 	}
 	
 	return;

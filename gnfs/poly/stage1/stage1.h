@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: stage1.h 1023 2018-08-19 00:30:42Z jasonp_sf $
+$Id: stage1.h 1084 2026-05-10 03:05:04Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #ifndef _STAGE1_H_
@@ -23,7 +23,6 @@ $Id: stage1.h 1023 2018-08-19 00:30:42Z jasonp_sf $
 #include <poly_skew.h>
 #include <cuda_xface.h>
 #include <thread.h>
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,6 +127,10 @@ void poly_coeff_copy(poly_coeff_t *dest, poly_coeff_t *src);
 
 /*-----------------------------------------------------------------------*/
 
+#define MAX_SPECIAL_Q (0x7fffffffffffffffULL)
+#define P_BITS 31
+#define MAX_P (((uint32)1 << P_BITS) - 1)
+
 /* Kleinjung's algorithm essentially reduces to an
    all-against-all search between two large collections of
    arithmetic progressions, looking for pairs of progressions
@@ -189,15 +192,15 @@ void sieve_fb_init(void *s_in, poly_coeff_t *coeff,
    for each p is between num_roots_min and num_roots_max 
    (bounded by MAX_ROOTS) */
 
-#define MAX_ROOTS 128
+#define MAX_ROOTS 31104
 
-void sieve_fb_reset(void *s_in, uint32 p_min, uint32 p_max,
+void sieve_fb_reset(void *s_in, uint64 p_min, uint64 p_max,
 			uint32 num_roots_min, uint32 num_roots_max);
 
 /* function that 'does something' when a single p 
    and all its roots is found */
 
-typedef void (*root_callback)(uint32 p, uint32 num_roots, uint64 *roots, 
+typedef void (*root_callback)(uint64 p, uint32 num_roots, mpz_t *roots, 
 				void *extra);
 
 /* find the next p and all of its roots. The code returns
@@ -210,45 +213,85 @@ typedef void (*root_callback)(uint32 p, uint32 num_roots, uint64 *roots,
    no order may be assumed for composite p returned by 
    consecutive calls */
 
-#define P_SEARCH_DONE ((uint32)(-2))
+#define P_SEARCH_DONE ((uint64)(-2))
 
-uint32 sieve_fb_next(void *s_in, poly_coeff_t *c, 
+uint64 sieve_fb_next(void *s_in, poly_coeff_t *c, 
 			root_callback callback,
 			void *extra);
 
 /*-----------------------------------------------------------------------*/
 
-/* what to do when the collision search finds a 'stage 1 hit' */
+typedef struct {
 
-uint32
-handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
-		uint64 special_q_root, int64 res);
+	void *sieve_p_fb;
+	void *sieve_q_fb;
+	double cumulative_elapsed;
+	void *hw_thread_data;
+} stage1_sieve_thread_data_t;
 
-/* main search routine */
+/* forward decl; full definition in stage1_engine.h (which includes this
+   header, so we cannot include it back -- a pointer is all we need here) */
+struct stage1_engine_vtable;
 
-#ifdef HAVE_CUDA_POLY
+typedef struct {
 
-/* GPU search routine */
+	msieve_obj *obj;
+	poly_search_t *poly;
 
-double sieve_lattice_gpu(msieve_obj *obj,
-			poly_search_t *poly, 
-			poly_coeff_t *c, 
-			void *gpu_data,
-			double deadline);
+	uint32 num_threads;
+	stage1_sieve_thread_data_t * threads;
 
-void * gpu_data_init(msieve_obj *obj, poly_search_t *poly);
-void gpu_data_free(void *gpu_data);
+	struct threadpool *stage1_threadpool;
+	struct threadpool *stage2_threadpool;
+	void * hw_data;
+	const struct stage1_engine_vtable *engine;  /* selected collision engine */
+	poly_stage_stats_t* stats;
+	stage2_worker_t* stage2_workers;
+	uint32 num_stage2_workers;
 
-#else
+	/* stage-1 cross-check test mode (0 = off) */
+	int    test_mode;
+	mpz_t  test_ad;
+	uint32 test_pmin, test_pmax;
+	uint64 test_qmin, test_qmax;
+	FILE* test_dump;
 
-/* CPU search routine */
+} stage1_sieve_data_t;
 
-double sieve_lattice_cpu(msieve_obj *obj,
-			poly_search_t *poly, 
-			poly_coeff_t *c,
-			double deadline);
+typedef struct {
+	msieve_obj *obj;
+	poly_coeff_t *c;
+	stage1_sieve_data_t *d;
+	uint32 coeff_deadline;
+} task_data_t;
 
-#endif
+/* GPU-specific */
+void* gpu_sieve_data_init(msieve_obj* obj, uint32 num_threads, uint32 id);
+void gpu_sieve_data_free(void * gpu_data);
+void gpu_thread_data_init(void *data, int threadid);
+void gpu_thread_data_free(void *data, int threadid);
+void stage1_specialq_gpu(task_data_t *task, uint32 threadid,
+			uint64 special_q_min, uint64 special_q_max, 
+			uint32 p_min, uint32 p_max);
+
+/* CPU-specific */
+void cpu_thread_data_init(void *data, int threadid);
+void cpu_thread_data_free(void *data, int threadid);
+void stage1_specialq_cpu(task_data_t *task, uint32 threadid,
+			uint64 special_q_min, uint64 special_q_max, 
+			uint32 p_min, uint32 p_max);
+uint64 count_total_q(task_data_t* task, uint32 threadid,
+	uint64 special_q_min, uint64 special_q_max);
+
+/* 128-bit integers */
+
+typedef struct {
+	uint32 w[4];
+} uint128;
+
+void handle_collision(task_data_t *task, uint32 threadid,
+			uint64 p, uint64 special_q,
+			uint128 special_q_root, int64 res);
 
 #ifdef __cplusplus
 }

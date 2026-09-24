@@ -9,7 +9,7 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id$
+$Id: cuda_intrinsics.h 817 2012-11-11 14:58:29Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #if defined(__CUDACC__) && !defined(CUDA_INTRINSICS_H)
@@ -356,4 +356,3 @@ montmul64_r(uint64 n, uint32 w) {
 #endif
 
 #endif /* defined(__CUDACC__) && !defined(CUDA_INTRINSICS_H) */
-

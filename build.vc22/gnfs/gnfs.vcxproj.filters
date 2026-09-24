@@ -125,6 +125,15 @@
     <ClCompile Include="..\..\gnfs\poly\poly_param.c">
       <Filter>Source Files\poly</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\poly_stats.c">
+      <Filter>Source Files\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_engine.c">
+      <Filter>Source Files\poly\Stage1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu_hashtable.c">
+      <Filter>Source Files\poly\Stage1</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\common\filter\filter.h">
@@ -163,7 +172,10 @@
     <ClInclude Include="..\..\include\ms_msieve.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\ms_include\dd.h">
+    <ClInclude Include="..\..\gnfs\poly\poly_stats.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1_engine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,0 +1,29 @@
+--- a/ocl_xface.h
++++ b/ocl_xface.h
+@@ -126,10 +126,24 @@
+     GPU_ARG_INT32,
+     GPU_ARG_UINT32,
+     GPU_ARG_INT64,
+-    GPU_ARG_UINT64
++    GPU_ARG_UINT64,
++    /* Phase 3 addition: dynamically-sized __local kernel argument, the
++     * OpenCL equivalent of CUDA's per-launch dynamic shared memory
++     * (cudaFuncSetAttribute + the 3rd <<<>>> launch parameter) used by
++     * filter_per_bucket_kernel's runtime-sized hash table. Has no
++     * associated device-side value -- gpu_arg_t.uint32_arg repurposed
++     * to hold the BYTE SIZE of the local allocation; gpu_launch_set
++     * calls clSetKernelArg(kernel, idx, size, NULL) for this case. */
++    GPU_ARG_LOCAL
+ } gpu_arg_type_t;
+ 
+-#define GPU_MAX_KERNEL_ARGS 15
++/* Bumped 15 -> 20 (Phase 3) to match cuda_xface.h's own 15->20 bump
++ * (2026-05-25, for the fused trans+scatter kernel) -- Phase 3's own
++ * ocl_count_and_store_matched_values kernel already needs 16, so this
++ * was going to be needed sooner or later regardless; matching CUDA's
++ * number rather than picking a new one keeps the two headers in sync
++ * for whatever Phase 4 needs too. */
++#define GPU_MAX_KERNEL_ARGS 20
+ 
+ typedef struct {
+     uint32_t        num_args;

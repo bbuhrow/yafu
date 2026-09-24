@@ -1999,6 +1999,9 @@ mpz_t* smallmpqs(mpz_t n, int *num_factors)
 	if (mpz_even_p(tmp))
 		mpz_add_ui(tmp, tmp, 1);
 
+	pmax = fb->list->prime[fb->B - 1];
+	cutoff = pmax * sm_sieve_params.large_mult;
+
 	// compute the number of bits in M/2*sqrt(N/2), the approximate value
 	// of residues in the sieve interval
 	// sieve locations greater than this are worthy of trial dividing
@@ -2010,11 +2013,7 @@ mpz_t* smallmpqs(mpz_t n, int *num_factors)
 	small_bits = 7;
 	closnuf -= small_bits;
 	start_prime = 7;
-
 	s_init = closnuf;
-
-	pmax = fb->list->prime[fb->B - 1];
-	cutoff = pmax * sm_sieve_params.large_mult;
 
 	// print some info to the screen and the log file
 	if (0)

@@ -1,0 +1,24 @@
+--- a/ocl_xface.h
++++ b/ocl_xface.h
+@@ -33,7 +33,13 @@
+ #ifndef _OCL_XFACE_H
+ #define _OCL_XFACE_H
+ 
+-#ifdef HAVE_OCL_BATCH_FACTOR   /* reuse the existing guard flag */
++/* Originally gated on HAVE_OCL_BATCH_FACTOR alone (the cofactorization
++ * feature flag). The gerbicz OpenCL port (locked decision #8) builds
++ * under its own guard, HAVE_OCL_POLY, and per decision #3 the two
++ * OpenCL features are built mutually exclusive of the CUDA build but
++ * NOT necessarily of each other -- so either flag must unlock this
++ * shared header, or a gerbicz-only build silently gets an empty file. */
++#if defined(HAVE_OCL_BATCH_FACTOR) || defined(HAVE_OCL_POLY)
+ 
+ #include <stdint.h>
+ #include <stdio.h>
+@@ -167,5 +173,5 @@
+ }
+ #endif
+ 
+-#endif /* HAVE_OCL_BATCH_FACTOR */
++#endif /* HAVE_OCL_BATCH_FACTOR || HAVE_OCL_POLY */
+ #endif /* _OCL_XFACE_H */

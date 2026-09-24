@@ -33,7 +33,13 @@
 #ifndef _OCL_XFACE_H
 #define _OCL_XFACE_H
 
-#ifdef HAVE_OCL_BATCH_FACTOR   /* reuse the existing guard flag */
+/* Originally gated on HAVE_OCL_BATCH_FACTOR alone (the cofactorization
+ * feature flag). The gerbicz OpenCL port (locked decision #8) builds
+ * under its own guard, HAVE_OCL_POLY, and per decision #3 the two
+ * OpenCL features are built mutually exclusive of the CUDA build but
+ * NOT necessarily of each other -- so either flag must unlock this
+ * shared header, or a gerbicz-only build silently gets an empty file. */
+#if defined(HAVE_OCL_BATCH_FACTOR) || defined(HAVE_OCL_POLY)
 
 #include <stdint.h>
 #include <stdio.h>
@@ -120,10 +126,24 @@ typedef enum {
     GPU_ARG_INT32,
     GPU_ARG_UINT32,
     GPU_ARG_INT64,
-    GPU_ARG_UINT64
+    GPU_ARG_UINT64,
+    /* Phase 3 addition: dynamically-sized __local kernel argument, the
+        * OpenCL equivalent of CUDA's per-launch dynamic shared memory
+        * (cudaFuncSetAttribute + the 3rd <<<>>> launch parameter) used by
+        * filter_per_bucket_kernel's runtime-sized hash table. Has no
+        * associated device-side value -- gpu_arg_t.uint32_arg repurposed
+        * to hold the BYTE SIZE of the local allocation; gpu_launch_set
+        * calls clSetKernelArg(kernel, idx, size, NULL) for this case. */
+    GPU_ARG_LOCAL
 } gpu_arg_type_t;
 
-#define GPU_MAX_KERNEL_ARGS 15
+/* Bumped 15 -> 20 (Phase 3) to match cuda_xface.h's own 15->20 bump
+ * (2026-05-25, for the fused trans+scatter kernel) -- Phase 3's own
+ * ocl_count_and_store_matched_values kernel already needs 16, so this
+ * was going to be needed sooner or later regardless; matching CUDA's
+ * number rather than picking a new one keeps the two headers in sync
+ * for whatever Phase 4 needs too. */
+#define GPU_MAX_KERNEL_ARGS 20
 
 typedef struct {
     uint32_t        num_args;
@@ -167,5 +187,5 @@ void gpu_launch_set(gpu_launch_t *launch, gpu_arg_t *args);
 }
 #endif
 
-#endif /* HAVE_OCL_BATCH_FACTOR */
+#endif /* HAVE_OCL_BATCH_FACTOR || HAVE_OCL_POLY */
 #endif /* _OCL_XFACE_H */

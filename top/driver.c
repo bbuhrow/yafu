@@ -1803,6 +1803,14 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.poly_testsieve = options->poly_testsieve;
     fobj->nfs_obj.batch_3lp = options->nfs_batch_3lp;
     fobj->nfs_obj.keep_afb = options->keep_afb;
+    strcpy(fobj->nfs_obj.cuda_sieve, options->cuda_sieve);
+    strcpy(fobj->nfs_obj.cuda_dev, options->cuda_dev);
+    if ((fobj->nfs_obj.cuda_sieve[0] != '\0') && fobj->nfs_obj.batch_3lp)
+    {
+        // cuda-sieve cofactors on the GPU inline; there are no raw files to batch.
+        printf("nfs: cuda_sieve selected, ignoring nfs_batch_3lp\n");
+        fobj->nfs_obj.batch_3lp = 0;
+    }
 
     // raise min_rels bounds by a percentage
     // on unsuccessful filtering
@@ -1931,6 +1939,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     fobj->nfs_obj.timeout = options->nfs_timeout;
     strcpy(fobj->nfs_obj.job_infile, options->nfs_jobfile);
+    strcpy(fobj->nfs_obj.stage1_args, options->nfs_stage1_args);
 
     // default = fast search
     fobj->nfs_obj.poly_option = 4;

@@ -92,6 +92,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ecm_demo", "ecm_demo\ecm_de
 		{94AC6180-9B6A-475C-8345-511555C74EF6} = {94AC6180-9B6A-475C-8345-511555C74EF6}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj", "{8EF64AE0-32F4-4B69-8960-7772EE3500F3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -228,6 +230,14 @@ Global
 		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|Win32.Build.0 = Release|Win32
 		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|x64.ActiveCfg = Release|x64
 		{8ECCE0C7-0BFD-4021-89CE-3CEB9034ABAA}.Release|x64.Build.0 = Release|x64
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Debug|Win32.Build.0 = Debug|Win32
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Debug|x64.ActiveCfg = Debug|x64
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Debug|x64.Build.0 = Debug|x64
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Release|Win32.ActiveCfg = Release|Win32
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Release|Win32.Build.0 = Release|Win32
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Release|x64.ActiveCfg = Release|x64
+		{8EF64AE0-32F4-4B69-8960-7772EE3500F3}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

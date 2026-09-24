@@ -17,6 +17,7 @@ benefit from your work.
 #include <gmp.h>
 #include "nfs_impl.h"
 #include "threadpool.h"
+#include "factor.h"
 #include <math.h>
 
 #ifdef __MINGW32__
@@ -905,6 +906,12 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
     char quality[8];
 	int have_new_best = 0;
 	int poly_time_exceeded = 0;
+	int poly_owns_threading = !fobj->nfs_obj.nps && !fobj->nfs_obj.npr;
+	int saved_threads = fobj->THREADS;
+
+	if (poly_owns_threading)
+		fobj->THREADS = 1;          /* -np / -np1: one worker, msieve threads internally */
+	/* else -nps/-npr: leave THREADS alone so split_file + the spawn loop stay N-way */
 
 	//an array of thread data objects
 	nfs_threaddata_t *thread_data;
@@ -988,6 +995,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	//		  (double)high->seconds * (i - low->bits)) / dist);
 	//}    
 
+	// the overall deadline for poly-select.
+	// gets divided into coefficient deadlines by init_poly_threaddata
 	deadline = params.deadline;
 
 	// initialize the variable tracking the total time spent (over all threads)
@@ -1005,6 +1014,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			//also create a .fb file
 			ggnfs_to_msieve(fobj, job);
 
+			if (poly_owns_threading)
+				fobj->THREADS = saved_threads;
 			return;
 		}
 		else
@@ -1040,18 +1051,6 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		}
 	}		
 
-    // now we always do "fast", i.e., divide deadline by number of threads,
-    // and search for an "avg" poly score by default.
-	if (1) //fobj->nfs_obj.poly_option == 0)
-	{
-		// 'fast' search.  scale by number of threads
-		deadline /= fobj->THREADS;
-
-		// msieve poly-select wants a nonzero deadline
-		if (deadline == 0)
-			deadline = 1;
-	}
-
 	if ((fobj->nfs_obj.timeout < deadline) && (fobj->nfs_obj.timeout > 1.0))
 	{
 		deadline = fobj->nfs_obj.timeout;
@@ -1083,21 +1082,47 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
         e0 *= 1.15;
 #endif
 
-#else
+#elif 0
 	{ /* SB: tried L[1/3,c] fit; it is no better than this */
 		// from msieve source...
-		int digits = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+		int digits = gmp_base10(fobj->nfs_obj.gmp_n); // mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 		int degree = fobj->nfs_obj.pref_degree;
 
 		e0 = 0.0625 * digits + 1.69;
 		if (degree > 4)
+		{
 			e0 = (digits >= 121) ?
-			(0.0635 * digits + 1.608) :
-			(0.0526 * digits + 3.23);
+				(0.0635 * digits + 1.608) :
+				(0.0526 * digits + 3.23);
+		}
 		e0 = exp(-log(10) * e0);
 	#ifdef HAVE_CUDA
 		e0 *= 1.15;
 	#endif
+
+#else
+
+		{ /* BB: adjusted deg5 crossover and intercept for more realistic
+		  Murphy-E goals below crossover, blending into good trendline above crossover */
+			// from msieve source...
+			int digits = gmp_base10(fobj->nfs_obj.gmp_n); // mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+			int degree = fobj->nfs_obj.pref_degree;
+
+			e0 = 0.0625 * digits + 1.69;
+			if (degree > 4)
+			{
+				// the two curves cross at c149, not c121
+				// this led to the range c121 - c149 having unrealistically
+				// large Murphy-E
+				e0 = (digits >= 144) ?
+					(0.0635 * digits + 1.608) :
+					(0.0526 * digits + 3.178);
+			}
+			e0 = exp(-log(10) * e0);
+#if 0 //def HAVE_CUDA
+			e0 *= 1.15;
+#endif
+
 
 #endif
         /* seen exceptional polys with +40% but that's */
@@ -1114,7 +1139,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
     }
 
-    if (fobj->VFLAG > 0)
+    if (fobj->VFLAG >= 0)
     {
         printf("nfs: setting deadline of %u seconds\n", deadline);
         printf("nfs: expecting degree %d poly E from %.2le to > %.2le\n",
@@ -1127,7 +1152,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
         // quality mulitplier really high.  If we find
         // one above this value surely it is ok to stop,
         // even if e.g., 'deep' was specified.
-        quality_mult = 1.4;
+		
+		// this sets the murphy_e_heuristic negative which is ignored by msieve.
+		quality_mult = -1; // 1.4;
         strcpy(quality, "awesome");
 
         fobj->nfs_obj.poly_option == 4;
@@ -1149,6 +1176,34 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
         quality_mult = 1.036;
         strcpy(quality, "avg");
     }
+
+	// an early abort for msieve polyselect
+	fobj->nfs_obj.murphy_e_heuristic = e0 * quality_mult;
+	if (fobj->VFLAG >= 0)
+		printf("nfs: accepting Murphy-E quality above %1.4e\n", fobj->nfs_obj.murphy_e_heuristic);
+
+	// print an estimate for time we should spend
+	int have_tune = check_tune_params(fobj);
+	if (have_tune)
+	{
+		double gnfs_time_est = fobj->nfs_obj.gnfs_multiplier * exp(
+			fobj->nfs_obj.gnfs_exponent * mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+		gnfs_time_est /= saved_threads;
+
+		if (fobj->VFLAG >= 0)
+			printf("nfs: estimated total time from tune params with %u threads = %u sec\n",
+				saved_threads, (uint32_t)gnfs_time_est);
+
+		if (fobj->nfs_obj.poly_percent_max > 0)
+		{
+			deadline = (uint32_t)(gnfs_time_est / (double)100. * (double)fobj->nfs_obj.poly_percent_max);
+
+			if (fobj->VFLAG >= 0)
+				printf("nfs: estimated total polyselect time (%u%% of total) = %u sec\n", 
+					fobj->nfs_obj.poly_percent_max, deadline);
+		}
+	}
 
 	//start a counter for the poly selection
 	gettimeofday(&startt, NULL);
@@ -1252,7 +1307,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 		// create thread data with dummy range for now
 		init_poly_threaddata(t, obj, mpN, factor_list, i, flags,
-			deadline, (uint64_t)1, (uint64_t)1001);
+			deadline, (uint64_t)1, (uint64_t)1001, saved_threads);
 
 		//give this thread a unique index
 		t->tindex = i;
@@ -1472,6 +1527,14 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 				msieve_obj_free(t->obj);
 				t->obj = NULL;
 
+				if (fobj->VFLAG >= 0)
+					printf("nfs: polyselect elasped time/deadline: %u/%u \n",
+						total_time, deadline);
+
+				if (fobj->VFLAG >= 0)
+					printf("nfs: accepting Murphy-E quality above %1.4e\n", 
+						fobj->nfs_obj.murphy_e_heuristic);
+
 				// if user has specified "good enough" option then check if
 				// we've found one and stop if so
 				if ((!is_startup) && (!special_polyfind))
@@ -1479,8 +1542,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 					bestscore = find_best_msieve_poly(fobj, job, fobj->nfs_obj.job_infile, 0);
 					if ((bestscore > oldbest) && (oldbest > 1e-30))
 					{
-						printf("=== new best score %1.4e > old best score %1.4e\n",
-							bestscore, oldbest);
+						if (fobj->VFLAG >= 0)
+							printf("nfs: === new best score %1.4e > old best score %1.4e\n",
+								bestscore, oldbest);
 						oldbest = bestscore;
 						have_new_best = 1;
 					}
@@ -1525,8 +1589,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
                 // if we can re-start the thread such that it is likely to finish before the
                 // deadline, go ahead and do so.  Also make sure we at least have
                 // one poly before quitting.
-                if (((uint32_t)t_time + estimated_range_time <= deadline) ||
-					(bestscore < 1e-30)) 
+                if (1) // (((uint32_t)t_time + estimated_range_time <= deadline) || (bestscore < 1e-30)) 
                 {
 					// we have time to run a new range or we haven't found 
 					// a poly yet.  First check a couple special conditions before
@@ -1597,14 +1660,14 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						double curr_poly_time = ytools_difftime(&startt, &teststop);
 						double est_percent_poly = (curr_poly_time / total_est_sec) * 100;
 
-						if (est_percent_poly < fobj->nfs_obj.poly_percent_max)
+						if (curr_poly_time < (double)deadline) //est_percent_poly < fobj->nfs_obj.poly_percent_max)
 						{
 							if (t->task == TASK_POLY)
 							{
 								// initialize the thread for poly select on
 								// a new range of coefficients.
 								init_poly_threaddata(t, obj, mpN, factor_list, tid, flags,
-									deadline, start, start + range);
+									deadline, start, start + range, saved_threads);
 
 								if (fobj->nfs_obj.poly_option == 2)
 								{
@@ -1639,21 +1702,24 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						}
 						else
 						{
-							poly_time_exceeded = 1;
-							deadline = 0;
-
 							if (fobj->VFLAG >= 0)
 							{
-								printf("nfs: current poly select time of %1.2f sec is %1.2f%% of estimated "
-									"sieve time (> %d%%), stopping polyselect\n",
-									curr_poly_time, est_percent_poly, 
-									fobj->nfs_obj.poly_percent_max);
+								//printf("nfs: current poly select time of %1.2f sec is %1.2f%% of estimated "
+								//	"sieve time (> %d%%), stopping polyselect\n",
+								//	curr_poly_time, est_percent_poly, 
+								//	fobj->nfs_obj.poly_percent_max);
+								printf("nfs: current poly select time exceeds deadline (%1.2f, %u), "
+									"stopping polyselect\n",
+									curr_poly_time, deadline);
 							}
 							logprint_oc(fobj->flogname, "a",
 								"nfs: current poly select time of %1.2f sec is %1.2f%% of estimated "
 								"sieve time (> %d%%), stopping polyselect\n",
 								curr_poly_time, est_percent_poly,
 								fobj->nfs_obj.poly_percent_max);
+
+							poly_time_exceeded = 1;
+							//deadline = 0;
 
 							// send a stop signal to all active threads doing standard polyselect.
 							for (i = 0; i < fobj->THREADS; i++)
@@ -1791,6 +1857,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		ggnfs_to_msieve(fobj, job);
 	}
 
+	if (poly_owns_threading)
+		fobj->THREADS = saved_threads;
 	return;
 }
 
@@ -1909,7 +1977,7 @@ void get_default_poly5_norms(double digits, double* norm1, double* norm2, double
 
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags,
-	uint32_t deadline, uint64_t start, uint64_t stop)
+	uint32_t deadline, uint64_t start, uint64_t stop, int num_msieve_threads)
 {
 	fact_obj_t *fobj = t->fobj;
 	char *nfs_args = (char *)xmalloc(1024 * sizeof(char));
@@ -1918,120 +1986,56 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
     int deadline_per_coeff;
 	int degree;
 
-    // this is the old deadline table used in msieve prior to version 1023.
-    // if we just use the deadline per thread then we spend all our time
-    // on a single range of coefficients per thread.  
-    // It's a question of searching really deep in a small range of coefficients
-    // or scanning lightly through a wider range of coefficients.  The latter
-    // is what yafu used to do prior to 1023 so that's what this emulates.
-    // Testing with the new approach seems to show that we often find a perfectly
-    // acceptable poly fairly quickly, then spend a long time finishing
-    // the search for at best an incremental improvement in score.  With
-    // larger inputs that might be ok, but for most use below say c130 it
-    // seems wasteful.
-    //if (digits <= 100.0)
-    //    deadline_per_coeff = 5;
-    //else if (digits <= 105.0)
-    //    deadline_per_coeff = 20;
-    //else if (digits <= 110.0)
-    //    deadline_per_coeff = 30;
-    //else if (digits <= 120.0)
-    //    deadline_per_coeff = 50;
-    //else if (digits <= 130.0)
-    //    deadline_per_coeff = 100;
-    //else if (digits <= 140.0)
-    //    deadline_per_coeff = 200;
-    //else if (digits <= 150.0)
-    //    deadline_per_coeff = 400;
-    //else if (digits <= 175.0)
-    //    deadline_per_coeff = 800;
-    //else if (digits <= 200.0)
-    //    deadline_per_coeff = 1600;
-    //else
-    //    deadline_per_coeff = 3200;
-
-	deadline_per_coeff = deadline;
+	// deadline is an overall job deadline... reduce it now that msieve enforces coefficient deadlines
+	// deadline_per_coeff = deadline;
+	// this gets us at least 4 new sets of a_d throughout the run
+	deadline_per_coeff = deadline / 1;
+	if (deadline_per_coeff == 0)
+		deadline_per_coeff = 1;
 
 	t->logfilename = (char *)malloc(80 * sizeof(char));
 	t->polyfilename = (char *)malloc(80 * sizeof(char));
 	t->fbfilename = (char *)malloc(80 * sizeof(char));
 
-    
-	double norm1, norm2, min_e;
-	if (digits < 108.0)
-    {
-        //get_default_poly4_norms(digits, &norm1, &norm2, &min_e);
-		poly_params_t params;
-		get_default_params(digits, &params, params_deg4, num_params_deg4);
-		norm1 = params.stage1_norm;
-		norm2 = params.stage2_norm;
-		min_e = params.final_norm;
-		degree = 4;
-    }
-    else
-    {
-		//get_default_poly5_norms(digits, &norm1, &norm2, &min_e);
-		poly_params_t params;
-		get_default_params(digits, &params, params_deg5, num_params_deg5);
-		norm1 = params.stage1_norm;
-		norm2 = params.stage2_norm;
-		min_e = params.final_norm;
-		degree = 5;
-    }
+	// use any user parameters first
+	strcpy(nfs_args, fobj->nfs_obj.stage1_args);
 
-	// we want to make sure we actually find some polynomials when running on 
-	// really small inputs.  The default msieve values don't seem to allow
-	// enough polys to be found... here we tweak them a little bit.
-#ifdef HAVE_CUDA
-	strcpy(nfs_args, "");
-#else
-	if (digits < 115.0)
-	{
-		norm1 *= 0.8;
-		min_e *= 0.9;
+	sprintf(nfs_args + strlen(nfs_args), " poly_verbose=%d",
+		t->fobj->VFLAG);
 
-		sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d "
-			"stage1_norm=%1.4e stage2_norm=%1.4e min_evalue=%1.4e",
-			start, stop, deadline_per_coeff, norm1, norm2, min_e);
-	}
-	else
-	{
-		sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d",
-			start, stop, deadline_per_coeff);
+	// if there is a heuristic early abort, pass it in.
+	if (fobj->nfs_obj.murphy_e_heuristic > 0.0) {
+		sprintf(nfs_args + strlen(nfs_args), " murphy_e_threshold=%.4e",
+			fobj->nfs_obj.murphy_e_heuristic);
 	}
 
-	if ((t->fobj->VFLAG > 0) && (tid == 0))
+	// if any of these are specifed by the user in fobj->nfs_obj.stage1_args, then
+	// the user ones will take precedence (msieve will ignore a second instance
+	// of the arg).
 	{
-		printf("nfs: flags = %08x\n", flags);
-		printf("nfs: stage 1 norm = %0.4le\n", norm1);
-		printf("nfs: stage 2 norm = %0.4le\n", norm2);
-		printf("nfs: min E score  = %0.4le\n", min_e);
-		printf("nfs: degree = %d\n", degree);
+		sprintf(nfs_args + strlen(nfs_args), " min_coeff=%" PRIu64 " max_coeff=%" PRIu64 ""
+			" coeff_deadline=%d poly_deadline=%d",
+			start, stop, deadline_per_coeff, deadline);
 	}
-#endif
+
+	if (fobj->VFLAG > 1)
+		printf("nfs: polyselect args: %s\n", nfs_args);
 
 	sprintf(t->polyfilename,"%s.%d",fobj->nfs_obj.outputfile,tid);
 	sprintf(t->logfilename,"%s.%d",fobj->nfs_obj.logfile,tid);
 	sprintf(t->fbfilename,"%s.%d",fobj->nfs_obj.fbfile,tid);
 
-	//make sure there isn't a preexisting fb file
+	// make sure there isn't a preexisting fb file
 	remove(t->fbfilename);
 
-	//create an msieve_obj.  for poly select, the intermediate output file should be specified in
-	//the savefile field
-#ifdef HAVE_CUDA
-	printf("calling msieve_obj_new()\n");
-	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename,
-		fobj->seed1, fobj->seed2, (uint32_t)0,
-		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
-		(uint32_t)fobj->THREADS, (uint32_t)0, NULL);
-#else
+	// create an msieve_obj.  for poly select, the intermediate output file should be specified in
+	// the savefile field
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename, 
 		fobj->seed1, fobj->seed2, (uint32_t)0,
 		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
-        (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
-#endif
-	//pointers to things that are static during poly select
+        (uint32_t)num_msieve_threads, (uint32_t)0, nfs_args);	// fobj->THREADS
+
+	// pointers to things that are static during poly select
 	t->mpN = mpN;
 	t->factor_list = factor_list;
 	gettimeofday(&t->thread_start_time, NULL);
@@ -2044,10 +2048,10 @@ void get_polysearch_params(fact_obj_t *fobj, uint64_t*start, uint64_t*range)
 	//search smallish chunks of the space in parallel until we've hit our deadline
 	if (fobj->nfs_obj.polystart > 0)
 		*start = fobj->nfs_obj.polystart;
-	else if (gmp_base10(fobj->nfs_obj.gmp_n) <= 120)
+	else //if (gmp_base10(fobj->nfs_obj.gmp_n) <= 120)
 		*start = 120ULL;		// default leading coefficient
-	else
-		*start = 2048ULL;		// default leading coefficient
+	//else
+	//	*start = 2048ULL;		// default leading coefficient
 	
 	if (fobj->nfs_obj.polyrange > 0)
 	{
@@ -2087,13 +2091,13 @@ void *polyfind_launcher(void *ptr)
 			uint64_t start, stop; // one instance where the new msieve api is rather a pain
 			if (t->obj->nfs_args != NULL)
 			{
-				if (strlen(t->obj->nfs_args) > 10)
-				{
-					sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
-					printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
-						t->tindex, start, stop);
-					fflush(stdout);
-				}
+				//if (strlen(t->obj->nfs_args) > 10)
+				//{
+				//	sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
+				//	printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
+				//		t->tindex, start, stop);
+				//	fflush(stdout);
+				//}
 			}
 		}
 

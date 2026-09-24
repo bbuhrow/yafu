@@ -236,9 +236,9 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 
 double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 {
-	//using rough empirical scaling equations, number size, information
-	//on cpu type, architecture, speed, and compilation options, 
-	//compute how long we think gnfs would take to finish a factorization
+	// using rough empirical scaling equations, number size, information
+	// on cpu type, architecture, speed, and compilation options, 
+	// compute how long we think gnfs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
 	double freq = fobj->MEAS_CPU_FREQUENCY;
@@ -247,9 +247,9 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	cpu = ytools_get_cpu_type();
 	estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
 
-	//adjust for multi-threaded nfs
-	//if we assume threading is perfect, we'll get a smaller estimate for
-	//nfs than we can really achieve, resulting in less ECM, so fudge it a bit
+	// adjust for multi-threaded nfs
+	// if we assume threading is perfect, we'll get a smaller estimate for
+	// nfs than we can really achieve, resulting in less ECM, so fudge it a bit
 	if (fobj->THREADS > 1)
 	{
 		switch (cpu)
@@ -1185,35 +1185,6 @@ enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
 		next_state = state_nfs;
 
 	return next_state;
-}
-
-int check_tune_params(fact_obj_t *fobj)
-{
-	if (fobj->qs_obj.qs_multiplier == 0 || 
-		fobj->qs_obj.qs_exponent == 0 || 
-		fobj->qs_obj.qs_tune_freq == 0 ||
-		fobj->nfs_obj.gnfs_multiplier == 0 || 
-		fobj->nfs_obj.gnfs_exponent == 0 || 
-		fobj->nfs_obj.gnfs_tune_freq == 0)
-	{
-        if (fobj->VFLAG > 0)
-        {
-            printf("fac: check tune params contained invalid parameter(s), ignoring tune info.\n");
-        }
-
-        if (fobj->VFLAG > 2)
-        {
-            printf("\tqs_mult = %e\n", fobj->qs_obj.qs_multiplier);
-            printf("\tqs_exp = %e\n", fobj->qs_obj.qs_exponent);
-            printf("\tqs_freq = %e\n", fobj->qs_obj.qs_tune_freq);
-            printf("\tnfs_mult = %e\n", fobj->nfs_obj.gnfs_multiplier);
-            printf("\tnfs_exp = %e\n", fobj->nfs_obj.gnfs_exponent);
-            printf("\tnfs_freq = %e\n", fobj->nfs_obj.gnfs_tune_freq);
-        }
-		return 0;
-	}
-
-	return 1;
 }
 
 void set_work_params(factor_work_t *fwork, enum factorization_state state)

@@ -90,7 +90,17 @@ enum msieve_flags {
 	                                    square root phase for NFS */
 	MSIEVE_FLAG_NFS_LA_RESTART = 0x2000,/* restart the NFS linear algbra */
 	MSIEVE_FLAG_DEEP_ECM = 0x4000,   /* perform nontrivial-size ECM */
-	MSIEVE_FLAG_NFS_ONLY = 0x8000    /* go straight to NFS */
+	MSIEVE_FLAG_NFS_ONLY = 0x8000,   /* go straight to NFS */
+	MSIEVE_FLAG_POLY1_SOFT_STOP = 0x10000, /* set by the library while GPU
+						  NFS stage 1 poly selection is
+						  running and can honor a soft
+						  stop (finish in-flight leading
+						  coefficients before quitting) */
+	MSIEVE_FLAG_STOP_SIEVING_SOFT = 0x20000 /* set on the first Ctrl-C during
+						   GPU stage 1: stop submitting new
+						   leading coefficients and let the
+						   ones already in flight finish,
+						   then stop */
 };
 
 

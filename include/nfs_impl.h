@@ -230,6 +230,9 @@ void msieve_to_ggnfs(fact_obj_t* fobj, nfs_job_t* job);
 void ggnfs_to_msieve(fact_obj_t* fobj, nfs_job_t* job);
 int get_ggnfs_params(fact_obj_t* fobj, nfs_job_t* job);
 int check_for_sievers(fact_obj_t* fobj, int revert_to_siqs);
+void nfs_set_sievername(fact_obj_t * fobj, nfs_job_t * job);
+// true if the user selected the external cuda-sieve siever (option cuda_sieve)
+#define NFS_USE_CUDA(fobj) ((fobj)->nfs_obj.cuda_sieve[0] != '\0')
 void print_poly(mpz_polys_t* poly, FILE* out);
 void print_job(nfs_job_t* job, FILE* out);
 uint32_t parse_job_file(fact_obj_t* fobj, nfs_job_t* job);
@@ -250,7 +253,7 @@ void do_msieve_polyselect(fact_obj_t* fobj, msieve_obj* obj, nfs_job_t* job, mp_
 void get_polysearch_params(fact_obj_t* fobj, uint64_t* start, uint64_t* range);
 void init_poly_threaddata(nfs_threaddata_t* t, msieve_obj* obj,
     mp_t* mpN, factor_list_t* factor_list, int tid, uint32_t flags, uint32_t deadline, 
-    uint64_t start, uint64_t stop);
+    uint64_t start, uint64_t stop, int num_msieve_threads);
 void do_sieving_nfs(fact_obj_t* fobj, nfs_job_t* job);
 void trial_sieve(fact_obj_t* fobj); // external test sieve frontend
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);

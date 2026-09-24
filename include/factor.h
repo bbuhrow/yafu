@@ -376,6 +376,7 @@ typedef struct
     double la_time;
     double sqrt_time;
 	uint32_t min_digits;
+    double murphy_e_heuristic;
 
 	uint32_t num_factors;			//number of factors found in this method
 	double ttime;
@@ -383,11 +384,14 @@ typedef struct
 	// an object used to carry around information needed by the msieve library
 	msieve_obj *mobj;
 
+    char stage1_args[GSTR_MAXSIZE]; // poly-select options
 	char filearg[GSTR_MAXSIZE]; // used to facilitate external trial sieving
 
     uint32_t cadoMsieve;
     char cado_dir[GSTR_MAXSIZE];
     char convert_poly_path[GSTR_MAXSIZE];
+    char cuda_sieve[GSTR_MAXSIZE];  // path to the cuda-sieve executable; non-empty selects the cuda siever
+    char cuda_dev[GSTR_MAXSIZE];    // comma separated CUDA device list for the cuda siever (empty = device 0)
 } nfs_obj_t;
 
 // enum for implementing the "plan" and "pretest" switches
@@ -548,6 +552,7 @@ void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int params_only);
 void alloc_factobj(fact_obj_t *fobj);
+int check_tune_params(fact_obj_t* fobj);
 
 // functions involving factor list structure
 void init_factor_list(yfactor_list_t* flist, mpz_t n);

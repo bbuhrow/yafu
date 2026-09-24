@@ -9,19 +9,19 @@ useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
 benefit from your work.	
 
-$Id: stage1.c 1023 2018-08-19 00:30:42Z jasonp_sf $
+$Id: stage1.c 1088 2026-05-19 01:23:20Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <stage1.h>
+#include <stage1_engine.h>
 
 /* main driver for stage 1 */
 
 /*------------------------------------------------------------------------*/
-//static
-void
+static void
 stage1_bounds_update(poly_search_t *poly, poly_coeff_t *c)
 {
-	/* determine the parametrs for the collision search,
+	/* determine the parameters for the collision search,
 	   given one leading algebraic coefficient a_d */
 
 	uint32 degree = poly->degree;
@@ -75,32 +75,79 @@ stage1_bounds_update(poly_search_t *poly, poly_coeff_t *c)
 }
 
 /*------------------------------------------------------------------------*/
-uint32
-handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
-		uint64 special_q_root, int64 res)
+/* infrastructure for submitting stage 1 hits to the stage 2 thread pool */
+
+typedef struct {
+	stage1_callback_t callback;
+	void *callback_data;
+	poly_stage_stats_t* stats;
+	stage1_sieve_data_t* d;
+
+	mpz_t ad;
+	mpz_t p;
+	mpz_t m;
+} stage1_hit_data_t;
+
+static void
+stage1_hit_free(void *data, int threadid)
+{
+	stage1_hit_data_t *hit_data = (stage1_hit_data_t *)data;
+
+	mpz_clear(hit_data->ad);
+	mpz_clear(hit_data->p);
+	mpz_clear(hit_data->m);
+	free(hit_data);
+}
+
+static void
+stage1_hit_run(void* data, int threadid)
+{
+	stage1_hit_data_t* hit_data = (stage1_hit_data_t*)data;
+	void* extra = hit_data->callback_data;   /* single-worker fallback (-np1, S=1) */
+
+	if (hit_data->d && hit_data->d->num_stage2_workers > 0)
+		extra = &hit_data->d->stage2_workers[threadid].sizeopt_data;
+
+	hit_data->callback(hit_data->ad, hit_data->p, hit_data->m, extra);
+
+	if (hit_data->stats)
+		poly_stats_stage2_done(hit_data->stats);
+}
+
+void
+handle_collision(task_data_t *task, uint32 threadid,
+		uint64 p, uint64 special_q,
+		uint128 special_q_root, int64 res)
 {
 	/* the proposed rational coefficient is p*special_q;
 	   p and special_q must be coprime. The 'trivial
 	   special q' has special_q = 1 and special_q_root = 0 */
 
-	uint64_2gmp(p, c->p);
-	mpz_gcd_ui(c->tmp1, c->p, special_q);
-	if (mpz_cmp_ui(c->tmp1, 1))
-		return 0;
+	poly_coeff_t *c = task->c;
 
-	mpz_mul_ui(c->p, c->p, (unsigned long)special_q);
+	uint64_2gmp(p, c->p);
+	uint64_2gmp(special_q, c->tmp1);
+	mpz_gcd(c->tmp2, c->p, c->tmp1);
+	if (mpz_cmp_ui(c->tmp2, 1))
+		return;
+
+	mpz_mul(c->p, c->p, c->tmp1);
 
 	/* the corresponding correction to trans_m0 is 
 	   special_q_root + res * special_q^2, and can be
 	   positive or negative */
 
-	uint64_2gmp(special_q_root, c->tmp1);
+	mpz_import(c->tmp3, 4, -1, sizeof(uint32), 0, 0, special_q_root.w);
 	int64_2gmp(res, c->tmp2);
-	mpz_set_ui(c->tmp3, special_q);
 
-	mpz_mul(c->tmp3, c->tmp3, c->tmp3);
-	mpz_addmul(c->tmp1, c->tmp2, c->tmp3);
-	mpz_add(c->m, c->trans_m0, c->tmp1);
+	mpz_mul(c->tmp1, c->tmp1, c->tmp1);
+	mpz_addmul(c->tmp3, c->tmp2, c->tmp1);
+	if (fabs(mpz_get_d(c->tmp3)) >
+	    c->coeff_max / c->m0 * mpz_get_d(c->p) * mpz_get_d(c->p)) {
+
+		return;
+	} 
+	mpz_add(c->m, c->trans_m0, c->tmp3);
 
 	/* a lot can go wrong before this function is called!
 	   Check that Kleinjung's modular condition is satisfied */
@@ -109,19 +156,9 @@ handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
 	mpz_mul(c->tmp2, c->p, c->p);
 	mpz_sub(c->tmp1, c->trans_N, c->tmp1);
 	mpz_tdiv_r(c->tmp3, c->tmp1, c->tmp2);
-
-	// In mingw builds run with multiple threads,
-	// random stuff appears to be getting into 
-	// the hashtable and causing spurious collisions.
-	// the modular condition check makes this problem
-	// harmless except for a loss of speed doing the
-	// unneccessary collision checks.
-	// rather than spam the screen with these messages we
-	// return an error code and count them.
 	if (mpz_cmp_ui(c->tmp3, 0)) {
-		//gmp_printf("\ncrap %Zd %Zd %Zd, %"PRIu64", %u, %"PRId64"\n", c->high_coeff, c->p, c->m,
-		//	special_q_root, special_q, res);
-		return 2;
+		//gmp_printf("crap %Zd %Zd %Zd\n", c->high_coeff, c->p, c->m);
+		return;
 	}
 
 	/* the pair works, now translate the computed m back
@@ -153,12 +190,60 @@ handle_collision(poly_coeff_t *c, uint64 p, uint32 special_q,
 	/* solve for real_m */
 	mpz_submul(c->m, c->tmp2, c->p);
 	mpz_tdiv_q(c->m, c->m, c->tmp1);
-	return 1;
+
+	if (task->d->test_mode) {
+		if (task->d->test_dump)
+			gmp_fprintf(task->d->test_dump, "%Zd %Zd %Zd\n",
+				c->high_coeff, c->p, c->m);
+		//return;                           /* skip stage 2 entirely */
+	}
+
+	{
+		/* submit the hit to the stage 2 thread pool */
+		stage1_sieve_data_t* d = task->d;
+
+		if (d->stats)
+			poly_stats_add_hit(d->stats);
+
+		if (d->engine->envelope.is_gpu) {
+			task_control_t task_control;
+			stage1_sieve_data_t* d = task->d;
+			stage1_hit_data_t* hit_data = (stage1_hit_data_t*)
+				xmalloc(sizeof(stage1_hit_data_t));
+
+			hit_data->callback = d->poly->callback;
+			hit_data->callback_data = d->poly->callback_data;
+			hit_data->stats = d->stats;
+			hit_data->d = d;
+			mpz_init_set(hit_data->ad, c->high_coeff);
+			mpz_init_set(hit_data->p, c->p);
+			mpz_init_set(hit_data->m, c->m);
+
+			task_control.init = NULL;
+			task_control.run = stage1_hit_run;
+			task_control.shutdown = stage1_hit_free;
+			task_control.data = hit_data;
+
+			threadpool_add_task(d->stage2_threadpool,
+				&task_control, 1);
+		}
+		else {
+			/* CPU: run stage 2 right here, on this producer thread,
+			   using its own private bundle -- no queue, no dispatch. */
+			void* extra = (d->num_stage2_workers > 0)
+				? &d->stage2_workers[threadid].sizeopt_data
+				: d->poly->callback_data;  /* single-worker fallback */
+
+			d->poly->callback(c->high_coeff, c->p, c->m, extra);
+
+			if (d->stats)
+				poly_stats_stage2_done(d->stats);
+		}
+	}
 }
 
 /*------------------------------------------------------------------------*/
-//static
-void
+static void
 poly_search_init(poly_search_t *poly, poly_stage1_t *data)
 {
 	mpz_init_set(poly->N, data->gmp_N);
@@ -175,8 +260,7 @@ poly_search_init(poly_search_t *poly, poly_stage1_t *data)
 	poly->callback_data = data->callback_data;
 }
 
-//static
-void
+static void
 poly_search_free(poly_search_t *poly)
 {
 	mpz_clear(poly->N);
@@ -247,9 +331,7 @@ typedef struct {
 	uint32 high_coeff_power_limit;
 } sieve_t;
 
-/*------------------------------------------------------------------------*/
-//static
-void
+static void
 sieve_ad_block(sieve_t *sieve, poly_search_t *poly)
 {
 	uint32 i;
@@ -278,8 +360,7 @@ sieve_ad_block(sieve_t *sieve, poly_search_t *poly)
 }
 
 /*------------------------------------------------------------------------*/
-//static
-int
+static int
 find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 {
 	uint32 i, j, p, k;
@@ -350,8 +431,7 @@ find_next_ad(sieve_t *sieve, poly_search_t *poly, mpz_t next_coeff)
 }
 
 /*------------------------------------------------------------------------*/
-//static
-void
+static void
 init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 {
 	uint32 i, j, p;
@@ -382,7 +462,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 						SIEVE_ARRAY_SIZE);
 
 	mpz_divexact_ui(poly->tmp1, poly->gmp_high_coeff_begin,
-			(unsigned long int)sieve->high_coeff_multiplier);
+			(mp_limb_t)sieve->high_coeff_multiplier);
 	for (i = p = 0; i < PRECOMPUTED_NUM_PRIMES; i++) {
 		uint32 power;
 		uint8 log_val;
@@ -394,7 +474,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 		log_val = floor(log(p) / M_LN2 + 0.5);
 		power = p;
 		for (j = 0; j < sieve->high_coeff_power_limit; j++) {
-			uint32 r = mpz_cdiv_ui(poly->tmp1, (unsigned long int)power);
+			uint32 r = mpz_cdiv_ui(poly->tmp1, (mp_limb_t)power);
 
 			if (sieve->num_primes >= sieve->num_primes_alloc) {
 				sieve->num_primes_alloc *= 2;
@@ -421,8 +501,7 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 }
 
 /*------------------------------------------------------------------------*/
-//static
-void
+static void
 free_ad_sieve(sieve_t *sieve)
 {
 	free(sieve->primes);
@@ -430,24 +509,422 @@ free_ad_sieve(sieve_t *sieve)
 }
 
 /*------------------------------------------------------------------------*/
-//static
-double 
-search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
+static void
+stage1_sieve_data_init(stage1_sieve_data_t *d, 
+		msieve_obj *obj, poly_search_t *poly)
+{
+	uint32 i;
+	uint32 num_threads;
+	thread_control_t thread_control;
+
+	/* pick the collision engine for this run (registry gates by what was
+	   compiled in; HAVE_CUDA still decides whether the GPU engines exist) */
+	const stage1_engine_vtable_t *v = stage1_engine_select(obj);
+
+	d->obj = obj;
+	d->poly = poly;
+	d->engine = v;
+
+	d->test_mode = 0;
+	mpz_init(d->test_ad);
+	d->test_dump = NULL;
+	if (obj->nfs_args != NULL) {
+		const char* tmp;
+		if ((tmp = strstr(obj->nfs_args, "test_ad=")) != NULL) {
+			uint64 ad = strtoull(tmp + 8, NULL, 10);   /* stops at the space */
+			mpz_set_ui(d->test_ad, ad);                /* a_d always fits a word */
+			d->test_mode = 1;
+		}
+		if ((tmp = strstr(obj->nfs_args, "test_pmin=")) != NULL) d->test_pmin = strtoul(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_pmax=")) != NULL) d->test_pmax = strtoul(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_qmin=")) != NULL) d->test_qmin = strtoull(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_qmax=")) != NULL) d->test_qmax = strtoull(tmp + 10, NULL, 10);
+	}
+	if (d->test_mode) {
+		char fn[256];
+		num_threads = 1;                         /* single writer -> no dump lock */
+		sprintf(fn, "test_%s.hits", v->name);
+		d->test_dump = fopen(fn, "w");
+		logprintf(obj, "TEST MODE %s: a_d=%" PRIu64
+			"  p[%u,%u]  q[%" PRIu64 ",%" PRIu64 "] -> %s\n",
+			v->name, (uint64)mpz_get_ui(d->test_ad),
+			d->test_pmin, d->test_pmax,
+			d->test_qmin, d->test_qmax, fn);
+	}
+
+	/* account for multiple threads; we allocate a thread pool
+	   with a number of threads requested, where each thread
+	   deals with a single leading coefficient. We also allocate
+	   another thread pool with a single thread, that runs stage
+	   2. Eventually the latter can be made more concurrent. */
+
+	num_threads = MAX(1, obj->num_threads);
+	if (v->max_threads)                       /* GPU engines cap at 4 */
+		num_threads = MIN(v->max_threads, num_threads);
+	d->num_threads = num_threads;
+
+	d->hw_data = NULL;                        /* per-run device ctx, if any */
+	if (v->sieve_data_init)
+		d->hw_data = v->sieve_data_init(obj, num_threads, v->id);   /* +v->id */
+
+	thread_control.init = v->thread_data_init;
+	thread_control.shutdown = v->thread_data_free;
+	thread_control.data = d;
+
+	d->threads = (stage1_sieve_thread_data_t *)xcalloc(
+					num_threads,
+					sizeof(stage1_sieve_thread_data_t));
+
+	for (i = 0; i < num_threads; i++) {
+		d->threads[i].sieve_p_fb = sieve_fb_alloc();
+		d->threads[i].sieve_q_fb = sieve_fb_alloc();
+	}
+
+	d->stage1_threadpool = threadpool_init(num_threads,
+					MAX(10, num_threads),
+					&thread_control);
+
+	thread_control.init = NULL;
+	thread_control.shutdown = NULL;
+	thread_control.data = NULL;
+	d->stage2_threadpool = threadpool_init(
+		MAX(1, d->num_stage2_workers), 1000, &thread_control);
+
+}
+
+/*------------------------------------------------------------------------*/
+void stage1_sieve_data_free(stage1_sieve_data_t *d)
+{
+	uint32 i;
+
+	if (!(d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)) {
+		/* we're allowed to try to shut down gracefully */
+
+		threadpool_drain(d->stage1_threadpool, 1);
+	}
+
+	/* shut down the stage 1 threadpool first, since
+	   we don't want it feeding the stage 2 threadpool
+	   after it has been freed */
+
+	threadpool_free(d->stage1_threadpool);
+	threadpool_drain(d->stage2_threadpool, 1);   /* process the stragglers */
+	threadpool_free(d->stage2_threadpool);
+
+	if (d->test_dump)
+		fclose(d->test_dump);
+	mpz_clear(d->test_ad);
+
+	for (i = 0; i < d->num_threads; i++) {
+		sieve_fb_free(d->threads[i].sieve_p_fb);
+		sieve_fb_free(d->threads[i].sieve_q_fb);
+	}
+	free(d->threads);
+
+	if (d->engine->sieve_data_free && d->hw_data)
+		d->engine->sieve_data_free(d->hw_data);
+}
+
+/*------------------------------------------------------------------------*/
+#define STAGE1_QCHUNK_DIVISOR 20     /* window split into this many pieces */
+#define STAGE1_QCHUNK_MAX     2000000 /* ...but no chunk larger than this */
+
+
+static void
+search_coeff_core(task_data_t * task, uint32 threadid)
+{
+	msieve_obj *obj = task->obj;
+	poly_coeff_t *c = task->c;
+	stage1_sieve_data_t *d = task->d;
+	uint32 degree = d->poly->degree;
+	uint32 num_pieces;
+	uint32 p_min, p_max;
+	uint64 special_q_min, special_q_max;
+	uint64 special_q_min2, special_q_max2;
+	uint32 special_q_fb_max;
+
+	/* Kleinjung shows that the third-to-largest algebraic
+	   polynomial coefficient is of size approximately
+
+	             (correction to m0) * m0
+		    --------------------------
+		    (leading rational coeff)^2
+	
+	   We have a bound 'coeff_max' on what this number is 
+	   supposed to be, and we know m0 and an upper bound on 
+	   the size of the leading rational coefficient P. Let 
+	   P = p1*p2*q, where p1 and p2 are drawn from a fixed
+	   set of candidates, and q (the 'special-q') is arbitrary
+	   except that gcd(q,p1,p2)=1. Then the correction to
+	   m0 is < q0 + 0.5 * q^2 * max(p1,p2)^2 so that
+
+	   coeff_max   0.5 * q^2 * max(p1,p2)^2
+	   --------- < ------------------------ 
+	      m0         (q * min(p1,p2)^2)^2
+
+	   if p_max = P_SCALE * p_min then
+
+	             0.5 * m0 * P_SCALE^4
+	   p_max^2 < --------------------
+	                  coeff_max
+	*/
+
+	p_max = MIN(MAX_P, sqrt(c->p_size_max));
+	p_max = MIN(p_max, P_SCALE * P_SCALE *
+			sqrt(0.5 * c->m0 / c->coeff_max));
+	p_min = MAX(1, p_max / P_SCALE);
+
+	special_q_max = MIN(MAX_SPECIAL_Q, 
+			    c->p_size_max / p_min / p_min);
+	special_q_max = MAX(special_q_max, 1);
+	special_q_min = 1;
+
+	if (d->test_mode) {
+		p_min = d->test_pmin;
+		p_max = d->test_pmax;
+		special_q_min = d->test_qmin;
+		special_q_max = d->test_qmax;
+	}
+
+	/* set up the special q factory; special-q may have 
+	   arbitrary factors, but many small factors are 
+	   preferred since that will allow for many more roots
+	   per special q, so we choose the factors to be as 
+	   small as possible */
+
+	special_q_fb_max = MIN(200000, special_q_max);
+	sieve_fb_init(d->threads[threadid].sieve_q_fb, c,
+			2, special_q_fb_max,
+			1, degree,
+			1);
+
+	/* because special-q can have any factors, we require that
+	   the progressions we generate use p that have somewhat
+	   large factors. This minimizes the chance that a given
+	   special-q has factors in common with many progressions
+	   in the set */
+
+	sieve_fb_init(d->threads[threadid].sieve_p_fb, c, 
+			100, 5000,
+			1, degree,
+		       	0);
+
+	/* large search problems can be randomized so that
+	   multiple runs over the same range of leading
+	   a_d will likely generate different results */
+
+	num_pieces = 1;
+	if ((!d->test_mode) && (special_q_max - special_q_min > 500000))
+	{
+		num_pieces = MIN(200, (double)special_q_max * p_max
+			/ log(special_q_max) / log(p_max)
+			/ 3e10);
+	}
+
+	if (num_pieces > 51) { /* randomize the special_q range */
+		uint32 piece_length = (special_q_max - special_q_min)
+				/ num_pieces;
+		uint32 piece = get_rand(&obj->seed1, &obj->seed2)
+				% num_pieces;
+        //piece = 100;
+		special_q_min2 = special_q_min + piece * piece_length;
+		special_q_max2 = special_q_min2 + piece_length;
+	}
+	else {
+		special_q_min2 = special_q_min;
+		special_q_max2 = special_q_max;
+	}
+
+	
+	// chunk-q implementation
+	if (0)
+	{
+		const stage1_engine_vtable_t* v = d->engine;
+		uint64 q_min = special_q_min2;
+		uint64 q_max = special_q_max2;
+
+		if (!stage1_engine_cell_fits(v, p_max, &q_max)) {
+			logprintf(obj, "stage1 %s: skipping coeff, p_max %u "
+				"exceeds engine cap %u\n",
+				v->name, p_max, v->envelope.max_p);
+			return;
+		}
+
+		/* GPU is latency-bound on the device, not a CPU scheduling
+		   slot -- chunking exists to create wall-clock deadline
+		   checkpoints for CPU engines, so GPU keeps one whole-window
+		   call as before. */
+		if (v->envelope.is_gpu) {
+			v->specialq(task, threadid, q_min, q_max, p_min, p_max);
+			return;
+		}
+
+		{
+			uint64 chunk_size = MAX(1,
+				(q_max - q_min) / STAGE1_QCHUNK_DIVISOR);
+			uint64 chunk_lo = q_min;
+			double deadline_end = get_wall_time() +
+				task->coeff_deadline;
+
+			chunk_size = MIN(chunk_size, STAGE1_QCHUNK_MAX);
+
+			while (chunk_lo < q_max) {
+				uint64 chunk_hi = MIN(q_max,
+					chunk_lo + chunk_size);
+
+				v->specialq(task, threadid, chunk_lo, chunk_hi,
+					p_min, p_max);
+
+				if (d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+					return;
+
+				if (get_wall_time() >= deadline_end) {
+					//logprintf(obj, "stage1: coeff_deadline "
+					//	"hit, aborting a_d early "
+					//	"(q %" PRIu64 " of %" PRIu64
+					//	")\n", chunk_hi, q_max);
+					return;
+				}
+
+				chunk_lo = chunk_hi;
+			}
+		}
+	}
+	/* dispatch to the selected engine. The registry replaces the old
+	   compile-time CPU/GPU switch; the same call shape serves all four.
+	   Route around anything outside the engine's envelope rather than
+	   letting a capped engine crash: an over-p a_d is skipped, an over-q
+	   window is clamped in place. (a_d-level routing ultimately belongs
+	   in search_coeffs; skipping here is the safe interim.) */
+	else
+	{
+		const stage1_engine_vtable_t *v = d->engine;
+		uint64 q_min = special_q_min2;
+		uint64 q_max = special_q_max2;
+
+		if (!stage1_engine_cell_fits(v, p_max, &q_max)) {
+			logprintf(obj, "stage1 %s: skipping coeff, p_max %u "
+				"exceeds engine cap %u\n",
+				v->name, p_max, v->envelope.max_p);
+			return;
+		}
+
+		v->specialq(task, threadid, q_min, q_max, p_min, p_max);
+
+	}
+}
+
+/*------------------------------------------------------------------------*/
+/* infrastructure for submitting new leading
+   coeffs to the stage 1 thread pool */
+
+typedef struct {
+	uint64 count;
+} q_count_ctx_t;
+
+static void
+count_q_callback(uint64 p, uint32 num_roots, mpz_t* roots, void* extra)
+{
+	q_count_ctx_t* ctx = (q_count_ctx_t*)extra;
+	ctx->count++;
+}
+
+uint64
+count_total_q(task_data_t* task, uint32 threadid,
+	uint64 special_q_min, uint64 special_q_max)
+{
+	stage1_sieve_data_t* d = task->d;
+	stage1_sieve_thread_data_t* t = d->threads + threadid;
+	poly_coeff_t* c = task->c;
+	q_count_ctx_t ctx = { 0 };
+
+	sieve_fb_reset(t->sieve_q_fb, special_q_min, special_q_max, 1, MAX_ROOTS);
+
+	while (sieve_fb_next(t->sieve_q_fb, c, count_q_callback, &ctx)
+		!= P_SEARCH_DONE)
+		;
+
+	return ctx.count;
+}
+
+static void
+task_data_free(void *data, int threadid)
+{
+	task_data_t *task_data = (task_data_t *)data;
+
+	poly_coeff_free(task_data->c);
+	free(task_data);
+}
+
+static void
+task_data_run(void *data, int threadid)
+{
+	task_data_t *task = (task_data_t *)data;
+
+	search_coeff_core(task, threadid);
+}
+
+static double search_coeff_async(stage1_sieve_data_t * d,
+			poly_coeff_t *c, double coeff_deadline)
+{
+	/* submit a leading coefficient asynchronously to the
+	   thread pool; we copy the coefficient so the input
+	   one can be overwritten by calling code */
+
+	uint32 i;
+	task_control_t task_control;
+	task_data_t *task_data = (task_data_t *)xmalloc(sizeof(task_data_t));
+	poly_coeff_t *c2 = poly_coeff_init();
+	double cumulative_elapsed = get_wall_time();
+
+	poly_coeff_copy(c2, c);
+
+	task_data->obj = d->obj;
+	task_data->c = c2;
+	task_data->d = d;
+	task_data->coeff_deadline = coeff_deadline;
+
+	task_control.init = NULL;
+	task_control.run = task_data_run;
+	task_control.shutdown = task_data_free;
+	task_control.data = task_data;
+
+	threadpool_add_task(d->stage1_threadpool, &task_control, 1);
+
+	// yafu asks for a wall-time
+	// for (i = 0; i < d->num_threads; i++)
+	// 	cumulative_elapsed += d->threads[i].cumulative_elapsed;
+	cumulative_elapsed = get_wall_time() - cumulative_elapsed;
+	return cumulative_elapsed;
+}
+
+/*------------------------------------------------------------------------*/
+static void
+search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 {
 	double deadline_per_coeff;
 	double cumulative_time = 0;
+	uint64 ad_index = 0;
 	sieve_t ad_sieve;
+	poly_search_t *poly = d->poly;
 	poly_coeff_t *c = poly_coeff_init();
-#ifdef HAVE_CUDA_POLY
-	void *gpu_data = gpu_data_init(obj, poly);
-#endif
 
-	deadline_per_coeff = deadline; // 8640000;
+	deadline_per_coeff = 8640000;
+	if (d->obj->nfs_args) {
+		const char* tmp = strstr(d->obj->nfs_args, "coeff_deadline=");
+		if (tmp)
+			deadline_per_coeff = atof(tmp + 15);
+	}
 
-#if 0
-	printf("deadline: %.0lf CPU-seconds per coefficient\n",
-					deadline_per_coeff);
-#endif
+	if (d->test_mode) {
+		mpz_set(c->high_coeff, d->test_ad);
+		stage1_bounds_update(poly, c);
+		search_coeff_async(d, c, deadline_per_coeff);
+		threadpool_drain(d->stage1_threadpool, 1);      /* finish it + its dumps */
+		d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;       /* stop the re-dispatch */
+		poly_coeff_free(c);
+		return;
+	}
 
 	/* set up lower limit on a_d */
 
@@ -460,9 +937,173 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 	mpz_mul_ui(poly->gmp_high_coeff_begin, poly->tmp1, 
 			ad_sieve.high_coeff_multiplier);
 
-	while (1) {
-		double elapsed;
+#if 1
 
+	if (d->stats) {
+		sieve_t count_sieve;
+		poly_coeff_t* cc = poly_coeff_init();
+		mpz_t save_begin;
+		uint64 ad_count = 0;
+		uint64 q_total = 0;
+		uint64 ad_est_freq = 8;
+		uint64 est_thresh = 8;
+
+		mpz_init_set(save_begin, poly->gmp_high_coeff_begin);
+		init_ad_sieve(&count_sieve, poly);
+
+		// this builds all of the exact q-sets prior to running
+		// the job.  There is a lot of real work here, too high
+		// just to get the scale of the job for stats purposes.
+		// edit, using only part of the q-range and ad range as 
+		// an estimate makes this fast enough to include.  The exact
+		// value won't be needed most of the time because yafu
+		// will likely not allocate enough time to polyselect to
+		// search the entire range.  And even if it does, finishing
+		// with slightly more or less than 100% on the counter isn't a big deal.
+		uint64 q_estimate = 0;
+		uint64 num_est = 0;
+		printf("estimating total special-q over requested a_d range\n");
+		while (find_next_ad(&count_sieve, poly, cc->high_coeff) == 0)
+		{
+			if ((ad_count & (ad_est_freq - 1)) == 0) {
+				task_data_t count_task;
+				uint32 p_min, p_max;
+				uint64 special_q_min, special_q_max;
+				uint64 special_q_min2, special_q_max2;
+				uint32 special_q_fb_max;
+				uint32 num_pieces;
+				uint32 degree = d->poly->degree;
+
+				//gmp_printf("a_d %Zd, enumerating q... ", cc->high_coeff);				
+				stage1_bounds_update(poly, cc);
+
+				/* duplicate search_coeff_core's p/q bound
+				   derivation just enough to know the q range
+				   that will actually be searched */
+				p_max = MIN(MAX_P, sqrt(cc->p_size_max));
+				p_max = MIN(p_max, P_SCALE * P_SCALE *
+					sqrt(0.5 * cc->m0 / cc->coeff_max));
+				p_min = MAX(1, p_max / P_SCALE);
+
+				special_q_max = MIN(MAX_SPECIAL_Q,
+					cc->p_size_max / p_min / p_min);
+				special_q_max = MAX(special_q_max, 1);
+				special_q_min = 1;
+
+				if (d->test_mode) {
+					p_min = d->test_pmin;
+					p_max = d->test_pmax;
+					special_q_min = d->test_qmin;
+					special_q_max = d->test_qmax;
+				}
+
+				/* replicate the piece-selection logic --
+				   without this, q_total would count the
+				   full range even on a_d's that only ever
+				   search a random 1/num_pieces slice of it,
+				   making the total badly overstate the
+				   actual job size */
+				num_pieces = 1;
+				if ((!d->test_mode) &&
+					(special_q_max - special_q_min > 500000))
+				{
+					num_pieces = MIN(200,
+						(double)special_q_max * p_max
+						/ log(special_q_max) / log(p_max)
+						/ 3e10);
+				}
+
+				if (num_pieces > 51) {
+					uint32 piece_length =
+						(special_q_max - special_q_min)
+						/ num_pieces;
+					special_q_min2 = special_q_min;
+					special_q_max2 = special_q_min + piece_length;
+				}
+				else {
+					special_q_min2 = special_q_min;
+					special_q_max2 = special_q_max;
+				}
+
+				/* because special-q can have any factors, we require that
+				   the progressions we generate use p that have somewhat
+				   large factors. This minimizes the chance that a given
+				   special-q has factors in common with many progressions
+				   in the set */
+
+				sieve_fb_init(d->threads[0].sieve_p_fb, cc,
+					100, 5000,
+					1, degree,
+					0);
+
+				special_q_fb_max = MIN(200000, special_q_max2);
+				sieve_fb_init(d->threads[0].sieve_q_fb, cc,
+					2, special_q_fb_max,
+					1, degree,
+					1);
+
+				count_task.obj = d->obj;
+				count_task.c = cc;
+				count_task.d = d;
+				count_task.coeff_deadline = 0;
+
+				uint64 sample_max = special_q_min2 + (special_q_max2 - special_q_min2) / 100;
+				uint64 sample_q = count_total_q(&count_task, 0, special_q_min2, sample_max);
+				q_estimate = sample_q * 100;
+
+				if (ad_count > 0) {
+					q_total += q_estimate * ad_est_freq;
+				}
+				//printf(" estimating %llu from a count of %llu\n", q_estimate, sample_q);
+
+				num_est++;
+				if (num_est > est_thresh)
+				{
+					ad_est_freq *= 2;
+					num_est = 0;
+					//printf("now estimating every %llu ad's\n", ad_est_freq);
+				}
+			}
+
+			ad_count++;
+		}
+
+		if ((ad_count & (ad_est_freq - 1)) != 0) {
+			q_total += q_estimate * (ad_count % ad_est_freq);
+		}
+
+		free_ad_sieve(&count_sieve);
+		poly_coeff_free(cc);
+		mpz_set(poly->gmp_high_coeff_begin, save_begin);
+		mpz_clear(save_begin);
+		d->stats->ad_total = ad_count;
+		d->stats->q_total = q_total;
+
+	}
+
+#else
+	/* count the a_d in range for the progress fraction */
+	if (d->stats) {
+		sieve_t count_sieve;
+		poly_coeff_t* cc = poly_coeff_init();
+		mpz_t save_begin;
+		uint64 ad_count = 0;
+
+		mpz_init_set(save_begin, poly->gmp_high_coeff_begin);
+		init_ad_sieve(&count_sieve, poly);
+		while (find_next_ad(&count_sieve, poly, cc->high_coeff) == 0)
+		{
+			ad_count++;
+		}
+		free_ad_sieve(&count_sieve);
+		poly_coeff_free(cc);
+		mpz_set(poly->gmp_high_coeff_begin, save_begin);
+		mpz_clear(save_begin);
+		d->stats->ad_total = ad_count;
+	}
+#endif
+	cumulative_time = 0.0;
+	while (1) {
 		/* we only use a_d which are composed of
 		   many small prime factors, in order to
 		   have lots of projective roots going
@@ -471,36 +1112,46 @@ search_coeffs(msieve_obj *obj, poly_search_t *poly, uint32 deadline)
 		if (find_next_ad(&ad_sieve, poly, c->high_coeff))
 			break;
 
+		if (d->stats) {
+			char adbuf[64];
+			gmp_snprintf(adbuf, sizeof(adbuf), "%Zd",
+				c->high_coeff);
+			poly_stats_set_ad(d->stats, adbuf, ++ad_index);
+			//gmp_printf("new_ad: %Zd\n", c->high_coeff);
+		}
+
 		/* recalculate internal parameters used
 		   for search */
 
 		stage1_bounds_update(poly, c);
 
-		/* finally, sieve for polynomials using
-		   Kleinjung's improved algorithm */
+		/* execute search */
 
-#ifdef HAVE_CUDA_POLY
-		cumulative_time = sieve_lattice_gpu(obj, poly, c,
-					gpu_data, deadline_per_coeff);
-#else
-		elapsed = sieve_lattice_cpu(obj, poly, c, deadline_per_coeff);
-		cumulative_time += elapsed;
-#endif
+		cumulative_time += search_coeff_async(
+					d, c, deadline_per_coeff);
 
-		if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+		if (d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)
+		{
+			//printf("recieved break signal\n");
 			break;
+		}
 
 		if (deadline && cumulative_time > deadline)
+		{
+			printf("\ncumulative time > deadline (%1.2f > %u)\n", cumulative_time, deadline);
+			printf("threadpools draining...\n");
+			// the easiest way to interrupt running threads is with
+			// the flag, since thread data structures all store a
+			// pointer back to the msieve object flags and check
+			// it periodically during special-q processing.
+			d->obj->flags |= MSIEVE_FLAG_STOP_SIEVING;
+			
 			break;
+		}
 	}
 
 	free_ad_sieve(&ad_sieve);
-#ifdef HAVE_CUDA_POLY
-	gpu_data_free(gpu_data);
-#endif
 	poly_coeff_free(c);
-
-	return cumulative_time;
 }
 
 /*------------------------------------------------------------------------*/
@@ -509,9 +1160,9 @@ poly_stage1_init(poly_stage1_t *data,
 		 stage1_callback_t callback, void *callback_data)
 {
 	memset(data, 0, sizeof(poly_stage1_t));
-	mpz_init_set_ui(data->gmp_N, (unsigned long int)0);
-	mpz_init_set_ui(data->gmp_high_coeff_begin, (unsigned long int)0);
-	mpz_init_set_ui(data->gmp_high_coeff_end, (unsigned long int)0);
+	mpz_init_set_ui(data->gmp_N, (mp_limb_t)0);
+	mpz_init_set_ui(data->gmp_high_coeff_begin, (mp_limb_t)0);
+	mpz_init_set_ui(data->gmp_high_coeff_end, (mp_limb_t)0);
 	data->callback = callback;
 	data->callback_data = callback_data;
 }
@@ -532,14 +1183,18 @@ poly_stage1_run(msieve_obj *obj, poly_stage1_t *data)
 	/* pass external configuration in and run the search */
 
 	poly_search_t poly;
+	stage1_sieve_data_t sieve_data;
 
 	poly_search_init(&poly, data);
 
-	data->elasped = search_coeffs(obj, &poly, data->deadline);
-	if (data->elasped < 1e-9)
-	{
-		printf("No progressions found with the supplied parameters\n");
-	}
+	sieve_data.stats = data->stats;
+	sieve_data.stage2_workers = data->stage2_workers;
+	sieve_data.num_stage2_workers = data->num_stage2_workers;
 
+	stage1_sieve_data_init(&sieve_data, obj, &poly);
+
+	search_coeffs(&sieve_data, data->deadline);
+
+	stage1_sieve_data_free(&sieve_data);
 	poly_search_free(&poly);
 }

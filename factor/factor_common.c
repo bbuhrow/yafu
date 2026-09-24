@@ -21,7 +21,11 @@ code to the public domain.
 #include "factor.h"
 #include "mpz_aprcl.h"
 #include "soe.h"
+#include <stdio.h>
 
+// -------------------------------------------------------------------------
+// fobj management
+// -------------------------------------------------------------------------
 fact_obj_t* new_default_factorization(mpz_t n)
 {
     fact_obj_t* fobj = (fact_obj_t*)xmalloc(sizeof(fact_obj_t));
@@ -217,6 +221,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->div_obj.fmtlimit = 1000000;
 
     //initialize stuff for nfs
+    fobj->nfs_obj.murphy_e_heuristic = -1.0;
     fobj->nfs_obj.snfs = 0;
     fobj->nfs_obj.gnfs = 0;
     fobj->nfs_obj.gnfs_exponent = 0;
@@ -233,10 +238,12 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.np1 = 0;
     fobj->nfs_obj.nps = 0;
     fobj->nfs_obj.npr = 0;
+    fobj->nfs_obj.polybatch = 5000;
     strcpy(fobj->nfs_obj.params_file, "");          // default: use built-in table
     strcpy(fobj->nfs_obj.outputfile, "nfs.dat");			//default
     strcpy(fobj->nfs_obj.logfile, "nfs.log");			//default
     strcpy(fobj->nfs_obj.fbfile, "nfs.fb");				//default
+    strcpy(fobj->nfs_obj.stage1_args, "");
     fobj->nfs_obj.sq_side = 0;					//default = algebraic
     fobj->nfs_obj.timeout = 1u<<31;					//default, not used
     strcpy(fobj->nfs_obj.job_infile, "nfs.job");			//default
@@ -276,6 +283,9 @@ void init_factobj(fact_obj_t* fobj)
 
     fobj->nfs_obj.cadoMsieve = 0;
     strcpy(fobj->nfs_obj.convert_poly_path, "");
+    strcpy(fobj->nfs_obj.stage1_args, "");
+    strcpy(fobj->nfs_obj.cuda_dev, "");
+    strcpy(fobj->nfs_obj.cuda_sieve, "");
     fobj->nfs_obj.skip_snfs_check = 0;
 
     //initialize autofactor object
@@ -628,6 +638,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
         mpz_set(dest->nfs_obj.gmp_n, src->nfs_obj.gmp_n);
         mpz_set(dest->nfs_obj.snfs_fullinput, src->nfs_obj.snfs_fullinput);
     }
+    dest->nfs_obj.murphy_e_heuristic = src->nfs_obj.murphy_e_heuristic;
     dest->nfs_obj.snfs = src->nfs_obj.snfs;
     dest->nfs_obj.gnfs = src->nfs_obj.gnfs;
     dest->nfs_obj.gnfs_exponent = src->nfs_obj.gnfs_exponent;
@@ -647,6 +658,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     strcpy(dest->nfs_obj.outputfile, src->nfs_obj.outputfile);
     strcpy(dest->nfs_obj.logfile, src->nfs_obj.logfile);
     strcpy(dest->nfs_obj.fbfile, src->nfs_obj.fbfile);
+    strcpy(dest->nfs_obj.stage1_args, src->nfs_obj.stage1_args);
     dest->nfs_obj.sq_side = src->nfs_obj.sq_side;
     dest->nfs_obj.timeout = src->nfs_obj.timeout;
     strcpy(dest->nfs_obj.job_infile, src->nfs_obj.job_infile);
@@ -800,6 +812,38 @@ void reset_factobj(fact_obj_t *fobj)
 	return;
 }
 
+int check_tune_params(fact_obj_t* fobj)
+{
+    if (fobj->qs_obj.qs_multiplier == 0 ||
+        fobj->qs_obj.qs_exponent == 0 ||
+        fobj->qs_obj.qs_tune_freq == 0 ||
+        fobj->nfs_obj.gnfs_multiplier == 0 ||
+        fobj->nfs_obj.gnfs_exponent == 0 ||
+        fobj->nfs_obj.gnfs_tune_freq == 0)
+    {
+        if (fobj->VFLAG > 0)
+        {
+            printf("fac: check tune params contained invalid parameter(s), ignoring tune info.\n");
+        }
+
+        if (fobj->VFLAG > 2)
+        {
+            printf("\tqs_mult = %e\n", fobj->qs_obj.qs_multiplier);
+            printf("\tqs_exp = %e\n", fobj->qs_obj.qs_exponent);
+            printf("\tqs_freq = %e\n", fobj->qs_obj.qs_tune_freq);
+            printf("\tnfs_mult = %e\n", fobj->nfs_obj.gnfs_multiplier);
+            printf("\tnfs_exp = %e\n", fobj->nfs_obj.gnfs_exponent);
+            printf("\tnfs_freq = %e\n", fobj->nfs_obj.gnfs_tune_freq);
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
+// -------------------------------------------------------------------------
+// factor and factor-list management
+// -------------------------------------------------------------------------
 int find_in_factor_list(yfactor_list_t* flist, mpz_t n)
 {
     int i;

@@ -1,0 +1,5 @@
+create a markdown file with the revised plan.  I will ask for help implementing the plan 
+in separate conversations, so please also create a prompt for a new conversation that 
+provides concise needed background (the revised plan, references to exact needed project 
+file sections, etc) and begins the work at phase 0.  subsequent phases to be handled in 
+new conversations, and a status markdown that will travel from phase to phase.
