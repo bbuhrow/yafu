@@ -1187,35 +1187,6 @@ enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
 	return next_state;
 }
 
-int check_tune_params(fact_obj_t *fobj)
-{
-	if (fobj->qs_obj.qs_multiplier == 0 || 
-		fobj->qs_obj.qs_exponent == 0 || 
-		fobj->qs_obj.qs_tune_freq == 0 ||
-		fobj->nfs_obj.gnfs_multiplier == 0 || 
-		fobj->nfs_obj.gnfs_exponent == 0 || 
-		fobj->nfs_obj.gnfs_tune_freq == 0)
-	{
-        if (fobj->VFLAG > 0)
-        {
-            printf("fac: check tune params contained invalid parameter(s), ignoring tune info.\n");
-        }
-
-        if (fobj->VFLAG > 2)
-        {
-            printf("\tqs_mult = %e\n", fobj->qs_obj.qs_multiplier);
-            printf("\tqs_exp = %e\n", fobj->qs_obj.qs_exponent);
-            printf("\tqs_freq = %e\n", fobj->qs_obj.qs_tune_freq);
-            printf("\tnfs_mult = %e\n", fobj->nfs_obj.gnfs_multiplier);
-            printf("\tnfs_exp = %e\n", fobj->nfs_obj.gnfs_exponent);
-            printf("\tnfs_freq = %e\n", fobj->nfs_obj.gnfs_tune_freq);
-        }
-		return 0;
-	}
-
-	return 1;
-}
-
 void set_work_params(factor_work_t *fwork, enum factorization_state state)
 {
     switch (state)

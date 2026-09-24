@@ -552,6 +552,7 @@ void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int params_only);
 void alloc_factobj(fact_obj_t *fobj);
+int check_tune_params(fact_obj_t* fobj);
 
 // functions involving factor list structure
 void init_factor_list(yfactor_list_t* flist, mpz_t n);

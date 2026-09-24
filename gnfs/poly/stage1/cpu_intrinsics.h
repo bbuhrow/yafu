@@ -24,6 +24,33 @@ extern "C"
 
 #if defined(_MSC_VER) && defined(_WIN64)
 
+#ifdef __clang__
+#define PROD32(hi, lo, a, b) \
+		__asm("mull %2  \n\t"      \
+		:"=d"(hi), "=a"(lo)  \
+		:"%rm"(a), "1"(b)    \
+		:"cc")
+
+#define PROD64(hi, lo, a, b) \
+		__asm("mulq %2  \n\t"      \
+		:"=d"(hi), "=a"(lo)  \
+		:"%rm"(a), "1"(b)    \
+		:"cc")
+
+#define accum32(a0, a1, a2, b0, b1)	\
+		__asm("subl %3, %0  \n\t"		\
+		    "sbbl %4, %1  \n\t"		\
+		    "sbbl $0, %2  \n\t"		\
+		: "+r"(a0), "+r"(a1), "+r"(a2)	\
+		: "g"(b0), "g"(b1) : "cc")
+
+#define accum64(a0, a1, a2, b0, b1)	\
+		__asm("subq %3, %0  \n\t"		\
+		    "sbbq %4, %1  \n\t"		\
+		    "sbbq $0, %2  \n\t"		\
+		: "+r"(a0), "+r"(a1), "+r"(a2)	\
+		: "g"(b0), "g"(b1) : "cc")
+#else
 	#include <intrin.h>
 	#pragma intrinsic(__umul64)
 	#pragma intrinsic(__umul128)
@@ -40,6 +67,7 @@ extern "C"
 		lo = _umul128(a, b, &(hi));	\
 	}
 
+
 	#define accum32(a0, a1, a2, b0, b1)	\
 	{					\
 		uint8 cy = _subborrow_u32(0, a0, b0, &(a0));	\
@@ -53,7 +81,7 @@ extern "C"
 		cy = _subborrow_u64(cy, a1, b1, &(a1));		\
 		_subborrow_u64(cy, a2, 0, &(a2));		\
 	}
-
+#endif
 #elif defined(GCC_ASM64X)
 
 	#define PROD32(hi, lo, a, b) \

@@ -157,7 +157,7 @@ handle_collision(task_data_t *task, uint32 threadid,
 	mpz_sub(c->tmp1, c->trans_N, c->tmp1);
 	mpz_tdiv_r(c->tmp3, c->tmp1, c->tmp2);
 	if (mpz_cmp_ui(c->tmp3, 0)) {
-		gmp_printf("crap %Zd %Zd %Zd\n", c->high_coeff, c->p, c->m);
+		//gmp_printf("crap %Zd %Zd %Zd\n", c->high_coeff, c->p, c->m);
 		return;
 	}
 

@@ -1277,11 +1277,11 @@ sieve_specialq(msieve_obj *obj,
 		}
 
 	if (t->found_batches != 0) {
-		logprintf(obj, "\nfound_array stats: batches %u peak %u "
-				"saturated %u total %" PRIu64 " cap %u\n",
-				t->found_batches, t->found_peak,
-				t->found_saturated_batches,
-				t->found_total, FOUND_ARRAY_SIZE);
+		//logprintf(obj, "\nfound_array stats: batches %u peak %u "
+		//		"saturated %u total %" PRIu64 " cap %u\n",
+		//		t->found_batches, t->found_peak,
+		//		t->found_saturated_batches,
+		//		t->found_total, FOUND_ARRAY_SIZE);
 	}
 
 	/* fold this coefficient's finds into this worker's running total.

@@ -17,6 +17,7 @@ benefit from your work.
 #include <gmp.h>
 #include "nfs_impl.h"
 #include "threadpool.h"
+#include "factor.h"
 #include <math.h>
 
 #ifdef __MINGW32__

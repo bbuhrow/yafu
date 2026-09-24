@@ -804,6 +804,27 @@ struct collision_engine {
 	uint32 *h_value_overflow;
 };
 
+#ifdef _MSC_VER
+#include <intrin.h>
+
+inline static int msvc_builtin_clz(unsigned int x) {
+	unsigned long index;
+	if (_BitScanReverse(&index, x)) {
+		return 31 - index; // 31 minus the index gives the leading zeros
+	}
+	return 32; // Handle 0 explicitly if needed
+}
+
+static uint32
+host_ilog2(uint32 cnt) {
+	if (cnt <= 1)
+		return 5;
+	uint32 lg = 31u - msvc_builtin_clz(cnt);
+	uint32 il = lg + 5u;
+	return il < 5u ? 5u : il;
+}
+#else
+
 static uint32
 host_ilog2(uint32 cnt) {
 	if (cnt <= 1)
@@ -812,6 +833,8 @@ host_ilog2(uint32 cnt) {
 	uint32 il = lg + 5u;
 	return il < 5u ? 5u : il;
 }
+
+#endif
 
 static void
 collision_stats_clear(collision_data_t *data) {
@@ -930,7 +953,11 @@ collision_engine_run(void *e, collision_data_t *data) {
 	uint32 max_bucket_for_hash = *engine->h_max_bucket;
 	if (max_bucket_for_hash == 0)
 		max_bucket_for_hash = 1;
+#ifdef _MSC_VER
+	uint32 lg = 31u - msvc_builtin_clz(max_bucket_for_hash);
+#else
 	uint32 lg = 31u - __builtin_clz(max_bucket_for_hash);
+#endif
 	uint32 ilog2 = lg + 5u;
 	if (ilog2 < 5u)
 		ilog2 = 5u;

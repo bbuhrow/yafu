@@ -28,20 +28,20 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$([MSBuild]::ValueOrDefault('$(YafuToolset)', 'ClangCL'))</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$([MSBuild]::ValueOrDefault('$(YafuToolset)', 'ClangCL'))</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <PlatformToolset>$([MSBuild]::ValueOrDefault('$(YafuToolset)', 'ClangCL'))</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$([MSBuild]::ValueOrDefault('$(YafuToolset)', 'ClangCL'))</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -162,7 +162,7 @@
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <AdditionalIncludeDirectories>.\;..\;..\..\;..\..\ms_include;..\..\zlib;..\..\cub;..\..\gnfs;..\..\gnfs\poly;..\..\gnfs\poly\stage1;C:\Program Files (x86)\Oracle\Berkeley DB 11gR2 5.3.21\include;$(mp_dir);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_LIB;HAVE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_LIB;HAVE_CUDA_POLY;HAVE_CPU_HASHTABLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -187,6 +187,10 @@
     <ClCompile Include="..\..\gnfs\ffpoly.c" />
     <ClCompile Include="..\..\gnfs\gf2.c" />
     <ClCompile Include="..\..\gnfs\gnfs.c" />
+    <ClCompile Include="..\..\gnfs\poly\poly_stats.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_engine.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu.c" />
+    <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_cpu_hashtable.c" />
     <ClCompile Include="..\..\gnfs\poly\stage1\stage1_sieve_gpu.c" />
     <ClCompile Include="..\..\gnfs\poly\stage2\optimize_deg6.c" />
     <ClCompile Include="..\..\gnfs\poly\stage2\root_sieve_deg45_x.c" />
@@ -219,9 +223,11 @@
   <ItemGroup>
     <ClInclude Include="..\..\gnfs\filter\filter.h" />
     <ClInclude Include="..\..\gnfs\poly\poly.h" />
+    <ClInclude Include="..\..\gnfs\poly\poly_stats.h" />
     <ClInclude Include="..\..\gnfs\poly\stage1\cpu_intrinsics.h" />
     <ClInclude Include="..\..\gnfs\poly\stage1\stage1_core_gpu\cuda_intrinsics.h" />
     <ClInclude Include="..\..\gnfs\poly\stage1\stage1_core_gpu\stage1_core.h" />
+    <ClInclude Include="..\..\gnfs\poly\stage1\stage1_engine.h" />
     <ClInclude Include="..\..\gnfs\sieve\sieve.h" />
     <ClInclude Include="..\..\common\filter\filter.h" />
     <ClInclude Include="..\..\gnfs\gnfs.h" />
