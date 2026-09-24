@@ -4,7 +4,28 @@ Bridge document between phases and conversations. **Update it at the end of ever
 session** (see "How to use"). Plan: `cuda-sieve-plan.md`. Upstream asks:
 `cuda-sieve-upstream-requests.md`.
 
-Last updated: 2026-09-21 (P0 + P1 patch drafted; not yet built inside YAFU)
+Last updated: 2026-09-21 (P0 + P1 patch built and runs; not yet run against cuda-sieve itself)
+
+## Start here for Phase 2
+
+The P0/P1 patch is applied, and the yafu binary builds and runs with it.
+**Not yet done: any run of the actual cuda-sieve `bench` binary.** So Phase 2
+work (salvage from `.ckpt`, exit-code policy, `.ranges` bookkeeping) has two
+parts in sequence:
+
+1. First confirm P1 end-to-end on a GPU machine with cuda-sieve built: a
+   c100-c120 job, `bench --check-relations` on the output, msieve filtering,
+   and a yield comparison against a lasieve run on the same job. This exercises
+   the P0/P1 code for the first time against the real binary, not the mock
+   script the patch was tested with — expect the command line, exit codes, or
+   `.ckpt` format to need small corrections against reality.
+2. Once that runs clean, do the Ctrl-C-mid-range test (checks stop detection,
+   already in the patch) and then build the P2 salvage/retry logic per the
+   plan's P2 section and the "Open items" below.
+
+Bring `cuda-sieve-p0-p1.patch` (already applied — for reference) and this file;
+pull the patched `nfs_sieving.c`/`nfs.c`/`nfs_impl.h` from wherever the patch
+was applied, since this conversation does not have them.
 
 ## How to use
 
@@ -19,9 +40,9 @@ Last updated: 2026-09-21 (P0 + P1 patch drafted; not yet built inside YAFU)
 
 | Phase | Status | Notes |
 |---|---|---|
-| P0 plumbing | patch drafted | `cuda-sieve-p0-p1.patch`; applies cleanly; **not compiled in the full yafu build** |
-| P1 one-GPU sieving | patch drafted | same patch; unit-tested against a mock siever only; **never run on a GPU** |
-| P2 stops / failures / ranges | partly in P1 | stop detection and cleanup are in; **salvage of partial output, exit-code policy (retry/keep) still open** |
+| P0 plumbing | **built** | `cuda-sieve-p0-p1.patch` applied; yafu builds and runs with it |
+| P1 one-GPU sieving | **built, unverified against cuda-sieve** | code path runs; **never invoked the real `bench` binary, only the mock script** |
+| P2 stops / failures / ranges | partly in P1 | stop detection and cleanup are in; **salvage of partial output, exit-code policy (retry/keep) still open**; blocked on a real cuda-sieve run first (see "Start here") |
 | P3 range sizing, multi-GPU | not started | |
 | P4 factor-base cache (optional) | not started | measure first |
 | P5 validation / Windows / docs | not started | |
@@ -96,11 +117,17 @@ Last updated: 2026-09-21 (P0 + P1 patch drafted; not yet built inside YAFU)
   (also with `-DWIN32`); `check_for_sievers` cuda and lasieve branches; the
   `-cuda_dev`/`-cuda_sieve` handlers.
 
+**Verified since (2026-09-21)**
+- Patch applied to the real tree; yafu builds and the resulting binary runs.
+  (Which platform/compiler, and whether `-cuda_sieve`/`-cuda_dev` were
+  exercised on the CLI, wasn't reported — confirm at the start of the next
+  session if it matters.)
+
 **Not verified**
-- The patched sources have **not been compiled in the full yafu build** (only
-  the new code was compiled, against stubs). Watch for: `THREADS` type,
-  `sys/wait.h` under MinGW, the `HAVE_*_BATCH_FACTOR` branch of
-  `nfs_sieve_start`, and warnings from `-Wall`.
+- The cuda-sieve `bench` binary has **never actually been invoked** by this
+  code — P0/P1 testing used a shell-script mock. The real command line, exit
+  codes, log format, and `.part`/`.ckpt` naming are unconfirmed against the
+  real binary.
 - Nothing has been run on a GPU; runtime behavior of cuda-sieve is from docs
   and code comments only.
 - That a completed band removes its `.ckpt` (per `pipeline.cuh`, not observed).
@@ -142,6 +169,12 @@ Project files currently available: `nfs_sieving.c`, `nfs.c`, `nfs_impl.h`,
 ## Handoff log
 
 Newest first. One entry per session.
+
+### 2026-09-21: P0 + P1 patch applied, builds and runs
+- Patch applied to the working tree; yafu compiles and the binary runs.
+- Not yet tested against cuda-sieve itself — see "Start here for Phase 2" at
+  the top of this file.
+- Next: a real cuda-sieve run (c100-c120), then Ctrl-C mid-range, then P2.
 
 ### 2026-09-21: P0 + P1 patch drafted
 - Produced `cuda-sieve-p0-p1.patch` (7 files, +379/-15, CRLF preserved) and

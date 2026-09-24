@@ -1132,7 +1132,7 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 
 		if (d->obj->flags & MSIEVE_FLAG_STOP_SIEVING)
 		{
-			printf("recieved break signal\n");
+			//printf("recieved break signal\n");
 			break;
 		}
 
