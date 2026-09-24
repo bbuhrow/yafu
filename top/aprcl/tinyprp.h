@@ -44,6 +44,9 @@ int fermat_prp_64x1(uint64_t n);
 // a Fermat PRP test on 1 128-bit input (two 64-bit words)
 int fermat_prp_128x1(uint64_t* n);
 
+// a base-2 Miller-Rabin SPRP test on 1 64-bit input
+int MR_2sprp_64x1(uint64_t n);
+
 // a base-2 Miller-Rabin SPRP test on 1 128-bit input (two 64-bit words)
 int MR_2sprp_128x1(uint64_t* n);
 
@@ -76,7 +79,7 @@ uint8_t MR_sprp_104x8base(uint64_t* n, uint64_t* one, uint64_t* bases);
 
 
 // test routine for the above
-int test_tinyprp();
+int test_tinyprp(void);
 
 
 

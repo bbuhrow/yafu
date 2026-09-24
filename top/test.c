@@ -156,8 +156,7 @@ int test_tinysiqs(mpz_t* inputs, int num_inputs)
 	return correct;
 }
 
-
-void test_dlp_composites()
+void test_dlp_composites(void)
 {
 	FILE *in;
 	uint64_t *comp, f64;

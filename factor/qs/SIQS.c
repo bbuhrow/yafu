@@ -132,7 +132,6 @@ void siqs_start(void *vptr)
 	printf("Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
 #endif
 
-
     udata->results[0] = 0.0;
     udata->results[1] = 0.0;
     udata->results[2] = 0.0;
@@ -600,9 +599,7 @@ void siqsexit(int sig)
 static double now_sec(void)
 {
 #ifdef _MSC_VER
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (double)tv.tv_sec + (double)tv.tv_usec * 1e-6;
+    return 0.0;
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -6204,25 +6201,25 @@ int free_siqs(static_conf_t *sconf)
         free(sconf->poly_a_list);
     }
 
-	//while freeing the list of factors, divide them out of the input
-	for (i=0;i<sconf->factor_list.num_factors;i++)
-	{
-		mpz_t tmp;
-		mpz_init(tmp);
+	// while freeing the list of factors, divide them out of the input
+    for (i = 0; i < sconf->factor_list.num_factors; i++)
+    {
+        mpz_t tmp;
+        mpz_init(tmp);
 
-		//convert the factor
-		mp_t2gmp(&sconf->factor_list.final_factors[i]->factor,tmp);
+        // convert the factor
+        mp_t2gmp(&sconf->factor_list.final_factors[i]->factor, tmp);
 
-		//divide it out
-		mpz_tdiv_q(sconf->obj->qs_obj.gmp_n, sconf->obj->qs_obj.gmp_n, tmp);
+        // divide it out
+        mpz_tdiv_q(sconf->obj->qs_obj.gmp_n, sconf->obj->qs_obj.gmp_n, tmp);
 
-		//log it
-		add_to_factor_list(sconf->obj->factors, tmp, 
+        // log it
+        add_to_factor_list(sconf->obj->factors, tmp,
             sconf->obj->VFLAG, sconf->obj->NUM_WITNESSES, 0);
-		
-		mpz_clear(tmp);
-		free(sconf->factor_list.final_factors[i]);
-	}
+
+        mpz_clear(tmp);
+        free(sconf->factor_list.final_factors[i]);
+    }
 
     free(sconf->in_mem_relations);
 

@@ -188,7 +188,6 @@
     <ClInclude Include="..\..\gnfs\poly\poly_stats.h" />
     <ClInclude Include="..\..\gnfs\poly\stage1\stage1_engine.h" />
     <ClInclude Include="..\..\gnfs\sieve\sieve.h" />
-    <ClInclude Include="..\..\include\dd.h" />
     <ClInclude Include="..\..\common\filter\filter.h" />
     <ClInclude Include="..\..\gnfs\gnfs.h" />
     <ClInclude Include="..\..\common\lanczos\lanczos.h" />
@@ -198,6 +197,7 @@
     <ClInclude Include="..\..\gnfs\poly\stage1\stage1.h" />
     <ClInclude Include="..\..\gnfs\poly\stage2\stage2.h" />
     <ClInclude Include="..\..\include\ms_msieve.h" />
+    <ClInclude Include="..\..\ms_include\dd.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\x64_support_masm.asm" />

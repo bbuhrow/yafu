@@ -200,8 +200,8 @@ static INLINE double __fmsub (double a, double c, double b) {
 #define SPLIT_CONST 134217729.0               /* = 2^27 + 1 */
 
 #define SPLIT(a, hi, lo) {		\
-	double u = SPLIT_CONST * (a);\
-	(hi) = u - (u - (a));	\
+	double SPLIT_u = SPLIT_CONST * (a);\
+	(hi) = SPLIT_u - (SPLIT_u - (a));	\
 	(lo) = (a) - (hi);		\
 }
 
@@ -363,7 +363,7 @@ static INLINE dd_t dd_mp2dd(mp_t *x) {
 	if (mp_is_zero(x))
 		return dd_set_d(0.0);
 	
-	i = x->nwords - 1;
+	i = (int32) x->nwords - 1;
 	d = dd_set_d((double)x->val[i]);
 	for (i--; i >= 0; i--) {
 		d = dd_mul_dpow2(d, MP_RADIX);

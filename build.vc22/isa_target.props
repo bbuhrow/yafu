@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  build.vc22/isa_target.props
+
+  Translates the $(YafuISA) MSBuild property into compiler flags and
+  preprocessor definitions for ALL projects in the solution.
+
+  This file is imported via libs_and_extensions.props, which is already
+  imported by every project configuration — so no project file changes
+  are needed other than removing any hardcoded EnableEnhancedInstructionSet
+  entries (see yafu.vcxproj Release|x64 ItemDefinitionGroup).
+
+  Usage — pass on the MSBuild command line:
+    /p:YafuISA=generic
+    /p:YafuISA=sse41
+    /p:YafuISA=avx2          (default)
+    /p:YafuISA=avx512
+    /p:YafuISA=avx512ifma
+
+  The YafuEnhancedISA values are the canonical MSBuild enum strings for
+  the EnableEnhancedInstructionSet property (ClangCL and MSVC both honour
+  these values):
+    NoExtensions
+    StreamingSIMDExtensions4.1
+    AdvancedVectorExtensions2
+    AdvancedVectorExtensions512
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- Default to avx2 if not specified on command line -->
+  <PropertyGroup>
+    <YafuISA Condition="'$(YafuISA)'==''">avx512</YafuISA>
+  </PropertyGroup>
+
+  <!-- ── generic: baseline x86-64, no extensions ───────────────────────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='generic'">
+    <YafuISADefines>VBITS=128</YafuISADefines>
+    <YafuEnhancedISA>NoExtensions</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── sse41: SSE 4.1 ────────────────────────────────────────────────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='sse41'">
+    <YafuISADefines>VBITS=128;USE_SSE41</YafuISADefines>
+    <YafuEnhancedISA>StreamingSIMDExtensions4.1</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── avx2: AVX2 + BMI2 (Haswell+, recommended for most users) ──────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='avx2'">
+    <YafuISADefines>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2</YafuISADefines>
+    <YafuEnhancedISA>AdvancedVectorExtensions2</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── avx512: AVX-512 F/BW (Skylake-X, Cascade Lake, Zen 4) ────────── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='avx512'">
+    <YafuISADefines>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX</YafuISADefines>
+    <YafuEnhancedISA>AdvancedVectorExtensions512</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!-- ── avx512ifma: AVX-512 + IFMA (Ice Lake+, best ECM performance) ──── -->
+  <PropertyGroup Condition="'$(YafuISA)'=='avx512ifma'">
+    <YafuISADefines>VBITS=128;USE_SSE41;USE_AVX2;USE_BMI2;USE_AVX512F;USE_AVX512BW;SKYLAKEX;IFMA</YafuISADefines>
+    <YafuEnhancedISA>AdvancedVectorExtensions512</YafuEnhancedISA>
+  </PropertyGroup>
+
+  <!--
+    Apply ISA flags to every ClCompile item in any project that imports
+    this file (via libs_and_extensions.props). The %(PreprocessorDefinitions)
+    and %(EnableEnhancedInstructionSet) references preserve any per-file
+    overrides already set in individual project ItemDefinitionGroups.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>$(YafuISADefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>$(YafuEnhancedISA)</EnableEnhancedInstructionSet>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+</Project>

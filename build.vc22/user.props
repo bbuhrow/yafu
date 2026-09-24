@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- build.vc22/User.props — local overrides, not committed to git -->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <YafuISA>avx512</YafuISA>
+    <mp_dir>..\..\..\mpir\lib\x64\Release\</mp_dir>
+    <ecm_dir>..\..\..\ecm-install\</ecm_dir>
+  </PropertyGroup>
+</Project>

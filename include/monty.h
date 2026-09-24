@@ -104,6 +104,7 @@ typedef struct
 	mpz_t ys; 
 	mpz_t t1;
 
+	int bits;
 } monty_t;
 
 monty_t * monty_alloc(void);

@@ -858,7 +858,7 @@ COMMON_SRCS = \
     factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c \
     ytools/threadpool.c \
-    ytools/util.c \
+    ytools/ytools.c \
     ysieve/presieve.c \
     ysieve/count.c \
     ysieve/offsets.c \
@@ -1230,6 +1230,120 @@ ecm: _dep_status \
 
 
 # -----------------------------------------------------------------------------
+# 25a. TEST SUITE  (testkit + layered module tests)
+#
+#   make test        build and link the test binary (yafu_test)
+#   make test-run    build it, then run the full suite
+#   make test-clean  remove test artefacts only
+#
+# The test objects compile with the same $(CFLAGS) as the library, so they
+# resolve the same project headers (mp_platform.h, arith.h, monty.h, the aprcl
+# headers, gmp.h); the extra -I$(TEST_DIR) lets the layer files find the
+# framework headers testkit.h / test_data.h.
+#
+# Layer 1 exercises the arithmetic / number-theory kernels, which live in
+# COMMON_SRCS (arith.c, monty.c, top/aprcl/{mpz_aprcl,tinyprp}.c, ysieve/*).
+# We bundle YAFU_COMMON_OBJS into a static archive and let the linker pull only
+# the members the tests actually reference, so the other COMMON objects
+# (factor_common, microecm, gpu_cofactorization, ...) and their SIQS/NFS/CUDA
+# dependencies are never dragged into the test binary.
+#
+# NOTE: if your tree has split the 128-bit / single-limb code out of arith.c /
+# monty.c into limb1.c / limb2.c, add those to COMMON_SRCS (the main build needs
+# them too) or append their objects to TEST_KERNEL_OBJS, so symbols such as
+# mulmod128 resolve at link time.
+# -----------------------------------------------------------------------------
+.PHONY: test test-run test-clean
+
+TEST_DIR  := test
+TEST_SRCS := \
+    $(TEST_DIR)/testkit.c \
+    $(TEST_DIR)/test_data.c \
+    $(TEST_DIR)/test_main.c \
+    $(TEST_DIR)/layer0/test_mp_arith.c \
+    $(TEST_DIR)/layer0/test_mp_bitscan.c \
+    $(TEST_DIR)/layer1/test_sp_arith.c \
+    $(TEST_DIR)/layer1/test_modular.c \
+    $(TEST_DIR)/layer1/test_primality.c \
+    $(TEST_DIR)/layer1/test_sieve.c \
+    $(TEST_DIR)/layer2/test_ecm.c
+TEST_OBJS := $(TEST_SRCS:.c=$(OBJ_EXT))
+TEST_BIN  := yafu_test$(EXE_EXT)
+
+# YAFU objects the layered tests link against (overridable).
+TEST_KERNEL_OBJS ?= $(YAFU_COMMON_OBJS)
+
+# Dedicated compile rule: more specific than the generic %.o rule, so it wins
+# for test sources.  Adds -I$(TEST_DIR) and a coarse header dependency; stays
+# out of the .deps/ machinery.
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(TEST_DIR)/testkit.h $(TEST_DIR)/test_data.h
+	$(CC) $(CFLAGS) -I$(TEST_DIR) -c -o $@ $<
+
+libyafu_common.a: $(TEST_KERNEL_OBJS)
+	rm -f $@
+	ar r  $@ $(TEST_KERNEL_OBJS)
+	ranlib $@
+
+test: _dep_status $(TEST_OBJS) libyafu_common.a
+	$(CC) $(CFLAGS) $(TEST_OBJS) -o $(TEST_BIN) libyafu_common.a $(LIBS)
+	@echo "built $(TEST_BIN) — run it:  ./$(TEST_BIN)   (try --list, --bench, --help)"
+
+test-run: test
+	./$(TEST_BIN)
+
+test-clean:
+	$(RM_RF) $(TEST_OBJS) libyafu_common.a $(TEST_BIN) 0TEST_FULL_BIN)
+
+
+# -----------------------------------------------------------------------------
+# 25b. TEST SUITE -- Layer 3 (individual big-int routines: SIQS, ...)
+#
+#   make test-full       build+link Layers 0-3 (adds the factoring archives)
+#   make test-full-run   build and run it
+#
+# Unlike Layers 0-2, these call into the full factoring library (SIQS/ECM/NFS/
+# msieve), so we link the same four archives yafu itself uses -- but with the
+# test's own main(), so none of YAFU_OBJS (driver.o/calc.o) is needed. Test
+# sources are compiled straight into the link with -DTK_WITH_LAYER3 (not the
+# shared %.o objects), so the Layer-3 build never collides with the lean
+# `make test` objects.
+# -----------------------------------------------------------------------------
+.PHONY: test-full test-full-run
+
+TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c
+TEST_FULL_BIN := yafu_test_full$(EXE_EXT)
+TEST_ARCHIVES := libysiqs.a libyecm.a libynfs.a libmsieve.a
+
+# Standalone archive rules mirroring the inline `ar` steps in the yafu/msieve
+# recipes (same member sets), so test-full can depend on them directly.
+libysiqs.a: $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
+	rm -f $@
+	ar r  $@ $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
+	ranlib $@
+libyecm.a: $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	rm -f $@
+	ar r  $@ $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
+	ranlib $@
+libynfs.a: $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
+	rm -f $@
+	ar r  $@ $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
+	ranlib $@
+libmsieve.a: $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	rm -f $@
+	ar r  $@ $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
+	ranlib $@
+
+test-full: _dep_status $(TEST_ARCHIVES)
+	$(CC) $(CFLAGS) -DTK_WITH_LAYER3 -I$(TEST_DIR) \
+	    $(TEST_SRCS) $(TEST_L3_SRCS) -o $(TEST_FULL_BIN) \
+	    $(TEST_ARCHIVES) $(LIBS)
+	@echo "built $(TEST_FULL_BIN) -- Layers 0-3 (incl. SIQS integration)"
+
+test-full-run: test-full
+	./$(TEST_FULL_BIN)
+
+
+# -----------------------------------------------------------------------------
 # lasieve — NFS sieve binaries (factor/lasieve5_64)
 #
 # Built separately from the main yafu targets since the sieve programs are
@@ -1339,6 +1453,7 @@ clean:
 	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
 	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
 	    *.ptx
+	$(RM_RF) $(TEST_OBJS) libyafu_common.a $(TEST_BIN)
 	@echo "Note: use 'make lasieve-clean' to also clean factor/lasieve5_64"
 
 
@@ -1404,6 +1519,11 @@ help:
 	@echo "    make siqs            build siqs_demo standalone binary"
 	@echo "    make ecm             build ecm_demo standalone binary"
 	@echo "    make all             build all four targets above"
+	@echo "    make test            build the test suite (yafu_test)"
+	@echo "    make test-run        build and run the test suite"
+	@echo "    make test-clean      remove test build artefacts"
+	@echo "    make test-full       build+run Layers 0-3 (SIQS integration)"
+	@echo "    make test-full-run   build and run Layers 0-3"
 	@echo "    make lasieve         build NFS sieve libraries (factor/lasieve5_64)"
 	@echo "    make clean           remove yafu build artefacts (not lasieve)"
 	@echo "    make lasieve-clean   remove lasieve build artefacts"

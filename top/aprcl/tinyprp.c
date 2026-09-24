@@ -1137,7 +1137,7 @@ static uint64_t sm_primes[168] = {
 };
 
 #ifdef USE_PERIG_128BIT
-int test_tinyprp()
+int test_tinyprp(void)
 {
 	uint64_t prp[16];
 	int correct = 0;

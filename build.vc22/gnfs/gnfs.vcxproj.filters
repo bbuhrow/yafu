@@ -136,9 +136,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\dd.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\common\filter\filter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
