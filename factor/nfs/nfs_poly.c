@@ -1003,9 +1003,21 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	// as "no polynomial found".
 	if ((params.stage2_norm == 0.0) || (params.deadline == 0))
 	{
+		/* report the table that was actually consulted, not always deg4 */
+		const poly_params_t *used_table;
+		double used_min_digits;
+
+		if (fobj->nfs_obj.pref_degree == 6)
+			used_table = params_deg6;
+		else if (fobj->nfs_obj.pref_degree == 5)
+			used_table = params_deg5;
+		else
+			used_table = params_deg4;
+		used_min_digits = used_table[0].digits;
+
 		printf("nfs: no polynomial-search parameters for a %1.2f-digit input "
 			"(degree-%d table starts at %.0f digits) - input too small for GNFS\n",
-			digits, fobj->nfs_obj.pref_degree, params_deg4[0].digits);
+			digits, fobj->nfs_obj.pref_degree, used_min_digits);
 		logprint_oc(fobj->flogname, "a",
 			"nfs: no polynomial-search parameters for a %1.2f-digit input\n", digits);
 		return;
