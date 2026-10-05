@@ -315,7 +315,7 @@ extern int NFS_ABORT;
 extern int IGNORE_NFS_ABORT;
 #define GGNFS_TABLE_ROWS 23
 #define GGNFS_TABLE_COLS 13
-#define GGNFS_TABLE_ROWS_NEW 66
+#define GGNFS_TABLE_ROWS_NEW 69
 #define GGNFS_TABLE_COLS_NEW 13
 extern double** gnfs_table;
 extern double** snfs_table;
