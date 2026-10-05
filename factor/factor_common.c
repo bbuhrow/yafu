@@ -1472,22 +1472,34 @@ void print_factors(fact_obj_t *fobj)
     get_prod_of_factors(flist, prod);
     compute_factor_types(flist, VFLAG, 0);      // make sure everything has a type
 
-    mpz_tdiv_r(remainder, flist->N, prod);
-
-    if (mpz_cmp_ui(remainder, 0) != 0)
+    // A zero product means the list holds a bogus (zero-valued) factor.  GMP
+    // raises SIGFPE on the division by zero below, which takes the whole
+    // program down with no diagnostic; report it and skip the remainder
+    // bookkeeping instead.  (An empty list is not affected: prod is 1 then.)
+    if (mpz_cmp_ui(prod, 0) == 0)
     {
-        // what to do if the product of factors doesn't equal the input?
-        // clearly something went wrong somewhere, log the error.
-        gmp_printf("err: product of factors %Zd doesn't equal input %Zd\n", prod, flist->N);
-        logprint_oc(fobj->flogname, "a", "err: product of factors doesn't equal input\n");
+        printf("err: product of factors is zero - bogus factor list, skipping consistency check\n");
+        logprint_oc(fobj->flogname, "a", "err: product of factors is zero\n");
     }
-
-    mpz_tdiv_q(remainder, flist->N, prod);
-
-    // put anything left over in the list
-    if (mpz_cmp_ui(remainder, 1) > 0)
+    else
     {
-        add_to_factor_list(flist, remainder, VFLAG, NUM_WITNESSES, 0);
+        mpz_tdiv_r(remainder, flist->N, prod);
+
+        if (mpz_cmp_ui(remainder, 0) != 0)
+        {
+            // what to do if the product of factors doesn't equal the input?
+            // clearly something went wrong somewhere, log the error.
+            gmp_printf("err: product of factors %Zd doesn't equal input %Zd\n", prod, flist->N);
+            logprint_oc(fobj->flogname, "a", "err: product of factors doesn't equal input\n");
+        }
+
+        mpz_tdiv_q(remainder, flist->N, prod);
+
+        // put anything left over in the list
+        if (mpz_cmp_ui(remainder, 1) > 0)
+        {
+            add_to_factor_list(flist, remainder, VFLAG, NUM_WITNESSES, 0);
+        }
     }
 
 	// always print factors unless complete silence is requested

@@ -290,6 +290,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			// do ECM until we find a factor.
 			int found = 0;
 			uint64_t lcg = 42;
+			int ecm_tries = 0;
 			do
 			{
 				found = getfactor_tecm(fobj->qs_obj.gmp_n, f1, 0, &lcg);
@@ -335,7 +336,50 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 						}
 					}
 				}
-			} while (!found);
+			} while (!found && (++ecm_tries < 100));
+
+			if (!found)
+			{
+				// Tiny-ecm cannot always succeed.  When every factor of the
+				// remaining composite is small enough that its curve group
+				// order divides the stage-1 exponent, each curve collapses to
+				// gcd == n and is reported as a failure; 15 is exactly such a
+				// case, and the unbounded retry loop used to spin on it
+				// forever.  Finish the job with deterministic methods.
+				if (fobj->qs_obj.flags != 12345)
+				{
+					if (fobj->logfile != NULL)
+					{
+						char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
+						logprint(fobj->logfile,
+							"tiny-ecm gave up on C%d = %s; falling back to trial division\n",
+							gmp_base10(fobj->qs_obj.gmp_n), s);
+						free(s);
+					}
+				}
+
+				mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
+				fobj->div_obj.print = 0;
+				fobj->div_obj.limit = 100000;
+				zTrial(fobj);
+				mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
+
+				if (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0)
+				{
+					if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
+					{
+						add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
+							fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+						mpz_set_ui(fobj->qs_obj.gmp_n, 1);
+					}
+					else
+					{
+						mpz_set(fobj->rho_obj.gmp_n, fobj->qs_obj.gmp_n);
+						brent_loop(fobj);
+						mpz_set(fobj->qs_obj.gmp_n, fobj->rho_obj.gmp_n);
+					}
+				}
+			}
 
 
 		}

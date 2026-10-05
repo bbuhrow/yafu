@@ -170,6 +170,13 @@ static char function_names[NUM_FUNC][11] = {
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
     "divisors", "expansion"};
 
+// Declared arity per function.  This table is what the argument-collection
+// loop in calc() uses to place actual arguments:  with arity na and k
+// arguments supplied, argument #1 lands in operands[na-k] and the last in
+// operands[na-1].  A feval() case must therefore always read the LAST slot it
+// can receive (operands[na-1]) and must tolerate the arguments being shifted
+// up when fewer than na are given -- e.g. a two-argument function called with
+// one argument finds it in operands[1], not operands[0].
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
     1, 1, 1, 1, 1, 
@@ -182,7 +189,7 @@ static int function_nargs[NUM_FUNC] = {
     1, 1, 2, 0, 1,
     2, 1, 2, 2, 1,
     2, 2, 1, 1, 1, 
-    3, 1, 2, 1, 1, 
+    2, 1, 2, 1, 1, 
     3, 2, 2, 1, 1, 
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
@@ -2716,7 +2723,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         {
             printf("using default trial division bound of 10000\n");
             // set up a new factorization of the provided input
-            new_factorization(fobj, operands[0]);
+            // (one argument of a two-argument function lands in operands[1])
+            new_factorization(fobj, operands[1]);
 
             // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[1]);
