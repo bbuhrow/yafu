@@ -68,6 +68,7 @@
 #include "microecm.h"
 #include "batch_factor.h"
 #include "arith.h"
+#include <pthread.h>
 #include "gpu_cofactorization_cl.h"
 // lasieve's mpqs is optional (-DHAVE_LASIEVE_MPQS, and it must be linked in);
 // otherwise tinysiqs is used.  Same includes as factor/batch_factor.c.
@@ -1381,9 +1382,19 @@ read_file(const char *path)
     return buf;
 }
 
+/* Only one thread context may exist at a time.  NFS and SIQS give every
+ * batch thread its own context, and with several of them creating, running
+ * and releasing contexts on the same GPU at once ROCm faulted the whole GPU
+ * (an instruction fetch from address 0, followed by a GPU reset).  gpu_ctx_init
+ * takes this lock and gpu_ctx_free releases it, so GPU batches run one at a
+ * time; the CPU-side work of the other threads is unaffected. */
+static pthread_mutex_t gpu_ctx_lock = PTHREAD_MUTEX_INITIALIZER;
+
 device_thread_ctx_t*
 gpu_ctx_init(device_ctx_t* d)
 {
+    pthread_mutex_lock(&gpu_ctx_lock);
+
     device_thread_ctx_t* t;
     cl_int               err;
     cl_device_id         dev = d->gpu_info->device_handle;
@@ -1621,6 +1632,8 @@ gpu_ctx_free(device_thread_ctx_t *d)
     clReleaseCommandQueue(d->queue);    /* was: cuStreamDestroy    */
     clReleaseProgram(d->gpu_program);   /* was: part of cuCtxDestroy */
     clReleaseContext(d->gpu_context);   /* was: cuCtxDestroy       */
+
+    pthread_mutex_unlock(&gpu_ctx_lock);
 }
 
 /* -----------------------------------------------------------------------
