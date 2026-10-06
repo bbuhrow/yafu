@@ -1318,6 +1318,10 @@ TEST_SRCS := \
     $(TEST_DIR)/layer1/test_primality.c \
     $(TEST_DIR)/layer1/test_sieve.c \
     $(TEST_DIR)/layer2/test_ecm.c
+# OpenCL kernel tests: need the OpenCL backend (make WITH_OPENCL=1 test)
+ifdef WITH_OPENCL
+TEST_SRCS += $(TEST_DIR)/layer2/test_ocl_ecm.c
+endif
 TEST_OBJS := $(TEST_SRCS:.c=$(OBJ_EXT))
 TEST_BIN  := yafu_test$(EXE_EXT)
 
