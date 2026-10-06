@@ -57,12 +57,6 @@
  *     gpu_args[N].ptr_arg = t->gpu_xxx_array;
  *--------------------------------------------------------------------*/
 
-// mpqs builds in msys2 but crashes right away when run.
-// something to figure out later.
-#if defined(__GNUC__) && !defined(__MINGW32__)
-#define HAVE_LASIEVE_MPQS
-#endif
-
 // posix feature-test macros to enable things in posix headers.
 // this one is for clock_gettime and others in time.h
 #define _POSIX_C_SOURCE 200809L
@@ -73,19 +67,19 @@
 #include "gmp.h"
 #include "microecm.h"
 #include "batch_factor.h"
+#include "arith.h"
 #include "gpu_cofactorization_cl.h"
-#include "gmp-aux.h"
+// lasieve's mpqs is optional (-DHAVE_LASIEVE_MPQS, and it must be linked in);
+// otherwise tinysiqs is used.  Same includes as factor/batch_factor.c.
 #ifdef HAVE_LASIEVE_MPQS
-#include "mpqs3/mpqs.h"
-#include "mpqs3/mpqs3.h"
-#include "mpqs3/if.h"
-#ifdef ULL_NO_UL
-#include "mpqs3/gmp-aux.h"
-#endif
+#include "../factor/lasieve5_64/mpqs.h"
+#include "../factor/lasieve5_64/mpqs3.h"
+#include "../factor/lasieve5_64/if.h"
+#include "../factor/lasieve5_64/gmp-aux.h"
 #endif
 #include "cofactorize.h"
 
-//#define HAVE_CUDA_BATCH_FACTOR
+
 
 #ifdef HAVE_OCL_BATCH_FACTOR
 
@@ -212,7 +206,7 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
         if (bits2 <= 64)
         {
             cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
-            uint64_t cofactor = mpz_get_ull(zc);
+            uint64_t cofactor = mpz_get_64(zc);
 
             // check if cofactor is composite and small enough to
             // possibly yield 2 correctly-sized primes
@@ -222,11 +216,11 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 // record the factor we found
                 if (t->first_side == 0)
                 {
-                    c->lp_a[0] = mpz_get_ull(zf);
+                    c->lp_a[0] = mpz_get_64(zf);
                 }
                 else
                 {
-                    c->lp_r[0] = mpz_get_ull(zf);
+                    c->lp_r[0] = mpz_get_64(zf);
                 }
                 // and load the cofactor for further factorization
                 t->modulus_in[num2lp_retest] = cofactor;
@@ -243,12 +237,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 // we just factored a 2LP larger than 64 bits.
                 if (t->first_side == 0)
                 {
-                    c->lp_a[0] = mpz_get_ull(zf);
+                    c->lp_a[0] = mpz_get_64(zf);
                     c->lp_a[1] = cofactor;
                 }
                 else
                 {
-                    c->lp_r[0] = mpz_get_ull(zf);
+                    c->lp_r[0] = mpz_get_64(zf);
                     c->lp_r[1] = cofactor;
                 }
                 c->success |= 0x0f;
@@ -280,15 +274,15 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                     cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
                     if (t->first_side == 0)
                     {
-                        c->lp_a[0] = mpz_get_ull(zf);
-                        c->lp_a[1] = mpz_get_ull(flist[0]);
-                        c->lp_a[2] = mpz_get_ull(flist[1]);
+                        c->lp_a[0] = mpz_get_64(zf);
+                        c->lp_a[1] = mpz_get_64(flist[0]);
+                        c->lp_a[2] = mpz_get_64(flist[1]);
                     }
                     else
                     {
-                        c->lp_r[0] = mpz_get_ull(zf);
-                        c->lp_r[1] = mpz_get_ull(flist[0]);
-                        c->lp_r[2] = mpz_get_ull(flist[1]);
+                        c->lp_r[0] = mpz_get_64(zf);
+                        c->lp_r[1] = mpz_get_64(flist[0]);
+                        c->lp_r[2] = mpz_get_64(flist[1]);
                     }
                     c->success |= 0x0f;
                 }
@@ -326,7 +320,7 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
         if (bits1 <= 64)
         {
             cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
-            uint64_t cofactor = mpz_get_ull(zf);
+            uint64_t cofactor = mpz_get_64(zf);
             // check if cofactor is composite and small enough to
             // possibly yield 2 correctly-sized primes
             //if (prp_uecm(cofactor) == 0)
@@ -335,11 +329,11 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 // record the factor we found
                 if (t->first_side == 0)
                 {
-                    c->lp_a[0] = mpz_get_ull(zc);
+                    c->lp_a[0] = mpz_get_64(zc);
                 }
                 else
                 {
-                    c->lp_r[0] = mpz_get_ull(zc);
+                    c->lp_r[0] = mpz_get_64(zc);
                 }
 
                 // and load the cofactor for further factorization
@@ -357,12 +351,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 // we just factored a 2LP larger than 64 bits.
                 if (t->first_side == 0)
                 {
-                    c->lp_a[0] = mpz_get_ull(zc);
+                    c->lp_a[0] = mpz_get_64(zc);
                     c->lp_a[1] = cofactor;
                 }
                 else
                 {
-                    c->lp_r[0] = mpz_get_ull(zc);
+                    c->lp_r[0] = mpz_get_64(zc);
                     c->lp_r[1] = cofactor;
                 }
                 c->success |= 0x0f;
@@ -395,15 +389,15 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                     (*mpqs_success)++;
                     if (t->first_side == 0)
                     {
-                        c->lp_a[0] = mpz_get_ull(zc);
-                        c->lp_a[1] = mpz_get_ull(flist[0]);
-                        c->lp_a[2] = mpz_get_ull(flist[1]);
+                        c->lp_a[0] = mpz_get_64(zc);
+                        c->lp_a[1] = mpz_get_64(flist[0]);
+                        c->lp_a[2] = mpz_get_64(flist[1]);
                     }
                     else
                     {
-                        c->lp_r[0] = mpz_get_ull(zc);
-                        c->lp_r[1] = mpz_get_ull(flist[0]);
-                        c->lp_r[2] = mpz_get_ull(flist[1]);
+                        c->lp_r[0] = mpz_get_64(zc);
+                        c->lp_r[1] = mpz_get_64(flist[0]);
+                        c->lp_r[2] = mpz_get_64(flist[1]);
                     }
                     c->success |= 0x0f;
                 }
@@ -520,12 +514,12 @@ do_gpu_ecm64(device_thread_ctx_t *t)
         int n = t->array_sz;
         int c = 0;
         for (i = 0; i < n; i++) {
-            mpz_set_ull(zn, t->modulus_in[i]);
+            mpz_set_64(zn, t->modulus_in[i]);
             uint64_t factor = t->a[i];
 
             if ((factor > 1) && (factor < t->modulus_in[i])) {
 
-                mpz_set_ull(rsq, factor);
+                mpz_set_64(rsq, factor);
 
                 int bits1 = mpz_sizeinbase(rsq, 2);
                 mpz_tdiv_q(rsq, zn, rsq);
@@ -1828,4 +1822,4 @@ do_gpu_cofactorization(device_thread_ctx_t *t, relation_batch_t* rb, uint64_t *l
     return 0;
 }
 
-#endif /* HAVE_CUDA_BATCH_FACTOR */
+#endif /* HAVE_OCL_BATCH_FACTOR */

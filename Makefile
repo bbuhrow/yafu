@@ -26,7 +26,10 @@
 # Feature flags (pass on command line or set in config.mk):
 #   OMP=1          OpenMP threading
 #   ECM=1          Link GMP-ECM, enable ECM factorisation
-#   BATCH_CUDA=1   GPU cofactorisation for NFS/SIQS  (requires CUDA)
+#   BATCH_CUDA=1   GPU cofactorisation for NFS/SIQS  (requires CUDA; falls
+#                  back to OpenCL if no CUDA toolkit is found)
+#   WITH_OPENCL=1  GPU cofactorisation via OpenCL, no CUDA needed
+#                  (mutually exclusive with BATCH_CUDA / CUDA_POLY)
 #   CUDA_POLY=1    GPU NFS polynomial selection       (requires CUDA)
 #   MPI=1          MPI parallel processing
 #   NO_ZLIB=1      Disable zlib
@@ -220,8 +223,10 @@ else
     CUDA_LPATH        :=
     NVCC              :=
     # If user requested CUDA features but toolkit not found, warn and disable
+    # (BATCH_CUDA is the generic "GPU batch cofactorisation" switch: when no
+    # CUDA toolkit is present it falls back to OpenCL, see section 4d.)
     ifdef BATCH_CUDA
-        $(warning CUDA toolkit not found — disabling BATCH_CUDA)
+        _BATCH_CUDA_NO_TOOLKIT := 1
         override BATCH_CUDA :=
     endif
     ifdef CUDA_POLY
@@ -235,11 +240,30 @@ else
 endif
 
 
-# ---- 4d. OpenCL  (optional, only meaningful with BATCH_CUDA) ---------------
-# OpenCL is used as an alternative to CUDA for GPU cofactorisation on AMD
-# and other non-NVIDIA hardware.  There is no point probing for it or linking
-# it when BATCH_CUDA is not enabled.
-ifdef BATCH_CUDA
+# ---- 4d. OpenCL  (optional, independent of CUDA) ---------------------------
+# OpenCL is an alternative to CUDA for GPU cofactorisation on AMD and other
+# non-NVIDIA hardware.  It is enabled with WITH_OPENCL=1 and needs no CUDA
+# toolkit.  For compatibility, BATCH_CUDA=1 on a machine without a CUDA
+# toolkit also falls back to OpenCL.  The CUDA and OpenCL backends define the
+# same gpu_* / device_* symbols, so they are mutually exclusive.
+# (BATCH_CUDA / CUDA_POLY were already cleared in 4c if there is no toolkit,
+# so these only fire when CUDA is really going to be used.)
+ifdef WITH_OPENCL
+    ifdef BATCH_CUDA
+        $(error WITH_OPENCL and BATCH_CUDA are mutually exclusive)
+    endif
+    ifdef CUDA_POLY
+        $(error WITH_OPENCL and CUDA_POLY cannot be combined: both define the same gpu_* symbols)
+    endif
+endif
+ifdef _BATCH_CUDA_NO_TOOLKIT
+    ifndef WITH_OPENCL
+        WITH_OPENCL := 1
+        _OCL_FALLBACK := 1
+    endif
+endif
+
+ifdef WITH_OPENCL
 ifdef OCL_PREFIX
     OCL_INCDIR ?= $(OCL_PREFIX)/include
     OCL_LIBDIR ?= $(OCL_PREFIX)/lib
@@ -281,8 +305,23 @@ else
     OCL_LPATH   :=
     OCL_LIBS    :=
 endif
+
+# Requested but unusable: warn and turn the feature off.
+ifeq (,$(HAVE_OPENCL))
+    ifdef _OCL_FALLBACK
+        $(warning neither a CUDA toolkit nor OpenCL found — disabling BATCH_CUDA)
+    else
+        $(warning OpenCL (CL/cl.h and libOpenCL) not found — disabling WITH_OPENCL. \
+            Set OCL_PREFIX in config.mk if you have it installed.)
+    endif
+    override WITH_OPENCL :=
 else
-    # BATCH_CUDA not set — skip OpenCL entirely
+    ifdef _OCL_FALLBACK
+        $(info BATCH_CUDA: no CUDA toolkit found, using the OpenCL backend)
+    endif
+endif
+else
+    # WITH_OPENCL not set — skip OpenCL entirely
     HAVE_OPENCL :=
     OCL_INC     :=
     OCL_LPATH   :=
@@ -662,6 +701,10 @@ ifdef BATCH_CUDA
     CFLAGS += -DTOOLKIT_VERSION=$(TOOLKIT_VERSION)
 endif
 
+ifdef WITH_OPENCL
+    CFLAGS += -DHAVE_OCL_BATCH_FACTOR
+endif
+
 ifdef CUDA_POLY
     CFLAGS += -DHAVE_CUDA_POLY -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) -Icub
 	CUDA_PTX_ARCH ?= compute_$(SM)
@@ -877,6 +920,14 @@ COMMON_SRCS = \
 COMMON_BATCH_GPU_SRCS = \
     factor/cuda_tinyecm.cu \
     factor/cuda_intrinsics.h
+
+# OpenCL batch cofactorisation backend.  Its kernels (factor/opencl_*.cl) are
+# compiled by the OpenCL runtime at run time, so only host code is built here.
+ifdef WITH_OPENCL
+COMMON_SRCS += \
+    factor/gpu_cofactorization_cl.c \
+    common/ocl_xface.c
+endif
 
 
 # -----------------------------------------------------------------------------
@@ -1493,6 +1544,7 @@ info:
 	@echo "    OMP            : $(if $(filter 1,$(OMP)),yes,no)"
 	@echo "    ECM            : $(if $(filter 1,$(ECM)),yes,no)"
 	@echo "    BATCH_CUDA     : $(if $(BATCH_CUDA),yes,no)"
+	@echo "    WITH_OPENCL    : $(if $(WITH_OPENCL),yes,no)"
 	@echo "    CUDA_POLY      : $(if $(CUDA_POLY),yes,no)"
 	@echo "    MPI            : $(if $(filter 1,$(MPI)),yes,no)"
 	@echo "    NO_ZLIB        : $(if $(filter 1,$(NO_ZLIB)),yes,no)"
@@ -1562,6 +1614,7 @@ help:
 	@echo "    make OMP=1           OpenMP threading"
 	@echo "    make ECM=1           GMP-ECM support"
 	@echo "    make BATCH_CUDA=1    GPU cofactorisation (NFS/SIQS)"
+	@echo "    make WITH_OPENCL=1   GPU cofactorisation via OpenCL (no CUDA needed)"
 	@echo "    make CUDA_POLY=1     GPU NFS polynomial selection"
 	@echo "    make MPI=1           MPI parallel processing"
 	@echo "    make NO_ZLIB=1       disable zlib"
