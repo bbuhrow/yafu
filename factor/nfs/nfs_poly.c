@@ -1670,6 +1670,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 							// restart this thread running a test sieve to a temp data file
 							strncpy(tmpoutfile, t->outfilename, 79);
 							sprintf(t->outfilename, "poly_test_sieve.%d.dat", tid);
+							// Discard test-sieve output left by an interrupted run.
+							remove(t->outfilename);
 
 							t->job.poly = NULL;			// NULL poly will get initialized by copy_job
 							copy_job(job, &t->job);
