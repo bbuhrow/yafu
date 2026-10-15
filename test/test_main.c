@@ -63,6 +63,9 @@ extern const tk_module tk_module_primality;
 extern const tk_module tk_module_sieve;
 extern const tk_module tk_module_microecm;
 extern const tk_module tk_module_tinyecm;
+#ifdef HAVE_OCL_BATCH_FACTOR
+extern const tk_module tk_module_ocl_ecm;   /* OpenCL batch-factoring kernels (make WITH_OPENCL=1) */
+#endif
 #ifdef TK_WITH_LAYER3
 extern const tk_module tk_module_siqs;   /* Layer 3: links the full factoring archives */
 #endif
@@ -80,6 +83,9 @@ static const tk_module *const modules[] = {
     &tk_module_sieve,
     &tk_module_microecm,
     &tk_module_tinyecm,
+#ifdef HAVE_OCL_BATCH_FACTOR
+    &tk_module_ocl_ecm,
+#endif
 #ifdef TK_WITH_LAYER3
     &tk_module_siqs,
 #endif

@@ -22,6 +22,10 @@ test/
     test_sp_arith.c           arith.h single-word mul/div/mulmod/modexp/modinv
     test_modular.c            Montgomery (mpz + 128-bit) vs GMP
     test_primality.c          APRCL/BPSW/MR + tinyprp vs the corpus
+  layer2/
+    test_ecm.c                microecm / tinyecm on known semiprimes
+    test_ocl_ecm.c            OpenCL kernels gbl_ecm / gbl_ecm96 / gbl_pm196
+                              (only built with WITH_OPENCL=1, see below)
   Makefile
 ```
 
@@ -61,6 +65,25 @@ make full YAFU_ROOT=/path/to/yafu YAFU_OBJS="...objects except the driver..."
 See the Makefile header for the variables. Layer 1 is gated behind
 `-DTK_NO_LAYER1` (the subset build defines it), so the framework and Layer 0
 always build even without GMP.
+
+## OpenCL kernel tests
+
+`layer2/test_ocl_ecm.c` runs the production OpenCL kernels
+(`factor/opencl_tinyecm.cl`) on a GPU and checks every factor they return
+against known-structure inputs. It is only part of the build when OpenCL is
+enabled, from the top-level Makefile:
+
+```
+make WITH_OPENCL=1 test
+./yafu_test ocl_ecm -v          # run from the yafu source root
+```
+
+- With no OpenCL GPU the module prints a note and passes.
+- `YAFU_OCL_PLATFORM=<substring>` picks a platform by name;
+  `YAFU_OCL_KERNEL_DIR=<dir>` points at the `.cl` files if you do not run from
+  the source root (default `factor`).
+- The first run compiles the kernels, which can take tens of seconds on some
+  drivers (later runs are cached by the driver).
 
 ## Running
 
