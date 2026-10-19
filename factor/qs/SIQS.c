@@ -2241,10 +2241,10 @@ void* process_poly(void* vptr)
 #endif
 
 #if defined(TRY_L2_SIEVE)
-        printf("starting p-side L2 sieve\n"); fflush(stdout);
+        //printf("starting p-side L2 sieve\n"); fflush(stdout);
         memset(sieve, blockinit, 32768 * 8);
         L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_p, fb, start_prime, blockinit);
-        printf("finished p-side L2 sieve\n"); fflush(stdout);
+        //printf("finished p-side L2 sieve\n"); fflush(stdout);
 #endif
 
         for (i = 0; i < num_blocks; i++)
@@ -2374,10 +2374,10 @@ void* process_poly(void* vptr)
 #endif
 
 #if defined(TRY_L2_SIEVE)
-        printf("starting n-side L2 sieve\n"); fflush(stdout);
+        //printf("starting n-side L2 sieve\n"); fflush(stdout);
         memset(sieve, blockinit, 32768 * 8);
         L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_n, fb, start_prime, blockinit);
-        printf("finished n-side L2 sieve\n"); fflush(stdout);
+        //printf("finished n-side L2 sieve\n"); fflush(stdout);
 #endif
 
         for (i = 0; i < num_blocks; i++)
@@ -4446,7 +4446,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // don't let med_B grow larger than ~1.5 * the blocksize
         if ((sconf->factor_base->list->prime[i] > (uint32_t)(8 * (double)sconf->qs_blocksize)) &&
             ((i % 16) == 0))
+        {
+            i -= 16;
             break;
+        }
 
         //or, of course, the entire factor base (loop condition)
     }
@@ -4464,9 +4467,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
 			((i % 16) == 0))
 		{
-#if !defined(TRY_L2_SIEVE)
 			i -= 16;
-#endif
 			break;
 		}
 	}

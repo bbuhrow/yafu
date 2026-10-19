@@ -1961,7 +1961,11 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
     int root1, root2, nroot1, nroot2, prime, amodp, bmodp, inv, x, bnum, j, numblocks;
 	int s = poly->s;
 	int bound_index = 0, k;
+#if defined(TRY_L2_SIEVE)
+	uint32_t bound_val = fb->fb_blk8i;
+#else
 	uint32_t bound_val = fb->med_B;
+#endif
 	uint32_t *bptr, *sliceptr_p, *sliceptr_n;
     uint64_t* bptr64, * sliceptr64_p, * sliceptr64_n;
     uint8_t* slicelogp_ptr = NULL;
@@ -1984,7 +1988,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	if (lp_bucket_p->list != NULL)
 	{
-		lp_bucket_p->fb_bounds[0] = fb->med_B;
+		lp_bucket_p->fb_bounds[0] = bound_val;
 
 		sliceptr_p = lp_bucket_p->list;
 		sliceptr_n = lp_bucket_p->list + (numblocks << BUCKET_BITS);
@@ -1992,8 +1996,10 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_p = lp_bucket_p->num;
 		numptr_n = lp_bucket_p->num + numblocks;
 		//reset lp_buckets
-		for (i=0;i< (2*numblocks*lp_bucket_p->alloc_slices) ;i++)
+		for (i = 0; i < (2 * numblocks * lp_bucket_p->alloc_slices); i++)
+		{
 			numptr_p[i] = 0;
+		}
 
 		lp_bucket_p->num_slices = 0;
 
@@ -2330,6 +2336,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
+	bound_val = fb->fb_blk8i;
 	check_bound = fb->fb_blk8i + BUCKET_ALLOC/2;
 	logp = fb->list->logprime[fb->fb_blk8i -1];
 	for (i=fb->fb_blk8i;i<fb->large_B;i++)

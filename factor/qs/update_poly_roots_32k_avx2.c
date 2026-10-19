@@ -3260,6 +3260,8 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
 #if defined(TRY_L2_SIEVE)
+        ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
+
         for (j = sconf->factor_base->med_B;
             j < sconf->factor_base->fb_blk8i; j++, ptr++)
         {
@@ -3383,6 +3385,8 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
 #if defined(TRY_L2_SIEVE)
+        ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
+
         for (j = sconf->factor_base->med_B;
             j < sconf->factor_base->fb_blk8i; j++, ptr++)
         {

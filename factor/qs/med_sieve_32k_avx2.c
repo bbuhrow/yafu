@@ -977,8 +977,8 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     ALIGNED_MEM uint32_t r_id2[16];
 
     uint32_t bound = full_fb->fb_blk8i - 16;
-    printf("start id: %u, end id: %u, diff = %u\n",
-        full_fb->med_B, bound, bound - full_fb->med_B);
+    //printf("start id: %u, end id: %u, diff = %u\n",
+    //    full_fb->med_B, bound, bound - full_fb->med_B);
 
     for (i = full_fb->med_B; i < bound; i += 16)
     {
@@ -996,17 +996,17 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
         // all roots in this range start out < 8 * blocksize
         valid_mask = 0xffff;
 
-        if (_mm512_cmpeq_epu32_mask(vprime, _mm512_setzero_epi32()) > 0)
-        {
-            printf("prime == 0 in L2 sieve\n");
-            int j;
-            for (j = 0; j < 16; j++)
-            {
-                printf("p: %u, r1: %u, r2: %u, lp: %u\n", fb->prime[i + j],
-                    fb->root1[i + j], fb->root2[i + j], fb->logp[i + j]);
-            }
-            exit(1);
-        }
+        //if (_mm512_cmpeq_epu32_mask(vprime, _mm512_setzero_epi32()) > 0)
+        //{
+        //    printf("prime == 0 in L2 sieve\n");
+        //    int j;
+        //    for (j = 0; j < 16; j++)
+        //    {
+        //        printf("p: %u, r1: %u, r2: %u, lp: %u\n", fb->prime[i + j],
+        //            fb->root1[i + j], fb->root2[i + j], fb->logp[i + j]);
+        //    }
+        //    exit(1);
+        //}
 
         // until things start to drop off the end of the interval, 
         // simply dump in all logs.

@@ -33,7 +33,9 @@ code to the public domain.
 #include <stdint.h>
 #include "autofactor.h"
 #include "gmp.h"
+#ifdef HAVE_GMP_ECM
 #include "ecm.h"
+#endif
 #include "microecm.h"
 
 #ifdef __MINGW32__

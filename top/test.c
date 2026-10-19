@@ -29,7 +29,9 @@ code to the public domain.
 #include "monty.h"
 #include "cofactorize.h"
 #include "smallmpqs.h"
+#ifdef HAVE_GMP_ECM
 #include <ecm.h>
+#endif
 #include <math.h>
 
 #ifdef __MINGW32__
@@ -647,10 +649,12 @@ tinyqs_marker:
     num = 10000;
 
 	// gmp-ecm test
+#ifdef HAVE_GMP_ECM
     for (nf = 0; nf < 0; nf++)
     {
         mpz_t gmp_comp;
         char buf[1024];
+
         ecm_params my_ecm_params;
         int curves;
         int B1;
@@ -753,6 +757,7 @@ tinyqs_marker:
 
         mpz_clear(gmp_comp);
     }
+#endif
 
 spfermat_marker:
     i = 0;

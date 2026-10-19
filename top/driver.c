@@ -29,7 +29,9 @@ code to the public domain.
 #include "gmp.h"
 #include "microecm.h"
 #include "cofactorize.h"
+#ifdef HAVE_GMP_ECM
 #include <ecm.h>
+#endif
 #ifndef __aarch64__
 #include <immintrin.h>
 #endif

@@ -1059,7 +1059,11 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     dconf->total_blocks++;
 
     // remove small primes, and test if its worth continuing for each report
-    filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+#if defined(TRY_L2_SIEVE)
+    filter_SPV(parity, dconf->sieve + blocknum * 32768, dconf->numB - 1, blocknum, sconf, dconf);
+#else
+	filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+#endif
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 #if defined(TRY_L2_SIEVE)
