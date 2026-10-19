@@ -78,7 +78,11 @@ void nextRoots_32k_knl_medbucket(static_conf_t * sconf, dynamic_conf_t * dconf,
 
     int* ptr;
     lp_bucket* lp_bucket_p = dconf->buckets;
+#if defined(TRY_L2_SIEVE)
+    uint32_t med_B = sconf->factor_base->fb_blk8i;
+#else
     uint32_t med_B = sconf->factor_base->med_B;
+#endif
     uint32_t large_B = sconf->factor_base->large_B;
     uint32_t xlarge_B = sconf->factor_base->x2_large_B;
 

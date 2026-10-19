@@ -75,6 +75,9 @@
 // new largep bucket sorting idea
 // #define TRY_COMPRESS_SORT_LARGEP 1
 
+// L2 sieving
+#define TRY_L2_SIEVE
+
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
 // so that a synthetic data set resembling this real one can
@@ -229,6 +232,14 @@ typedef struct
 #endif
 } sieve_fb_compressed;
 
+typedef struct
+{
+    uint32_t* prime;
+    uint32_t* root1;
+    uint32_t* root2;
+    uint32_t* logp;
+} sieve_fb;
+
 /************************* SIQS types and functions *****************/
 #define MAXLP 4
 
@@ -266,6 +277,9 @@ typedef struct
     uint32_t* correction;
     uint32_t* small_inv;
 #endif
+    uint32_t* inv32;
+    uint32_t* corr32;
+    uint32_t* shift32;
     uint32_t* prime;
     uint32_t* logprime;
     uint64_t* binv;
@@ -367,6 +381,7 @@ typedef struct
     uint32_t fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 8)
     uint32_t fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 8)
     uint32_t med_B;				//index at which primes are bigger than blocksize (and a multiple of 8)
+    uint32_t fb_blk8i;          // index at which primes are bigger than 8x a block (and a multiple of 8)
     uint32_t large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 8)
     uint32_t x2_large_B;
     uint32_t ss_start_B;
@@ -585,7 +600,8 @@ typedef struct {
     sieve_fb_compressed* comp_sieve_p;		// scratch space for a packed versions of fb
     sieve_fb_compressed* comp_sieve_n;		// for use during sieving smallish primes
 
-    
+    sieve_fb* sieve_p;		// scratch space for a packed versions of fb
+    sieve_fb* sieve_n;		// for use during sieving medium primes
 
     //large prime sieving
     update_t update_data;		// data for updating root values
@@ -735,6 +751,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
 extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 
 void lp_sieveblock(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
@@ -785,6 +803,10 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+
+void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+
 // TBD
 //void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
 //    uint8_t parity, uint32_t poly_id, uint32_t bnum,

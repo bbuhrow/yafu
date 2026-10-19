@@ -598,6 +598,8 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 
         CLEAN_AVX2;
 
+//#define CHECK_AVX2_ERROR 1
+
 #if CHECK_AVX2_ERROR
         int numerr = 0;
 #if (defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)) && defined(USE_AVX2)

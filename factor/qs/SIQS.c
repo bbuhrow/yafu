@@ -2240,9 +2240,22 @@ void* process_poly(void* vptr)
         }
 #endif
 
+#if defined(TRY_L2_SIEVE)
+        printf("starting p-side L2 sieve\n"); fflush(stdout);
+        memset(sieve, blockinit, 32768 * 8);
+        L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_p, fb, start_prime, blockinit);
+        printf("finished p-side L2 sieve\n"); fflush(stdout);
+#endif
 
         for (i = 0; i < num_blocks; i++)
         {
+#if defined(TRY_L2_SIEVE)
+            uint8_t* blk_sieve = sieve + i * 32768;
+#else
+            uint8_t* blk_sieve = sieve;
+#endif
+
+
 #if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
@@ -2252,7 +2265,9 @@ void* process_poly(void* vptr)
             }
 #endif
 
+#ifdef SIQS_PROFILE
             double tstart = now_sec();
+#endif
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
@@ -2260,26 +2275,36 @@ void* process_poly(void* vptr)
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit - 4, 32768);
+
+#if !defined(TRY_L2_SIEVE)
+                memset(blk_sieve, blockinit - 4, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit - 4, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
             }
             else
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit, 32768);
+
+#if !defined(TRY_L2_SIEVE)
+                memset(blk_sieve, blockinit, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit);
             }
 
 #if 0 //defined( USE_SS_SEARCH )
@@ -2305,23 +2330,29 @@ void* process_poly(void* vptr)
             }
 #endif
 
+#ifdef SIQS_PROFILE
             double tstop = now_sec();
             dconf->t_mpsieve += (tstop - tstart);
             tstart = tstop;
+#endif
 
-            lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
+            lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 0, dconf);
 
+#ifdef SIQS_PROFILE
             tstop = now_sec();
             dconf->t_lpsieve += (tstop - tstart);
             tstart = tstop;
+#endif
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
             scan_ptr(i, 0, sconf, dconf);
 
+#ifdef SIQS_PROFILE
             tstop = now_sec();
             dconf->t_tdiv += (tstop - tstart);
+#endif
             
         }
 
@@ -2342,9 +2373,21 @@ void* process_poly(void* vptr)
         }
 #endif
 
+#if defined(TRY_L2_SIEVE)
+        printf("starting n-side L2 sieve\n"); fflush(stdout);
+        memset(sieve, blockinit, 32768 * 8);
+        L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_n, fb, start_prime, blockinit);
+        printf("finished n-side L2 sieve\n"); fflush(stdout);
+#endif
 
         for (i = 0; i < num_blocks; i++)
         {
+#if defined(TRY_L2_SIEVE)
+            uint8_t* blk_sieve = sieve + i * 32768;
+#else
+            uint8_t* blk_sieve = sieve;
+#endif
+
 #if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
@@ -2353,7 +2396,9 @@ void* process_poly(void* vptr)
             }
 #endif
 
+#ifdef SIQS_PROFILE
             double tstart = now_sec();
+#endif
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
@@ -2361,45 +2406,61 @@ void* process_poly(void* vptr)
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit - 4, 32768);
+
+#if !defined(TRY_L2_SIEVE)
+                memset(blk_sieve, blockinit - 4, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit - 4, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
             }
             else
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit, 32768);
+
+#if !defined(TRY_L2_SIEVE)
+                memset(blk_sieve, blockinit, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit);
             }
 
+#ifdef SIQS_PROFILE
             double tstop = now_sec();
             dconf->t_mpsieve += (tstop - tstart);
             tstart = tstop;
+#endif
 
-            lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 1, dconf);
+            lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 1, dconf);
 
+#ifdef SIQS_PROFILE
             tstop = now_sec();
             dconf->t_lpsieve += (tstop - tstart);
             tstart = tstop;
+#endif
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
             scan_ptr(i, 1, sconf, dconf);
 
+#ifdef SIQS_PROFILE
             tstop = now_sec();
             dconf->t_tdiv += (tstop - tstart);
+#endif
         }
 
 
@@ -2587,7 +2648,9 @@ void* process_poly(void* vptr)
 
 #else
 
+#ifdef SIQS_PROFILE
         double tstart = now_sec();
+#endif
 
 #if defined(USE_AVX512F)
 
@@ -2639,8 +2702,10 @@ void* process_poly(void* vptr)
 
 #endif
 
+#ifdef SIQS_PROFILE
         double tstop = now_sec();
         dconf->t_polyupdate += (tstop - tstart);
+#endif
 
         gettimeofday(&stop1, NULL);
         t_update_buckets += ytools_difftime(&start1, &stop1);
@@ -3158,8 +3223,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-    //allocate the dynamic structure which hold scratch space for 
-    //various things used during sieving.
+    // allocate the dynamic structure which hold scratch space for 
+    // various things used during sieving.
     uint32_t i, memsize;
 
     if (sconf->obj->VFLAG > 2)
@@ -3167,14 +3232,14 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("memory usage during sieving:\n");
     }
 
-    //workspace bigints
+    // workspace bigints
     mpz_init(dconf->gmptmp1);
     mpz_init(dconf->gmptmp2);
     mpz_init(dconf->gmptmp3);
 
-    //this stuff changes with every new poly
-    //allocate a polynomial structure which will hold the current
-    //set of polynomial coefficients (a,b,c) and other info
+    // this stuff changes with every new poly
+    // allocate a polynomial structure which will hold the current
+    // set of polynomial coefficients (a,b,c) and other info
     dconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
     mpz_init(dconf->curr_poly->mpz_poly_a);
     mpz_init(dconf->curr_poly->mpz_poly_b);
@@ -3190,7 +3255,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("\tcurr_poly structure: %d bytes\n", memsize);
     }
 
-    //initialize temporary storage of relations
+    // initialize temporary storage of relations
     dconf->relation_buf = (siqs_r *)malloc(32768 * sizeof(siqs_r));
     dconf->buffered_rel_alloc = 32768;
     dconf->buffered_rels = 0;
@@ -3201,10 +3266,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("\trelation buffer: %d bytes\n", memsize);
     }
 
-    //allocate the sieving factor bases
+    // allocate the sieving factor bases
 
     dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
     dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
+
+    dconf->sieve_p = (sieve_fb*)malloc(sizeof(sieve_fb));
+    dconf->sieve_n = (sieve_fb*)malloc(sizeof(sieve_fb));
 
     dconf->comp_sieve_p->prime = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
@@ -3223,6 +3291,24 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
     dconf->comp_sieve_n->logp = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
+
+    dconf->sieve_p->prime = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+    dconf->sieve_p->root1 = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+    dconf->sieve_p->root2 = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+    dconf->sieve_p->logp = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+
+    dconf->sieve_n->prime = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+    dconf->sieve_n->root1 = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+    dconf->sieve_n->root2 = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
+    dconf->sieve_n->logp = (uint32_t*)xmalloc_align(
+        (size_t)(sconf->factor_base->fb_blk8i * sizeof(uint32_t)));
 
     dconf->update_data.sm_firstroots1 = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
@@ -3299,8 +3385,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     // allocate the sieve with a guard region.  this lets
     // us be a little more sloppy with vector-based sieving
     // and resieving.
+#if defined(TRY_L2_SIEVE)
+    dconf->sieve = (uint8_t*)xmalloc_align(
+        (size_t)(sconf->qs_blocksize * 20 * sizeof(uint8_t)));
+#else
     dconf->sieve = (uint8_t*)xmalloc_align(
         (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
+#endif
     dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
 #endif
 
@@ -3327,6 +3418,25 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->comp_sieve_p->prime[i] = (uint16_t)p;
         dconf->comp_sieve_n->logp[i] = (uint8_t)lp;
         dconf->comp_sieve_n->prime[i] = (uint16_t)p;
+
+        dconf->sieve_p->logp[i] = lp;
+        dconf->sieve_p->prime[i] = p;
+        dconf->sieve_n->logp[i] = lp;
+        dconf->sieve_n->prime[i] = p;
+
+        dconf->update_data.prime[i] = p;
+        dconf->update_data.logp[i] = lp;
+    }
+
+    for (i = sconf->factor_base->med_B; i < sconf->factor_base->fb_blk8i; i++)
+    {
+        uint32_t p = sconf->factor_base->list->prime[i];
+        uint32_t lp = sconf->factor_base->list->logprime[i];
+
+        dconf->sieve_p->logp[i] = lp;
+        dconf->sieve_p->prime[i] = p;
+        dconf->sieve_n->logp[i] = lp;
+        dconf->sieve_n->prime[i] = p;
 
         dconf->update_data.prime[i] = p;
         dconf->update_data.logp[i] = lp;
@@ -4069,6 +4179,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			(size_t)(512 * sizeof(uint32_t)));
 
 #ifdef USE_8X_MOD_ASM
+        // only used up to 13-ish bits, but we allocate and compute for all fb primes.
 		sconf->factor_base->list->small_inv = (uint16_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint16_t)));
 		sconf->factor_base->list->correction = (uint16_t *)xmalloc_align(
@@ -4079,6 +4190,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		sconf->factor_base->list->correction = (uint32_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 #endif
+
+        sconf->factor_base->list->inv32 = (uint32_t*)xmalloc_align(
+            (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
+        sconf->factor_base->list->corr32 = (uint32_t*)xmalloc_align(
+            (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
+        sconf->factor_base->list->shift32 = (uint32_t*)xmalloc_align(
+            (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 		
 		sconf->factor_base->list->logprime = (uint32_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32_t)));
@@ -4090,22 +4208,22 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			printf("\tfactor base: %d bytes\n",memsize);
 		}
 
-		//find multiplier
+		// find multiplier
 		sconf->multiplier = (uint32_t)choose_multiplier_siqs(sconf->factor_base->B, sconf->n);
 		mpz_mul_ui(sconf->n, sconf->n, sconf->multiplier);
         sconf->knmod8 = mpz_tdiv_ui(sconf->n, 8);
         //printf("knmod8 = %u\n", sconf->knmod8);
 
-		//sconf holds n*mul, so update its digit count and number of bits
+		// sconf holds n*mul, so update its digit count and number of bits
 		sconf->digits_n = gmp_base10(sconf->n);
 		sconf->bits = mpz_sizeinbase(sconf->n, 2);
 
-		//find sqrt_n
+		// find sqrt_n
 		mpz_sqrt(sconf->sqrt_n, sconf->n);
 
-		//construct the factor base - divide out any primes which 
-		//factor n other than mul
-		//and go back to get_params if any are found
+		// construct the factor base - divide out any primes which 
+		// factor n other than mul
+		// and go back to get_params if any are found
 		if ((i = make_fb_siqs(sconf)) == 0)
 			break;
 		else
@@ -4113,14 +4231,14 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			mpz_t tmpz;
 			mpz_init(tmpz);
 
-			//i is already divided out of n.  record the factor we found
+			// i is already divided out of n.  record the factor we found
 			uint64_2gmp(i, tmpz);
 			add_to_factor_list(sconf->obj->factors, tmpz, sconf->obj->VFLAG, 
                 sconf->obj->NUM_WITNESSES, 0);
 			mpz_clear(tmpz);
 
-			//and remove the multiplier we may have added, so that
-			//we can try again to build a factor base.
+			// and remove the multiplier we may have added, so that
+			// we can try again to build a factor base.
 			mpz_tdiv_q_ui(sconf->n, sconf->n, sconf->multiplier);
             align_free(sconf->modsqrt_array);
 			align_free(sconf->factor_base->list->prime);
@@ -4181,18 +4299,18 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	if (sconf->num_blocks < 1)
 		sconf->num_blocks = 1;
 
-	//and adjust for really small jobs
+	// and adjust for really small jobs
 	if (sconf->bits <= 140)
 		sconf->num_blocks = 1;
 
-	//set the sieve interval.  this many blocks on each side of 0
+	// set the sieve interval.  this many blocks on each side of 0
 	sconf->sieve_interval = sconf->qs_blocksize * sconf->num_blocks;
 
-	//compute sieving limits
+	// compute sieving limits
 	sconf->factor_base->small_B = MIN(
 		sconf->factor_base->B,1024); //((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
 
-	//test the contribution of the small primes to the sieve.  
+	// test the contribution of the small primes to the sieve.  
 	for (i = 2; i < sconf->factor_base->B; i++)
 	{
 		if (sconf->factor_base->list->prime[i] > sconf->small_limit)
@@ -4300,18 +4418,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		// this region of primes aligned on a 16 byte boundary and thus be able to use
 		// movdqa
 		// don't let med_B grow larger than ~1.5 * the blocksize
-#if defined(USE_AVX512F) && !defined(_MSC_VER)
         if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.5 * (double)sconf->qs_blocksize)) &&
             ((i % 16) == 0))
             break;
-#else
-        // bucket sieve not as efficient without compressstoreu, so 
-        // do a little more work in medsieve before switching.
-        if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.75 * (double)sconf->qs_blocksize)) &&
-            ((i % 16) == 0))
-            break;
-#endif
-		
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
@@ -4325,6 +4434,27 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	}
 	sconf->factor_base->med_B = i;
 
+#if defined(TRY_L2_SIEVE)
+    for (; i < sconf->factor_base->B; i++)
+    {
+        // find the point at which factor base primes exceed 8x block
+        // this controls the point at which we switch from medsieve to 
+        // direct interval sieving (L2 sieving)
+        // wait until the index is a multiple of 16 so that we can enter
+        // this region of primes aligned on a 16 byte boundary and thus be able to use
+        // movdqa
+        // don't let med_B grow larger than ~1.5 * the blocksize
+        if ((sconf->factor_base->list->prime[i] > (uint32_t)(8 * (double)sconf->qs_blocksize)) &&
+            ((i % 16) == 0))
+            break;
+
+        //or, of course, the entire factor base (loop condition)
+    }
+    sconf->factor_base->fb_blk8i = i;
+#else
+    sconf->factor_base->fb_blk8i = i;
+#endif
+
 	for (; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceed the size of the sieve 
@@ -4334,7 +4464,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
 			((i % 16) == 0))
 		{
+#if !defined(TRY_L2_SIEVE)
 			i -= 16;
+#endif
 			break;
 		}
 	}
@@ -4427,7 +4559,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	if (VFLAG > 1)
 	{
 		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n"
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tL2: %u\n\tlarge: %u\n"
             "\tlarge_x2: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
 			sconf->sieve_small_fb_start,
@@ -4439,12 +4571,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			sconf->factor_base->fb_14bit_B,
 			sconf->factor_base->fb_15bit_B,
 			sconf->factor_base->med_B,
+            sconf->factor_base->fb_blk8i,
 			sconf->factor_base->large_B,
             sconf->factor_base->x2_large_B,
 			sconf->factor_base->B);
 
 		printf("start primes\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n"
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tL2: %u\n\tlarge: %u\n"
             "\tlarge_x2: %u\n\tall: %u\n",
 			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_10bit_B-1],
@@ -4455,6 +4588,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
+            sconf->factor_base->list->prime[sconf->factor_base->fb_blk8i - 1],
 			sconf->factor_base->list->prime[sconf->factor_base->large_B-1],
             sconf->factor_base->list->prime[sconf->factor_base->x2_large_B - 1],
             sconf->pmax);
@@ -5856,11 +5990,13 @@ int update_final(static_conf_t *sconf)
                 sconf->total_surviving_reports, sconf->total_blocks,
                 (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
             printf("Elapsed time: %1.4f sec\n", t_time);
+
+#ifdef SIQS_PROFILE
             printf("\tMed sieve time: %1.4f sec\n", sconf->t_mpsieve);
             printf("\tLarge sieve time: %1.4f sec\n", sconf->t_lpsieve);
             printf("\tTdiv time: %1.4f sec\n", sconf->t_tdiv);
             printf("\tPoly update time: %1.4f sec\n", sconf->t_polyupdate);
-
+#endif
 
             //printf("scatter/gather processing: %lu of %lu opportunities\n",
             //    sconf->num_scatter, sconf->num_scatter_opp);

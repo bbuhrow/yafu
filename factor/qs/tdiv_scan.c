@@ -1009,8 +1009,14 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
         __m512i vmask = _mm512_set1_epi32(0x80808080);
 
         dconf->num_reports = 0;
+
+#if defined(TRY_L2_SIEVE)
+		sieveblock = (uint64_t*)(dconf->sieve + blocknum * 32768);
+		sieveblock32 = (uint32_t*)(dconf->sieve + blocknum * 32768);
+#else
         sieveblock = (uint64_t*)dconf->sieve;
         sieveblock32 = (uint32_t*)dconf->sieve;
+#endif
 
         for (j = 0; j < 4096; j += 8)
         {
@@ -1056,6 +1062,9 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+#if defined(TRY_L2_SIEVE)
+	tdiv_L2primes_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
+#endif
 	//tdiv_LP_avx512_allreports(parity, blocknum, sconf, dconf);
 
     // factor all reports in this block

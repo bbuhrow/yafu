@@ -23,6 +23,85 @@ code to the public domain.
 #include "ytools.h"
 #include "gmp_xface.h"
 
+// Precompute the magic reciprocal constants (Done once per divisor)
+// d <-- divisor
+// multiplier --> m
+// correction --> c
+// shift      --> s
+void precompute2(uint32_t d, uint32_t* m, uint32_t* c, uint32_t* s) {
+	if (d == 1) {
+		*m = 1; *s = 0; *c = 0;
+		return;
+	}
+
+	// Calculate leading zeros to find the power-of-two threshold
+	uint32_t lz = __builtin_clz(d);
+	uint64_t nc = ((uint64_t)1ull << 32) - (((uint64_t)1ull << 32) % d) - 1;
+	uint32_t p = 32 + (32 - lz);
+
+	// Find the lowest power of 2 that yields an exact calculation
+	while (((uint64_t)1ull << p) < d * (((uint64_t)1ull << p) - nc)) {
+		p++;
+	}
+
+	uint64_t mult = (((uint64_t)1ull << p) + nc) / d;
+
+	if (mult >= ((uint64_t)1ull << 32)) {
+		// If the multiplier overflows 32 bits, we flag an addition correction
+		*m = (uint32_t)(mult - ((uint64_t)1 << 32));
+		*c = 1;
+		*s = p - 32 - 1;
+	}
+	else {
+		*m = (uint32_t)mult;
+		*c = 0;
+		*s = p - 32;
+	}
+
+	if (d < 1024)
+	{
+		printf("p = %u, lz = %u, nc = %lu, p2 = %u, mult = %lu, inv = %u, corr = %u, shift = %u\n",
+			d, lz, nc, p, mult, *m, *c, *s);
+	}
+}
+
+void precompute(uint32_t d, uint32_t* m, uint32_t* c, uint32_t* s) {
+	if (d == 1) {
+		*m = 1; *s = 0; *c = 0;
+		return;
+	}
+
+	// Calculate leading zeros to find the power-of-two threshold
+	uint32_t lz = __builtin_clz(d);
+	uint64_t nc = (1ull << 32) - (((uint64_t)1ull << 32) % d) - 1;
+	uint32_t p = 32; // +(32 - lz) - 1;
+
+	// Find the lowest power of 2 that yields an exact calculation
+	while ((1ull << p) <= (nc * (uint64_t)(d - 1 - ((1ull << p) % d)))) {
+		p++;
+	}
+
+	uint64_t mult = ((1ull << p) + d - 1 - (((1ull << p) - 1) % d)) / d;
+
+	if (mult >= (1ull << 32)) {
+		// If the multiplier overflows 32 bits, we flag an addition correction
+		*m = (uint32_t)(mult - (1ull << 32));
+		*c = 1;
+		*s = p - 32 - 1;
+	}
+	else {
+		*m = (uint32_t)mult;
+		*c = 0;
+		*s = p - 32;
+	}
+
+	//if (d < 1024)
+	//{
+	//	printf("p = %u, lz = %u, nc = %lu, p2 = %u, mult = %lu, inv = %u, corr = %u, shift = %u\n",
+	//		d, lz, nc, p, mult, *m, *c, *s);
+	//}
+}
+
 uint32_t make_fb_siqs(static_conf_t *sconf)
 {
 	// finds the factor base primes, and computes the solutions to the congruence x^2 = N mod p
@@ -62,25 +141,25 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
         siqs_maxp = siqs_primes[siqs_nump - 1];
     }
 
-	//the 0th and 1st elements in the fb are always 1 and 2, so start searching with 3
+	// the 0th and 1st elements in the fb are always 1 and 2, so start searching with 3
 	j=2; i=1;
-	while (j<fb->B)
+	while (j < fb->B)
 	{
 		if ((uint32_t)i >= siqs_nump)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
-            if (siqs_maxp < urange)
-            {
-                free(siqs_primes);
-                //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-                siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
-                //siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
-                siqs_minp = siqs_primes[0];
-                siqs_maxp = siqs_primes[siqs_nump - 1];
-                //printf("found %"PRIu64" primes from %"PRIu64" to %"PRIu64"\n", NUM_P, P_MIN, P_MAX);
-                i = 0;
-            }
+			if (siqs_maxp < urange)
+			{
+				free(siqs_primes);
+				//printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
+				siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
+				//siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
+				siqs_minp = siqs_primes[0];
+				siqs_maxp = siqs_primes[siqs_nump - 1];
+				//printf("found %"PRIu64" primes from %"PRIu64" to %"PRIu64"\n", NUM_P, P_MIN, P_MAX);
+				i = 0;
+			}
 		}
 
 		prime = (uint32_t)siqs_primes[i];
@@ -89,45 +168,44 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 		{
 			if (mul % prime != 0)
 			{
-				//prime doesn't divide the multiplier, so
-				//this prime divides the input, divide it out and bail
+				// prime doesn't divide the multiplier, so
+				// this prime divides the input, divide it out and bail
 				mpz_tdiv_q_ui(n, n, prime);
-                soe_finalize(sdata);
+				soe_finalize(sdata);
 				return prime;
 			}
 
-			//p divides n, which means it divides the multiplier.
-			//we can still use it, but it only has one solution to x^2 == n mod p instead
-			//of two.  just divide its logprime in half.
-			//we also can't find the root using shanks-tonelli, but it will be very small
-			//because the multiplier is very small, so just use brute force.
+			// p divides n, which means it divides the multiplier.
+			// we can still use it, but it only has one solution to x^2 == n mod p instead
+			// of two.  just divide its logprime in half.
+			// we also can't find the root using shanks-tonelli, but it will be very small
+			// because the multiplier is very small, so just use brute force.
 			b = mpz_tdiv_ui(n, prime);
-			k=0;
+			k = 0;
 			while (1)
 			{
-				if (((k*k) % prime) == b)
+				if (((k * k) % prime) == b)
 					break;
 				k++;
 			}
 			root1 = k;
 			root2 = prime - k;
 
-			//compute logp
-			logp = (uint8_t)(log((double)prime)/log(2.0) + .5)/2;
+			// compute logp
+			logp = (uint8_t)(log((double)prime) / log(2.0) + .5) / 2;
 
-			//fill in factor base
+			// fill in factor base
 			fb->list->prime[j] = prime;
 			modsqrt[j] = root1;
 			fb->list->logprime[j] = logp;
+			fb->list->binv[j] = (1ULL << 32) / (uint64_t)prime;
 
-            fb->list->binv[j] = (1ULL << 32) / (uint64_t)prime;
-
-			//store a couple things so we can replace single precision
-			//mods with shifts and muls during trial division
-			//the shift determines how big the dividends can be - it should be 
-			//greater than the max possible dividend.  The shift should not be too
-			//big though.  Max word size (inverse * dividend) >> shift should leave
-			//more bits than the max divisor.
+			// store a couple things so we can replace single precision
+			// mods with shifts and muls during trial division
+			// the shift determines how big the dividends can be - it should be 
+			// greater than the max possible dividend.  The shift should not be too
+			// big though.  Max word size (inverse * dividend) >> shift should leave
+			// more bits than the max divisor.
 			if (prime < sconf->small_limit)
 			{
 				fb->tinylist->prime[j] = prime;
@@ -135,7 +213,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 
 				fb->tinylist->small_inv[j] = (uint32_t)(((uint64_t)1 << 32) / (uint64_t)prime);
 				if (floor(MP_RADIX / (double)prime + 0.5) ==
-								(double)fb->tinylist->small_inv[j]) {
+					(double)fb->tinylist->small_inv[j]) {
 					fb->tinylist->correction[j] = 1;
 				}
 				else {
@@ -146,19 +224,19 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 			else
 			{
 #ifdef USE_8X_MOD_ASM
-				if ((shift == 24) && 
-					(prime > 1024) && 
+				if ((shift == 24) &&
+					(prime > 1024) &&
 					(j % 8 == 0))
 					shift = 26;
 
-				if ((shift == 26) && 
-					(prime > 4096) && 
+				if ((shift == 26) &&
+					(prime > 4096) &&
 					(j % 8 == 0))
 					shift = 28;
 
 				fb->list->small_inv[j] = (uint16_t)(((uint32_t)1 << shift) / prime);
 				if (floor((double)(1 << shift) / (double)prime + 0.5) ==
-								(double)fb->list->small_inv[j]) {
+					(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
 				else {
@@ -168,7 +246,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 #else
 				fb->list->small_inv[j] = (uint32_t)(((uint64_t)1 << FOGSHIFT) / (uint64_t)prime);
 				if (floor((double)(1ULL << FOGSHIFT) / (double)prime + 0.5) ==
-								(double)fb->list->small_inv[j]) {
+					(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
 				else {
@@ -176,6 +254,8 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 					fb->list->small_inv[j]++;
 				}
 #endif
+
+				precompute(prime, &fb->list->inv32[j], &fb->list->corr32[j], &fb->list->shift32[j]);
 			}
 
 			j++;
@@ -183,27 +263,26 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 			continue;
 		}
 
-		b = jacobi_1((uint64_t)r,(uint64_t)prime);
-		if (b==1)
+		b = jacobi_1((uint64_t)r, (uint64_t)prime);
+		if (b == 1)
 		{
-			//this prime works
-			ShanksTonelli_1((uint64_t)r,(uint64_t)prime,&f);
+			// this prime works
+			ShanksTonelli_1((uint64_t)r, (uint64_t)prime, &f);
 			root1 = (uint32_t)f;
 			root2 = prime - root1;
 
-			//compute logp
-			logp = (uint8_t)(log((double)prime)/log(2.0) + .5);
+			// compute logp
+			logp = (uint8_t)(log((double)prime) / log(2.0) + .5);
 
-			//fill in factor base
+			// fill in factor base
 			fb->list->prime[j] = prime;
 			modsqrt[j] = root1;
 			fb->list->logprime[j] = logp;
+			fb->list->binv[j] = (1ULL << 32) / (uint64_t)prime;
 
-            fb->list->binv[j] = (1ULL << 32) / (uint64_t)prime;
-
-			//store a couple things so we can replace single precision
-			//mods with shifts and muls during trial division
-			//this is very fragile... need better range checking.
+			// store a couple things so we can replace single precision
+			// mods with shifts and muls during trial division
+			// this is very fragile... need better range checking.
 			if (prime < sconf->small_limit)
 			{
 				fb->tinylist->prime[j] = prime;
@@ -211,7 +290,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 
 				fb->tinylist->small_inv[j] = (uint32_t)(((uint64_t)1 << 32) / (uint64_t)prime);
 				if (floor(MP_RADIX / (double)prime + 0.5) ==
-								(double)fb->tinylist->small_inv[j]) {
+					(double)fb->tinylist->small_inv[j]) {
 					fb->tinylist->correction[j] = 1;
 				}
 				else {
@@ -223,30 +302,30 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 			{
 #ifdef USE_8X_MOD_ASM
 
-				if ((shift == 24) && 
-					(prime > 1024) && 
+				if ((shift == 24) &&
+					(prime > 1024) &&
 					(j % 8 == 0))
 					shift = 26;
 
-				if ((shift == 26) && 
-					(prime > 4096) && 
+				if ((shift == 26) &&
+					(prime > 4096) &&
 					(j % 8 == 0))
 					shift = 28;
 
 				fb->list->small_inv[j] = (uint16_t)(((uint32_t)1 << shift) / prime);
 				if (floor((double)(1 << shift) / (double)prime + 0.5) ==
-								(double)fb->list->small_inv[j]) {
+					(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
 				else {
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
-				
+
 #else
 				fb->list->small_inv[j] = (uint32_t)(((uint64_t)1 << FOGSHIFT) / (uint64_t)prime);
 				if (floor((double)(1ULL << FOGSHIFT) / (double)prime + 0.5) ==
-								(double)fb->list->small_inv[j]) {
+					(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
 				else {
@@ -254,9 +333,10 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 					fb->list->small_inv[j]++;
 				}
 #endif
+
+				precompute(prime, &fb->list->inv32[j], &fb->list->corr32[j], &fb->list->shift32[j]);
 			}
 
-			
 			j++;
 		}
 		i++;

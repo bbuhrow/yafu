@@ -3258,6 +3258,40 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         
             j = h.stop;
         }
+
+#if defined(TRY_L2_SIEVE)
+        for (j = sconf->factor_base->med_B;
+            j < sconf->factor_base->fb_blk8i; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            if (root2 < root1)
+            {
+                update_data.firstroots1[j] = root2;
+                update_data.firstroots2[j] = root1;
+
+                dconf->sieve_p->root1[j] = root2;
+                dconf->sieve_p->root2[j] = root1;
+                dconf->sieve_n->root1[j] = (prime - root1);
+                dconf->sieve_n->root2[j] = (prime - root2);
+            }
+            else
+            {
+                update_data.firstroots1[j] = root1;
+                update_data.firstroots2[j] = root2;
+
+                dconf->sieve_p->root1[j] = root1;
+                dconf->sieve_p->root2[j] = root2;
+                dconf->sieve_n->root1[j] = (prime - root2);
+                dconf->sieve_n->root2[j] = (prime - root1);
+            }
+        }
+#endif
+
     }
     else
     {
@@ -3347,6 +3381,39 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         
             j = h.stop;
         }
+
+#if defined(TRY_L2_SIEVE)
+        for (j = sconf->factor_base->med_B;
+            j < sconf->factor_base->fb_blk8i; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            if (root2 < root1)
+            {
+                update_data.firstroots1[j] = root2;
+                update_data.firstroots2[j] = root1;
+
+                dconf->sieve_p->root1[j] = root2;
+                dconf->sieve_p->root2[j] = root1;
+                dconf->sieve_n->root1[j] = (prime - root1);
+                dconf->sieve_n->root2[j] = (prime - root2);
+            }
+            else
+            {
+                update_data.firstroots1[j] = root1;
+                update_data.firstroots2[j] = root2;
+
+                dconf->sieve_p->root1[j] = root1;
+                dconf->sieve_p->root2[j] = root2;
+                dconf->sieve_n->root1[j] = (prime - root2);
+                dconf->sieve_n->root2[j] = (prime - root1);
+            }
+        }
+#endif
     }
 
     CLEAN_AVX2;

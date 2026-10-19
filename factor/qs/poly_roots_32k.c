@@ -2270,9 +2270,74 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
-	check_bound = fb->med_B + BUCKET_ALLOC/2;
-	logp = fb->list->logprime[fb->med_B-1];
-	for (i=fb->med_B;i<fb->large_B;i++)
+#if defined(TRY_L2_SIEVE)
+	for (i = fb->med_B; i < fb->fb_blk8i; i++)
+	{
+		uint64_t tmp, t2;
+
+		prime = fb->list->prime[i];
+		root1 = modsqrt[i];
+		root2 = prime - root1;
+
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a, prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b, prime);
+
+		// find a^-1 mod p = inv(a mod p) mod p
+		if (sconf->knmod8 == 1)
+		{
+			inv = modinv_1(2 * amodp, prime);
+		}
+		else
+		{
+			inv = modinv_1(amodp, prime);
+		}
+
+		COMPUTE_FIRST_ROOTS
+
+		root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+		root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
+
+		if (root2 < root1)
+		{
+			update_data.firstroots1[i] = (uint32_t)root2;
+			update_data.firstroots2[i] = (uint32_t)root1;
+
+			dconf->sieve_p->root1[i] = root2;
+			dconf->sieve_p->root2[i] = root1;
+			dconf->sieve_n->root1[i] = (prime - root1);
+			dconf->sieve_n->root2[i] = (prime - root2);
+		}
+		else
+		{
+			update_data.firstroots1[i] = (uint32_t)root1;
+			update_data.firstroots2[i] = (uint32_t)root2;
+
+			dconf->sieve_p->root1[i] = root1;
+			dconf->sieve_p->root2[i] = root2;
+			dconf->sieve_n->root1[i] = (prime - root2);
+			dconf->sieve_n->root2[i] = (prime - root1);
+		}
+
+		// for this factor base prime, compute the rootupdate value for all s
+		// Bl values.  amodp holds a^-1 mod p
+		// the rootupdate value is given by 2*Bj*amodp
+		// Bl[j] now holds 2*Bl
+		for (j = 0; j < s; j++)
+		{
+			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
+			x = (int)((int64_t)x * (int64_t)inv % (int64_t)prime);
+			rootupdates[(j)*fb->B + i] = x;
+		}
+	}
+
+	check_bound = fb->fb_blk8i + BUCKET_ALLOC/2;
+	logp = fb->list->logprime[fb->fb_blk8i -1];
+	for (i=fb->fb_blk8i;i<fb->large_B;i++)
+#else
+	check_bound = fb->med_B + BUCKET_ALLOC / 2;
+	logp = fb->list->logprime[fb->med_B - 1];
+	for (i = fb->med_B; i < fb->large_B; i++)
+#endif
 	{
         CHECK_NEW_SLICE(i);
 

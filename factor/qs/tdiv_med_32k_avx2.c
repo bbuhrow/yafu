@@ -225,11 +225,27 @@ this file contains code implementing 3)
 
 */
 
+// Fast Division utilizing the precomputed structure
+uint32_t divide(uint32_t n, uint32_t m, uint32_t c, uint32_t s) 
+{
+    // Multiplies two 32-bit numbers, returning only the upper 32 bits of the 64-bit result
+    uint32_t high = ((uint64_t)n * m) >> 32;
+
+    if (c) {
+        // Handles precision adjustments for edge case divisors
+        uint32_t t = (n - high) >> 1;
+        return (high + t) >> s;
+    }
+    else {
+        return high >> s;
+    }
+}
+
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-    //we have flagged this sieve offset as likely to produce a relation
-    //nothing left to do now but check and see.
+    // we have flagged this sieve offset as likely to produce a relation
+    // nothing left to do now but check and see.
     uint32_t i;
     uint32_t tmp, prime, root1, root2, report_num;
     uint32_t bound10;
@@ -515,6 +531,33 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         i = sconf->sieve_small_fb_start;
 
+#if 0
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            // distance from this sieve block offset to the end of the block
+            tmp = 32768 - block_loc;
+            tmp = 1 + divide(tmp, fullfb_ptr->inv32[i], fullfb_ptr->corr32[i], fullfb_ptr->shift32[i]);
+            tmp = block_loc + tmp * prime;
+            tmp = tmp - 32768;
+
+            // tmp = advance the offset to where it should be after the interval, and
+            // check to see if that's where either of the roots are now.  if so, then
+            // this offset is on the progression of the sieve for this prime
+            if (tmp == root1 || tmp == root2)
+            {
+                //it will divide Q(x).  do so as many times as we can.
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+
+#elif 1
         
 #ifdef USE_AVX512BWno
 
@@ -642,9 +685,9 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             tmp = block_loc + tmp * prime;
             tmp = tmp - 32768;
 
-            //tmp = advance the offset to where it should be after the interval, and
-            //check to see if that's where either of the roots are now.  if so, then
-            //this offset is on the progression of the sieve for this prime
+            // tmp = advance the offset to where it should be after the interval, and
+            // check to see if that's where either of the roots are now.  if so, then
+            // this offset is on the progression of the sieve for this prime
             if (tmp == root1 || tmp == root2)
             {
                 //it will divide Q(x).  do so as many times as we can.
@@ -799,9 +842,72 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         // how many factors we've found so far
         dconf->smooth_num[report_num] = smooth_num;
 
+#endif
+
     }
 
     TDIV_MED_CLEAN;
+
+    return;
+}
+
+void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    // we have flagged this sieve offset as likely to produce a relation
+    // nothing left to do now but check and see.
+    uint32_t i;
+    uint32_t tmp, prime, root1, root2, report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb* fbc;
+    fb_element_siqs* fullfb_ptr, * fullfb = sconf->factor_base->list;
+    uint32_t block_loc;
+
+    fullfb_ptr = fullfb;
+    if (parity)
+    {
+        fbc = dconf->sieve_n;
+    }
+    else
+    {
+        fbc = dconf->sieve_p;
+    }
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        // pull the details of this report to get started.
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num] + bnum * 32768;
+
+        for (i = sconf->factor_base->med_B; i < sconf->factor_base->fb_blk8i; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            // distance from this sieve block offset to the end of the L2-block
+            tmp = 32768 * 8 - block_loc;
+            tmp = 1 + divide(tmp, fullfb_ptr->inv32[i], fullfb_ptr->corr32[i], fullfb_ptr->shift32[i]);
+            tmp = block_loc + tmp * prime;
+            tmp = tmp - 32768 * 8;
+
+            // tmp = advance the offset to where it should be after the interval, and
+            // check to see if that's where either of the roots are now.  if so, then
+            // this offset is on the progression of the sieve for this prime
+            if (tmp == root1 || tmp == root2)
+            {
+                //it will divide Q(x).  do so as many times as we can.
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
 
     return;
 }

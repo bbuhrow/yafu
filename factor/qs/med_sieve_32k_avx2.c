@@ -620,7 +620,6 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 #else
     __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
 #endif
-    //__m512i vinterval = _mm512_set1_epi16(4 * BLOCKSIZE);
     __m512i vzero = _mm512_setzero_epi32();
 
     ALIGNED_MEM uint16_t r_id1[32];
@@ -964,6 +963,158 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
     return;
 
+}
+
+void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
+{
+    uint32_t i;
+    uint32_t prime, root1, root2, tmp;
+    uint8_t logp;
+    __m512i vblock = _mm512_set1_epi32(8 * 32768);
+
+    ALIGNED_MEM uint32_t r_id1[16];
+    ALIGNED_MEM uint32_t r_id2[16];
+
+    uint32_t bound = full_fb->fb_blk8i - 16;
+    printf("start id: %u, end id: %u, diff = %u\n",
+        full_fb->med_B, bound, bound - full_fb->med_B);
+
+    for (i = full_fb->med_B; i < bound; i += 16)
+    {
+        __m512i vprime, vroot1, vroot2;
+        __mmask16 valid_mask;
+        uint32_t msk_2;
+        int pos;
+
+        vprime = _mm512_load_si512(fb->prime + i);
+        vroot1 = _mm512_load_si512(fb->root1 + i);
+        vroot2 = _mm512_load_si512(fb->root2 + i);
+        // approximate the next 16 logp's as equal to the midpoint
+        logp = fb->logp[i + 8]; 
+
+        // all roots in this range start out < 8 * blocksize
+        valid_mask = 0xffff;
+
+        if (_mm512_cmpeq_epu32_mask(vprime, _mm512_setzero_epi32()) > 0)
+        {
+            printf("prime == 0 in L2 sieve\n");
+            int j;
+            for (j = 0; j < 16; j++)
+            {
+                printf("p: %u, r1: %u, r2: %u, lp: %u\n", fb->prime[i + j],
+                    fb->root1[i + j], fb->root2[i + j], fb->logp[i + j]);
+            }
+            exit(1);
+        }
+
+        // until things start to drop off the end of the interval, 
+        // simply dump in all logs.
+        while (valid_mask == 0xffff)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
+
+            sieve[r_id1[0]] -= logp;
+            sieve[r_id1[1]] -= logp;
+            sieve[r_id1[2]] -= logp;
+            sieve[r_id1[3]] -= logp;
+            sieve[r_id1[4]] -= logp;
+            sieve[r_id1[5]] -= logp;
+            sieve[r_id1[6]] -= logp;
+            sieve[r_id1[7]] -= logp;
+            sieve[r_id1[8]] -= logp;
+            sieve[r_id1[9]] -= logp;
+            sieve[r_id1[10]] -= logp;
+            sieve[r_id1[11]] -= logp;
+            sieve[r_id1[12]] -= logp;
+            sieve[r_id1[13]] -= logp;
+            sieve[r_id1[14]] -= logp;
+            sieve[r_id1[15]] -= logp;
+            sieve[r_id2[0]] -= logp;
+            sieve[r_id2[1]] -= logp;
+            sieve[r_id2[2]] -= logp;
+            sieve[r_id2[3]] -= logp;
+            sieve[r_id2[4]] -= logp;
+            sieve[r_id2[5]] -= logp;
+            sieve[r_id2[6]] -= logp;
+            sieve[r_id2[7]] -= logp;
+            sieve[r_id2[8]] -= logp;
+            sieve[r_id2[9]] -= logp;
+            sieve[r_id2[10]] -= logp;
+            sieve[r_id2[11]] -= logp;
+            sieve[r_id2[12]] -= logp;
+            sieve[r_id2[13]] -= logp;
+            sieve[r_id2[14]] -= logp;
+            sieve[r_id2[15]] -= logp;
+
+            vroot1 = _mm512_add_epi32(vroot1, vprime);
+            vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+            valid_mask = _mm512_cmplt_epu32_mask(vroot2, vblock);
+        }
+
+        // as roots start to exceed the block size, selectively 
+        // dump in logs
+        while (valid_mask > 0)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
+
+            msk_2 = valid_mask;
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                sieve[r_id2[pos]] -= logp;
+                sieve[r_id1[pos]] -= logp;
+                msk_2 = _reset_lsb(msk_2);
+            }
+
+            vroot1 = _mm512_mask_add_epi32(vroot1, valid_mask, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi32(vroot2, valid_mask, vroot2, vprime);
+
+            valid_mask = _mm512_cmplt_epu32_mask(vroot2, vblock);
+        }
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        _mm512_store_si512(r_id1, vroot1);
+        valid_mask = _mm512_cmplt_epu32_mask(vroot1, vblock);
+        msk_2 = valid_mask;
+
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[r_id1[pos]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm512_mask_add_epi32(vroot1, valid_mask, vroot1, vprime);
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+        _mm512_store_si512(fb->root1 + i, _mm512_min_epu32(vroot1, vroot2));
+        _mm512_store_si512(fb->root2 + i, _mm512_max_epu32(vroot1, vroot2));
+    }
+
+    if ((full_fb->fb_blk8i - i) < 16)
+    {
+        bound = full_fb->fb_blk8i;
+    }
+
+    for (; i < bound; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    return;
 }
 
 #endif

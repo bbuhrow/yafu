@@ -766,5 +766,7 @@ void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t b
 
     return;
 }
+
+
 #endif
 
