@@ -2240,7 +2240,7 @@ void* process_poly(void* vptr)
         }
 #endif
 
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
         //printf("starting p-side L2 sieve\n"); fflush(stdout);
         memset(sieve, blockinit, 32768 * 8);
         L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_p, fb, start_prime, blockinit);
@@ -2249,7 +2249,7 @@ void* process_poly(void* vptr)
 
         for (i = 0; i < num_blocks; i++)
         {
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
             uint8_t* blk_sieve = sieve + i * 32768;
 #else
             uint8_t* blk_sieve = sieve;
@@ -2276,7 +2276,7 @@ void* process_poly(void* vptr)
             {
 #if !defined( USE_SS_SEARCH )
 
-#if !defined(TRY_L2_SIEVE)
+#if !defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE)
                 memset(blk_sieve, blockinit - 4, 32768);
 #endif
 
@@ -2288,12 +2288,15 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+#if defined(TRY_SPARSE_SIEVE)
+                large_sieveblock_32k_avx512bw(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit - 4);
+#endif
             }
             else
             {
 #if !defined( USE_SS_SEARCH )
 
-#if !defined(TRY_L2_SIEVE)
+#if !defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE)
                 memset(blk_sieve, blockinit, 32768);
 #endif
 
@@ -2305,6 +2308,9 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit);
+#if defined(TRY_SPARSE_SIEVE)
+                large_sieveblock_32k_avx512bw(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit);
+#endif
             }
 
 #if 0 //defined( USE_SS_SEARCH )
@@ -2373,7 +2379,7 @@ void* process_poly(void* vptr)
         }
 #endif
 
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
         //printf("starting n-side L2 sieve\n"); fflush(stdout);
         memset(sieve, blockinit, 32768 * 8);
         L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_n, fb, start_prime, blockinit);
@@ -2382,7 +2388,7 @@ void* process_poly(void* vptr)
 
         for (i = 0; i < num_blocks; i++)
         {
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
             uint8_t* blk_sieve = sieve + i * 32768;
 #else
             uint8_t* blk_sieve = sieve;
@@ -2407,7 +2413,7 @@ void* process_poly(void* vptr)
             {
 #if !defined( USE_SS_SEARCH )
 
-#if !defined(TRY_L2_SIEVE)
+#if !defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE)
                 memset(blk_sieve, blockinit - 4, 32768);
 #endif
 
@@ -2419,12 +2425,15 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+#if defined(TRY_SPARSE_SIEVE)
+                large_sieveblock_32k_avx512bw(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit - 4);
+#endif
             }
             else
             {
 #if !defined( USE_SS_SEARCH )
 
-#if !defined(TRY_L2_SIEVE)
+#if !defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE)
                 memset(blk_sieve, blockinit, 32768);
 #endif
 
@@ -2436,6 +2445,9 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit);
+#if defined(TRY_SPARSE_SIEVE)
+                large_sieveblock_32k_avx512bw(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit);
+#endif
             }
 
 #ifdef SIQS_PROFILE
@@ -4444,7 +4456,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // this region of primes aligned on a 16 byte boundary and thus be able to use
         // movdqa
         // don't let med_B grow larger than ~1.5 * the blocksize
-        if ((sconf->factor_base->list->prime[i] > (uint32_t)(8 * (double)sconf->qs_blocksize)) &&
+        if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
             ((i % 16) == 0))
         {
             i -= 16;
@@ -4471,7 +4483,11 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			break;
 		}
 	}
+#if defined(TRY_L2_SIEVE)
+    sconf->factor_base->large_B = sconf->factor_base->fb_blk8i;
+#else
 	sconf->factor_base->large_B = i;
+#endif
 
     // when p > sieve_interval we use a special bucket sieve tailored for primes that
     // will at most hit the interval once.  The AVX512 version of that method uses 

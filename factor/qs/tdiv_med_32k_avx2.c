@@ -902,9 +902,123 @@ void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             if (tmp == root1 || tmp == root2)
             {
                 //it will divide Q(x).  do so as many times as we can.
+                //DIVIDE_RESIEVED_PRIME_2(i);
                 DIVIDE_ONE_PRIME;
             }
         }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+
+    return;
+}
+
+void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    // we have flagged this sieve offset as likely to produce a relation
+    // nothing left to do now but check and see.
+    uint32_t i;
+    uint32_t tmp, prime, root1, root2, report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb* fbc;
+    fb_element_siqs* fullfb_ptr, * fullfb = sconf->factor_base->list;
+    uint32_t block_loc;
+
+    fullfb_ptr = fullfb;
+    if (parity)
+    {
+        fbc = dconf->sieve_n;
+    }
+    else
+    {
+        fbc = dconf->sieve_p;
+    }
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        // pull the details of this report to get started.
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+#if 1
+        uint32_t bound = sconf->factor_base->fb_blk8i;
+        __m512i vblockloc = _mm512_set1_epi32(block_loc - 32768);
+
+        for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
+        {
+            __m512i vprime, vroot1, vroot2;
+            uint32_t msk_2;
+            int pos;
+
+            vprime = _mm512_load_si512(fbc->prime + i);
+            vroot1 = _mm512_load_si512(fbc->root1 + i);
+            vroot2 = _mm512_load_si512(fbc->root2 + i);
+
+            vprime = _mm512_add_epi32(vprime, vblockloc);
+
+            msk_2 = _mm512_cmpeq_epu32_mask(vprime, vroot1) | 
+                _mm512_cmpeq_epu32_mask(vprime, vroot2);
+
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                DIVIDE_RESIEVED_PRIME(pos);
+                msk_2 = _reset_lsb(msk_2);
+            }
+        }
+
+        for ( ; i < sconf->factor_base->fb_blk8i; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            // these primes are all > blocksize, so we only need one step
+            tmp = block_loc + prime - 32768;
+
+            // tmp = advance the offset to where it should be after the interval, and
+            // check to see if that's where either of the roots are now.  if so, then
+            // this offset is on the progression of the sieve for this prime
+            if (tmp == root1 || tmp == root2)
+            {
+                //it will divide Q(x).  do so as many times as we can.
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+#else
+
+        for (i = sconf->factor_base->med_B; i < sconf->factor_base->fb_blk8i; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            // distance from this sieve block offset to the end of the L2-block
+            // tmp = 32768 - block_loc;
+            // tmp = 1 + (tmp / prime); // divide(tmp, fullfb_ptr->inv32[i], fullfb_ptr->corr32[i], fullfb_ptr->shift32[i]);
+            // tmp = block_loc + tmp * prime;
+            // tmp = tmp - 32768;
+            // these primes are all > blocksize, so we only need one step
+            tmp = block_loc + prime - 32768;
+
+            // tmp = advance the offset to where it should be after the interval, and
+            // check to see if that's where either of the roots are now.  if so, then
+            // this offset is on the progression of the sieve for this prime
+            if (tmp == root1 || tmp == root2)
+            {
+                //it will divide Q(x).  do so as many times as we can.
+                //DIVIDE_RESIEVED_PRIME_2(i);
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+#endif
 
         dconf->smooth_num[report_num] = smooth_num;
     }

@@ -1010,7 +1010,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 
         dconf->num_reports = 0;
 
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
 		sieveblock = (uint64_t*)(dconf->sieve + blocknum * 32768);
 		sieveblock32 = (uint32_t*)(dconf->sieve + blocknum * 32768);
 #else
@@ -1060,14 +1060,22 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 
     // remove small primes, and test if its worth continuing for each report
 #if defined(TRY_L2_SIEVE)
+#if defined(TRY_SPARSE_SIEVE)
+	filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+#else
     filter_SPV(parity, dconf->sieve + blocknum * 32768, dconf->numB - 1, blocknum, sconf, dconf);
+#endif
 #else
 	filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
 #endif
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 #if defined(TRY_L2_SIEVE)
+#if defined(TRY_SPARSE_SIEVE)
+	tdiv_large_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
+#else
 	tdiv_L2primes_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
+#endif
 #endif
 	//tdiv_LP_avx512_allreports(parity, blocknum, sconf, dconf);
 

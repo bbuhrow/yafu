@@ -3263,7 +3263,33 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
 
         for (j = sconf->factor_base->med_B;
-            j < sconf->factor_base->fb_blk8i; j++, ptr++)
+            (j + 16) < sconf->factor_base->fb_blk8i; j += 16, ptr += 16)
+        {
+            __m512i vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+            __m512i vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+            __m512i vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+            __m512i vpval = _mm512_load_epi32((__m512i*)ptr);
+            __mmask16 mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+            __mmask16 mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+            vroot1 = _mm512_sub_epi32(vroot1, vpval);
+            vroot2 = _mm512_sub_epi32(vroot2, vpval);
+            vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+
+            __m512i vsmall = _mm512_min_epu32(vroot1, vroot2);
+            __m512i vlarge = _mm512_max_epu32(vroot1, vroot2);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vlarge);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root2[j]), vlarge);
+            vroot1 = _mm512_sub_epi32(vprime, vlarge);  // small on other side
+            vroot2 = _mm512_sub_epi32(vprime, vsmall);  // large on other side
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root1[j]), vroot1);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root2[j]), vroot2);
+        }
+
+
+        for ( ; j < sconf->factor_base->fb_blk8i; j++, ptr++)
         {
             prime = update_data.prime[j];
             root1 = update_data.firstroots1[j];
@@ -3386,9 +3412,36 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if defined(TRY_L2_SIEVE)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
-
+        
         for (j = sconf->factor_base->med_B;
-            j < sconf->factor_base->fb_blk8i; j++, ptr++)
+            (j + 16) < sconf->factor_base->fb_blk8i; j += 16, ptr += 16)
+        {
+
+            __m512i vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+            __m512i vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+            __m512i vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+            __m512i vpval = _mm512_load_epi32((__m512i*)ptr);
+            vroot1 = _mm512_add_epi32(vroot1, vpval);
+            vroot2 = _mm512_add_epi32(vroot2, vpval);
+            __mmask16 mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+            __mmask16 mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+            vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+
+            __m512i vsmall = _mm512_min_epu32(vroot1, vroot2);
+            __m512i vlarge = _mm512_max_epu32(vroot1, vroot2);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vlarge);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root2[j]), vlarge);
+            vroot1 = _mm512_sub_epi32(vprime, vlarge);  // small on other side
+            vroot2 = _mm512_sub_epi32(vprime, vsmall);  // large on other side
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root1[j]), vroot1);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root2[j]), vroot2);
+        }
+
+
+        for ( ; j < sconf->factor_base->fb_blk8i; j++, ptr++)
         {
             prime = update_data.prime[j];
             root1 = update_data.firstroots1[j];

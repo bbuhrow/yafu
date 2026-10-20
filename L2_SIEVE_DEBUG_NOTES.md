@@ -1,3 +1,7 @@
+  in yafu.git:
+  Session   Continuing L2 sieve debug effort
+  Continue  opencode -s ses_ea66ddbbcffe5linTalbBnDx6x
+
 # L2 Sieve Debugging Notes (SIQS, TRY_L2_SIEVE)
 
 *Status as of 2026-10-19. Written to allow resuming the debugging session later.*
@@ -179,7 +183,7 @@ tail handle partial validity and the final wrap cannot underflow. Verified by
 the post-fix fb bounds printout: L2 ends at 262109 < 262144.) The 15 displaced
 primes correctly fall into the bucket range (p > interval => <= 1 hit/root).
 
-### Bug 4 — NEW, UNRESOLVED: crash at `dconf->smooth_num[report_num] = smooth_num;`  [OPEN]
+### Bug 4 — crash at `dconf->smooth_num[report_num] = smooth_num;`  [FIXED, verified 2026-10-20]
 
 After fixes 1-3, on the 79-digit input
 86601586107718322788075198193322239264919417729992471551587341952662571831281
@@ -196,28 +200,47 @@ Program received signal SIGSEGV, Segmentation fault.
 #3 SIQS (...) at factor/qs/SIQS.c:946
 ```
 
-Analysis (not yet confirmed): line 670 is a plain store through the
-`dconf->smooth_num` POINTER. Faulting there means the pointer field itself is
-corrupt — and `smooth_num` (qs_impl.h:660) is the field **immediately after**
-`fb_offsets[2048][200]` (line 659) in dynamic_conf_t. So the leading
-hypothesis is a **residual fb_offsets overflow** (a report whose smooth_num
-exceeds MAX_SMOOTH_PRIMES=200, or row-2047 overflow past the array) — i.e.
-some remaining unchecked-division / runaway path, of the same class as bugs
-1-2 but from a different trigger. Candidate sources to investigate when
-resuming:
+Isolation (2026-10-20, user): enabling `CHECK_AVX2_ERROR 1` in tdiv_large.c
+showed tdiv_LP_avx2 dividing Q by non-divisors (all bucket-range primes);
+guarding `tdiv_L2primes_32k_avx2`'s division (DIVIDE_ONE_PRIME ->
+DIVIDE_RESIEVED_PRIME_2, plus replacing `divide()` with plain `/` to rule the
+fast-div out) made every tdiv_large error disappear => the corruption source
+was tdiv_L2primes dividing Q by non-divisors first.
 
-1. Rerun the first-bogus-division breakpoint (gdbcmds2.txt) on the current
-   binary — if it fires, capture which stage is dividing Q by a non-divisor
-   now (tdiv_L2primes with the new boundary? resieve? tdiv_med?).
-2. Audit every `fb_offsets[++smooth_num]` site for missing
-   `smooth_num < MAX_SMOOTH_PRIMES` guards (tdiv_macros_common.h, tdiv_large.c,
-   tdiv_med*, tdiv_resieve*, tdiv_small.c).
-3. Defensive fix worth making regardless: bound smooth_num in all
-   DIVIDE_ONE_PRIME / DIVIDE_RESIEVED_PRIME macros.
-4. Check whether the crash reproduces with the guard allocator (which turns
-   the fb_offsets array-end overflow into a precise fault at the writing
-   instruction) and/or with MALLOC_PERTURB_ set.
-5. Note the crash blocknum=6 and report_num=2; check dconf->numB at capture.
+**Root cause: the last 16 L2-range primes were never sieved or wrapped.**
+In `L2_sieveblock_32k_avx512bw` the vector loop ran with
+`bound = fb_blk8i - 16` over 16-aligned [med_B, fb_blk8i), exiting at
+i = fb_blk8i - 16; the scalar-tail guard `(fb_blk8i - i) < 16` evaluated
+16 < 16 = false, so primes [fb_blk8i-16, fb_blk8i) got NO L2 sieve pass.
+Their fb roots stayed the *unwrapped* poly roots R in [0, p), while
+tdiv_L2primes compares `tmp = block_loc + (1 + (8*32768 - block_loc)/p)*p
+- 8*32768`, which is congruent to `block_loc - 8*32768 (mod p)`.  Correctly
+wrapped roots are congruent to `R - 8*32768 (mod p)`, so a match normally
+means `block_loc == R (mod p)` (a true hit).  For the 16 skipped primes the
+stored root is R itself, so a match means
+`block_loc == R + 8*32768 (mod p)` — a residue class disjoint from the true
+hit class (p odd, p does not divide 2^18).  Every match was a false positive
+=> unchecked DIVIDE_ONE_PRIME corrupted Qvals => the familiar
+Q-reaches-0 / smooth_num-explosion / fb_offsets-overflow cascade into the
+smooth_num pointer (SIGSEGV at tdiv_large.c:670).  Side effect: those 16
+primes' sieve hits were missing entirely (slight relation loss).
+
+Fix (applied 2026-10-20): in `L2_sieveblock_32k_avx512bw`
+(factor/qs/med_sieve_32k_avx2.c) set `bound = fb_blk8i`, run the vector loop
+while `(i + 16) <= bound`, and replace the old scalar tail (which used the
+per-block SIEVE_1X/SIEVE_LAST/UPDATE_ROOTS macros — wrong 32768 boundaries
+and uint16 truncation for L2 primes) with an L2-semantics scalar loop:
+sieve hits while root2 < 8*32768 in lockstep, record root1's final possible
+hit, then wrap both roots into [0, p) and store min/max.  With med_B and
+fb_blk8i both 16-aligned the tail processes 0 primes in the normal case, but
+the routine is now correct for any alignment.
+
+Verification (both with CHECK_AVX2_ERROR 1 left enabled, -siqsNB 8
+-threads 1):
+- 261-bit input above: fully factored (P39 * P39), zero "does not divide"
+  errors, no crash.
+- 256-bit input from N.txt: fully factored, factors match factors.txt,
+  zero errors.
 
 ## 4. Secondary issues (real, but not crashers — fix eventually)
 

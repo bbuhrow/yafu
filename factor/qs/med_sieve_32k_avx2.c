@@ -976,11 +976,9 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     ALIGNED_MEM uint32_t r_id1[16];
     ALIGNED_MEM uint32_t r_id2[16];
 
-    uint32_t bound = full_fb->fb_blk8i - 16;
-    //printf("start id: %u, end id: %u, diff = %u\n",
-    //    full_fb->med_B, bound, bound - full_fb->med_B);
+    uint32_t bound = full_fb->fb_blk8i;
 
-    for (i = full_fb->med_B; i < bound; i += 16)
+    for (i = full_fb->med_B; (i + 16) <= bound; i += 16)
     {
         __m512i vprime, vroot1, vroot2;
         __mmask16 valid_mask;
@@ -993,20 +991,10 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
         // approximate the next 16 logp's as equal to the midpoint
         logp = fb->logp[i + 8]; 
 
-        // all roots in this range start out < 8 * blocksize
-        valid_mask = 0xffff;
-
-        //if (_mm512_cmpeq_epu32_mask(vprime, _mm512_setzero_epi32()) > 0)
-        //{
-        //    printf("prime == 0 in L2 sieve\n");
-        //    int j;
-        //    for (j = 0; j < 16; j++)
-        //    {
-        //        printf("p: %u, r1: %u, r2: %u, lp: %u\n", fb->prime[i + j],
-        //            fb->root1[i + j], fb->root2[i + j], fb->logp[i + j]);
-        //    }
-        //    exit(1);
-        //}
+        // all roots in this range start out < 8 * blocksize...
+        // but we make sure anyway that none are too big.
+        //valid_mask = 0xffff;
+        valid_mask = _mm512_cmplt_epu32_mask(vroot2, vblock);
 
         // until things start to drop off the end of the interval, 
         // simply dump in all logs.
@@ -1097,11 +1085,14 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
         _mm512_store_si512(fb->root2 + i, _mm512_max_epu32(vroot1, vroot2));
     }
 
-    if ((full_fb->fb_blk8i - i) < 16)
-    {
-        bound = full_fb->fb_blk8i;
-    }
-
+    // any primes left over after the vector loop (fewer than 16 of them;
+    // zero when med_B and fb_blk8i are both 16-aligned) must still be sieved
+    // and have their roots wrapped.  If they are skipped, their fb roots
+    // remain the unwrapped poly roots, and tdiv_L2primes' interval-end
+    // advance will match them against the wrong residue class (off by
+    // 8*blocksize mod p), causing Q to be divided by non-divisors.
+    // These use L2 (whole 8-block interval) semantics: hits everywhere the
+    // root is < 8*32768, then wrap both roots into [0, p) for tdiv.
     for (; i < bound; i++)
     {
         prime = fb->prime[i];
@@ -1109,12 +1100,165 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
         root2 = fb->root2[i];
         logp = fb->logp[i];
 
-        SIEVE_1X;
-        SIEVE_LAST;
-        UPDATE_ROOTS;
+        while (root2 < (uint32_t)(32768 * 8))
+        {
+            sieve[root1] -= logp;
+            sieve[root2] -= logp;
+            root1 += prime;
+            root2 += prime;
+        }
+
+        // root1 can still have one last hit inside the interval
+        if (root1 < (uint32_t)(32768 * 8))
+        {
+            sieve[root1] -= logp;
+            root1 += prime;
+        }
+
+        // wrap both roots into the next interval, store in min/max order
+        root1 -= 32768 * 8;
+        root2 -= 32768 * 8;
+        fb->root1[i] = (root1 < root2) ? root1 : root2;
+        fb->root2[i] = (root1 < root2) ? root2 : root1;
     }
 
     return;
 }
 
+void large_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
+{
+    uint32_t i;
+    uint32_t prime, root1, root2, tmp;
+    uint8_t logp;
+
+#if 0
+    for (i = full_fb->med_B; i < full_fb->fb_blk8i; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        while (root2 < (uint32_t)(32768))
+        {
+            sieve[root1] -= logp;
+            sieve[root2] -= logp;
+            root1 += prime;
+            root2 += prime;
+        }
+
+        // root1 can still have one last hit inside the interval
+        if (root1 < (uint32_t)(32768))
+        {
+            sieve[root1] -= logp;
+            root1 += prime;
+        }
+
+        // wrap both roots into the next interval, store in min/max order
+        root1 -= 32768;
+        root2 -= 32768;
+        fb->root1[i] = (root1 < root2) ? root1 : root2;
+        fb->root2[i] = (root1 < root2) ? root2 : root1;
+    }
+
+    return;
+#endif
+
+    __m512i vblock = _mm512_set1_epi32(32768);
+
+    ALIGNED_MEM uint32_t r_id1[16];
+    ALIGNED_MEM uint32_t r_id2[16];
+
+    uint32_t bound = full_fb->fb_blk8i;
+
+    for (i = full_fb->med_B; (i + 16) <= bound; i += 16)
+    {
+        __m512i vprime, vroot1, vroot2;
+        __mmask16 valid_mask;
+        uint32_t msk_2;
+        int pos;
+
+        vprime = _mm512_load_si512(fb->prime + i);
+        vroot1 = _mm512_load_si512(fb->root1 + i);
+        vroot2 = _mm512_load_si512(fb->root2 + i);
+        // approximate the next 16 logp's as equal to the midpoint
+        logp = fb->logp[i + 15];
+
+        // roots will be increasingly less likely to land in a block
+        // as their stride increases, but we should get several to
+        // hit of the 16 root2's (root1's will follow - they are ordered).
+        valid_mask = _mm512_cmplt_epu32_mask(vroot2, vblock);
+        msk_2 = valid_mask;
+
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[fb->root1[i + pos]] -= logp;
+            sieve[fb->root2[i + pos]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        vroot1 = _mm512_mask_add_epi32(vroot1, valid_mask, vroot1, vprime);
+        vroot2 = _mm512_mask_add_epi32(vroot2, valid_mask, vroot2, vprime);
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        valid_mask = _mm512_cmplt_epu32_mask(vroot1, vblock);
+        msk_2 = valid_mask;
+
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[fb->root1[i + pos]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm512_mask_add_epi32(vroot1, valid_mask, vroot1, vprime);
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+        _mm512_store_si512(fb->root1 + i, _mm512_min_epu32(vroot1, vroot2));
+        _mm512_store_si512(fb->root2 + i, _mm512_max_epu32(vroot1, vroot2));
+    }
+
+    // any primes left over after the vector loop (fewer than 16 of them;
+    // zero when med_B and fb_blk8i are both 16-aligned) must still be sieved
+    // and have their roots wrapped.  If they are skipped, their fb roots
+    // remain the unwrapped poly roots, and tdiv_L2primes' interval-end
+    // advance will match them against the wrong residue class (off by
+    // 8*blocksize mod p), causing Q to be divided by non-divisors.
+    // These use L2 (whole 8-block interval) semantics: hits everywhere the
+    // root is < 8*32768, then wrap both roots into [0, p) for tdiv.
+    for (; i < bound; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        while (root2 < (uint32_t)(32768))
+        {
+            sieve[root1] -= logp;
+            sieve[root2] -= logp;
+            root1 += prime;
+            root2 += prime;
+        }
+
+        // root1 can still have one last hit inside the interval
+        if (root1 < (uint32_t)(32768))
+        {
+            sieve[root1] -= logp;
+            root1 += prime;
+        }
+
+        // wrap both roots into the next interval, store in min/max order
+        root1 -= 32768;
+        root2 -= 32768;
+        fb->root1[i] = (root1 < root2) ? root1 : root2;
+        fb->root2[i] = (root1 < root2) ? root2 : root1;
+    }
+
+    return;
+}
 #endif
