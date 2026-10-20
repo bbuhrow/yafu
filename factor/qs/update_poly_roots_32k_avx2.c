@@ -3162,6 +3162,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
     uint16_t *sm_ptr;
 
     uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t l2upd_bound;
 
     uint32_t j;
     int k;
@@ -3262,8 +3263,17 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(TRY_L2_SIEVE)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
 
+#if defined(TRY_LIST_SIEVE)
+        // cover the whole large-prime range so the list sieve and its
+        // resieve have per-poly roots for every prime up to B.
+        // Requires dconf->sieve_p/n arrays allocated with B entries.
+        l2upd_bound = sconf->factor_base->B;
+#else
+        l2upd_bound = sconf->factor_base->fb_blk8i;
+#endif
+
         for (j = sconf->factor_base->med_B;
-            (j + 16) < sconf->factor_base->fb_blk8i; j += 16, ptr += 16)
+            (j + 16) < l2upd_bound; j += 16, ptr += 16)
         {
             __m512i vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
             __m512i vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
@@ -3289,7 +3299,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
 
-        for ( ; j < sconf->factor_base->fb_blk8i; j++, ptr++)
+        for ( ; j < l2upd_bound; j++, ptr++)
         {
             prime = update_data.prime[j];
             root1 = update_data.firstroots1[j];
@@ -3412,9 +3422,18 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if defined(TRY_L2_SIEVE)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
+
+#if defined(TRY_LIST_SIEVE)
+        // cover the whole large-prime range so the list sieve and its
+        // resieve have per-poly roots for every prime up to B.
+        // Requires dconf->sieve_p/n arrays allocated with B entries.
+        l2upd_bound = sconf->factor_base->B;
+#else
+        l2upd_bound = sconf->factor_base->fb_blk8i;
+#endif
         
         for (j = sconf->factor_base->med_B;
-            (j + 16) < sconf->factor_base->fb_blk8i; j += 16, ptr += 16)
+            (j + 16) < l2upd_bound; j += 16, ptr += 16)
         {
 
             __m512i vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
@@ -3441,7 +3460,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
 
-        for ( ; j < sconf->factor_base->fb_blk8i; j++, ptr++)
+        for ( ; j < l2upd_bound; j++, ptr++)
         {
             prime = update_data.prime[j];
             root1 = update_data.firstroots1[j];

@@ -1026,4 +1026,201 @@ void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
+// ----------------------------------------------------------------------
+// trial division for the experimental linked-list sieve (TRY_LIST_SIEVE).
+//
+// Runs the same block-by-block list procedure as
+// list_sieveblock_32k_avx512bw (see med_sieve_32k_avx2.c), but with its
+// own independent per-block lists (ctx->rhead/rtail/rnext) and running
+// roots (ctx->rroot1/2), built by list_sieve_init_32k from the pristine
+// roots the sieve saved in ctx->oroot1/oroot2.  Instead of decrementing
+// sieve bytes, each visited hit checks whether its position is a known
+// smooth location (one of this block's reports) and if so does the gmp
+// divisions.
+//
+// Because the sieve and the resieve are called in lockstep, block by
+// block, the resieve's list for block bnum contains exactly the primes
+// that just hit the block, so in the normal path this routine only walks
+// that one list: no rebuild and no fast-forward.  A dormant state machine
+// (ctx->rblock) remains for robustness: if a block's call is ever
+// skipped or comes out of order, the lists are rebuilt from the pristine
+// roots and the procedure is fast-forwarded through the missing blocks
+// (advance-only traversal), because later blocks' hits depend on earlier
+// blocks being traversed.
+//
+// Divisions are guarded: divisibility is checked before the first
+// division of Q by each prime (no unchecked progression matches).
+//
+// Notes for the caller:
+//  - call once per block from the scan path, after list_sieve_init_32k
+//    has run for the current poly (it builds both procedures' lists).
+//  - ctx must be the same context (same side, same thread) that was
+//    passed to the sieve for this poly.
+//  - replaces tdiv_L2primes/tdiv_large and the bucket tdiv for the
+//    prime range covered by the list sieve.
+// ----------------------------------------------------------------------
+void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf, list_sieve_ctx_t* ctx)
+{
+    uint32_t i, b, id;
+    uint32_t prime, root, pos, rn, rpt;
+    uint32_t node, next;
+    uint32_t start = ctx->start;
+    uint32_t interval = ctx->numblocks << 15;
+    uint32_t bloc = bnum << 15;
+    uint32_t* fb_offsets;
+    int smooth_num;
+    fb_element_siqs* listp = sconf->factor_base->list;
+
+    (void)parity;   // the side is implicit in ctx
+    (void)poly_id;
+
+    // dormant robustness path: if we're being asked for a block earlier
+    // than the state has already advanced past (or the state was never
+    // built), rebuild the resieve lists from the pristine roots.  In the
+    // normal lockstep flow this never triggers: list_sieve_init_32k
+    // builds the lists and sets rblock = 0.
+    if ((!ctx->resieve_ready) || (bnum < ctx->rblock))
+    {
+        for (b = 0; b < ctx->numblocks; b++)
+        {
+            ctx->rhead[b] = LISTSIEVE_NULL;
+            ctx->rtail[b] = LISTSIEVE_NULL;
+        }
+
+        for (i = start; i < ctx->stop; i++)
+        {
+            id = i - start;
+            ctx->rroot1[id] = ctx->oroot1[id];
+            ctx->rroot2[id] = ctx->oroot2[id];
+
+            if (ctx->rroot1[id] < interval)
+                LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                    ctx->rroot1[id] >> 15, 2 * id);
+            if (ctx->rroot2[id] < interval)
+                LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                    ctx->rroot2[id] >> 15, 2 * id + 1);
+        }
+
+        ctx->resieve_ready = 1;
+        ctx->rblock = 0;
+    }
+
+    // fast-forward the procedure through any blocks that were skipped
+    // since the last call (advance roots and re-append hits, no tdiv)
+    while (ctx->rblock < bnum)
+    {
+        uint32_t fblk = ctx->rblock;
+
+        node = ctx->rhead[fblk];
+        ctx->rhead[fblk] = LISTSIEVE_NULL;
+        ctx->rtail[fblk] = LISTSIEVE_NULL;
+
+        while (node != LISTSIEVE_NULL)
+        {
+            next = ctx->rnext[node];
+            id = node >> 1;
+            i = start + id;
+            prime = listp->prime[i];
+
+            if ((node & 1) == 0)
+            {
+                root = ctx->rroot1[id] + prime;
+                ctx->rroot1[id] = root;
+                if (root < interval)
+                    LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                        root >> 15, node);
+            }
+            else
+            {
+                root = ctx->rroot2[id] + prime;
+                ctx->rroot2[id] = root;
+                if (root < interval)
+                    LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                        root >> 15, node);
+            }
+
+            node = next;
+        }
+
+        ctx->rblock++;
+    }
+
+    // mark the sieve positions of this block's valid reports; the stored
+    // value is report_num + 1 so 0 can mean "no report here"
+    for (rn = 0; rn < dconf->num_reports; rn++)
+    {
+        if (dconf->valid_Qs[rn])
+            ctx->flags[dconf->reports[rn]] = (uint16_t)(rn + 1);
+    }
+
+    // walk this block's resieve list: each node is a (prime, root) that
+    // just hit this block in the sieve
+    node = ctx->rhead[bnum];
+    ctx->rhead[bnum] = LISTSIEVE_NULL;
+    ctx->rtail[bnum] = LISTSIEVE_NULL;
+
+    while (node != LISTSIEVE_NULL)
+    {
+        // capture the link before processing: processing may re-append
+        // this node to a later block's list
+        next = ctx->rnext[node];
+        id = node >> 1;
+        i = start + id;
+        prime = listp->prime[i];
+
+        if ((node & 1) == 0)
+        {
+            root = ctx->rroot1[id];
+            pos = root - bloc;
+            root += prime;
+            ctx->rroot1[id] = root;
+            if (root < interval)
+                LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                    root >> 15, node);
+        }
+        else
+        {
+            root = ctx->rroot2[id];
+            pos = root - bloc;
+            root += prime;
+            ctx->rroot2[id] = root;
+            if (root < interval)
+                LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                    root >> 15, node);
+        }
+
+        // the list invariant says pos is in [0, 32768); guard the flags
+        // lookup anyway so a broken invariant can't corrupt memory
+        if ((pos < 32768) && (ctx->flags[pos] > 0))
+        {
+            rpt = ctx->flags[pos] - 1;
+            fb_offsets = &dconf->fb_offsets[rpt][0];
+            smooth_num = dconf->smooth_num[rpt];
+
+            //it will divide Q(x).  do so as many times as we can.
+            while (mpz_tdiv_ui(dconf->Qvals[rpt], prime) == 0)
+            {
+                fb_offsets[++smooth_num] = i;
+                mpz_tdiv_q_ui(dconf->Qvals[rpt], dconf->Qvals[rpt], prime);
+            }
+
+            dconf->smooth_num[rpt] = smooth_num;
+        }
+
+        node = next;
+    }
+
+    ctx->rblock = bnum + 1;
+
+    // clear the marks we set
+    for (rn = 0; rn < dconf->num_reports; rn++)
+    {
+        if (dconf->valid_Qs[rn])
+            ctx->flags[dconf->reports[rn]] = 0;
+    }
+
+    return;
+}
+
 #endif // USE_AVX2

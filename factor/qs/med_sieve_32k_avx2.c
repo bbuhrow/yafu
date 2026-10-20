@@ -1261,4 +1261,204 @@ void large_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_f
 
     return;
 }
+// ----------------------------------------------------------------------
+// experimental linked-list sieve (TRY_LIST_SIEVE)
+//
+// Instead of scanning (or bucket-scheduling) the large-prime range
+// [ctx->start, full_fb->B), keep one linked list per sieve block whose
+// nodes are the (prime, root) hits landing in that block.  A node id is
+//     2 * (fb_index - start) + root_slot
+// so each root of each prime is an independent list member.
+//
+// Re-entrant, block-at-a-time operation, matching the rest of the sieve
+// pipeline:
+//   1. list_sieve_init_32k(): once per poly per side, after nextRoots
+//      has filled fb->root1/root2 for [start, stop).  Builds the sieve
+//      lists, saves the pristine roots, and builds the resieve's parallel
+//      lists (see resieve_large_32k_avx2 in tdiv_med_32k_avx2.c).
+//   2. list_sieveblock_32k_avx512bw(): once per block, roughly where
+//      lp_sieveblock_ptr is called.  Walks block bnum's list: each
+//      visited hit decrements its sieve byte by logp, advances its root
+//      by prime, and re-appends the node to a later block's list if the
+//      new root is still inside the interval (all covered primes are
+//      > 32768, so a re-append always lands in a strictly later block
+//      and a block's list is final by the time it is walked).  Roots
+//      that leave the interval are done for this poly; nextRoots
+//      overwrites fb->root1/root2 with fresh roots for the next poly.
+//
+// Notes for the caller:
+//  - the whole interval must be memset before block 0 is sieved (same
+//    as the L2 scheme); the init does not touch sieve bytes.
+//  - all primes in the covered range must be > 32768 (true for
+//    start >= med_B) so a root hits any given block at most once.
+//  - ctx must be allocated by list_sieve_alloc_32k(start, full_fb->B,
+//    numblocks), one per thread per side, and passed to both the sieve
+//    and the resieve.
+// ----------------------------------------------------------------------
+void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx)
+{
+    uint32_t i, b;
+    uint32_t start = ctx->start;
+    uint32_t stop = ctx->stop;
+    uint32_t interval = ctx->numblocks << 15;
+
+    // ---- build the sieve lists from this poly's roots ----
+    for (b = 0; b < ctx->numblocks; b++)
+    {
+        ctx->head[b] = LISTSIEVE_NULL;
+        ctx->tail[b] = LISTSIEVE_NULL;
+    }
+
+    for (i = start; i < stop; i++)
+    {
+        uint32_t id = i - start;
+
+        // save the pristine roots; the sieve advances fb->root1/root2
+        // in place, and the resieve runs from these saved values
+        ctx->oroot1[id] = fb->root1[i];
+        ctx->oroot2[id] = fb->root2[i];
+
+        if (ctx->oroot1[id] < interval)
+            LIST_SIEVE_APPEND(ctx->head, ctx->tail, ctx->next,
+                ctx->oroot1[id] >> 15, 2 * id);
+        if (ctx->oroot2[id] < interval)
+            LIST_SIEVE_APPEND(ctx->head, ctx->tail, ctx->next,
+                ctx->oroot2[id] >> 15, 2 * id + 1);
+    }
+
+    // ---- build the resieve's parallel lists from the pristine roots ----
+    for (b = 0; b < ctx->numblocks; b++)
+    {
+        ctx->rhead[b] = LISTSIEVE_NULL;
+        ctx->rtail[b] = LISTSIEVE_NULL;
+    }
+
+    for (i = start; i < stop; i++)
+    {
+        uint32_t id = i - start;
+
+        ctx->rroot1[id] = ctx->oroot1[id];
+        ctx->rroot2[id] = ctx->oroot2[id];
+
+        if (ctx->rroot1[id] < interval)
+            LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                ctx->rroot1[id] >> 15, 2 * id);
+        if (ctx->rroot2[id] < interval)
+            LIST_SIEVE_APPEND(ctx->rhead, ctx->rtail, ctx->rnext,
+                ctx->rroot2[id] >> 15, 2 * id + 1);
+    }
+
+    ctx->resieve_ready = 1;
+    ctx->rblock = 0;
+
+    return;
+}
+
+// sieve one block: walk block bnum's list, decrementing the sieve
+// locations hit within the block and advancing/re-appending each root.
+void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
+    sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx)
+{
+    uint32_t i;
+    uint32_t prime, root;
+    uint32_t logp;
+    uint32_t start = ctx->start;
+    uint32_t interval = ctx->numblocks << 15;
+    uint32_t bloc = bnum << 15;
+    uint32_t node, next;
+    fb_element_siqs* listp = full_fb->list;
+
+    node = ctx->head[bnum];
+    ctx->head[bnum] = LISTSIEVE_NULL;
+    ctx->tail[bnum] = LISTSIEVE_NULL;
+
+    while (node != LISTSIEVE_NULL)
+    {
+        // capture the link before processing: processing may
+        // re-append this node to a later block's list
+        next = ctx->next[node];
+        i = start + (node >> 1);
+        prime = listp->prime[i];
+        logp = listp->logprime[i];
+
+        if ((node & 1) == 0)
+        {
+            // this root is guaranteed to be inside block bnum
+            root = fb->root1[i];
+            blk_sieve[root - bloc] -= (uint8_t)logp;
+            root += prime;
+            fb->root1[i] = root;
+            if (root < interval)
+                LIST_SIEVE_APPEND(ctx->head, ctx->tail, ctx->next,
+                    root >> 15, node);
+        }
+        else
+        {
+            root = fb->root2[i];
+            blk_sieve[root - bloc] -= (uint8_t)logp;
+            root += prime;
+            fb->root2[i] = root;
+            if (root < interval)
+                LIST_SIEVE_APPEND(ctx->head, ctx->tail, ctx->next,
+                    root >> 15, node);
+        }
+
+        node = next;
+    }
+
+    return;
+}
+
+list_sieve_ctx_t* list_sieve_alloc_32k(uint32_t start, uint32_t stop, uint32_t numblocks)
+{
+    uint32_t n = stop - start;
+    list_sieve_ctx_t* ctx = (list_sieve_ctx_t*)xmalloc_align(sizeof(list_sieve_ctx_t));
+
+    ctx->start = start;
+    ctx->stop = stop;
+    ctx->numblocks = numblocks;
+    ctx->resieve_ready = 0;
+    ctx->rblock = 0;
+
+    ctx->next = (uint32_t*)xmalloc_align((size_t)(2 * n) * sizeof(uint32_t));
+    ctx->head = (uint32_t*)xmalloc_align((size_t)numblocks * sizeof(uint32_t));
+    ctx->tail = (uint32_t*)xmalloc_align((size_t)numblocks * sizeof(uint32_t));
+    ctx->rnext = (uint32_t*)xmalloc_align((size_t)(2 * n) * sizeof(uint32_t));
+    ctx->rhead = (uint32_t*)xmalloc_align((size_t)numblocks * sizeof(uint32_t));
+    ctx->rtail = (uint32_t*)xmalloc_align((size_t)numblocks * sizeof(uint32_t));
+    ctx->oroot1 = (uint32_t*)xmalloc_align((size_t)n * sizeof(uint32_t));
+    ctx->oroot2 = (uint32_t*)xmalloc_align((size_t)n * sizeof(uint32_t));
+    ctx->rroot1 = (uint32_t*)xmalloc_align((size_t)n * sizeof(uint32_t));
+    ctx->rroot2 = (uint32_t*)xmalloc_align((size_t)n * sizeof(uint32_t));
+    ctx->flags = (uint16_t*)xmalloc_align((size_t)32768 * sizeof(uint16_t));
+
+    // the resieve's set/clear discipline only maintains positions it has
+    // marked; every other position must start at zero, not malloc garbage
+    // (a garbage value reads as a bogus report index -> Q == 0 -> the
+    // guarded division loop never terminates -> fb_offsets overflow).
+    memset(ctx->flags, 0, (size_t)32768 * sizeof(uint16_t));
+
+    return ctx;
+}
+
+void list_sieve_free_32k(list_sieve_ctx_t* ctx)
+{
+    if (ctx == NULL)
+        return;
+
+    free(ctx->next);
+    free(ctx->head);
+    free(ctx->tail);
+    free(ctx->rnext);
+    free(ctx->rhead);
+    free(ctx->rtail);
+    free(ctx->oroot1);
+    free(ctx->oroot2);
+    free(ctx->rroot1);
+    free(ctx->rroot2);
+    free(ctx->flags);
+    free(ctx);
+
+    return;
+}
 #endif

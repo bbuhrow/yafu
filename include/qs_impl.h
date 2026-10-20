@@ -80,6 +80,19 @@
 // change the L2 sieve to a sparse sieve up to 8x blocksize primes
 #define TRY_SPARSE_SIEVE
 
+// experimental linked-list sieve for primes in [med_B, B): one list per
+// sieve block; each node is one (prime, root) hit.  Sieving a block walks
+// its list, and each visited hit advances its root by prime, re-appending
+// to a later block's list if the new root is still inside the interval.
+// Requires:
+//  1. per-poly root updates extended to cover [med_B, B) (guarded edits in
+//     update_poly_roots_32k_avx2.c and poly_roots_32k.c)
+//  2. dconf->sieve_p/n arrays allocated with B entries instead of fb_blk8i
+//     (guarded edit in SIQS.c)
+//  3. one list_sieve_ctx_t per thread per side (list_sieve_alloc_32k),
+//     wired into process_poly (sieve) and tdiv_scan.c (resieve)
+#define TRY_LIST_SIEVE
+
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
 // so that a synthetic data set resembling this real one can
@@ -241,6 +254,49 @@ typedef struct
     uint32_t* root2;
     uint32_t* logp;
 } sieve_fb;
+
+// context for the experimental linked-list sieve (TRY_LIST_SIEVE).
+// One instance per thread per side (p/n).  Node ids encode a factor base
+// index and which root of that prime the node represents:
+//      node = 2 * (fb_index - start) + root_slot      (root_slot 0 or 1)
+// so next[] has 2*(stop-start) entries.  The sieve and the resieve run the
+// same procedure in lockstep, block by block, so each keeps its OWN set of
+// per-block lists (both hold pending hits for future blocks at the same
+// time and cannot share storage).  The sieve's lists are built from the
+// current poly's fb->root1/2; the resieve's lists are built from the
+// pristine roots saved in oroot1/oroot2 and advanced in rroot1/rroot2.
+#define LISTSIEVE_NULL 0xffffffffu
+
+// append node to the end of block b's list
+#define LIST_SIEVE_APPEND(hd, tl, nx, b, node) \
+    do { \
+        if ((tl)[(b)] == LISTSIEVE_NULL) \
+            (hd)[(b)] = (node); \
+        else \
+            (nx)[(tl)[(b)]] = (node); \
+        (nx)[(node)] = LISTSIEVE_NULL; \
+        (tl)[(b)] = (node); \
+    } while (0)
+
+typedef struct
+{
+    uint32_t start;         // first fb index covered by the list sieve
+    uint32_t stop;          // one past the last fb index covered
+    uint32_t numblocks;     // blocks per poly interval
+    uint32_t* next;         // [2*(stop-start)] sieve list links
+    uint32_t* head;         // [numblocks] sieve per-block list heads
+    uint32_t* tail;         // [numblocks] sieve per-block list tails
+    uint32_t* rnext;        // [2*(stop-start)] resieve list links
+    uint32_t* rhead;        // [numblocks] resieve per-block list heads
+    uint32_t* rtail;        // [numblocks] resieve per-block list tails
+    uint32_t* oroot1;       // [stop-start] pristine roots saved at init
+    uint32_t* oroot2;       // [stop-start]
+    uint32_t* rroot1;       // [stop-start] resieve running roots
+    uint32_t* rroot2;       // [stop-start]
+    uint16_t* flags;        // [32768] resieve: report_num+1 marks, 0 = none
+    int resieve_ready;      // resieve lists built for the current poly
+    uint32_t rblock;        // next block index the resieve state expects
+} list_sieve_ctx_t;
 
 /************************* SIQS types and functions *****************/
 #define MAXLP 4
@@ -604,6 +660,10 @@ typedef struct {
 
     sieve_fb* sieve_p;		// scratch space for a packed versions of fb
     sieve_fb* sieve_n;		// for use during sieving medium primes
+#if defined(TRY_LIST_SIEVE)
+    list_sieve_ctx_t* lsctx_p;	// linked-list sieve context, positive side
+    list_sieve_ctx_t* lsctx_n;	// linked-list sieve context, negative side
+#endif
 
     //large prime sieving
     update_t update_data;		// data for updating root values
@@ -757,6 +817,11 @@ void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 void large_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+list_sieve_ctx_t* list_sieve_alloc_32k(uint32_t start, uint32_t stop, uint32_t numblocks);
+void list_sieve_free_32k(list_sieve_ctx_t* ctx);
+void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
+void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
+    sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 
 extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 
@@ -813,6 +878,8 @@ void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf, list_sieve_ctx_t* ctx);
 
 // TBD
 //void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,

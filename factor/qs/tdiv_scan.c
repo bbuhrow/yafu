@@ -1070,7 +1070,12 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 #endif
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_LIST_SIEVE)
+	// the linked-list resieve has already divided the covered range
+	// ([med_B, B)) into every valid report of this block
+	resieve_large_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf,
+		(parity ? dconf->lsctx_n : dconf->lsctx_p));
+#elif defined(TRY_L2_SIEVE)
 #if defined(TRY_SPARSE_SIEVE)
 	tdiv_large_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
 #else
@@ -1085,7 +1090,11 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
 			dconf->total_surviving_reports++;
+#if defined(TRY_LIST_SIEVE)
+			// bucket primes were already divided by resieve_large_32k_avx2
+#else
 			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+#endif
 
 #if defined( USE_SS_SEARCH ) && defined(USE_POLY_BUCKET_SS)
 

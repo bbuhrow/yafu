@@ -2277,7 +2277,15 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	}
 
 #if defined(TRY_L2_SIEVE)
+#if defined(TRY_LIST_SIEVE)
+	// compute first roots and rootupdate values for the whole large-prime
+	// range so the list sieve and its resieve have per-poly roots for
+	// every prime up to B.  Requires dconf->sieve_p/n arrays allocated
+	// with B entries.
+	for (i = fb->med_B; i < fb->B; i++)
+#else
 	for (i = fb->med_B; i < fb->fb_blk8i; i++)
+#endif
 	{
 		uint64_t tmp, t2;
 

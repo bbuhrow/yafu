@@ -293,3 +293,140 @@ Verification (both with CHECK_AVX2_ERROR 1 left enabled, -siqsNB 8
   at SIQS.c:3747) immediately precedes dconf->Qvals (32KB, :3749). The scan's
   report loop (tdiv_scan.c:1021-1052) is unbounded, clamped only after
   (:1055) — another latent overflow if a block ever floods.
+
+## 6. Experiment: linked-list interval sieve (TRY_LIST_SIEVE) [code written 2026-10-20, not yet integrated]
+
+Goal: replace the L2 sieve and/or the bucket sieve with one mechanism for
+the large primes in [start, B): per sieve block, a linked list whose nodes
+are the (prime, root) hits in that block.  Node id = 2*(fb_index - start) +
+root_slot, so each root is an independent list member.  Sieving a block
+walks its list: each visited hit decrements its sieve byte by logp, then
+advances its root by prime and re-appends the node to a later block's list
+if the new root is still inside the interval (primes covered are all
+> 32768, so a re-append always lands in a strictly later block and a
+block's list is final by the time it is walked).  Roots that leave the
+interval are done for the poly.  All work is O(total hits), no empty-space
+scanning.
+
+Written (all under `#if defined(TRY_LIST_SIEVE)` where behavior changes;
+the define is currently COMMENTED OUT in qs_impl.h).  RE-ENTRANT, BLOCK-AT-
+A-TIME design (revised 2026-10-20): init once per poly, then sieve and
+resieve are called block by block in lockstep, matching the rest of the
+pipeline (med sieve -> list sieve -> scan per block).  The sieve and the
+resieve keep SEPARATE per-block lists (both hold pending hits for future
+blocks simultaneously), so the resieve's list for block b contains exactly
+the primes that just hit block b — no rebuild and no fast-forward in the
+normal path (a dormant rebuild/fast-forward guard remains for skipped or
+out-of-order calls):
+
+- `include/qs_impl.h`: `list_sieve_ctx_t` (per thread per side; sieve lists
+  head/tail/next + resieve lists rhead/rtail/rnext + pristine oroot1/2 +
+  running rroot1/2 + report flags), `LISTSIEVE_NULL`, `LIST_SIEVE_APPEND`,
+  prototypes, the (commented) `#define TRY_LIST_SIEVE`.
+- `factor/qs/med_sieve_32k_avx2.c`:
+  `list_sieve_init_32k(fb, full_fb, ctx)` — once per poly per side, after
+  nextRoots: builds the sieve lists from fb->root1/2, saves pristine
+  roots to ctx->oroot1/2, and builds the resieve's parallel lists from
+  copies (rroot1/2).  Does not touch sieve bytes.
+  `list_sieveblock_32k_avx512bw(blk_sieve, bnum, fb, full_fb, ctx)` —
+  once per block (lp_sieveblock_ptr slot): walks block bnum's list, each
+  visited hit decrements its sieve byte by logp, advances its root by
+  prime, and re-appends the node to a later block's list if still inside
+  the interval (covered primes are all > 32768, so re-appends always land
+  strictly later and a block's list is final when walked).
+  Also `list_sieve_alloc_32k(start, stop, numblocks)` / `list_sieve_free_32k`.
+  Uses full_fb->list->prime/logprime (valid for all of [0,B)), so no
+  dependence on sieve_p->prime/logp beyond fb_blk8i.
+- `factor/qs/tdiv_med_32k_avx2.c`:
+  `resieve_large_32k_avx2(parity, poly_id, bnum, sconf, dconf, ctx)` —
+  walks block bnum's resieve list (exactly the primes that just hit the
+  block), checking each visited hit position against the current block's
+  reports (ctx->flags marks report_num+1 per position) and doing GUARDED
+  gmp divisions (divisibility checked first — false positives impossible
+  by construction).  State machine via ctx->rblock: normal path is one
+  list-walk per call; skipped/out-of-order blocks trigger rebuild from
+  pristine roots + advance-only fast-forward (later blocks' hits depend
+  on earlier blocks being traversed).
+- `factor/qs/update_poly_roots_32k_avx2.c`: both L2 root-update loops
+  (sign > 0 and sign < 0) extended from fb_blk8i to B under the guard
+  (l2upd_bound).  update_data.firstroots1/2 are already sized B.
+- `factor/qs/poly_roots_32k.c`: first-poly/new-'a' L2 section extended
+  from fb_blk8i to B under the guard (computes firstroots, sieve_p/n
+  roots, and rootupdate values for the whole range).
+- `factor/qs/SIQS.c`: dconf->sieve_p/n arrays allocated with
+  `sievefb_alloc` = B entries under the guard (was fb_blk8i) — REQUIRED,
+  else the extended root updates write past the arrays.
+
+Integration steps remaining (deliberately left to the user):
+
+1. Uncomment `#define TRY_LIST_SIEVE` in include/qs_impl.h.
+2. Allocate one ctx per thread per side, e.g. after dconf setup in
+   SIQS.c: `dconf->lsctx_p = list_sieve_alloc_32k(fb->med_B, fb->B, sconf->num_blocks);`
+   (or fb_blk8i as start to keep the L2 sieve for [med_B, fb_blk8i) and
+   only replace the buckets).  Needs somewhere to hang the pointers —
+   not added to dynamic_conf_t yet.
+3. In process_poly: keep the whole-interval memset, replace the
+   L2_sieveblock call (SIQS.c ~2246/~2386) with
+   `list_sieve_init_32k(dconf->sieve_p, fb, ctx_p);` and add
+   `list_sieveblock_32k_avx512bw(blk_sieve, i, dconf->sieve_p, fb, ctx_p);`
+   next to the lp_sieveblock_ptr call inside the per-block loop.
+4. In tdiv_scan.c (~1071-1077): call
+   `resieve_large_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf, ctx)`
+   once per block INSTEAD of tdiv_L2primes/tdiv_large; do not also run
+   the bucket tdiv (tdiv_LP) for the covered range, and disable the
+   bucket scatter (nextRoots_32k_knl_medbucket/largebucket paths and the
+   lp_sieveblock_ptr call) for that range.
+5. init MUST run before block 0's sieve call for a given poly (it builds
+   both procedures' lists).  The resieve must be called for every block
+   in increasing order for its later-block hits to be complete (the
+   fast-forward guard covers violations, at a cost).
+6. Caveats carried over from the L2 scheme: with -siqsNB != num_blocks
+   used at allocation the 20-block sieve allocation can overflow for
+   num_blocks > 18 (see section 4.4); not SS-search compatible; ctx
+   memory is ~1.5 MB per thread per side for start = med_B, B = 36176.
+   Tradeoff note: with start = med_B the dense L2 range becomes
+   pointer-chasing traversal (likely slower than the vectorized L2
+   sieve); the re-entrant design is aimed at start = fb_blk8i (sparse
+   bucket replacement) where sieve/scan locality also improves.
+
+Correctness properties of the new design (reasoned, not yet tested):
+- Every hit in [0, numblocks*32768) of every covered prime is visited
+  exactly once by the sieve and once by the resieve (single-membership
+  lists, nodes re-appended strictly later, sieve and resieve procedures
+  identical and in lockstep).
+- The resieve visits hits in the same order/partition as the sieve, so
+  trial division sees exactly the sieve's hit set; no progression
+  matching and no wrapped-root residue arithmetic — the Bug 2/Bug 4
+  failure class (false matches from wrong root state) cannot occur.
+- Divisions guarded, so even a stale/incorrect root can at worst lose a
+  factor, not corrupt Q.
+
+Integration status (2026-10-20): DONE and WORKING.  Wired under
+TRY_LIST_SIEVE (active): ctx alloc/free in siqs_dynamic_init/teardown
+(lsctx_p/lsctx_n added to dynamic_conf_t), list_sieve_init_32k at the
+L2 call sites, per-block list_sieveblock at the lp_sieveblock_ptr slots,
+resieve_large_32k_avx2 at the tdiv_L2primes slot with tdiv_LP_ptr skipped,
+knl bucket scatter disabled under the guard (user edit), per-block
+memsets + advancing blk_sieve under the guard.  NOTE: the user also
+reverted blk_sieve to a single reused window (stock/sparse semantics) —
+the list sieve and resieve are window-layout agnostic (block-relative
+positions only).
+
+Segfault during integration, FIXED: ctx->flags was xmalloc_align'd but
+never zeroed; unmarked positions held malloc garbage which reads as a
+bogus report index (rpt >> num_reports).  Qvals[rpt] for such an index is
+an empty mpz (0), and the guarded division loop `while (mpz_tdiv_ui(Q,
+prime) == 0)` never terminates on Q == 0, so fb_offsets[++smooth_num]
+ran away, smashed the dconf->smooth_num pointer, and SIGSEGV'd at the
+resieve's final store.  Fix: memset the flags array to zero at allocation
+in list_sieve_alloc_32k.  Diagnosis trail: bogus rpt (1984 vs
+num_reports 4-6) at the division; Qvals[rpt] = {_mp_size = 0}; no flood
+> 1900 reports (clamp-line breakpoints never fired); guardalloc build
+completed sieving cleanly (fresh mmap pages are zeroed — this was the
+tell); correct-address watchpoint on flags[4] showed old value 1985
+already present at the first > 100 write.  Verified: 261-bit and 256-bit
+test inputs fully factor (same P39 factors as the L2-sieve reference
+runs).  Caveat for later: relations may double-record a-primes, since
+the resieve divides Q by a-primes at their root==0/position-0 hits while
+the save path also adds them; check relation correctness if filter/LA
+issues appear.
