@@ -80,7 +80,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck",
-    "obase", "minrels", "stopk", "stop_strict"};
+    "obase", "minrels", "stopk", "stop_strict", "siqsSPV"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -199,7 +199,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer==8,10,16): Output base in octal (8), decimal (default, 10), or hexadecimal (16)",
     "(Integer < 32-bit): Minimum relations to find in NFS before trying to filter",
     "(Integer < 32-bit): Stop factor() after finding k factors",
-    "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)"
+    "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)",
+    "(Integer < 32-bit): SIQS small prime variation bound (primes below this are not sieved)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -230,36 +231,37 @@ int needsArg[NUMOPTIONS] = {
     1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
     1,0,1,1,0,  // "stopbase", "stopprime", "siqsSSidx", "siqsSSalloc", "skipSNFScheck"
-    1,1,1,0
+    1,1,1,0,    // "obase", "minrels", "stopk", "stop_strict"
+    1           // siqsSPV
 };
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
 // some of them are blank (i.e., have no long form alias).
 char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
-    "", "", "", "", "", 
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", ""
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", ""
 };
 
 
@@ -1128,6 +1130,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "stop_strict"
         options->strict = 1;
     }
+    else if (strcmp(opt, OptionArray[114]) == 0)
+    {
+        // argument "siqsSPV"
+        // the SPV small-prime bound: primes below this are not sieved
+        options->siqsSPV = strtoul(arg, NULL, 10);
+    }
     else
     {
         int i;
@@ -1273,6 +1281,7 @@ options_t* initOpt(void)
     options->siqsM = 0;
     options->siqsForceDLP = 0;
     options->siqsTFSm = 0;
+    options->siqsSPV = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;

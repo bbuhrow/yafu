@@ -1721,6 +1721,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_B = options->siqsB;
     fobj->qs_obj.gbl_override_small_cutoff_flag = (options->siqsTFSm > 0);
     fobj->qs_obj.gbl_override_small_cutoff = options->siqsTFSm;
+    fobj->qs_obj.gbl_override_spv_limit_flag = (options->siqsSPV > 0);
+    fobj->qs_obj.gbl_override_spv_limit = options->siqsSPV;
     fobj->qs_obj.gbl_override_blocks_flag = (options->siqsNB > 0);
     fobj->qs_obj.gbl_override_blocks = options->siqsNB;
     fobj->qs_obj.gbl_override_lpmult_flag = (options->siqsM > 0);

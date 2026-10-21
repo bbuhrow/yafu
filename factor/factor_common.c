@@ -183,6 +183,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.gbl_override_B = 0;
     fobj->qs_obj.gbl_override_small_cutoff_flag = 0;
     fobj->qs_obj.gbl_override_small_cutoff = 0;
+    fobj->qs_obj.gbl_override_spv_limit_flag = 0;
+    fobj->qs_obj.gbl_override_spv_limit = 0;
     fobj->qs_obj.gbl_override_blocks_flag = 0;
     fobj->qs_obj.gbl_override_blocks = 0;
     fobj->qs_obj.gbl_override_lpmult_flag = 0;
@@ -588,6 +590,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->qs_obj.gbl_override_B = src->qs_obj.gbl_override_B;
     dest->qs_obj.gbl_override_small_cutoff_flag = src->qs_obj.gbl_override_small_cutoff_flag;
     dest->qs_obj.gbl_override_small_cutoff = src->qs_obj.gbl_override_small_cutoff;
+    dest->qs_obj.gbl_override_spv_limit_flag = src->qs_obj.gbl_override_spv_limit_flag;
+    dest->qs_obj.gbl_override_spv_limit = src->qs_obj.gbl_override_spv_limit;
     dest->qs_obj.gbl_override_blocks_flag = src->qs_obj.gbl_override_blocks_flag;
     dest->qs_obj.gbl_override_blocks = src->qs_obj.gbl_override_blocks;
     dest->qs_obj.gbl_override_lpmult_flag = src->qs_obj.gbl_override_lpmult_flag;

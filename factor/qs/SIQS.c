@@ -4166,6 +4166,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     uint32_t tlp_cutoff;
     int VFLAG = sconf->obj->VFLAG;
     int THREADS = sconf->obj->THREADS;
+#ifdef TRY_SMALLP_OPT
+    // sized tinylist allocation, derived from the SPV limit below
+    uint32_t tiny_alloc = 0;
+#endif
 
     // this pretty much has to stay "8".  the reason is that many of the specialized routines
     // have picky requirements about how large or small the primes can be for them
@@ -4193,7 +4197,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
     // can raise this if we also raise TFSm and lower TF bounds
     // and get about the same speed... 
+#ifdef TRY_SMALLP_OPT
+    // SPV bound: primes below this are not sieved and are divided out
+    // per-candidate in filter_SPV (tdiv_small.c).  Override with -siqsSPV.
+    // If raising this, co-tune tf_small_cutoff (-siqsTFSm) and the TF
+    // bound (-siqsTF); see docs/siqs_spv_plan.md.
     sconf->small_limit = 256;
+    if (obj->qs_obj.gbl_override_spv_limit_flag)
+    {
+        sconf->small_limit = obj->qs_obj.gbl_override_spv_limit;
+    }
+#else
+    sconf->small_limit = 256;
+#endif
     sconf->use_dlp = 0;
 
     // function pointer to the sieve array scanner
@@ -4496,6 +4512,29 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             (size_t)(sconf->factor_base->B * sizeof(uint64_t)));
 
 
+#ifdef TRY_SMALLP_OPT
+		// size the tinylist from the SPV limit: it holds one entry per
+		// factor-base prime < small_limit.  the old fixed allocation of
+		// 512 silently overflowed for limits above ~3600 (pi(4096) = 564).
+		tiny_alloc = 0;
+		for (i = 0; i < obj->num_p; i++)
+		{
+			if (obj->primes[i] >= sconf->small_limit)
+				break;
+			tiny_alloc++;
+		}
+		// one extra slot for the dummy index-0 entry, plus slack
+		tiny_alloc += 8;
+
+		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->small_inv = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->correction = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+#else
 		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->small_inv = (uint32_t *)xmalloc_align(
@@ -4504,6 +4543,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			(size_t)(512 * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
+#endif
 
 #ifdef USE_8X_MOD_ASM
         // only used up to 13-ish bits, but we allocate and compute for all fb primes.
@@ -4644,6 +4684,16 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			break;
 	}
 	sconf->sieve_small_fb_start = i;
+#ifdef TRY_SMALLP_OPT
+	// the tinylist is sized from the SPV limit (one entry per prime below
+	// it); verify the sieve start index fits in the allocation
+	if (sconf->sieve_small_fb_start >= tiny_alloc)
+	{
+		printf("error: sieve_small_fb_start %u exceeds tinylist allocation %u\n",
+			sconf->sieve_small_fb_start, tiny_alloc);
+		exit(1);
+	}
+#endif
 
     // ======================================================================
     // set thresholds at various bit levels.  Note: many places in the code
@@ -4908,6 +4958,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     
 	if (VFLAG > 1)
 	{
+#ifdef TRY_SMALLP_OPT
+		printf("SPV small_limit = %u\n", sconf->small_limit);
+#endif
 		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
 			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tL2: %u\n\tlarge: %u\n"
             "\tlarge_x2: %u\n\tall: %u\n",

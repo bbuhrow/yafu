@@ -1,6 +1,16 @@
 #ifndef _SIQS_IMPL_H_
 #define _SIQS_IMPL_H_
 
+// =====================================================================
+// SIQS small-prime-variation (SPV) tuning experiment.
+// See docs/siqs_spv_plan.md.  Commenting out this single define reverts
+// the qs library to pre-experiment behavior with zero code deletion:
+// every experimental edit in the qs library is wrapped as
+//   #ifdef TRY_SMALLP_OPT  <new code>
+//   #else                  <original code, preserved verbatim>
+//   #endif
+#define TRY_SMALLP_OPT 1
+
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -407,6 +417,12 @@ typedef struct
     uint32_t* small_inv;
     uint32_t* prime;
     uint32_t* logprime;
+#ifdef TRY_SMALLP_OPT
+    // Lemire-style divisibility constants for the vectorized SPV check
+    // in tdiv_small.c: invmod = p^-1 mod 2^32, thresh = (2^32-1)/p
+    uint32_t* invmod;
+    uint32_t* thresh;
+#endif
 } tiny_fb_element_siqs;
 
 typedef struct
