@@ -220,6 +220,25 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 					fb->tinylist->correction[j] = 0;
 					fb->tinylist->small_inv[j]++;
 				}
+
+#ifdef TRY_SMALLP_OPT
+				// Lemire divisibility constants for the vectorized SPV
+				// check in tdiv_small.c.  prime is odd here (prime == 2
+				// is index 1, handled by the powers-of-2 loop).
+				// invmod = prime^-1 mod 2^32 via Newton iteration
+				// (x = prime is exact mod 8, 5 doublings reach 2^32);
+				// thresh = floor((2^32 - 1) / prime).
+				{
+					uint32_t x = prime;
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					fb->tinylist->invmod[j] = x;
+					fb->tinylist->thresh[j] = 0xffffffffu / prime;
+				}
+#endif
 			}
 			else
 			{
@@ -297,6 +316,25 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 					fb->tinylist->correction[j] = 0;
 					fb->tinylist->small_inv[j]++;
 				}
+
+#ifdef TRY_SMALLP_OPT
+				// Lemire divisibility constants for the vectorized SPV
+				// check in tdiv_small.c.  prime is odd here (prime == 2
+				// is index 1, handled by the powers-of-2 loop).
+				// invmod = prime^-1 mod 2^32 via Newton iteration
+				// (x = prime is exact mod 8, 5 doublings reach 2^32);
+				// thresh = floor((2^32 - 1) / prime).
+				{
+					uint32_t x = prime;
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					x = x * (2 - prime * x);
+					fb->tinylist->invmod[j] = x;
+					fb->tinylist->thresh[j] = 0xffffffffu / prime;
+				}
+#endif
 			}
 			else
 			{

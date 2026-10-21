@@ -4534,6 +4534,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			(size_t)(tiny_alloc * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
 			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->invmod = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->thresh = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
 #else
 		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
@@ -6741,6 +6745,10 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->tinylist->small_inv);
 	align_free(sconf->factor_base->tinylist->correction);
 	align_free(sconf->factor_base->tinylist->logprime);
+#ifdef TRY_SMALLP_OPT
+	align_free(sconf->factor_base->tinylist->invmod);
+	align_free(sconf->factor_base->tinylist->thresh);
+#endif
 	align_free(sconf->factor_base->list);
 	align_free(sconf->factor_base->tinylist);
 	free(sconf->factor_base);
