@@ -2469,12 +2469,16 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         update_data.firstroots1[i] = root1;
         update_data.firstroots2[i] = root2;
 
+#if !defined(TRY_DIRECT_SIEVE)
+        // under TRY_DIRECT_SIEVE these primes are sieved directly from
+        // firstroots1/2 (unordered pair), so no bucket scatter
         FILL_ONE_PRIME_P(i);
 
         root1 = (prime - root1);
         root2 = (prime - root2);
 
         FILL_ONE_PRIME_N(i);
+#endif
 
 #ifdef USE_SS_SEARCH
 

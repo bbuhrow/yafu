@@ -1090,7 +1090,13 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
 			dconf->total_surviving_reports++;
-#if defined(TRY_LIST_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
+			// [large_B, B) is resieved after all blocks of both sides are
+			// scanned; park the survivor until then (finalized in
+			// direct_finalize_survivors)
+			direct_save_survivor(j, parity, blocknum, sconf, dconf);
+			continue;
+#elif defined(TRY_LIST_SIEVE)
 			// bucket primes were already divided by resieve_large_32k_avx2
 #else
 			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);

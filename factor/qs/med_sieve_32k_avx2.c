@@ -1461,4 +1461,96 @@ void list_sieve_free_32k(list_sieve_ctx_t* ctx)
 
     return;
 }
+
+#if defined(TRY_DIRECT_SIEVE)
+// pass 1 of the direct interval sieve (see direct_sieve.md): sieve every
+// prime in [large_B, B) into both whole intervals, pos side at sieve[0,
+// interval) and neg side at sieve[interval, 2*interval).  All these primes
+// are > interval (large_B rounds up), so each root hits each side at most
+// once.  Roots come straight from update_data.firstroots1/2, treated as an
+// unordered pair: pos hit at r, neg hit at p - r (r == 0 gives p, which is
+// out of range).  Roots are not modified here; pass 2
+// (direct_resieve_update_largeprimes_32k) re-derives the same hits and
+// advances the roots.
+void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    fb_list* fb = sconf->factor_base;
+    update_t update_data = dconf->update_data;
+    uint32_t interval = sconf->num_blocks << 15;
+    uint8_t* sieven = sieve + interval;
+    uint32_t* primes = update_data.prime;
+    uint32_t* fr1 = (uint32_t*)update_data.firstroots1;
+    uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
+    uint32_t j;
+    uint8_t logp;
+
+    ALIGNED_MEM uint32_t r_1[16];
+    ALIGNED_MEM uint32_t r_2[16];
+    ALIGNED_MEM uint32_t n_1[16];
+    ALIGNED_MEM uint32_t n_2[16];
+
+    __m512i vint = _mm512_set1_epi32(interval);
+
+    for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
+    {
+        __m512i vprime = _mm512_loadu_si512(primes + j);
+        __m512i vroot1 = _mm512_loadu_si512(fr1 + j);
+        __m512i vroot2 = _mm512_loadu_si512(fr2 + j);
+        __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+        __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+        uint32_t m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+        uint32_t m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+        uint32_t m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
+        uint32_t m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
+        int pos;
+
+        if ((m1 | m2 | m3 | m4) == 0)
+            continue;
+
+        // approximate the next 16 logp's as equal to the largest
+        logp = update_data.logp[j + 15];
+
+        _mm512_store_si512(r_1, vroot1);
+        _mm512_store_si512(r_2, vroot2);
+        _mm512_store_si512(n_1, vnroot1);
+        _mm512_store_si512(n_2, vnroot2);
+
+        while (m1 > 0) {
+            pos = _trail_zcnt(m1);
+            sieve[r_1[pos]] -= logp;
+            m1 = _reset_lsb(m1);
+        }
+        while (m2 > 0) {
+            pos = _trail_zcnt(m2);
+            sieve[r_2[pos]] -= logp;
+            m2 = _reset_lsb(m2);
+        }
+        while (m3 > 0) {
+            pos = _trail_zcnt(m3);
+            sieven[n_1[pos]] -= logp;
+            m3 = _reset_lsb(m3);
+        }
+        while (m4 > 0) {
+            pos = _trail_zcnt(m4);
+            sieven[n_2[pos]] -= logp;
+            m4 = _reset_lsb(m4);
+        }
+    }
+
+    // scalar tail (empty when B - large_B is a multiple of 16)
+    for (; j < fb->B; j++)
+    {
+        uint32_t prime = primes[j];
+        logp = update_data.logp[j];
+
+        if (fr1[j] < interval) sieve[fr1[j]] -= logp;
+        if (fr2[j] < interval) sieve[fr2[j]] -= logp;
+        if ((prime - fr1[j]) < interval) sieven[prime - fr1[j]] -= logp;
+        if ((prime - fr2[j]) < interval) sieven[prime - fr2[j]] -= logp;
+    }
+
+    return;
+}
+#endif
+
 #endif

@@ -1223,4 +1223,397 @@ void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
+#if defined(TRY_DIRECT_SIEVE)
+// survivor pool for the direct interval sieve (see direct_sieve.md).
+// Scan survivors of every block of both sides are parked here until the
+// [large_B, B) resieve (pass 2) has divided them, then finalized.
+
+direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
+{
+    direct_pool_t* pool = (direct_pool_t*)xmalloc(sizeof(direct_pool_t));
+    uint32_t i;
+
+    pool->num = 0;
+    pool->alloc = 1024;
+    pool->interval = num_blocks << 15;
+    pool->pos = (uint32_t*)xmalloc(pool->alloc * sizeof(uint32_t));
+    pool->Q = (mpz_t*)xmalloc(pool->alloc * sizeof(mpz_t));
+    for (i = 0; i < pool->alloc; i++)
+        mpz_init(pool->Q[i]);
+    pool->smooth_num = (int*)xmalloc(pool->alloc * sizeof(int));
+    pool->fb_offsets = (uint32_t*)xmalloc(
+        (size_t)pool->alloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
+
+    // one bit per position of both intervals; must start (and is kept) zero
+    pool->bitmap = (uint64_t*)xmalloc(2 * pool->interval / 8);
+    memset(pool->bitmap, 0, 2 * pool->interval / 8);
+
+    return pool;
+}
+
+void direct_pool_free(direct_pool_t* pool)
+{
+    uint32_t i;
+
+    for (i = 0; i < pool->alloc; i++)
+        mpz_clear(pool->Q[i]);
+    free(pool->Q);
+    free(pool->pos);
+    free(pool->smooth_num);
+    free(pool->fb_offsets);
+    free(pool->bitmap);
+    free(pool);
+
+    return;
+}
+
+static void direct_pool_grow(direct_pool_t* pool)
+{
+    uint32_t i, newalloc = 2 * pool->alloc;
+
+    pool->pos = (uint32_t*)xrealloc(pool->pos, newalloc * sizeof(uint32_t));
+    pool->Q = (mpz_t*)xrealloc(pool->Q, newalloc * sizeof(mpz_t));
+    for (i = pool->alloc; i < newalloc; i++)
+        mpz_init(pool->Q[i]);
+    pool->smooth_num = (int*)xrealloc(pool->smooth_num, newalloc * sizeof(int));
+    pool->fb_offsets = (uint32_t*)xrealloc(pool->fb_offsets,
+        (size_t)newalloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
+    pool->alloc = newalloc;
+
+    return;
+}
+
+// move scan survivor report_num of block bnum, side parity, into the pool.
+// Called in scan order, so pool->pos stays sorted.
+void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    direct_pool_t* pool = dconf->dpool;
+    uint32_t k, pos;
+    int smooth_num = dconf->smooth_num[report_num];
+
+    (void)sconf;
+
+    if (pool->num == pool->alloc)
+        direct_pool_grow(pool);
+
+    k = pool->num++;
+    pos = parity * pool->interval + (bnum << 15) + dconf->reports[report_num];
+    pool->pos[k] = pos;
+    mpz_swap(pool->Q[k], dconf->Qvals[report_num]);
+    pool->smooth_num[k] = smooth_num;
+    if (smooth_num >= 0)
+        memcpy(&pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
+            dconf->fb_offsets[report_num], (smooth_num + 1) * sizeof(uint32_t));
+    pool->bitmap[pos >> 6] |= (1ULL << (pos & 63));
+
+    return;
+}
+
+// a root of fb prime fbi hit interval position pos: if a survivor sits
+// there, divide it out (guarded: a wrong hit can only waste a tdiv_ui).
+static void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
+    uint32_t fbi, uint32_t prime)
+{
+    int lo, hi, mid, k;
+    int smooth_num;
+    uint32_t* fb_offsets;
+
+    if ((pool->bitmap[pos >> 6] & (1ULL << (pos & 63))) == 0)
+        return;
+
+    // binary search the sorted pool for this position
+    lo = 0;
+    hi = (int)pool->num - 1;
+    k = -1;
+    while (lo <= hi)
+    {
+        mid = (lo + hi) >> 1;
+        if (pool->pos[mid] == pos) { k = mid; break; }
+        if (pool->pos[mid] < pos) lo = mid + 1;
+        else hi = mid - 1;
+    }
+    if (k < 0)
+        return;
+
+    if ((mpz_sgn(pool->Q[k]) == 0) || (mpz_tdiv_ui(pool->Q[k], prime) != 0))
+        return;
+
+    smooth_num = pool->smooth_num[k];
+    fb_offsets = &pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES];
+    do
+    {
+        if (smooth_num < (MAX_SMOOTH_PRIMES - 1))
+            fb_offsets[++smooth_num] = fbi;
+        mpz_tdiv_q_ui(pool->Q[k], pool->Q[k], prime);
+    } while (mpz_tdiv_ui(pool->Q[k], prime) == 0);
+    pool->smooth_num[k] = smooth_num;
+
+    return;
+}
+
+// fused pass of the direct interval sieve: for every prime in [large_B, B),
+// resieve both sides with the CURRENT poly's roots (the same values that
+// were sieved, so exactly the sieve's hit set) against the survivor pool,
+// then advance the roots to the next poly exactly as nextRoots would after
+// nextB, and sieve the next poly's roots into 'sieve' (both whole
+// intervals, already initialized by the caller).  Must run before nextB:
+// nextB and nextRoots both read the gray code entry for dconf->numB, which
+// is what we use here.  With sieve == NULL (last poly of this 'a') only the
+// resieve is done; the roots are left as they are.
+void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve)
+{
+    fb_list* fb = sconf->factor_base;
+    direct_pool_t* pool = dconf->dpool;
+    update_t update_data = dconf->update_data;
+    uint32_t interval = pool->interval;
+    uint32_t large_B = fb->large_B;
+    uint32_t bound = fb->B;
+    uint32_t* primes = update_data.prime;
+    uint32_t* fr1 = (uint32_t*)update_data.firstroots1;
+    uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
+    int resieve = (pool->num > 0);
+    uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
+    uint32_t j;
+    uint8_t logp;
+
+    ALIGNED_MEM uint32_t r_1[16];
+    ALIGNED_MEM uint32_t r_2[16];
+    ALIGNED_MEM uint32_t n_1[16];
+    ALIGNED_MEM uint32_t n_2[16];
+    ALIGNED_MEM uint32_t p_16[16];
+
+    __m512i vint = _mm512_set1_epi32(interval);
+    __m512i vint2 = _mm512_set1_epi32(2 * interval);
+    __m512i vzero = _mm512_setzero_si512();
+    __m512i vone = _mm512_set1_epi32(1);
+    __m512i v31 = _mm512_set1_epi32(31);
+    // the bitmap as 32-bit words (little endian: bit pos is bit pos&31 of
+    // word pos>>5, same as bit pos&63 of 64-bit word pos>>6)
+    const int* bitmap32 = (const int*)pool->bitmap;
+
+    if ((sieve == NULL) && (!resieve))
+        return;
+
+    for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
+    {
+        __m512i vprime = _mm512_loadu_si512(primes + j);
+        __m512i vroot1 = _mm512_loadu_si512(fr1 + j);
+        __m512i vroot2 = _mm512_loadu_si512(fr2 + j);
+        __m512i vpval = _mm512_loadu_si512(ptr);
+        __mmask16 mask1, mask2;
+
+        if (resieve)
+        {
+            // interval positions of all 4 roots (neg side offset by interval)
+            __m512i vnpos1 = _mm512_add_epi32(_mm512_sub_epi32(vprime, vroot1), vint);
+            __m512i vnpos2 = _mm512_add_epi32(_mm512_sub_epi32(vprime, vroot2), vint);
+            __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+            __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+            __mmask16 m3 = _mm512_cmplt_epu32_mask(vnpos1, vint2);
+            __mmask16 m4 = _mm512_cmplt_epu32_mask(vnpos2, vint2);
+            int pos;
+
+            // nearly every lane hits the interval, but survivors are rare:
+            // test the survivor bitmap for all lanes at once (gather the
+            // 32-bit word holding each position's bit) so the scalar path
+            // only runs for actual survivor positions
+#define DIRECT_BITMAP_TEST(m, vpos) \
+            m = _mm512_mask_test_epi32_mask(m, \
+                _mm512_mask_i32gather_epi32(vzero, m, _mm512_srli_epi32(vpos, 5), bitmap32, 4), \
+                _mm512_sllv_epi32(vone, _mm512_and_epi32(vpos, v31)));
+
+            DIRECT_BITMAP_TEST(m1, vroot1);
+            DIRECT_BITMAP_TEST(m2, vroot2);
+            DIRECT_BITMAP_TEST(m3, vnpos1);
+            DIRECT_BITMAP_TEST(m4, vnpos2);
+#undef DIRECT_BITMAP_TEST
+
+            if (m1 | m2 | m3 | m4)
+            {
+                _mm512_store_si512(r_1, vroot1);
+                _mm512_store_si512(r_2, vroot2);
+                _mm512_store_si512(n_1, vnpos1);
+                _mm512_store_si512(n_2, vnpos2);
+                _mm512_store_si512(p_16, vprime);
+
+                while (m1 > 0) {
+                    pos = _trail_zcnt(m1);
+                    direct_resieve_hit(pool, r_1[pos], j + pos, p_16[pos]);
+                    m1 = _reset_lsb(m1);
+                }
+                while (m2 > 0) {
+                    pos = _trail_zcnt(m2);
+                    direct_resieve_hit(pool, r_2[pos], j + pos, p_16[pos]);
+                    m2 = _reset_lsb(m2);
+                }
+                while (m3 > 0) {
+                    pos = _trail_zcnt(m3);
+                    direct_resieve_hit(pool, n_1[pos], j + pos, p_16[pos]);
+                    m3 = _reset_lsb(m3);
+                }
+                while (m4 > 0) {
+                    pos = _trail_zcnt(m4);
+                    direct_resieve_hit(pool, n_2[pos], j + pos, p_16[pos]);
+                    m4 = _reset_lsb(m4);
+                }
+            }
+        }
+
+        if (sieve == NULL)
+            continue;
+
+        // advance to the next poly (same arithmetic as the L2 sections of
+        // nextRoots_32k_avx2_small); the pair stays unordered
+        if (sign > 0)
+        {
+            mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+            mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+            vroot1 = _mm512_sub_epi32(vroot1, vpval);
+            vroot2 = _mm512_sub_epi32(vroot2, vpval);
+            vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+        }
+        else
+        {
+            vroot1 = _mm512_add_epi32(vroot1, vpval);
+            vroot2 = _mm512_add_epi32(vroot2, vpval);
+            mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+            mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+            vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+        }
+        _mm512_storeu_si512(fr1 + j, vroot1);
+        _mm512_storeu_si512(fr2 + j, vroot2);
+
+        // sieve the next poly's roots, both sides (as pass 1)
+        {
+            __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+            __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+            uint32_t m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+            uint32_t m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+            uint32_t m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
+            uint32_t m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
+            int pos;
+
+            if ((m1 | m2 | m3 | m4) == 0)
+                continue;
+
+            // approximate the next 16 logp's as equal to the largest
+            logp = update_data.logp[j + 15];
+
+            _mm512_store_si512(r_1, vroot1);
+            _mm512_store_si512(r_2, vroot2);
+            _mm512_store_si512(n_1, vnroot1);
+            _mm512_store_si512(n_2, vnroot2);
+
+            while (m1 > 0) {
+                pos = _trail_zcnt(m1);
+                sieve[r_1[pos]] -= logp;
+                m1 = _reset_lsb(m1);
+            }
+            while (m2 > 0) {
+                pos = _trail_zcnt(m2);
+                sieve[r_2[pos]] -= logp;
+                m2 = _reset_lsb(m2);
+            }
+            while (m3 > 0) {
+                pos = _trail_zcnt(m3);
+                sieven[n_1[pos]] -= logp;
+                m3 = _reset_lsb(m3);
+            }
+            while (m4 > 0) {
+                pos = _trail_zcnt(m4);
+                sieven[n_2[pos]] -= logp;
+                m4 = _reset_lsb(m4);
+            }
+        }
+    }
+
+    // scalar tail (empty when B - large_B is a multiple of 16)
+    for (; j < bound; j++, ptr++)
+    {
+        uint32_t prime = primes[j];
+        uint32_t root1 = fr1[j];
+        uint32_t root2 = fr2[j];
+        uint32_t u = *ptr;
+
+        if (resieve)
+        {
+            if (root1 < interval) direct_resieve_hit(pool, root1, j, prime);
+            if (root2 < interval) direct_resieve_hit(pool, root2, j, prime);
+            if ((prime - root1) < interval)
+                direct_resieve_hit(pool, interval + prime - root1, j, prime);
+            if ((prime - root2) < interval)
+                direct_resieve_hit(pool, interval + prime - root2, j, prime);
+        }
+
+        if (sieve == NULL)
+            continue;
+
+        if (sign > 0)
+        {
+            root1 = (u > root1) ? root1 + prime - u : root1 - u;
+            root2 = (u > root2) ? root2 + prime - u : root2 - u;
+        }
+        else
+        {
+            root1 += u;
+            root2 += u;
+            if (root1 >= prime) root1 -= prime;
+            if (root2 >= prime) root2 -= prime;
+        }
+        fr1[j] = root1;
+        fr2[j] = root2;
+
+        logp = update_data.logp[j];
+        if (root1 < interval) sieve[root1] -= logp;
+        if (root2 < interval) sieve[root2] -= logp;
+        if ((prime - root1) < interval) sieven[prime - root1] -= logp;
+        if ((prime - root2) < interval) sieven[prime - root2] -= logp;
+    }
+
+    return;
+}
+
+// finalize every survivor of this poly (both sides): copy it into report
+// slot 0 of the scan arrays and run the normal finalization.  Must run
+// before nextB (trial_divide_Q_siqs uses curr_poly).  Leaves the pool
+// empty and its bitmap zeroed.
+void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    direct_pool_t* pool = dconf->dpool;
+    uint32_t interval = pool->interval;
+    uint32_t k;
+
+    for (k = 0; k < pool->num; k++)
+    {
+        uint32_t pos = pool->pos[k];
+        uint8_t side = (pos >= interval) ? 1 : 0;
+        uint32_t loc = pos - side * interval;
+        int smooth_num = pool->smooth_num[k];
+
+        pool->bitmap[pos >> 6] &= ~(1ULL << (pos & 63));
+
+        mpz_swap(dconf->Qvals[0], pool->Q[k]);
+        dconf->smooth_num[0] = smooth_num;
+        if (smooth_num >= 0)
+            memcpy(dconf->fb_offsets[0], &pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
+                (smooth_num + 1) * sizeof(uint32_t));
+        dconf->reports[0] = loc & 32767;
+        dconf->valid_Qs[0] = 1;
+
+        trial_divide_Q_siqs(0, side, dconf->numB - 1, loc >> 15, sconf, dconf);
+    }
+
+    pool->num = 0;
+
+    return;
+}
+#endif
+
 #endif // USE_AVX2

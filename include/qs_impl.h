@@ -93,6 +93,41 @@
 //     wired into process_poly (sieve) and tdiv_scan.c (resieve)
 #define TRY_LIST_SIEVE
 
+// experimental direct interval sieve for the primes p > interval,
+// fb indices [large_B, B) (see direct_sieve.md).  Both sides' whole
+// intervals live in memory at once (pos then neg, 2*num_blocks blocks).
+// Per poly:
+//  1. the intervals arrive already holding [large_B, B)'s hits for this
+//     poly (from the previous poly's fused pass, or for the first poly of
+//     an 'a' from a standalone pass 1 straight from update_data.firstroots).
+//  2. the block loops run med + sparse sieves and the scan per block as
+//     before (scan sees complete sieve bytes); [med_B, large_B) keeps the
+//     TRY_SPARSE_SIEVE machinery.  Survivors of the scan are moved into a
+//     per-poly pool instead of being finalized.
+//  3. the intervals are re-initialized and one fused pass over [large_B, B)
+//     resieves the survivors (bitmap of their interval positions, guarded
+//     divisions), updates the firstroots to the next poly, and sieves the
+//     next poly's roots.
+//  4. survivors are finalized (trial_divide_Q_siqs), then nextB.
+// The bucket sieve is not used.  Requires TRY_L2_SIEVE + TRY_SPARSE_SIEVE,
+// AVX512F, and check_relations_siqs_16_avx512 as the scan.  Not
+// compatible with USE_SS_SEARCH / USE_BATCHPOLY / USE_XLBATCHPOLY.
+// Takes precedence over TRY_LIST_SIEVE (which is undefined below).
+#define TRY_DIRECT_SIEVE
+
+#if defined(TRY_DIRECT_SIEVE)
+#undef TRY_LIST_SIEVE
+#if !defined(TRY_L2_SIEVE) || !defined(TRY_SPARSE_SIEVE)
+#error "TRY_DIRECT_SIEVE requires TRY_L2_SIEVE and TRY_SPARSE_SIEVE"
+#endif
+#if defined(USE_SS_SEARCH) || defined(USE_BATCHPOLY) || defined(USE_XLBATCHPOLY)
+#error "TRY_DIRECT_SIEVE is not compatible with SS search or batch polys"
+#endif
+#if !defined(USE_AVX512F) || !defined(USE_AVX512BW)
+#error "TRY_DIRECT_SIEVE requires USE_AVX512F and USE_AVX512BW"
+#endif
+#endif
+
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
 // so that a synthetic data set resembling this real one can
@@ -297,6 +332,22 @@ typedef struct
     int resieve_ready;      // resieve lists built for the current poly
     uint32_t rblock;        // next block index the resieve state expects
 } list_sieve_ctx_t;
+
+// per-poly pool of scan survivors for the direct interval sieve
+// (TRY_DIRECT_SIEVE).  Survivors are appended in scan order (pos side
+// blocks 0..nb-1, then neg side), so pos[] is sorted ascending.
+//      pos = side * interval + block * 32768 + block_loc
+typedef struct
+{
+    uint32_t num;           // survivors in the pool for the current poly
+    uint32_t alloc;         // allocated entries
+    uint32_t interval;      // num_blocks * 32768
+    uint32_t* pos;          // [alloc] interval position, both sides
+    mpz_t* Q;               // [alloc] partially factored Q
+    int* smooth_num;        // [alloc] index of last stored fb offset
+    uint32_t* fb_offsets;   // [alloc * MAX_SMOOTH_PRIMES]
+    uint64_t* bitmap;       // [2 * interval / 64] marks survivor positions
+} direct_pool_t;
 
 /************************* SIQS types and functions *****************/
 #define MAXLP 4
@@ -664,6 +715,9 @@ typedef struct {
     list_sieve_ctx_t* lsctx_p;	// linked-list sieve context, positive side
     list_sieve_ctx_t* lsctx_n;	// linked-list sieve context, negative side
 #endif
+#if defined(TRY_DIRECT_SIEVE)
+    direct_pool_t* dpool;		// scan survivors awaiting the large-prime resieve
+#endif
 
     //large prime sieving
     update_t update_data;		// data for updating root values
@@ -822,6 +876,7 @@ void list_sieve_free_32k(list_sieve_ctx_t* ctx);
 void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
     sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
+void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
 
 extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 
@@ -880,6 +935,13 @@ void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf, list_sieve_ctx_t* ctx);
+direct_pool_t* direct_pool_alloc(uint32_t num_blocks);
+void direct_pool_free(direct_pool_t* pool);
+void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve);
+void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf);
 
 // TBD
 //void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
