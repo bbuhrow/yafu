@@ -1395,9 +1395,41 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
     // the bitmap as 32-bit words (little endian: bit pos is bit pos&31 of
     // word pos>>5, same as bit pos&63 of 64-bit word pos>>6)
     const int* bitmap32 = (const int*)pool->bitmap;
+    // survivor filter: direct compares against the survivor positions when
+    // there are few survivors (cost ~2 compares per survivor per 16 primes),
+    // bitmap gathers otherwise (4 gathers per 16 primes regardless).
+    int use_cmp = resieve && (pool->num <= DIRECT_CMP_MAX_SURVIVORS);
+    uint32_t nsp = 0;   // pos-side survivors: pool->pos[0, nsp) < interval
 
     if ((sieve == NULL) && (!resieve))
         return;
+
+    if (use_cmp)
+    {
+        while ((nsp < pool->num) && (pool->pos[nsp] < interval))
+            nsp++;
+    }
+
+#if DIRECT_PREFILTER_BITS > 0
+    // bucket prefilter, one bit per 2^pf_shift positions of both intervals,
+    // held in one (512 bits) or two (1024 bits) zmm registers
+    ALIGNED_MEM uint32_t pf_words[32];
+    __m512i vpf_lo = vzero, vpf_hi = vzero, vpf_shift;
+    {
+        uint32_t k, pf_shift = 0;
+        while (((uint64_t)DIRECT_PREFILTER_BITS << pf_shift) < (2 * (uint64_t)interval))
+            pf_shift++;
+        memset(pf_words, 0, sizeof(pf_words));
+        for (k = 0; k < pool->num; k++)
+        {
+            uint32_t b = pool->pos[k] >> pf_shift;
+            pf_words[b >> 5] |= (1u << (b & 31));
+        }
+        vpf_lo = _mm512_load_si512(pf_words);
+        vpf_hi = _mm512_load_si512(pf_words + 16);
+        vpf_shift = _mm512_set1_epi32(pf_shift);
+    }
+#endif
 
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
@@ -1412,26 +1444,86 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
             // interval positions of all 4 roots (neg side offset by interval)
             __m512i vnpos1 = _mm512_add_epi32(_mm512_sub_epi32(vprime, vroot1), vint);
             __m512i vnpos2 = _mm512_add_epi32(_mm512_sub_epi32(vprime, vroot2), vint);
-            __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
-            __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
-            __mmask16 m3 = _mm512_cmplt_epu32_mask(vnpos1, vint2);
-            __mmask16 m4 = _mm512_cmplt_epu32_mask(vnpos2, vint2);
+            __mmask16 m1, m2, m3, m4;
             int pos;
 
-            // nearly every lane hits the interval, but survivors are rare:
-            // test the survivor bitmap for all lanes at once (gather the
-            // 32-bit word holding each position's bit) so the scalar path
-            // only runs for actual survivor positions
-#define DIRECT_BITMAP_TEST(m, vpos) \
-            m = _mm512_mask_test_epi32_mask(m, \
-                _mm512_mask_i32gather_epi32(vzero, m, _mm512_srli_epi32(vpos, 5), bitmap32, 4), \
-                _mm512_sllv_epi32(vone, _mm512_and_epi32(vpos, v31)));
+            // most lanes miss the interval or land far from any survivor, so
+            // find the lanes whose position is a survivor's before taking the
+            // scalar path.  First the in-range masks...
+            m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+            m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+            m3 = _mm512_cmplt_epu32_mask(vnpos1, vint2);
+            m4 = _mm512_cmplt_epu32_mask(vnpos2, vint2);
 
-            DIRECT_BITMAP_TEST(m1, vroot1);
-            DIRECT_BITMAP_TEST(m2, vroot2);
-            DIRECT_BITMAP_TEST(m3, vnpos1);
-            DIRECT_BITMAP_TEST(m4, vnpos2);
+#if DIRECT_PREFILTER_BITS > 0
+            // ...then the register-resident bucket prefilter: keep only lanes
+            // whose (2^pf_shift)-position bucket holds a survivor.  Lanes in
+            // range always have bucket < DIRECT_PREFILTER_BITS.
+#if DIRECT_PREFILTER_BITS == 1024
+#define DIRECT_PF_WORD(vb) _mm512_permutex2var_epi32(vpf_lo, _mm512_srli_epi32(vb, 5), vpf_hi)
+#else
+#define DIRECT_PF_WORD(vb) _mm512_permutexvar_epi32(_mm512_srli_epi32(vb, 5), vpf_lo)
+#endif
+#define DIRECT_PREFILTER(m, vpos) \
+            do { \
+                __m512i vb = _mm512_srlv_epi32(vpos, vpf_shift); \
+                m = _mm512_mask_test_epi32_mask(m, DIRECT_PF_WORD(vb), \
+                    _mm512_sllv_epi32(vone, _mm512_and_epi32(vb, v31))); \
+            } while (0)
+
+            DIRECT_PREFILTER(m1, vroot1);
+            DIRECT_PREFILTER(m2, vroot2);
+            DIRECT_PREFILTER(m3, vnpos1);
+            DIRECT_PREFILTER(m4, vnpos2);
+#undef DIRECT_PREFILTER
+#undef DIRECT_PF_WORD
+#endif
+
+            if (use_cmp)
+            {
+                // few survivors: every prime here is > interval, so a root
+                // hits survivor position s exactly when it equals s.  Compare
+                // pos-side roots with pos-side survivors and neg-side
+                // positions with neg-side survivors, skipping a side when no
+                // lane is left by the masks above.
+                uint32_t k;
+                __mmask16 c1 = 0, c2 = 0, c3 = 0, c4 = 0;
+                if (m1 | m2)
+                {
+                    for (k = 0; k < nsp; k++)
+                    {
+                        __m512i vs = _mm512_set1_epi32(pool->pos[k]);
+                        c1 |= _mm512_mask_cmpeq_epu32_mask(m1, vroot1, vs);
+                        c2 |= _mm512_mask_cmpeq_epu32_mask(m2, vroot2, vs);
+                    }
+                }
+                if (m3 | m4)
+                {
+                    for (k = nsp; k < pool->num; k++)
+                    {
+                        __m512i vs = _mm512_set1_epi32(pool->pos[k]);
+                        c3 |= _mm512_mask_cmpeq_epu32_mask(m3, vnpos1, vs);
+                        c4 |= _mm512_mask_cmpeq_epu32_mask(m4, vnpos2, vs);
+                    }
+                }
+                m1 = c1; m2 = c2; m3 = c3; m4 = c4;
+            }
+            else
+            {
+                // many survivors: test the survivor bitmap for the remaining
+                // lanes (gather the 32-bit word holding each position's bit),
+                // skipping the gather when no lane is left
+#define DIRECT_BITMAP_TEST(m, vpos) \
+                if (m) m = _mm512_mask_test_epi32_mask(m, \
+                    _mm512_mask_i32gather_epi32(vzero, m, _mm512_srli_epi32(vpos, 5), bitmap32, 4), \
+                    _mm512_sllv_epi32(vone, _mm512_and_epi32(vpos, v31)));
+
+                DIRECT_BITMAP_TEST(m1, vroot1);
+                DIRECT_BITMAP_TEST(m2, vroot2);
+                DIRECT_BITMAP_TEST(m3, vnpos1);
+                DIRECT_BITMAP_TEST(m4, vnpos2);
 #undef DIRECT_BITMAP_TEST
+            }
 
             if (m1 | m2 | m3 | m4)
             {

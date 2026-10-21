@@ -133,6 +133,23 @@
 #ifndef DIRECT_LOGP_BIAS
 #define DIRECT_LOGP_BIAS 0
 #endif
+// the large-prime resieve finds survivor hits by comparing roots against
+// the survivor positions directly when a poly has at most this many
+// survivors (both sides), and by gathering from the survivor bitmap
+// otherwise.  0 = always gather.  Without the prefilter, compares won at
+// ~10 survivors/poly and lost above ~17 (Rocket Lake, 77 digits); with the
+// 1024-bit prefilter they gave no measurable gain over gathers, so the
+// default is gathers only.  Kept selectable for other input sizes.
+#ifndef DIRECT_CMP_MAX_SURVIVORS
+#define DIRECT_CMP_MAX_SURVIVORS 0
+#endif
+// register-resident prefilter in front of the survivor compares/gathers:
+// one bit per bucket of positions across both intervals says whether the
+// bucket holds a survivor.  0 (off), 512 (one zmm) or 1024 (two zmm).
+// 1024 measured best: -12% resieve time at NB 2/4, -9% at NB=8.
+#ifndef DIRECT_PREFILTER_BITS
+#define DIRECT_PREFILTER_BITS 1024
+#endif
 #endif
 
 // as part of analyzing 3lp parameterizations, we save off the 

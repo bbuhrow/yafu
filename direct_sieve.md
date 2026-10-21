@@ -334,7 +334,74 @@ Diagnostics left in the code (all off by default):
   byte and survival flag for the first 20000 scan calls, keyed by call
   index. Use with `-seed N -noopt` to diff builds on identical polys.
 
-### 6.5 Possible next steps
+### 6.5 Survivor filter: compares vs gathers
+
+Every prime in [large_B, B) is > interval, so a root hits survivor
+position s exactly when it **equals** s. No modular reduction or range
+mask is needed. With few survivors, the fused loop therefore finds survivor
+hits by broadcasting each pos-side survivor position and comparing it with
+vroot1/vroot2, and each neg-side survivor position (pool->pos, already
+offset by interval) with vnpos1/vnpos2. That costs about 2 compares per
+survivor per 16 primes, against 4 bitmap gathers per 16 primes regardless
+of S. The pool is sorted, so pos-side survivors are `pool->pos[0, nsp)`.
+
+The path is chosen per poly: compares when `pool->num <=
+DIRECT_CMP_MAX_SURVIVORS` (qs_impl.h, default 12; 0 = always gather),
+gathers otherwise. The two paths give bit-identical results (same
+relations, polys and DLP statistics with `-seed 777 -noopt`).
+
+Absolute perf samples of `direct_resieve_update_largeprimes_32k` (256-bit,
+`-seed 777 -noopt`, identical work per build):
+
+| NB | ~survivors/poly | gather only | compare only | threshold 12 |
+|---|---|---|---|---|
+| 2 | ~10 | 43.6k (49% of run) | 38.5k | 39.4k |
+| 4 | ~17 | 26.1k (33%) | 26.7k | **25.3k** |
+| 8 | ~40+ | 15.3k (18%) | 17.6k | (gathers) |
+
+At NB=4 the per-poly switch beats both fixed paths, because survivor
+counts vary from poly to poly.
+
+**Bucket prefilter (current default).** Before the compares/gathers, a
+register-resident prefilter drops lanes whose bucket holds no survivor:
+- `DIRECT_PREFILTER_BITS` is 1024 by default (two zmm, looked up with
+  `vpermt2d`); 512 (one zmm, `vpermd`) and 0 (off) are also available.
+- The bits cover both intervals: 2*interval positions in buckets of
+  2^pf_shift, with pf_shift the smallest shift such that
+  bits << pf_shift >= 2*interval.
+- The table is built once per poly from the pool.
+- Per root vector: srlv → table lookup → sllv/vptestmd, applied to the
+  in-range mask. Then a vector's gather is skipped entirely when no lane is
+  left, and the compare loops skip a side when its two masks are empty.
+- Most lanes fail the cheap tests. Many roots are out of range, since a
+  root lands in the interval with probability interval/p and p is up to
+  ~912k. And with ~10-40 survivors in 1024 buckets, few in-range lanes land
+  in an occupied bucket.
+
+Resieve-function perf samples (256-bit, `-seed 777 -noopt`; 2-3 rounds,
+runs disturbed by background load discarded):
+
+| NB | no prefilter (thr12) | pf512 | pf1024 + compares <=12 | pf1024, gathers only |
+|---|---|---|---|---|
+| 2 | 40.3k | 37.9k | 35.4-36.4k | 35.3-35.9k |
+| 4 | 25.2k | 23.7k | 22.5k | 22.3k |
+| 8 | 14.9k | 15.8k | 13.6k | 13.7k |
+
+With the 1024-bit prefilter the resieve drops ~12% at NB 2/4 and ~9% at
+NB=8, and compares no longer beat gathers even at ~10 survivors. So the
+defaults are `DIRECT_PREFILTER_BITS 1024`, `DIRECT_CMP_MAX_SURVIVORS 0`
+(gathers only); the compare path is kept selectable for other input sizes.
+All variants are bit-identical on a fixed seed. As you noted, S grows for smaller inputs and
+shrinks for larger ones, so the compare path should be used more on large
+inputs.
+
+**Observation for the small-NB work:** at NB=2 the fused loop is ~half
+of the whole run. Its cost per poly is fixed (it walks all of [large_B, B):
+root update + next-poly scatter), while the interval, and so the yield per
+poly, shrinks with NB. The bucket path has the same fixed per-poly
+root-update cost. This fixed per-poly overhead is what limits small NB.
+
+### 6.6 Possible next steps
 - Profile fused+gather again to split the fused loop's cost between the
   root update, the next-poly scatter and the gathers.
 - Shrink the scatter target at larger NB: e.g. sieve the next poly's pos
