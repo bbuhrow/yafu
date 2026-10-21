@@ -403,7 +403,7 @@ root-update cost. This fixed per-poly overhead is what limits small NB.
 
 ### 6.6 Option: bucket sieve for [med_B, large_B) (`DIRECT_MEDBUCKET`)
 
-With `DIRECT_MEDBUCKET 1` (qs_impl.h, default 0), the primes between med_B
+With `DIRECT_MEDBUCKET 1` (qs_impl.h, now the default), the primes between med_B
 and large_B are handled by the stock bucket sieve instead of the sparse
 sieve.
 

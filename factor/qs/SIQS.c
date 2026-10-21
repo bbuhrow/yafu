@@ -3173,6 +3173,84 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	return state;
 }
 
+// print the experimental sieve configuration compiled into this binary
+// (the TRY_* defines in qs_impl.h and their knobs) with the factor base
+// ranges each one covers, to stdout and/or the logfile.
+static void print_siqs_experiments(static_conf_t* sconf, int to_screen, FILE* logfile)
+{
+    fb_list* fb = sconf->factor_base;
+    char line[256];
+    int n = 0;
+
+#define EXP_LINE(...) \
+    do { \
+        snprintf(line, sizeof(line), __VA_ARGS__); \
+        if (to_screen) printf("%s", line); \
+        if (logfile != NULL) logprint(logfile, "%s", line); \
+        n++; \
+    } while (0)
+
+    // fb index range [lo, hi) with its primes, or "empty"
+#define EXP_RANGE(lo, hi) \
+    ((hi) > (lo) ? fb->list->prime[(lo)] : 0), \
+    ((hi) > (lo) ? fb->list->prime[(hi) - 1] : 0)
+
+    EXP_LINE("==== experimental sieve options ====\n");
+
+#if defined(TRY_DIRECT_SIEVE)
+    EXP_LINE("TRY_DIRECT_SIEVE: direct interval sieve, fb [%u, %u) primes %u..%u "
+        "(> interval %u)\n", fb->large_B, fb->B, EXP_RANGE(fb->large_B, fb->B),
+        sconf->sieve_interval);
+#if DIRECT_MEDBUCKET
+    EXP_LINE("  DIRECT_MEDBUCKET: bucket sieve + tdiv_LP, fb [%u, %u) primes %u..%u\n",
+        fb->med_B, fb->large_B, EXP_RANGE(fb->med_B, fb->large_B));
+#endif
+    EXP_LINE("  DIRECT_PREFILTER_BITS = %d, DIRECT_CMP_MAX_SURVIVORS = %d, "
+        "DIRECT_LOGP_BIAS = %d\n", DIRECT_PREFILTER_BITS, DIRECT_CMP_MAX_SURVIVORS,
+        DIRECT_LOGP_BIAS);
+#endif
+
+#if defined(TRY_LIST_SIEVE)
+    EXP_LINE("TRY_LIST_SIEVE: linked-list sieve, fb [%u, %u) primes %u..%u\n",
+        fb->med_B, fb->B, EXP_RANGE(fb->med_B, fb->B));
+#endif
+
+#if defined(TRY_L2_SIEVE)
+#if defined(TRY_SPARSE_SIEVE)
+    if (fb->fb_blk8i > fb->med_B)
+        EXP_LINE("TRY_SPARSE_SIEVE: per-block sparse sieve, fb [%u, %u) primes %u..%u\n",
+            fb->med_B, fb->fb_blk8i, EXP_RANGE(fb->med_B, fb->fb_blk8i));
+    else
+        EXP_LINE("TRY_SPARSE_SIEVE: compiled in, range empty\n");
+#else
+    EXP_LINE("TRY_L2_SIEVE: whole-interval L2 sieve, fb [%u, %u) primes %u..%u\n",
+        fb->med_B, fb->fb_blk8i, EXP_RANGE(fb->med_B, fb->fb_blk8i));
+#endif
+#endif
+
+#if defined(TRY_COMPRESS_SORT_LARGEP)
+    EXP_LINE("TRY_COMPRESS_SORT_LARGEP\n");
+#endif
+
+#if defined(DEBUG_MISSED_FB_PRIMES)
+    EXP_LINE("DEBUG_MISSED_FB_PRIMES (slow)\n");
+#endif
+#if defined(DEBUG_DIRECT_ROOTS)
+    EXP_LINE("DEBUG_DIRECT_ROOTS (slow)\n");
+#endif
+#if defined(DEBUG_DUMP_REPORTS)
+    EXP_LINE("DEBUG_DUMP_REPORTS (writes reports_dump.txt)\n");
+#endif
+
+    if (n == 1)
+        EXP_LINE("none (stock sieve)\n");
+
+#undef EXP_RANGE
+#undef EXP_LINE
+
+    return;
+}
+
 void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
     //print some info to the screen and the log file
@@ -3323,6 +3401,10 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	if (sconf->obj->VFLAG >= 0)
 	{
+		// always show which experimental sieve paths this binary runs
+		printf("\n");
+		print_siqs_experiments(sconf, 1, NULL);
+
 		if (sconf->obj->THREADS == 1)
 		{
 			printf("\n==== sieving in progress (1 thread): %7u relations needed ====\n",
@@ -3433,6 +3515,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
 			sconf->tf_closnuf);
+		print_siqs_experiments(sconf, 0, sconf->obj->logfile);
 		if (sconf->obj->THREADS == 1)
 			logprint(sconf->obj->logfile,"==== sieving started (1 thread) ====\n");
 		else

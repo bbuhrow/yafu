@@ -156,7 +156,7 @@
 // Implemented by setting fb_blk8i = med_B, which empties every sparse-range
 // loop, while large_B stays the first 16-aligned index with prime > interval.
 #ifndef DIRECT_MEDBUCKET
-#define DIRECT_MEDBUCKET 0
+#define DIRECT_MEDBUCKET 1
 #endif
 #endif
 
