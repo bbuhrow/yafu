@@ -401,7 +401,68 @@ root update + next-poly scatter), while the interval, and so the yield per
 poly, shrinks with NB. The bucket path has the same fixed per-poly
 root-update cost. This fixed per-poly overhead is what limits small NB.
 
-### 6.6 Possible next steps
+### 6.6 Option: bucket sieve for [med_B, large_B) (`DIRECT_MEDBUCKET`)
+
+With `DIRECT_MEDBUCKET 1` (qs_impl.h, default 0), the primes between med_B
+and large_B are handled by the stock bucket sieve instead of the sparse
+sieve.
+
+Mechanism:
+- **Boundaries** (SIQS.c fb bounds): `large_B` stays the first 16-aligned
+  index with prime > interval, and `fb_blk8i = med_B`. That empties every
+  sparse-range loop (firstRoots' and nextRoots' L2 sections,
+  `large_sieveblock_32k_avx512bw`, `tdiv_large_32k_avx2`). It also makes
+  firstRoots' middle bucket loop and `nextRoots_32k_knl_medbucket` (both
+  start at fb_blk8i under TRY_L2_SIEVE) cover `[med_B, large_B)`.
+  `_manyblocks` (NB > 16) always starts at med_B, which agrees.
+- **Per poly**: after `nextRoots_32k_avx2_small`, call medbucket (or
+  `_manyblocks`). Then record `num_slices = bi + 1` and the last slice's
+  logp (= logprime[large_B-1]); normally largebucket does that, and it is
+  not called.
+- **firstRoots**: its third loop does no `CHECK_NEW_SLICE` under
+  TRY_DIRECT_SIEVE (nothing in `[large_B, B)` goes to buckets, so the
+  slice bookkeeping must stop at the last bucketed prime). process_poly
+  records the last slice's logp after firstRoots, which firstRoots never
+  does.
+- **Per block**: `lp_sieveblock_ptr`. **Scan**: `tdiv_LP_ptr` for each
+  survivor before `direct_save_survivor`, while the block's buckets are
+  current.
+- **a-primes** must be `< med_B` in this mode (tdiv_LP divides without
+  checking); runtime check.
+
+Verified: the 261-bit input factors at NB 2/4/8/16/20 (NB=20 exercises
+`_manyblocks`), as does the 256-bit input at the default NB. The fb bounds
+show `L2 == med` (empty sparse range).
+
+Yield per poly (261-bit, `-noopt`): the same as the sparse version at NB=2
+(where `[med_B, large_B)` is tiny), +7% partials at NB=4 and +19% at
+NB=8. That is the bucket slice-end logp convention again (6.4), now applied
+to a range that grows with NB.
+
+Wall time (sequential, normal tuning, QS seconds):
+
+| input | NB | stock sparse+buckets | direct (sparse range) | direct + medbucket |
+|---|---|---|---|---|
+| 261-bit | 2 | 33.7 / 33.4 | 32.1 / 31.9 | **31.9 / 31.7** |
+| 261-bit | 4 | 31.0 / 31.3 | 29.2 / 29.3 | **28.4 / 27.9** |
+| 261-bit | 8 | 34.5 / 34.7 | 33.9 / 34.5 | **29.2 / 29.5** |
+| 256-bit | 2 | 25.5 | **24.1** | 24.4 |
+| 256-bit | 4 | 23.7 | 23.1 | **21.8** |
+| 256-bit | 8 | 27.0 | 26.6 | **23.2** |
+
+With the medbucket option, direct is 4-9% faster than stock at NB 2/4 and
+~14% faster at NB=8; NB=4 is still the best setting. At NB=8 two things
+probably contribute, and they haven't been separated:
+- the sparse sieve was ~26% of the NB=8 profile, and the buckets are
+  cheaper for these primes;
+- the higher yield per poly from the slice-end logp.
+
+Side note (stock sparse build, not DIRECT): `nextRoots_32k_knl_medbucket`
+starts at fb_blk8i under TRY_L2_SIEVE, but `_manyblocks` always starts at
+med_B. So with num_blocks > 16, the plain TRY_SPARSE build would cover
+`[med_B, fb_blk8i)` with both the sparse sieve and buckets. Untested.
+
+### 6.7 Possible next steps
 - Profile fused+gather again to split the fused loop's cost between the
   root update, the next-poly scatter and the gathers.
 - Shrink the scatter target at larger NB: e.g. sieve the next poly's pos

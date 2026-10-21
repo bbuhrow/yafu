@@ -2441,7 +2441,11 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	logp = fb->list->logprime[fb->large_B-1];
     for (i = fb->large_B; i < fb->B; i++)
     {
+#if !defined(TRY_DIRECT_SIEVE)
+        // (under TRY_DIRECT_SIEVE nothing in this range goes to the buckets,
+        // so the slice bookkeeping must stop with the last bucketed prime)
         CHECK_NEW_SLICE(i);
+#endif
 
         prime = fb->list->prime[i];
         root1 = modsqrt[i];

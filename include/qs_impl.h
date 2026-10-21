@@ -150,6 +150,14 @@
 #ifndef DIRECT_PREFILTER_BITS
 #define DIRECT_PREFILTER_BITS 1024
 #endif
+// 1: handle [med_B, large_B) with the stock bucket sieve
+// (nextRoots_32k_knl_medbucket + lp_sieveblock + tdiv_LP) instead of the
+// TRY_SPARSE_SIEVE per-block sparse sieve (large_sieveblock + tdiv_large).
+// Implemented by setting fb_blk8i = med_B, which empties every sparse-range
+// loop, while large_B stays the first 16-aligned index with prime > interval.
+#ifndef DIRECT_MEDBUCKET
+#define DIRECT_MEDBUCKET 0
+#endif
 #endif
 
 // as part of analyzing 3lp parameterizations, we save off the 

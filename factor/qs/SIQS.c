@@ -1688,15 +1688,31 @@ void* process_poly(void* vptr)
 #if defined(TRY_DIRECT_SIEVE)
     // the direct sieve never consults set_aprime_roots: an a-prime in
     // [large_B, B) would be sieved with garbage roots
+    // (with DIRECT_MEDBUCKET, tdiv_LP's unchecked divisions make an a-prime
+    // in the bucket range [med_B, large_B) just as dangerous)
     for (i = 0; i < (uint32_t)poly->s; i++)
     {
+#if DIRECT_MEDBUCKET
+        if (poly->qlisort[i] >= fb->med_B)
+#else
         if (poly->qlisort[i] >= fb->large_B)
+#endif
         {
-            printf("TRY_DIRECT_SIEVE: a-prime index %u >= large_B %u; exiting\n",
-                poly->qlisort[i], fb->large_B);
+            printf("TRY_DIRECT_SIEVE: a-prime index %u is in the bucket/direct "
+                "range (med_B %u, large_B %u); exiting\n",
+                poly->qlisort[i], fb->med_B, fb->large_B);
             exit(1);
         }
     }
+
+#if DIRECT_MEDBUCKET
+    // firstRoots filled the medbucket slices for [med_B, large_B) (its
+    // third loop does no slice bookkeeping under TRY_DIRECT_SIEVE); the last
+    // slice's logp is never recorded there, so record it now.
+    if (dconf->buckets->list != NULL)
+        dconf->buckets->logp[dconf->buckets->num_slices - 1] =
+            fb->list->logprime[fb->large_B - 1];
+#endif
 #endif
 
 #if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
@@ -2446,7 +2462,11 @@ void* process_poly(void* vptr)
 #endif
 
 #if defined(TRY_DIRECT_SIEVE)
-            // [large_B, B) was sieved by the direct pass 1; no buckets
+            // [large_B, B) was sieved by the direct pass 1; buckets only
+            // hold [med_B, large_B) and only with DIRECT_MEDBUCKET
+#if DIRECT_MEDBUCKET
+            lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 0, dconf);
+#endif
 #elif defined(TRY_LIST_SIEVE)
             // linked-list sieve covers [med_B, B) for this block
             list_sieveblock_32k_avx512bw(blk_sieve, i, dconf->sieve_p, fb, dconf->lsctx_p);
@@ -2589,7 +2609,11 @@ void* process_poly(void* vptr)
 #endif
 
 #if defined(TRY_DIRECT_SIEVE)
-            // [large_B, B) was sieved by the direct pass 1; no buckets
+            // [large_B, B) was sieved by the direct pass 1; buckets only
+            // hold [med_B, large_B) and only with DIRECT_MEDBUCKET
+#if DIRECT_MEDBUCKET
+            lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 1, dconf);
+#endif
 #elif defined(TRY_LIST_SIEVE)
             // linked-list sieve covers [med_B, B) for this block
             list_sieveblock_32k_avx512bw(blk_sieve, i, dconf->sieve_n, fb, dconf->lsctx_n);
@@ -2854,9 +2878,28 @@ void* process_poly(void* vptr)
 
             nextRoots_32k_avx2_small(sconf, dconf);
 
-#if defined(TRY_LIST_SIEVE) || defined(TRY_DIRECT_SIEVE)
-            // no bucket sieve; under TRY_DIRECT_SIEVE the [large_B, B)
-            // roots were already advanced by the direct pass 2
+#if defined(TRY_DIRECT_SIEVE)
+            // the [large_B, B) roots were already advanced by the direct
+            // fused pass; no largebucket.
+#if DIRECT_MEDBUCKET
+            // bucket sieve [med_B, large_B) for the next poly.  Without the
+            // largebucket call that normally follows, the slice count and the
+            // last slice's logp have to be recorded here.
+            if (num_blocks > 16)
+                nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
+                    &ptr, &np_p, &np_n, &sl_p, &sl_n);
+            else
+                nextRoots_32k_knl_medbucket(sconf, dconf, &bi, &cb, &bv,
+                    &ptr, &np_p, &np_n, &sl_p, &sl_n);
+
+            if (dconf->buckets->list != NULL)
+            {
+                dconf->buckets->num_slices = bi + 1;
+                dconf->buckets->logp[bi] = fb->list->logprime[fb->large_B - 1];
+            }
+#endif
+#elif defined(TRY_LIST_SIEVE)
+            // no bucket sieve
 #else
             if (num_blocks > 16)
                 nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
@@ -4678,7 +4721,16 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			break;
 		}
 	}
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_DIRECT_SIEVE) && DIRECT_MEDBUCKET
+    // the direct sieve covers [large_B, B) as usual, but [med_B, large_B)
+    // goes to the stock medbucket sieve instead of the sparse sieve:
+    // fb_blk8i = med_B empties every sparse-range loop (firstRoots' and
+    // nextRoots' L2 sections, large_sieveblock, tdiv_large) and makes
+    // firstRoots' middle bucket loop and nextRoots_32k_knl_medbucket
+    // cover [med_B, large_B).
+    sconf->factor_base->large_B = sconf->factor_base->fb_blk8i;
+    sconf->factor_base->fb_blk8i = sconf->factor_base->med_B;
+#elif defined(TRY_L2_SIEVE)
     // fb_blk8i is computed against sieve_interval, so large_B == fb_blk8i
     // for any num_blocks.  TRY_DIRECT_SIEVE relies on this: the sparse
     // sieve covers [med_B, fb_blk8i), the direct sieve [large_B, B).

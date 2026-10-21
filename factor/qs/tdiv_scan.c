@@ -1114,6 +1114,11 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 		{
 			dconf->total_surviving_reports++;
 #if defined(TRY_DIRECT_SIEVE)
+#if DIRECT_MEDBUCKET
+			// [med_B, large_B) is bucket sieved: divide those primes out
+			// now, while this block's buckets are current
+			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+#endif
 			// [large_B, B) is resieved after all blocks of both sides are
 			// scanned; park the survivor until then (finalized in
 			// direct_finalize_survivors)
