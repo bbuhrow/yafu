@@ -150,6 +150,10 @@ void siqs_start(void *vptr)
     udata->averaged_polys = 0;
     udata->rels_per_sec_avg = 0.0;
     udata->updatecode = 0;
+#ifdef TRY_SMALLP_OPT
+    udata->num_samples = 0;
+    udata->coarse_winner = 0;
+#endif
 
     // get best parameters, multiplier, and factor base for the job
     // initialize and fill out the static part of the job data structure
@@ -4847,6 +4851,44 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		if (sconf->factor_base->list->prime[i] > sconf->small_limit)
 			break;
 	}
+#ifdef TRY_SMALLP_OPT
+	// With a raised SPV limit, sieve_small_fb_start can land unaligned and
+	// close to (or past) the 10-bit boundary: the fb only holds primes with
+	// a root of n mod p, so index ~87 is prime ~1024 and the stock
+	// realignment loop in tdiv_medprimes_32k_avx2 (which scalar-tests until
+	// i is a multiple of 16) can no longer complete before bound10, leaving
+	// i unaligned for the SIMD groups (which require 16-byte = 8-element
+	// alignment of the compressed fb arrays).  In that case round the SPV
+	// boundary down to a 16-aligned index: the primes in between become
+	// sieved primes, and small_limit is adjusted so the unsieved range
+	// [2, start) is exactly the primes below it (all of which have tinylist
+	// entries, since make_fb_siqs filled them for the original, larger
+	// limit).  At the default limit the condition never triggers, so
+	// behavior is unchanged.
+	if ((i & 15) != 0)
+	{
+		uint32_t j10;
+		uint32_t b10;
+
+		for (j10 = i; j10 < sconf->factor_base->B; j10++)
+		{
+			if ((sconf->factor_base->list->prime[j10] > 1024) &&
+				(j10 % 8 == 0))
+				break;
+		}
+		b10 = (j10 & 15) ? (j10 - 8) : j10;
+		if (b10 < i)
+			b10 = i;
+
+		// would the 16-alignment loop complete before bound10?
+		if ((i + ((16 - (i & 15)) & 15)) > b10)
+		{
+			while ((i & 15) != 0)
+				i--;
+			sconf->small_limit = sconf->factor_base->list->prime[i - 1] + 1;
+		}
+	}
+#endif
 	sconf->sieve_small_fb_start = i;
 #ifdef TRY_SMALLP_OPT
 	// the tinylist is sized from the SPV limit (one entry per prime below
@@ -5560,6 +5602,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	// this appears to work fairly well... paper mentioned doing it this
 	// way... find out and reference here.
 	sconf->tf_small_cutoff = (uint8_t)(avg + 2.5*sd);
+#ifdef TRY_SMALLP_OPT
+	if (VFLAG > 1)
+	{
+		printf("SPV formula tf_small_cutoff = %u (avg = %1.2f)\n",
+			sconf->tf_small_cutoff, avg);
+	}
+#endif
 
 	// it pays to trial divide a little more for big jobs...
 	// "optimized" is used rather loosely here, but these corrections
@@ -5581,6 +5630,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 #ifdef USE_AVX512F
         closnuf -= 2;
+#endif
+#ifdef TRY_SMALLP_OPT
+        // experiment (Commit 4, measured): subtracting tf_small_cutoff from
+        // closnuf in the DLP branch (as the non-DLP path does) was measured
+        // at ~2x total time on an c80 DLP job (tdiv 32s -> 106s): the much
+        // lower report threshold floods trial division.  Stock DLP behavior
+        // (no subtraction) is retained; raised limits are best paired with
+        // the formula tf_small_cutoff as-is.  Uncomment to re-measure.
+        // closnuf -= sconf->tf_small_cutoff;
 #endif
     }
     else if ((sconf->use_dlp >= 2) || 

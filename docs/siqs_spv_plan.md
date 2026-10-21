@@ -150,3 +150,66 @@ Each commit keeps define-off builds clean, enabling bisect/revert at any boundar
 - Use the repo Makefile; targets `make yafu` and `make siqs`.
 - Timed runs must use fresh savefiles — a savefile restart silently disables the tuner.
 - OPT_DEBUG traces are for local experiments only, not committed enabled.
+
+## Results (Commit 4 sweep — measured Oct 2026, Xeon Gold 6254, AVX512BW, 1 thread)
+
+The sweep harness lives in `docs/spv_sweep.sh`; re-run it on other hardware to
+check whether these conclusions hold (it rediscovers the formula
+`tf_small_cutoff` per (input, limit) itself):
+
+    make siqs USER_CFLAGS=-DSIQS_PROFILE     # fills the stage-timer columns
+    cd <scratch dir>
+    docs/spv_sweep.sh <path>/siqs_demo input.txt "256 512 1024" "-10 -5 0 5 10"
+
+Setup: c70 (232-bit) and c80 (265-bit, DLP) semiprimes; fresh savefiles every run;
+`-noopt -siqsSPV <L> -siqsTFSm <formula+offset>`; formula `tf_small_cutoff` measured
+per config (c70: 19/20/21 at L=256/512/1024; c80: 21/22/23). Single runs — treat
+deltas below ~5% as noise. Stage timers via `-DSIQS_PROFILE` builds.
+
+c70 (non-DLP), total seconds / t_tdiv:
+
+| L   | -10       | -5        | 0 (formula) | +5        | +10       |
+|-----|-----------|-----------|-------------|-----------|-----------|
+| 256 | 13.1/5.56 | 12.5/4.98 | 13.0/4.47   | 12.5/4.28 | 14.3/3.98 |
+| 512 | 13.0/5.27 | 12.5/4.72 | 12.9/4.36   | 13.2/4.09 | 13.6/4.03 |
+| 1024| 13.6/5.34 | 13.3/4.85 | 13.9/4.68   | 14.1/4.56 | 13.6/4.13 |
+
+c80 (DLP), total seconds / t_tdiv:
+
+| L   | -10       | -5        | 0 (formula) | +5        | +10       |
+|-----|-----------|-----------|-------------|-----------|-----------|
+| 256 | 77.7/40.2 | 74.0/37.0 | 70.4/32.3   | 80.4/34.7 | 78.0/31.1 |
+| 512 | 75.5/38.3 | 72.4/35.0 | 70.5/31.8   | 73.6/30.9 | 75.8/30.8 |
+| 1024| 76.5/36.1 | 76.7/35.3 | 72.1/32.3   | 73.3/31.1 | 71.8/29.4 |
+
+Findings:
+
+1. **Keep 256.** Raising the limit is neutral-to-negative on total time at both
+   sizes. The vectorized filter cuts t_tdiv (~4-5% at L256), which offsets the
+   extra SPV work as the limit rises (tdiv flat, sieve load unchanged), but the
+   freed time does not translate into faster factorizations. Relation yield
+   rises with the limit (c80: 1490/1599/1839 rels at formula) without helping
+   total time.
+2. **TFSm formula value is optimal at both sizes.** -10 sharply increases tdiv
+   (more surviving candidates); +5/+10 shift work into the sieve without
+   finishing sooner. This held for every limit tried.
+3. **DLP co-tuning rejected.** Subtracting tf_small_cutoff from closnuf in the
+   DLP branch (mirroring the non-DLP path) measured ~2x total time on c80
+   (70.4 -> 139.0 s at L256/TFSm=21; t_tdiv 32 -> 106 s). The one-line change
+   is left in the code, commented out, with the measurement noted.
+4. No size-dependent default is adopted; `-siqsSPV` remains an override knob
+   (default 256 = stock behavior) and the Commit-3 tuner (two-stage, median)
+   picks tf_small_cutoff per run.
+
+Bugs found and fixed during the sweep (all guarded):
+
+- At raised limits the fb index of the first prime > limit approaches the
+  10-bit boundary and can land unaligned; the stock realignment loop in
+  tdiv_medprimes_32k_avx2 then cannot complete before bound10 and the SIMD
+  groups run misaligned (segfault). siqs_static_init now rounds the SPV
+  boundary down to a 16-aligned index in exactly that case and adjusts
+  small_limit so the unsieved range and tinylist stay consistent (no change
+  at the default limit).
+- siqs_start did not initialize the Commit-3 tuner fields of the
+  stack-allocated siqs_userdata_t (num_samples), crashing yafu (caught by the
+  yafu smoke test, not by siqs_demo where the stack happened to be zeroish).
