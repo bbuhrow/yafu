@@ -80,6 +80,17 @@ typedef struct
     double results[3];
     int averaged_polys;
     double rels_per_sec_avg;
+#ifdef TRY_SMALLP_OPT
+    // two-stage tuner (docs/siqs_spv_plan.md, Commit 3): stage 1 measures
+    // orig/+5/-5 (results[0..2]); stage 2 refines +/-2 around the coarse
+    // winner, reusing the coarse winner's measurement (results_ref[0..1]
+    // hold w+2 and w-2).
+    double results_ref[2];
+    int coarse_winner;
+    // per-poly rels/sec samples for the median-of-polys measurement
+    double rels_samples[16];
+    int num_samples;
+#endif
 #ifdef OPT_DEBUG
     FILE *optfile;
 #endif
@@ -205,6 +216,154 @@ void siqs_sync(void *vptr)
         udata->num_found = siqs_merge_data(t[tid].dconf, static_conf);        
         static_conf->num_found = udata->num_found;
 
+#ifdef TRY_SMALLP_OPT
+        if (fobj->qs_obj.no_small_cutoff_opt == 0)
+        {
+            // two-stage adaptive tuner (docs/siqs_spv_plan.md, Commit 3):
+            //   stage 1 (measurements 0-2): orig, +5, -5 (coarse, as before)
+            //   stage 2 (measurements 3-4): coarse-winner +2 and -2, reusing
+            //     the coarse winner's measurement
+            // each measurement is the median rels/sec over num_avg polys
+            // (robust against outlier polys), and the coarse winner's
+            // result carries the same 2%/5% superiority bias into the
+            // final decision.  the chosen value is printed at normal
+            // verbosity so repeat runs can pin it with -siqsTFSm.
+            int num_meas_max = 5;
+
+            if (udata->num_meas < num_meas_max)
+            {
+                if (udata->averaged_polys >= num_avg)
+                {
+                    double meas_result;
+                    int a, b;
+                    double tmpd;
+
+                    // median of the per-poly rels/sec samples
+                    for (a = 1; a < udata->num_samples; a++)
+                    {
+                        tmpd = udata->rels_samples[a];
+                        for (b = a - 1; (b >= 0) && (udata->rels_samples[b] > tmpd); b--)
+                            udata->rels_samples[b + 1] = udata->rels_samples[b];
+                        udata->rels_samples[b + 1] = tmpd;
+                    }
+                    if (udata->num_samples & 1)
+                        meas_result = udata->rels_samples[udata->num_samples / 2];
+                    else
+                        meas_result = 0.5 * (udata->rels_samples[udata->num_samples / 2 - 1] +
+                            udata->rels_samples[udata->num_samples / 2]);
+
+#ifdef OPT_DEBUG
+                    fprintf(udata->optfile, "%d,%d,%f,%d\n", udata->num_meas, 
+                        static_conf->total_poly_a,
+                        meas_result, 
+                        static_conf->tf_small_cutoff);
+                    printf("%d,%d,%f,%d\n", udata->num_meas,
+                        static_conf->total_poly_a,
+                        meas_result,
+                        static_conf->tf_small_cutoff);
+#endif
+
+                    udata->averaged_polys = 0;
+                    udata->num_samples = 0;
+
+                    if (udata->num_meas == 0)
+                    {
+                        udata->results[0] = meas_result;
+                        static_conf->tf_small_cutoff = orig_value + 5;
+                    }
+                    else if (udata->num_meas == 1)
+                    {
+                        udata->results[1] = meas_result;
+                        static_conf->tf_small_cutoff = orig_value - 5;
+                    }
+                    else if (udata->num_meas == 2)
+                    {
+                        // coarse decision: pick the winner of orig/+5/-5,
+                        // then begin refinement at winner + 2
+                        int w;
+                        double biased;
+
+                        udata->results[2] = meas_result;
+
+                        if (static_conf->use_dlp)
+                            biased = udata->results[0] * 1.05;
+                        else
+                            biased = udata->results[0] * 1.02;
+
+                        if ((biased > udata->results[1]) && (biased > udata->results[2]))
+                            w = 0;
+                        else if (udata->results[1] > udata->results[2])
+                            w = 1;
+                        else
+                            w = 2;
+
+                        udata->coarse_winner = w;
+                        static_conf->tf_small_cutoff = orig_value +
+                            ((w == 0) ? 2 : (w == 1) ? 7 : -3);
+                    }
+                    else if (udata->num_meas == 3)
+                    {
+                        int w = udata->coarse_winner;
+
+                        // measurement of coarse-winner + 2 done; next try -2
+                        udata->results_ref[0] = meas_result;
+                        static_conf->tf_small_cutoff = orig_value +
+                            ((w == 0) ? -2 : (w == 1) ? 3 : -7);
+                    }
+                    else
+                    {
+                        // final decision among coarse winner (w), w+2, w-2
+                        int w = udata->coarse_winner;
+                        int wcutoff = orig_value +
+                            ((w == 0) ? 0 : (w == 1) ? 5 : -5);
+                        double biased;
+                        int final_value;
+
+                        udata->results_ref[1] = meas_result;
+
+                        if (static_conf->use_dlp)
+                            biased = udata->results[w] * 1.05;
+                        else
+                            biased = udata->results[w] * 1.02;
+
+                        if ((biased > udata->results_ref[0]) &&
+                            (biased > udata->results_ref[1]))
+                            final_value = wcutoff;
+                        else if (udata->results_ref[0] > udata->results_ref[1])
+                            final_value = wcutoff + 2;
+                        else
+                            final_value = wcutoff - 2;
+
+                        static_conf->tf_small_cutoff = final_value;
+
+                        if (fobj->VFLAG >= 0)
+                        {
+                            printf("SPV tuner: chose tf_small_cutoff = %d "
+                                "(coarse winner %d, orig %d)\n",
+                                final_value, wcutoff, orig_value);
+                        }
+
+#ifdef OPT_DEBUG
+                        fprintf(udata->optfile, "final value = %d\n", final_value);
+                        fprintf(udata->optfile, "\n\n");
+                        printf("final value = %d\n", final_value);
+                        printf("\n\n");
+                        fclose(udata->optfile);
+#endif
+                    }
+
+                    udata->num_meas++;
+                }
+                else
+                {
+                    udata->rels_per_sec_avg += t[tid].dconf->rels_per_sec;
+                    udata->rels_samples[udata->num_samples++] =
+                        t[tid].dconf->rels_per_sec;
+                    udata->averaged_polys++;
+                }
+            }
+        }
+#else
         if (fobj->qs_obj.no_small_cutoff_opt == 0)
         {
             int	poly_start_num = 0;
@@ -286,6 +445,7 @@ void siqs_sync(void *vptr)
                 }
             }
         }
+#endif
 
         // free sieving structure
         for (j = 0; j < t[tid].dconf->buffered_rels; j++)
