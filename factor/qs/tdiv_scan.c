@@ -1084,6 +1084,29 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 #endif
 	//tdiv_LP_avx512_allreports(parity, blocknum, sconf, dconf);
 
+#ifdef DEBUG_DUMP_REPORTS
+	// temporary diagnostic: dump every report (poly, side, block, loc,
+	// sieve byte, survived) for the first polys, to diff builds with -seed
+	{
+		// keyed by scan-call count: both builds scan blocks in the same order
+		static FILE* dumpf = NULL;
+		static uint32_t ncall = 0;
+		if (dumpf == NULL)
+			dumpf = fopen("reports_dump.txt", "w");
+		if (ncall < 20000)
+		{
+			for (j = 0; j < dconf->num_reports; j++)
+				fprintf(dumpf, "%u %u %u %u %u %d\n", ncall, parity, blocknum,
+					dconf->reports[j], dconf->sieve[dconf->reports[j]], dconf->valid_Qs[j]);
+		}
+		else if (ncall == 20000)
+		{
+			fflush(dumpf);
+		}
+		ncall++;
+	}
+#endif
+
     // factor all reports in this block
     for (j = 0; j < dconf->num_reports; j++)
     {

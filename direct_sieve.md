@@ -60,7 +60,9 @@ consults set_aprime_roots).
    med_sieveblock_32k_avx512bw), and so does the sparse sieve. Sieve bytes
    can therefore be pre-loaded with large-prime hits before the block loops,
    and the minblock "blockinit - 4" init can be applied as a `-= 4` at any
-   time (uint8 arithmetic mod 256 is order-independent).
+   time (uint8 arithmetic mod 256 is order-independent). **But it is not
+   confined to its block:** it dumps a-prime logs at `blk_sieve[65535]`
+   (see 6.3), which the contiguous layout has to protect.
 5. **The scan reads sieve bytes only through dconf->sieve**: the sparse
    scan branch, the BW (use_dlp >= 2) branch and filter_SPV. process_poly
    sets `dconf->sieve = blk_sieve` around each scan_ptr call and then
@@ -253,7 +255,86 @@ Sequential single runs (one job at a time), WSL gcc 11, i5-11600K
   correct P39s and zero errors. The poly count is identical to the unfused
   build (261-bit NB8: 62985), so the fused pass's hit set matches.
 
-### 6.3 Possible next steps
+### 6.3 Block-edge bug (found at small NB, fixed)
+
+At NB=2/4, direct needed noticeably more polys than stock: 261-bit NB2
+partials/poly were −7% and DLP attempts −13%, with far more "outside
+range" residues. Diagnosis:
+- `DEBUG_MISSED_FB_PRIMES` showed no missing divisions.
+- `DEBUG_DIRECT_ROOTS` showed every `[large_B, B)` root was correct.
+- A report dump with a fixed seed (`DEBUG_DUMP_REPORTS`, `-seed 12345
+  -noopt`), diffed between builds on identical polys, found the junk
+  reports: almost all at **location 32767 of every block that has a
+  predecessor**, with bytes ~162-166 (a large bogus subtraction).
+
+Cause: for a-primes <= 8192, `set_aprime_roots` keeps the prime and marks
+the roots 0xffff. The unrolled small-prime med-sieve paths then subtract
+logp at `blk_sieve[65535]`. In stock's single-block window that byte is
+guard space. In the contiguous direct layout it is the **next block's last
+byte** (for the last neg block it is guard space). Fix (SIQS.c, both
+block loops): save `blk_sieve[65535]` before the block's med/sparse sieve
+and restore it afterwards.
+
+(The med sieve also dumps logs for a-primes > 8192 at `blk_sieve[0]`;
+that happens in both builds, inside the block, and is unchanged.)
+
+### 6.4 Results after the fix, and logp calibration
+
+Yield per poly after the fix (261-bit, `-noopt` so both builds use the same
+tf_small_cutoff; per poly):
+
+| build | NB | polys | partials | survivors | outside range | prp + DLP att |
+|---|---|---|---|---|---|---|
+| sparse | 2 | 203.5k | 1.133 | 10.14 | 6.24 | 3.02 |
+| direct | 2 | 210.6k | 1.036 | 9.47 | 6.24 | 2.34 |
+| direct, bias 1 | 2 | 186.9k | 1.466 | 12.48 | 6.52 | 5.07 |
+| sparse | 4 | 120.4k | 1.853 | 17.83 | 11.66 | 4.65 |
+| direct | 4 | 123.9k | 1.739 | 16.93 | 11.49 | 3.93 |
+| direct, bias 1 | 4 | 111.9k | 2.311 | 21.03 | 11.99 | 7.51 |
+
+- The junk is gone: "outside range" now matches stock.
+- The remaining gap is **sieve-credit calibration, not correctness**. On
+  identical polys, stock's bytes are on average ~1 lower (more credit),
+  because each bucket slice applies the logp of the slice's *last* prime to
+  every prime in the slice, while direct uses the 16-group's top logp.
+  Stock's extra near-threshold reports (bytes 254/255) are mostly DLP
+  candidates.
+- `DIRECT_LOGP_BIAS` (qs_impl.h, default 0) adds a constant to the direct
+  range's logp. With bias 1, direct overtakes stock in yield per poly by
+  25-30%. The yield is very sensitive to large-prime credit (equivalently,
+  to the report threshold), which is a lever for the parameter exploration.
+
+Wall time (sequential single runs, normal cutoff tuning on, QS seconds):
+
+| input | NB | sparse+buckets | direct | direct bias 1 |
+|---|---|---|---|---|
+| 261-bit | 2 | 32.8 | 33.8 | 33.4 |
+| 261-bit | 4 | 30.1 | 29.8 | 29.7 |
+| 261-bit | 8 | 34.6 | 34.3 | 34.4 |
+| 256-bit | 2 | 25.6 | 25.9 | 25.9 |
+| 256-bit | 4 | 23.5 | 23.3 | 23.6 |
+| 256-bit | 8 | 26.7 | 26.4 | 27.0 |
+
+- With the fix, direct is even with or slightly faster than stock at NB 4
+  and 8, and ~1-3% slower at NB2. Before the fix it was +3% at NB8 on the
+  261-bit input (36.2 s).
+- **NB=4 is the fastest setting for both builds** on these 77-79 digit
+  inputs: ~12% faster than NB=8 and ~8% faster than NB=2.
+- Bias 1's higher yield per poly is cancelled out in wall time by the extra
+  trial division (and by the adaptive tf_small_cutoff). Calibration should
+  be explored together with the thresholds, not on its own.
+
+Diagnostics left in the code (all off by default):
+- `DEBUG_MISSED_FB_PRIMES` (tdiv.c): counts fb primes left in finalized Qs,
+  by range. Both builds leave a few (~0.2-0.4% of reports). This predates
+  TRY_DIRECT_SIEVE.
+- `DEBUG_DIRECT_ROOTS` (SIQS.c): checks Q(r) == 0 mod p for every direct
+  root, each poly.
+- `DEBUG_DUMP_REPORTS` (tdiv_scan.c): dumps every report with its sieve
+  byte and survival flag for the first 20000 scan calls, keyed by call
+  index. Use with `-seed N -noopt` to diff builds on identical polys.
+
+### 6.5 Possible next steps
 - Profile fused+gather again to split the fused loop's cost between the
   root update, the next-poly scatter and the gathers.
 - Shrink the scatter target at larger NB: e.g. sieve the next poly's pos
@@ -261,6 +342,9 @@ Sequential single runs (one job at a time), WSL gcc 11, i5-11600K
   direct range's NB dependence.
 - Compare on a CPU with a larger L2 (e.g. 1-2 MB/core) where 2*interval
   fits.
+- Parameter exploration at small NB (2/4): report threshold / tf_closnuf,
+  tf_small_cutoff, DIRECT_LOGP_BIAS, and the large-prime multipliers (the
+  single large prime cutoff is currently 90 * pmax).
 
 ## 7. Not done / caveats
 

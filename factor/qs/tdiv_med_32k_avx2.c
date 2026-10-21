@@ -1504,7 +1504,7 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
                 continue;
 
             // approximate the next 16 logp's as equal to the largest
-            logp = update_data.logp[j + 15];
+            logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
 
             _mm512_store_si512(r_1, vroot1);
             _mm512_store_si512(r_2, vroot2);
@@ -1570,7 +1570,7 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
         fr1[j] = root1;
         fr2[j] = root2;
 
-        logp = update_data.logp[j];
+        logp = update_data.logp[j] + DIRECT_LOGP_BIAS;
         if (root1 < interval) sieve[root1] -= logp;
         if (root2 < interval) sieve[root2] -= logp;
         if ((prime - root1) < interval) sieven[prime - root1] -= logp;

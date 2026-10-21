@@ -251,6 +251,32 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		}
 	}
 
+#ifdef DEBUG_MISSED_FB_PRIMES
+	// temporary diagnostic: count fb primes still dividing Q after all
+	// trial division, by range (0: [2,med_B), 1: [med_B,large_B), 2: [large_B,B))
+	{
+		static uint64_t nchk = 0, nmiss[3] = { 0, 0, 0 }, nq = 0;
+		fb_list* fbl = sconf->factor_base;
+		uint32_t k;
+		int missed = 0;
+		for (k = 2; k < fbl->B; k++)
+		{
+			if (mpz_tdiv_ui(dconf->Qvals[report_num], fbl->list->prime[k]) == 0)
+			{
+				int r = (k < fbl->med_B) ? 0 : ((k < fbl->large_B) ? 1 : 2);
+				nmiss[r]++;
+				missed = 1;
+			}
+		}
+		nchk++;
+		nq += missed;
+		if ((nchk % 200000) == 0)
+			printf("\nmissed-fb-primes: %" PRIu64 " reports, %" PRIu64 " with misses; "
+				"small/med %" PRIu64 ", sparse %" PRIu64 ", large %" PRIu64 "\n",
+				nchk, nq, nmiss[0], nmiss[1], nmiss[2]);
+	}
+#endif
+
 #if 0 //def SPARSE_STORE
     // edit: removed because med_B seems to be a little too high
     // of a bound for non-stored factors.  Puts quite a bit of 

@@ -126,6 +126,13 @@
 #if !defined(USE_AVX512F) || !defined(USE_AVX512BW)
 #error "TRY_DIRECT_SIEVE requires USE_AVX512F and USE_AVX512BW"
 #endif
+// added to the logp the direct sieve uses for [large_B, B).  The bucket
+// sieve uses one logp per slice, the logp of the slice's last prime, so it
+// credits these primes slightly more than the per-16 approximation; a bias
+// of 1 roughly matches it.
+#ifndef DIRECT_LOGP_BIAS
+#define DIRECT_LOGP_BIAS 0
+#endif
 #endif
 
 // as part of analyzing 3lp parameterizations, we save off the 

@@ -1508,7 +1508,7 @@ void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_
             continue;
 
         // approximate the next 16 logp's as equal to the largest
-        logp = update_data.logp[j + 15];
+        logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
 
         _mm512_store_si512(r_1, vroot1);
         _mm512_store_si512(r_2, vroot2);
@@ -1541,7 +1541,7 @@ void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_
     for (; j < fb->B; j++)
     {
         uint32_t prime = primes[j];
-        logp = update_data.logp[j];
+        logp = update_data.logp[j] + DIRECT_LOGP_BIAS;
 
         if (fr1[j] < interval) sieve[fr1[j]] -= logp;
         if (fr2[j] < interval) sieve[fr2[j]] -= logp;

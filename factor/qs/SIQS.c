@@ -2276,6 +2276,38 @@ void* process_poly(void* vptr)
                 direct_sieve_largeprimes_32k(sieve, sconf, dconf);
             }
 
+#ifdef DEBUG_DIRECT_ROOTS
+            // temporary diagnostic: verify every [large_B, B) root satisfies
+            // Q(r) == 0 mod p for the current poly (pos-side form)
+            {
+                static uint64_t npoly = 0, nbad = 0, nprimed_bad = 0;
+                uint32_t j;
+                int bad = 0;
+                for (j = fb->large_B; j < fb->B; j++)
+                {
+                    uint64_t p = fb->list->prime[j];
+                    uint64_t am = mpz_fdiv_ui(poly->mpz_poly_a, p);
+                    uint64_t bm = mpz_fdiv_ui(poly->mpz_poly_b, p);
+                    uint64_t cm = mpz_fdiv_ui(poly->mpz_poly_c, p);
+                    int r;
+                    if (sconf->knmod8 != 1)
+                        bm = (2 * bm) % p;
+                    for (r = 0; r < 2; r++)
+                    {
+                        uint64_t x = (uint32_t)(r ? dconf->update_data.firstroots2[j] :
+                            dconf->update_data.firstroots1[j]);
+                        uint64_t q = ((am * x + bm) % p * x + cm) % p;
+                        if (q != 0) { nbad++; bad = 1; }
+                    }
+                }
+                npoly++;
+                if (bad && direct_primed) nprimed_bad++;
+                if ((npoly % 2000) == 0)
+                    printf("\ndirect-roots: %" PRIu64 " polys, %" PRIu64 " bad roots, "
+                        "%" PRIu64 " bad polys from fused pass\n", npoly, nbad, nprimed_bad);
+            }
+#endif
+
             // minblock is initialized to blockinit - 4.  It depends on this
             // poly's b, so it can't be folded into the fused pass's memset;
             // the sieve is subtractive, so -= 4 now is equivalent.
@@ -2332,6 +2364,14 @@ void* process_poly(void* vptr)
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
+#if defined(TRY_DIRECT_SIEVE)
+            // a-primes <= 8192 keep their prime with roots marked 0xffff, and
+            // the unrolled med-sieve paths dump logp at blk_sieve[65535].  In
+            // the stock single-block window that byte is guard space; in the
+            // contiguous direct layout it is the next block's last byte (or
+            // the guard region after the last block).  Save and restore it.
+            uint8_t direct_dummy_byte = blk_sieve[65535];
+#endif
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
@@ -2372,6 +2412,9 @@ void* process_poly(void* vptr)
                 large_sieveblock_32k_avx512bw(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit);
 #endif
             }
+#if defined(TRY_DIRECT_SIEVE)
+            blk_sieve[65535] = direct_dummy_byte;
+#endif
 
 #if 0 //defined( USE_SS_SEARCH )
             if (using_ss_search)
@@ -2490,6 +2533,11 @@ void* process_poly(void* vptr)
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
+#if defined(TRY_DIRECT_SIEVE)
+            // see the pos side: protect the byte the med sieve dumps a-prime
+            // logs into (the guard region after the last neg block)
+            uint8_t direct_dummy_byte = blk_sieve[65535];
+#endif
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
@@ -2530,6 +2578,9 @@ void* process_poly(void* vptr)
                 large_sieveblock_32k_avx512bw(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit);
 #endif
             }
+#if defined(TRY_DIRECT_SIEVE)
+            blk_sieve[65535] = direct_dummy_byte;
+#endif
 
 #ifdef SIQS_PROFILE
             double tstop = now_sec();
