@@ -23,6 +23,10 @@ code to the public domain.
 #include "common.h"
 #include "gmp_xface.h"
 
+#if defined(TRY_SMALLP_OPT) && defined(USE_AVX512BW)
+#include <immintrin.h>
+#endif
+
 /*
 We are given an array of bytes that has been sieved.  The basic trial 
 division strategy is as follows:
@@ -71,6 +75,11 @@ this file contains code implementing 2)
 #endif
 
 //#define DO_4X_SPV 1
+
+// temporary (TRY_SMALLP_OPT experiment): define to cross-check the
+// vectorized SPV hit set against the scalar hit detection for every
+// candidate; aborts on any mismatch.  Slow - correctness checking only.
+//#define SPV_ASSERT_BOTH 1
 
 void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -210,6 +219,104 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		// the whole cache line at once (16 byte structure)
 
 
+#if defined(TRY_SMALLP_OPT) && defined(USE_AVX512BW)
+		// vectorized SPV check (docs/siqs_spv_plan.md): 16 primes per zmm
+		// using the Lemire divisibility test with the invmod/thresh
+		// constants computed in make_fb_siqs.  one 32x32 mullo per root,
+		// no 64-bit splitting.  the (offset + p - root) form covers the
+		// root == prime / root == 0 corner cases the scalar path
+		// special-cases below.  hits are rare (0-2 per candidate), so the
+		// actual division stays scalar via DIVIDE_ONE_PRIME.
+		//
+		// hit test per root:  p | (offset - root)  <=>
+		//   (offset + p - root) * invmod <= thresh  (mod 2^32)
+		// where invmod = p^-1 mod 2^32 and thresh = (2^32-1)/p.
+		{
+			uint32_t vstop = sconf->sieve_small_fb_start;
+			__m512i voffset = _mm512_set1_epi32((int)offset);
+			uint32_t vi;
+#ifdef SPV_ASSERT_BOTH
+			uint32_t vhit_idx[64], shit_idx[64];
+			int vhit_n = 0, shit_n = 0;
+#endif
+
+			for (vi = 2; vi < vstop; vi += 16)
+			{
+				uint32_t nlanes = vstop - vi;
+				__mmask16 valid = (nlanes >= 16) ? (__mmask16)0xffff :
+					(__mmask16)((1u << nlanes) - 1);
+
+				// masked loads keep the final partial group from reading
+				// past the end of the (shorter) fb arrays
+				__m256i vpr = _mm256_maskz_loadu_epi16(valid, fbc->prime + vi);
+				__m256i vr1 = _mm256_maskz_loadu_epi16(valid, fbc->root1 + vi);
+				__m256i vr2 = _mm256_maskz_loadu_epi16(valid, fbc->root2 + vi);
+				__m512i vp = _mm512_cvtepu16_epi32(vpr);
+				__m512i vroot1 = _mm512_cvtepu16_epi32(vr1);
+				__m512i vroot2 = _mm512_cvtepu16_epi32(vr2);
+				__m512i vminv = _mm512_maskz_loadu_epi32(valid, fullfb_ptr->invmod + vi);
+				__m512i vthresh = _mm512_maskz_loadu_epi32(valid, fullfb_ptr->thresh + vi);
+
+				// t = offset + p - root; the add of p keeps t >= 0 and is
+				// a no-op mod p
+				__m512i t1 = _mm512_add_epi32(_mm512_sub_epi32(voffset, vroot1), vp);
+				__m512i t2 = _mm512_add_epi32(_mm512_sub_epi32(voffset, vroot2), vp);
+
+				// both mullos issue back-to-back before the compares so
+				// the ~10 cycle vpmulld latency overlaps
+				__mmask16 hit1 = _mm512_cmple_epu32_mask(
+					_mm512_mullo_epi32(t1, vminv), vthresh);
+				__mmask16 hit2 = _mm512_cmple_epu32_mask(
+					_mm512_mullo_epi32(t2, vminv), vthresh);
+				uint32_t hits = ((uint32_t)hit1 | (uint32_t)hit2) & (uint32_t)valid;
+
+				while (hits > 0)
+				{
+					uint32_t fbi = vi + _trail_zcnt(hits);
+					prime = fbc->prime[fbi];
+					logp = fbc->logp[fbi];
+#ifdef SPV_ASSERT_BOTH
+					if (vhit_n < 64) vhit_idx[vhit_n++] = fbi;
+#endif
+					DIVIDE_ONE_PRIME(fbi);
+					hits = _reset_lsb(hits);
+				}
+			}
+
+#ifdef SPV_ASSERT_BOTH
+			// scalar reference: same hit detection as the pre-experiment
+			// batch-of-4 + tail loops, on this candidate
+			{
+				uint32_t si, stmp;
+				uint64_t sq64;
+				shit_n = 0;
+				for (si = 2; si < vstop; si++)
+				{
+					stmp = offset + fullfb_ptr->correction[si];
+					sq64 = (uint64_t)stmp * (uint64_t)fullfb_ptr->small_inv[si];
+					stmp = (uint32_t)(sq64 >> 32);
+					stmp = offset - stmp * fullfb_ptr->prime[si];
+					if ((stmp == fbc->root1[si]) || (stmp == fbc->root2[si]))
+					{
+						if (shit_n < 64) shit_idx[shit_n++] = si;
+					}
+				}
+				if ((shit_n != vhit_n) ||
+					(memcmp(shit_idx, vhit_idx, vhit_n * sizeof(uint32_t)) != 0))
+				{
+					int z;
+					printf("SPV assert mismatch: offset %u, vec %d hits [",
+						offset, vhit_n);
+					for (z = 0; z < vhit_n; z++) printf("%u ", vhit_idx[z]);
+					printf("] scalar %d hits [", shit_n);
+					for (z = 0; z < shit_n; z++) printf("%u ", shit_idx[z]);
+					printf("]\n");
+					exit(1);
+				}
+			}
+#endif
+		}
+#else
 		// do the small primes in optimized batches of 4
 		bound = (sconf->sieve_small_fb_start - 4);
 		
@@ -306,6 +413,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			}
 			i++;
 		}
+#endif
 
         // don't reject a sieve hit if it is within a small distance
         // of the poly root as these locations are much more likely

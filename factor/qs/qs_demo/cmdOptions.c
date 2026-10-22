@@ -60,7 +60,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "noopt", "vproc", "nprp", "aprcl_p", "aprcl_d",
     "repeat", "siqsTFSm", "script", "forceTLP", "siqsLPB", 
     "siqsMFBD", "siqsMFBT", "siqsBDiv", "siqsBT", "siqsNobat", 
-    "inmem" };
+    "inmem", "siqsSPV" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -96,7 +96,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Floating point)  : SIQS Batch Divisor: specifies max prime to include in batch GCD as divisor of max factorbase prime",
     "(Integer < 32-bit): SIQS Batch Target: how many residues to batch before doing batch GCD", 
     "                  : Do not use SIQS Batch GCD",
-    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)" };
+    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)",
+    "(Integer < 32-bit): SIQS small prime variation bound (primes below this are not sieved)" };
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -110,7 +111,7 @@ int needsArg[NUMOPTIONS] = {
     0,0,1,1,1,
     1,1,1,0,1,
     1,1,1,1,0,
-    1};
+    1,1};
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -122,7 +123,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "" };
+    "", "" };
 
 // ========================================================================
 int enforce_numeric(char* arg, char *opt)
@@ -371,6 +372,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // cutoff for processing in-memory
         sscanf(arg, "%u", &options->inmem_cutoff);
     }
+    else if (strcmp(opt, OptionArray[31]) == 0)
+    {
+        // argument "siqsSPV"
+        // the SPV small-prime bound: primes below this are not sieved
+        options->siqsSPV = strtoul(arg, NULL, 10);
+    }
     else
     {
         int i;
@@ -449,6 +456,7 @@ options_t* initOpt(void)
     options->siqsM = 0;
     options->siqsForceDLP = 0;
     options->siqsTFSm = 0;
+    options->siqsSPV = 0;
     options->siqsNobat = 0;
     options->siqsForceTLP = 0;
     options->siqsLPB = 0;

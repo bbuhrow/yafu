@@ -261,6 +261,7 @@ typedef struct
     // siqs parameters to override defaults
     uint32_t gbl_override_B;			//override the # of factor base primes
     uint32_t gbl_override_small_cutoff;			//override the tf_small_cutoff value
+    uint32_t gbl_override_spv_limit;	//override the SPV small-prime bound
     uint32_t gbl_override_tf;			//extra reduction of the TF bound by X bits
     uint32_t gbl_override_time;		//stop after this many seconds
     uint32_t gbl_override_rel;		//stop after collecting this many relations
@@ -282,6 +283,7 @@ typedef struct
 
     int gbl_override_B_flag;
     int gbl_override_small_cutoff_flag;
+    int gbl_override_spv_limit_flag;
     int gbl_override_tf_flag;
     int gbl_override_time_flag;
     int gbl_override_rel_flag;

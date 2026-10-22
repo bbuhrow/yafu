@@ -80,6 +80,17 @@ typedef struct
     double results[3];
     int averaged_polys;
     double rels_per_sec_avg;
+#ifdef TRY_SMALLP_OPT
+    // two-stage tuner (docs/siqs_spv_plan.md, Commit 3): stage 1 measures
+    // orig/+5/-5 (results[0..2]); stage 2 refines +/-2 around the coarse
+    // winner, reusing the coarse winner's measurement (results_ref[0..1]
+    // hold w+2 and w-2).
+    double results_ref[2];
+    int coarse_winner;
+    // per-poly rels/sec samples for the median-of-polys measurement
+    double rels_samples[16];
+    int num_samples;
+#endif
 #ifdef OPT_DEBUG
     FILE *optfile;
 #endif
@@ -139,6 +150,10 @@ void siqs_start(void *vptr)
     udata->averaged_polys = 0;
     udata->rels_per_sec_avg = 0.0;
     udata->updatecode = 0;
+#ifdef TRY_SMALLP_OPT
+    udata->num_samples = 0;
+    udata->coarse_winner = 0;
+#endif
 
     // get best parameters, multiplier, and factor base for the job
     // initialize and fill out the static part of the job data structure
@@ -205,6 +220,154 @@ void siqs_sync(void *vptr)
         udata->num_found = siqs_merge_data(t[tid].dconf, static_conf);        
         static_conf->num_found = udata->num_found;
 
+#ifdef TRY_SMALLP_OPT
+        if (fobj->qs_obj.no_small_cutoff_opt == 0)
+        {
+            // two-stage adaptive tuner (docs/siqs_spv_plan.md, Commit 3):
+            //   stage 1 (measurements 0-2): orig, +5, -5 (coarse, as before)
+            //   stage 2 (measurements 3-4): coarse-winner +2 and -2, reusing
+            //     the coarse winner's measurement
+            // each measurement is the median rels/sec over num_avg polys
+            // (robust against outlier polys), and the coarse winner's
+            // result carries the same 2%/5% superiority bias into the
+            // final decision.  the chosen value is printed at normal
+            // verbosity so repeat runs can pin it with -siqsTFSm.
+            int num_meas_max = 5;
+
+            if (udata->num_meas < num_meas_max)
+            {
+                if (udata->averaged_polys >= num_avg)
+                {
+                    double meas_result;
+                    int a, b;
+                    double tmpd;
+
+                    // median of the per-poly rels/sec samples
+                    for (a = 1; a < udata->num_samples; a++)
+                    {
+                        tmpd = udata->rels_samples[a];
+                        for (b = a - 1; (b >= 0) && (udata->rels_samples[b] > tmpd); b--)
+                            udata->rels_samples[b + 1] = udata->rels_samples[b];
+                        udata->rels_samples[b + 1] = tmpd;
+                    }
+                    if (udata->num_samples & 1)
+                        meas_result = udata->rels_samples[udata->num_samples / 2];
+                    else
+                        meas_result = 0.5 * (udata->rels_samples[udata->num_samples / 2 - 1] +
+                            udata->rels_samples[udata->num_samples / 2]);
+
+#ifdef OPT_DEBUG
+                    fprintf(udata->optfile, "%d,%d,%f,%d\n", udata->num_meas, 
+                        static_conf->total_poly_a,
+                        meas_result, 
+                        static_conf->tf_small_cutoff);
+                    printf("%d,%d,%f,%d\n", udata->num_meas,
+                        static_conf->total_poly_a,
+                        meas_result,
+                        static_conf->tf_small_cutoff);
+#endif
+
+                    udata->averaged_polys = 0;
+                    udata->num_samples = 0;
+
+                    if (udata->num_meas == 0)
+                    {
+                        udata->results[0] = meas_result;
+                        static_conf->tf_small_cutoff = orig_value + 5;
+                    }
+                    else if (udata->num_meas == 1)
+                    {
+                        udata->results[1] = meas_result;
+                        static_conf->tf_small_cutoff = orig_value - 5;
+                    }
+                    else if (udata->num_meas == 2)
+                    {
+                        // coarse decision: pick the winner of orig/+5/-5,
+                        // then begin refinement at winner + 2
+                        int w;
+                        double biased;
+
+                        udata->results[2] = meas_result;
+
+                        if (static_conf->use_dlp)
+                            biased = udata->results[0] * 1.05;
+                        else
+                            biased = udata->results[0] * 1.02;
+
+                        if ((biased > udata->results[1]) && (biased > udata->results[2]))
+                            w = 0;
+                        else if (udata->results[1] > udata->results[2])
+                            w = 1;
+                        else
+                            w = 2;
+
+                        udata->coarse_winner = w;
+                        static_conf->tf_small_cutoff = orig_value +
+                            ((w == 0) ? 2 : (w == 1) ? 7 : -3);
+                    }
+                    else if (udata->num_meas == 3)
+                    {
+                        int w = udata->coarse_winner;
+
+                        // measurement of coarse-winner + 2 done; next try -2
+                        udata->results_ref[0] = meas_result;
+                        static_conf->tf_small_cutoff = orig_value +
+                            ((w == 0) ? -2 : (w == 1) ? 3 : -7);
+                    }
+                    else
+                    {
+                        // final decision among coarse winner (w), w+2, w-2
+                        int w = udata->coarse_winner;
+                        int wcutoff = orig_value +
+                            ((w == 0) ? 0 : (w == 1) ? 5 : -5);
+                        double biased;
+                        int final_value;
+
+                        udata->results_ref[1] = meas_result;
+
+                        if (static_conf->use_dlp)
+                            biased = udata->results[w] * 1.05;
+                        else
+                            biased = udata->results[w] * 1.02;
+
+                        if ((biased > udata->results_ref[0]) &&
+                            (biased > udata->results_ref[1]))
+                            final_value = wcutoff;
+                        else if (udata->results_ref[0] > udata->results_ref[1])
+                            final_value = wcutoff + 2;
+                        else
+                            final_value = wcutoff - 2;
+
+                        static_conf->tf_small_cutoff = final_value;
+
+                        if (fobj->VFLAG >= 0)
+                        {
+                            printf("SPV tuner: chose tf_small_cutoff = %d "
+                                "(coarse winner %d, orig %d)\n",
+                                final_value, wcutoff, orig_value);
+                        }
+
+#ifdef OPT_DEBUG
+                        fprintf(udata->optfile, "final value = %d\n", final_value);
+                        fprintf(udata->optfile, "\n\n");
+                        printf("final value = %d\n", final_value);
+                        printf("\n\n");
+                        fclose(udata->optfile);
+#endif
+                    }
+
+                    udata->num_meas++;
+                }
+                else
+                {
+                    udata->rels_per_sec_avg += t[tid].dconf->rels_per_sec;
+                    udata->rels_samples[udata->num_samples++] =
+                        t[tid].dconf->rels_per_sec;
+                    udata->averaged_polys++;
+                }
+            }
+        }
+#else
         if (fobj->qs_obj.no_small_cutoff_opt == 0)
         {
             int	poly_start_num = 0;
@@ -286,6 +449,7 @@ void siqs_sync(void *vptr)
                 }
             }
         }
+#endif
 
         // free sieving structure
         for (j = 0; j < t[tid].dconf->buffered_rels; j++)
@@ -4166,6 +4330,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     uint32_t tlp_cutoff;
     int VFLAG = sconf->obj->VFLAG;
     int THREADS = sconf->obj->THREADS;
+#ifdef TRY_SMALLP_OPT
+    // sized tinylist allocation, derived from the SPV limit below
+    uint32_t tiny_alloc = 0;
+#endif
 
     // this pretty much has to stay "8".  the reason is that many of the specialized routines
     // have picky requirements about how large or small the primes can be for them
@@ -4193,7 +4361,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
     // can raise this if we also raise TFSm and lower TF bounds
     // and get about the same speed... 
+#ifdef TRY_SMALLP_OPT
+    // SPV bound: primes below this are not sieved and are divided out
+    // per-candidate in filter_SPV (tdiv_small.c).  Override with -siqsSPV.
+    // If raising this, co-tune tf_small_cutoff (-siqsTFSm) and the TF
+    // bound (-siqsTF); see docs/siqs_spv_plan.md.
     sconf->small_limit = 256;
+    if (obj->qs_obj.gbl_override_spv_limit_flag)
+    {
+        sconf->small_limit = obj->qs_obj.gbl_override_spv_limit;
+    }
+#else
+    sconf->small_limit = 256;
+#endif
     sconf->use_dlp = 0;
 
     // function pointer to the sieve array scanner
@@ -4496,6 +4676,33 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             (size_t)(sconf->factor_base->B * sizeof(uint64_t)));
 
 
+#ifdef TRY_SMALLP_OPT
+		// size the tinylist from the SPV limit: it holds one entry per
+		// factor-base prime < small_limit.  the old fixed allocation of
+		// 512 silently overflowed for limits above ~3600 (pi(4096) = 564).
+		tiny_alloc = 0;
+		for (i = 0; i < obj->num_p; i++)
+		{
+			if (obj->primes[i] >= sconf->small_limit)
+				break;
+			tiny_alloc++;
+		}
+		// one extra slot for the dummy index-0 entry, plus slack
+		tiny_alloc += 8;
+
+		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->small_inv = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->correction = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->invmod = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->thresh = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+#else
 		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->small_inv = (uint32_t *)xmalloc_align(
@@ -4504,6 +4711,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			(size_t)(512 * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
+#endif
 
 #ifdef USE_8X_MOD_ASM
         // only used up to 13-ish bits, but we allocate and compute for all fb primes.
@@ -4643,7 +4851,55 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		if (sconf->factor_base->list->prime[i] > sconf->small_limit)
 			break;
 	}
+#ifdef TRY_SMALLP_OPT
+	// With a raised SPV limit, sieve_small_fb_start can land unaligned and
+	// close to (or past) the 10-bit boundary: the fb only holds primes with
+	// a root of n mod p, so index ~87 is prime ~1024 and the stock
+	// realignment loop in tdiv_medprimes_32k_avx2 (which scalar-tests until
+	// i is a multiple of 16) can no longer complete before bound10, leaving
+	// i unaligned for the SIMD groups (which require 16-byte = 8-element
+	// alignment of the compressed fb arrays).  In that case round the SPV
+	// boundary down to a 16-aligned index: the primes in between become
+	// sieved primes, and small_limit is adjusted so the unsieved range
+	// [2, start) is exactly the primes below it (all of which have tinylist
+	// entries, since make_fb_siqs filled them for the original, larger
+	// limit).  At the default limit the condition never triggers, so
+	// behavior is unchanged.
+	if ((i & 15) != 0)
+	{
+		uint32_t j10;
+		uint32_t b10;
+
+		for (j10 = i; j10 < sconf->factor_base->B; j10++)
+		{
+			if ((sconf->factor_base->list->prime[j10] > 1024) &&
+				(j10 % 8 == 0))
+				break;
+		}
+		b10 = (j10 & 15) ? (j10 - 8) : j10;
+		if (b10 < i)
+			b10 = i;
+
+		// would the 16-alignment loop complete before bound10?
+		if ((i + ((16 - (i & 15)) & 15)) > b10)
+		{
+			while ((i & 15) != 0)
+				i--;
+			sconf->small_limit = sconf->factor_base->list->prime[i - 1] + 1;
+		}
+	}
+#endif
 	sconf->sieve_small_fb_start = i;
+#ifdef TRY_SMALLP_OPT
+	// the tinylist is sized from the SPV limit (one entry per prime below
+	// it); verify the sieve start index fits in the allocation
+	if (sconf->sieve_small_fb_start >= tiny_alloc)
+	{
+		printf("error: sieve_small_fb_start %u exceeds tinylist allocation %u\n",
+			sconf->sieve_small_fb_start, tiny_alloc);
+		exit(1);
+	}
+#endif
 
     // ======================================================================
     // set thresholds at various bit levels.  Note: many places in the code
@@ -4908,6 +5164,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     
 	if (VFLAG > 1)
 	{
+#ifdef TRY_SMALLP_OPT
+		printf("SPV small_limit = %u\n", sconf->small_limit);
+#endif
 		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
 			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tL2: %u\n\tlarge: %u\n"
             "\tlarge_x2: %u\n\tall: %u\n",
@@ -5343,6 +5602,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	// this appears to work fairly well... paper mentioned doing it this
 	// way... find out and reference here.
 	sconf->tf_small_cutoff = (uint8_t)(avg + 2.5*sd);
+#ifdef TRY_SMALLP_OPT
+	if (VFLAG > 1)
+	{
+		printf("SPV formula tf_small_cutoff = %u (avg = %1.2f)\n",
+			sconf->tf_small_cutoff, avg);
+	}
+#endif
 
 	// it pays to trial divide a little more for big jobs...
 	// "optimized" is used rather loosely here, but these corrections
@@ -5364,6 +5630,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 #ifdef USE_AVX512F
         closnuf -= 2;
+#endif
+#ifdef TRY_SMALLP_OPT
+        // experiment (Commit 4, measured): subtracting tf_small_cutoff from
+        // closnuf in the DLP branch (as the non-DLP path does) was measured
+        // at ~2x total time on an c80 DLP job (tdiv 32s -> 106s): the much
+        // lower report threshold floods trial division.  Stock DLP behavior
+        // (no subtraction) is retained; raised limits are best paired with
+        // the formula tf_small_cutoff as-is.  Uncomment to re-measure.
+        // closnuf -= sconf->tf_small_cutoff;
 #endif
     }
     else if ((sconf->use_dlp >= 2) || 
@@ -6688,6 +6963,10 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->tinylist->small_inv);
 	align_free(sconf->factor_base->tinylist->correction);
 	align_free(sconf->factor_base->tinylist->logprime);
+#ifdef TRY_SMALLP_OPT
+	align_free(sconf->factor_base->tinylist->invmod);
+	align_free(sconf->factor_base->tinylist->thresh);
+#endif
 	align_free(sconf->factor_base->list);
 	align_free(sconf->factor_base->tinylist);
 	free(sconf->factor_base);

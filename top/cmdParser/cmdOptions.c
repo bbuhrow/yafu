@@ -85,7 +85,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "max_siqs", "max_nfs", "np1", "nps", "npr",
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
-    "nfs_stage1_args", "cuda_sieve", "cuda_dev" };
+    "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -223,7 +223,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : NFS: build the siever factor base cache once per job (needs sievers with cache validation)",
     "(String)          : raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable",
     "(String)          : NFS: path to the cuda-sieve executable; sieve with it instead of gnfs-lasieve",
-    "(String)          : NFS: comma separated CUDA device list for cuda_sieve, e.g. 0,1 (default 0)"
+    "(String)          : NFS: comma separated CUDA device list for cuda_sieve, e.g. 0,1 (default 0)",
+    "(Integer < 32-bit): SIQS small prime variation bound (primes below this are not sieved)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -258,7 +259,8 @@ int needsArg[NUMOPTIONS] = {
     1,1,0,0,0,   // "max_siqs", "max_nfs", "np1", "nps", "npr"
     1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
     0,1,0,1,0,     // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis, keep_afb
-    1,1,1          // nfs_stage1_args, cuda_sieve, cuda_dev
+    1,1,1,         // nfs_stage1_args, cuda_sieve, cuda_dev
+    1              // siqsSPV
 };
 
 // command line option aliases, specified by '--'
@@ -291,7 +293,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", ""
+    "", "", "", ""
 };
 
 
@@ -1329,6 +1331,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
             printf("*** argument to cuda_sieve too long, ignoring ***\n");
         }
         }
+    else if (strcmp(opt, OptionArray[133]) == 0)
+    {
+        // argument "siqsSPV"
+        // the SPV small-prime bound: primes below this are not sieved
+        options->siqsSPV = strtoul(arg, NULL, 10);
+    }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {
         //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
@@ -1515,6 +1523,7 @@ options_t* initOpt(void)
     options->siqsM = 0;
     options->siqsForceDLP = 0;
     options->siqsTFSm = 0;
+    options->siqsSPV = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;
