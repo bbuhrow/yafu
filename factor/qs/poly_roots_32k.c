@@ -2441,9 +2441,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	logp = fb->list->logprime[fb->large_B-1];
     for (i = fb->large_B; i < fb->B; i++)
     {
-#if !defined(TRY_DIRECT_SIEVE)
-        // (under TRY_DIRECT_SIEVE nothing in this range goes to the buckets,
+#if defined(TRY_DIRECT_SIEVE)
+        // (with the direct sieve nothing in this range goes to the buckets,
         // so the slice bookkeeping must stop with the last bucketed prime)
+        if (!sconf->lp_direct)
+        {
+            CHECK_NEW_SLICE(i);
+        }
+#else
         CHECK_NEW_SLICE(i);
 #endif
 
@@ -2473,16 +2478,19 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         update_data.firstroots1[i] = root1;
         update_data.firstroots2[i] = root2;
 
-#if !defined(TRY_DIRECT_SIEVE)
-        // under TRY_DIRECT_SIEVE these primes are sieved directly from
+#if defined(TRY_DIRECT_SIEVE)
+        // with the direct sieve these primes are sieved directly from
         // firstroots1/2 (unordered pair), so no bucket scatter
-        FILL_ONE_PRIME_P(i);
-
-        root1 = (prime - root1);
-        root2 = (prime - root2);
-
-        FILL_ONE_PRIME_N(i);
+        if (!sconf->lp_direct)
 #endif
+        {
+            FILL_ONE_PRIME_P(i);
+
+            root1 = (prime - root1);
+            root2 = (prime - root2);
+
+            FILL_ONE_PRIME_N(i);
+        }
 
 #ifdef USE_SS_SEARCH
 

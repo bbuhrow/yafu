@@ -4,6 +4,8 @@
 #
 # usage: tools/build_matrix.sh [tag ...]
 #   tags: avx512 avx2 sse41 sse2 generic   (default: all)
+#         avx512stock: AVX-512 with the stock bucket sieve only
+#                      (-DSIQS_NO_EXPERIMENTAL_SIEVES), a reference build
 #
 # Each tag builds into $BUILD_ROOT/<tag>/src and copies the binary to
 # $BUILD_ROOT/<tag>/yafu.  Copies are refreshed with rsync, so rebuilds are
@@ -36,6 +38,7 @@ isa_flags() {
     local off="USE_AVX512IFMA=0 USE_AVX512PF=0 USE_NATIVE="
     case "$1" in
         avx512)  echo "$off USE_AVX512=1" ;;
+        avx512stock) echo "$off USE_AVX512=1 USER_CFLAGS=-DSIQS_NO_EXPERIMENTAL_SIEVES" ;;
         avx2)    echo "$off USE_AVX512=0 USE_AVX2=1 USE_BMI2=1" ;;
         sse41)   echo "$off USE_AVX512=0 USE_AVX2=0 USE_BMI2=0 USE_SSE41=1" ;;
         sse2)    echo "$off USE_AVX512=0 USE_AVX2=0 USE_BMI2=0 USE_SSE41=0" ;;

@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 134
+#define NUMOPTIONS 138
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -103,6 +103,10 @@ typedef struct
     uint32_t siqsTF;
     uint32_t siqsTFSm;
     uint32_t siqsSPV;
+    uint32_t siqsMid;           // SIQS_MID_* (0 = auto)
+    uint32_t siqsLarge;         // SIQS_LARGE_* (0 = auto)
+    uint32_t siqsKernel;        // SIQS_K_* (0 = auto)
+    uint32_t siqsSparseKernel;  // SIQS_K_* (0 = auto)
     uint32_t siqsNobat;
     uint32_t siqsR;
     uint32_t siqsT;

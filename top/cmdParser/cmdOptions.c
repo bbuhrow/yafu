@@ -35,6 +35,7 @@ SOFTWARE.
 
 #include "cmdOptions.h"
 #include "ytools.h"
+#include "siqs_strategy.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,7 +86,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "max_siqs", "max_nfs", "np1", "nps", "npr",
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
-    "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV" };
+    "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV", "siqsMid",
+    "siqsLarge", "siqsKernel", "siqsSparseKernel" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -224,7 +226,11 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable",
     "(String)          : NFS: path to the cuda-sieve executable; sieve with it instead of gnfs-lasieve",
     "(String)          : NFS: comma separated CUDA device list for cuda_sieve, e.g. 0,1 (default 0)",
-    "(Integer < 32-bit): SIQS small prime variation bound (primes below this are not sieved)"
+    "(Integer < 32-bit): SIQS small prime variation bound (primes below this are not sieved)",
+    "(String)          : SIQS sieve for primes 32k..interval: bucket or sparse (default: auto)",
+    "(String)          : SIQS sieve for primes > interval: bucket or direct (default: auto)",
+    "(String)          : SIQS direct sieve scatter kernel: bitloop, sink, creg or cmem (default: auto)",
+    "(String)          : SIQS sparse sieve kernel: bitloop, creg or cmem (default: auto)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -260,7 +266,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,1,1,   // "nfs_params", "poly_testsieve", "poly_percent_thresh", "td", "jsonlog"
     0,1,0,1,0,     // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis, keep_afb
     1,1,1,         // nfs_stage1_args, cuda_sieve, cuda_dev
-    1              // siqsSPV
+    1,1,1,1,1      // siqsSPV, siqsMid, siqsLarge, siqsKernel, siqsSparseKernel
 };
 
 // command line option aliases, specified by '--'
@@ -293,7 +299,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", ""
+    "", "", "", "", "",
+    "", "", ""
 };
 
 
@@ -1337,6 +1344,34 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // the SPV small-prime bound: primes below this are not sieved
         options->siqsSPV = strtoul(arg, NULL, 10);
     }
+    else if (strcmp(opt, OptionArray[134]) == 0)
+    {
+        // argument "siqsMid": bucket | sparse
+        if (strcmp(arg, "bucket") == 0) options->siqsMid = SIQS_MID_BUCKET;
+        else if (strcmp(arg, "sparse") == 0) options->siqsMid = SIQS_MID_SPARSE;
+        else printf("*** siqsMid must be bucket or sparse; ignoring ***\n");
+    }
+    else if (strcmp(opt, OptionArray[135]) == 0)
+    {
+        // argument "siqsLarge": bucket | direct
+        if (strcmp(arg, "bucket") == 0) options->siqsLarge = SIQS_LARGE_BUCKET;
+        else if (strcmp(arg, "direct") == 0) options->siqsLarge = SIQS_LARGE_DIRECT;
+        else printf("*** siqsLarge must be bucket or direct; ignoring ***\n");
+    }
+    else if ((strcmp(opt, OptionArray[136]) == 0) || (strcmp(opt, OptionArray[137]) == 0))
+    {
+        // arguments "siqsKernel" / "siqsSparseKernel": bitloop | sink | creg | cmem
+        uint32_t k = 0;
+        if (strcmp(arg, "bitloop") == 0) k = SIQS_K_BITLOOP;
+        else if (strcmp(arg, "sink") == 0) k = SIQS_K_SINK;
+        else if (strcmp(arg, "creg") == 0) k = SIQS_K_CREG;
+        else if (strcmp(arg, "cmem") == 0) k = SIQS_K_CMEM;
+        else printf("*** %s must be bitloop, sink, creg or cmem; ignoring ***\n", opt);
+        if (strcmp(opt, OptionArray[136]) == 0)
+            options->siqsKernel = k;
+        else
+            options->siqsSparseKernel = k;
+    }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {
         //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
@@ -1524,6 +1559,10 @@ options_t* initOpt(void)
     options->siqsForceDLP = 0;
     options->siqsTFSm = 0;
     options->siqsSPV = 0;
+    options->siqsMid = 0;
+    options->siqsLarge = 0;
+    options->siqsKernel = 0;
+    options->siqsSparseKernel = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;

@@ -87,8 +87,9 @@
 
 // The experimental sieves below (L2 / sparse / list / direct) have only
 // AVX-512F/BW implementations so far.  Lower-ISA builds compile the stock
-// bucket sieve instead.
-#if defined(USE_AVX512F) && defined(USE_AVX512BW)
+// bucket sieve instead.  -DSIQS_NO_EXPERIMENTAL_SIEVES builds the stock
+// sieve at any ISA (a reference for the bucket+bucket strategy).
+#if defined(USE_AVX512F) && defined(USE_AVX512BW) && !defined(SIQS_NO_EXPERIMENTAL_SIEVES)
 #define SIQS_EXPERIMENTAL_SIEVES
 #endif
 
@@ -169,47 +170,50 @@
 #ifndef DIRECT_PREFILTER_BITS
 #define DIRECT_PREFILTER_BITS 1024
 #endif
-// 1: handle [med_B, large_B) with the stock bucket sieve
-// (nextRoots_32k_knl_medbucket + lp_sieveblock + tdiv_LP) instead of the
-// TRY_SPARSE_SIEVE per-block sparse sieve (large_sieveblock + tdiv_large).
-// Implemented by setting fb_blk8i = med_B, which empties every sparse-range
-// loop, while large_B stays the first 16-aligned index with prime > interval.
-#ifndef DIRECT_MEDBUCKET
-#define DIRECT_MEDBUCKET 0
+// The large-prime strategy is chosen at run time (sconf->mid_bucket,
+// sconf->lp_direct, sconf->lp_kernel, sconf->sparse_kernel; see
+// siqs_resolve_strategy in SIQS.c and the -siqsMid / -siqsLarge /
+// -siqsKernel / -siqsSparseKernel options):
+//  [med_B, large_B): SIQS_MID_SPARSE  per-block sparse sieve
+//                    (large_sieveblock + tdiv_large), or
+//                    SIQS_MID_BUCKET  stock bucket sieve (medbucket +
+//                    lp_sieveblock + tdiv_LP), done by fb_blk8i = med_B,
+//                    which empties every sparse-range loop.
+//  [large_B, B):     SIQS_LARGE_DIRECT the direct sieve above, or
+//                    SIQS_LARGE_BUCKET stock largebucket sieve.
+// Direct scatter kernels (standalone pass 1 and the fused pass's next-poly
+// sieve), see Sink-Stripe Sieve Stores.md:
+//  SIQS_K_BITLOOP loop over the set bits of the in-range masks.
+//  SIQS_K_SINK    every one of the 64 root lanes per 16 primes does a
+//                 read-modify-write; misses are blended to a rotating
+//                 address in an unscanned stripe past the neg interval.
+//  SIQS_K_CREG    compress the in-range lanes (logp << 24 | position) in
+//                 registers, append with unaligned stores, sieve the buffer
+//                 once it holds DIRECT_CBUF_FLUSH entries.
+//  SIQS_K_CMEM    as CREG, appending with compressstoreu to memory.
+// The sparse sieve / tdiv_large take BITLOOP, CREG or CMEM.
+// Defaults used when the options are not given (measured on Rocket Lake):
+#ifndef DIRECT_DEFAULT_MID
+#define DIRECT_DEFAULT_MID SIQS_MID_SPARSE
 #endif
-// how the [large_B, B) roots are scattered into the intervals (standalone
-// pass 1 and the fused pass's next-poly sieve), see Sink-Stripe Sieve
-// Stores.md:
-// 0: loop over the set bits of the in-range masks (trail_zcnt / reset_lsb).
-// 1: "sink stripe": every one of the 64 root lanes per 16 primes does a
-//    read-modify-write; lanes that miss the interval are blended to a
-//    rotating address in an unscanned stripe past the neg interval (the
-//    second tail guard block), so there are no data-dependent branches.
-// 2: compress the in-range lanes (as logp << 24 | position) in registers
-//    (maskz_compress) and append them to a buffer with unaligned stores;
-//    sieve the buffer once it holds DIRECT_CBUF_FLUSH entries.
-// 3: as 2, but append with mask_compressstoreu directly to memory.
-#ifndef DIRECT_SCATTER_MODE
-#define DIRECT_SCATTER_MODE 3
+#ifndef DIRECT_DEFAULT_LARGE
+#define DIRECT_DEFAULT_LARGE SIQS_LARGE_DIRECT
+#endif
+#ifndef DIRECT_DEFAULT_KERNEL
+#define DIRECT_DEFAULT_KERNEL SIQS_K_CMEM
+#endif
+#ifndef DIRECT_DEFAULT_SPARSE_KERNEL
+#define DIRECT_DEFAULT_SPARSE_KERNEL SIQS_K_CMEM
 #endif
 // size of the sink stripe in bytes: a multiple of 64, at most 32768
 #ifndef DIRECT_SINK_BYTES
 #define DIRECT_SINK_BYTES 1024
 #endif
-// modes 2/3: sieve the compressed hit buffer once it holds at least this
-// many entries (1 = after every 16 primes).  Flat from 256 to 4096 on
-// Rocket Lake (mode 3, 77-79 digits, NB 2/4/8); 128 is ~1-2% slower at NB=2.
+// compress kernels: sieve the compressed hit buffer once it holds at least
+// this many entries (1 = after every 16 primes).  Flat from 256 to 4096 on
+// Rocket Lake (CMEM, 77-79 digits, NB 2/4/8); 128 is ~1-2% slower at NB=2.
 #ifndef DIRECT_CBUF_FLUSH
 #define DIRECT_CBUF_FLUSH 512
-#endif
-// 1: the sparse sieve for [med_B, large_B) (large_sieveblock_32k_avx512bw)
-// appends its block hits to a buffer with compress stores (mode 2 style
-// when DIRECT_SCATTER_MODE == 2, compressstoreu otherwise) and sieves the
-// buffer in one loop, and tdiv_large_32k_avx2 collects each report's
-// matching fb indices the same way.  0: trail_zcnt / reset_lsb loops.
-// Only used when DIRECT_MEDBUCKET is 0.
-#ifndef DIRECT_SPARSE_COMPRESS
-#define DIRECT_SPARSE_COMPRESS 1
 #endif
 #endif
 
@@ -641,6 +645,13 @@ typedef struct {
     uint32_t pmax;				// largest prime in factor base
     int scan_unrolling;			// how many bytes to unroll the sieve scan
 
+    // large-prime sieve strategy, resolved in siqs_static_init
+    // (siqs_resolve_strategy); see the strategy notes near TRY_DIRECT_SIEVE
+    int lp_direct;              // 1: [large_B, B) direct sieve, 0: buckets
+    int mid_bucket;             // 1: [med_B, large_B) buckets, 0: sparse sieve
+    int lp_kernel;              // SIQS_K_* for the direct scatter
+    int sparse_kernel;          // SIQS_K_* for the sparse sieve / tdiv_large
+
     uint32_t tf_small_cutoff;		// bit level to determine whether to bail early from tf
     uint32_t tf_closnuf;			// subject anything sieved beyond this to tf
 
@@ -960,39 +971,59 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     uint32_t start_prime, uint8_t s_init);
 void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
-void large_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+void large_sieveblock_32k_avx512bw_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_32k_avx512bw_creg(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_32k_avx512bw_cmem(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+// the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
+extern void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
 list_sieve_ctx_t* list_sieve_alloc_32k(uint32_t start, uint32_t stop, uint32_t numblocks);
 void list_sieve_free_32k(list_sieve_ctx_t* ctx);
 void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
     sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
-void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_32k_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_32k_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_32k_creg(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_32k_cmem(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+// direct sieve pass 1, selected by sconf->lp_kernel
+extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
 
-#if defined(TRY_DIRECT_SIEVE) && ((DIRECT_SCATTER_MODE >= 2) || DIRECT_SPARSE_COMPRESS)
+#if defined(TRY_DIRECT_SIEVE)
 #include <immintrin.h>
-// buffer size for modes 2/3: a flush threshold plus room for one more
-// 16-prime group (64 entries) and the last unaligned store's 16-lane tail
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#define SIQS_FORCEINLINE static __forceinline
+#else
+#define SIQS_FORCEINLINE static inline __attribute__((always_inline))
+#endif
+
+// buffer size for the compress kernels: a flush threshold plus room for one
+// more 16-prime group (64 entries) and the last unaligned store's 16-lane tail
 #define DIRECT_CBUF_SIZE (DIRECT_CBUF_FLUSH + 80)
 
 // append the lanes of v selected by m to buf[n...]; returns the new count.
-// buf must have 16 entries of room past n (the register-compress form
-// stores a full vector).
-static inline uint32_t direct_cstore16(uint32_t* buf, uint32_t n, __mmask16 m, __m512i v)
+// kmode (a compile-time constant at every call site) picks the form:
+// SIQS_K_CREG compresses in a register and stores the whole vector (buf
+// must have 16 entries of room past n), anything else uses compressstoreu.
+SIQS_FORCEINLINE uint32_t direct_cstore16(uint32_t* buf, uint32_t n, __mmask16 m, __m512i v,
+    const int kmode)
 {
-#if DIRECT_SCATTER_MODE == 2
-    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m, v));
-#else
-    _mm512_mask_compressstoreu_epi32(buf + n, m, v);
-#endif
+    if (kmode == SIQS_K_CREG)
+        _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m, v));
+    else
+        _mm512_mask_compressstoreu_epi32(buf + n, m, v);
     return n + _mm_popcnt_u32(m);
 }
 
 // append the in-range lanes of 16 primes' 4 root vectors to buf[n...] as
 // (logp << 24) | sieve position (pos side r, neg side interval + p - r;
 // 2*interval < 2^24).  Returns the new count.
-static inline uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t interval,
-    __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2, uint8_t logp)
+SIQS_FORCEINLINE uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t interval,
+    __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2, uint8_t logp,
+    const int kmode)
 {
     __m512i vint = _mm512_set1_epi32(interval);
     __m512i vtag = _mm512_set1_epi32((uint32_t)logp << 24);
@@ -1005,10 +1036,10 @@ static inline uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t int
     __m512i v3 = _mm512_or_epi32(_mm512_add_epi32(vnroot1, vint), vtag);
     __m512i v4 = _mm512_or_epi32(_mm512_add_epi32(vnroot2, vint), vtag);
 
-    n = direct_cstore16(buf, n, m1, v1);
-    n = direct_cstore16(buf, n, m2, v2);
-    n = direct_cstore16(buf, n, m3, v3);
-    return direct_cstore16(buf, n, m4, v4);
+    n = direct_cstore16(buf, n, m1, v1, kmode);
+    n = direct_cstore16(buf, n, m2, v2, kmode);
+    n = direct_cstore16(buf, n, m3, v3, kmode);
+    return direct_cstore16(buf, n, m4, v4, kmode);
 }
 
 // sieve the buffered hits
@@ -1021,10 +1052,6 @@ static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, ui
         sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
     }
 }
-#endif
-
-#if defined(TRY_DIRECT_SIEVE) && (DIRECT_SCATTER_MODE == 1)
-#include <immintrin.h>
 // sink-stripe scatter of 16 primes' 4 root vectors into both intervals
 // (pos side sieve[0, interval), neg side sieve[interval, 2*interval)).
 // vroot = pos-side roots, vnroot = p - root (neg-side offsets).  Every lane
@@ -1032,7 +1059,7 @@ static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, ui
 // sieve[2*interval + 32768 + *sink ...], which is allocated (second tail
 // guard block) and never scanned.  *sink rotates through the stripe so
 // consecutive miss RMWs don't chain through store forwarding.
-static inline void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
+SIQS_FORCEINLINE void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
     __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2,
     uint8_t logp, uint32_t* sink)
 {
@@ -1075,6 +1102,79 @@ static inline void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
     *sink += 64;
     if (*sink >= DIRECT_SINK_BYTES)
         *sink = 0;
+}
+
+// scatter one 16-prime group of [large_B, B) into both intervals with
+// kernel kmode (a compile-time constant at each call site): pos hits at r,
+// neg hits at p - r in sieve[interval, 2*interval).  BITLOOP and SINK write
+// at once; CREG / CMEM append to cbuf (count *nc) and sieve it whenever it
+// reaches DIRECT_CBUF_FLUSH, so callers must direct_compress_flush the rest
+// after their loop.  *sink is the sink-stripe rotation (SINK only).
+SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
+    __m512i vprime, __m512i vroot1, __m512i vroot2, uint8_t logp, const int kmode,
+    uint32_t* cbuf, uint32_t* nc, uint32_t* sink)
+{
+    __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+    __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+    if ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM))
+    {
+        *nc = direct_compress16(cbuf, *nc, interval, vroot1, vroot2,
+            vnroot1, vnroot2, logp, kmode);
+        if (*nc >= DIRECT_CBUF_FLUSH)
+        {
+            direct_compress_flush(sieve, cbuf, *nc);
+            *nc = 0;
+        }
+    }
+    else if (kmode == SIQS_K_SINK)
+    {
+        direct_sink_scatter16(sieve, interval, vroot1, vroot2, vnroot1, vnroot2,
+            logp, sink);
+    }
+    else
+    {
+        ALIGNED_MEM uint32_t r_1[16];
+        ALIGNED_MEM uint32_t r_2[16];
+        ALIGNED_MEM uint32_t n_1[16];
+        ALIGNED_MEM uint32_t n_2[16];
+        uint8_t* sieven = sieve + interval;
+        __m512i vint = _mm512_set1_epi32(interval);
+        uint32_t m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+        uint32_t m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+        uint32_t m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
+        uint32_t m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
+        int pos;
+
+        if ((m1 | m2 | m3 | m4) == 0)
+            return;
+
+        _mm512_store_si512(r_1, vroot1);
+        _mm512_store_si512(r_2, vroot2);
+        _mm512_store_si512(n_1, vnroot1);
+        _mm512_store_si512(n_2, vnroot2);
+
+        while (m1 > 0) {
+            pos = _trail_zcnt(m1);
+            sieve[r_1[pos]] -= logp;
+            m1 = _reset_lsb(m1);
+        }
+        while (m2 > 0) {
+            pos = _trail_zcnt(m2);
+            sieve[r_2[pos]] -= logp;
+            m2 = _reset_lsb(m2);
+        }
+        while (m3 > 0) {
+            pos = _trail_zcnt(m3);
+            sieven[n_1[pos]] -= logp;
+            m3 = _reset_lsb(m3);
+        }
+        while (m4 > 0) {
+            pos = _trail_zcnt(m4);
+            sieven[n_2[pos]] -= logp;
+            m4 = _reset_lsb(m4);
+        }
+    }
 }
 #endif
 
@@ -1131,16 +1231,30 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
 void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+void tdiv_large_32k_avx2_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_32k_avx2_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_32k_avx2_cmem(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+// the sparse-sieve tdiv for [med_B, fb_blk8i), selected by sconf->sparse_kernel
+extern void (*tdiv_large_ptr)(uint8_t, uint32_t, uint32_t, static_conf_t*, dynamic_conf_t*);
 void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf, list_sieve_ctx_t* ctx);
 direct_pool_t* direct_pool_alloc(uint32_t num_blocks);
 void direct_pool_free(direct_pool_t* pool);
 void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t* dconf,
+void direct_resieve_update_largeprimes_32k_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf,
     uint8_t* sieve);
+void direct_resieve_update_largeprimes_32k_sink(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve);
+void direct_resieve_update_largeprimes_32k_creg(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve);
+void direct_resieve_update_largeprimes_32k_cmem(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve);
+// the direct sieve's fused pass, selected by sconf->lp_kernel
+extern void (*direct_resieve_update_ptr)(static_conf_t*, dynamic_conf_t*, uint8_t*);
 void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf);
 
 // TBD

@@ -1077,7 +1077,8 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 		(parity ? dconf->lsctx_n : dconf->lsctx_p));
 #elif defined(TRY_L2_SIEVE)
 #if defined(TRY_SPARSE_SIEVE)
-	tdiv_large_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	// sparse range [med_B, fb_blk8i) (empty with mid buckets)
+	tdiv_large_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 #else
 	tdiv_L2primes_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
 #endif
@@ -1114,16 +1115,19 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 		{
 			dconf->total_surviving_reports++;
 #if defined(TRY_DIRECT_SIEVE)
-#if DIRECT_MEDBUCKET
-			// [med_B, large_B) is bucket sieved: divide those primes out
-			// now, while this block's buckets are current
-			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
-#endif
-			// [large_B, B) is resieved after all blocks of both sides are
-			// scanned; park the survivor until then (finalized in
-			// direct_finalize_survivors)
-			direct_save_survivor(j, parity, blocknum, sconf, dconf);
-			continue;
+			// bucket-sieved primes ([med_B, large_B) with mid buckets, and
+			// [large_B, B) without the direct sieve) are divided out now,
+			// while this block's buckets are current
+			if ((!sconf->lp_direct) || sconf->mid_bucket)
+				tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+			if (sconf->lp_direct)
+			{
+				// [large_B, B) is resieved after all blocks of both sides
+				// are scanned; park the survivor until then (finalized in
+				// direct_finalize_survivors)
+				direct_save_survivor(j, parity, blocknum, sconf, dconf);
+				continue;
+			}
 #elif defined(TRY_LIST_SIEVE)
 			// bucket primes were already divided by resieve_large_32k_avx2
 #else

@@ -913,10 +913,15 @@ void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
-#if defined(SIQS_EXPERIMENTAL_SIEVES)
-// AVX-512 only (despite the name): the sparse-sieve tdiv for [med_B, fb_blk8i)
-void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf)
+#if defined(TRY_DIRECT_SIEVE)
+// AVX-512 only (despite the name): the sparse-sieve tdiv for [med_B,
+// fb_blk8i).  kmode (constant in each wrapper below) picks how matching
+// lanes are visited: SIQS_K_BITLOOP loops over the mask bits, CREG / CMEM
+// compress the matching fb indices into a buffer first.  Matches are
+// divided in ascending fb index order either way, so fb_offsets come out
+// identical.
+SIQS_FORCEINLINE void tdiv_large_body(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf, const int kmode)
 {
     // we have flagged this sieve offset as likely to produce a relation
     // nothing left to do now but check and see.
@@ -925,10 +930,9 @@ void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     int smooth_num;
     uint32_t* fb_offsets;
     sieve_fb* fbc;
-    fb_element_siqs* fullfb_ptr, * fullfb = sconf->factor_base->list;
     uint32_t block_loc;
+    uint32_t bound = sconf->factor_base->fb_blk8i;
 
-    fullfb_ptr = fullfb;
     if (parity)
     {
         fbc = dconf->sieve_n;
@@ -948,139 +952,113 @@ void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         smooth_num = dconf->smooth_num[report_num];
         block_loc = dconf->reports[report_num];
 
-#if defined(TRY_DIRECT_SIEVE) && DIRECT_SPARSE_COMPRESS
-        uint32_t bound = sconf->factor_base->fb_blk8i;
         __m512i vblockloc = _mm512_set1_epi32(block_loc - 32768);
-        __m512i vidx = _mm512_add_epi32(_mm512_set1_epi32(sconf->factor_base->med_B),
-            _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15));
-        __m512i v16 = _mm512_set1_epi32(16);
-        // fb indices of the matching primes, in ascending order (as the
-        // trail_zcnt loop would visit them); divided out in batches of 64
-        ALIGNED_MEM uint32_t mbuf[64 + 16];
-        uint32_t nm = 0, k;
 
-        for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
+        if (kmode == SIQS_K_BITLOOP)
         {
-            __m512i vprime = _mm512_load_si512(fbc->prime + i);
-            __m512i vroot1 = _mm512_load_si512(fbc->root1 + i);
-            __m512i vroot2 = _mm512_load_si512(fbc->root2 + i);
-            __mmask16 msk;
-
-            vprime = _mm512_add_epi32(vprime, vblockloc);
-            msk = _mm512_cmpeq_epu32_mask(vprime, vroot1) |
-                _mm512_cmpeq_epu32_mask(vprime, vroot2);
-            nm = direct_cstore16(mbuf, nm, msk, vidx);
-            vidx = _mm512_add_epi32(vidx, v16);
-
-            if (nm >= 64)
+            for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
             {
-                for (k = 0; k < nm; k++)
-                {
-                    uint32_t j = mbuf[k];
-                    DIVIDE_RESIEVED_PRIME_2(j);
+                __m512i vprime, vroot1, vroot2;
+                uint32_t msk_2;
+                int pos;
+
+                vprime = _mm512_load_si512(fbc->prime + i);
+                vroot1 = _mm512_load_si512(fbc->root1 + i);
+                vroot2 = _mm512_load_si512(fbc->root2 + i);
+
+                vprime = _mm512_add_epi32(vprime, vblockloc);
+
+                msk_2 = _mm512_cmpeq_epu32_mask(vprime, vroot1) |
+                    _mm512_cmpeq_epu32_mask(vprime, vroot2);
+
+                while (msk_2 > 0) {
+                    pos = _trail_zcnt(msk_2);
+                    DIVIDE_RESIEVED_PRIME(pos);
+                    msk_2 = _reset_lsb(msk_2);
                 }
-                nm = 0;
             }
         }
-
-        for (k = 0; k < nm; k++)
+        else
         {
-            uint32_t j = mbuf[k];
-            DIVIDE_RESIEVED_PRIME_2(j);
-        }
+            __m512i vidx = _mm512_add_epi32(_mm512_set1_epi32(sconf->factor_base->med_B),
+                _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15));
+            __m512i v16 = _mm512_set1_epi32(16);
+            // fb indices of the matching primes, in ascending order;
+            // divided out in batches of 64
+            ALIGNED_MEM uint32_t mbuf[64 + 16];
+            uint32_t nm = 0, k;
 
-        for ( ; i < sconf->factor_base->fb_blk8i; i++)
-        {
-            prime = fbc->prime[i];
-            root1 = fbc->root1[i];
-            root2 = fbc->root2[i];
-
-            // these primes are all > blocksize, so we only need one step
-            tmp = block_loc + prime - 32768;
-            if (tmp == root1 || tmp == root2)
+            for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
             {
-                DIVIDE_ONE_PRIME;
+                __m512i vprime = _mm512_load_si512(fbc->prime + i);
+                __m512i vroot1 = _mm512_load_si512(fbc->root1 + i);
+                __m512i vroot2 = _mm512_load_si512(fbc->root2 + i);
+                __mmask16 msk;
+
+                vprime = _mm512_add_epi32(vprime, vblockloc);
+                msk = _mm512_cmpeq_epu32_mask(vprime, vroot1) |
+                    _mm512_cmpeq_epu32_mask(vprime, vroot2);
+                nm = direct_cstore16(mbuf, nm, msk, vidx, kmode);
+                vidx = _mm512_add_epi32(vidx, v16);
+
+                if (nm >= 64)
+                {
+                    for (k = 0; k < nm; k++)
+                    {
+                        uint32_t j = mbuf[k];
+                        DIVIDE_RESIEVED_PRIME_2(j);
+                    }
+                    nm = 0;
+                }
+            }
+
+            for (k = 0; k < nm; k++)
+            {
+                uint32_t j = mbuf[k];
+                DIVIDE_RESIEVED_PRIME_2(j);
             }
         }
 
-#elif 1
-        uint32_t bound = sconf->factor_base->fb_blk8i;
-        __m512i vblockloc = _mm512_set1_epi32(block_loc - 32768);
-
-        for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
-        {
-            __m512i vprime, vroot1, vroot2;
-            uint32_t msk_2;
-            int pos;
-
-            vprime = _mm512_load_si512(fbc->prime + i);
-            vroot1 = _mm512_load_si512(fbc->root1 + i);
-            vroot2 = _mm512_load_si512(fbc->root2 + i);
-
-            vprime = _mm512_add_epi32(vprime, vblockloc);
-
-            msk_2 = _mm512_cmpeq_epu32_mask(vprime, vroot1) | 
-                _mm512_cmpeq_epu32_mask(vprime, vroot2);
-
-            while (msk_2 > 0) {
-                pos = _trail_zcnt(msk_2);
-                DIVIDE_RESIEVED_PRIME(pos);
-                msk_2 = _reset_lsb(msk_2);
-            }
-        }
-
-        for ( ; i < sconf->factor_base->fb_blk8i; i++)
+        for ( ; i < bound; i++)
         {
             prime = fbc->prime[i];
             root1 = fbc->root1[i];
             root2 = fbc->root2[i];
 
-            // these primes are all > blocksize, so we only need one step
+            // these primes are all > blocksize, so we only need one step:
+            // advance the offset to where it should be after the block, and
+            // check whether either root is there now.  If so, this offset is
+            // on the progression of the sieve for this prime.
             tmp = block_loc + prime - 32768;
-
-            // tmp = advance the offset to where it should be after the interval, and
-            // check to see if that's where either of the roots are now.  if so, then
-            // this offset is on the progression of the sieve for this prime
             if (tmp == root1 || tmp == root2)
             {
                 //it will divide Q(x).  do so as many times as we can.
                 DIVIDE_ONE_PRIME;
             }
         }
-
-#else
-
-        for (i = sconf->factor_base->med_B; i < sconf->factor_base->fb_blk8i; i++)
-        {
-            prime = fbc->prime[i];
-            root1 = fbc->root1[i];
-            root2 = fbc->root2[i];
-
-            // distance from this sieve block offset to the end of the L2-block
-            // tmp = 32768 - block_loc;
-            // tmp = 1 + (tmp / prime); // divide(tmp, fullfb_ptr->inv32[i], fullfb_ptr->corr32[i], fullfb_ptr->shift32[i]);
-            // tmp = block_loc + tmp * prime;
-            // tmp = tmp - 32768;
-            // these primes are all > blocksize, so we only need one step
-            tmp = block_loc + prime - 32768;
-
-            // tmp = advance the offset to where it should be after the interval, and
-            // check to see if that's where either of the roots are now.  if so, then
-            // this offset is on the progression of the sieve for this prime
-            if (tmp == root1 || tmp == root2)
-            {
-                //it will divide Q(x).  do so as many times as we can.
-                //DIVIDE_RESIEVED_PRIME_2(i);
-                DIVIDE_ONE_PRIME;
-            }
-        }
-
-#endif
 
         dconf->smooth_num[report_num] = smooth_num;
     }
 
     return;
+}
+
+void tdiv_large_32k_avx2_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdiv_large_body(parity, poly_id, bnum, sconf, dconf, SIQS_K_BITLOOP);
+}
+
+void tdiv_large_32k_avx2_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdiv_large_body(parity, poly_id, bnum, sconf, dconf, SIQS_K_CREG);
+}
+
+void tdiv_large_32k_avx2_cmem(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdiv_large_body(parity, poly_id, bnum, sconf, dconf, SIQS_K_CMEM);
 }
 #endif
 
@@ -1419,8 +1397,10 @@ static void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
 // nextB and nextRoots both read the gray code entry for dconf->numB, which
 // is what we use here.  With sieve == NULL (last poly of this 'a') only the
 // resieve is done; the roots are left as they are.
-void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t* dconf,
-    uint8_t* sieve)
+// kmode (constant in each wrapper below) is the scatter kernel for the
+// next poly's hits (see direct_scatter16).
+SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve, const int kmode)
 {
     fb_list* fb = sconf->factor_base;
     direct_pool_t* pool = dconf->dpool;
@@ -1458,12 +1438,8 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
     // bitmap gathers otherwise (4 gathers per 16 primes regardless).
     int use_cmp = resieve && (pool->num <= DIRECT_CMP_MAX_SURVIVORS);
     uint32_t nsp = 0;   // pos-side survivors: pool->pos[0, nsp) < interval
-#if DIRECT_SCATTER_MODE >= 2
     ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
-    uint32_t nc = 0;
-#elif DIRECT_SCATTER_MODE == 1
-    uint32_t sink = 0;
-#endif
+    uint32_t nc = 0, sink = 0;
 
     if ((sieve == NULL) && (!resieve))
         return;
@@ -1647,71 +1623,14 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
         _mm512_storeu_si512(fr2 + j, vroot2);
 
         // sieve the next poly's roots, both sides (as pass 1)
-#if DIRECT_SCATTER_MODE >= 2
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
-        nc = direct_compress16(cbuf, nc, interval, vroot1, vroot2,
-            _mm512_sub_epi32(vprime, vroot1), _mm512_sub_epi32(vprime, vroot2), logp);
-        if (nc >= DIRECT_CBUF_FLUSH)
-        {
-            direct_compress_flush(sieve, cbuf, nc);
-            nc = 0;
-        }
-#elif DIRECT_SCATTER_MODE == 1
-        // approximate the next 16 logp's as equal to the largest
-        logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
-        direct_sink_scatter16(sieve, interval, vroot1, vroot2,
-            _mm512_sub_epi32(vprime, vroot1), _mm512_sub_epi32(vprime, vroot2),
-            logp, &sink);
-#else
-        {
-            __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
-            __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
-            uint32_t m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
-            uint32_t m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
-            uint32_t m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
-            uint32_t m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
-            int pos;
-
-            if ((m1 | m2 | m3 | m4) == 0)
-                continue;
-
-            // approximate the next 16 logp's as equal to the largest
-            logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
-
-            _mm512_store_si512(r_1, vroot1);
-            _mm512_store_si512(r_2, vroot2);
-            _mm512_store_si512(n_1, vnroot1);
-            _mm512_store_si512(n_2, vnroot2);
-
-            while (m1 > 0) {
-                pos = _trail_zcnt(m1);
-                sieve[r_1[pos]] -= logp;
-                m1 = _reset_lsb(m1);
-            }
-            while (m2 > 0) {
-                pos = _trail_zcnt(m2);
-                sieve[r_2[pos]] -= logp;
-                m2 = _reset_lsb(m2);
-            }
-            while (m3 > 0) {
-                pos = _trail_zcnt(m3);
-                sieven[n_1[pos]] -= logp;
-                m3 = _reset_lsb(m3);
-            }
-            while (m4 > 0) {
-                pos = _trail_zcnt(m4);
-                sieven[n_2[pos]] -= logp;
-                m4 = _reset_lsb(m4);
-            }
-        }
-#endif
+        direct_scatter16(sieve, interval, vprime, vroot1, vroot2, logp, kmode,
+            cbuf, &nc, &sink);
     }
 
-#if DIRECT_SCATTER_MODE >= 2
     // nc stays 0 when sieve == NULL
     direct_compress_flush(sieve, cbuf, nc);
-#endif
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < bound; j++, ptr++)
@@ -1757,6 +1676,30 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
     }
 
     return;
+}
+
+void direct_resieve_update_largeprimes_32k_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve)
+{
+    direct_resieve_update_body(sconf, dconf, sieve, SIQS_K_BITLOOP);
+}
+
+void direct_resieve_update_largeprimes_32k_sink(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve)
+{
+    direct_resieve_update_body(sconf, dconf, sieve, SIQS_K_SINK);
+}
+
+void direct_resieve_update_largeprimes_32k_creg(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve)
+{
+    direct_resieve_update_body(sconf, dconf, sieve, SIQS_K_CREG);
+}
+
+void direct_resieve_update_largeprimes_32k_cmem(static_conf_t* sconf, dynamic_conf_t* dconf,
+    uint8_t* sieve)
+{
+    direct_resieve_update_body(sconf, dconf, sieve, SIQS_K_CMEM);
 }
 
 // finalize every survivor of this poly (both sides): copy it into report

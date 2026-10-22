@@ -34,6 +34,8 @@ code to the public domain.
 #define GSTR_MAXSIZE 1024
 #define NUM_ECM_LEVELS 12
 
+#include "siqs_strategy.h"
+
 //#define NO_ZLIB
 
 #if defined( _MSC_VER )
@@ -280,6 +282,13 @@ typedef struct
     int gbl_force_DLP;
     int gbl_force_TLP;
     int gbl_force_QLP;
+
+    // large-prime sieve strategy overrides (SIQS_STRAT_AUTO = 0 = choose
+    // automatically); see the SIQS_MID_* / SIQS_LARGE_* / SIQS_K_* values
+    uint32_t gbl_siqs_mid;          // [med_B, large_B): buckets or sparse sieve
+    uint32_t gbl_siqs_large;        // [large_B, B): buckets or direct sieve
+    uint32_t gbl_siqs_kernel;       // direct sieve scatter kernel
+    uint32_t gbl_siqs_sparse_kernel;// sparse sieve / tdiv_large kernel
 
     int gbl_override_B_flag;
     int gbl_override_small_cutoff_flag;
