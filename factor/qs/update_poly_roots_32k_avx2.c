@@ -3260,7 +3260,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             j = h.stop;
         }
 
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && defined(USE_AVX512F)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
 
 #if defined(TRY_LIST_SIEVE)
@@ -3420,7 +3420,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             j = h.stop;
         }
 
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_L2_SIEVE) && defined(USE_AVX512F)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
 
 #if defined(TRY_LIST_SIEVE)

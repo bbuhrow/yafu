@@ -22,6 +22,36 @@ code to the public domain.
 #include "ytools.h"
 #include "common.h"
 
+// large-prime part of a surviving report's trial division, shared by the
+// scans: divide out the bucket-sieved primes now (while this block's
+// buckets are current); with the direct sieve, park the survivor in the
+// pool for the [large_B, B) resieve and return 1 (the caller skips
+// finalization; direct_finalize_survivors does it later).
+static int siqs_report_lp(uint32_t j, uint8_t parity, uint32_t blocknum,
+	static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+#if defined(TRY_DIRECT_SIEVE)
+	if ((!sconf->lp_direct) || sconf->mid_bucket)
+		tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+	if (sconf->lp_direct)
+	{
+		direct_save_survivor(j, parity, blocknum, sconf, dconf);
+		return 1;
+	}
+	return 0;
+#else
+	tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+	return 0;
+#endif
+}
+
+// the sparse sieve's tdiv for [med_B, fb_blk8i) (empty range when unused)
+#if defined(TRY_SPARSE_SIEVE)
+#define SIQS_SPARSE_TDIV(parity, blocknum) 	tdiv_large_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf)
+#else
+#define SIQS_SPARSE_TDIV(parity, blocknum)
+#endif
+
 //#define SIQSDEBUG 1
 
 /*
@@ -458,6 +488,7 @@ int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity,
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
 	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	SIQS_SPARSE_TDIV(parity, blocknum);
 	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
@@ -466,7 +497,8 @@ int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+				continue;
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -576,6 +608,7 @@ int check_relations_siqs_8_sse2(uint32_t blocknum, uint8_t parity,
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
 	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	SIQS_SPARSE_TDIV(parity, blocknum);
 	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
@@ -584,7 +617,8 @@ int check_relations_siqs_8_sse2(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+				continue;
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -698,6 +732,7 @@ int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
 	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	SIQS_SPARSE_TDIV(parity, blocknum);
 	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
@@ -706,7 +741,8 @@ int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+				continue;
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -771,6 +807,7 @@ int check_relations_siqs_4_avx2(uint32_t blocknum, uint8_t parity,
     //remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	SIQS_SPARSE_TDIV(parity, blocknum);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 
     // factor all reports in this block
@@ -779,7 +816,8 @@ int check_relations_siqs_4_avx2(uint32_t blocknum, uint8_t parity,
         if (dconf->valid_Qs[j])
         {
             dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+				continue;
             trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
         }
     }
@@ -844,6 +882,7 @@ int check_relations_siqs_8_avx2(uint32_t blocknum, uint8_t parity,
     //remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	SIQS_SPARSE_TDIV(parity, blocknum);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 
     // factor all reports in this block
@@ -852,7 +891,8 @@ int check_relations_siqs_8_avx2(uint32_t blocknum, uint8_t parity,
         if (dconf->valid_Qs[j])
         {
             dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+				continue;
             trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
         }
     }
@@ -913,6 +953,7 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
     //remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	SIQS_SPARSE_TDIV(parity, blocknum);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 
     // factor all reports in this block
@@ -921,7 +962,8 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
         if (dconf->valid_Qs[j])
         {
             dconf->total_surviving_reports++;
-            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+				continue;
 
 #if defined( USE_SS_SEARCH ) && defined(USE_POLY_BUCKET_SS)
 

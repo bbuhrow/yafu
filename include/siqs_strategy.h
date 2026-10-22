@@ -13,5 +13,11 @@
 #define SIQS_K_SINK         2   // blend misses to a sink stripe, write all lanes
 #define SIQS_K_CREG         3   // compress in register + unaligned store, batched
 #define SIQS_K_CMEM         4   // compress-store to memory, batched
+// ISA of the large-prime kernels (-siqsLPisa); 0 = best available.  The
+// AVX-512 build also compiles the scalar kernels, so each port can be
+// checked bit-for-bit against the AVX-512 kernels inside one binary.
+#define SIQS_ISA_SCALAR     1
+#define SIQS_ISA_AVX2       2
+#define SIQS_ISA_AVX512     3
 
 #endif

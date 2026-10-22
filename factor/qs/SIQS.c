@@ -2496,18 +2496,10 @@ void* process_poly(void* vptr)
             // minblock is initialized to blockinit - 4.  It depends on this
             // poly's b, so it can't be folded into the fused pass's memset;
             // the sieve is subtractive, so -= 4 now is equivalent.
-            // (explicit avx512: gcc -O2 does not vectorize the byte loop)
             if (minblock < num_blocks)
             {
-                __m512i* mp = (__m512i*)(sieve + minblock * 32768);
-                __m512i* mn = (__m512i*)(sieve + (num_blocks + minblock) * 32768);
-                __m512i v4 = _mm512_set1_epi8(4);
-                int k;
-                for (k = 0; k < 32768 / 64; k++)
-                {
-                    _mm512_store_si512(mp + k, _mm512_sub_epi8(_mm512_load_si512(mp + k), v4));
-                    _mm512_store_si512(mn + k, _mm512_sub_epi8(_mm512_load_si512(mn + k), v4));
-                }
+                direct_block_sub4(sieve + minblock * 32768);
+                direct_block_sub4(sieve + (num_blocks + minblock) * 32768);
             }
             dconf->dpool->num = 0;
 #ifdef SIQS_PROFILE
@@ -3051,7 +3043,7 @@ void* process_poly(void* vptr)
         //if (dconf->numB == 3)
         //    exit(1);
 
-        if (sconf->obj->HAS_AVX512F)
+        if (sconf->obj->HAS_AVX512F && !sconf->lp_portable_roots)
         {
             int bi;
             int cb;
@@ -3129,11 +3121,28 @@ void* process_poly(void* vptr)
         }
         else
         {
+#if defined(TRY_DIRECT_SIEVE)
+            if (sconf->lp_portable_roots)
+            {
+                nextRoots_32k_generic_small(sconf, dconf);
+                nextRoots_32k_lp_portable(sconf, dconf);
+            }
+            else
+#endif
             nextRoots_ptr(sconf, dconf);
         }
 
 #else
         // and update the roots
+#if defined(TRY_DIRECT_SIEVE)
+        if (sconf->lp_portable_roots)
+        {
+            // small primes, then [med_B, B) per the large-prime strategy
+            nextRoots_32k_generic_small(sconf, dconf);
+            nextRoots_32k_lp_portable(sconf, dconf);
+        }
+        else
+#endif
         nextRoots_ptr(sconf, dconf);
 #endif
 
@@ -4395,22 +4404,27 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     uint32_t large = obj->qs_obj.gbl_siqs_large;
     uint32_t kernel = obj->qs_obj.gbl_siqs_kernel;
     uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
-    uint32_t boundary;
+    uint32_t boundary, isa;
 
     if (mid == SIQS_STRAT_AUTO) mid = DIRECT_DEFAULT_MID;
     if (large == SIQS_STRAT_AUTO) large = DIRECT_DEFAULT_LARGE;
     if (kernel == SIQS_STRAT_AUTO) kernel = DIRECT_DEFAULT_KERNEL;
     if (skernel == SIQS_STRAT_AUTO) skernel = DIRECT_DEFAULT_SPARSE_KERNEL;
 
-    // only the avx512 16x scan defers relation finalization to the direct
-    // sieve's survivor pool
-    if ((large == SIQS_LARGE_DIRECT) && (scan_ptr != &check_relations_siqs_16_avx512))
+    // kernel ISA: the best this build and CPU support, or lower if asked
     {
-        if ((obj->qs_obj.gbl_siqs_large == SIQS_LARGE_DIRECT) && (obj->VFLAG > 0))
-            printf("direct sieve needs the AVX-512 16x scan (DLP-sized inputs); "
-                "using the large-prime bucket sieve\n");
-        large = SIQS_LARGE_BUCKET;
+        uint32_t best = SIQS_ISA_SCALAR;
+#if defined(USE_AVX512BW)
+        if (obj->HAS_AVX512BW)
+            best = SIQS_ISA_AVX512;
+#endif
+        isa = obj->qs_obj.gbl_siqs_lp_isa;
+        if ((isa == SIQS_STRAT_AUTO) || (isa > best))
+            isa = best;
+        if (isa == SIQS_ISA_AVX2)       // no AVX2 kernels yet
+            isa = SIQS_ISA_SCALAR;
     }
+
     if (skernel == SIQS_K_SINK)
     {
         if (obj->VFLAG > 0)
@@ -4422,6 +4436,19 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     sconf->mid_bucket = (mid == SIQS_MID_BUCKET);
     sconf->lp_kernel = kernel;
     sconf->sparse_kernel = skernel;
+    sconf->lp_isa = isa;
+
+    // per-poly root updates for [med_B, B): the AVX-512 path
+    // (nextRoots_32k_avx2_small + knl medbucket/largebucket) handles every
+    // strategy; elsewhere the stock nextRoots_ptr handles bucket+bucket, and
+    // the portable version everything else.  Scalar kernels in the AVX-512
+    // build also use the portable version, to exercise it.
+#if defined(USE_AVX512F)
+    if (obj->HAS_AVX512F)
+        sconf->lp_portable_roots = (isa == SIQS_ISA_SCALAR);
+    else
+#endif
+        sconf->lp_portable_roots = (sconf->lp_direct || !sconf->mid_bucket);
 
     // [med_B, fb_blk8i) sparse sieve, [fb_blk8i, large_B) mid buckets,
     // [large_B, B) direct or large buckets.  fb_blk8i = med_B empties every
@@ -4434,6 +4461,31 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     fb->large_B = boundary;
     fb->fb_blk8i = sconf->mid_bucket ? fb->med_B : boundary;
 
+    if (isa == SIQS_ISA_SCALAR)
+    {
+        // scalar kernels: creg / cmem both mean the branch-free append
+        large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ?
+            &large_sieveblock_scalar_bitloop : &large_sieveblock_scalar_append;
+        tdiv_large_ptr = &tdiv_large_scalar;
+        switch (kernel)
+        {
+        case SIQS_K_BITLOOP:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_scalar_bitloop;
+            direct_resieve_update_ptr = &direct_resieve_update_scalar_bitloop;
+            break;
+        case SIQS_K_SINK:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_scalar_sink;
+            direct_resieve_update_ptr = &direct_resieve_update_scalar_sink;
+            break;
+        default:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_scalar_append;
+            direct_resieve_update_ptr = &direct_resieve_update_scalar_append;
+            break;
+        }
+        return;
+    }
+
+#if defined(USE_AVX512BW)
     switch (skernel)
     {
     case SIQS_K_BITLOOP:
@@ -4469,6 +4521,7 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         direct_resieve_update_ptr = &direct_resieve_update_largeprimes_32k_cmem;
         break;
     }
+#endif
 }
 #endif
 

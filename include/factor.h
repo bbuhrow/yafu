@@ -289,6 +289,7 @@ typedef struct
     uint32_t gbl_siqs_large;        // [large_B, B): buckets or direct sieve
     uint32_t gbl_siqs_kernel;       // direct sieve scatter kernel
     uint32_t gbl_siqs_sparse_kernel;// sparse sieve / tdiv_large kernel
+    uint32_t gbl_siqs_lp_isa;       // ISA of those kernels (SIQS_ISA_*)
 
     int gbl_override_B_flag;
     int gbl_override_small_cutoff_flag;

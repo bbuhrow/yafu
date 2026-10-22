@@ -1727,6 +1727,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_siqs_large = options->siqsLarge;
     fobj->qs_obj.gbl_siqs_kernel = options->siqsKernel;
     fobj->qs_obj.gbl_siqs_sparse_kernel = options->siqsSparseKernel;
+    fobj->qs_obj.gbl_siqs_lp_isa = options->siqsLPisa;
     fobj->qs_obj.gbl_override_blocks_flag = (options->siqsNB > 0);
     fobj->qs_obj.gbl_override_blocks = options->siqsNB;
     fobj->qs_obj.gbl_override_lpmult_flag = (options->siqsM > 0);

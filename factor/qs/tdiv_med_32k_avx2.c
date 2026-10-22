@@ -913,7 +913,7 @@ void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
-#if defined(TRY_DIRECT_SIEVE)
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512BW)
 // AVX-512 only (despite the name): the sparse-sieve tdiv for [med_B,
 // fb_blk8i).  kmode (constant in each wrapper below) picks how matching
 // lanes are visited: SIQS_K_BITLOOP loops over the mask bits, CREG / CMEM
@@ -1259,134 +1259,9 @@ void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
-#if defined(TRY_DIRECT_SIEVE)
-// survivor pool for the direct interval sieve (see direct_sieve.md).
-// Scan survivors of every block of both sides are parked here until the
-// [large_B, B) resieve (pass 2) has divided them, then finalized.
-
-direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
-{
-    direct_pool_t* pool = (direct_pool_t*)xmalloc(sizeof(direct_pool_t));
-    uint32_t i;
-
-    pool->num = 0;
-    pool->alloc = 1024;
-    pool->interval = num_blocks << 15;
-    pool->pos = (uint32_t*)xmalloc(pool->alloc * sizeof(uint32_t));
-    pool->Q = (mpz_t*)xmalloc(pool->alloc * sizeof(mpz_t));
-    for (i = 0; i < pool->alloc; i++)
-        mpz_init(pool->Q[i]);
-    pool->smooth_num = (int*)xmalloc(pool->alloc * sizeof(int));
-    pool->fb_offsets = (uint32_t*)xmalloc(
-        (size_t)pool->alloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
-
-    // one bit per position of both intervals; must start (and is kept) zero
-    pool->bitmap = (uint64_t*)xmalloc(2 * pool->interval / 8);
-    memset(pool->bitmap, 0, 2 * pool->interval / 8);
-
-    return pool;
-}
-
-void direct_pool_free(direct_pool_t* pool)
-{
-    uint32_t i;
-
-    for (i = 0; i < pool->alloc; i++)
-        mpz_clear(pool->Q[i]);
-    free(pool->Q);
-    free(pool->pos);
-    free(pool->smooth_num);
-    free(pool->fb_offsets);
-    free(pool->bitmap);
-    free(pool);
-
-    return;
-}
-
-static void direct_pool_grow(direct_pool_t* pool)
-{
-    uint32_t i, newalloc = 2 * pool->alloc;
-
-    pool->pos = (uint32_t*)xrealloc(pool->pos, newalloc * sizeof(uint32_t));
-    pool->Q = (mpz_t*)xrealloc(pool->Q, newalloc * sizeof(mpz_t));
-    for (i = pool->alloc; i < newalloc; i++)
-        mpz_init(pool->Q[i]);
-    pool->smooth_num = (int*)xrealloc(pool->smooth_num, newalloc * sizeof(int));
-    pool->fb_offsets = (uint32_t*)xrealloc(pool->fb_offsets,
-        (size_t)newalloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
-    pool->alloc = newalloc;
-
-    return;
-}
-
-// move scan survivor report_num of block bnum, side parity, into the pool.
-// Called in scan order, so pool->pos stays sorted.
-void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf)
-{
-    direct_pool_t* pool = dconf->dpool;
-    uint32_t k, pos;
-    int smooth_num = dconf->smooth_num[report_num];
-
-    (void)sconf;
-
-    if (pool->num == pool->alloc)
-        direct_pool_grow(pool);
-
-    k = pool->num++;
-    pos = parity * pool->interval + (bnum << 15) + dconf->reports[report_num];
-    pool->pos[k] = pos;
-    mpz_swap(pool->Q[k], dconf->Qvals[report_num]);
-    pool->smooth_num[k] = smooth_num;
-    if (smooth_num >= 0)
-        memcpy(&pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
-            dconf->fb_offsets[report_num], (smooth_num + 1) * sizeof(uint32_t));
-    pool->bitmap[pos >> 6] |= (1ULL << (pos & 63));
-
-    return;
-}
-
-// a root of fb prime fbi hit interval position pos: if a survivor sits
-// there, divide it out (guarded: a wrong hit can only waste a tdiv_ui).
-static void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
-    uint32_t fbi, uint32_t prime)
-{
-    int lo, hi, mid, k;
-    int smooth_num;
-    uint32_t* fb_offsets;
-
-    if ((pool->bitmap[pos >> 6] & (1ULL << (pos & 63))) == 0)
-        return;
-
-    // binary search the sorted pool for this position
-    lo = 0;
-    hi = (int)pool->num - 1;
-    k = -1;
-    while (lo <= hi)
-    {
-        mid = (lo + hi) >> 1;
-        if (pool->pos[mid] == pos) { k = mid; break; }
-        if (pool->pos[mid] < pos) lo = mid + 1;
-        else hi = mid - 1;
-    }
-    if (k < 0)
-        return;
-
-    if ((mpz_sgn(pool->Q[k]) == 0) || (mpz_tdiv_ui(pool->Q[k], prime) != 0))
-        return;
-
-    smooth_num = pool->smooth_num[k];
-    fb_offsets = &pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES];
-    do
-    {
-        if (smooth_num < (MAX_SMOOTH_PRIMES - 1))
-            fb_offsets[++smooth_num] = fbi;
-        mpz_tdiv_q_ui(pool->Q[k], pool->Q[k], prime);
-    } while (mpz_tdiv_ui(pool->Q[k], prime) == 0);
-    pool->smooth_num[k] = smooth_num;
-
-    return;
-}
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512BW)
+// (the survivor pool, direct_resieve_hit and direct_finalize_survivors are
+// in direct_sieve.c)
 
 // fused pass of the direct interval sieve: for every prime in [large_B, B),
 // resieve both sides with the CURRENT poly's roots (the same values that
@@ -1702,40 +1577,6 @@ void direct_resieve_update_largeprimes_32k_cmem(static_conf_t* sconf, dynamic_co
     direct_resieve_update_body(sconf, dconf, sieve, SIQS_K_CMEM);
 }
 
-// finalize every survivor of this poly (both sides): copy it into report
-// slot 0 of the scan arrays and run the normal finalization.  Must run
-// before nextB (trial_divide_Q_siqs uses curr_poly).  Leaves the pool
-// empty and its bitmap zeroed.
-void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
-{
-    direct_pool_t* pool = dconf->dpool;
-    uint32_t interval = pool->interval;
-    uint32_t k;
-
-    for (k = 0; k < pool->num; k++)
-    {
-        uint32_t pos = pool->pos[k];
-        uint8_t side = (pos >= interval) ? 1 : 0;
-        uint32_t loc = pos - side * interval;
-        int smooth_num = pool->smooth_num[k];
-
-        pool->bitmap[pos >> 6] &= ~(1ULL << (pos & 63));
-
-        mpz_swap(dconf->Qvals[0], pool->Q[k]);
-        dconf->smooth_num[0] = smooth_num;
-        if (smooth_num >= 0)
-            memcpy(dconf->fb_offsets[0], &pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
-                (smooth_num + 1) * sizeof(uint32_t));
-        dconf->reports[0] = loc & 32767;
-        dconf->valid_Qs[0] = 1;
-
-        trial_divide_Q_siqs(0, side, dconf->numB - 1, loc >> 15, sconf, dconf);
-    }
-
-    pool->num = 0;
-
-    return;
-}
 #endif
 
 #endif // USE_AVX2

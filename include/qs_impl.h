@@ -85,11 +85,12 @@
 // new largep bucket sorting idea
 // #define TRY_COMPRESS_SORT_LARGEP 1
 
-// The experimental sieves below (L2 / sparse / list / direct) have only
-// AVX-512F/BW implementations so far.  Lower-ISA builds compile the stock
-// bucket sieve instead.  -DSIQS_NO_EXPERIMENTAL_SIEVES builds the stock
-// sieve at any ISA (a reference for the bucket+bucket strategy).
-#if defined(USE_AVX512F) && defined(USE_AVX512BW) && !defined(SIQS_NO_EXPERIMENTAL_SIEVES)
+// The experimental sieves below (L2 / sparse / list / direct) are compiled
+// at every ISA level; the large-prime strategy and its kernels (AVX-512 or
+// portable scalar) are chosen at run time.  -DSIQS_NO_EXPERIMENTAL_SIEVES
+// builds the stock bucket sieve only (a reference for the bucket+bucket
+// strategy).
+#if !defined(SIQS_NO_EXPERIMENTAL_SIEVES)
 #define SIQS_EXPERIMENTAL_SIEVES
 #endif
 
@@ -142,9 +143,6 @@
 #endif
 #if defined(USE_SS_SEARCH) || defined(USE_BATCHPOLY) || defined(USE_XLBATCHPOLY)
 #error "TRY_DIRECT_SIEVE is not compatible with SS search or batch polys"
-#endif
-#if !defined(USE_AVX512F) || !defined(USE_AVX512BW)
-#error "TRY_DIRECT_SIEVE requires USE_AVX512F and USE_AVX512BW"
 #endif
 // added to the logp the direct sieve uses for [large_B, B).  The bucket
 // sieve uses one logp per slice, the logp of the slice's last prime, so it
@@ -651,6 +649,9 @@ typedef struct {
     int mid_bucket;             // 1: [med_B, large_B) buckets, 0: sparse sieve
     int lp_kernel;              // SIQS_K_* for the direct scatter
     int sparse_kernel;          // SIQS_K_* for the sparse sieve / tdiv_large
+    int lp_isa;                 // SIQS_ISA_* of those kernels
+    int lp_portable_roots;      // 1: per-poly roots via nextRoots_32k_generic_small
+                                // + nextRoots_32k_lp_portable
 
     uint32_t tf_small_cutoff;		// bit level to determine whether to bail early from tf
     uint32_t tf_closnuf;			// subject anything sieved beyond this to tf
@@ -992,8 +993,6 @@ void direct_sieve_largeprimes_32k_cmem(uint8_t* sieve, static_conf_t* sconf, dyn
 extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
 
 #if defined(TRY_DIRECT_SIEVE)
-#include <immintrin.h>
-
 #if defined(_MSC_VER) && !defined(__clang__)
 #define SIQS_FORCEINLINE static __forceinline
 #else
@@ -1003,6 +1002,39 @@ extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_co
 // buffer size for the compress kernels: a flush threshold plus room for one
 // more 16-prime group (64 entries) and the last unaligned store's 16-lane tail
 #define DIRECT_CBUF_SIZE (DIRECT_CBUF_FLUSH + 80)
+
+// sieve the buffered hits ((logp << 24) | position entries)
+static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, uint32_t n)
+{
+    uint32_t k;
+    for (k = 0; k < n; k++)
+    {
+        uint32_t e = buf[k];
+        sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
+    }
+}
+
+// portable parts (direct_sieve.c)
+void direct_resieve_hit(direct_pool_t* pool, uint32_t pos, uint32_t fbi, uint32_t prime);
+void direct_block_sub4(uint8_t* blk);
+void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_scalar_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_scalar_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_scalar_append(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_scalar_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_scalar_sink(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_scalar_append(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void large_sieveblock_scalar_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_scalar_append(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+#endif
+
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512BW)
+#include <immintrin.h>
 
 // append the lanes of v selected by m to buf[n...]; returns the new count.
 // kmode (a compile-time constant at every call site) picks the form:
@@ -1042,16 +1074,6 @@ SIQS_FORCEINLINE uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t 
     return direct_cstore16(buf, n, m4, v4, kmode);
 }
 
-// sieve the buffered hits
-static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, uint32_t n)
-{
-    uint32_t k;
-    for (k = 0; k < n; k++)
-    {
-        uint32_t e = buf[k];
-        sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
-    }
-}
 // sink-stripe scatter of 16 primes' 4 root vectors into both intervals
 // (pos side sieve[0, interval), neg side sieve[interval, 2*interval)).
 // vroot = pos-side roots, vnroot = p - root (neg-side offsets).  Every lane
