@@ -6,7 +6,7 @@ errors.
 ----------------------------------------------------------------------*/
 
 // AVX2 kernels for the large-prime strategies (see direct_sieve.c for the
-// scalar versions and med_sieve_32k_avx2.c / tdiv_med_32k_avx2.c for the
+// scalar versions and direct_sieve_avx512.c for the
 // AVX-512 ones).  Each 16-prime group is handled as two 8-lane halves, so
 // the logp approximation and fb boundaries match the other ISAs, and hits
 // and divisions are visited in the same order as the AVX-512 kernels: all

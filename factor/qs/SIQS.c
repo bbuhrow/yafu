@@ -4607,36 +4607,36 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     switch (skernel)
     {
     case SIQS_K_BITLOOP:
-        large_sieveblock_ptr = &large_sieveblock_32k_avx512bw_bitloop;
-        tdiv_large_ptr = &tdiv_large_32k_avx2_bitloop;
+        large_sieveblock_ptr = &large_sieveblock_avx512_bitloop;
+        tdiv_large_ptr = &tdiv_large_avx512_bitloop;
         break;
     case SIQS_K_CREG:
-        large_sieveblock_ptr = &large_sieveblock_32k_avx512bw_creg;
-        tdiv_large_ptr = &tdiv_large_32k_avx2_creg;
+        large_sieveblock_ptr = &large_sieveblock_avx512_creg;
+        tdiv_large_ptr = &tdiv_large_avx512_creg;
         break;
     default:
-        large_sieveblock_ptr = &large_sieveblock_32k_avx512bw_cmem;
-        tdiv_large_ptr = &tdiv_large_32k_avx2_cmem;
+        large_sieveblock_ptr = &large_sieveblock_avx512_cmem;
+        tdiv_large_ptr = &tdiv_large_avx512_cmem;
         break;
     }
 
     switch (kernel)
     {
     case SIQS_K_BITLOOP:
-        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_32k_bitloop;
-        direct_resieve_update_ptr = &direct_resieve_update_largeprimes_32k_bitloop;
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_bitloop;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_bitloop;
         break;
     case SIQS_K_SINK:
-        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_32k_sink;
-        direct_resieve_update_ptr = &direct_resieve_update_largeprimes_32k_sink;
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_sink;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_sink;
         break;
     case SIQS_K_CREG:
-        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_32k_creg;
-        direct_resieve_update_ptr = &direct_resieve_update_largeprimes_32k_creg;
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_creg;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_creg;
         break;
     default:
-        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_32k_cmem;
-        direct_resieve_update_ptr = &direct_resieve_update_largeprimes_32k_cmem;
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_cmem;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_cmem;
         break;
     }
 #endif

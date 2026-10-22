@@ -285,7 +285,7 @@ SIQS_FORCEINLINE void direct_scatter16_scalar(uint8_t* sieve, uint32_t interval,
     }
 }
 
-// direct pass 1 (see direct_sieve_largeprimes_body in med_sieve_32k_avx2.c)
+// direct pass 1 (see direct_sieve_largeprimes_body in direct_sieve_avx512.c)
 SIQS_FORCEINLINE void direct_sieve_largeprimes_scalar_body(uint8_t* sieve,
     static_conf_t* sconf, dynamic_conf_t* dconf, const int kmode)
 {
@@ -339,7 +339,7 @@ void direct_sieve_largeprimes_scalar_append(uint8_t* sieve, static_conf_t* sconf
 }
 
 // fused resieve / root update / next-poly scatter (see
-// direct_resieve_update_body in tdiv_med_32k_avx2.c).  Hits are tested in
+// direct_resieve_update_body in direct_sieve_avx512.c).  Hits are tested in
 // the AVX-512 order (per 16-group: pos root1 lanes, pos root2 lanes, neg
 // root1, neg root2), so survivors' fb_offsets come out identical.
 SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
@@ -491,7 +491,7 @@ void direct_resieve_update_scalar_append(static_conf_t* sconf, dynamic_conf_t* d
 }
 
 // sparse sieve of one 32k block for fb [med_B, fb_blk8i) (see
-// large_sieveblock_body in med_sieve_32k_avx2.c): every prime is > 32768
+// large_sieveblock_body in direct_sieve_avx512.c): every prime is > 32768
 // and root1 <= root2, so each root hits the block at most once.
 SIQS_FORCEINLINE void large_sieveblock_scalar_body(uint8_t* sieve, sieve_fb* fb,
     fb_list* full_fb, const int kmode)
@@ -594,7 +594,7 @@ void large_sieveblock_scalar_append(uint8_t* sieve, sieve_fb* fb, fb_list* full_
 }
 
 // the sparse-sieve tdiv for [med_B, fb_blk8i) (see tdiv_large_body in
-// tdiv_med_32k_avx2.c): guarded divisions for the 16-groups, in ascending
+// direct_sieve_avx512.c): guarded divisions for the 16-groups, in ascending
 // fb index order, then the AVX-512 version's scalar tail.
 void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)

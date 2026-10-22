@@ -100,8 +100,7 @@ extension, an NB cap, and two bug fixes found along the way.
 
 | file | content | compiled when |
 |---|---|---|
-| `factor/qs/med_sieve_32k_avx2.c` | AVX-512 sparse sieve, `large_sieveblock_body` :1135; direct pass 1, `direct_sieve_largeprimes_body` :1503 | `USE_AVX512BW` |
-| `factor/qs/tdiv_med_32k_avx2.c` | AVX-512 `tdiv_large_body` :923; fused pass `direct_resieve_update_body` :1277 (prefilter :1389, bitmap gather :1436) | `USE_AVX512BW` |
+| `factor/qs/direct_sieve_avx512.c` | AVX-512 kernels: helpers `direct_cstore16` :36 / `direct_sink_scatter16` :77 / `direct_scatter16` :128; pass 1 :207; fused :284 (prefilter :389, bitmap gather :438); sparse :596; tdiv :760 | `USE_AVX512BW` |
 | `factor/qs/direct_sieve_avx2.c` | AVX2 kernels: scatter :72, resieve test `direct_rs8` :243, fused :266, sparse :467, tdiv :572, sparse root update :679 | `USE_AVX2` (AVX2 and AVX-512 builds) |
 | `factor/qs/direct_sieve_v4.h` | 4-lane template: scatter :72, fused :201, sparse :363, tdiv :470, root update :576 | included by the next two |
 | `factor/qs/direct_sieve_sse41.c` | SSE4.1 backend (pshufb compress) | `USE_SSE41` |
@@ -117,8 +116,11 @@ extension, an NB cap, and two bug fixes found along the way.
   - `SIQS_FORCEINLINE` :1004
   - `direct_compress_flush` :1014
   - `siqs_ctz32` / `siqs_popcnt32` (portable; MSVC has no builtins)
-  - AVX-512 `direct_cstore16` :1098, `direct_sink_scatter16` :1139,
-    `direct_scatter16` :1190
+- **Kernel names** are `<kernel>_<isa>_<mode>`, e.g.
+  `direct_resieve_update_avx512_cmem`, `tdiv_large_avx2_creg` (4-lane:
+  `<kernel>_<mode>_<sfx>`). The AVX-512 kernels were moved out of
+  `med_sieve_32k_avx2.c` / `tdiv_med_32k_avx2.c` and renamed from
+  `*_32k_*` / `tdiv_large_32k_avx2_*` after `ce6f673`.
 - **4-lane prototypes** are declared through `SIQS_DECLARE_V4_KERNELS(sfx)`
   (`qs_impl.h:1067`). `SIQS_HAVE_NEON_KERNELS` is set at :1087.
 
@@ -288,7 +290,7 @@ tools/build_matrix.sh avx512 avx512neonemu
 ```
 
 ```bash
-tools/bench_matrix.sh -i c77 -o /tmp/chk.csv a=~/yafu_matrix/avx512/yafu "v2=~/yafu_matrix/avx512/yafu,-siqsLPisa avx2" "v4=~/yafu_matrix/avx512/yafu,-siqsLPisa sse41" "s=~/yafu_matrix/avx512/yafu,-siqsLPisa scalar" "n=~/yafu_matrix/avx512neonemu/yafu,-siqsLPisa neon"
+tools/bench_matrix.sh -i c77 -o /tmp/chk.csv a=~/yafu_matrix/avx512/yafu "v2=~/yafu_matrix/avx512/yafu,-siqsLPisa avx2" "v4=~/yafu_matrix/avx512/yafu,-siqsLPisa sse41 -siqsMid sparse" "s=~/yafu_matrix/avx512/yafu,-siqsLPisa scalar -siqsMid sparse" "n=~/yafu_matrix/avx512neonemu/yafu,-siqsLPisa neon -siqsMid sparse"
 ```
 
 ```bash
@@ -296,7 +298,9 @@ python3 tools/bench_summary.py /tmp/chk.csv
 ```
 
 These pass the `-siqsNB 4` default, so the NB cap doesn't apply. All
-variants must show 89994 polys and 4698192 touched.
+variants must show 89994 polys and 4698192 touched. The 4-lane and scalar
+variants need `-siqsMid sparse`, because their default mid range is bucket
+(87317 polys).
 
 ---
 

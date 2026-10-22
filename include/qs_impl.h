@@ -963,12 +963,6 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     uint32_t start_prime, uint8_t s_init);
 void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
-void large_sieveblock_32k_avx512bw_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
-    uint32_t start_prime, uint8_t s_init);
-void large_sieveblock_32k_avx512bw_creg(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
-    uint32_t start_prime, uint8_t s_init);
-void large_sieveblock_32k_avx512bw_cmem(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
-    uint32_t start_prime, uint8_t s_init);
 // the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
 extern void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
 list_sieve_ctx_t* list_sieve_alloc_32k(uint32_t start, uint32_t stop, uint32_t numblocks);
@@ -976,10 +970,6 @@ void list_sieve_free_32k(list_sieve_ctx_t* ctx);
 void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
     sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
-void direct_sieve_largeprimes_32k_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
-void direct_sieve_largeprimes_32k_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
-void direct_sieve_largeprimes_32k_creg(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
-void direct_sieve_largeprimes_32k_cmem(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
 // direct sieve pass 1, selected by sconf->lp_kernel
 extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
 
@@ -1044,6 +1034,28 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf);
 // (nextRoots_32k_lp_portable or nextRoots_32k_lp_avx2)
 extern void (*nextRoots_lp_ptr)(static_conf_t*, dynamic_conf_t*);
 
+// AVX-512 kernels (direct_sieve_avx512.c; AVX-512BW builds)
+void direct_sieve_largeprimes_avx512_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx512_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx512_creg(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx512_cmem(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_avx512_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx512_sink(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx512_creg(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx512_cmem(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void large_sieveblock_avx512_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_avx512_creg(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_avx512_cmem(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void tdiv_large_avx512_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_avx512_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_avx512_cmem(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+
 // AVX2 kernels (direct_sieve_avx2.c; AVX2 and AVX-512 builds)
 void direct_avx2_init(void);
 void direct_sieve_largeprimes_avx2_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
@@ -1086,173 +1098,6 @@ SIQS_DECLARE_V4_KERNELS(neon)
 #if defined(SIQS_NEON_EMU) || (defined(__aarch64__) && defined(__ARM_NEON))
 #define SIQS_HAVE_NEON_KERNELS
 #endif
-#endif
-
-#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512BW)
-#include <immintrin.h>
-
-// append the lanes of v selected by m to buf[n...]; returns the new count.
-// kmode (a compile-time constant at every call site) picks the form:
-// SIQS_K_CREG compresses in a register and stores the whole vector (buf
-// must have 16 entries of room past n), anything else uses compressstoreu.
-SIQS_FORCEINLINE uint32_t direct_cstore16(uint32_t* buf, uint32_t n, __mmask16 m, __m512i v,
-    const int kmode)
-{
-    if (kmode == SIQS_K_CREG)
-        _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m, v));
-    else
-        _mm512_mask_compressstoreu_epi32(buf + n, m, v);
-    return n + _mm_popcnt_u32(m);
-}
-
-// append the in-range lanes of 16 primes' 4 root vectors to buf[n...] as
-// (logp << 24) | sieve position (pos side r, neg side interval + p - r;
-// 2*interval < 2^24).  Returns the new count.
-SIQS_FORCEINLINE uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t interval,
-    __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2, uint8_t logp,
-    const int kmode)
-{
-    __m512i vint = _mm512_set1_epi32(interval);
-    __m512i vtag = _mm512_set1_epi32((uint32_t)logp << 24);
-    __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
-    __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
-    __mmask16 m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
-    __mmask16 m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
-    __m512i v1 = _mm512_or_epi32(vroot1, vtag);
-    __m512i v2 = _mm512_or_epi32(vroot2, vtag);
-    __m512i v3 = _mm512_or_epi32(_mm512_add_epi32(vnroot1, vint), vtag);
-    __m512i v4 = _mm512_or_epi32(_mm512_add_epi32(vnroot2, vint), vtag);
-
-    n = direct_cstore16(buf, n, m1, v1, kmode);
-    n = direct_cstore16(buf, n, m2, v2, kmode);
-    n = direct_cstore16(buf, n, m3, v3, kmode);
-    return direct_cstore16(buf, n, m4, v4, kmode);
-}
-
-// sink-stripe scatter of 16 primes' 4 root vectors into both intervals
-// (pos side sieve[0, interval), neg side sieve[interval, 2*interval)).
-// vroot = pos-side roots, vnroot = p - root (neg-side offsets).  Every lane
-// is written: lanes outside the interval go to the stripe at
-// sieve[2*interval + 32768 + *sink ...], which is allocated (second tail
-// guard block) and never scanned.  *sink rotates through the stripe so
-// consecutive miss RMWs don't chain through store forwarding.
-SIQS_FORCEINLINE void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
-    __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2,
-    uint8_t logp, uint32_t* sink)
-{
-    ALIGNED_MEM uint32_t idx[64];
-    const __m512i vlane = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7,
-        8, 9, 10, 11, 12, 13, 14, 15);
-    __m512i vint = _mm512_set1_epi32(interval);
-    __m512i vs = _mm512_add_epi32(_mm512_set1_epi32(2 * interval + 32768 + *sink), vlane);
-    __m512i v16 = _mm512_set1_epi32(16);
-    __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
-    __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
-    __mmask16 m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
-    __mmask16 m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
-
-    _mm512_store_si512(idx, _mm512_mask_blend_epi32(m1, vs, vroot1));
-    vs = _mm512_add_epi32(vs, v16);
-    _mm512_store_si512(idx + 16, _mm512_mask_blend_epi32(m2, vs, vroot2));
-    vs = _mm512_add_epi32(vs, v16);
-    _mm512_store_si512(idx + 32, _mm512_mask_blend_epi32(m3, vs,
-        _mm512_add_epi32(vnroot1, vint)));
-    vs = _mm512_add_epi32(vs, v16);
-    _mm512_store_si512(idx + 48, _mm512_mask_blend_epi32(m4, vs,
-        _mm512_add_epi32(vnroot2, vint)));
-
-#define DIRECT_SINK_RMW4(k) \
-    sieve[idx[k]] -= logp; sieve[idx[k + 1]] -= logp; \
-    sieve[idx[k + 2]] -= logp; sieve[idx[k + 3]] -= logp;
-#define DIRECT_SINK_RMW16(k) \
-    DIRECT_SINK_RMW4(k) DIRECT_SINK_RMW4(k + 4) \
-    DIRECT_SINK_RMW4(k + 8) DIRECT_SINK_RMW4(k + 12)
-
-    DIRECT_SINK_RMW16(0);
-    DIRECT_SINK_RMW16(16);
-    DIRECT_SINK_RMW16(32);
-    DIRECT_SINK_RMW16(48);
-
-#undef DIRECT_SINK_RMW16
-#undef DIRECT_SINK_RMW4
-
-    *sink += 64;
-    if (*sink >= DIRECT_SINK_BYTES)
-        *sink = 0;
-}
-
-// scatter one 16-prime group of [large_B, B) into both intervals with
-// kernel kmode (a compile-time constant at each call site): pos hits at r,
-// neg hits at p - r in sieve[interval, 2*interval).  BITLOOP and SINK write
-// at once; CREG / CMEM append to cbuf (count *nc) and sieve it whenever it
-// reaches DIRECT_CBUF_FLUSH, so callers must direct_compress_flush the rest
-// after their loop.  *sink is the sink-stripe rotation (SINK only).
-SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
-    __m512i vprime, __m512i vroot1, __m512i vroot2, uint8_t logp, const int kmode,
-    uint32_t* cbuf, uint32_t* nc, uint32_t* sink)
-{
-    __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
-    __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
-
-    if ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM))
-    {
-        *nc = direct_compress16(cbuf, *nc, interval, vroot1, vroot2,
-            vnroot1, vnroot2, logp, kmode);
-        if (*nc >= DIRECT_CBUF_FLUSH)
-        {
-            direct_compress_flush(sieve, cbuf, *nc);
-            *nc = 0;
-        }
-    }
-    else if (kmode == SIQS_K_SINK)
-    {
-        direct_sink_scatter16(sieve, interval, vroot1, vroot2, vnroot1, vnroot2,
-            logp, sink);
-    }
-    else
-    {
-        ALIGNED_MEM uint32_t r_1[16];
-        ALIGNED_MEM uint32_t r_2[16];
-        ALIGNED_MEM uint32_t n_1[16];
-        ALIGNED_MEM uint32_t n_2[16];
-        uint8_t* sieven = sieve + interval;
-        __m512i vint = _mm512_set1_epi32(interval);
-        uint32_t m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
-        uint32_t m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
-        uint32_t m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
-        uint32_t m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
-        int pos;
-
-        if ((m1 | m2 | m3 | m4) == 0)
-            return;
-
-        _mm512_store_si512(r_1, vroot1);
-        _mm512_store_si512(r_2, vroot2);
-        _mm512_store_si512(n_1, vnroot1);
-        _mm512_store_si512(n_2, vnroot2);
-
-        while (m1 > 0) {
-            pos = _trail_zcnt(m1);
-            sieve[r_1[pos]] -= logp;
-            m1 = _reset_lsb(m1);
-        }
-        while (m2 > 0) {
-            pos = _trail_zcnt(m2);
-            sieve[r_2[pos]] -= logp;
-            m2 = _reset_lsb(m2);
-        }
-        while (m3 > 0) {
-            pos = _trail_zcnt(m3);
-            sieven[n_1[pos]] -= logp;
-            m3 = _reset_lsb(m3);
-        }
-        while (m4 > 0) {
-            pos = _trail_zcnt(m4);
-            sieven[n_2[pos]] -= logp;
-            m4 = _reset_lsb(m4);
-        }
-    }
-}
 #endif
 
 extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
@@ -1308,12 +1153,6 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
 void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_large_32k_avx2_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_large_32k_avx2_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_large_32k_avx2_cmem(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
 // the sparse-sieve tdiv for [med_B, fb_blk8i), selected by sconf->sparse_kernel
 extern void (*tdiv_large_ptr)(uint8_t, uint32_t, uint32_t, static_conf_t*, dynamic_conf_t*);
 void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
@@ -1322,14 +1161,6 @@ direct_pool_t* direct_pool_alloc(uint32_t num_blocks);
 void direct_pool_free(direct_pool_t* pool);
 void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void direct_resieve_update_largeprimes_32k_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf,
-    uint8_t* sieve);
-void direct_resieve_update_largeprimes_32k_sink(static_conf_t* sconf, dynamic_conf_t* dconf,
-    uint8_t* sieve);
-void direct_resieve_update_largeprimes_32k_creg(static_conf_t* sconf, dynamic_conf_t* dconf,
-    uint8_t* sieve);
-void direct_resieve_update_largeprimes_32k_cmem(static_conf_t* sconf, dynamic_conf_t* dconf,
-    uint8_t* sieve);
 // the direct sieve's fused pass, selected by sconf->lp_kernel
 extern void (*direct_resieve_update_ptr)(static_conf_t*, dynamic_conf_t*, uint8_t*);
 void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf);
