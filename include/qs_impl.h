@@ -190,19 +190,10 @@
 //                 once it holds DIRECT_CBUF_FLUSH entries.
 //  SIQS_K_CMEM    as CREG, appending with compressstoreu to memory.
 // The sparse sieve / tdiv_large take BITLOOP, CREG or CMEM.
-// Defaults used when the options are not given (measured on Rocket Lake):
-#ifndef DIRECT_DEFAULT_MID
-#define DIRECT_DEFAULT_MID SIQS_MID_SPARSE
-#endif
-#ifndef DIRECT_DEFAULT_LARGE
-#define DIRECT_DEFAULT_LARGE SIQS_LARGE_DIRECT
-#endif
-#ifndef DIRECT_DEFAULT_KERNEL
-#define DIRECT_DEFAULT_KERNEL SIQS_K_CMEM
-#endif
-#ifndef DIRECT_DEFAULT_SPARSE_KERNEL
-#define DIRECT_DEFAULT_SPARSE_KERNEL SIQS_K_CMEM
-#endif
+// Defaults when the options are not given come from a table in
+// siqs_resolve_strategy (kernel ISA, CPU vendor, interval size vs per-core
+// L2).  -DDIRECT_DEFAULT_MID / _LARGE / _KERNEL / _SPARSE_KERNEL=<SIQS_*
+// value> override the table at compile time.
 // size of the sink stripe in bytes: a multiple of 64, at most 32768
 #ifndef DIRECT_SINK_BYTES
 #define DIRECT_SINK_BYTES 1024

@@ -4416,11 +4416,6 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
     uint32_t boundary, isa;
 
-    if (mid == SIQS_STRAT_AUTO) mid = DIRECT_DEFAULT_MID;
-    if (large == SIQS_STRAT_AUTO) large = DIRECT_DEFAULT_LARGE;
-    if (kernel == SIQS_STRAT_AUTO) kernel = DIRECT_DEFAULT_KERNEL;
-    if (skernel == SIQS_STRAT_AUTO) skernel = DIRECT_DEFAULT_SPARSE_KERNEL;
-
     // kernel ISA: the requested one if this build and CPU have it, else
     // the best available
     {
@@ -4447,6 +4442,44 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         isa = obj->qs_obj.gbl_siqs_lp_isa;
         if ((isa == SIQS_STRAT_AUTO) || (isa > SIQS_ISA_NEON) || !have[isa])
             isa = best;
+    }
+
+    // defaults table (measured on an i5-11600K, see
+    // plans/siqs_multi_isa/plan.md section 6 and direct_sieve.md):
+    //  - [large_B, B): the direct sieve; large buckets were slower at every
+    //    ISA and NB measured.
+    //  - [med_B, large_B): the sparse sieve with 8/16-lane kernels while
+    //    both intervals fit in the per-core L2 (it fell 3-4% behind buckets
+    //    at NB 12/16 with a 512 KB L2); buckets with 4-lane and scalar
+    //    kernels (SSE4.1: -2..-4% vs sparse).
+    //  - kernel: compressstoreu (cmem) on Intel AVX-512; register compress
+    //    (creg) elsewhere, including AMD, where the memory form of
+    //    vpcompressd is reported to be slow (not measured here).
+    {
+        int wide = (isa == SIQS_ISA_AVX512) || (isa == SIQS_ISA_AVX2);
+        uint32_t span = 2 * sconf->num_blocks * 32768;
+        uint32_t dmid = (wide && (span <= ytools_get_l2_core_size())) ?
+            SIQS_MID_SPARSE : SIQS_MID_BUCKET;
+        uint32_t dlarge = SIQS_LARGE_DIRECT;
+        uint32_t dkern = ((isa == SIQS_ISA_AVX512) && !ytools_cpu_is_amd()) ?
+            SIQS_K_CMEM : SIQS_K_CREG;
+        uint32_t dskern = dkern;
+#if defined(DIRECT_DEFAULT_MID)
+        dmid = DIRECT_DEFAULT_MID;
+#endif
+#if defined(DIRECT_DEFAULT_LARGE)
+        dlarge = DIRECT_DEFAULT_LARGE;
+#endif
+#if defined(DIRECT_DEFAULT_KERNEL)
+        dkern = DIRECT_DEFAULT_KERNEL;
+#endif
+#if defined(DIRECT_DEFAULT_SPARSE_KERNEL)
+        dskern = DIRECT_DEFAULT_SPARSE_KERNEL;
+#endif
+        if (mid == SIQS_STRAT_AUTO) mid = dmid;
+        if (large == SIQS_STRAT_AUTO) large = dlarge;
+        if (kernel == SIQS_STRAT_AUTO) kernel = dkern;
+        if (skernel == SIQS_STRAT_AUTO) skernel = dskern;
     }
 
     if (skernel == SIQS_K_SINK)
@@ -5176,6 +5209,38 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
 	if (sconf->num_blocks < 1)
 		sconf->num_blocks = 1;
+
+#if defined(TRY_DIRECT_SIEVE)
+    // with the direct + sparse sieves and 8/16-lane kernels, smaller
+    // intervals are faster than yafu's NB table (made for buckets): cap NB
+    // so that both intervals fit in half the per-core L2 (NB 4 on 512 KB).
+    // Measured on an i5-11600K: c77 / c79 / c85 were 4-20% faster at NB 4
+    // than at the table's NB 6-11, with AVX-512 or AVX2 kernels.  Not
+    // applied with -siqsNB, with both ranges forced to buckets, or when
+    // the kernels would be 4-lane / scalar (those prefer the table's NB).
+    {
+        fact_obj_t* o = sconf->obj;
+        int wide = 0;
+        uint32_t req = o->qs_obj.gbl_siqs_lp_isa;
+#if defined(USE_AVX2)
+        if (o->HAS_AVX2) wide = 1;
+#endif
+#if defined(USE_AVX512BW)
+        if (o->HAS_AVX512BW) wide = 1;
+#endif
+        if ((req != SIQS_STRAT_AUTO) && (req != SIQS_ISA_AVX2) && (req != SIQS_ISA_AVX512))
+            wide = 0;
+        if (wide && !o->qs_obj.gbl_override_blocks_flag &&
+            !((o->qs_obj.gbl_siqs_mid == SIQS_MID_BUCKET) &&
+              (o->qs_obj.gbl_siqs_large == SIQS_LARGE_BUCKET)))
+        {
+            uint32_t cap = ytools_get_l2_core_size() / (4 * 32768);
+            if (cap < 2) cap = 2;
+            if (sconf->num_blocks > cap)
+                sconf->num_blocks = cap;
+        }
+    }
+#endif
 
 	// and adjust for really small jobs
 	if (sconf->bits <= 140)

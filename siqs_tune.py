@@ -33,6 +33,13 @@ Tunable parameters (yafu flag):
                    sieved (one of 256, 512, 1024; default 256).  Only has an
                    effect in builds with TRY_SMALLP_OPT; yafu ignores the
                    flag otherwise, so drop it with --params on such builds.
+  Mid   -siqsMid   sieve for primes 32k..interval: sparse or bucket
+  Large -siqsLarge sieve for primes > interval: direct or bucket
+  Kernel -siqsKernel direct-sieve scatter kernel: cmem, creg, sink, bitloop
+                   (Mid/Large/Kernel are categorical; their defaults are read
+                   from yafu's "strategy:" line.  Builds without the
+                   large-prime strategies don't print it, and the three are
+                   then dropped.)
 
 Examples
   # tune at 70 digits, 1 thread, 60 candidates
@@ -49,8 +56,8 @@ Examples
   # summarize what's in an output directory
   python3 siqs_tune.py report --outdir siqs_tune_out
 
-Note: builds with TRY_DIRECT_SIEVE exit below the DLP cutoff (70 digits),
-so tune at >= 70 digits with those builds.
+Note: the direct sieve needs a DLP-sized input (>= 70 digits); below that
+yafu falls back to large-prime buckets, so Large=direct is a no-op there.
 
 yafu treats a non-tty stdin as a batchfile, so on Linux/WSL each run gets a
 pseudo-terminal; on Windows stdin is inherited from the console.
@@ -150,6 +157,9 @@ PARSE = {
     "TFSm":     (re.compile(r"using SPV correction of (\d+) bits"), int),
     "TF":       (re.compile(r"trial factoring cutoff at (\d+) bits"), int),
     "SPV":      (re.compile(r"SPV small_limit = (\d+)"), int),   # -v -v only
+    "Mid":      (re.compile(r"strategy: mid = (\w+)"), str),
+    "Large":    (re.compile(r"strategy: mid = \w+, large = (\w+)"), str),
+    "Kernel":   (re.compile(r"strategy: .*?, kernel = (\w+)"), str),
     # results
     "t_total":  (re.compile(r"SIQS elapsed time = " + FLT), float),
     "t_sieve":  (re.compile(r"^QS elapsed time = " + FLT, re.M), float),
@@ -182,17 +192,28 @@ def parse_output(text, n):
 # --------------------------------------------------------------------------
 FLAGS = {"B": "-siqsB", "M": "-siqsM", "NB": "-siqsNB",
          "TF": "-siqsTF", "TFSm": "-siqsTFSm", "MFBD": "-siqsMFBD",
-         "SPV": "-siqsSPV"}
-ORDER = ["B", "M", "NB", "TF", "TFSm", "MFBD", "SPV"]
+         "SPV": "-siqsSPV", "Mid": "-siqsMid", "Large": "-siqsLarge",
+         "Kernel": "-siqsKernel"}
+ORDER = ["B", "M", "NB", "TF", "TFSm", "MFBD", "SPV", "Mid", "Large", "Kernel"]
 LOG_PARAMS = {"B", "M"}
 # categorical params: the box (lo, hi) selects the allowed choices
 CHOICES = {"SPV": [256, 512, 1024]}
 SPV_DEFAULT = 256           # yafu's small_limit; not printed at -v
+# string-valued categorical params (the large-prime strategy); no box
+STR_CHOICES = {"Mid": ["sparse", "bucket"],
+               "Large": ["direct", "bucket"],
+               "Kernel": ["cmem", "creg", "sink", "bitloop"]}
 
 
 def choices(name, box):
+    if name in STR_CHOICES:
+        return STR_CHOICES[name]
     lo, hi = box[name]
     return [c for c in CHOICES[name] if lo <= c <= hi] or [lo]
+
+
+def is_choice(name):
+    return name in CHOICES or name in STR_CHOICES
 
 
 def default_box(d):
@@ -208,10 +229,14 @@ def default_box(d):
         "MFBD": (1.45, 1.95),
         "SPV":  (min(CHOICES["SPV"]), max(CHOICES["SPV"])),
     }
+    for k in STR_CHOICES:
+        box[k] = (0, 0)             # unused; choices come from STR_CHOICES
     return box
 
 
 def quantize(name, v):
+    if name in STR_CHOICES:
+        return str(v)
     if name == "B":
         return max(16, int(round(v / 16.0)) * 16)
     if name == "MFBD":
@@ -220,6 +245,10 @@ def quantize(name, v):
 
 
 def to_unit(name, v, box):
+    if name in STR_CHOICES:
+        cs = choices(name, box)
+        i = cs.index(v) if v in cs else 0
+        return i / (len(cs) - 1) if len(cs) > 1 else 0.5
     if name in CHOICES:
         cs = choices(name, box)
         i = min(range(len(cs)), key=lambda j: abs(cs[j] - v))
@@ -233,7 +262,7 @@ def to_unit(name, v, box):
 def from_unit(name, u, box):
     lo, hi = box[name]
     u = min(1.0, max(0.0, u))
-    if name in CHOICES:
+    if is_choice(name):
         cs = choices(name, box)
         return cs[min(len(cs) - 1, int(u * len(cs)))]
     if name in LOG_PARAMS:
@@ -257,7 +286,7 @@ def perturb(center, names, box, fixed, scale, rng):
     move = [k for k in free if rng.random() < 0.5] or [rng.choice(free)]
     p = dict(center)
     for k in move:
-        if k in CHOICES:             # no notion of step size: jump to another
+        if is_choice(k):             # no notion of step size: jump to another
             others = [c for c in choices(k, box) if c != center[k]]
             if others:
                 p[k] = rng.choice(others)
@@ -464,11 +493,14 @@ def tune_digits(R, a, digits):
     box = default_box(eff)
     for spec in a.range or []:
         k, rng_s = spec.split("=", 1)
+        if k in STR_CHOICES:
+            sys.exit(f"--range doesn't apply to {k}; use --fix {k}=<value>")
         lo, hi = rng_s.split(":")
         box[k] = (quantize(k, float(lo)), quantize(k, float(hi)))
     fixed = {}
     for k, v in parse_kv(",".join(a.fix or [])).items():
-        fixed[k] = eff[k] if v == "default" else quantize(k, float(v))
+        fixed[k] = eff[k] if v == "default" else \
+            (quantize(k, v) if k in STR_CHOICES else quantize(k, float(v)))
         if k not in names:
             names.append(k)
     log("search box: " + "  ".join(f"{k}=[{box[k][0]},{box[k][1]}]"

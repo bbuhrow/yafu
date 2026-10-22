@@ -1,7 +1,70 @@
 # SIQS large-prime strategies across CPUs and ISAs: plan
 
-*Drafted 2026-10-22. Planning only, no code yet. Companion to
-`direct_sieve.md` and `Sink-Stripe Sieve Stores.md`.*
+*Drafted 2026-10-22; phases 0-6 implemented the same day (status below).
+Companion to `direct_sieve.md` and `Sink-Stripe Sieve Stores.md`.*
+
+## 0. Status (2026-10-22)
+
+All phases are implemented and committed on the L2sieve branch. Measured
+on one machine only: i5-11600K (Rocket Lake, 512 KB L2), WSL gcc 11,
+`-threads 1`, single runs (noise is several %).
+
+**How to use it**
+
+- Run-time options (command line or yafu.ini):
+  - `-siqsMid bucket|sparse` selects the sieve for primes 32k..interval.
+  - `-siqsLarge bucket|direct` selects the sieve for primes > interval.
+  - `-siqsKernel bitloop|sink|creg|cmem` and `-siqsSparseKernel` select
+    the kernels.
+  - `-siqsLPisa scalar|sse41|avx2|avx512|neon` selects the kernel ISA.
+  - `-v` prints the resolved `strategy:` line.
+- Build and benchmark:
+  - `tools/build_matrix.sh` builds avx512, avx2, sse41, sse2, generic,
+    avx512stock and avx512neonemu.
+  - `tools/bench_matrix.sh` and `tools/bench_summary.py` run fixed-seed
+    sequential matrices and check that work counters match.
+  - `tools/bench_ref.txt` holds the reference counters.
+- Tuning: `siqs_tune.py` tunes `Mid`, `Large` and `Kernel` as categorical
+  parameters.
+
+**Correctness**
+
+- Within one binary, every kernel ISA (avx512, avx2, sse41, scalar, and
+  neon via the x86 emulation) and every kernel gives bit-identical work
+  for the same strategy.
+- bucket+bucket is bit-identical to a stock build.
+- Every build factors every input tested (c70-c85).
+
+**Defaults table** (`siqs_resolve_strategy`)
+
+- **[large_B, B):** the direct sieve.
+- **[med_B, large_B):** the sparse sieve with AVX2 or AVX-512 kernels
+  while both intervals fit in L2; otherwise buckets. 4-lane and scalar
+  kernels always use buckets.
+- **Kernel:** cmem on Intel AVX-512, creg elsewhere. The choice of creg on
+  AMD is not measured.
+- **NB:** with AVX2 or AVX-512 kernels, NB is capped at L2/(4·32 KB),
+  which is 4 here, unless `-siqsNB` is given.
+
+**Result:** QS seconds at yafu's NB choice, new defaults vs that build's
+stock bucket path:
+
+| build | c77 | c79 | c85 |
+|---|---|---|---|
+| AVX-512 | 20.2 vs 21.5 (−6%) | 33.6 vs 36.8 (−9%) | 110.2 vs 141.3 (−22%) at NB 4 |
+| AVX2 | 25.1 vs 28.1 (−11%) | 44.1 vs 48.2 (−9%) | 145.1 vs 175.2 (−17%) at NB 4 |
+| SSE4.1 | 34.7 vs 35.6 (−3%) | 60.5 vs 62.6 (−3%) | |
+| SSE2 | 36.8 vs 39.3 (−7%) | 65.1 vs 69.7 (−7%) | |
+| generic | 45.2 vs 48.3 (−6%) | 76.8 vs 82.8 (−7%) | |
+
+**Open**
+
+- No native AArch64 build or run yet.
+- AMD and other Intel generations are not measured.
+- Inputs of c95 and above are not measured.
+- Multi-threaded scaling is not measured.
+- The 0.2% of reports that leave a small fb prime in the cofactor exist
+  in stock builds too.
 
 ## 1. Goals
 

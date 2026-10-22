@@ -476,9 +476,15 @@ med_B. So with num_blocks > 16, the plain TRY_SPARSE build would cover
 
 ## 7. Not done / caveats
 
-- USE_SS_SEARCH, batch polys and non-AVX512 builds are excluded at compile
-  time; TLP (use_dlp >= 2) is untested (the BW scan branch works through
-  the dconf->sieve repointing).
+- USE_SS_SEARCH and batch polys are excluded at compile time. TLP
+  (use_dlp >= 2) is untested; the BW scan branch works through the
+  dconf->sieve repointing.
+- Since 2026-10-22 the strategies are chosen at run time and run at every
+  ISA level. The `DIRECT_MEDBUCKET`, `DIRECT_SCATTER_MODE` and
+  `DIRECT_SPARSE_COMPRESS` switches above became the `-siqsMid`,
+  `-siqsLarge`, `-siqsKernel`, `-siqsSparseKernel` and `-siqsLPisa`
+  options, with a defaults table and an NB cap. See
+  `plans/siqs_multi_isa/plan.md` section 0.
 - Pool and bitmap memory: ~MAX_SMOOTH_PRIMES*4 bytes per survivor (grows on
   demand) + interval/4 bytes of bitmap. That is small next to the original
   design's ~26 MB per thread.

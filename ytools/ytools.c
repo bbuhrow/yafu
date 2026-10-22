@@ -896,6 +896,18 @@ uint32_t ytools_get_l2_core_size(void)
     return DEFAULT_L2_CACHE_SIZE;
 }
 
+// 1 if the CPU vendor is AMD ("AuthenticAMD"), else 0
+int ytools_cpu_is_amd(void)
+{
+#if defined(HAS_CPUID) && !defined(__APPLE__)
+    uint32_t a, b, c, d;
+    CPUID(0, a, b, c, d);
+    return ((b & 0xff) == 'A');
+#else
+    return 0;
+#endif
+}
+
 enum cpu_type ytools_get_cpu_type(void) {
 
     enum cpu_type cpu = cpu_generic;

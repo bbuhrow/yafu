@@ -11,3 +11,9 @@ avx2      bucket+bucket (stock)    c77    93182   3868324  745456   17186  20362
 sse41     bucket+bucket (stock)    c77    91142   3968389  729136   16769  207991   44.44
 sse2      bucket+bucket (stock)    c77    90887   3982997  727096   16695  208297   48.56
 generic   bucket+bucket (stock)    c77    90248   4000014  721984   16693  208710   58.56
+# phase 1-6 (run-time strategies): same build, -siqsLPisa avx512|avx2|sse41|scalar
+# (and neon via avx512neonemu) all reproduce the avx512 sparse+direct line above;
+# bucket+bucket (-siqsMid bucket -siqsLarge bucket) reproduces the stock line of
+# that build.
+avx512    bucket+bucket            c77    81455   5373561  -        -      -        21.72
+avx512    bucket+direct            c77    87317   4855972  -        -      -        18.72
