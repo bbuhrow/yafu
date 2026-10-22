@@ -166,7 +166,7 @@
 // Implemented by setting fb_blk8i = med_B, which empties every sparse-range
 // loop, while large_B stays the first 16-aligned index with prime > interval.
 #ifndef DIRECT_MEDBUCKET
-#define DIRECT_MEDBUCKET 1
+#define DIRECT_MEDBUCKET 0
 #endif
 // how the [large_B, B) roots are scattered into the intervals (standalone
 // pass 1 and the fused pass's next-poly sieve), see Sink-Stripe Sieve
@@ -192,6 +192,15 @@
 // Rocket Lake (mode 3, 77-79 digits, NB 2/4/8); 128 is ~1-2% slower at NB=2.
 #ifndef DIRECT_CBUF_FLUSH
 #define DIRECT_CBUF_FLUSH 512
+#endif
+// 1: the sparse sieve for [med_B, large_B) (large_sieveblock_32k_avx512bw)
+// appends its block hits to a buffer with compress stores (mode 2 style
+// when DIRECT_SCATTER_MODE == 2, compressstoreu otherwise) and sieves the
+// buffer in one loop, and tdiv_large_32k_avx2 collects each report's
+// matching fb indices the same way.  0: trail_zcnt / reset_lsb loops.
+// Only used when DIRECT_MEDBUCKET is 0.
+#ifndef DIRECT_SPARSE_COMPRESS
+#define DIRECT_SPARSE_COMPRESS 1
 #endif
 #endif
 
@@ -951,11 +960,24 @@ void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
     sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
 
-#if defined(TRY_DIRECT_SIEVE) && (DIRECT_SCATTER_MODE >= 2)
+#if defined(TRY_DIRECT_SIEVE) && ((DIRECT_SCATTER_MODE >= 2) || DIRECT_SPARSE_COMPRESS)
 #include <immintrin.h>
 // buffer size for modes 2/3: a flush threshold plus room for one more
 // 16-prime group (64 entries) and the last unaligned store's 16-lane tail
 #define DIRECT_CBUF_SIZE (DIRECT_CBUF_FLUSH + 80)
+
+// append the lanes of v selected by m to buf[n...]; returns the new count.
+// buf must have 16 entries of room past n (the register-compress form
+// stores a full vector).
+static inline uint32_t direct_cstore16(uint32_t* buf, uint32_t n, __mmask16 m, __m512i v)
+{
+#if DIRECT_SCATTER_MODE == 2
+    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m, v));
+#else
+    _mm512_mask_compressstoreu_epi32(buf + n, m, v);
+#endif
+    return n + _mm_popcnt_u32(m);
+}
 
 // append the in-range lanes of 16 primes' 4 root vectors to buf[n...] as
 // (logp << 24) | sieve position (pos side r, neg side interval + p - r;
@@ -974,26 +996,10 @@ static inline uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t int
     __m512i v3 = _mm512_or_epi32(_mm512_add_epi32(vnroot1, vint), vtag);
     __m512i v4 = _mm512_or_epi32(_mm512_add_epi32(vnroot2, vint), vtag);
 
-#if DIRECT_SCATTER_MODE == 2
-    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m1, v1));
-    n += _mm_popcnt_u32(m1);
-    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m2, v2));
-    n += _mm_popcnt_u32(m2);
-    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m3, v3));
-    n += _mm_popcnt_u32(m3);
-    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m4, v4));
-    n += _mm_popcnt_u32(m4);
-#else
-    _mm512_mask_compressstoreu_epi32(buf + n, m1, v1);
-    n += _mm_popcnt_u32(m1);
-    _mm512_mask_compressstoreu_epi32(buf + n, m2, v2);
-    n += _mm_popcnt_u32(m2);
-    _mm512_mask_compressstoreu_epi32(buf + n, m3, v3);
-    n += _mm_popcnt_u32(m3);
-    _mm512_mask_compressstoreu_epi32(buf + n, m4, v4);
-    n += _mm_popcnt_u32(m4);
-#endif
-    return n;
+    n = direct_cstore16(buf, n, m1, v1);
+    n = direct_cstore16(buf, n, m2, v2);
+    n = direct_cstore16(buf, n, m3, v3);
+    return direct_cstore16(buf, n, m4, v4);
 }
 
 // sieve the buffered hits

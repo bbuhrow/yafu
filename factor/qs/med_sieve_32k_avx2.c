@@ -1172,6 +1172,44 @@ void large_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_f
 
     uint32_t bound = full_fb->fb_blk8i;
 
+#if defined(TRY_DIRECT_SIEVE) && DIRECT_SPARSE_COMPRESS
+    // all primes here are > 32768 and root1 <= root2, so each root hits the
+    // block at most once: root1 hits iff root1 < 32768, root2 likewise.
+    // Append the hits as (logp << 24) | block offset and sieve them in
+    // batches.
+    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
+    uint32_t nc = 0;
+
+    for (i = full_fb->med_B; (i + 16) <= bound; i += 16)
+    {
+        __m512i vprime = _mm512_load_si512(fb->prime + i);
+        __m512i vroot1 = _mm512_load_si512(fb->root1 + i);
+        __m512i vroot2 = _mm512_load_si512(fb->root2 + i);
+        __m512i vtag;
+        __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vblock);
+        __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vblock);
+
+        // approximate the next 16 logp's as equal to the largest
+        vtag = _mm512_set1_epi32((uint32_t)fb->logp[i + 15] << 24);
+        nc = direct_cstore16(cbuf, nc, m1, _mm512_or_epi32(vroot1, vtag));
+        nc = direct_cstore16(cbuf, nc, m2, _mm512_or_epi32(vroot2, vtag));
+
+        // advance the roots that hit, reduce both for the next block
+        vroot1 = _mm512_mask_add_epi32(vroot1, m1, vroot1, vprime);
+        vroot2 = _mm512_mask_add_epi32(vroot2, m2, vroot2, vprime);
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+        _mm512_store_si512(fb->root1 + i, _mm512_min_epu32(vroot1, vroot2));
+        _mm512_store_si512(fb->root2 + i, _mm512_max_epu32(vroot1, vroot2));
+
+        if (nc >= DIRECT_CBUF_FLUSH)
+        {
+            direct_compress_flush(sieve, cbuf, nc);
+            nc = 0;
+        }
+    }
+    direct_compress_flush(sieve, cbuf, nc);
+#else
     for (i = full_fb->med_B; (i + 16) <= bound; i += 16)
     {
         __m512i vprime, vroot1, vroot2;
@@ -1221,6 +1259,7 @@ void large_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_f
         _mm512_store_si512(fb->root1 + i, _mm512_min_epu32(vroot1, vroot2));
         _mm512_store_si512(fb->root2 + i, _mm512_max_epu32(vroot1, vroot2));
     }
+#endif
 
     // any primes left over after the vector loop (fewer than 16 of them;
     // zero when med_B and fb_blk8i are both 16-aligned) must still be sieved

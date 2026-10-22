@@ -946,7 +946,62 @@ void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         smooth_num = dconf->smooth_num[report_num];
         block_loc = dconf->reports[report_num];
 
-#if 1
+#if defined(TRY_DIRECT_SIEVE) && DIRECT_SPARSE_COMPRESS
+        uint32_t bound = sconf->factor_base->fb_blk8i;
+        __m512i vblockloc = _mm512_set1_epi32(block_loc - 32768);
+        __m512i vidx = _mm512_add_epi32(_mm512_set1_epi32(sconf->factor_base->med_B),
+            _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15));
+        __m512i v16 = _mm512_set1_epi32(16);
+        // fb indices of the matching primes, in ascending order (as the
+        // trail_zcnt loop would visit them); divided out in batches of 64
+        ALIGNED_MEM uint32_t mbuf[64 + 16];
+        uint32_t nm = 0, k;
+
+        for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
+        {
+            __m512i vprime = _mm512_load_si512(fbc->prime + i);
+            __m512i vroot1 = _mm512_load_si512(fbc->root1 + i);
+            __m512i vroot2 = _mm512_load_si512(fbc->root2 + i);
+            __mmask16 msk;
+
+            vprime = _mm512_add_epi32(vprime, vblockloc);
+            msk = _mm512_cmpeq_epu32_mask(vprime, vroot1) |
+                _mm512_cmpeq_epu32_mask(vprime, vroot2);
+            nm = direct_cstore16(mbuf, nm, msk, vidx);
+            vidx = _mm512_add_epi32(vidx, v16);
+
+            if (nm >= 64)
+            {
+                for (k = 0; k < nm; k++)
+                {
+                    uint32_t j = mbuf[k];
+                    DIVIDE_RESIEVED_PRIME_2(j);
+                }
+                nm = 0;
+            }
+        }
+
+        for (k = 0; k < nm; k++)
+        {
+            uint32_t j = mbuf[k];
+            DIVIDE_RESIEVED_PRIME_2(j);
+        }
+
+        for ( ; i < sconf->factor_base->fb_blk8i; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            // these primes are all > blocksize, so we only need one step
+            tmp = block_loc + prime - 32768;
+            if (tmp == root1 || tmp == root2)
+            {
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+#elif 1
         uint32_t bound = sconf->factor_base->fb_blk8i;
         __m512i vblockloc = _mm512_set1_epi32(block_loc - 32768);
 
