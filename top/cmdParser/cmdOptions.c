@@ -231,7 +231,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : SIQS sieve for primes > interval: bucket or direct (default: auto)",
     "(String)          : SIQS direct sieve scatter kernel: bitloop, sink, creg or cmem (default: auto)",
     "(String)          : SIQS sparse sieve kernel: bitloop, creg or cmem (default: auto)",
-    "(String)          : SIQS large-prime kernel ISA: scalar, avx2 or avx512 (default: best available)"
+    "(String)          : SIQS large-prime kernel ISA: scalar, sse41, avx2, avx512, neon (default: best)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -1380,7 +1380,9 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (strcmp(arg, "scalar") == 0) options->siqsLPisa = SIQS_ISA_SCALAR;
         else if (strcmp(arg, "avx2") == 0) options->siqsLPisa = SIQS_ISA_AVX2;
         else if (strcmp(arg, "avx512") == 0) options->siqsLPisa = SIQS_ISA_AVX512;
-        else printf("*** siqsLPisa must be scalar, avx2 or avx512; ignoring ***\n");
+        else if (strcmp(arg, "sse41") == 0) options->siqsLPisa = SIQS_ISA_SSE41;
+        else if (strcmp(arg, "neon") == 0) options->siqsLPisa = SIQS_ISA_NEON;
+        else printf("*** siqsLPisa must be scalar, sse41, avx2, avx512 or neon; ignoring ***\n");
     }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {

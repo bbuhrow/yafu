@@ -3422,7 +3422,7 @@ static void print_siqs_experiments(static_conf_t* sconf, int to_screen, FILE* lo
 #if defined(TRY_DIRECT_SIEVE)
     {
         static const char* kname[] = { "auto", "bitloop", "sink", "creg", "cmem" };
-        static const char* iname[] = { "auto", "scalar", "avx2", "avx512" };
+        static const char* iname[] = { "auto", "scalar", "avx2", "avx512", "sse41", "neon" };
         EXP_LINE("strategy: mid = %s, large = %s, kernel = %s, sparse kernel = %s "
             "(%s kernels%s)\n",
             sconf->mid_bucket ? "bucket" : "sparse",
@@ -4421,19 +4421,31 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     if (kernel == SIQS_STRAT_AUTO) kernel = DIRECT_DEFAULT_KERNEL;
     if (skernel == SIQS_STRAT_AUTO) skernel = DIRECT_DEFAULT_SPARSE_KERNEL;
 
-    // kernel ISA: the best this build and CPU support, or lower if asked
+    // kernel ISA: the requested one if this build and CPU have it, else
+    // the best available
     {
+        int have[6] = { 0, 1, 0, 0, 0, 0 };     // indexed by SIQS_ISA_*
         uint32_t best = SIQS_ISA_SCALAR;
+#if defined(USE_SSE41)
+        have[SIQS_ISA_SSE41] = obj->HAS_SSE41;
+        if (have[SIQS_ISA_SSE41]) best = SIQS_ISA_SSE41;
+#endif
+#if defined(SIQS_HAVE_NEON_KERNELS)
+        have[SIQS_ISA_NEON] = 1;
+#if !defined(SIQS_NEON_EMU)
+        best = SIQS_ISA_NEON;
+#endif
+#endif
 #if defined(USE_AVX2)
-        if (obj->HAS_AVX2)
-            best = SIQS_ISA_AVX2;
+        have[SIQS_ISA_AVX2] = obj->HAS_AVX2;
+        if (have[SIQS_ISA_AVX2]) best = SIQS_ISA_AVX2;
 #endif
 #if defined(USE_AVX512BW)
-        if (obj->HAS_AVX512BW)
-            best = SIQS_ISA_AVX512;
+        have[SIQS_ISA_AVX512] = obj->HAS_AVX512BW;
+        if (have[SIQS_ISA_AVX512]) best = SIQS_ISA_AVX512;
 #endif
         isa = obj->qs_obj.gbl_siqs_lp_isa;
-        if ((isa == SIQS_STRAT_AUTO) || (isa > best))
+        if ((isa == SIQS_STRAT_AUTO) || (isa > SIQS_ISA_NEON) || !have[isa])
             isa = best;
     }
 
@@ -4528,6 +4540,35 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         return;
     }
 #endif
+
+    // 4-lane kernels: no compress-to-memory, cmem means creg
+#define SIQS_SELECT_V4(sfx) \
+    { \
+        direct_v4_init_##sfx(); \
+        nextRoots_lp_ptr = &nextRoots_32k_lp_##sfx; \
+        if (skernel == SIQS_K_CMEM) sconf->sparse_kernel = skernel = SIQS_K_CREG; \
+        if (kernel == SIQS_K_CMEM) sconf->lp_kernel = kernel = SIQS_K_CREG; \
+        large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ? \
+            &large_sieveblock_bitloop_##sfx : &large_sieveblock_creg_##sfx; \
+        tdiv_large_ptr = (skernel == SIQS_K_BITLOOP) ? \
+            &tdiv_large_bitloop_##sfx : &tdiv_large_creg_##sfx; \
+        direct_sieve_largeprimes_ptr = (kernel == SIQS_K_BITLOOP) ? \
+            &direct_sieve_largeprimes_bitloop_##sfx : (kernel == SIQS_K_SINK) ? \
+            &direct_sieve_largeprimes_sink_##sfx : &direct_sieve_largeprimes_creg_##sfx; \
+        direct_resieve_update_ptr = (kernel == SIQS_K_BITLOOP) ? \
+            &direct_resieve_update_bitloop_##sfx : (kernel == SIQS_K_SINK) ? \
+            &direct_resieve_update_sink_##sfx : &direct_resieve_update_creg_##sfx; \
+        return; \
+    }
+#if defined(USE_SSE41)
+    if (isa == SIQS_ISA_SSE41)
+        SIQS_SELECT_V4(sse41)
+#endif
+#if defined(SIQS_HAVE_NEON_KERNELS)
+    if (isa == SIQS_ISA_NEON)
+        SIQS_SELECT_V4(neon)
+#endif
+#undef SIQS_SELECT_V4
 
 #if defined(USE_AVX512BW)
     switch (skernel)

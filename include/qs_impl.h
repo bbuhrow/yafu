@@ -1070,6 +1070,31 @@ void tdiv_large_avx2_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 void tdiv_large_avx2_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_lp_avx2(static_conf_t* sconf, dynamic_conf_t* dconf);
+
+// 4-lane kernels (direct_sieve_v4.h): SSE4.1 (direct_sieve_sse41.c) and
+// NEON (direct_sieve_neon.c; on x86 with -DSIQS_NEON_EMU for testing)
+#define SIQS_DECLARE_V4_KERNELS(sfx) \
+    void direct_v4_init_##sfx(void); \
+    void direct_sieve_largeprimes_bitloop_##sfx(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void direct_sieve_largeprimes_sink_##sfx(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void direct_sieve_largeprimes_creg_##sfx(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void direct_resieve_update_bitloop_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve); \
+    void direct_resieve_update_sink_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve); \
+    void direct_resieve_update_creg_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve); \
+    void large_sieveblock_bitloop_##sfx(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb, \
+        uint32_t start_prime, uint8_t s_init); \
+    void large_sieveblock_creg_##sfx(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb, \
+        uint32_t start_prime, uint8_t s_init); \
+    void tdiv_large_bitloop_##sfx(uint8_t parity, uint32_t poly_id, uint32_t bnum, \
+        static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void tdiv_large_creg_##sfx(uint8_t parity, uint32_t poly_id, uint32_t bnum, \
+        static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void nextRoots_32k_lp_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf);
+SIQS_DECLARE_V4_KERNELS(sse41)
+SIQS_DECLARE_V4_KERNELS(neon)
+#if defined(SIQS_NEON_EMU) || (defined(__aarch64__) && defined(__ARM_NEON))
+#define SIQS_HAVE_NEON_KERNELS
+#endif
 #endif
 
 #if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512BW)

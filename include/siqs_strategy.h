@@ -19,5 +19,7 @@
 #define SIQS_ISA_SCALAR     1
 #define SIQS_ISA_AVX2       2
 #define SIQS_ISA_AVX512     3
+#define SIQS_ISA_SSE41      4
+#define SIQS_ISA_NEON       5
 
 #endif
