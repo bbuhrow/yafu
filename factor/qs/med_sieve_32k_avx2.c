@@ -1491,6 +1491,41 @@ void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_
 
     __m512i vint = _mm512_set1_epi32(interval);
 
+#if DIRECT_SCATTER_MODE >= 2
+    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
+    uint32_t nc = 0;
+    for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
+    {
+        __m512i vprime = _mm512_loadu_si512(primes + j);
+        __m512i vroot1 = _mm512_loadu_si512(fr1 + j);
+        __m512i vroot2 = _mm512_loadu_si512(fr2 + j);
+
+        // approximate the next 16 logp's as equal to the largest
+        logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
+        nc = direct_compress16(cbuf, nc, interval, vroot1, vroot2,
+            _mm512_sub_epi32(vprime, vroot1), _mm512_sub_epi32(vprime, vroot2), logp);
+        if (nc >= DIRECT_CBUF_FLUSH)
+        {
+            direct_compress_flush(sieve, cbuf, nc);
+            nc = 0;
+        }
+    }
+    direct_compress_flush(sieve, cbuf, nc);
+#elif DIRECT_SCATTER_MODE == 1
+    uint32_t sink = 0;
+    for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
+    {
+        __m512i vprime = _mm512_loadu_si512(primes + j);
+        __m512i vroot1 = _mm512_loadu_si512(fr1 + j);
+        __m512i vroot2 = _mm512_loadu_si512(fr2 + j);
+
+        // approximate the next 16 logp's as equal to the largest
+        logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
+        direct_sink_scatter16(sieve, interval, vroot1, vroot2,
+            _mm512_sub_epi32(vprime, vroot1), _mm512_sub_epi32(vprime, vroot2),
+            logp, &sink);
+    }
+#else
     for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
     {
         __m512i vprime = _mm512_loadu_si512(primes + j);
@@ -1536,6 +1571,7 @@ void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_
             m4 = _reset_lsb(m4);
         }
     }
+#endif
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < fb->B; j++)

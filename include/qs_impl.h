@@ -158,6 +158,30 @@
 #ifndef DIRECT_MEDBUCKET
 #define DIRECT_MEDBUCKET 1
 #endif
+// how the [large_B, B) roots are scattered into the intervals (standalone
+// pass 1 and the fused pass's next-poly sieve), see Sink-Stripe Sieve
+// Stores.md:
+// 0: loop over the set bits of the in-range masks (trail_zcnt / reset_lsb).
+// 1: "sink stripe": every one of the 64 root lanes per 16 primes does a
+//    read-modify-write; lanes that miss the interval are blended to a
+//    rotating address in an unscanned stripe past the neg interval (the
+//    second tail guard block), so there are no data-dependent branches.
+// 2: compress the in-range lanes (as logp << 24 | position) in registers
+//    (maskz_compress) and append them to a buffer with unaligned stores;
+//    sieve the buffer once it holds DIRECT_CBUF_FLUSH entries.
+// 3: as 2, but append with mask_compressstoreu directly to memory.
+#ifndef DIRECT_SCATTER_MODE
+#define DIRECT_SCATTER_MODE 1
+#endif
+// size of the sink stripe in bytes: a multiple of 64, at most 32768
+#ifndef DIRECT_SINK_BYTES
+#define DIRECT_SINK_BYTES 1024
+#endif
+// modes 2/3: sieve the compressed hit buffer once it holds at least this
+// many entries (1 = after every 16 primes)
+#ifndef DIRECT_CBUF_FLUSH
+#define DIRECT_CBUF_FLUSH 1024
+#endif
 #endif
 
 // as part of analyzing 3lp parameterizations, we save off the 
@@ -909,6 +933,118 @@ void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
     sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 void direct_sieve_largeprimes_32k(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+
+#if defined(TRY_DIRECT_SIEVE) && (DIRECT_SCATTER_MODE >= 2)
+#include <immintrin.h>
+// buffer size for modes 2/3: a flush threshold plus room for one more
+// 16-prime group (64 entries) and the last unaligned store's 16-lane tail
+#define DIRECT_CBUF_SIZE (DIRECT_CBUF_FLUSH + 80)
+
+// append the in-range lanes of 16 primes' 4 root vectors to buf[n...] as
+// (logp << 24) | sieve position (pos side r, neg side interval + p - r;
+// 2*interval < 2^24).  Returns the new count.
+static inline uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t interval,
+    __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2, uint8_t logp)
+{
+    __m512i vint = _mm512_set1_epi32(interval);
+    __m512i vtag = _mm512_set1_epi32((uint32_t)logp << 24);
+    __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+    __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+    __mmask16 m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
+    __mmask16 m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
+    __m512i v1 = _mm512_or_epi32(vroot1, vtag);
+    __m512i v2 = _mm512_or_epi32(vroot2, vtag);
+    __m512i v3 = _mm512_or_epi32(_mm512_add_epi32(vnroot1, vint), vtag);
+    __m512i v4 = _mm512_or_epi32(_mm512_add_epi32(vnroot2, vint), vtag);
+
+#if DIRECT_SCATTER_MODE == 2
+    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m1, v1));
+    n += _mm_popcnt_u32(m1);
+    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m2, v2));
+    n += _mm_popcnt_u32(m2);
+    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m3, v3));
+    n += _mm_popcnt_u32(m3);
+    _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m4, v4));
+    n += _mm_popcnt_u32(m4);
+#else
+    _mm512_mask_compressstoreu_epi32(buf + n, m1, v1);
+    n += _mm_popcnt_u32(m1);
+    _mm512_mask_compressstoreu_epi32(buf + n, m2, v2);
+    n += _mm_popcnt_u32(m2);
+    _mm512_mask_compressstoreu_epi32(buf + n, m3, v3);
+    n += _mm_popcnt_u32(m3);
+    _mm512_mask_compressstoreu_epi32(buf + n, m4, v4);
+    n += _mm_popcnt_u32(m4);
+#endif
+    return n;
+}
+
+// sieve the buffered hits
+static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, uint32_t n)
+{
+    uint32_t k;
+    for (k = 0; k < n; k++)
+    {
+        uint32_t e = buf[k];
+        sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
+    }
+}
+#endif
+
+#if defined(TRY_DIRECT_SIEVE) && (DIRECT_SCATTER_MODE == 1)
+#include <immintrin.h>
+// sink-stripe scatter of 16 primes' 4 root vectors into both intervals
+// (pos side sieve[0, interval), neg side sieve[interval, 2*interval)).
+// vroot = pos-side roots, vnroot = p - root (neg-side offsets).  Every lane
+// is written: lanes outside the interval go to the stripe at
+// sieve[2*interval + 32768 + *sink ...], which is allocated (second tail
+// guard block) and never scanned.  *sink rotates through the stripe so
+// consecutive miss RMWs don't chain through store forwarding.
+static inline void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
+    __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2,
+    uint8_t logp, uint32_t* sink)
+{
+    ALIGNED_MEM uint32_t idx[64];
+    const __m512i vlane = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 12, 13, 14, 15);
+    __m512i vint = _mm512_set1_epi32(interval);
+    __m512i vs = _mm512_add_epi32(_mm512_set1_epi32(2 * interval + 32768 + *sink), vlane);
+    __m512i v16 = _mm512_set1_epi32(16);
+    __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+    __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+    __mmask16 m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
+    __mmask16 m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
+
+    _mm512_store_si512(idx, _mm512_mask_blend_epi32(m1, vs, vroot1));
+    vs = _mm512_add_epi32(vs, v16);
+    _mm512_store_si512(idx + 16, _mm512_mask_blend_epi32(m2, vs, vroot2));
+    vs = _mm512_add_epi32(vs, v16);
+    _mm512_store_si512(idx + 32, _mm512_mask_blend_epi32(m3, vs,
+        _mm512_add_epi32(vnroot1, vint)));
+    vs = _mm512_add_epi32(vs, v16);
+    _mm512_store_si512(idx + 48, _mm512_mask_blend_epi32(m4, vs,
+        _mm512_add_epi32(vnroot2, vint)));
+
+#define DIRECT_SINK_RMW4(k) \
+    sieve[idx[k]] -= logp; sieve[idx[k + 1]] -= logp; \
+    sieve[idx[k + 2]] -= logp; sieve[idx[k + 3]] -= logp;
+#define DIRECT_SINK_RMW16(k) \
+    DIRECT_SINK_RMW4(k) DIRECT_SINK_RMW4(k + 4) \
+    DIRECT_SINK_RMW4(k + 8) DIRECT_SINK_RMW4(k + 12)
+
+    DIRECT_SINK_RMW16(0);
+    DIRECT_SINK_RMW16(16);
+    DIRECT_SINK_RMW16(32);
+    DIRECT_SINK_RMW16(48);
+
+#undef DIRECT_SINK_RMW16
+#undef DIRECT_SINK_RMW4
+
+    *sink += 64;
+    if (*sink >= DIRECT_SINK_BYTES)
+        *sink = 0;
+}
+#endif
 
 extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 

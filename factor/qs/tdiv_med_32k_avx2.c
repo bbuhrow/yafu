@@ -1400,6 +1400,12 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
     // bitmap gathers otherwise (4 gathers per 16 primes regardless).
     int use_cmp = resieve && (pool->num <= DIRECT_CMP_MAX_SURVIVORS);
     uint32_t nsp = 0;   // pos-side survivors: pool->pos[0, nsp) < interval
+#if DIRECT_SCATTER_MODE >= 2
+    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
+    uint32_t nc = 0;
+#elif DIRECT_SCATTER_MODE == 1
+    uint32_t sink = 0;
+#endif
 
     if ((sieve == NULL) && (!resieve))
         return;
@@ -1583,6 +1589,23 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
         _mm512_storeu_si512(fr2 + j, vroot2);
 
         // sieve the next poly's roots, both sides (as pass 1)
+#if DIRECT_SCATTER_MODE >= 2
+        // approximate the next 16 logp's as equal to the largest
+        logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
+        nc = direct_compress16(cbuf, nc, interval, vroot1, vroot2,
+            _mm512_sub_epi32(vprime, vroot1), _mm512_sub_epi32(vprime, vroot2), logp);
+        if (nc >= DIRECT_CBUF_FLUSH)
+        {
+            direct_compress_flush(sieve, cbuf, nc);
+            nc = 0;
+        }
+#elif DIRECT_SCATTER_MODE == 1
+        // approximate the next 16 logp's as equal to the largest
+        logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
+        direct_sink_scatter16(sieve, interval, vroot1, vroot2,
+            _mm512_sub_epi32(vprime, vroot1), _mm512_sub_epi32(vprime, vroot2),
+            logp, &sink);
+#else
         {
             __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
             __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
@@ -1624,7 +1647,13 @@ void direct_resieve_update_largeprimes_32k(static_conf_t* sconf, dynamic_conf_t*
                 m4 = _reset_lsb(m4);
             }
         }
+#endif
     }
+
+#if DIRECT_SCATTER_MODE >= 2
+    // nc stays 0 when sieve == NULL
+    direct_compress_flush(sieve, cbuf, nc);
+#endif
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < bound; j++, ptr++)
