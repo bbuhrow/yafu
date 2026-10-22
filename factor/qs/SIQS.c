@@ -75,6 +75,7 @@ void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
 void (*tdiv_large_ptr)(uint8_t, uint32_t, uint32_t, static_conf_t*, dynamic_conf_t*);
 void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
 void (*direct_resieve_update_ptr)(static_conf_t*, dynamic_conf_t*, uint8_t*);
+void (*nextRoots_lp_ptr)(static_conf_t*, dynamic_conf_t*);
 #endif
 
 typedef struct
@@ -3125,7 +3126,7 @@ void* process_poly(void* vptr)
             if (sconf->lp_portable_roots)
             {
                 nextRoots_32k_generic_small(sconf, dconf);
-                nextRoots_32k_lp_portable(sconf, dconf);
+                nextRoots_lp_ptr(sconf, dconf);
             }
             else
 #endif
@@ -3138,8 +3139,14 @@ void* process_poly(void* vptr)
         if (sconf->lp_portable_roots)
         {
             // small primes, then [med_B, B) per the large-prime strategy
-            nextRoots_32k_generic_small(sconf, dconf);
-            nextRoots_32k_lp_portable(sconf, dconf);
+            // (without AVX-512, nextRoots_32k_avx2_small stops at med_B)
+#if defined(USE_AVX2)
+            if (sconf->obj->HAS_AVX2)
+                nextRoots_32k_avx2_small(sconf, dconf);
+            else
+#endif
+                nextRoots_32k_generic_small(sconf, dconf);
+            nextRoots_lp_ptr(sconf, dconf);
         }
         else
 #endif
@@ -3415,10 +3422,13 @@ static void print_siqs_experiments(static_conf_t* sconf, int to_screen, FILE* lo
 #if defined(TRY_DIRECT_SIEVE)
     {
         static const char* kname[] = { "auto", "bitloop", "sink", "creg", "cmem" };
-        EXP_LINE("strategy: mid = %s, large = %s, kernel = %s, sparse kernel = %s\n",
+        static const char* iname[] = { "auto", "scalar", "avx2", "avx512" };
+        EXP_LINE("strategy: mid = %s, large = %s, kernel = %s, sparse kernel = %s "
+            "(%s kernels%s)\n",
             sconf->mid_bucket ? "bucket" : "sparse",
             sconf->lp_direct ? "direct" : "bucket",
-            kname[sconf->lp_kernel], kname[sconf->sparse_kernel]);
+            kname[sconf->lp_kernel], kname[sconf->sparse_kernel], iname[sconf->lp_isa],
+            sconf->lp_portable_roots ? ", portable root updates" : "");
     }
     if (sconf->lp_direct)
     {
@@ -4414,6 +4424,10 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     // kernel ISA: the best this build and CPU support, or lower if asked
     {
         uint32_t best = SIQS_ISA_SCALAR;
+#if defined(USE_AVX2)
+        if (obj->HAS_AVX2)
+            best = SIQS_ISA_AVX2;
+#endif
 #if defined(USE_AVX512BW)
         if (obj->HAS_AVX512BW)
             best = SIQS_ISA_AVX512;
@@ -4421,8 +4435,6 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         isa = obj->qs_obj.gbl_siqs_lp_isa;
         if ((isa == SIQS_STRAT_AUTO) || (isa > best))
             isa = best;
-        if (isa == SIQS_ISA_AVX2)       // no AVX2 kernels yet
-            isa = SIQS_ISA_SCALAR;
     }
 
     if (skernel == SIQS_K_SINK)
@@ -4437,6 +4449,7 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     sconf->lp_kernel = kernel;
     sconf->sparse_kernel = skernel;
     sconf->lp_isa = isa;
+    nextRoots_lp_ptr = &nextRoots_32k_lp_portable;
 
     // per-poly root updates for [med_B, B): the AVX-512 path
     // (nextRoots_32k_avx2_small + knl medbucket/largebucket) handles every
@@ -4445,7 +4458,7 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     // build also use the portable version, to exercise it.
 #if defined(USE_AVX512F)
     if (obj->HAS_AVX512F)
-        sconf->lp_portable_roots = (isa == SIQS_ISA_SCALAR);
+        sconf->lp_portable_roots = (isa != SIQS_ISA_AVX512);
     else
 #endif
         sconf->lp_portable_roots = (sconf->lp_direct || !sconf->mid_bucket);
@@ -4484,6 +4497,37 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         }
         return;
     }
+
+#if defined(USE_AVX2)
+    if (isa == SIQS_ISA_AVX2)
+    {
+        // AVX2 kernels: no compress-to-memory, cmem means creg
+        direct_avx2_init();
+        nextRoots_lp_ptr = &nextRoots_32k_lp_avx2;
+        if (skernel == SIQS_K_CMEM) sconf->sparse_kernel = skernel = SIQS_K_CREG;
+        if (kernel == SIQS_K_CMEM) sconf->lp_kernel = kernel = SIQS_K_CREG;
+        large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ?
+            &large_sieveblock_avx2_bitloop : &large_sieveblock_avx2_creg;
+        tdiv_large_ptr = (skernel == SIQS_K_BITLOOP) ?
+            &tdiv_large_avx2_bitloop : &tdiv_large_avx2_creg;
+        switch (kernel)
+        {
+        case SIQS_K_BITLOOP:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx2_bitloop;
+            direct_resieve_update_ptr = &direct_resieve_update_avx2_bitloop;
+            break;
+        case SIQS_K_SINK:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx2_sink;
+            direct_resieve_update_ptr = &direct_resieve_update_avx2_sink;
+            break;
+        default:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx2_creg;
+            direct_resieve_update_ptr = &direct_resieve_update_avx2_creg;
+            break;
+        }
+        return;
+    }
+#endif
 
 #if defined(USE_AVX512BW)
     switch (skernel)

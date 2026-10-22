@@ -173,6 +173,7 @@
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
     <ClCompile Include="..\..\factor\qs\direct_sieve.c" />
+    <ClCompile Include="..\..\factor\qs\direct_sieve_avx2.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />

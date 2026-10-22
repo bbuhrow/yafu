@@ -661,35 +661,23 @@ void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 //  [large_B, B)         large buckets, unless the direct sieve owns it
 // The bucket fills use the same element format and slice bookkeeping as
 // firstRoots_32k, which every ISA's lp_sieveblock / tdiv_LP reads.
-void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf)
+// nextRoots_32k_lp_portable = nextRoots_32k_lp_sparse_scalar (the sparse
+// range) + nextRoots_32k_lp_buckets (the bucket ranges); the AVX2 version
+// swaps in a vector sparse update.
+
+// [med_B, fb_blk8i): sparse-sieve roots to sieve_p/n in min/max order
+void nextRoots_32k_lp_sparse_scalar(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
     fb_list* fb = sconf->factor_base;
-    int* rootupdates = dconf->rootupdates;
     update_t update_data = dconf->update_data;
-    lp_bucket* lp_bucket_p = dconf->buckets;
     uint32_t bound = fb->B;
     uint32_t med_B = fb->med_B;
     uint32_t sparse_B = fb->fb_blk8i;
-    uint32_t large_B = fb->large_B;
-    uint32_t stop = sconf->lp_direct ? large_B : bound;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&rootupdates[(v - 1) * bound + med_B];
-    uint32_t j, root1, root2, prime, nroot1, nroot2, interval;
-    int numblocks = sconf->num_blocks;
-    uint32_t* bptr;
-    int bnum, room, k;
-    int bound_index = 0;
-    int check_bound;
-    uint32_t bound_val = sparse_B;
-    uint32_t* numptr_p, * numptr_n, * sliceptr_p, * sliceptr_n;
-    uint8_t* slicelogp_ptr;
-    uint32_t* slicebound_ptr;
-    uint8_t logp = 0;
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + med_B];
+    uint32_t j, root1, root2, prime;
 
-    interval = numblocks << 15;
-
-    // sparse range
     for (j = med_B; j < sparse_B; j++, ptr++)
     {
         uint32_t u = *ptr;
@@ -718,6 +706,35 @@ void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf)
         dconf->sieve_n->root1[j] = prime - root2;
         dconf->sieve_n->root2[j] = prime - root1;
     }
+}
+
+// bucket ranges [fb_blk8i, large_B) (mid buckets) and [large_B, B) (large
+// buckets, unless the direct sieve owns that range)
+void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    fb_list* fb = sconf->factor_base;
+    update_t update_data = dconf->update_data;
+    lp_bucket* lp_bucket_p = dconf->buckets;
+    uint32_t bound = fb->B;
+    uint32_t sparse_B = fb->fb_blk8i;
+    uint32_t large_B = fb->large_B;
+    uint32_t stop = sconf->lp_direct ? large_B : bound;
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + sparse_B];
+    uint32_t j, root1, root2, prime, nroot1, nroot2, interval;
+    int numblocks = sconf->num_blocks;
+    uint32_t* bptr;
+    int bnum, room, k;
+    int bound_index = 0;
+    int check_bound;
+    uint32_t bound_val = sparse_B;
+    uint32_t* numptr_p, * numptr_n, * sliceptr_p, * sliceptr_n;
+    uint8_t* slicelogp_ptr;
+    uint32_t* slicebound_ptr;
+    uint8_t logp = 0;
+
+    interval = numblocks << 15;
 
     if ((lp_bucket_p->alloc_slices == 0) || (sparse_B >= stop))
     {
@@ -788,6 +805,12 @@ void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf)
         fb->list->logprime[large_B - 1] : logp;
 
     return;
+}
+
+void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    nextRoots_32k_lp_sparse_scalar(sconf, dconf);
+    nextRoots_32k_lp_buckets(sconf, dconf);
 }
 
 #endif

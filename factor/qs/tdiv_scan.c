@@ -488,8 +488,9 @@ int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity,
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
 	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
-	SIQS_SPARSE_TDIV(parity, blocknum);
 	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	// after resieve_med, so fb_offsets stay sorted (the filter merges them)
+	SIQS_SPARSE_TDIV(parity, blocknum);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
@@ -608,8 +609,9 @@ int check_relations_siqs_8_sse2(uint32_t blocknum, uint8_t parity,
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
 	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
-	SIQS_SPARSE_TDIV(parity, blocknum);
 	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	// after resieve_med, so fb_offsets stay sorted (the filter merges them)
+	SIQS_SPARSE_TDIV(parity, blocknum);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
@@ -732,8 +734,9 @@ int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
 	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
-	SIQS_SPARSE_TDIV(parity, blocknum);
 	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	// after resieve_med, so fb_offsets stay sorted (the filter merges them)
+	SIQS_SPARSE_TDIV(parity, blocknum);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
@@ -807,8 +810,9 @@ int check_relations_siqs_4_avx2(uint32_t blocknum, uint8_t parity,
     //remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
-	SIQS_SPARSE_TDIV(parity, blocknum);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	// after resieve_med, so fb_offsets stay sorted (the filter merges them)
+	SIQS_SPARSE_TDIV(parity, blocknum);
 
     // factor all reports in this block
     for (j = 0; j < dconf->num_reports; j++)
@@ -882,8 +886,9 @@ int check_relations_siqs_8_avx2(uint32_t blocknum, uint8_t parity,
     //remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
-	SIQS_SPARSE_TDIV(parity, blocknum);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	// after resieve_med, so fb_offsets stay sorted (the filter merges them)
+	SIQS_SPARSE_TDIV(parity, blocknum);
 
     // factor all reports in this block
     for (j = 0; j < dconf->num_reports; j++)
@@ -953,8 +958,9 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
     //remove small primes, and test if its worth continuing for each report
     filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
-	SIQS_SPARSE_TDIV(parity, blocknum);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+	// after resieve_med, so fb_offsets stay sorted (the filter merges them)
+	SIQS_SPARSE_TDIV(parity, blocknum);
 
     // factor all reports in this block
     for (j = 0; j < dconf->num_reports; j++)

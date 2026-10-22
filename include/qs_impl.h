@@ -995,8 +995,24 @@ extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_co
 #if defined(TRY_DIRECT_SIEVE)
 #if defined(_MSC_VER) && !defined(__clang__)
 #define SIQS_FORCEINLINE static __forceinline
+#include <intrin.h>
+// trailing zero count of a nonzero word, and population count
+static __forceinline uint32_t siqs_ctz32(uint32_t x)
+{
+    unsigned long p;
+    _BitScanForward(&p, x);
+    return (uint32_t)p;
+}
+static __forceinline uint32_t siqs_popcnt32(uint32_t x)
+{
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    return (((x + (x >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+}
 #else
 #define SIQS_FORCEINLINE static inline __attribute__((always_inline))
+#define siqs_ctz32(x) ((uint32_t)__builtin_ctz(x))
+#define siqs_popcnt32(x) ((uint32_t)__builtin_popcount(x))
 #endif
 
 // buffer size for the compress kernels: a flush threshold plus room for one
@@ -1031,6 +1047,29 @@ void large_sieveblock_scalar_append(uint8_t* sieve, sieve_fb* fb, fb_list* full_
     uint32_t start_prime, uint8_t s_init);
 void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_sparse_scalar(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf);
+// per-poly roots for [med_B, B) when sconf->lp_portable_roots
+// (nextRoots_32k_lp_portable or nextRoots_32k_lp_avx2)
+extern void (*nextRoots_lp_ptr)(static_conf_t*, dynamic_conf_t*);
+
+// AVX2 kernels (direct_sieve_avx2.c; AVX2 and AVX-512 builds)
+void direct_avx2_init(void);
+void direct_sieve_largeprimes_avx2_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx2_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx2_creg(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_avx2_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx2_sink(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx2_creg(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void large_sieveblock_avx2_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_avx2_creg(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void tdiv_large_avx2_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_avx2_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_avx2(static_conf_t* sconf, dynamic_conf_t* dconf);
 #endif
 
 #if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512BW)
