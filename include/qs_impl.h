@@ -181,16 +181,17 @@
 //    sieve the buffer once it holds DIRECT_CBUF_FLUSH entries.
 // 3: as 2, but append with mask_compressstoreu directly to memory.
 #ifndef DIRECT_SCATTER_MODE
-#define DIRECT_SCATTER_MODE 1
+#define DIRECT_SCATTER_MODE 3
 #endif
 // size of the sink stripe in bytes: a multiple of 64, at most 32768
 #ifndef DIRECT_SINK_BYTES
 #define DIRECT_SINK_BYTES 1024
 #endif
 // modes 2/3: sieve the compressed hit buffer once it holds at least this
-// many entries (1 = after every 16 primes)
+// many entries (1 = after every 16 primes).  Flat from 256 to 4096 on
+// Rocket Lake (mode 3, 77-79 digits, NB 2/4/8); 128 is ~1-2% slower at NB=2.
 #ifndef DIRECT_CBUF_FLUSH
-#define DIRECT_CBUF_FLUSH 1024
+#define DIRECT_CBUF_FLUSH 512
 #endif
 #endif
 

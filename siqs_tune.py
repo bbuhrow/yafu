@@ -29,6 +29,10 @@ Tunable parameters (yafu flag):
                    adaptive TFSm tuning, as any -siqsTFSm override does)
   MFBD  -siqsMFBD  DLP residue exponent (only meaningful when DLP is used,
                    i.e. >= 70 digits; dropped automatically otherwise)
+  SPV   -siqsSPV   small prime variation bound: primes below it are not
+                   sieved (one of 256, 512, 1024; default 256).  Only has an
+                   effect in builds with TRY_SMALLP_OPT; yafu ignores the
+                   flag otherwise, so drop it with --params on such builds.
 
 Examples
   # tune at 70 digits, 1 thread, 60 candidates
@@ -145,6 +149,7 @@ PARSE = {
     "NB":       (re.compile(r"sieve interval:\s*(\d+) blocks"), int),
     "TFSm":     (re.compile(r"using SPV correction of (\d+) bits"), int),
     "TF":       (re.compile(r"trial factoring cutoff at (\d+) bits"), int),
+    "SPV":      (re.compile(r"SPV small_limit = (\d+)"), int),   # -v -v only
     # results
     "t_total":  (re.compile(r"SIQS elapsed time = " + FLT), float),
     "t_sieve":  (re.compile(r"^QS elapsed time = " + FLT, re.M), float),
@@ -176,9 +181,18 @@ def parse_output(text, n):
 # parameter space
 # --------------------------------------------------------------------------
 FLAGS = {"B": "-siqsB", "M": "-siqsM", "NB": "-siqsNB",
-         "TF": "-siqsTF", "TFSm": "-siqsTFSm", "MFBD": "-siqsMFBD"}
-ORDER = ["B", "M", "NB", "TF", "TFSm", "MFBD"]
+         "TF": "-siqsTF", "TFSm": "-siqsTFSm", "MFBD": "-siqsMFBD",
+         "SPV": "-siqsSPV"}
+ORDER = ["B", "M", "NB", "TF", "TFSm", "MFBD", "SPV"]
 LOG_PARAMS = {"B", "M"}
+# categorical params: the box (lo, hi) selects the allowed choices
+CHOICES = {"SPV": [256, 512, 1024]}
+SPV_DEFAULT = 256           # yafu's small_limit; not printed at -v
+
+
+def choices(name, box):
+    lo, hi = box[name]
+    return [c for c in CHOICES[name] if lo <= c <= hi] or [lo]
 
 
 def default_box(d):
@@ -188,8 +202,11 @@ def default_box(d):
         "M":    (20, 600),
         "NB":   (1, max(8, d["NB"] + 2)),
         "TF":   (max(10, d["TF"] - 14), d["TF"] + 3),
-        "TFSm": (max(6, d["TFSm"] - 8), d["TFSm"] + 3),
+        # a raised SPV bound leaves more small primes unsieved, so the
+        # matching TFSm correction can sit a few bits above the default's
+        "TFSm": (max(6, d["TFSm"] - 8), d["TFSm"] + 6),
         "MFBD": (1.45, 1.95),
+        "SPV":  (min(CHOICES["SPV"]), max(CHOICES["SPV"])),
     }
     return box
 
@@ -203,6 +220,10 @@ def quantize(name, v):
 
 
 def to_unit(name, v, box):
+    if name in CHOICES:
+        cs = choices(name, box)
+        i = min(range(len(cs)), key=lambda j: abs(cs[j] - v))
+        return i / (len(cs) - 1) if len(cs) > 1 else 0.5
     lo, hi = box[name]
     if name in LOG_PARAMS:
         return (math.log(v) - math.log(lo)) / (math.log(hi) - math.log(lo))
@@ -212,6 +233,9 @@ def to_unit(name, v, box):
 def from_unit(name, u, box):
     lo, hi = box[name]
     u = min(1.0, max(0.0, u))
+    if name in CHOICES:
+        cs = choices(name, box)
+        return cs[min(len(cs) - 1, int(u * len(cs)))]
     if name in LOG_PARAMS:
         v = math.exp(math.log(lo) + u * (math.log(hi) - math.log(lo)))
     else:
@@ -233,6 +257,11 @@ def perturb(center, names, box, fixed, scale, rng):
     move = [k for k in free if rng.random() < 0.5] or [rng.choice(free)]
     p = dict(center)
     for k in move:
+        if k in CHOICES:             # no notion of step size: jump to another
+            others = [c for c in choices(k, box) if c != center[k]]
+            if others:
+                p[k] = rng.choice(others)
+            continue
         for _ in range(20):          # make sure the quantized value changes
             v = from_unit(k, to_unit(k, center[k], box) + rng.gauss(0, scale), box)
             if v != center[k]:
@@ -330,6 +359,13 @@ class Runner:
                 os.close(master)
         wall = time.time() - t0
         shutil.rmtree(wd, ignore_errors=True)
+        if "supported options are:" in text:
+            # yafu prints its usage and exits on an option it doesn't know;
+            # don't cache this as a failed candidate
+            raise SystemExit(f"{self.yafu} rejected the command line (printed usage):\n"
+                             f"  {' '.join(cmd)}\n"
+                             "is the binary older than one of these options? "
+                             "(drop it with --params)")
         rec = parse_output(text, n)
         rec.update(key=k, n=n, digits=len(n), params=params, rep=rep,
                    wall=round(wall, 3), timeout=timed_out, when=time.time())
@@ -412,6 +448,7 @@ def tune_digits(R, a, digits):
             base.setdefault(n, []).append(t)
             if eff is None:
                 eff = {k: rec[k] for k in ORDER if rec.get(k) is not None}
+                eff.setdefault("SPV", SPV_DEFAULT)
     base_t = {n: statistics.median(ts) for n, ts in base.items()}
     noise = [statistics.stdev(ts) / statistics.mean(ts) for ts in base.values() if len(ts) > 1]
     noise = statistics.mean(noise) if noise else 0.03
