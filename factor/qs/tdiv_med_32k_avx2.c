@@ -913,6 +913,8 @@ void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
+#if defined(SIQS_EXPERIMENTAL_SIEVES)
+// AVX-512 only (despite the name): the sparse-sieve tdiv for [med_B, fb_blk8i)
 void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
@@ -1080,6 +1082,7 @@ void tdiv_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
     return;
 }
+#endif
 
 // ----------------------------------------------------------------------
 // trial division for the experimental linked-list sieve (TRY_LIST_SIEVE).

@@ -3360,6 +3360,8 @@ static void print_siqs_experiments(static_conf_t* sconf, int to_screen, FILE* lo
     ((hi) > (lo) ? fb->list->prime[(hi) - 1] : 0)
 
     EXP_LINE("==== experimental sieve options ====\n");
+    EXP_LINE("per-core L2 = %u KB; both-side interval = %u KB\n",
+        ytools_get_l2_core_size() / 1024, 2 * sconf->num_blocks * 32);
 
 #if defined(TRY_DIRECT_SIEVE)
     EXP_LINE("TRY_DIRECT_SIEVE: direct interval sieve, fb [%u, %u) primes %u..%u "

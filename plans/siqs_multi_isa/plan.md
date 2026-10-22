@@ -149,6 +149,20 @@ Never branch on the kernel inside a hot loop. Instead:
 
 ### 5.1 Design rule: bit-identical results across ISAs and kernels
 
+**Phase 0 finding:** stock builds at different ISA levels do *not* do
+identical work. On c77 at NB=4, the polynomial counts were 93182 (AVX2),
+91142 (SSE4.1), 90887 (SSE2) and 90248 (generic), because their med-sieve
+kernels approximate logp differently. Cross-ISA bit-identity is therefore
+only possible for the large-prime kernels. The gate becomes:
+
+- **Same binary:** the AVX-512 build also compiles in the AVX2 and scalar
+  versions of every new large-prime kernel. A run-time option
+  (`-siqsLPisa avx512|avx2|scalar`) selects them, so each kernel port is
+  checked bit-for-bit against the AVX-512 kernel inside one binary, where
+  everything else is identical.
+- **Per build:** lower-ISA builds must factor, and their yield per poly
+  must stay within a band of the same build's stock bucket strategy.
+
 - **Keep the 16-prime logp group on every ISA.** AVX2 handles a group as
   2×8 lanes, SSE and NEON as 4×4. Keep large_B and fb_blk8i 16-aligned.
 - **Keep the order of fb_offsets.** Matches are visited in ascending fb

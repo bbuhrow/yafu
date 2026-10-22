@@ -1,0 +1,13 @@
+# Reference work counters for the correctness gate (tools/bench_matrix.sh
+# with defaults: -threads 1 -seed 777 -noopt -siqsNB 4).  Same build + same
+# strategy must reproduce these exactly (polys, touched, blocks, full,
+# partial); timings are for orientation only (i5-11600K, WSL gcc 11).
+#
+# build   strategy                 input  polys   touched  blocks   full   partial  qs_sec
+# phase 0 (L2sieve branch @ 46de3d0 + ISA fences)
+avx512    sparse+direct/cmem       c77    89994   4698192  719952   16654  207871   18.73
+avx512    sparse+direct/cmem       c79    150705  5895674  1205640  19126  250272   31.47
+avx2      bucket+bucket (stock)    c77    93182   3868324  745456   17186  203624   31.31
+sse41     bucket+bucket (stock)    c77    91142   3968389  729136   16769  207991   44.44
+sse2      bucket+bucket (stock)    c77    90887   3982997  727096   16695  208297   48.56
+generic   bucket+bucket (stock)    c77    90248   4000014  721984   16693  208710   58.56

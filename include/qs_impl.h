@@ -85,6 +85,14 @@
 // new largep bucket sorting idea
 // #define TRY_COMPRESS_SORT_LARGEP 1
 
+// The experimental sieves below (L2 / sparse / list / direct) have only
+// AVX-512F/BW implementations so far.  Lower-ISA builds compile the stock
+// bucket sieve instead.
+#if defined(USE_AVX512F) && defined(USE_AVX512BW)
+#define SIQS_EXPERIMENTAL_SIEVES
+#endif
+
+#if defined(SIQS_EXPERIMENTAL_SIEVES)
 // L2 sieving
 #define TRY_L2_SIEVE
 // change the L2 sieve to a sparse sieve up to 8x blocksize primes
@@ -124,6 +132,7 @@
 // compatible with USE_SS_SEARCH / USE_BATCHPOLY / USE_XLBATCHPOLY.
 // Takes precedence over TRY_LIST_SIEVE (which is undefined below).
 #define TRY_DIRECT_SIEVE
+#endif  // SIQS_EXPERIMENTAL_SIEVES
 
 #if defined(TRY_DIRECT_SIEVE)
 #undef TRY_LIST_SIEVE

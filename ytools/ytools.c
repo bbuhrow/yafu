@@ -856,6 +856,46 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
     *level2_size_out = cache_size2;
 }
 
+// ytools_get_cache_sizes reports the largest of the L2 and L3 caches as its
+// "level 2" size (msieve's linear algebra sizes its blocks from that).
+// This returns the private, per-core L2 size alone, which is what the
+// SIQS sieve-strategy choices care about.  Intel: the level-2 data/unified
+// entry of deterministic cache leaf 4 (leaf 0x80000006 reports a stale
+// 256 KB on e.g. Rocket Lake, whose L2 is 512 KB).  AMD: leaf 0x80000006
+// ECX[31:16], the L2 size in KB.
+uint32_t ytools_get_l2_core_size(void)
+{
+#if defined(HAS_CPUID) && !defined(__APPLE__)
+    uint32_t a, b, c, d, max_std, max_special, i;
+
+    CPUID(0, max_std, b, c, d);
+    if (((b & 0xff) == 'G') && (max_std >= 4))
+    {
+        for (i = 0; i < 16; i++)
+        {
+            uint32_t type, level;
+            CPUID2(4, i, a, b, c, d);
+            type = a & 31;
+            level = (a >> 5) & 7;
+            if (type == 0)
+                break;
+            if ((level == 2) && ((type == 1) || (type == 3)))
+                return ((b >> 22) + 1) * (((b >> 12) & 0x3ff) + 1) *
+                    ((b & 0xfff) + 1) * (c + 1);
+        }
+    }
+
+    CPUID(0x80000000, max_special, b, c, d);
+    if (max_special >= 0x80000006)
+    {
+        CPUID(0x80000006, a, b, c, d);
+        if ((c >> 16) > 0)
+            return 1024 * (c >> 16);
+    }
+#endif
+    return DEFAULT_L2_CACHE_SIZE;
+}
+
 enum cpu_type ytools_get_cpu_type(void) {
 
     enum cpu_type cpu = cpu_generic;
