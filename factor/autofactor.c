@@ -37,6 +37,8 @@ code to the public domain.
 #include "ecm.h"
 #endif
 #include "microecm.h"
+#include "tinyecm.h"
+#include "kmpqs/kmpqs.h"
 
 #ifdef __MINGW32__
 #include <sys/time.h>
@@ -2700,274 +2702,35 @@ int factor_tiny(mpz_t in, mpz_t* out,
 		}
 		else
 		{
-#if 0
-			if (getfactor_tecm(in, gmpf,
-				mpz_sizeinbase(in, 2) / 3 - 2, &prng) > 0)
+			// > 64 bits: ECM for a small factor first, then kmpqs
+			// (lasieve's MPQS) for whatever is left.
+			mpz_t* kf;
+			int nf, i;
+
+			if ((getfactor_tecm(in, gmpf, 0, prng) > 0) &&
+				(mpz_cmp_ui(gmpf, 1) > 0) && (mpz_cmp(gmpf, in) < 0) &&
+				mpz_divisible_p(in, gmpf) && (mpz_probab_prime_p(gmpf, 1) > 0))
 			{
-				if (mpz_sizeinbase(gmpf, 2) <= max_primebits[s])
-				{
-					mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
-
-					// if the remaining residue is obviously too big, we're done.
-					if (mpz_sizeinbase(fac[1], 2) > ((max_primebits[s] * 2)))
-					{
-						nf = 0;
-						goto done;
-					}
-
-					// check if the residue is prime.  could again use
-					// a cheaper method.
-					if (mpz_probab_prime_p(fac[1], 1) > 0)
-					{
-						if (mpz_sizeinbase(fac[1], 2) <= max_primebits[s])
-						{
-							// we just completed a DLP factorization involving
-							// 2 primes whos product was > 64 bits.
-							nf = 2;
-							goto done;
-						}
-						nf = 0;
-						goto done;
-					}
-
-					// ok, so we have extracted one suitable factor, and the 
-					// cofactor is not prime and a suitable size.  Do more work to 
-					// split the cofactor.
-					// todo: target this better based on expected factor size.
-					uint64_t q64;
-					uint64_t f64;
-					if (mpz_sizeinbase(fac[1], 2) <= 64)
-					{
-						q64 = mpz_get_ui(fac[1]);
-						f64 = getfactor_uecm(q64, 0, &pran);
-						mpz_set_ui(fac[2], f64);
-					}
-					else
-					{
-						// we have a composite residue > 64 bits.  
-						// use ecm first with high effort.
-						getfactor_tecm(fac[1], fac[2], 32, &pran);
-					}
-					f64 = mpz_get_ui(fac[2]);
-
-					if (f64 > 1)
-					{
-						mpz_tdiv_q_ui(fac[1], fac[1], f64);
-						nf = 3;
-
-						if (mpz_sizeinbase(fac[1], 2) > max_primebits[s]) {
-							nf = 0;
-						}
-						if (mpz_sizeinbase(fac[2], 2) > max_primebits[s]) {
-							nf = 0;
-						}
-						if (mpz_probab_prime_p(fac[0], 1) == 0)
-						{
-							nf = 0;
-						}
-						if (mpz_probab_prime_p(fac[1], 1) == 0)
-						{
-							nf = 0;
-						}
-						if (mpz_probab_prime_p(fac[2], 1) == 0)
-						{
-							nf = 0;
-						}
-					}
-					else
-					{
-						// uecm/tecm failed, which does sometimes happen
-						nf = mpqs_factor(fac[1], max_primebits[s], &fac);
-						if (nf == 2)
-						{
-							// fac is now set to mpqs's statically allocated
-							// set of mpz_t's.  copy in the one we found by ecm.
-							nf = 3;
-							mpz_set(fac[2], uecm_factors[0]);
-						}
-						else
-						{
-							nf = 0;
-						}
-					}
-				}
-				else
-				{
-					// check if the factor is prime.  could again use
-					// a cheaper method.
-					if (mpz_probab_prime_p(fac[0], 1) > 0)
-					{
-						// if the factor is obviously too big, give up.  This isn't a
-						// failure since we haven't expended much effort yet.
-						nf = 0;
-					}
-					else
-					{
-						// tecm found a composite first factor.
-						// if it is obviously too big, we're done.
-						if (mpz_sizeinbase(fac[0], 2) > ((max_primebits[s] * 2)))
-						{
-							nf = 0;
-							goto done;
-						}
-
-						// isolate the 2nd smaller factor, and check its size.
-						mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
-
-						if (mpz_sizeinbase(fac[1], 2) > (max_primebits[s]))
-						{
-							nf = 0;
-							goto done;
-						}
-
-						// todo: target this better based on expected factor size.
-						uint64_t q64;
-						uint64_t f64;
-						if (mpz_sizeinbase(fac[0], 2) <= 64)
-						{
-							q64 = mpz_get_ui(fac[0]);
-							f64 = getfactor_uecm(q64, 0, &pran);
-							mpz_set_ui(fac[2], f64);
-						}
-						else
-						{
-							// we have a composite residue > 64 bits.  
-							// use ecm with high effort first
-							getfactor_tecm(fac[0], fac[2], 32, &pran);
-						}
-						f64 = mpz_get_ui(fac[2]);
-
-						if (f64 > 1)
-						{
-							mpz_tdiv_q_ui(fac[0], fac[0], f64);
-							nf = 3;
-
-							if (mpz_sizeinbase(fac[0], 2) > max_primebits[s]) {
-								nf = 0;
-							}
-							if (mpz_sizeinbase(fac[2], 2) > max_primebits[s]) {
-								nf = 0;
-							}
-							if (mpz_probab_prime_p(fac[0], 1) == 0)
-							{
-								nf = 0;
-							}
-							if (mpz_probab_prime_p(fac[1], 1) == 0)
-							{
-								nf = 0;
-							}
-							if (mpz_probab_prime_p(fac[2], 1) == 0)
-							{
-								nf = 0;
-							}
-
-						}
-						else
-						{
-							// uecm/tecm failed, which does sometimes happen
-							nf = mpqs_factor(fac[0], max_primebits[s], &fac);
-							if (nf == 2)
-							{
-								// fac is now set to mpqs's statically allocated
-								// set of mpz_t's.  copy in the one we found by ecm.
-								nf = 3;
-								mpz_set(fac[2], uecm_factors[1]);
-							}
-							else
-							{
-								nf = 0;
-							}
-						}
-					}
-				}
+				mpz_init(out[numout]);
+				mpz_set(out[numout], gmpf);
+				numout++;
+				mpz_tdiv_q(in, in, gmpf);
+				continue;
 			}
-			else
+
+			nf = kmpqs_factor(in, 1000, &kf);
+			if (nf < 2)
 			{
-				// if ecm can't find a factor, give up.  
-				// unless this is a DLP with lpbr/a > 32... i.e., if the
-				// large factor size is greater than 64 bits but less than
-				// lpbr/a * 2.  In that case run mpqs... or tecm with
-				// greater effort.
-
-
-#if 0
-				if (mpz_sizeinbase(large_factors[s1], 2) <= (max_primebits[s1] * 2))
-				{
-					if (getfactor_tecm(large_factors[s1], factor1, 33, &pran) > 0)
-					{
-						if (mpz_sizeinbase(factor1, 2) <= max_primebits[s1])
-						{
-							mpz_tdiv_q(factor2, large_factors[s1], factor1);
-
-							// check if the residue is prime.  could again use
-							// a cheaper method.
-							if (mpz_probab_prime_p(factor2, 1) > 0)
-							{
-								if (mpz_sizeinbase(factor2, 2) <= max_primebits[s1])
-								{
-									// we just completed a DLP factorization involving
-									// 2 primes whos product was > 64 bits.
-									mpz_set(large_primes[s1][0], factor1);
-									mpz_set(large_primes[s1][1], factor2);
-									nlp[s1] = 2;
-								}
-								else
-									break;
-							}
-							else
-								break;
-						}
-						else
-							break;
-					}
-					else
-						break;
-				}
-				else
-					break;
-#else
-
-				if (mpz_sizeinbase(large_factors[s], 2) <= (max_primebits[s] * 2))
-				{
-					nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
-				}
-				else
-				{
-#if 0
-					// try for a lucky p-1 hit on the 3LP before we go?
-					// testing on an input with LPB=33 and 3LP enabled
-					// saw that p-1 finds lots of factors but the residues
-					// are all (99.9%) large primes.  I.e., exactly the
-					// kind of inputs we want to not waste time on.
-					if (getfactor_tpm1(large_factors[s], fac[0], 333))
-					{
-						mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
-						if (mpz_sizeinbase(fac[1], 2) <= max_primebits[s])
-						{
-							gmp_printf("P-1 Success! %Zd = %Zd * %Zd\n",
-								large_factors[s], fac[0], fac[1]);
-						}
-						else if (mpz_probab_prime_p(fac[1], 1) == 0)
-						{
-							gmp_printf("Residue %Zd with %d bits is composite\n",
-								fac[1], mpz_sizeinbase(fac[1], 2));
-							gmp_printf("3LP = ");
-
-							mpz_set(fac[2], fac[0]);
-							nf = 1 + mpqs_factor(fac[2], max_primebits[s], &fac);
-
-							for (i = 0; i < nf; i++)
-								gmp_printf("%Zd ", fac[i]);
-							printf("\n");
-						}
-					}
-#else
-					nf = 0;
-#endif
-				}
-#endif
+				gmp_printf("failed to find factor of %Zd\n", in);
+				break;
 			}
-#endif
+			for (i = 0; i < nf; i++)
+			{
+				mpz_init(out[numout]);
+				mpz_set(out[numout], kf[i]);
+				numout++;
+			}
+			mpz_set_ui(in, 1);
 		}
 	}
 
