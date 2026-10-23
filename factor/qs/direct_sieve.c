@@ -239,39 +239,19 @@ void direct_resieve_hits(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t* fr1 = (uint32_t*)dconf->update_data.firstroots1;
     uint32_t* fr2 = (uint32_t*)dconf->update_data.firstroots2;
     uint32_t ngroups = (fb->B - fb->large_B) / 16;
-    uint32_t g, k, start, pf_shift = 0;
-    // 1024-bit prefilter, one bit per 2^pf_shift positions of both
-    // intervals: stays in L1, unlike the bitmap
-    uint64_t pf[16];
+    uint32_t g, k = 0;
 
-    while (((uint64_t)1024 << pf_shift) < (2 * (uint64_t)pool->interval))
-        pf_shift++;
-    memset(pf, 0, sizeof(pf));
-    for (k = 0; k < pool->num; k++)
-    {
-        uint32_t b = pool->pos[k] >> pf_shift;
-        pf[b >> 6] |= (1ULL << (b & 63));
-    }
-
-    for (g = 0, k = 0; g < ngroups; g++)
+    // straight bitmap tests: a register-sized prefilter in front of them
+    // passes about half the groups here (20-30 entries each), which made
+    // it slower
+    for (g = 0; g < ngroups; g++)
     {
         uint32_t end = gend[g];
         uint64_t any = 0;
 
-        for (start = k; k < end; k++)
+        for (; k < end; k++)
         {
-            uint32_t b = (hits[k] & 0xffffff) >> pf_shift;
-            any |= pf[b >> 6] >> (b & 63);
-        }
-
-        if ((any & 1) == 0)
-            continue;
-
-        // exact test of the group's entries
-        any = 0;
-        for (; start < end; start++)
-        {
-            uint32_t pos = hits[start] & 0xffffff;
+            uint32_t pos = hits[k] & 0xffffff;
             any |= bitmap[pos >> 6] >> (pos & 63);
         }
 

@@ -447,9 +447,18 @@ SSE4.1 configuration varied by 9% between two sessions.
    - The 4-lane / scalar builds may want a different NB too.
 5. **Speed.**
    - The fused pass is the top remaining cost on AVX2 and scalar.
-   - Ideas: an AVX2 gather-free survivor test with a larger register
-     prefilter; vectorize the scalar resieve test with SSE2 where
-     available.
+   - Done after `7486bc7`: the creg/cmem kernels on scalar, AVX2 and
+     4-lane keep their scatter entries as a per-poly hit list
+     (`pool->hits`, group ends in `pool->hit_gend`). The resieve walks
+     that list instead of testing all 4 roots of every prime, and resieves
+     in full only the 16-groups with a survivor hit, so the work and the
+     division order are unchanged. AVX2 walks it 8 entries at a time with a
+     1024-bit register prefilter; scalar and 4-lane use plain bitmap tests
+     (a per-group prefilter passed about half the groups and was slower).
+     c77 NB 4: AVX2 −6%, SSE4.1 −9%, generic −12%. AVX-512 is unchanged
+     (its per-root prefilter is already cheap).
+   - What remains on AVX2 is mostly the flush (random byte RMWs into the
+     sieve, about 1.6 cycles per entry, L2-bound).
    - `tdiv_large_scalar` walks every sparse prime per report, which is
      why scalar builds use mid buckets.
 6. **MSVC / Windows builds.** The `.vcxproj` files list the new sources,
