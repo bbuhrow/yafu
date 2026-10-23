@@ -1354,12 +1354,17 @@ test-full-run: test-full
 # -----------------------------------------------------------------------------
 .PHONY: kmpqs-bench
 
+# lasieve's code mixes integer widths freely; keep -Wconversion noise out
+KMPQS_WFLAGS := -Wno-conversion -Wno-sign-conversion -Wno-misleading-indentation \
+                -Wno-unused-variable -Wno-unused-but-set-variable -Wno-shadow
+factor/kmpqs/%.o: CFLAGS += $(KMPQS_WFLAGS)
+
 KMPQS_SRCS       := factor/kmpqs/kmpqs.c factor/kmpqs/kmpqs1.c factor/kmpqs/kmpqs3.c
 KMPQS_BENCH_DEPS := factor/kmpqs/kmpqs_bench.c top/aprcl/tinyprp.c arith/monty.c ytools/ytools.c
 
 kmpqs-bench: _dep_status
-	$(CC) $(CFLAGS) $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) -o kmpqs_bench$(EXE_EXT) $(LIBS)
-	$(CC) $(CFLAGS) -DMPQS_STAT -DMPQS3_STAT $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) \
+	$(CC) $(CFLAGS) $(KMPQS_WFLAGS) $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) -o kmpqs_bench$(EXE_EXT) $(LIBS)
+	$(CC) $(CFLAGS) $(KMPQS_WFLAGS) -DMPQS_STAT -DMPQS3_STAT $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) \
 	    -o kmpqs_bench_stat$(EXE_EXT) $(LIBS)
 
 

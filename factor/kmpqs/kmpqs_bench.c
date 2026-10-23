@@ -17,6 +17,8 @@ Options:
   -seed S        seed for -gen (default 42)
   -dump          write the generated numbers to stdout and exit
   -v             kmpqs_verbose = 1
+  -threads T     also factor the inputs with T threads (thread-local
+                 contexts) and compare with a single-threaded run
 
 When built with -DMPQS_STAT -DMPQS3_STAT the "Stat:" lines match the output
 of lasieve's mpqstest / mpqs3test, so the two can be diffed.
@@ -33,6 +35,9 @@ of lasieve's mpqstest / mpqs3test, so the two can be diffed.
 #endif
 #include "gmp.h"
 #include "kmpqs.h"
+#if !defined(MPQS_STAT) && !defined(MPQS3_STAT)
+#include <pthread.h>
+#endif
 
 #if defined(MPQS_STAT) || defined(MPQS3_STAT)
 uint64_t stat_asm_eval = 0, stat_asm_td = 0;
@@ -77,15 +82,73 @@ static int check_factors(mpz_t N, mpz_t *f, int n)
 	return ok;
 }
 
+typedef struct {
+	mpz_t *inputs;
+	int count, variant;
+	size_t maxbits;
+	int *nf;		/* per input: return value */
+	uint64_t *fhash;	/* per input: sum of the factors mod 2^64 */
+} jobs_t;
+
+typedef struct {
+	jobs_t *jobs;
+	int start, stride;
+	int suc, fail, wrong;
+} worker_arg_t;
+
+/* factor inputs start, start+stride, ... with the calling thread's context */
+static void bench_worker(worker_arg_t *w)
+{
+	jobs_t *jb = w->jobs;
+	mpz_t N, *f;
+	int i, j, nf;
+
+	mpz_init(N);
+	for (i = w->start; i < jb->count; i += w->stride) {
+		mpz_set(N, jb->inputs[i]);
+		if (jb->variant == 1) nf = kmpqs1_factor(N, jb->maxbits, &f);
+		else if (jb->variant == 3) nf = kmpqs3_factor(N, jb->maxbits, &f);
+		else nf = kmpqs_factor(N, jb->maxbits, &f);
+		jb->nf[i] = nf;
+		jb->fhash[i] = 0;
+		if (nf >= 1) {
+			w->suc++;
+			for (j = 0; j < nf; j++)
+				jb->fhash[i] += (uint64_t)mpz_getlimbn(f[j], 0);
+			if (!check_factors(jb->inputs[i], f, nf)) {
+				w->wrong++;
+				gmp_fprintf(stderr, "wrong factorization of %Zd\n", jb->inputs[i]);
+			}
+		}
+		else {
+			w->fail++;
+			if (kmpqs_verbose)
+				gmp_fprintf(stderr, "failed (%d): %Zd\n", nf, jb->inputs[i]);
+		}
+	}
+	mpz_clear(N);
+}
+
+#if !defined(MPQS_STAT) && !defined(MPQS3_STAT)
+static void *bench_worker_thread(void *arg)
+{
+	bench_worker((worker_arg_t *)arg);
+	kmpqs_thread_cleanup();
+	return NULL;
+}
+#endif
+
 int main(int argc, char **argv)
 {
-	int variant = 1, i, nf, dump = 0;
+	int nthreads = 1;
+	jobs_t jobs;
+	int variant = 1, i, dump = 0;
 	int suc = 0, fail = 0, wrong = 0, count = 0;
 	long maxbits = -1;
 	unsigned long seed = 42;
 	int gen_bits = 0, gen_count = 0;
 	const char *fname = NULL;
-	mpz_t N, p, q, *f;
+	mpz_t N, p, q;
 	mpz_t *inputs = NULL;
 	gmp_randstate_t rs;
 	double t0, t1;
@@ -97,6 +160,7 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[i], "-v") == 0) kmpqs_verbose = 1;
 		else if (strcmp(argv[i], "-dump") == 0) dump = 1;
 		else if (strcmp(argv[i], "-maxbits") == 0 && i + 1 < argc) maxbits = atol(argv[++i]);
+		else if (strcmp(argv[i], "-threads") == 0 && i + 1 < argc) nthreads = atoi(argv[++i]);
 		else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc) seed = strtoul(argv[++i], NULL, 10);
 		else if (strcmp(argv[i], "-gen") == 0 && i + 2 < argc) {
 			gen_bits = atoi(argv[++i]);
@@ -173,26 +237,63 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	t0 = now_sec();
-	for (i = 0; i < count; i++) {
-		mpz_set(N, inputs[i]);
-		if (variant == 1) nf = kmpqs1_factor(N, (size_t)maxbits, &f);
-		else if (variant == 3) nf = kmpqs3_factor(N, (size_t)maxbits, &f);
-		else nf = kmpqs_factor(N, (size_t)maxbits, &f);
-		if (nf >= 1) {
-			suc++;
-			if (!check_factors(inputs[i], f, nf)) {
-				wrong++;
-				gmp_fprintf(stderr, "wrong factorization of %Zd\n", inputs[i]);
-			}
+	jobs.inputs = inputs;
+	jobs.count = count;
+	jobs.variant = variant;
+	jobs.maxbits = (size_t)maxbits;
+	jobs.nf = (int *)calloc(count, sizeof(int));
+	jobs.fhash = (uint64_t *)calloc(count, sizeof(uint64_t));
+
+	if (nthreads > 1) {
+#if defined(MPQS_STAT) || defined(MPQS3_STAT)
+		fprintf(stderr, "-threads needs a build without MPQS_STAT (the counters are global)\n");
+		return 1;
+#else
+		/* reference results, single-threaded */
+		int *nf1 = (int *)calloc(count, sizeof(int));
+		uint64_t *h1 = (uint64_t *)calloc(count, sizeof(uint64_t));
+		worker_arg_t w0 = { &jobs, 0, 1, 0, 0, 0 };
+		worker_arg_t *wa = (worker_arg_t *)calloc(nthreads, sizeof(worker_arg_t));
+		pthread_t *tid = (pthread_t *)calloc(nthreads, sizeof(pthread_t));
+		int mismatch = 0;
+
+		bench_worker(&w0);
+		memcpy(nf1, jobs.nf, count * sizeof(int));
+		memcpy(h1, jobs.fhash, count * sizeof(uint64_t));
+
+		t0 = now_sec();
+		for (i = 0; i < nthreads; i++) {
+			wa[i].jobs = &jobs;
+			wa[i].start = i;
+			wa[i].stride = nthreads;
+			pthread_create(&tid[i], NULL, bench_worker_thread, &wa[i]);
 		}
-		else {
-			fail++;
-			if (kmpqs_verbose)
-				gmp_fprintf(stderr, "failed (%d): %Zd\n", nf, inputs[i]);
+		for (i = 0; i < nthreads; i++) {
+			pthread_join(tid[i], NULL);
+			suc += wa[i].suc;
+			fail += wa[i].fail;
+			wrong += wa[i].wrong;
 		}
+		t1 = now_sec();
+		for (i = 0; i < count; i++)
+			if (nf1[i] != jobs.nf[i] || h1[i] != jobs.fhash[i])
+				mismatch++;
+		printf("threads: %d, results differing from the single-threaded run: %d\n",
+			nthreads, mismatch);
+		if (mismatch)
+			wrong += mismatch;
+#endif
 	}
-	t1 = now_sec();
+	else {
+		worker_arg_t w = { &jobs, 0, 1, 0, 0, 0 };
+
+		t0 = now_sec();
+		bench_worker(&w);
+		t1 = now_sec();
+		suc = w.suc;
+		fail = w.fail;
+		wrong = w.wrong;
+	}
 
 	printf("success: %d  failure: %d\n", suc, fail);
 #if defined(MPQS_STAT) || defined(MPQS3_STAT)

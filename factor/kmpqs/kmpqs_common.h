@@ -26,10 +26,9 @@ Internal glue: replaces lasieve's if.h / gmp-aux.h / psp.c / siever-config.h.
 /*
  * lasieve's Schlendrian()/complain() call exit().  Here an internal error
  * longjmps back to the entry point of the current factorization, which
- * then returns KMPQS_ERR_INTERNAL.  Each source file defines KMPQS_JMPBUF.
+ * then returns KMPQS_ERR_INTERNAL (kmpqs.h).  Each source file defines
+ * KMPQS_JMPBUF.
  */
-#define KMPQS_ERR_INTERNAL (-100)
-
 static void kmpqs_report(const char *fmt, ...)
 {
 	va_list ap;

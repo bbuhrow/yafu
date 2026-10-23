@@ -19,8 +19,8 @@ lasieve's TINY3 variant with MOD3.
 
 #include "kmpqs_common.h"
 
-static jmp_buf mpqs3_jmpbuf;
-#define KMPQS_JMPBUF mpqs3_jmpbuf
+/* every function that can fail has the context in scope as 'qs' */
+#define KMPQS_JMPBUF (qs->jmpbuf)
 
 /* from asm/mpqs-config.h (TINY3): nFB, sievebegin (unused in TINY3), nAdiv,
    nAdiv_total, accept, td_begin, sievelen; one row per 4 bits, 92..148 */
@@ -81,82 +81,86 @@ static uint16_t mpqs3_param[15][7]={ /* TODO: optimize parameters */
 #define MPQS3_NRELHASH        256
 
 
-/* common with asm functions */
-static uint16_t mpqs3_nFBk_1;
-static uint16_t mpqs3_td_begin, mpqs3_sievebegin, mpqs3_sievebegink;
-static uint16_t mpqs3_FB_inv_info[4*MPQS3_MAX_NPRIMES];
-static uint16_t mpqs3_nFBk, mpqs3_FBk[3];  /* 3*5*7*11 too big */
-static uint8_t mpqs3_FB_log[MPQS3_MAX_FBSIZE], mpqs3_FBk_log[3];
-static uint16_t mpqs3_nFB, mpqs3_nFBx, mpqs3_nAdiv_total;
-static uint16_t mpqs3_Adiv_all[MPQS3_MAX_ADIV_ALL];
-static uint32_t mpqs3_FBk_inv[3], mpqs3_FB_A_inv[MPQS3_MAX_ADIV_ALL];
+/* all per-factorization state; one context per thread */
+typedef struct {
+  jmp_buf jmpbuf;
+  uint16_t nFBk_1;
+  uint16_t td_begin, sievebegin, sievebegink;
+  uint16_t FB_inv_info[4*MPQS3_MAX_NPRIMES];
+  uint16_t nFBk, FBk[3]; /* 3*5*7*11 too big */
+  uint8_t FB_log[MPQS3_MAX_FBSIZE], FBk_log[3];
+  uint16_t nFB, nFBx, nAdiv_total;
+  uint16_t Adiv_all[MPQS3_MAX_ADIV_ALL];
+  uint32_t FBk_inv[3], FB_A_inv[MPQS3_MAX_ADIV_ALL];
+  uint16_t Adiv_disp[MPQS3_MAX_ADIV_ALL];
+  uint16_t FB_mm_inv[MPQS3_MAX_FBXSIZE], FB_disp[MPQS3_MAX_FBXSIZE];
+  uint16_t FB_np_p[2*MPQS3_MAX_FBXSIZE];
+  uint16_t FB_np_px[2*MPQS3_MAX_FBXSIZE];
+  mpz_t gmp_help, dummy, help;
+  mpz_t N, kN, factors[MPQS3_MAX_FACTORS];
+  uint8_t f_status[MPQS3_MAX_FACTORS];
+  uint32_t multiplier, nfactors;
+  double complexity;
+  uint16_t prime_table[MPQS3_MAX_NPRIMES];
+  uint16_t prime_sqrthelp[MPQS3_MAX_NPRIMES];
+  uint16_t nAdiv, accept;
+  uint8_t Adiv_log[MPQS3_MAX_ADIV_ALL];;
+  uint16_t pmax;
+  uint16_t Adiv[MPQS3_MAX_ADIV_ALL];
+  uint16_t Adiv_sqrt[MPQS3_MAX_ADIV_ALL], Adiv_all_sqrt[MPQS3_MAX_ADIV_ALL];
+  uint16_t Adiv_start1[MPQS3_MAX_ADIV_ALL], Adiv_start2[MPQS3_MAX_ADIV_ALL];
+  uint8_t Adiv_active[MPQS3_MAX_ADIV_ALL];
+  uint16_t A_mask[(1<<MPQS3_MAX_ADIV_ALL)];
+  uint16_t nA;
+  short A_index, B_index;
+  uint16_t SI_inv_table[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_FBSIZE];
+  uint16_t Adiv_SI_inv_table[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_ADIV_ALL];
+  uint16_t SI_add[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_FBXSIZE];
+  uint16_t SIk_add[MPQS3_MAX_ADIV_ALL][3];
+  uint16_t Adiv_SI_add[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_ADIV_ALL];
+  uint32_t Adiv_all_sq_mod_p2[MPQS3_MAX_ADIV_ALL];
+  uint16_t Adiv_all_sq_inv[MPQS3_MAX_ADIV_ALL];
+  double A_dbl, B_dbl, twoB_dbl, C_dbl;
+  double Bi_dbl[MPQS3_MAX_ADIV_ALL];
+  uint64_t A_64, B_64, twoB_64, C_64;
+  uint64_t Bi_64[MPQS3_MAX_ADIV_ALL];
+  uint32_t disp;
+  uint16_t nsurvivors;
+  uint32_t nrels, nlp, nsp, excess;
+  uint8_t logbound;
+  uint16_t nprels, ncrels;
+  uint16_t **relations, **part_rels;
+  uint16_t *comb_index;
+  uint16_t **rel_buffer;
+  uint16_t rel_hash_table[MPQS3_NRELHASH][MPQS3_RELHASH_LEN];
+  uint16_t hash_table[MPQS3_NHASH][MPQS3_HASH_LEN];
+  uint32_t hash_index[MPQS3_NHASH][MPQS3_HASH_LEN];
+  uint32_t lp[MPQS3_NHASH*(MPQS3_HASH_LEN-1)];
+  uint64_t *gauss_row64;
+  uint8_t sol[MPQS3_GAUSS_MAX];
+  short gauss_d[MPQS3_GAUSS_MAX];
+  uint32_t gauss_m, gauss_n, gauss_n64, gauss_k;
+  short exp[128*16+MPQS3_MAX_FBSIZE+3+MPQS3_MAX_ADIV_ALL]; /* ??? */
+  mpz_t sq1, sq2;
+  double kN_dbl, maxval_dbl, A_inv_dbl;
+  uint64_t kN_64, A_inv_64;
+  uint16_t FB[2*MPQS3_MAX_FBXSIZE], FB0[MPQS3_MAX_FBSIZE+2*256];
+  uint16_t FB_start[2*MPQS3_MAX_FBXSIZE], FBk_start[3];
+  uint32_t sievelen;
+  uint32_t FB_inv[MPQS3_MAX_FBXSIZE];
+  uint8_t *sievearray, *tinyarray;
+  uint32_t tiny_prod, ntiny;
+  uint16_t sinit_tab[8*MPQS3_SI_NVALUES];
+  double multiplier_cand_log[4][MPQS3_MULT_NCAND];
+  char multiplier_cand_jacobi[4][MPQS3_MULT_NCAND][MPQS3_MULT_NTESTPR];
+} mpqs3_ctx_t;
 
-static uint16_t mpqs3_Adiv_disp[MPQS3_MAX_ADIV_ALL];
-static uint16_t mpqs3_FB_mm_inv[MPQS3_MAX_FBXSIZE], mpqs3_FB_disp[MPQS3_MAX_FBXSIZE];
-static uint16_t mpqs3_FB_np_p[2*MPQS3_MAX_FBXSIZE];
-static uint16_t mpqs3_FB_np_px[2*MPQS3_MAX_FBXSIZE];
-/* end */
-
-static int mpqs3_isinit=0;
-static mpz_t mpqs3_gmp_help, mpqs3_dummy, mpqs3_help;
-static mpz_t mpqs3_N, mpqs3_kN, mpqs3_factors[MPQS3_MAX_FACTORS];
-static uint8_t mpqs3_f_status[MPQS3_MAX_FACTORS];
-static uint32_t mpqs3_multiplier, mpqs3_nfactors;
-static double mpqs3_complexity;
-static uint16_t mpqs3_prime_table[MPQS3_MAX_NPRIMES];
-static uint16_t mpqs3_prime_sqrthelp[MPQS3_MAX_NPRIMES];
-static uint16_t mpqs3_nAdiv, mpqs3_accept;
-static uint8_t mpqs3_Adiv_log[MPQS3_MAX_ADIV_ALL];;
-static uint16_t mpqs3_pmax;
-static uint16_t mpqs3_Adiv[MPQS3_MAX_ADIV_ALL];
-static uint16_t mpqs3_Adiv_sqrt[MPQS3_MAX_ADIV_ALL], mpqs3_Adiv_all_sqrt[MPQS3_MAX_ADIV_ALL];
-static uint16_t mpqs3_Adiv_start1[MPQS3_MAX_ADIV_ALL], mpqs3_Adiv_start2[MPQS3_MAX_ADIV_ALL];
-static uint8_t mpqs3_Adiv_active[MPQS3_MAX_ADIV_ALL];
-static uint16_t mpqs3_A_mask[(1<<MPQS3_MAX_ADIV_ALL)];
-static uint16_t mpqs3_nA;
-static short mpqs3_A_index, mpqs3_B_index;
-static uint16_t mpqs3_SI_inv_table[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_FBSIZE];
-static uint16_t mpqs3_Adiv_SI_inv_table[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_ADIV_ALL];
-static uint16_t mpqs3_SI_add[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_FBXSIZE];
-static uint16_t mpqs3_SIk_add[MPQS3_MAX_ADIV_ALL][3];
-static uint16_t mpqs3_Adiv_SI_add[MPQS3_MAX_ADIV_ALL][MPQS3_MAX_ADIV_ALL];
-static uint32_t mpqs3_Adiv_all_sq_mod_p2[MPQS3_MAX_ADIV_ALL];
-static uint16_t mpqs3_Adiv_all_sq_inv[MPQS3_MAX_ADIV_ALL];
-
-static double mpqs3_A_dbl, mpqs3_B_dbl, mpqs3_2B_dbl, mpqs3_C_dbl;
-static double mpqs3_Bi_dbl[MPQS3_MAX_ADIV_ALL];
-static uint64_t mpqs3_A_64, mpqs3_B_64, mpqs3_2B_64, mpqs3_C_64;
-static uint64_t mpqs3_Bi_64[MPQS3_MAX_ADIV_ALL];
 
 
-static uint32_t mpqs3_disp;
-static uint16_t mpqs3_nsurvivors;
-static uint32_t mpqs3_nrels, mpqs3_nlp, mpqs3_nsp, mpqs3_excess;
-static uint8_t mpqs3_logbound;
-static uint16_t mpqs3_nprels, mpqs3_ncrels;
-static uint16_t **mpqs3_relations, **mpqs3_part_rels;
-static uint16_t *mpqs3_comb_index;
-static uint16_t **mpqs3_rel_buffer;
-static uint16_t mpqs3_rel_hash_table[MPQS3_NRELHASH][MPQS3_RELHASH_LEN];
-static uint16_t mpqs3_hash_table[MPQS3_NHASH][MPQS3_HASH_LEN];
-static uint32_t mpqs3_hash_index[MPQS3_NHASH][MPQS3_HASH_LEN];
-static uint32_t mpqs3_lp[MPQS3_NHASH*(MPQS3_HASH_LEN-1)];
-static uint64_t *mpqs3_gauss_row64;
-static uint8_t mpqs3_sol[MPQS3_GAUSS_MAX];
-static short mpqs3_gauss_d[MPQS3_GAUSS_MAX];
-static uint32_t mpqs3_gauss_m, mpqs3_gauss_n, mpqs3_gauss_n64, mpqs3_gauss_k;
-static short mpqs3_exp[128*16+MPQS3_MAX_FBSIZE+3+MPQS3_MAX_ADIV_ALL]; /* ??? */
-static mpz_t mpqs3_sq1, mpqs3_sq2;
-static double mpqs3_kN_dbl, mpqs3_maxval_dbl, mpqs3_A_inv_dbl;
-static uint64_t mpqs3_kN_64, mpqs3_A_inv_64;
 
-static uint16_t mpqs3_FB[2*MPQS3_MAX_FBXSIZE], mpqs3_FB0[MPQS3_MAX_FBSIZE+2*256];
-static uint16_t mpqs3_FB_start[2*MPQS3_MAX_FBXSIZE], mpqs3_FBk_start[3];
-static uint32_t mpqs3_sievelen;
-static uint32_t mpqs3_FB_inv[MPQS3_MAX_FBXSIZE];
-static uint8_t *mpqs3_sievearray, *mpqs3_tinyarray;
-static uint32_t mpqs3_tiny_prod, mpqs3_ntiny;
-static uint16_t mpqs3_sinit_tab[8*MPQS3_SI_NVALUES];
+
+
+
 
 static uint8_t mpqs3_256_inv_table[128]={
 1, 171, 205, 183, 57, 163, 197, 239,
@@ -293,7 +297,7 @@ static void mpz_set_v(mpz_t gmp, uint32_t *ulp)
 
 
 
-static uint64_t mpqs3_inv_64(uint64_t a)
+static uint64_t mpqs3_inv_64(mpqs3_ctx_t *qs, uint64_t a)
 {
   uint64_t inv, h;
 
@@ -311,7 +315,7 @@ static uint64_t mpqs3_inv_64(uint64_t a)
 
 static uint8_t mpqs3_jacobi_tab2[8]={0,0,0,1,0,1,0,0};
 
-static int mpqs3_jacobi(uint16_t a, uint16_t b) /* always gcd(a,b)=1 and 0<a<b */
+static int mpqs3_jacobi(mpqs3_ctx_t *qs, uint16_t a, uint16_t b) /* always gcd(a,b)=1 and 0<a<b */
 {
   int e, l, m, n, r;
 
@@ -379,24 +383,7 @@ static uint16_t mpqs3_invert(uint16_t a, uint16_t p)
    h32+=hh32*p32; h32=h32>>16
 
 
-static uint16_t mpqs3_powmod0(uint16_t a, uint16_t e, uint16_t p)
-{
-  uint16_t ex=e;
-  uint32_t aa, res;
-
-  if (!ex) return 1;
-  aa=(uint32_t)a;
-  res=1;
-  while (1) {
-    if (ex&1) { res*=aa; res%=(uint32_t)p; }
-    ex>>=1;
-    if (!ex) return (uint16_t)res;
-    aa*=aa; aa%=(uint32_t)p;
-  }
-  return 0; /* never reached */
-}
-
-static uint16_t mpqs3_powmod(uint16_t a, uint16_t e, uint16_t p)
+static uint16_t mpqs3_powmod(mpqs3_ctx_t *qs, uint16_t a, uint16_t e, uint16_t p)
 {
   uint16_t ex=e, rrr;
   uint32_t aa, res, p32, inv, h, h1;
@@ -461,18 +448,18 @@ static uint32_t mpqs3_powmod_mm(uint32_t a, uint32_t e, uint32_t p32, uint32_t m
 }
 
 
-static uint16_t mpqs3_sqrt_init(uint16_t p)
+static uint16_t mpqs3_sqrt_init(mpqs3_ctx_t *qs, uint16_t p)
 {
   uint16_t e, u, i, j;
   // SMJS Initialised g to stop compiler warning (probably if p was 0 which shouldn't happen)
   uint32_t g = 0, b;
 
   if (p&2) return 0;
-  if (p&4) return mpqs3_powmod(2,(p-1)>>2,p);
+  if (p&4) return mpqs3_powmod(qs, 2,(p-1)>>2,p);
   e=0; u=p-1;
   while (!(u&1)) { e++; u>>=1; }
   for (i=2; i<p; i++) {
-    g=mpqs3_powmod(i,u,p);
+    g=mpqs3_powmod(qs, i,u,p);
     if (g==1) continue;
     b=g;
     for (j=0; j<e-1; j++) { b*=b; b%=(uint32_t)p; }
@@ -480,40 +467,6 @@ static uint16_t mpqs3_sqrt_init(uint16_t p)
   }
   if (i>=p) KMPQS_FAIL("mpqs3_sqrt_init\n");
   return g;
-}
-
-
-static uint16_t mpqs3_sqrt0(uint16_t a, uint16_t p, uint16_t help)
-                 /* a!=0, a<p, p prime, p!=2, (a/p)=1 */
-{
-  uint16_t e, u, i, l;
-  uint32_t b, g, r, k;
-
-  if (p&2) return mpqs3_powmod(a,(p+1)>>2,p);
-  if (p&4) {
-    b=mpqs3_powmod(a,(p+3)>>3,p);
-    g=b*b; g%=(uint32_t)p;
-    if (g==a) return b;
-    b*=(uint32_t)help; b%=(uint32_t)p;
-    return b;
-  }
-  e=0; u=p-1;
-  while (!(u&1)) { e++; u>>=1; }
-  g=help;
-  r=mpqs3_powmod(a,u>>1,p);
-  k=r*r; k%=(uint32_t)p;
-  k*=a; k%=(uint32_t)p;
-  r*=a; r%=(uint32_t)p;
-  while (k!=1) {
-    b=k;
-    for (i=0; i<e && b!=1; i++) { b*=b; b%=(uint32_t)p; }
-    for (l=i+1; l<e; l++) { g*=g; g%=(uint32_t)p; }
-    r*=g; r%=(uint32_t)p;
-    g*=g; g%=(uint32_t)p;
-    k*=g; k%=(uint32_t)p;
-    e=i;
-  }
-  return (uint16_t)r;
 }
 
 
@@ -579,7 +532,7 @@ static uint16_t mpqs3_sqrt(uint16_t a, uint16_t p, uint16_t help)
 }
 
 
-static uint32_t mpqs3_inv(uint16_t a)
+static uint32_t mpqs3_inv(mpqs3_ctx_t *qs, uint16_t a)
 {
   uint32_t inv, h;
 
@@ -601,55 +554,53 @@ static uint16_t mpqs3_multiplier_cand[4][MPQS3_MULT_NCAND]={
  { 7, 15, 23, 31, 39, 47, 55, 71 },
 };
 
-static double mpqs3_multiplier_cand_log[4][MPQS3_MULT_NCAND];
-
-static char mpqs3_multiplier_cand_jacobi[4][MPQS3_MULT_NCAND][MPQS3_MULT_NTESTPR];
 
 
-static void mpqs3_init(void)
+
+static void mpqs3_init(mpqs3_ctx_t *qs)
 {
   uint32_t i, j, k;
   uint32_t p, add, d;
 
-  mpz_init(mpqs3_N);
-  mpz_init(mpqs3_kN);
-  mpz_init(mpqs3_dummy);
-  mpz_init(mpqs3_gmp_help);
-  mpz_init(mpqs3_help);
-  mpz_init(mpqs3_sq1);
-  mpz_init(mpqs3_sq2);
-  for (i=0; i<MPQS3_MAX_FACTORS; i++) mpz_init(mpqs3_factors[i]);
-  mpqs3_sievearray=(uint8_t *)kmpqs_xmalloc((1+3*MPQS3_SIEVELEN)*sizeof(uint8_t));
-  mpqs3_tinyarray=(uint8_t *)kmpqs_xmalloc(16*MPQS3_MAX_TINYPROD*sizeof(uint8_t));
-  mpqs3_relations=(uint16_t **)kmpqs_xmalloc(MPQS3_MAX_NRELS*sizeof(uint16_t *));
-  mpqs3_relations[0]=(uint16_t *)kmpqs_xmalloc(MPQS3_MAX_NRELS*MPQS3_REL_ENTRIES*sizeof(uint16_t));
+  mpz_init(qs->N);
+  mpz_init(qs->kN);
+  mpz_init(qs->dummy);
+  mpz_init(qs->gmp_help);
+  mpz_init(qs->help);
+  mpz_init(qs->sq1);
+  mpz_init(qs->sq2);
+  for (i=0; i<MPQS3_MAX_FACTORS; i++) mpz_init(qs->factors[i]);
+  qs->sievearray=(uint8_t *)kmpqs_xmalloc((1+3*MPQS3_SIEVELEN)*sizeof(uint8_t));
+  qs->tinyarray=(uint8_t *)kmpqs_xmalloc(16*MPQS3_MAX_TINYPROD*sizeof(uint8_t));
+  qs->relations=(uint16_t **)kmpqs_xmalloc(MPQS3_MAX_NRELS*sizeof(uint16_t *));
+  qs->relations[0]=(uint16_t *)kmpqs_xmalloc(MPQS3_MAX_NRELS*MPQS3_REL_ENTRIES*sizeof(uint16_t));
   for (i=1; i<MPQS3_MAX_NRELS; i++)
-    mpqs3_relations[i]=mpqs3_relations[i-1]+MPQS3_REL_ENTRIES;
-  mpqs3_part_rels=(uint16_t **)kmpqs_xmalloc(MPQS3_MAX_NPRELS*sizeof(uint16_t *));
-  mpqs3_part_rels[0]=(uint16_t *)kmpqs_xmalloc(MPQS3_MAX_NPRELS*MPQS3_REL_ENTRIES*sizeof(uint16_t));
+    qs->relations[i]=qs->relations[i-1]+MPQS3_REL_ENTRIES;
+  qs->part_rels=(uint16_t **)kmpqs_xmalloc(MPQS3_MAX_NPRELS*sizeof(uint16_t *));
+  qs->part_rels[0]=(uint16_t *)kmpqs_xmalloc(MPQS3_MAX_NPRELS*MPQS3_REL_ENTRIES*sizeof(uint16_t));
   for (i=1; i<MPQS3_MAX_NPRELS; i++)
-    mpqs3_part_rels[i]=mpqs3_part_rels[i-1]+MPQS3_REL_ENTRIES;
-  mpqs3_comb_index=(uint16_t *)kmpqs_xmalloc(2*MPQS3_MAX_NCRELS*sizeof(uint16_t));
-  mpqs3_rel_buffer=(uint16_t **)kmpqs_xmalloc(MPQS3_MAX_NRELS_BUF*sizeof(uint16_t *));
-  mpqs3_rel_buffer[0]=(uint16_t *)kmpqs_xmalloc(MPQS3_MAX_NRELS_BUF*MPQS3_REL_ENTRIES*sizeof(uint16_t));
+    qs->part_rels[i]=qs->part_rels[i-1]+MPQS3_REL_ENTRIES;
+  qs->comb_index=(uint16_t *)kmpqs_xmalloc(2*MPQS3_MAX_NCRELS*sizeof(uint16_t));
+  qs->rel_buffer=(uint16_t **)kmpqs_xmalloc(MPQS3_MAX_NRELS_BUF*sizeof(uint16_t *));
+  qs->rel_buffer[0]=(uint16_t *)kmpqs_xmalloc(MPQS3_MAX_NRELS_BUF*MPQS3_REL_ENTRIES*sizeof(uint16_t));
   for (i=1; i<MPQS3_MAX_NRELS_BUF; i++)
-    mpqs3_rel_buffer[i]=mpqs3_rel_buffer[i-1]+MPQS3_REL_ENTRIES;
+    qs->rel_buffer[i]=qs->rel_buffer[i-1]+MPQS3_REL_ENTRIES;
 
-  mpqs3_gauss_row64=(uint64_t *)kmpqs_xmalloc(MPQS3_GAUSS_MAX*MPQS3_GAUSS_MAX/64*sizeof(uint64_t));
+  qs->gauss_row64=(uint64_t *)kmpqs_xmalloc(MPQS3_GAUSS_MAX*MPQS3_GAUSS_MAX/64*sizeof(uint64_t));
 
-  mpqs3_prime_table[0]=2;
-  mpqs3_prime_table[1]=3;
-  mpqs3_prime_table[2]=5; mpqs3_prime_sqrthelp[2]=mpqs3_sqrt_init(5);
+  qs->prime_table[0]=2;
+  qs->prime_table[1]=3;
+  qs->prime_table[2]=5; qs->prime_sqrthelp[2]=mpqs3_sqrt_init(qs, 5);
   i=3; p=7; add=4;
   while (i<MPQS3_MAX_NPRIMES) {
     for (j=2; j<i; j++) {
-      d=(uint32_t)mpqs3_prime_table[j];
+      d=(uint32_t)qs->prime_table[j];
       if (d*d>=p) break;
       if (p%d==0) break;
     }
     if (d*d>p) {
-      mpqs3_prime_table[i]=(uint16_t)p;
-      mpqs3_prime_sqrthelp[i]=mpqs3_sqrt_init(p);
+      qs->prime_table[i]=(uint16_t)p;
+      qs->prime_sqrthelp[i]=mpqs3_sqrt_init(qs, p);
       i++;
     }
     p+=add; add=6-add;
@@ -659,20 +610,19 @@ static void mpqs3_init(void)
     for (j=0; j<MPQS3_MULT_NCAND; j++) {
       d=mpqs3_multiplier_cand[i][j];
       for (k=1; k<MPQS3_MULT_NTESTPR; k++) {
-        p=(uint32_t)mpqs3_prime_table[k];
+        p=(uint32_t)qs->prime_table[k];
         if (d%p) {
-          mpqs3_multiplier_cand_jacobi[i][j][k]=
-            (char)(mpqs3_jacobi((uint16_t)(d%p),(uint16_t)p));
-        } else mpqs3_multiplier_cand_jacobi[i][j][k]=0;
+          qs->multiplier_cand_jacobi[i][j][k]=
+            (char)(mpqs3_jacobi(qs, (uint16_t)(d%p),(uint16_t)p));
+        } else qs->multiplier_cand_jacobi[i][j][k]=0;
       }
-      mpqs3_multiplier_cand_log[i][j]=log((double)d)-1.5*log(2);
+      qs->multiplier_cand_log[i][j]=log((double)d)-1.5*log(2);
     }
 
-  mpqs3_isinit=1;
 }
 
 
-static void mpqs3_choose_multiplier()
+static void mpqs3_choose_multiplier(mpqs3_ctx_t *qs)
 {
   uint16_t Nmod8, mult, p, mm, r;
   double value[MPQS3_MULT_NCAND], v, vp, vmin, dn;
@@ -681,24 +631,24 @@ static void mpqs3_choose_multiplier()
   uint32_t i, j;
 
   for (i=1; i<MPQS3_MULT_NTESTPR; i++) {
-    p=mpqs3_prime_table[i];
-    r=(uint16_t)mpz_mod_ui(mpqs3_dummy,mpqs3_N,(unsigned long)p);
-    jac[i]=(char)mpqs3_jacobi(r,p);
+    p=qs->prime_table[i];
+    r=(uint16_t)mpz_mod_ui(qs->dummy,qs->N,(unsigned long)p);
+    jac[i]=(char)mpqs3_jacobi(qs, r,p);
   }
-  Nmod8=(uint16_t)mpz_mod_ui(mpqs3_dummy,mpqs3_N,8);
-  dn=log(mpz_get_d(mpqs3_N))/log(2.);
+  Nmod8=(uint16_t)mpz_mod_ui(qs->dummy,qs->N,8);
+  dn=log(mpz_get_d(qs->N))/log(2.);
   dn=164.9-dn;
   if (dn>7) mm=128; else mm=(uint16_t)(exp(dn*log(2)));
   for (i=1; i<MPQS3_MULT_NTESTPR; i++) {
-    p=mpqs3_prime_table[i];
+    p=qs->prime_table[i];
     plog[i]=log((double)p)/((double)p);
   }
   for (j=0; j<MPQS3_MULT_NCAND; j++) {
     mult=mpqs3_multiplier_cand[Nmod8/2][j];
     if (mult<=mm) {
-      v=mpqs3_multiplier_cand_log[Nmod8/2][j];
+      v=qs->multiplier_cand_log[Nmod8/2][j];
       for (i=1; i<MPQS3_MULT_NTESTPR; i++) {
-        c=mpqs3_multiplier_cand_jacobi[Nmod8/2][j][i];
+        c=qs->multiplier_cand_jacobi[Nmod8/2][j][i];
         if (c) {
           vp=plog[i];
           if (c==jac[i]) v-=vp; else v+=vp;
@@ -713,23 +663,23 @@ static void mpqs3_choose_multiplier()
   for (j=0; j<MPQS3_MULT_NCAND; j++)
     if (value[j]==vmin) break;
   if (j>=MPQS3_MULT_NCAND) KMPQS_FAIL("mpqs3_choose_multiplier.vmin\n");
-  mpqs3_complexity=(vmin+log(mpz_get_d(mpqs3_N)))/log(2.);
-  mpqs3_multiplier=mpqs3_multiplier_cand[Nmod8/2][j];
+  qs->complexity=(vmin+log(mpz_get_d(qs->N)))/log(2.);
+  qs->multiplier=mpqs3_multiplier_cand[Nmod8/2][j];
 #ifdef MPQS3_STAT
 // printf("%u ",mpqs3_multiplier);
 #endif
-  mpz_mul_ui(mpqs3_kN,mpqs3_N,(unsigned long)mpqs3_multiplier);
-  mpqs3_kN_dbl=mpz_get_d(mpqs3_kN);
-  mpz_fdiv_r_2exp(mpqs3_dummy,mpqs3_kN,64);
-  mpqs3_kN_64=kmpqs_mpz_get_u64(mpqs3_dummy);
+  mpz_mul_ui(qs->kN,qs->N,(unsigned long)qs->multiplier);
+  qs->kN_dbl=mpz_get_d(qs->kN);
+  mpz_fdiv_r_2exp(qs->dummy,qs->kN,64);
+  qs->kN_64=kmpqs_mpz_get_u64(qs->dummy);
 }
 
 
-static void mpqs3_choose_parameter(int retry)
+static void mpqs3_choose_parameter(mpqs3_ctx_t *qs, int retry)
 {
   int n, r;
 
-  n=(int)(mpqs3_complexity+0.5);
+  n=(int)(qs->complexity+0.5);
   if (n>148) n=148;
   if (n<91) n=91;
   n=(n+3)/4;
@@ -740,103 +690,100 @@ static void mpqs3_choose_parameter(int retry)
 #ifdef MPQS3_STAT
 stat_size[n]++;
 #endif
-  mpqs3_nFB=mpqs3_param[n][0];
-  if (r) mpqs3_nFB+=r*mpqs3_nFB/4;
-  if (mpqs3_nFB>=MPQS3_MAX_FBSIZE) mpqs3_nFB=MPQS3_MAX_FBSIZE-1;
-  mpqs3_sievebegin=mpqs3_param[n][1];
-  if (r) mpqs3_sievebegin+=r;
-  mpqs3_nAdiv=mpqs3_param[n][2];
-  mpqs3_nAdiv_total=mpqs3_param[n][3];
-  if (mpqs3_nAdiv_total>MPQS3_MAX_ADIV_ALL)
+  qs->nFB=mpqs3_param[n][0];
+  if (r) qs->nFB+=r*qs->nFB/4;
+  if (qs->nFB>=MPQS3_MAX_FBSIZE) qs->nFB=MPQS3_MAX_FBSIZE-1;
+  qs->sievebegin=mpqs3_param[n][1];
+  if (r) qs->sievebegin+=r;
+  qs->nAdiv=mpqs3_param[n][2];
+  qs->nAdiv_total=mpqs3_param[n][3];
+  if (qs->nAdiv_total>MPQS3_MAX_ADIV_ALL)
     KMPQS_FAIL("mpqs3_choose_parameter: mpqs3_nAdiv_total too big\n");
-  mpqs3_accept=mpqs3_param[n][4];
-  mpqs3_td_begin=mpqs3_param[n][5];
-  mpqs3_sievelen=mpqs3_param[n][6];
-  if (mpqs3_sievelen>MPQS3_SIEVELEN) mpqs3_sievelen=MPQS3_SIEVELEN;
+  qs->accept=mpqs3_param[n][4];
+  qs->td_begin=mpqs3_param[n][5];
+  qs->sievelen=mpqs3_param[n][6];
+  if (qs->sievelen>MPQS3_SIEVELEN) qs->sievelen=MPQS3_SIEVELEN;
 
-  mpqs3_disp=mpqs3_sievelen/2;
-  mpqs3_nfactors=0; mpqs3_nrels=0; mpqs3_nlp=0; mpqs3_nprels=0; mpqs3_ncrels=0;
-  for (n=0; n<MPQS3_NHASH; n++) mpqs3_hash_table[n][0]=0;
-  for (n=0; n<MPQS3_NRELHASH; n++) mpqs3_rel_hash_table[n][0]=0;
+  qs->disp=qs->sievelen/2;
+  qs->nfactors=0; qs->nrels=0; qs->nlp=0; qs->nprels=0; qs->ncrels=0;
+  for (n=0; n<MPQS3_NHASH; n++) qs->hash_table[n][0]=0;
+  for (n=0; n<MPQS3_NRELHASH; n++) qs->rel_hash_table[n][0]=0;
 }
 
 
-static void mpqs3_generate_FB()
+static void mpqs3_generate_FB(mpqs3_ctx_t *qs)
 {
   uint16_t *fb, p, rest, i, nfb;
 
-  fb=mpqs3_FB; nfb=0; i=0; mpqs3_nFBk=0;
+  fb=qs->FB; nfb=0; i=0; qs->nFBk=0;
   *fb++=2; *fb++=1; nfb++;
   for (i=1; i<MPQS3_MAX_NPRIMES; i++) {
-    p=mpqs3_prime_table[i];
+    p=qs->prime_table[i];
     if (p>MPQS3_FB_MAXPRIME) break;
-    rest=(uint16_t)mpz_mod_ui(mpqs3_dummy,mpqs3_kN,(unsigned long)p);
+    rest=(uint16_t)mpz_mod_ui(qs->dummy,qs->kN,(unsigned long)p);
     if (rest) {
-      if (mpqs3_jacobi(rest,p)==1) {
+      if (mpqs3_jacobi(qs, rest,p)==1) {
         *fb++=p;
-        *fb++=mpqs3_sqrt(rest,p,mpqs3_prime_sqrthelp[i]);
+        *fb++=mpqs3_sqrt(rest,p,qs->prime_sqrthelp[i]);
         nfb++;
-        if (nfb>=mpqs3_nFB) { break; }
+        if (nfb>=qs->nFB) { break; }
       }
     } else {
-      if (mpqs3_multiplier%(uint32_t)p)
+      if (qs->multiplier%(uint32_t)p)
         KMPQS_FAIL("mpqs3: N has small divisor: %u\n",p);
-      mpqs3_FBk[mpqs3_nFBk++]=p;
+      qs->FBk[qs->nFBk++]=p;
     }
   }
-  nfb-=((nfb-mpqs3_nAdiv_total)&3);
-  mpqs3_nFB=nfb;
-  mpqs3_nFBk_1=mpqs3_nFBk+1;
-  mpqs3_nsp=1+mpqs3_nFB+mpqs3_nFBk;
-  mpqs3_pmax=mpqs3_FB[2*(nfb-1)];
-  mpqs3_FB[2*nfb]=mpqs3_sievelen;
-  mpqs3_FB[2*nfb]=0xffff;
+  nfb-=((nfb-qs->nAdiv_total)&3);
+  qs->nFB=nfb;
+  qs->nFBk_1=qs->nFBk+1;
+  qs->nsp=1+qs->nFB+qs->nFBk;
+  qs->pmax=qs->FB[2*(nfb-1)];
+  qs->FB[2*nfb]=qs->sievelen;
+  qs->FB[2*nfb]=0xffff;
 //printf("pmax: %u\n",mpqs3_pmax);
 }
 
-// SMJS Moved outside func because qsort comp func needs it
-static double *alog;
-
-static int mpqs3_SI_init()
+static int mpqs3_SI_init(mpqs3_ctx_t *qs)
 {
   double d, prod_dbl;
   uint64_t prod_64;
   uint32_t a, i, j, k, l, n;
-  uint16_t inv, p, *fb=mpqs3_FB, pk, tp_max;
+  uint16_t inv, p, *fb=qs->FB, pk, tp_max;
   double A_div_log[MPQS3_MAX_ADIV_ALL]; /* maximal number of A's */
   double v, vmax;
   uint8_t lo;
   uint16_t pb;
 
-  d=mpz_get_d(mpqs3_kN); mpqs3_kN_dbl=d;
-  d*=8.; d=sqrt(d); d/=(double)mpqs3_sievelen;
-  d=log(d); d/=(double)mpqs3_nAdiv; d=exp(d);
+  d=mpz_get_d(qs->kN); qs->kN_dbl=d;
+  d*=8.; d=sqrt(d); d/=(double)qs->sievelen;
+  d=log(d); d/=(double)qs->nAdiv; d=exp(d);
   a=(uint32_t)d;
 //a=972;
 /*  if (a>=mpqs3_pmax) { printf("%u %u ",a,mpqs3_pmax); return -1; }*/
-  if (a>=mpqs3_pmax) a=mpqs3_pmax-1;
-  for (i=0; i<mpqs3_nFB; i++) if (mpqs3_FB[2*i]>a) break;
-  if (i>mpqs3_nAdiv_total/2) i-=mpqs3_nAdiv_total/2; else i=1;
+  if (a>=qs->pmax) a=qs->pmax-1;
+  for (i=0; i<qs->nFB; i++) if (qs->FB[2*i]>a) break;
+  if (i>qs->nAdiv_total/2) i-=qs->nAdiv_total/2; else i=1;
   if (i<1) i=1; /* first prime >2 */
-  if (mpqs3_FB[2*i]<3) return -2;
-  if (i+mpqs3_nAdiv_total>mpqs3_nFB) {
-    if (mpqs3_nFB<=mpqs3_nAdiv_total+1) return -3;
-    i=mpqs3_nFB-mpqs3_nAdiv_total-1;
+  if (qs->FB[2*i]<3) return -2;
+  if (i+qs->nAdiv_total>qs->nFB) {
+    if (qs->nFB<=qs->nAdiv_total+1) return -3;
+    i=qs->nFB-qs->nAdiv_total-1;
   }
-  for (j=0; j<mpqs3_nAdiv_total; j++) {
-    mpqs3_Adiv_all[j]=mpqs3_FB[2*(i+j)];
+  for (j=0; j<qs->nAdiv_total; j++) {
+    qs->Adiv_all[j]=qs->FB[2*(i+j)];
 //printf("%u ",mpqs3_Adiv_all[j]);
-    mpqs3_Adiv_all_sqrt[j]=mpqs3_FB[2*(i+j)+1];
+    qs->Adiv_all_sqrt[j]=qs->FB[2*(i+j)+1];
 
-    mpqs3_Adiv_all_sq_inv[j]=mpqs3_invert(mpqs3_Adiv_all_sqrt[j],mpqs3_Adiv_all[j]);
+    qs->Adiv_all_sq_inv[j]=mpqs3_invert(qs->Adiv_all_sqrt[j],qs->Adiv_all[j]);
 /* TODO optimise: */
 {
   uint32_t pp, p2, r0, rr, s, inv;
 
-  pp=(uint32_t)mpqs3_Adiv_all[j];
+  pp=(uint32_t)qs->Adiv_all[j];
   p2=pp*pp;
-  r0=mpz_mod_ui(mpqs3_dummy,mpqs3_kN,p2);
-  s=(uint32_t)mpqs3_Adiv_all_sqrt[j];
+  r0=mpz_mod_ui(qs->dummy,qs->kN,p2);
+  s=(uint32_t)qs->Adiv_all_sqrt[j];
   inv=(uint32_t)mpqs3_invert((uint16_t)(r0%pp),(uint16_t)pp);
   if (inv&1) inv+=pp; inv>>=1;
   rr=r0+(p2-(s*s)%p2);
@@ -845,81 +792,81 @@ static int mpqs3_SI_init()
   rr*=s; rr%=pp;
   rr*=inv; rr%=pp;
   s+=rr*pp;
-  mpqs3_Adiv_all_sq_mod_p2[j]=p2-s;
+  qs->Adiv_all_sq_mod_p2[j]=p2-s;
 /* check
   s=(uint32_t)((((uint64_t)s)*((uint64_t)s))%((uint64_t)p2));
   if (s!=r0) KMPQS_FAIL("sqrt2b\n");
 */
-s=mpqs3_Adiv_all_sq_inv[j];
+s=qs->Adiv_all_sq_inv[j];
 for (rr=0; rr<33; rr++) { s<<=1; if (s>=pp) s-=pp; }
-mpqs3_Adiv_all_sq_inv[j]=s;
+qs->Adiv_all_sq_inv[j]=s;
 }
   }
 //printf("\n");
-  for (j=i+mpqs3_nAdiv_total; j<mpqs3_nFB; j++) {
-    mpqs3_FB[2*(j-mpqs3_nAdiv_total)]=mpqs3_FB[2*j];
-    mpqs3_FB[2*(j-mpqs3_nAdiv_total)+1]=mpqs3_FB[2*j+1];
+  for (j=i+qs->nAdiv_total; j<qs->nFB; j++) {
+    qs->FB[2*(j-qs->nAdiv_total)]=qs->FB[2*j];
+    qs->FB[2*(j-qs->nAdiv_total)+1]=qs->FB[2*j+1];
   }
-  mpqs3_nFB-=mpqs3_nAdiv_total;
+  qs->nFB-=qs->nAdiv_total;
 
 /* put A divisors and k divisors at end of FB, used in next_pol */
-  for (j=0; j<mpqs3_nAdiv_total; j++)
-    mpqs3_FB[2*(mpqs3_nFB+j)]=mpqs3_Adiv_all[j];
-  for (j=0; j<mpqs3_nFBk; j++)
-    mpqs3_FB[2*(mpqs3_nFB+mpqs3_nAdiv_total+j)]=mpqs3_FBk[j];
-  mpqs3_nFBx=mpqs3_nFB+mpqs3_nAdiv_total+mpqs3_nFBk;
+  for (j=0; j<qs->nAdiv_total; j++)
+    qs->FB[2*(qs->nFB+j)]=qs->Adiv_all[j];
+  for (j=0; j<qs->nFBk; j++)
+    qs->FB[2*(qs->nFB+qs->nAdiv_total+j)]=qs->FBk[j];
+  qs->nFBx=qs->nFB+qs->nAdiv_total+qs->nFBk;
 
 /* tiny */
-  mpqs3_sievebegin=1; mpqs3_sievebegink=0; mpqs3_tiny_prod=1; mpqs3_ntiny=0;
-  tp_max=mpqs3_sievelen>>4;
+  qs->sievebegin=1; qs->sievebegink=0; qs->tiny_prod=1; qs->ntiny=0;
+  tp_max=qs->sievelen>>4;
   if (tp_max>MPQS3_MAX_TINYPROD) tp_max=MPQS3_MAX_TINYPROD;
   while (1) {
-    if (mpqs3_sievebegin<mpqs3_nFB) p=mpqs3_FB[2*mpqs3_sievebegin];
+    if (qs->sievebegin<qs->nFB) p=qs->FB[2*qs->sievebegin];
     else p=tp_max+1;
-    if (mpqs3_sievebegink<mpqs3_nFBk) pk=mpqs3_FBk[mpqs3_sievebegink];
+    if (qs->sievebegink<qs->nFBk) pk=qs->FBk[qs->sievebegink];
     else pk=tp_max+1;
     if (p<pk) {
-      if (mpqs3_tiny_prod*(uint32_t)p>=tp_max) break;
-      mpqs3_sievebegin++; mpqs3_ntiny++;
-      mpqs3_tiny_prod*=(uint32_t)p;
+      if (qs->tiny_prod*(uint32_t)p>=tp_max) break;
+      qs->sievebegin++; qs->ntiny++;
+      qs->tiny_prod*=(uint32_t)p;
     } else {
-      if (mpqs3_tiny_prod*(uint32_t)pk>=tp_max) break;
-      mpqs3_sievebegink++; mpqs3_ntiny++;
-      mpqs3_tiny_prod*=(uint32_t)pk;
+      if (qs->tiny_prod*(uint32_t)pk>=tp_max) break;
+      qs->sievebegink++; qs->ntiny++;
+      qs->tiny_prod*=(uint32_t)pk;
     }
   }
 #ifdef MPQS3_STAT
 // for (j=0; j<mpqs3_sievebegin; j++) printf("%u ",mpqs3_FB[2*j]);
 // printf("\n");
 #endif
-  if (mpqs3_nFB<mpqs3_td_begin) {
-    if (mpqs3_nFB&3) KMPQS_FAIL("mpqs3_nFB\n");
+  if (qs->nFB<qs->td_begin) {
+    if (qs->nFB&3) KMPQS_FAIL("mpqs3_nFB\n");
 //printf("%u\n",mpqs3_nFB);
-    mpqs3_td_begin=mpqs3_nFB;
+    qs->td_begin=qs->nFB;
   }
 
-  p=mpqs3_FB[2];
-  mpqs3_FB_inv[1]=mpqs3_inv(p);
-  mpqs3_FB_inv_info[2]=p; mpqs3_FB_inv_info[3]=p;
-  mpqs3_FB_inv_info[6]=(uint16_t)mpqs3_FB_inv[1];
-  mpqs3_FB_inv_info[7]=(uint16_t)mpqs3_FB_inv[1];
-  if (mpqs3_td_begin&1) KMPQS_FAIL("mpqs3_td_begin is odd\n");
-  for (j=2; j<mpqs3_td_begin; j+=2) {
-    p=mpqs3_FB[2*j];
-    mpqs3_FB_inv[j]=mpqs3_inv(p);
-    mpqs3_FB_inv_info[4*j]=p; mpqs3_FB_inv_info[4*j+1]=p;
-    mpqs3_FB_inv_info[4*j+4]=(uint16_t)mpqs3_FB_inv[j];
-    mpqs3_FB_inv_info[4*j+5]=(uint16_t)mpqs3_FB_inv[j];
-    p=mpqs3_FB[2*(j+1)];
-    mpqs3_FB_inv[j+1]=mpqs3_inv(p);
-    mpqs3_FB_inv_info[4*j+2]=p; mpqs3_FB_inv_info[4*j+3]=p;
-    mpqs3_FB_inv_info[4*j+6]=(uint16_t)mpqs3_FB_inv[j+1];
-    mpqs3_FB_inv_info[4*j+7]=(uint16_t)mpqs3_FB_inv[j+1];
+  p=qs->FB[2];
+  qs->FB_inv[1]=mpqs3_inv(qs, p);
+  qs->FB_inv_info[2]=p; qs->FB_inv_info[3]=p;
+  qs->FB_inv_info[6]=(uint16_t)qs->FB_inv[1];
+  qs->FB_inv_info[7]=(uint16_t)qs->FB_inv[1];
+  if (qs->td_begin&1) KMPQS_FAIL("mpqs3_td_begin is odd\n");
+  for (j=2; j<qs->td_begin; j+=2) {
+    p=qs->FB[2*j];
+    qs->FB_inv[j]=mpqs3_inv(qs, p);
+    qs->FB_inv_info[4*j]=p; qs->FB_inv_info[4*j+1]=p;
+    qs->FB_inv_info[4*j+4]=(uint16_t)qs->FB_inv[j];
+    qs->FB_inv_info[4*j+5]=(uint16_t)qs->FB_inv[j];
+    p=qs->FB[2*(j+1)];
+    qs->FB_inv[j+1]=mpqs3_inv(qs, p);
+    qs->FB_inv_info[4*j+2]=p; qs->FB_inv_info[4*j+3]=p;
+    qs->FB_inv_info[4*j+6]=(uint16_t)qs->FB_inv[j+1];
+    qs->FB_inv_info[4*j+7]=(uint16_t)qs->FB_inv[j+1];
   }
-  for (; j<mpqs3_nFBx; j++) mpqs3_FB_inv[j]=mpqs3_inv(mpqs3_FB[2*j]);
-  for (j=0; j<mpqs3_nFBk; j++) mpqs3_FBk_inv[j]=mpqs3_inv(mpqs3_FBk[j]);
-  for (j=0; j<mpqs3_nAdiv_total; j++)
-    mpqs3_FB_A_inv[j]=mpqs3_inv(mpqs3_Adiv_all[j]);
+  for (; j<qs->nFBx; j++) qs->FB_inv[j]=mpqs3_inv(qs, qs->FB[2*j]);
+  for (j=0; j<qs->nFBk; j++) qs->FBk_inv[j]=mpqs3_inv(qs, qs->FBk[j]);
+  for (j=0; j<qs->nAdiv_total; j++)
+    qs->FB_A_inv[j]=mpqs3_inv(qs, qs->Adiv_all[j]);
 
 //zeitA(35);
 /* for next_pol: */
@@ -927,13 +874,13 @@ mpqs3_Adiv_all_sq_inv[j]=s;
   uint32_t mmi, h32, hh32, invh, p32;
   uint16_t invhelp[MPQS3_MAX_ADIV_ALL], hhh;
 
-  for (j=1; j<mpqs3_nFB; j++) {
-    p=mpqs3_FB[2*j]; p32=(uint32_t)p;
-    mmi=-mpqs3_FB_inv[j];
-    invhelp[0]=mpqs3_Adiv_all[0]%p;
+  for (j=1; j<qs->nFB; j++) {
+    p=qs->FB[2*j]; p32=(uint32_t)p;
+    mmi=-qs->FB_inv[j];
+    invhelp[0]=qs->Adiv_all[0]%p;
     h32=(uint32_t)(invhelp[0]);
-    for (i=1; i<mpqs3_nAdiv_total; i++) {
-      h32*=(uint32_t)(mpqs3_Adiv_all[i]);
+    for (i=1; i<qs->nAdiv_total; i++) {
+      h32*=(uint32_t)(qs->Adiv_all[i]);
       MMREDUCE;
       invhelp[i]=(uint16_t)h32;
     }
@@ -941,60 +888,60 @@ mpqs3_Adiv_all_sq_inv[j]=s;
     invh=(uint32_t)mpqs3_invert((uint16_t)h32,p);
     invh<<=1;
 
-    for (i=mpqs3_nAdiv_total-1; i; i--) {
+    for (i=qs->nAdiv_total-1; i; i--) {
       h32=invh; h32*=(uint32_t)(invhelp[i-1]);
       MMREDUCE; if (h32>=p) h32-=p;
-      mpqs3_SI_inv_table[i][j]=(uint16_t)h32;
-      h32=invh; h32*=(uint32_t)mpqs3_Adiv_all[i];
+      qs->SI_inv_table[i][j]=(uint16_t)h32;
+      h32=invh; h32*=(uint32_t)qs->Adiv_all[i];
       MMREDUCE; invh=h32;
     }
     if (invh>=p) invh-=p;
-    mpqs3_SI_inv_table[0][j]=(uint16_t)invh;
+    qs->SI_inv_table[0][j]=(uint16_t)invh;
   }
-  for (j=0; j<mpqs3_nAdiv_total; j++) {
+  for (j=0; j<qs->nAdiv_total; j++) {
     uint32_t h;
     uint16_t pa;
 
-    p=mpqs3_Adiv_all[j];
-    for (i=0; i<mpqs3_nAdiv_total; i++) {
-      pa=mpqs3_Adiv_all[i]%p;
+    p=qs->Adiv_all[j];
+    for (i=0; i<qs->nAdiv_total; i++) {
+      pa=qs->Adiv_all[i]%p;
       if (pa) {
         h=(uint32_t)mpqs3_invert(pa,p); //h*=2; if (h>=p) h-=p;
         h<<=17; h%=((uint32_t)p);
       } else h=0;
-      mpqs3_Adiv_SI_inv_table[i][j]=(uint16_t)h;
+      qs->Adiv_SI_inv_table[i][j]=(uint16_t)h;
     }
-    mpqs3_Adiv_disp[j]=(uint16_t)(mpqs3_disp%((uint32_t)p));
+    qs->Adiv_disp[j]=(uint16_t)(qs->disp%((uint32_t)p));
   }
 }
 //zeitB(35);
 
-  for (j=1; j<mpqs3_nFBx; j++) {
-    mpqs3_FB_mm_inv[j]=-mpqs3_FB_inv[j];
-    p=mpqs3_FB[2*j];
-    mpqs3_FB_disp[j]=(uint16_t)(mpqs3_disp%((uint32_t)p));
+  for (j=1; j<qs->nFBx; j++) {
+    qs->FB_mm_inv[j]=-qs->FB_inv[j];
+    p=qs->FB[2*j];
+    qs->FB_disp[j]=(uint16_t)(qs->disp%((uint32_t)p));
   }
 
-  for (j=0; j<mpqs3_nFBx; j+=4) {
-    mpqs3_FB_np_p[2*j]=mpqs3_FB[2*j];
-    mpqs3_FB_np_p[2*j+1]=mpqs3_FB[2*j+2];
-    mpqs3_FB_np_p[2*j+2]=mpqs3_FB[2*j+4];
-    mpqs3_FB_np_p[2*j+3]=mpqs3_FB[2*j+6];
-    mpqs3_FB_np_p[2*j+4]=mpqs3_FB[2*j+1];
-    mpqs3_FB_np_p[2*j+5]=mpqs3_FB[2*j+3];
-    mpqs3_FB_np_p[2*j+6]=mpqs3_FB[2*j+5];
-    mpqs3_FB_np_p[2*j+7]=mpqs3_FB[2*j+7];
+  for (j=0; j<qs->nFBx; j+=4) {
+    qs->FB_np_p[2*j]=qs->FB[2*j];
+    qs->FB_np_p[2*j+1]=qs->FB[2*j+2];
+    qs->FB_np_p[2*j+2]=qs->FB[2*j+4];
+    qs->FB_np_p[2*j+3]=qs->FB[2*j+6];
+    qs->FB_np_p[2*j+4]=qs->FB[2*j+1];
+    qs->FB_np_p[2*j+5]=qs->FB[2*j+3];
+    qs->FB_np_p[2*j+6]=qs->FB[2*j+5];
+    qs->FB_np_p[2*j+7]=qs->FB[2*j+7];
   }
 
 /* compute log-approximations */
-  d=mpz_get_d(mpqs3_kN);
-  d/=8.; d=sqrt(d); d*=(double)mpqs3_sievelen;
-  mpqs3_maxval_dbl=d;
+  d=mpz_get_d(qs->kN);
+  d/=8.; d=sqrt(d); d*=(double)qs->sievelen;
+  qs->maxval_dbl=d;
   d=log(d);
-  d-=log((double)(1ULL<<mpqs3_accept));
-  mpqs3_logbound=128;  /* ??? */
-  d=(double)(mpqs3_logbound)/d;
-  if (mpqs3_nFB<8) return -7;
+  d-=log((double)(1ULL<<qs->accept));
+  qs->logbound=128;  /* ??? */
+  d=(double)(qs->logbound)/d;
+  if (qs->nFB<8) return -7;
 {
   uint8_t curlog;
   uint32_t i0, i1, i2;
@@ -1002,24 +949,24 @@ mpqs3_Adiv_all_sq_inv[j]=s;
   double dp;
 
   for (i=0; i<8; i++) {
-    p=mpqs3_FB[2*i];
-    mpqs3_FB_log[i]=(uint8_t)(0.5+d*log((double)p));
+    p=qs->FB[2*i];
+    qs->FB_log[i]=(uint8_t)(0.5+d*log((double)p));
   }
-  curlog=mpqs3_FB_log[i-1]-1;
-  while (i<mpqs3_nFB) {
+  curlog=qs->FB_log[i-1]-1;
+  while (i<qs->nFB) {
     if (curlog>128) return -8;
     curlog++;
     dp=exp((0.5+(double)curlog)/d);
     if (dp>65535.) pt=65535; else pt=(uint16_t)dp;
-    i0=i-1; i1=mpqs3_nFB-1;
-    if (mpqs3_FB[2*i1]>pt) {
+    i0=i-1; i1=qs->nFB-1;
+    if (qs->FB[2*i1]>pt) {
       while (i1>i0+1) {
         i2=((i0+i1)>>1);
-        if (mpqs3_FB[2*i2]>pt) i1=i2; else i0=i2;
+        if (qs->FB[2*i2]>pt) i1=i2; else i0=i2;
       }
       i1--;
     }
-    for (; i<=i1; i++) mpqs3_FB_log[i]=curlog;
+    for (; i<=i1; i++) qs->FB_log[i]=curlog;
   }
 /*
   for (i=0; i<mpqs3_nFB; i++) {
@@ -1028,18 +975,18 @@ mpqs3_Adiv_all_sq_inv[j]=s;
   }
 */
 }
-  for (i=0; i<mpqs3_nFBk; i++) {
-    p=mpqs3_FBk[i];
-    mpqs3_FBk_log[i]=(uint8_t)(0.5+d*log((double)p));
+  for (i=0; i<qs->nFBk; i++) {
+    p=qs->FBk[i];
+    qs->FBk_log[i]=(uint8_t)(0.5+d*log((double)p));
   }
-  for (i=0; i<mpqs3_nAdiv_total; i++) {
-    p=mpqs3_Adiv_all[i];
-    mpqs3_Adiv_log[i]=(uint8_t)(0.5+d*log((double)p));
+  for (i=0; i<qs->nAdiv_total; i++) {
+    p=qs->Adiv_all[i];
+    qs->Adiv_log[i]=(uint8_t)(0.5+d*log((double)p));
   }
 
 {
 /* experimental */
-// SMJS Make static outside func because qsort comp func needs it  double *alog;
+  double *alog;
   uint16_t tmp;
   uint32_t *asort;
 
@@ -1047,30 +994,30 @@ mpqs3_Adiv_all_sq_inv[j]=s;
 
 /* compute mask for choice of A-divisors */
   j=0;
-  if (mpqs3_nAdiv_total>8) {
-    k=0; if (mpqs3_nAdiv>8) k=mpqs3_nAdiv-8;
-    for (; k<=mpqs3_nAdiv; k++) {
+  if (qs->nAdiv_total>8) {
+    k=0; if (qs->nAdiv>8) k=qs->nAdiv-8;
+    for (; k<=qs->nAdiv; k++) {
       uint32_t i0, i1;
       uint16_t m16;
 
       for (i0=mpqs3_A_table_n[k]; i0<mpqs3_A_table_n[k+1]; i0++) {
         m16=(uint16_t)(mpqs3_A_table[i0]); m16<<=8;
-        if (m16>>mpqs3_nAdiv_total) break;
-        for (i1=mpqs3_A_table_n[mpqs3_nAdiv-k];
-             i1<mpqs3_A_table_n[mpqs3_nAdiv-k+1]; i1++) {
-          mpqs3_A_mask[j]=m16+(uint16_t)(mpqs3_A_table[i1]);
+        if (m16>>qs->nAdiv_total) break;
+        for (i1=mpqs3_A_table_n[qs->nAdiv-k];
+             i1<mpqs3_A_table_n[qs->nAdiv-k+1]; i1++) {
+          qs->A_mask[j]=m16+(uint16_t)(mpqs3_A_table[i1]);
           j++;
         }
       }
     }
   } else {
-    for (i=mpqs3_A_table_n[mpqs3_nAdiv];
-         i<mpqs3_A_table_n[mpqs3_nAdiv+1]; i++) {
+    for (i=mpqs3_A_table_n[qs->nAdiv];
+         i<mpqs3_A_table_n[qs->nAdiv+1]; i++) {
       uint16_t m16;
 
       m16=(uint16_t)(mpqs3_A_table[i]);
-      if (m16>>mpqs3_nAdiv_total) break;
-      mpqs3_A_mask[j]=m16;
+      if (m16>>qs->nAdiv_total) break;
+      qs->A_mask[j]=m16;
       j++;
     }
   }
@@ -1078,23 +1025,23 @@ mpqs3_Adiv_all_sq_inv[j]=s;
   alog=(double *)kmpqs_xmalloc(j*sizeof(double));
 
 /* ensure that |C|<2^96 */
-  for (i=0; i<mpqs3_nAdiv_total; i++)
-    A_div_log[i]=log((double)(mpqs3_Adiv_all[i]))/log(2.);
-  d=log(mpqs3_kN_dbl)/log(2.);
+  for (i=0; i<qs->nAdiv_total; i++)
+    A_div_log[i]=log((double)(qs->Adiv_all[i]))/log(2.);
+  d=log(qs->kN_dbl)/log(2.);
   for (i=0; i<j; i++) {
     v=0;
-    for (k=0; k<mpqs3_nAdiv_total; k++)
-      if (mpqs3_A_mask[i]&(1<<k)) v+=A_div_log[k];
+    for (k=0; k<qs->nAdiv_total; k++)
+      if (qs->A_mask[i]&(1<<k)) v+=A_div_log[k];
     alog[i]=v;
     if (d-v>95.95) {
       j--; /* printf(":");*/
-      mpqs3_A_mask[i]=mpqs3_A_mask[j];
+      qs->A_mask[i]=qs->A_mask[j];
       i--;
     }
   }
 
-  d=mpz_get_d(mpqs3_kN); mpqs3_kN_dbl=d;
-  d*=8.; d=sqrt(d); d/=(double)mpqs3_sievelen;
+  d=mpz_get_d(qs->kN); qs->kN_dbl=d;
+  d*=8.; d=sqrt(d); d/=(double)qs->sievelen;
   d=log(d)/log(2.);
   for (i=0; i<j; i++)
     if (d>alog[i]) alog[i]=d-alog[i];
@@ -1139,8 +1086,8 @@ mpqs3_Adiv_all_sq_inv[j]=s;
     if (alog[a1[i]]>alog[a1[i+1]])
       KMPQS_FAIL("sort %u  %g %g\n",i,alog[a1[i]],alog[a1[i+1]]);
 */
-  for (i=0; i<j; i++) a1[i]=(uint32_t)(mpqs3_A_mask[a1[i]]);
-  for (i=0; i<j; i++) mpqs3_A_mask[i]=(uint16_t)(a1[i]);
+  for (i=0; i<j; i++) a1[i]=(uint32_t)(qs->A_mask[a1[i]]);
+  for (i=0; i<j; i++) qs->A_mask[i]=(uint16_t)(a1[i]);
   free(asort);
 }
 //zeitB(43);
@@ -1149,7 +1096,7 @@ mpqs3_Adiv_all_sq_inv[j]=s;
 }
 }
 
-  mpqs3_nA=j; mpqs3_A_index=-1; mpqs3_B_index=(1<<mpqs3_nAdiv)-1;
+  qs->nA=j; qs->A_index=-1; qs->B_index=(1<<qs->nAdiv)-1;
 
 //  mpqs3_FB[2*mpqs3_nFB]=mpqs3_sievelen;
 //  mpqs3_FB[2*mpqs3_nFB]=0xffff;
@@ -1157,11 +1104,11 @@ mpqs3_Adiv_all_sq_inv[j]=s;
 }
 
 
-static int mpqs3_next_pol()
+static int mpqs3_next_pol(mpqs3_ctx_t *qs)
 {
   uint32_t i, ind, j, inv;
 //  uint32_t add[3], bi[3], prod_other[3], inv;
-  uint16_t p, s1, s2, *fb=mpqs3_FB, *fbs=mpqs3_FB_start;
+  uint16_t p, s1, s2, *fb=qs->FB, *fbs=qs->FB_start;
   short sh;
   uint32_t bb, cc, c1, c2;
   uint16_t mask;
@@ -1172,83 +1119,83 @@ static int mpqs3_next_pol()
   double add_dbl, bi_dbl;
   uint64_t add_64, bi_64;
 
-  mpqs3_B_index++;
-  if (mpqs3_B_index>=1<<(mpqs3_nAdiv-1)) {
+  qs->B_index++;
+  if (qs->B_index>=1<<(qs->nAdiv-1)) {
     uint32_t Bi_mul[MPQS3_MAX_ADIV_ALL], Adiv_nr[MPQS3_MAX_ADIV_ALL];
 
 //zeitA(30);
 //zeitA(26);
 //zeitA(60);
-    mpqs3_A_index++;
-    if (mpqs3_A_index>=mpqs3_nA) return 0;
-    mask=mpqs3_A_mask[mpqs3_A_index];
-    for (i=0; i<mpqs3_nAdiv_total; i++)
-      if (mask & (1<<i)) mpqs3_Adiv_active[i]=1;
-      else mpqs3_Adiv_active[i]=0;
+    qs->A_index++;
+    if (qs->A_index>=qs->nA) return 0;
+    mask=qs->A_mask[qs->A_index];
+    for (i=0; i<qs->nAdiv_total; i++)
+      if (mask & (1<<i)) qs->Adiv_active[i]=1;
+      else qs->Adiv_active[i]=0;
     j=0;
-    for (i=0; i<mpqs3_nAdiv_total; i++)
-      if (mpqs3_Adiv_active[i]) {
-        mpqs3_Adiv[j]=mpqs3_Adiv_all[i];
-        mpqs3_Adiv_sqrt[j]=mpqs3_Adiv_all_sqrt[i];
+    for (i=0; i<qs->nAdiv_total; i++)
+      if (qs->Adiv_active[i]) {
+        qs->Adiv[j]=qs->Adiv_all[i];
+        qs->Adiv_sqrt[j]=qs->Adiv_all_sqrt[i];
         Adiv_nr[j]=i;
         j++;
       }
-    mpqs3_A_64=1;
-    mpqs3_A_dbl=1.;
-    for (i=0; i<mpqs3_nAdiv; i++) {
-      mpqs3_A_dbl*=(double)(mpqs3_Adiv[i]);
-      mpqs3_A_64*=(uint64_t)(mpqs3_Adiv[i]);
+    qs->A_64=1;
+    qs->A_dbl=1.;
+    for (i=0; i<qs->nAdiv; i++) {
+      qs->A_dbl*=(double)(qs->Adiv[i]);
+      qs->A_64*=(uint64_t)(qs->Adiv[i]);
     }
 /* precomputations for sieve init */
-    mpqs3_sinit_tab[0]=0; mpqs3_sinit_tab[1]=0;
-    i=1; A2n=mpqs3_A_dbl*0.5;
+    qs->sinit_tab[0]=0; qs->sinit_tab[1]=0;
+    i=1; A2n=qs->A_dbl*0.5;
     for (j=1; j<MPQS3_SI_NVALUES; j++) {
-      d=sqrt(mpqs3_kN_dbl+mpqs3_maxval_dbl*A2n)/mpqs3_A_dbl;
+      d=sqrt(qs->kN_dbl+qs->maxval_dbl*A2n)/qs->A_dbl;
       A2n*=0.5;
-      if (d<(double)mpqs3_disp) s1=mpqs3_disp-(uint16_t)d; else s1=0;
+      if (d<(double)qs->disp) s1=qs->disp-(uint16_t)d; else s1=0;
       s1-=(s1&63);
-      if (s1>mpqs3_sinit_tab[2*i-2]) {
-        mpqs3_sinit_tab[2*i]=s1; mpqs3_sinit_tab[2*i+1]=j;
+      if (s1>qs->sinit_tab[2*i-2]) {
+        qs->sinit_tab[2*i]=s1; qs->sinit_tab[2*i+1]=j;
         i++;
       }
     }
     A2n*=2.;
     for (j=1; j<MPQS3_SI_NVALUES; j++) {
-      d=mpqs3_kN_dbl-mpqs3_maxval_dbl*A2n; A2n*=2.;
+      d=qs->kN_dbl-qs->maxval_dbl*A2n; A2n*=2.;
       if (d<0.) d=0.;
-      d=sqrt(d)/mpqs3_A_dbl; if (d<1.) d=1.;
-      if (d<(double)mpqs3_disp) s1=mpqs3_disp-(uint16_t)d; else s1=0;
+      d=sqrt(d)/qs->A_dbl; if (d<1.) d=1.;
+      if (d<(double)qs->disp) s1=qs->disp-(uint16_t)d; else s1=0;
       s1-=(s1&63);
-      if (s1>mpqs3_sinit_tab[2*i-2]) {
-        mpqs3_sinit_tab[2*i]=s1; mpqs3_sinit_tab[2*i+1]=MPQS3_SI_NVALUES-1-j;
+      if (s1>qs->sinit_tab[2*i-2]) {
+        qs->sinit_tab[2*i]=s1; qs->sinit_tab[2*i+1]=MPQS3_SI_NVALUES-1-j;
         i++;
       }
     }
-    if (A2n!=mpqs3_A_dbl) KMPQS_FAIL("precomp sieve init %lf %lf\n",A2n,mpqs3_A_dbl);
+    if (A2n!=qs->A_dbl) KMPQS_FAIL("precomp sieve init %lf %lf\n",A2n,qs->A_dbl);
 
     for (j=i; j<2*i; j++) {
-      mpqs3_sinit_tab[2*j]=mpqs3_sievelen-mpqs3_sinit_tab[2*(2*i-1-j)];
-      if (j<2*i-1) mpqs3_sinit_tab[2*j+1]=mpqs3_sinit_tab[2*(2*i-2-j)+1];
+      qs->sinit_tab[2*j]=qs->sievelen-qs->sinit_tab[2*(2*i-1-j)];
+      if (j<2*i-1) qs->sinit_tab[2*j+1]=qs->sinit_tab[2*(2*i-2-j)+1];
     }
 /* compute B_i's */ /* TODO optimise */
-    for (i=0; i<mpqs3_nAdiv; i++) {
-      p=mpqs3_Adiv[i];
-      bi_64=mpqs3_A_64*mpqs3_inv_64((uint64_t)p);
-      bi_dbl=mpqs3_A_dbl/(double)p;
+    for (i=0; i<qs->nAdiv; i++) {
+      p=qs->Adiv[i];
+      bi_64=qs->A_64*mpqs3_inv_64(qs, (uint64_t)p);
+      bi_dbl=qs->A_dbl/(double)p;
       inv=mpqs3_dbl64mod16(bi_dbl,bi_64,p);
       inv=mpqs3_invert((uint16_t)inv,p);
-      mod=(inv*((uint32_t)mpqs3_Adiv_sqrt[i]))%((uint32_t)p);
+      mod=(inv*((uint32_t)qs->Adiv_sqrt[i]))%((uint32_t)p);
       Bi_mul[i]=mod;
-      mpqs3_Bi_dbl[i]=bi_dbl*(double)mod;
-      mpqs3_Bi_64[i]=bi_64*(uint64_t)mod;
+      qs->Bi_dbl[i]=bi_dbl*(double)mod;
+      qs->Bi_64[i]=bi_64*(uint64_t)mod;
     }
-    mpqs3_B_dbl=0.; mpqs3_B_64=0;
-    for (i=0; i<mpqs3_nAdiv; i++) {
-      mpqs3_B_dbl+=mpqs3_Bi_dbl[i];
-      mpqs3_B_64+=mpqs3_Bi_64[i];
+    qs->B_dbl=0.; qs->B_64=0;
+    for (i=0; i<qs->nAdiv; i++) {
+      qs->B_dbl+=qs->Bi_dbl[i];
+      qs->B_64+=qs->Bi_64[i];
     }
-    mpqs3_2B_dbl=2.*mpqs3_B_dbl;
-    mpqs3_2B_64=2*mpqs3_B_64;
+    qs->twoB_dbl=2.*qs->B_dbl;
+    qs->twoB_64=2*qs->B_64;
 //zeitA(63);
 //zeitB(26);
 
@@ -1261,25 +1208,25 @@ static int mpqs3_next_pol()
     uint32_t cc1, cc2, bbb;
     uint32_t jj, pi, pi0;
 
-    pi0=1<<(16-mpqs3_nAdiv);
-    for (i=1; i<mpqs3_nFB; i++) {
+    pi0=1<<(16-qs->nAdiv);
+    for (i=1; i<qs->nFB; i++) {
       p=fb[2*i]; p32=(uint32_t)p;
-      mmi=mpqs3_FB_mm_inv[i];
+      mmi=qs->FB_mm_inv[i];
 
       bbb=0; pi=pi0;
-      for (j=0; j<mpqs3_nAdiv; j++) {
+      for (j=0; j<qs->nAdiv; j++) {
         jj=Adiv_nr[j];
-        cc=mpqs3_SI_inv_table[jj][i];
+        cc=qs->SI_inv_table[jj][i];
         cc*=Bi_mul[j]; h32=cc;
         MMREDUCE; cc=h32; if (cc>=p) cc-=p;
-        mpqs3_SI_add[j][i]=(uint16_t)cc;
-        bbb+=mpqs3_SI_add[j][i]; if (bbb>=p) bbb-=p;
-        pi*=((uint32_t)mpqs3_SI_inv_table[jj][i]); h32=pi;
+        qs->SI_add[j][i]=(uint16_t)cc;
+        bbb+=qs->SI_add[j][i]; if (bbb>=p) bbb-=p;
+        pi*=((uint32_t)qs->SI_inv_table[jj][i]); h32=pi;
         MMREDUCE; pi=h32;
       }
       cc=bbb;
       if (cc&1) cc+=p; cc>>=1;
-      cc=mpqs3_FB_disp[i]+(p-cc); if (cc>=p) cc-=p;
+      cc=qs->FB_disp[i]+(p-cc); if (cc>=p) cc-=p;
       cc1=fb[2*i+1];
       h32=cc1*pi; MMREDUCE; cc1=h32;
       if (cc1>=p) cc1-=p;
@@ -1291,157 +1238,157 @@ static int mpqs3_next_pol()
 }
 //zeitB(63);
 //zeitA(64);
-    mpqs3_C_dbl=(mpqs3_B_dbl*mpqs3_B_dbl-mpqs3_kN_dbl)/mpqs3_A_dbl;
-    mpqs3_A_inv_64=mpqs3_inv_64(mpqs3_A_64);
-    mpqs3_C_64=mpqs3_B_64*mpqs3_B_64-mpqs3_kN_64;
-    mpqs3_C_64*=mpqs3_A_inv_64;
+    qs->C_dbl=(qs->B_dbl*qs->B_dbl-qs->kN_dbl)/qs->A_dbl;
+    qs->A_inv_64=mpqs3_inv_64(qs, qs->A_64);
+    qs->C_64=qs->B_64*qs->B_64-qs->kN_64;
+    qs->C_64*=qs->A_inv_64;
 
 /* divisors of A */
-    for (i=0; i<mpqs3_nAdiv_total; i++)
-      if (!mpqs3_Adiv_active[i]) {
+    for (i=0; i<qs->nAdiv_total; i++)
+      if (!qs->Adiv_active[i]) {
         uint32_t mmi, h32, hh32, pi, jj, p32;
 
-        p=mpqs3_Adiv_all[i]; p32=(uint32_t)p;
-        mmi=-mpqs3_inv(p);
+        p=qs->Adiv_all[i]; p32=(uint32_t)p;
+        mmi=-mpqs3_inv(qs, p);
 
-        bb=0; pi=1<<(16-mpqs3_nAdiv);
-        for (j=0; j<mpqs3_nAdiv; j++) {
+        bb=0; pi=1<<(16-qs->nAdiv);
+        for (j=0; j<qs->nAdiv; j++) {
           jj=Adiv_nr[j];
-          cc=mpqs3_Adiv_SI_inv_table[jj][i];
+          cc=qs->Adiv_SI_inv_table[jj][i];
           cc*=Bi_mul[j]; h32=cc;
           MMREDUCE; cc=h32; if (cc>=p) cc-=p;
-          mpqs3_Adiv_SI_add[j][i]=(uint16_t)cc;
-mpqs3_SI_add[j][mpqs3_nFB+i]=(uint16_t)cc;
-          bb+=mpqs3_Adiv_SI_add[j][i]; if (bb>=p) bb-=p;
-          pi*=((uint32_t)mpqs3_Adiv_SI_inv_table[jj][i]); h32=pi;
+          qs->Adiv_SI_add[j][i]=(uint16_t)cc;
+qs->SI_add[j][qs->nFB+i]=(uint16_t)cc;
+          bb+=qs->Adiv_SI_add[j][i]; if (bb>=p) bb-=p;
+          pi*=((uint32_t)qs->Adiv_SI_inv_table[jj][i]); h32=pi;
           MMREDUCE; pi=h32;
         }
         cc=bb;
         if (cc&1) cc+=p; cc>>=1;
-        cc=mpqs3_Adiv_disp[i]+(p-cc); if (cc>=p) cc-=p;
-        c1=mpqs3_Adiv_all_sqrt[i];
+        cc=qs->Adiv_disp[i]+(p-cc); if (cc>=p) cc-=p;
+        c1=qs->Adiv_all_sqrt[i];
         h32=c1*pi; MMREDUCE; c1=h32;
         if (c1>=p) c1-=p;
         c2=p-c1;
         c1+=cc; if (c1>=p) c1-=p;
         c2+=cc; if (c2>=p) c2-=p;
-        mpqs3_Adiv_start1[i]=(uint16_t)c1; mpqs3_Adiv_start2[i]=(uint16_t)c2;
-fbs[2*(mpqs3_nFB+i)]=(uint16_t)c1; fbs[2*(mpqs3_nFB+i)+1]=(uint16_t)c2;
+        qs->Adiv_start1[i]=(uint16_t)c1; qs->Adiv_start2[i]=(uint16_t)c2;
+fbs[2*(qs->nFB+i)]=(uint16_t)c1; fbs[2*(qs->nFB+i)+1]=(uint16_t)c2;
       } else {
         uint32_t mmi, h32, hh32, pi, jj, cc0, j0, p32, cc1;
 
-        p=mpqs3_Adiv_all[i]; p32=(uint32_t)p;
+        p=qs->Adiv_all[i]; p32=(uint32_t)p;
         cc0=0;
-        mmi=-mpqs3_inv(p);
-        for (j=0; j<mpqs3_nAdiv; j++) {
+        mmi=-mpqs3_inv(qs, p);
+        for (j=0; j<qs->nAdiv; j++) {
           jj=Adiv_nr[j];
           if (jj!=i) {
-            cc=mpqs3_Adiv_SI_inv_table[jj][i];
+            cc=qs->Adiv_SI_inv_table[jj][i];
             cc*=Bi_mul[j]; h32=cc;
             MMREDUCE; cc=h32; if (cc>=p) cc-=p;
-            mpqs3_Adiv_SI_add[j][i]=(uint16_t)cc;
-mpqs3_SI_add[j][mpqs3_nFB+i]=(uint16_t)cc;
+            qs->Adiv_SI_add[j][i]=(uint16_t)cc;
+qs->SI_add[j][qs->nFB+i]=(uint16_t)cc;
           } else {
             uint32_t k;
 
-            cc=mpqs3_dbl64mod32(mpqs3_Bi_dbl[j],mpqs3_Bi_64[j],p32*p32)+mpqs3_Adiv_all_sq_mod_p2[jj];
+            cc=mpqs3_dbl64mod32(qs->Bi_dbl[j],qs->Bi_64[j],p32*p32)+qs->Adiv_all_sq_mod_p2[jj];
             if (cc%p32) KMPQS_FAIL("not div by p\n");
             cc/=p32;
             cc*=Bi_mul[j]; h32=cc;
             MMREDUCE; cc=h32;
-            cc*=mpqs3_Adiv_all_sq_inv[jj]; h32=cc;
+            cc*=qs->Adiv_all_sq_inv[jj]; h32=cc;
             MMREDUCE; cc=h32; if (cc>=p32) cc-=p32;
-            mpqs3_Adiv_SI_add[j][i]=(uint16_t)cc;
-mpqs3_SI_add[j][mpqs3_nFB+i]=(uint16_t)cc;
+            qs->Adiv_SI_add[j][i]=(uint16_t)cc;
+qs->SI_add[j][qs->nFB+i]=(uint16_t)cc;
           }
           cc0+=cc; if (cc0>=p32) cc0-=p32;
         }
         if (cc0) cc0=p32-cc0;
 /* using relation: 2*start_value=-sum of change_values */
         if (cc0&1) cc0+=p32; cc0>>=1;
-        cc0+=mpqs3_Adiv_disp[i]; if (cc0>=p) cc0-=p;
-        mpqs3_Adiv_start1[i]=(uint16_t)cc0;
+        cc0+=qs->Adiv_disp[i]; if (cc0>=p) cc0-=p;
+        qs->Adiv_start1[i]=(uint16_t)cc0;
 //        if (mpqs3_Adiv_start1[i]!=(uint16_t)cc0) KMPQS_FAIL("neu %u %u  %u\n",cc0,mpqs3_Adiv_start1[i],p32);
-fbs[2*(mpqs3_nFB+i)]=(uint16_t)cc0;
+fbs[2*(qs->nFB+i)]=(uint16_t)cc0;
       }
 /* divisors of k */
-    for (i=0; i<mpqs3_nFBk; i++) { /* slow, but seems to be fast enough */
-      p=mpqs3_FBk[i]; B_modp=0;
-      bb=(uint32_t)mpqs3_dbl64mod16(mpqs3_A_dbl,mpqs3_A_64,p);
+    for (i=0; i<qs->nFBk; i++) { /* slow, but seems to be fast enough */
+      p=qs->FBk[i]; B_modp=0;
+      bb=(uint32_t)mpqs3_dbl64mod16(qs->A_dbl,qs->A_64,p);
       bb=mpqs3_invert(bb,p);
-      for (j=0; j<mpqs3_nAdiv; j++) {
-        cc=(uint32_t)mpqs3_dbl64mod16(mpqs3_Bi_dbl[j],mpqs3_Bi_64[j],p);
+      for (j=0; j<qs->nAdiv; j++) {
+        cc=(uint32_t)mpqs3_dbl64mod16(qs->Bi_dbl[j],qs->Bi_64[j],p);
         B_modp+=((uint32_t)p-cc);
         cc=2*bb*cc; cc%=(uint32_t)p;
-        mpqs3_SIk_add[j][i]=(uint16_t)cc;
-mpqs3_SI_add[j][mpqs3_nFB+mpqs3_nAdiv_total+i]=(uint16_t)cc;
+        qs->SIk_add[j][i]=(uint16_t)cc;
+qs->SI_add[j][qs->nFB+qs->nAdiv_total+i]=(uint16_t)cc;
       }
-      c1=B_modp*bb+mpqs3_disp; c1%=(uint32_t)p;
-      mpqs3_FBk_start[i]=(uint16_t)c1;
-fbs[2*(mpqs3_nFB+mpqs3_nAdiv_total+i)]=(uint16_t)c1;
+      c1=B_modp*bb+qs->disp; c1%=(uint32_t)p;
+      qs->FBk_start[i]=(uint16_t)c1;
+fbs[2*(qs->nFB+qs->nAdiv_total+i)]=(uint16_t)c1;
     }
-    mpqs3_B_index=0;
+    qs->B_index=0;
 //zeitB(64);
 //zeitB(60);
 //zeitB(30);
     return 1;
   }
 //zeitA(61);
-  ind=mpqs3_B_index; i=0;
+  ind=qs->B_index; i=0;
   while (1) {
     if (ind&1) break;
     i++; ind>>=1;
   }
   ind>>=1; ind++;
-  add_dbl=2.*mpqs3_Bi_dbl[i];
-  add_64=2*mpqs3_Bi_64[i];
+  add_dbl=2.*qs->Bi_dbl[i];
+  add_64=2*qs->Bi_64[i];
 
 //zeitA(62);
   if (ind&1) {
-    mpqs3_B_dbl=mpqs3_B_dbl-add_dbl;
-    mpqs3_B_64=mpqs3_B_64-add_64;
-    for (j=1; j<mpqs3_nFBx; j++) {
+    qs->B_dbl=qs->B_dbl-add_dbl;
+    qs->B_64=qs->B_64-add_64;
+    for (j=1; j<qs->nFBx; j++) {
       p=fb[2*j]; /*s1=fbs[2*j]; s2=fbs[2*j+1];*/
-      aa=mpqs3_SI_add[i][j];
+      aa=qs->SI_add[i][j];
       fbs[2*j]+=aa; fbs[2*j+1]+=aa;
       if (fbs[2*j]>=p) fbs[2*j]-=p;
       if (fbs[2*j+1]>=p) fbs[2*j+1]-=p;
     }
   } else {
-    mpqs3_B_dbl=mpqs3_B_dbl+add_dbl;
-    mpqs3_B_64=mpqs3_B_64+add_64;
-    for (j=1; j<mpqs3_nFBx; j++) {
+    qs->B_dbl=qs->B_dbl+add_dbl;
+    qs->B_64=qs->B_64+add_64;
+    for (j=1; j<qs->nFBx; j++) {
       p=fb[2*j]; /*s1=fbs[2*j]; s2=fbs[2*j+1];*/
-      aa=p-mpqs3_SI_add[i][j];
+      aa=p-qs->SI_add[i][j];
       fbs[2*j]+=aa; fbs[2*j+1]+=aa;
       if (fbs[2*j]>=p) fbs[2*j]-=p;
       if (fbs[2*j+1]>=p) fbs[2*j+1]-=p;
     }
   }
 //zeitB(62);
-  for (j=0; j<mpqs3_nFBk; j++)
-    mpqs3_FBk_start[j]=fbs[2*(mpqs3_nFB+mpqs3_nAdiv_total+j)];
+  for (j=0; j<qs->nFBk; j++)
+    qs->FBk_start[j]=fbs[2*(qs->nFB+qs->nAdiv_total+j)];
 
-  for (j=0; j<mpqs3_nAdiv_total; j++) {
-    mpqs3_Adiv_start1[j]=fbs[2*(mpqs3_nFB+j)];
-    mpqs3_Adiv_start2[j]=fbs[2*(mpqs3_nFB+j)+1];
+  for (j=0; j<qs->nAdiv_total; j++) {
+    qs->Adiv_start1[j]=fbs[2*(qs->nFB+j)];
+    qs->Adiv_start2[j]=fbs[2*(qs->nFB+j)+1];
   }
 
-  mpqs3_2B_dbl=2.*mpqs3_B_dbl;
-  mpqs3_2B_64=2*mpqs3_B_64;
+  qs->twoB_dbl=2.*qs->B_dbl;
+  qs->twoB_64=2*qs->B_64;
 
-  mpqs3_C_dbl=(mpqs3_B_dbl*mpqs3_B_dbl-mpqs3_kN_dbl)/mpqs3_A_dbl;
-  mpqs3_C_64=mpqs3_B_64*mpqs3_B_64-mpqs3_kN_64;
-  mpqs3_C_64*=mpqs3_A_inv_64;
+  qs->C_dbl=(qs->B_dbl*qs->B_dbl-qs->kN_dbl)/qs->A_dbl;
+  qs->C_64=qs->B_64*qs->B_64-qs->kN_64;
+  qs->C_64*=qs->A_inv_64;
 //zeitB(61);
   return 1;
 }
 
 
-static void mpqs3_sieve()
+static void mpqs3_sieve(mpqs3_ctx_t *qs)
 {
-  uint8_t *sv=mpqs3_sievearray, *fblog=mpqs3_FB_log, *svend;
-  uint16_t *fb=mpqs3_FB, *fbs=mpqs3_FB_start, *fb0=mpqs3_FB0;
+  uint8_t *sv=qs->sievearray, *fblog=qs->FB_log, *svend;
+  uint16_t *fb=qs->FB, *fbs=qs->FB_start, *fb0=qs->FB0;
   uint16_t p, s1, s2, end, pb, save;
   uint32_t i;
   uint8_t lo;
@@ -1449,30 +1396,30 @@ static void mpqs3_sieve()
   uint64_t *ullsv, *ullsvend, mask0, mask1, m64[2];
 
 /* initialize odd tiny primes */
-  ulsv=(uint32_t *)mpqs3_tinyarray;
-  if (mpqs3_ntiny==0) {
+  ulsv=(uint32_t *)qs->tinyarray;
+  if (qs->ntiny==0) {
     *ulsv=0;
   } else {
     uint32_t j, p4;
     uint32_t h, *ulsv0;
 
-    for (i=0; i<mpqs3_tiny_prod; i++) *ulsv++=0;
-    for (i=1; i<mpqs3_sievebegin; i++) {
+    for (i=0; i<qs->tiny_prod; i++) *ulsv++=0;
+    for (i=1; i<qs->sievebegin; i++) {
       p=fb[2*i]; lo=fblog[i]; p4=((uint32_t)p<<2);
-      sv=mpqs3_tinyarray;
+      sv=qs->tinyarray;
       s1=fbs[2*i]; s2=fbs[2*i+1];
-      for (j=0; j<mpqs3_tiny_prod; j+=p4) {
+      for (j=0; j<qs->tiny_prod; j+=p4) {
         sv[s1]+=lo; sv[s2]+=lo; sv+=p;
         sv[s1]+=lo; sv[s2]+=lo; sv+=p;
         sv[s1]+=lo; sv[s2]+=lo; sv+=p;
         sv[s1]+=lo; sv[s2]+=lo; sv+=p;
       }
     }
-    for (i=0; i<mpqs3_sievebegink; i++) {
-      p=mpqs3_FBk[i]; lo=mpqs3_FBk_log[i]; p4=((uint32_t)p<<2);
-      sv=mpqs3_tinyarray;
-      s1=mpqs3_FBk_start[i];
-      for (j=0; j<mpqs3_tiny_prod; j+=p4) {
+    for (i=0; i<qs->sievebegink; i++) {
+      p=qs->FBk[i]; lo=qs->FBk_log[i]; p4=((uint32_t)p<<2);
+      sv=qs->tinyarray;
+      s1=qs->FBk_start[i];
+      for (j=0; j<qs->tiny_prod; j+=p4) {
         sv[s1]+=lo; sv+=p;
         sv[s1]+=lo; sv+=p;
         sv[s1]+=lo; sv+=p;
@@ -1482,12 +1429,12 @@ static void mpqs3_sieve()
   }
 
 /* add contributions of powers of 2 */
-  lo=mpqs3_FB_log[0];
-  m=((uint32_t)mpqs3_A_64)*(-1-mpqs3_disp)+(uint32_t)mpqs3_2B_64;
-  m*=(-1-mpqs3_disp);
-  m+=(uint32_t)mpqs3_C_64;
-  m1=((uint32_t)mpqs3_A_64)*(-3-2*mpqs3_disp)+(uint32_t)mpqs3_2B_64;
-  m2=2*((uint32_t)mpqs3_A_64);
+  lo=qs->FB_log[0];
+  m=((uint32_t)qs->A_64)*(-1-qs->disp)+(uint32_t)qs->twoB_64;
+  m*=(-1-qs->disp);
+  m+=(uint32_t)qs->C_64;
+  m1=((uint32_t)qs->A_64)*(-3-2*qs->disp)+(uint32_t)qs->twoB_64;
+  m2=2*((uint32_t)qs->A_64);
 
   m64[0]=0; m64[1]=0;
   sv=(uint8_t *)(&(m64[0]));
@@ -1506,14 +1453,14 @@ static void mpqs3_sieve()
   }
 
 //zeitA(70);
-  memcpy(mpqs3_tinyarray+mpqs3_tiny_prod,mpqs3_tinyarray,mpqs3_tiny_prod);
-  memcpy(mpqs3_tinyarray+2*mpqs3_tiny_prod,mpqs3_tinyarray,2*mpqs3_tiny_prod);
-  memcpy(mpqs3_tinyarray+4*mpqs3_tiny_prod,mpqs3_tinyarray,4*mpqs3_tiny_prod);
-  memcpy(mpqs3_tinyarray+8*mpqs3_tiny_prod,mpqs3_tinyarray,8*mpqs3_tiny_prod);
-  memcpy(mpqs3_tinyarray+16*mpqs3_tiny_prod,mpqs3_tinyarray,16);
+  memcpy(qs->tinyarray+qs->tiny_prod,qs->tinyarray,qs->tiny_prod);
+  memcpy(qs->tinyarray+2*qs->tiny_prod,qs->tinyarray,2*qs->tiny_prod);
+  memcpy(qs->tinyarray+4*qs->tiny_prod,qs->tinyarray,4*qs->tiny_prod);
+  memcpy(qs->tinyarray+8*qs->tiny_prod,qs->tinyarray,8*qs->tiny_prod);
+  memcpy(qs->tinyarray+16*qs->tiny_prod,qs->tinyarray,16);
   mask0=m64[0]; mask1=m64[1];
-  ullsv=(uint64_t *)mpqs3_tinyarray;
-  ullsvend=ullsv+2*mpqs3_tiny_prod+2;
+  ullsv=(uint64_t *)qs->tinyarray;
+  ullsvend=ullsv+2*qs->tiny_prod+2;
   while (ullsv<ullsvend) {
     *ullsv+++=mask0;
     *ullsv+++=mask1;
@@ -1525,40 +1472,40 @@ static void mpqs3_sieve()
 {
   uint64_t *tptr0, *tptr1, *tptr, mask;
 
-  tptr0=(uint64_t *)mpqs3_tinyarray;
-  tptr1=tptr0+2*mpqs3_tiny_prod;
+  tptr0=(uint64_t *)qs->tinyarray;
+  tptr1=tptr0+2*qs->tiny_prod;
   tptr=tptr0;
   i=0;
-  ullsv=(uint64_t *)mpqs3_sievearray;
+  ullsv=(uint64_t *)qs->sievearray;
   while (1) {
-    if (mpqs3_sinit_tab[2*i]==mpqs3_sievelen) break;
-    ullsvend=((uint64_t *)mpqs3_sievearray)+mpqs3_sinit_tab[2*i+2]/8;
+    if (qs->sinit_tab[2*i]==qs->sievelen) break;
+    ullsvend=((uint64_t *)qs->sievearray)+qs->sinit_tab[2*i+2]/8;
 //if ((mpqs3_sinit_tab[2*i+2]-mpqs3_sinit_tab[2*i])&31) KMPQS_FAIL("32\n");
-    mask=0x0101010101010101ULL*(uint64_t)(lo*mpqs3_sinit_tab[2*i+1]);
+    mask=0x0101010101010101ULL*(uint64_t)(lo*qs->sinit_tab[2*i+1]);
 
     while (ullsv<ullsvend) {
       *ullsv++=*tptr+++mask;
       *ullsv++=*tptr+++mask;
       *ullsv++=*tptr+++mask;
       *ullsv++=*tptr+++mask;
-      if (tptr>=tptr1) tptr-=(2*mpqs3_tiny_prod);
+      if (tptr>=tptr1) tptr-=(2*qs->tiny_prod);
     }
     i++;
   }
 }
 //zeitB(71);
 
-  save=mpqs3_FB[2*mpqs3_nFB];
-  mpqs3_FB[2*mpqs3_nFB]=0xffff;
+  save=qs->FB[2*qs->nFB];
+  qs->FB[2*qs->nFB]=0xffff;
 
-  pb=mpqs3_sievelen>>2;
-  i=mpqs3_sievebegin; fb+=2*i; fbs+=2*i;
+  pb=qs->sievelen>>2;
+  i=qs->sievebegin; fb+=2*i; fbs+=2*i;
   for (;;) {
     p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=mpqs3_sievearray;
+    lo=fblog[i]; sv=qs->sievearray;
     fb+=2;
     s1=*fbs++; s2=*fbs++;
-    svend=sv+mpqs3_sievelen-4*p;
+    svend=sv+qs->sievelen-4*p;
     while (sv<svend) {
       sv[s1]+=lo; sv[s2]+=lo; sv+=p;
       sv[s1]+=lo; sv[s2]+=lo; sv+=p;
@@ -1579,11 +1526,11 @@ static void mpqs3_sieve()
     if (sv+s2<svend) sv[s2]+=lo;
     i++;
   }
-  pb=mpqs3_sievelen/3;
-  svend=mpqs3_sievearray+mpqs3_sievelen;
+  pb=qs->sievelen/3;
+  svend=qs->sievearray+qs->sievelen;
   for (;;) {
     p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=mpqs3_sievearray;
+    lo=fblog[i]; sv=qs->sievearray;
     fb+=2;
     s1=*fbs++; s2=*fbs++;
     sv[s1]+=lo; sv[s2]+=lo; sv+=p;
@@ -1593,10 +1540,10 @@ static void mpqs3_sieve()
     if (sv+s2<svend) sv[s2]+=lo;
     i++;
   }
-  pb=mpqs3_sievelen>>1;
+  pb=qs->sievelen>>1;
   for (;;) {
     p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=mpqs3_sievearray;
+    lo=fblog[i]; sv=qs->sievearray;
     fb+=2;
     s1=*fbs++; s2=*fbs++;
     sv[s1]+=lo; sv[s2]+=lo; sv+=p;
@@ -1605,10 +1552,10 @@ static void mpqs3_sieve()
     if (sv+s2<svend) sv[s2]+=lo;
     i++;
   }
-  pb=mpqs3_sievelen;
+  pb=qs->sievelen;
   for (;;) {
     p=*fb; if (p>=pb) break;
-    lo=fblog[i]; sv=mpqs3_sievearray;
+    lo=fblog[i]; sv=qs->sievearray;
     fb+=2;
     s1=*fbs++; s2=*fbs++;
     sv[s1]+=lo; sv[s2]+=lo; sv+=p;
@@ -1619,7 +1566,7 @@ static void mpqs3_sieve()
 
   for (;;) {
     p=*fb; if (p==0xffff) break;
-    lo=fblog[i]; sv=mpqs3_sievearray;
+    lo=fblog[i]; sv=qs->sievearray;
     fb+=2;
     s1=*fbs++; s2=*fbs++;
     if (sv+s1<svend) sv[s1]+=lo;
@@ -1627,17 +1574,17 @@ static void mpqs3_sieve()
     i++;
   }
 
-  mpqs3_FB[2*mpqs3_nFB]=save;
+  qs->FB[2*qs->nFB]=save;
 
-  sv=mpqs3_sievearray;
+  sv=qs->sievearray;
 //zeitA(73);
-  for (i=0; i<mpqs3_nAdiv_total; i++)
-    if (!mpqs3_Adiv_active[i]) {
-      p=mpqs3_Adiv_all[i]; lo=mpqs3_Adiv_log[i];
-      s1=mpqs3_Adiv_start1[i];
-      s2=mpqs3_Adiv_start2[i];
-      if ((p<<1)<mpqs3_sievelen) {
-        svend=sv+mpqs3_sievelen-2*p;
+  for (i=0; i<qs->nAdiv_total; i++)
+    if (!qs->Adiv_active[i]) {
+      p=qs->Adiv_all[i]; lo=qs->Adiv_log[i];
+      s1=qs->Adiv_start1[i];
+      s2=qs->Adiv_start2[i];
+      if ((p<<1)<qs->sievelen) {
+        svend=sv+qs->sievelen-2*p;
         while (sv<svend) {
           sv[s1]+=lo; sv[s2]+=lo; sv+=p;
           sv[s1]+=lo; sv[s2]+=lo; sv+=p;
@@ -1650,23 +1597,23 @@ static void mpqs3_sieve()
         if (sv+s1<svend) sv[s1]+=lo;
         if (sv+s2<svend) sv[s2]+=lo;
       } else {
-        while (s1<mpqs3_sievelen) { sv[s1]+=lo; s1+=p; }
-        while (s2<mpqs3_sievelen) { sv[s2]+=lo; s2+=p; }
+        while (s1<qs->sievelen) { sv[s1]+=lo; s1+=p; }
+        while (s2<qs->sievelen) { sv[s2]+=lo; s2+=p; }
       }
-      sv=mpqs3_sievearray;
+      sv=qs->sievearray;
     } else {
-      p=mpqs3_Adiv_all[i]; lo=mpqs3_Adiv_log[i];
-      s1=mpqs3_Adiv_start1[i];
-      while (s1<mpqs3_sievelen) { sv[s1]+=lo; s1+=p; }
+      p=qs->Adiv_all[i]; lo=qs->Adiv_log[i];
+      s1=qs->Adiv_start1[i];
+      while (s1<qs->sievelen) { sv[s1]+=lo; s1+=p; }
     }
 //zeitB(73);
 //zeitA(74);
-  for (i=mpqs3_sievebegink; i<mpqs3_nFBk; i++) {
-    p=mpqs3_FBk[i];
-    lo=mpqs3_FBk_log[i];
-    s1=mpqs3_FBk_start[i];
-    sv=mpqs3_sievearray;
-    svend=sv+mpqs3_sievelen-4*p;
+  for (i=qs->sievebegink; i<qs->nFBk; i++) {
+    p=qs->FBk[i];
+    lo=qs->FBk_log[i];
+    s1=qs->FBk_start[i];
+    sv=qs->sievearray;
+    svend=sv+qs->sievelen-4*p;
     while (sv<svend) {
       sv[s1]+=lo; sv+=p;
       sv[s1]+=lo; sv+=p;
@@ -1689,24 +1636,24 @@ static void mpqs3_sieve()
 }
 
 
-static uint16_t mpqs3_evaluate()
+static uint16_t mpqs3_evaluate(mpqs3_ctx_t *qs)
 {
   uint32_t *ulsv, *ulsvend, h;
   uint8_t *sv;
   uint16_t **rels, buffer[256];
   uint32_t i, nmaxsurv;
 
-  mpqs3_nsurvivors=0;
-  nmaxsurv=MPQS3_MAX_NRELS-mpqs3_nrels;
-  if (MPQS3_MAX_NPRELS-mpqs3_nprels<nmaxsurv)
-    nmaxsurv=MPQS3_MAX_NPRELS-mpqs3_nprels;
-  if (MPQS3_MAX_NCRELS-mpqs3_ncrels<nmaxsurv)
-    nmaxsurv=MPQS3_MAX_NCRELS-mpqs3_ncrels;
+  qs->nsurvivors=0;
+  nmaxsurv=MPQS3_MAX_NRELS-qs->nrels;
+  if (MPQS3_MAX_NPRELS-qs->nprels<nmaxsurv)
+    nmaxsurv=MPQS3_MAX_NPRELS-qs->nprels;
+  if (MPQS3_MAX_NCRELS-qs->ncrels<nmaxsurv)
+    nmaxsurv=MPQS3_MAX_NCRELS-qs->ncrels;
   if (nmaxsurv<MPQS3_MIN_RELBUFFER) return 0;
   if (nmaxsurv>255) nmaxsurv=255;  /* 1 weniger als buffer-Laenge !!! */
-  ulsv=(uint32_t *)mpqs3_sievearray;
-  ulsvend=ulsv+(mpqs3_sievelen>>2);
-  rels=mpqs3_rel_buffer;
+  ulsv=(uint32_t *)qs->sievearray;
+  ulsvend=ulsv+(qs->sievelen>>2);
+  rels=qs->rel_buffer;
 #ifdef MPQS3_STAT
   stat_asm_eval++;
 #endif
@@ -1716,10 +1663,10 @@ static uint16_t mpqs3_evaluate()
       sv=(uint8_t *)ulsv;
       for (i=0; i<4; i++)
         if (*sv++&0x80) {
-          buffer[mpqs3_nsurvivors++]=(uint16_t)(sv-mpqs3_sievearray-1);
+          buffer[qs->nsurvivors++]=(uint16_t)(sv-qs->sievearray-1);
 //          printf("(%u %u) ",(uint32_t)buffer[mpqs3_nsurvivors-1],(uint32_t)sv[-1]);
         }
-      if (mpqs3_nsurvivors>nmaxsurv-8) {
+      if (qs->nsurvivors>nmaxsurv-8) {
         while (ulsv<ulsvend) *ulsv++=0;
         break;
       }
@@ -1730,10 +1677,10 @@ static uint16_t mpqs3_evaluate()
       sv=(uint8_t *)ulsv;
       for (i=0; i<4; i++)
         if (*sv++&0x80) {
-          buffer[mpqs3_nsurvivors++]=(uint16_t)(sv-mpqs3_sievearray-1);
+          buffer[qs->nsurvivors++]=(uint16_t)(sv-qs->sievearray-1);
 //          printf("(%u %u) ",(uint32_t)buffer[mpqs3_nsurvivors-1],(uint32_t)sv[-1]);
         }
-      if (mpqs3_nsurvivors>nmaxsurv-8) {
+      if (qs->nsurvivors>nmaxsurv-8) {
         while (ulsv<ulsvend) *ulsv++=0;
         break;
       }
@@ -1741,16 +1688,16 @@ static uint16_t mpqs3_evaluate()
     *ulsv++=0;
   }
 
-  for (i=0; i<mpqs3_nsurvivors; i++) {
-    mpqs3_sievearray[buffer[i]]=(uint8_t)(i+1);
+  for (i=0; i<qs->nsurvivors; i++) {
+    qs->sievearray[buffer[i]]=(uint8_t)(i+1);
     rels[i][0]=buffer[i];
   }
-  return mpqs3_nsurvivors;
+  return qs->nsurvivors;
 }
 
 
 
-static inline uint16_t mpqs3_hash_lp(uint32_t lp)
+static inline uint16_t mpqs3_hash_lp(mpqs3_ctx_t *qs, uint32_t lp)
 {
   uint32_t j;
   uint32_t lp1;
@@ -1758,42 +1705,42 @@ static inline uint16_t mpqs3_hash_lp(uint32_t lp)
 
   lphash=(uint16_t)(lp&MPQS3_NHASHMASK); lphash>>=1;
   lp1=lp>>MPQS3_NHASHBITS;
-  nh=mpqs3_hash_table[lphash][0];
+  nh=qs->hash_table[lphash][0];
   if (nh>=MPQS3_HASH_LEN-1) return MPQS3_HASH_OVERFLOW;
   for (j=1; j<=nh; j++)
-    if (mpqs3_hash_table[lphash][j]==lp1) break;
+    if (qs->hash_table[lphash][j]==lp1) break;
   if (j>nh) { /* new lp */
-    mpqs3_hash_table[lphash][j]=lp1;
-    mpqs3_hash_table[lphash][0]++;
-    mpqs3_nlp++;
-    mpqs3_hash_index[lphash][j]=mpqs3_nprels;
-    mpqs3_lp[mpqs3_nprels]=lp;
+    qs->hash_table[lphash][j]=lp1;
+    qs->hash_table[lphash][0]++;
+    qs->nlp++;
+    qs->hash_index[lphash][j]=qs->nprels;
+    qs->lp[qs->nprels]=lp;
   }
-  return mpqs3_hash_index[lphash][j];
+  return qs->hash_index[lphash][j];
 }
 
 
-static inline int mpqs3_hash_rel(uint32_t axb0)
+static inline int mpqs3_hash_rel(mpqs3_ctx_t *qs, uint32_t axb0)
 {
   uint32_t j;
   uint32_t hash, hash2, nh;
 
   hash=axb0&0x00ffffff;
   hash2=(uint16_t)(hash>>8); hash&=0xff;
-  nh=mpqs3_rel_hash_table[hash][0];
+  nh=qs->rel_hash_table[hash][0];
   if (nh>=MPQS3_RELHASH_LEN-1) return 1;
   for (j=1; j<=nh; j++)
-    if (mpqs3_rel_hash_table[hash][j]==hash2) return 1;
-  mpqs3_rel_hash_table[hash][nh+1]=hash2;
-  mpqs3_rel_hash_table[hash][0]++;
+    if (qs->rel_hash_table[hash][j]==hash2) return 1;
+  qs->rel_hash_table[hash][nh+1]=hash2;
+  qs->rel_hash_table[hash][0]++;
   return 0;
 }
 
 
-static void mpqs3_decompose()
+static void mpqs3_decompose(mpqs3_ctx_t *qs)
 {
   uint32_t i, j;
-  uint16_t *fb=mpqs3_FB, *fbs=mpqs3_FB_start;
+  uint16_t *fb=qs->FB, *fbs=qs->FB_start;
   uint8_t *sv, *svend, i1, i2, i3, i4;
   uint16_t ind, p, s1, s2, nr, d, lpi, r, ii;
   uint16_t **rels;
@@ -1810,18 +1757,18 @@ static void mpqs3_decompose()
   uint32_t *ulp, *ulphelp, pr[3];
   uint32_t pend;
 
-  rels=mpqs3_rel_buffer-1;
-  for (i=1; i<=mpqs3_nsurvivors; i++) rels[i][6]=0;
-  i=mpqs3_td_begin; fb+=2*i; fbs+=2*i;
+  rels=qs->rel_buffer-1;
+  for (i=1; i<=qs->nsurvivors; i++) rels[i][6]=0;
+  i=qs->td_begin; fb+=2*i; fbs+=2*i;
 
-  save=mpqs3_FB[2*mpqs3_nFB];
-  mpqs3_FB[2*mpqs3_nFB]=0xffff;
+  save=qs->FB[2*qs->nFB];
+  qs->FB[2*qs->nFB]=0xffff;
 
 //zeitA(40);
-  pend=mpqs3_sievelen/4;
-  for (; i<mpqs3_nFB; i++) {
+  pend=qs->sievelen/4;
+  for (; i<qs->nFB; i++) {
     p=*fb; if (p>pend) break;
-    fb+=2; sv=mpqs3_sievearray; svend=sv+mpqs3_sievelen-2*p;
+    fb+=2; sv=qs->sievearray; svend=sv+qs->sievelen-2*p;
     s1=*fbs++; s2=*fbs++; i1=0;
     while (sv<svend) {
       i1=0;
@@ -1831,13 +1778,13 @@ static void mpqs3_decompose()
         sv-=(2*p);
         i1=sv[s1]; i2=sv[s2]; sv+=p;
         if (i1||i2) {
-          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
-          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
+          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         }
         i1=sv[s1]; i2=sv[s2]; sv+=p;
         if (i1||i2) {
-          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
-          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
+          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         }
       }
     }
@@ -1848,8 +1795,8 @@ static void mpqs3_decompose()
         sv-=p;
         i1=sv[s1]; i2=sv[s2]; sv+=p;
         if (i1||i2) {
-          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
-          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
+          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         }
       }
     }
@@ -1858,17 +1805,17 @@ static void mpqs3_decompose()
     if (sv+s2<svend) i2=sv[s2];
 
     if (i1||i2) {
-      if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
-      if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+      if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
+      if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
     }
   }
 //zeitB(40);
 
 //zeitA(41);
-  pend=mpqs3_sievelen/3;
-  for (; i<mpqs3_nFB; i++) {
+  pend=qs->sievelen/3;
+  for (; i<qs->nFB; i++) {
     p=*fb; if (p>pend) break;
-    fb+=2; sv=mpqs3_sievearray; svend=sv+mpqs3_sievelen;
+    fb+=2; sv=qs->sievearray; svend=sv+qs->sievelen;
     s1=*fbs++; s2=*fbs++;
     i1=sv[s1]; i2=sv[s2]; sv+=p;
     i1|=sv[s1]; i2|=sv[s2]; sv+=p;
@@ -1879,26 +1826,26 @@ static void mpqs3_decompose()
     if (i1||i2) {
       if (i1) {
         sv-=(3*p); i1=sv[s1]; sv+=p;
-        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         i1=sv[s1]; sv+=p;
-        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         i1=sv[s1]; sv+=p;
-        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         if (sv+s1<svend) {
           i1=sv[s1];
-          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         }
       }
       if (i2) {
         sv-=(3*p); i2=sv[s2]; sv+=p;
-        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         i2=sv[s2]; sv+=p;
-        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         i2=sv[s2]; sv+=p;
-        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         if (sv+s2<svend) {
           i2=sv[s2];
-          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         }
       }
     }
@@ -1906,10 +1853,10 @@ static void mpqs3_decompose()
 //zeitB(41);
 
 //zeitA(42);
-  pend=mpqs3_sievelen/2;
-  for (; i<mpqs3_nFB; i++) {
+  pend=qs->sievelen/2;
+  for (; i<qs->nFB; i++) {
     p=*fb; if (p>pend) break;
-    fb+=2; sv=mpqs3_sievearray; svend=sv+mpqs3_sievelen;
+    fb+=2; sv=qs->sievearray; svend=sv+qs->sievelen;
     s1=*fbs++; s2=*fbs++;
     i1=sv[s1]; i2=sv[s2]; sv+=p;
     i1|=sv[s1]; i2|=sv[s2]; sv+=p;
@@ -1919,22 +1866,22 @@ static void mpqs3_decompose()
     if (i1||i2) {
       if (i1) {
         sv-=(p+p); i1=sv[s1]; sv+=p;
-        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         i1=sv[s1]; sv+=p;
-        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+        if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         if (sv+s1<svend) {
           i1=sv[s1];
-          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
+          if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
         }
       }
       if (i2) {
         sv-=(p+p); i2=sv[s2]; sv+=p;
-        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         i2=sv[s2]; sv+=p;
-        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+        if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         if (sv+s2<svend) {
           i2=sv[s2];
-          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+          if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
         }
       }
     }
@@ -1942,63 +1889,63 @@ static void mpqs3_decompose()
 //zeitB(42);
 
 //zeitA(43);
-  pend=mpqs3_sievelen;
-  for (; i<mpqs3_nFB; i++) {
+  pend=qs->sievelen;
+  for (; i<qs->nFB; i++) {
     p=*fb; if (p>pend) break;
-    fb+=2; sv=mpqs3_sievearray; svend=sv+mpqs3_sievelen;
+    fb+=2; sv=qs->sievearray; svend=sv+qs->sievelen;
     s1=*fbs++; s2=*fbs++; i3=0; i4=0;
     i1=sv[s1]; i2=sv[s2]; sv+=p;
     if (sv+s1<svend) i3=sv[s1];
     if (sv+s2<svend) i4=sv[s2];
 
     if (i1||i2||i3||i4) {
-      if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
-      if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
-      if (i3) {nr=rels[i3][6];rels[i3][nr+7]=mpqs3_nFBk_1+i;rels[i3][6]++;}
-      if (i4) {nr=rels[i4][6];rels[i4][nr+7]=mpqs3_nFBk_1+i;rels[i4][6]++;}
+      if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
+      if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
+      if (i3) {nr=rels[i3][6];rels[i3][nr+7]=qs->nFBk_1+i;rels[i3][6]++;}
+      if (i4) {nr=rels[i4][6];rels[i4][nr+7]=qs->nFBk_1+i;rels[i4][6]++;}
     }
   }
 //zeitB(43);
 
 //zeitA(44);
-  for (; i<mpqs3_nFB; i++) {
+  for (; i<qs->nFB; i++) {
     p=*fb; if (p==0xffff) break;
-    fb+=2; sv=mpqs3_sievearray; svend=sv+mpqs3_sievelen;
+    fb+=2; sv=qs->sievearray; svend=sv+qs->sievelen;
     s1=*fbs++; s2=*fbs++; i1=0; i2=0;
     if (sv+s1<svend) i1=sv[s1];
     if (sv+s2<svend) i2=sv[s2];
 
     if (i1||i2) {
-      if (i1) {nr=rels[i1][6];rels[i1][nr+7]=mpqs3_nFBk_1+i;rels[i1][6]++;}
-      if (i2) {nr=rels[i2][6];rels[i2][nr+7]=mpqs3_nFBk_1+i;rels[i2][6]++;}
+      if (i1) {nr=rels[i1][6];rels[i1][nr+7]=qs->nFBk_1+i;rels[i1][6]++;}
+      if (i2) {nr=rels[i2][6];rels[i2][nr+7]=qs->nFBk_1+i;rels[i2][6]++;}
     }
   }
  if (*fb!=0xffff) KMPQS_FAIL("s %u %u\n",i,*fb);
 //zeitB(44);
 
-  mpqs3_FB[2*mpqs3_nFB]=save;
+  qs->FB[2*qs->nFB]=save;
 #ifdef MPQS3_STAT
- stat_td_cand+=mpqs3_nsurvivors;
+ stat_td_cand+=qs->nsurvivors;
 #endif
-  for (i=1; i<=mpqs3_nsurvivors; i++) {
+  for (i=1; i<=qs->nsurvivors; i++) {
     nr=rels[i][6];
     ind=rels[i][0];
-    x=(short)(ind)-mpqs3_disp;
+    x=(short)(ind)-qs->disp;
 
-    axb_64=mpqs3_A_64*((uint64_t)x)+mpqs3_B_64;
-    axb_dbl=mpqs3_A_dbl*((double)x)+mpqs3_B_dbl;
+    axb_64=qs->A_64*((uint64_t)x)+qs->B_64;
+    axb_dbl=qs->A_dbl*((double)x)+qs->B_dbl;
     if (axb_dbl<0.) { axb_dbl=-axb_dbl; axb_64=-axb_64; }
-    if (mpqs3_hash_rel((uint32_t)axb_64)) goto next;
+    if (mpqs3_hash_rel(qs, (uint32_t)axb_64)) goto next;
     mpqs3_convert(axb,axb_dbl,axb_64);
 
-    qx_64=mpqs3_A_64*((uint64_t)x)+mpqs3_2B_64;
+    qx_64=qs->A_64*((uint64_t)x)+qs->twoB_64;
     qx_64*=((uint64_t)x);
-    qx_64+=mpqs3_C_64;
+    qx_64+=qs->C_64;
 
     minus=0; dx=(double)x;
-    qx_dbl=mpqs3_A_dbl*dx+mpqs3_2B_dbl;
+    qx_dbl=qs->A_dbl*dx+qs->twoB_dbl;
     qx_dbl*=dx;
-    qx_dbl+=mpqs3_C_dbl;
+    qx_dbl+=qs->C_dbl;
     if (qx_dbl<0.) { minus=1; qx_64=-qx_64; qx_dbl=-qx_dbl; }
     qx[0]=(uint32_t)qx_64;
     qx[1]=(uint32_t)(qx_64>>32);
@@ -2009,21 +1956,21 @@ static void mpqs3_decompose()
 stat_asm_td++;
 #endif
 
-    for (j=1; j<mpqs3_td_begin; j++) {
-      p=mpqs3_FB[2*j];
-      inv=mpqs3_FB_inv[j];
-      ls1=ind+(p-mpqs3_FB_start[2*j]); ls2=ind+(p-mpqs3_FB_start[2*j+1]);
+    for (j=1; j<qs->td_begin; j++) {
+      p=qs->FB[2*j];
+      inv=qs->FB_inv[j];
+      ls1=ind+(p-qs->FB_start[2*j]); ls2=ind+(p-qs->FB_start[2*j+1]);
       ls1*=inv; ls2*=inv;
       ls1&=0xffff0000; ls2&=0xffff0000;
       if (!ls1 || !ls2) {
-        rels[i][7+nr]=mpqs3_nFBk_1+j; nr++; /*printf("%d.",p);*/
+        rels[i][7+nr]=qs->nFBk_1+j; nr++; /*printf("%d.",p);*/
       }
     }
 
     pr_dbl=1.; pr_64=1;
     for (j=0; j<nr; j++) {
-      pr_dbl*=(double)(mpqs3_FB[2*(rels[i][7+j]-mpqs3_nFBk_1)]);
-      pr_64*=(uint64_t)(mpqs3_FB[2*(rels[i][7+j]-mpqs3_nFBk_1)]);
+      pr_dbl*=(double)(qs->FB[2*(rels[i][7+j]-qs->nFBk_1)]);
+      pr_64*=(uint64_t)(qs->FB[2*(rels[i][7+j]-qs->nFBk_1)]);
     }
     rels[i][6]=nr;
 
@@ -2032,7 +1979,7 @@ stat_asm_td++;
     }
     while (!(qx[0]&1)) {
       if (rels[i][6]<MPQS3_TD_MAX_NDIV) {
-        rels[i][7+rels[i][6]]=mpqs3_nFBk_1; rels[i][6]++;
+        rels[i][7+rels[i][6]]=qs->nFBk_1; rels[i][6]++;
         qx[0]=(qx[0]>>1)|(qx[1]<<31);
         qx[1]=(qx[1]>>1)|(qx[2]<<31);
         qx[2]>>=1;
@@ -2058,7 +2005,7 @@ stat_asm_td++;
 
     for (j=0; j<nr; j++) {
       ii=rels[i][7+j];
-      p=mpqs3_FB[2*(ii-mpqs3_nFBk_1)];
+      p=qs->FB[2*(ii-qs->nFBk_1)];
       while (ulqx%(uint32_t)p==0) {
         if (rels[i][6]<MPQS3_TD_MAX_NDIV) {
           rels[i][7+rels[i][6]]=ii; rels[i][6]++;
@@ -2070,8 +2017,8 @@ stat_asm_td++;
     }
 
     if (ulqx>1)
-      for (j=0; j<mpqs3_nFBk; j++) {
-        p=mpqs3_FBk[j];
+      for (j=0; j<qs->nFBk; j++) {
+        p=qs->FBk[j];
         while (ulqx%(uint32_t)p==0) {
           if (rels[i][6]<MPQS3_TD_MAX_NDIV) {
             rels[i][7+rels[i][6]]=1+j; rels[i][6]++;
@@ -2083,11 +2030,11 @@ stat_asm_td++;
         if (ulqx==1) break;
       }
     if (ulqx>1)
-      for (j=0; j<mpqs3_nAdiv_total; j++) {
-        p=mpqs3_Adiv_all[j];
+      for (j=0; j<qs->nAdiv_total; j++) {
+        p=qs->Adiv_all[j];
         while (ulqx%(uint32_t)p==0) {
           if (rels[i][6]<MPQS3_TD_MAX_NDIV) {
-            rels[i][7+rels[i][6]]=1+mpqs3_nFB+mpqs3_nFBk+j; rels[i][6]++;
+            rels[i][7+rels[i][6]]=1+qs->nFB+qs->nFBk+j; rels[i][6]++;
             ulqx/=(uint32_t)p;
           } else {
             goto next;
@@ -2096,14 +2043,14 @@ stat_asm_td++;
         if (ulqx==1) break;
       }
 
-    if (rels[i][6]<MPQS3_TD_MAX_NDIV-mpqs3_nAdiv) {
+    if (rels[i][6]<MPQS3_TD_MAX_NDIV-qs->nAdiv) {
       nr=rels[i][6]; ind=0;
-      for (j=0; j<mpqs3_nAdiv_total; j++)
-        if (mpqs3_Adiv_active[j]) {
-          rels[i][7+nr+ind]=1+mpqs3_nFB+mpqs3_nFBk+j;
+      for (j=0; j<qs->nAdiv_total; j++)
+        if (qs->Adiv_active[j]) {
+          rels[i][7+nr+ind]=1+qs->nFB+qs->nFBk+j;
           ind++;
         }
-      rels[i][6]+=mpqs3_nAdiv;
+      rels[i][6]+=qs->nAdiv;
     } else {
       goto next;
     }
@@ -2115,17 +2062,17 @@ stat_asm_td++;
   uint16_t idx;
   static int nbad=0, ngood=0;
   mpz_init(l); mpz_init(r); mpz_init(t);
-  mpz_set_v(l,axb); mpz_mul(l,l,l); mpz_mod(l,l,mpqs3_N);
+  mpz_set_v(l,axb); mpz_mul(l,l,l); mpz_mod(l,l,qs->N);
   mpz_set_ui(r,ulqx);
   for (jj2=0; jj2<rels[i][6]; jj2++) {
     idx=rels[i][7+jj2];
     if (idx==0) { mpz_neg(r,r); continue; }
-    if (idx<1+mpqs3_nFBk) pp=mpqs3_FBk[idx-1];
-    else if (idx<1+mpqs3_nFB+mpqs3_nFBk) pp=mpqs3_FB[2*(idx-mpqs3_nFBk-1)];
-    else pp=mpqs3_Adiv_all[idx-mpqs3_nFB-mpqs3_nFBk-1];
+    if (idx<1+qs->nFBk) pp=qs->FBk[idx-1];
+    else if (idx<1+qs->nFB+qs->nFBk) pp=qs->FB[2*(idx-qs->nFBk-1)];
+    else pp=qs->Adiv_all[idx-qs->nFB-qs->nFBk-1];
     mpz_mul_ui(r,r,pp);
   }
-  mpz_mod(r,r,mpqs3_N);
+  mpz_mod(r,r,qs->N);
   if (mpz_cmp(l,r)) {
     nbad++;
     if (nbad<10) gmp_fprintf(stderr,"bad rel x=%d axb=%u,%u,%u qx=%u,%u,%u ulqx=%u (good %d)\n",
@@ -2138,11 +2085,11 @@ stat_asm_td++;
 #ifdef MPQS3_STAT
       stat_td_surv++;
 #endif
-      ulp=(uint32_t *)(mpqs3_relations[mpqs3_nrels]);
+      ulp=(uint32_t *)(qs->relations[qs->nrels]);
       *ulp++=axb[0]; *ulp++=axb[1]; *ulp++=axb[2];
       nr=rels[i][6];
-      memcpy(mpqs3_relations[mpqs3_nrels]+6,rels[i]+6,(1+nr)*sizeof(uint16_t));
-      mpqs3_nrels++;
+      memcpy(qs->relations[qs->nrels]+6,rels[i]+6,(1+nr)*sizeof(uint16_t));
+      qs->nrels++;
       goto next;
     }
 //    if ((ulqx>mpqs3_pmax*mpqs3_pmax) && (ulqx<(1UL<<30))) {
@@ -2153,38 +2100,38 @@ stat_asm_td++;
     }
 */
     if (ulqx<1048576) { /*printf("%d ",x);*/  /* !!! */
-      if (ulqx<=mpqs3_pmax) {
+      if (ulqx<=qs->pmax) {
         if (kmpqs_verbose)
           gmp_fprintf(stderr,"kmpqs: error in mpqs_decompose for %Zd: %u %u %u   %u\n",
-                      mpqs3_N,qx[0],qx[1],qx[2],ulqx);
+                      qs->N,qx[0],qx[1],qx[2],ulqx);
         goto next;
       }
       lp=ulqx;
-      lpi=mpqs3_hash_lp(lp);
+      lpi=mpqs3_hash_lp(qs, lp);
       if (lpi==MPQS3_HASH_OVERFLOW) { /*printf(".");*/ goto next; }
 #ifdef MPQS3_STAT
       stat_td_surv++;
 #endif
-      if (lpi<mpqs3_nprels) {
-        if (mpqs3_lp[lpi]!=lp) KMPQS_FAIL("lp");
+      if (lpi<qs->nprels) {
+        if (qs->lp[lpi]!=lp) KMPQS_FAIL("lp");
 //        mpqs3_lp[mpqs3_nprels]=lp;
 
-        mpqs3_comb_index[2*mpqs3_ncrels]=lpi;
-        mpqs3_comb_index[2*mpqs3_ncrels+1]=mpqs3_nprels;
-        mpqs3_ncrels++;
+        qs->comb_index[2*qs->ncrels]=lpi;
+        qs->comb_index[2*qs->ncrels+1]=qs->nprels;
+        qs->ncrels++;
       }
-      ulp=(uint32_t *)(mpqs3_part_rels[mpqs3_nprels]);
+      ulp=(uint32_t *)(qs->part_rels[qs->nprels]);
       *ulp++=axb[0]; *ulp++=axb[1]; *ulp++=axb[2];
       nr=rels[i][6];
-      memcpy(mpqs3_part_rels[mpqs3_nprels]+6,rels[i]+6,
+      memcpy(qs->part_rels[qs->nprels]+6,rels[i]+6,
              (1+nr)*sizeof(uint16_t));
-      mpqs3_nprels++;
+      qs->nprels++;
     } /*else printf("<");*/
 next: ;
   }
-  if (mpqs3_nsp<mpqs3_nrels+mpqs3_ncrels)
-    mpqs3_excess=mpqs3_nrels+mpqs3_ncrels-mpqs3_nsp;
-  else mpqs3_excess=0;
+  if (qs->nsp<qs->nrels+qs->ncrels)
+    qs->excess=qs->nrels+qs->ncrels-qs->nsp;
+  else qs->excess=0;
 }
 
 
@@ -2194,52 +2141,52 @@ order of the primes:
 */
 
 
-static int mpqs3_matrix_init()
+static int mpqs3_matrix_init(mpqs3_ctx_t *qs)
 {
   uint32_t i, ii, j, n64, i64;
   uint16_t nr, pi, r;
   uint64_t mask;
 
-  mpqs3_gauss_n=mpqs3_nrels+mpqs3_ncrels;
-  if (mpqs3_gauss_n>=MPQS3_GAUSS_MAX) return -1;
-  mpqs3_gauss_m=mpqs3_nsp;
-  if (mpqs3_gauss_m>=mpqs3_gauss_n) KMPQS_FAIL("gauss: no excess\n");
+  qs->gauss_n=qs->nrels+qs->ncrels;
+  if (qs->gauss_n>=MPQS3_GAUSS_MAX) return -1;
+  qs->gauss_m=qs->nsp;
+  if (qs->gauss_m>=qs->gauss_n) KMPQS_FAIL("gauss: no excess\n");
 /* build matrix */
-  mpqs3_gauss_n64=(mpqs3_gauss_n+63)/64;
-  memset(mpqs3_gauss_row64,0,mpqs3_gauss_m*mpqs3_gauss_n64*sizeof(uint64_t));
-  for (i=0; i<mpqs3_nrels; i++) {
-    nr=mpqs3_relations[i][6];
+  qs->gauss_n64=(qs->gauss_n+63)/64;
+  memset(qs->gauss_row64,0,qs->gauss_m*qs->gauss_n64*sizeof(uint64_t));
+  for (i=0; i<qs->nrels; i++) {
+    nr=qs->relations[i][6];
     mask=1ULL<<(i&63); i64=i>>6;
     for (j=0; j<nr; j++) {
-      pi=mpqs3_relations[i][7+j];
-      mpqs3_gauss_row64[pi+mpqs3_gauss_m*i64]^=mask;
+      pi=qs->relations[i][7+j];
+      qs->gauss_row64[pi+qs->gauss_m*i64]^=mask;
     }
   }
-  for (i=0; i<mpqs3_ncrels; i++) {
-    ii=i+mpqs3_nrels; mask=1ULL<<(ii&63); i64=ii>>6;
+  for (i=0; i<qs->ncrels; i++) {
+    ii=i+qs->nrels; mask=1ULL<<(ii&63); i64=ii>>6;
 
-    r=mpqs3_comb_index[2*i];
-    nr=mpqs3_part_rels[r][6];
+    r=qs->comb_index[2*i];
+    nr=qs->part_rels[r][6];
     for (j=0; j<nr; j++) {
-      pi=mpqs3_part_rels[r][7+j];
-      mpqs3_gauss_row64[pi+mpqs3_gauss_m*i64]^=mask;
+      pi=qs->part_rels[r][7+j];
+      qs->gauss_row64[pi+qs->gauss_m*i64]^=mask;
     }
 
-    r=mpqs3_comb_index[2*i+1];
-    nr=mpqs3_part_rels[r][6];
+    r=qs->comb_index[2*i+1];
+    nr=qs->part_rels[r][6];
     for (j=0; j<nr; j++) {
-      pi=mpqs3_part_rels[r][7+j];
-      mpqs3_gauss_row64[pi+mpqs3_gauss_m*i64]^=mask;
+      pi=qs->part_rels[r][7+j];
+      qs->gauss_row64[pi+qs->gauss_m*i64]^=mask;
     }
   }
-  mpqs3_gauss_k=0;
-  for (i=0; i<mpqs3_gauss_n; i++) mpqs3_gauss_d[i]=-1;
+  qs->gauss_k=0;
+  for (i=0; i<qs->gauss_n; i++) qs->gauss_d[i]=-1;
   return 0;
 }
 
 
 //SMJS Changed to void to stop compiler complaint, no return statement but called as void static int mpqs3_rowechelon()
-static void mpqs3_rowechelon()
+static void mpqs3_rowechelon(mpqs3_ctx_t *qs)
 {
   uint32_t i, j, k, l, t, k64, col, row, r0, c0, zz;
   uint64_t tmp, tab[16];
@@ -2247,92 +2194,92 @@ static void mpqs3_rowechelon()
 
   col=0; row=0;
   while (1) {
-    if (row>=mpqs3_gauss_m) break;
-    if (col>=mpqs3_gauss_n) break;
+    if (row>=qs->gauss_m) break;
+    if (col>=qs->gauss_n) break;
 
     k64=col>>6;
     r0=row; c0=col;
     for (i=0; i<4; i++,col++) {
-      for (j=row; j<mpqs3_gauss_m; j++) {
-        m=(uint8_t)(0xf&mpqs3_gauss_row64[j+mpqs3_gauss_m*k64]>>(c0&63));
+      for (j=row; j<qs->gauss_m; j++) {
+        m=(uint8_t)(0xf&qs->gauss_row64[j+qs->gauss_m*k64]>>(c0&63));
         if (!m) continue;
         for (k=0,z=1; k<i; k++,z+=z) if (m&z) m^=mm[k];
         if (m&z) break;
       }
-      if (j>=mpqs3_gauss_m) {
-        mpqs3_gauss_d[col]=-1;
+      if (j>=qs->gauss_m) {
+        qs->gauss_d[col]=-1;
         continue;
       }
       if (j>row) {
-        for (l=k64; l<mpqs3_gauss_n64; l++) {
-          tmp=mpqs3_gauss_row64[j+mpqs3_gauss_m*l];
-          mpqs3_gauss_row64[j+mpqs3_gauss_m*l]=
-            mpqs3_gauss_row64[row+mpqs3_gauss_m*l];
-          mpqs3_gauss_row64[row+mpqs3_gauss_m*l]=tmp;
+        for (l=k64; l<qs->gauss_n64; l++) {
+          tmp=qs->gauss_row64[j+qs->gauss_m*l];
+          qs->gauss_row64[j+qs->gauss_m*l]=
+            qs->gauss_row64[row+qs->gauss_m*l];
+          qs->gauss_row64[row+qs->gauss_m*l]=tmp;
         }
       }
-      m=(uint8_t)(mpqs3_gauss_row64[row+mpqs3_gauss_m*k64]>>(c0&63));
+      m=(uint8_t)(qs->gauss_row64[row+qs->gauss_m*k64]>>(c0&63));
       for (k=0,z=1; k<i; k++,z+=z) {
         if (m&z) {
           m^=mm[k];
-          for (l=k64; l<mpqs3_gauss_n64; l++)
-            mpqs3_gauss_row64[row+mpqs3_gauss_m*l]^=
-                mpqs3_gauss_row64[mpqs3_gauss_d[c0+k]+mpqs3_gauss_m*l];
+          for (l=k64; l<qs->gauss_n64; l++)
+            qs->gauss_row64[row+qs->gauss_m*l]^=
+                qs->gauss_row64[qs->gauss_d[c0+k]+qs->gauss_m*l];
         }
       }
       mm[i]=m;
       for (k=0; k<i; k++) {
-        if (mpqs3_gauss_d[c0+k]==-1) continue;
+        if (qs->gauss_d[c0+k]==-1) continue;
         if (mm[k]&z) {
           mm[k]^=mm[i];
-          for (l=k64; l<mpqs3_gauss_n64; l++)
-            mpqs3_gauss_row64[mpqs3_gauss_d[c0+k]+mpqs3_gauss_m*l]^=
-                mpqs3_gauss_row64[row+mpqs3_gauss_m*l];
+          for (l=k64; l<qs->gauss_n64; l++)
+            qs->gauss_row64[qs->gauss_d[c0+k]+qs->gauss_m*l]^=
+                qs->gauss_row64[row+qs->gauss_m*l];
         }
       }
-      mpqs3_gauss_d[col]=row;
+      qs->gauss_d[col]=row;
       row++;
-      if (row>=mpqs3_gauss_m) break;
+      if (row>=qs->gauss_m) break;
     }
-    for (j=0; j<mpqs3_gauss_m; j++)
-      ucm[j]=(uint8_t)((mpqs3_gauss_row64[j+mpqs3_gauss_m*k64]>>(c0&63))&0xf);
+    for (j=0; j<qs->gauss_m; j++)
+      ucm[j]=(uint8_t)((qs->gauss_row64[j+qs->gauss_m*k64]>>(c0&63))&0xf);
     for (j=r0; j<row; j++) ucm[j]=0;
-    for (l=k64; l<mpqs3_gauss_n64; l++) {
+    for (l=k64; l<qs->gauss_n64; l++) {
       tab[0]=0ULL;
       for (j=0,zz=1; j<4; j++,zz+=zz) {
-        if (mpqs3_gauss_d[c0+j]==-1) tab[zz]=0ULL;
-        else tab[zz]=mpqs3_gauss_row64[mpqs3_gauss_d[c0+j]+mpqs3_gauss_m*l];
+        if (qs->gauss_d[c0+j]==-1) tab[zz]=0ULL;
+        else tab[zz]=qs->gauss_row64[qs->gauss_d[c0+j]+qs->gauss_m*l];
         for (k=1; k<zz; k++) tab[zz+k]=tab[k]^tab[zz];
       }
-      for (t=0; t<mpqs3_gauss_m; t++)
-        mpqs3_gauss_row64[t+mpqs3_gauss_m*l]^=tab[ucm[t]];
+      for (t=0; t<qs->gauss_m; t++)
+        qs->gauss_row64[t+qs->gauss_m*l]^=tab[ucm[t]];
     }
   }
-  mpqs3_gauss_k=0;
+  qs->gauss_k=0;
 }
 
 
-static int mpqs3_matrix()
+static int mpqs3_matrix(mpqs3_ctx_t *qs)
 {
   uint32_t i, k64;
   int notzero;
   uint64_t mask;
 
-  for (i=0; i<mpqs3_gauss_n; i++) mpqs3_sol[i]=0;
-  for (; mpqs3_gauss_k<mpqs3_gauss_n; mpqs3_gauss_k++) {
-    if (mpqs3_gauss_d[mpqs3_gauss_k]>=0) continue;
+  for (i=0; i<qs->gauss_n; i++) qs->sol[i]=0;
+  for (; qs->gauss_k<qs->gauss_n; qs->gauss_k++) {
+    if (qs->gauss_d[qs->gauss_k]>=0) continue;
     notzero=0;
-    mask=1ULL<<(mpqs3_gauss_k&63); k64=mpqs3_gauss_k>>6;
-    for (i=0; i<mpqs3_gauss_k; i++)
-      if (mpqs3_gauss_d[i]!=-1)
-        if (mpqs3_gauss_row64[mpqs3_gauss_d[i]+mpqs3_gauss_m*k64] & mask) {
-          mpqs3_sol[i]=1;
+    mask=1ULL<<(qs->gauss_k&63); k64=qs->gauss_k>>6;
+    for (i=0; i<qs->gauss_k; i++)
+      if (qs->gauss_d[i]!=-1)
+        if (qs->gauss_row64[qs->gauss_d[i]+qs->gauss_m*k64] & mask) {
+          qs->sol[i]=1;
           notzero=1;
         }
 
     if (notzero) {
-      mpqs3_sol[mpqs3_gauss_k]=1;
-      mpqs3_gauss_k++;
+      qs->sol[qs->gauss_k]=1;
+      qs->gauss_k++;
       return 1;
     }
   }
@@ -2340,18 +2287,18 @@ static int mpqs3_matrix()
 }
 
 
-static uint32_t mpqs3_is_power(mpz_t op) /* very sloppy */
+static uint32_t mpqs3_is_power(mpqs3_ctx_t *qs, mpz_t op) /* very sloppy */
 {
   uint32_t res;
 
   for (res=2; res<12; res++)
-    if (mpz_root(mpqs3_gmp_help,op,(unsigned long)res))
+    if (mpz_root(qs->gmp_help,op,(unsigned long)res))
       return res;
   return 0;
 }
 
 
-static int mpqs3_final(size_t max_bits)
+static int mpqs3_final(mpqs3_ctx_t *qs, size_t max_bits)
 {
   uint32_t i, j, k;
   uint16_t nr, nr1, nr2, r1, r2;
@@ -2360,84 +2307,84 @@ static int mpqs3_final(size_t max_bits)
   int split;
   size_t modthres;
 
-  modthres=mpz_sizeinbase(mpqs3_N,2)*4;
-  if (!mpqs3_nfactors) {
-    mpqs3_nfactors=1;
-    mpz_set(mpqs3_factors[0],mpqs3_N);
-    mpqs3_f_status[0]=0;
+  modthres=mpz_sizeinbase(qs->N,2)*4;
+  if (!qs->nfactors) {
+    qs->nfactors=1;
+    mpz_set(qs->factors[0],qs->N);
+    qs->f_status[0]=0;
   }
-  mpqs3_rowechelon();
-  while (mpqs3_matrix()) {
+  mpqs3_rowechelon(qs);
+  while (mpqs3_matrix(qs)) {
 #ifdef MPQS3_STAT
 stat_mpqs_ntrials++;
 #endif
-    memset(mpqs3_exp,0,mpqs3_nsp*sizeof(short));
+    memset(qs->exp,0,qs->nsp*sizeof(short));
 
-    mpz_set_ui(mpqs3_sq1,1); prod1=1;
-    mpz_set_ui(mpqs3_sq2,1); prod2=1;
+    mpz_set_ui(qs->sq1,1); prod1=1;
+    mpz_set_ui(qs->sq2,1); prod2=1;
 
-    for (j=0; j<mpqs3_nrels; j++)
-      if (mpqs3_sol[j]) {
-        ulp=(uint32_t *)(mpqs3_relations[j]);
-        mpz_set_v(mpqs3_gmp_help,ulp);
-        nr=mpqs3_relations[j][6];
+    for (j=0; j<qs->nrels; j++)
+      if (qs->sol[j]) {
+        ulp=(uint32_t *)(qs->relations[j]);
+        mpz_set_v(qs->gmp_help,ulp);
+        nr=qs->relations[j][6];
         if (j&1) {
-          for (k=0; k<nr; k++) mpqs3_exp[mpqs3_relations[j][7+k]]--;
-          mpz_mul(mpqs3_sq1,mpqs3_sq1,mpqs3_gmp_help);
-          if (mpz_sizeinbase(mpqs3_sq1,2)>modthres)
-            mpz_mod(mpqs3_sq1,mpqs3_sq1,mpqs3_N);
+          for (k=0; k<nr; k++) qs->exp[qs->relations[j][7+k]]--;
+          mpz_mul(qs->sq1,qs->sq1,qs->gmp_help);
+          if (mpz_sizeinbase(qs->sq1,2)>modthres)
+            mpz_mod(qs->sq1,qs->sq1,qs->N);
         } else {
-          for (k=0; k<nr; k++) mpqs3_exp[mpqs3_relations[j][7+k]]++;
-          mpz_mul(mpqs3_sq2,mpqs3_sq2,mpqs3_gmp_help);
-          if (mpz_sizeinbase(mpqs3_sq2,2)>modthres)
-            mpz_mod(mpqs3_sq2,mpqs3_sq2,mpqs3_N);
+          for (k=0; k<nr; k++) qs->exp[qs->relations[j][7+k]]++;
+          mpz_mul(qs->sq2,qs->sq2,qs->gmp_help);
+          if (mpz_sizeinbase(qs->sq2,2)>modthres)
+            mpz_mod(qs->sq2,qs->sq2,qs->N);
         }
       }
 
-    for (j=0; j<mpqs3_ncrels; j++)
-      if (mpqs3_sol[mpqs3_nrels+j]) {
-        r1=mpqs3_comb_index[2*j];
-        r2=mpqs3_comb_index[2*j+1];
+    for (j=0; j<qs->ncrels; j++)
+      if (qs->sol[qs->nrels+j]) {
+        r1=qs->comb_index[2*j];
+        r2=qs->comb_index[2*j+1];
 
-        nr1=mpqs3_part_rels[r1][6];
-        nr2=mpqs3_part_rels[r2][6];
-        for (k=0; k<nr1; k++) mpqs3_exp[mpqs3_part_rels[r1][7+k]]++;
-        for (k=0; k<nr2; k++) mpqs3_exp[mpqs3_part_rels[r2][7+k]]--;
+        nr1=qs->part_rels[r1][6];
+        nr2=qs->part_rels[r2][6];
+        for (k=0; k<nr1; k++) qs->exp[qs->part_rels[r1][7+k]]++;
+        for (k=0; k<nr2; k++) qs->exp[qs->part_rels[r2][7+k]]--;
 
-        ulp=(uint32_t *)(mpqs3_part_rels[r1]);
-        mpz_set_v(mpqs3_gmp_help,ulp);
-        mpz_mul(mpqs3_sq2,mpqs3_sq2,mpqs3_gmp_help);
-        if (mpz_sizeinbase(mpqs3_sq2,2)>modthres)
-          mpz_mod(mpqs3_sq2,mpqs3_sq2,mpqs3_N);
-        ulp=(uint32_t *)(mpqs3_part_rels[r2]);
-        mpz_set_v(mpqs3_gmp_help,ulp);
-        mpz_mul(mpqs3_sq1,mpqs3_sq1,mpqs3_gmp_help);
-        if (mpz_sizeinbase(mpqs3_sq1,2)>modthres)
-          mpz_mod(mpqs3_sq1,mpqs3_sq1,mpqs3_N);
+        ulp=(uint32_t *)(qs->part_rels[r1]);
+        mpz_set_v(qs->gmp_help,ulp);
+        mpz_mul(qs->sq2,qs->sq2,qs->gmp_help);
+        if (mpz_sizeinbase(qs->sq2,2)>modthres)
+          mpz_mod(qs->sq2,qs->sq2,qs->N);
+        ulp=(uint32_t *)(qs->part_rels[r2]);
+        mpz_set_v(qs->gmp_help,ulp);
+        mpz_mul(qs->sq1,qs->sq1,qs->gmp_help);
+        if (mpz_sizeinbase(qs->sq1,2)>modthres)
+          mpz_mod(qs->sq1,qs->sq1,qs->N);
       }
 
-    for (j=0; j<mpqs3_nsp; j++)
-      if (mpqs3_exp[j]&1) KMPQS_FAIL("final.odd %u\n",j);
-      else mpqs3_exp[j]>>=1;
+    for (j=0; j<qs->nsp; j++)
+      if (qs->exp[j]&1) KMPQS_FAIL("final.odd %u\n",j);
+      else qs->exp[j]>>=1;
 
-    for (j=1; j<mpqs3_nsp; j++)
-      if (mpqs3_exp[j]) {
-        if (j<1+mpqs3_nFBk) {
-          p=(uint32_t)(mpqs3_FBk[j-1]);
-        } else if (j<1+mpqs3_nFB+mpqs3_nFBk) {
-          k=j-mpqs3_nFBk-1;
-          p=(uint32_t)(mpqs3_FB[2*k]);
+    for (j=1; j<qs->nsp; j++)
+      if (qs->exp[j]) {
+        if (j<1+qs->nFBk) {
+          p=(uint32_t)(qs->FBk[j-1]);
+        } else if (j<1+qs->nFB+qs->nFBk) {
+          k=j-qs->nFBk-1;
+          p=(uint32_t)(qs->FB[2*k]);
         } else {
-          k=j-mpqs3_nFB-mpqs3_nFBk-1;
-          p=(uint32_t)(mpqs3_Adiv_all[k]);
+          k=j-qs->nFB-qs->nFBk-1;
+          p=(uint32_t)(qs->Adiv_all[k]);
         }
-        if (mpqs3_exp[j]>0) {
-          for (k=0; k<mpqs3_exp[j]; k++) {
+        if (qs->exp[j]>0) {
+          for (k=0; k<qs->exp[j]; k++) {
             prod1*=p;
             if (prod1&0xfffc0000) {  /* p<16384 */
-              mpz_mul_ui(mpqs3_sq1,mpqs3_sq1,(unsigned long)prod1);
-              if (mpz_sizeinbase(mpqs3_sq1,2)>modthres) {
-                mpz_mod(mpqs3_sq1,mpqs3_sq1,mpqs3_N);
+              mpz_mul_ui(qs->sq1,qs->sq1,(unsigned long)prod1);
+              if (mpz_sizeinbase(qs->sq1,2)>modthres) {
+                mpz_mod(qs->sq1,qs->sq1,qs->N);
 #ifdef MPQS3_STAT
 stat_final_mulmod++;
 #endif
@@ -2446,12 +2393,12 @@ stat_final_mulmod++;
             }
           }
         } else {
-          for (k=0; k<-mpqs3_exp[j]; k++) {
+          for (k=0; k<-qs->exp[j]; k++) {
             prod2*=p;
             if (prod2&0xfffc0000) {  /* p<16384 */
-              mpz_mul_ui(mpqs3_sq2,mpqs3_sq2,(unsigned long)prod2);
-              if (mpz_sizeinbase(mpqs3_sq2,2)>modthres) {
-                mpz_mod(mpqs3_sq2,mpqs3_sq2,mpqs3_N);
+              mpz_mul_ui(qs->sq2,qs->sq2,(unsigned long)prod2);
+              if (mpz_sizeinbase(qs->sq2,2)>modthres) {
+                mpz_mod(qs->sq2,qs->sq2,qs->N);
 #ifdef MPQS3_STAT
 stat_final_mulmod++;
 #endif
@@ -2461,60 +2408,60 @@ stat_final_mulmod++;
           }
         }
       }
-    if (prod1>1) mpz_mul_ui(mpqs3_sq1,mpqs3_sq1,(unsigned long)prod1);
-    if (prod2>1) mpz_mul_ui(mpqs3_sq2,mpqs3_sq2,(unsigned long)prod2);
+    if (prod1>1) mpz_mul_ui(qs->sq1,qs->sq1,(unsigned long)prod1);
+    if (prod2>1) mpz_mul_ui(qs->sq2,qs->sq2,(unsigned long)prod2);
 
-    mpz_add(mpqs3_gmp_help,mpqs3_sq1,mpqs3_sq2);
-    mpz_gcd(mpqs3_gmp_help,mpqs3_gmp_help,mpqs3_N);
-    if (mpz_cmp_ui(mpqs3_gmp_help,1)==0) continue;
-    if (mpz_cmp(mpqs3_gmp_help,mpqs3_N)==0) continue;
+    mpz_add(qs->gmp_help,qs->sq1,qs->sq2);
+    mpz_gcd(qs->gmp_help,qs->gmp_help,qs->N);
+    if (mpz_cmp_ui(qs->gmp_help,1)==0) continue;
+    if (mpz_cmp(qs->gmp_help,qs->N)==0) continue;
 
-    for (j=0; j<mpqs3_nfactors; j++)
-      if (mpqs3_f_status[j]==0) {
-        mpz_gcd(mpqs3_sq1,mpqs3_gmp_help,mpqs3_factors[j]);
-        if (mpz_cmp_ui(mpqs3_sq1,1)==0) continue;
-        if (mpz_cmp(mpqs3_sq1,mpqs3_factors[j])==0) continue;
-        mpz_set(mpqs3_factors[mpqs3_nfactors],mpqs3_sq1);
-        mpz_divexact(mpqs3_factors[j],mpqs3_factors[j],mpqs3_sq1);
-        mpqs3_f_status[j]=kmpqs_psp(mpqs3_factors[j]);
-        if (mpqs3_f_status[j])
-          if (mpz_sizeinbase(mpqs3_factors[j],2)>max_bits)
+    for (j=0; j<qs->nfactors; j++)
+      if (qs->f_status[j]==0) {
+        mpz_gcd(qs->sq1,qs->gmp_help,qs->factors[j]);
+        if (mpz_cmp_ui(qs->sq1,1)==0) continue;
+        if (mpz_cmp(qs->sq1,qs->factors[j])==0) continue;
+        mpz_set(qs->factors[qs->nfactors],qs->sq1);
+        mpz_divexact(qs->factors[j],qs->factors[j],qs->sq1);
+        qs->f_status[j]=kmpqs_psp(qs->factors[j]);
+        if (qs->f_status[j])
+          if (mpz_sizeinbase(qs->factors[j],2)>max_bits)
             return 1;
-        mpqs3_f_status[mpqs3_nfactors]=kmpqs_psp(mpqs3_factors[mpqs3_nfactors]);
-        mpqs3_nfactors++;
-        if (mpqs3_f_status[mpqs3_nfactors-1])
-          if (mpz_sizeinbase(mpqs3_factors[mpqs3_nfactors-1],2)>max_bits)
+        qs->f_status[qs->nfactors]=kmpqs_psp(qs->factors[qs->nfactors]);
+        qs->nfactors++;
+        if (qs->f_status[qs->nfactors-1])
+          if (mpz_sizeinbase(qs->factors[qs->nfactors-1],2)>max_bits)
             return 1;
         break;
       }
 
     split=1;
-    for (j=0; j<mpqs3_nfactors; j++) if (mpqs3_f_status[j]==0) split=0;
+    for (j=0; j<qs->nfactors; j++) if (qs->f_status[j]==0) split=0;
     if (split) return 1;
-    if (mpqs3_nfactors>=MPQS3_MAX_FACTORS)
+    if (qs->nfactors>=MPQS3_MAX_FACTORS)
       KMPQS_FAIL("final: too many factors\n");
   }
-  for (j=0; j<mpqs3_nfactors; j++)
-    while (mpqs3_f_status[j]==0) {
-      if ((k=mpqs3_is_power(mpqs3_factors[j]))) {
-        if (mpqs3_nfactors+k-1>MPQS3_MAX_FACTORS)
+  for (j=0; j<qs->nfactors; j++)
+    while (qs->f_status[j]==0) {
+      if ((k=mpqs3_is_power(qs, qs->factors[j]))) {
+        if (qs->nfactors+k-1>MPQS3_MAX_FACTORS)
           KMPQS_FAIL("final: too many factors\n");
-        if (!mpz_root(mpqs3_factors[j],mpqs3_factors[j],(unsigned long)k))
+        if (!mpz_root(qs->factors[j],qs->factors[j],(unsigned long)k))
           KMPQS_FAIL("error in power detection\n");
-        mpqs3_f_status[j]=kmpqs_psp(mpqs3_factors[j]);
+        qs->f_status[j]=kmpqs_psp(qs->factors[j]);
         for (k--; k; k--) {
-          mpz_set(mpqs3_factors[mpqs3_nfactors],mpqs3_factors[j]);
-          mpqs3_f_status[mpqs3_nfactors]=mpqs3_f_status[j];
-          mpqs3_nfactors++;
+          mpz_set(qs->factors[qs->nfactors],qs->factors[j]);
+          qs->f_status[qs->nfactors]=qs->f_status[j];
+          qs->nfactors++;
         }
       } else return 0;
     }
-  if (j>=mpqs3_nfactors) return 1;
+  if (j>=qs->nfactors) return 1;
   return 0;
 }
 
 
-static int mpqs3_factor0(mpz_t N, size_t max_bits, mpz_t **factors, int retry)
+static int mpqs3_factor0(mpqs3_ctx_t *qs, mpz_t N, size_t max_bits, mpz_t **factors, int retry)
 {
   size_t nbits;
   int err;
@@ -2524,7 +2471,6 @@ static int mpqs3_factor0(mpz_t N, size_t max_bits, mpz_t **factors, int retry)
   stat_mpqs_nsieves=0; stat_mpqs_nsurvivors=0; stat_mpqs_ntrials=0; stat_mpqs_ndiv=0;
   if (retry) stat_retry++;
 #endif
-  if (!mpqs3_isinit) mpqs3_init();
   nbits=mpz_sizeinbase(N,2);
   if (nbits>148) {
     kmpqs_report("warning: mpqs3 called with >148 Bit\n");
@@ -2534,48 +2480,48 @@ static int mpqs3_factor0(mpz_t N, size_t max_bits, mpz_t **factors, int retry)
     kmpqs_report("warning: mpqs3 called with <80 Bit\n");
     return -2;
   }
-  mpz_set(mpqs3_N,N);
-  mpqs3_choose_multiplier();
-  mpqs3_choose_parameter(retry);
-  mpqs3_generate_FB();
-  if ((err=mpqs3_SI_init())<1) {
+  mpz_set(qs->N,N);
+  mpqs3_choose_multiplier(qs);
+  mpqs3_choose_parameter(qs, retry);
+  mpqs3_generate_FB(qs);
+  if ((err=mpqs3_SI_init(qs))<1) {
     if (kmpqs_verbose)
       gmp_fprintf(stderr,"kmpqs: warning: mpqs3: error %d in self-initialization %Zd\n",err,N);
     return -3;
   }
   while (1) {
-    if (!mpqs3_next_pol()) {
+    if (!mpqs3_next_pol(qs)) {
       if (retry && kmpqs_verbose)
         gmp_fprintf(stderr,"kmpqs: warning: not enough polynomials in mpqs3 with %Zd\n",N);
       return -4;
     }
-    mpqs3_sieve();
+    mpqs3_sieve(qs);
 #ifdef MPQS3_STAT
 stat_mpqs_nsieves++;
 #endif
-    ev=mpqs3_evaluate();
+    ev=mpqs3_evaluate(qs);
 #ifdef MPQS3_STAT
 stat_mpqs_nsurvivors+=ev;
 #endif
     if (ev) {
-      mpqs3_decompose();
-      if (mpqs3_nsurvivors && (mpqs3_excess>MPQS3_MIN_EXCESS)) {
-        if (mpqs3_matrix_init()) return -6;
-        if (mpqs3_final(max_bits)) {
+      mpqs3_decompose(qs);
+      if (qs->nsurvivors && (qs->excess>MPQS3_MIN_EXCESS)) {
+        if (mpqs3_matrix_init(qs)) return -6;
+        if (mpqs3_final(qs, max_bits)) {
 #ifdef MPQS3_STAT
 // printf("Stat: %u %u %u %u %u %u %u \n",stat_mpqs_nsieves,stat_mpqs_nsurvivors,stat_mpqs_ntrials,stat_mpqs_ndiv,mpqs3_nrels,mpqs3_nprels,mpqs3_ncrels);
-stat_ff+=mpqs3_nrels;
-stat_pf+=mpqs3_nprels;
-stat_comb+=mpqs3_ncrels;
+stat_ff+=qs->nrels;
+stat_pf+=qs->nprels;
+stat_comb+=qs->ncrels;
 #endif
-          for (i=0; i<mpqs3_nfactors; i++)
-            if (mpz_sizeinbase(mpqs3_factors[i],2)>max_bits) return 0;
-          *factors=mpqs3_factors;
-          return mpqs3_nfactors;
+          for (i=0; i<qs->nfactors; i++)
+            if (mpz_sizeinbase(qs->factors[i],2)>max_bits) return 0;
+          *factors=qs->factors;
+          return qs->nfactors;
         }
       }
     }
-    if (mpqs3_nrels>MPQS3_MAX_NRELS-MPQS3_MIN_RELBUFFER) {
+    if (qs->nrels>MPQS3_MAX_NRELS-MPQS3_MIN_RELBUFFER) {
       kmpqs_report("warning: too many relations in mpqs3\n");
       return -5;
     }
@@ -2584,14 +2530,47 @@ stat_comb+=mpqs3_ncrels;
 }
 
 
-int kmpqs3_factor(mpz_t N, size_t max_bits, mpz_t **factors)
+void *kmpqs3_ctx_new(void)
 {
+  mpqs3_ctx_t *qs;
+
+  qs=(mpqs3_ctx_t *)calloc(1,sizeof(mpqs3_ctx_t));
+  if (qs==NULL) return NULL;
+  if (setjmp(qs->jmpbuf)) return NULL;  /* internal error in init: cannot happen */
+  mpqs3_init(qs);
+  return qs;
+}
+
+
+void kmpqs3_ctx_free(void *ctx)
+{
+  mpqs3_ctx_t *qs=(mpqs3_ctx_t *)ctx;
+  uint32_t i;
+
+  if (qs==NULL) return;
+  mpz_clear(qs->N); mpz_clear(qs->kN); mpz_clear(qs->dummy);
+  mpz_clear(qs->gmp_help); mpz_clear(qs->help);
+  mpz_clear(qs->sq1); mpz_clear(qs->sq2);
+  for (i=0; i<MPQS3_MAX_FACTORS; i++) mpz_clear(qs->factors[i]);
+  free(qs->sievearray); free(qs->tinyarray);
+  free(qs->relations[0]); free(qs->relations);
+  free(qs->part_rels[0]); free(qs->part_rels);
+  free(qs->comb_index);
+  free(qs->rel_buffer[0]); free(qs->rel_buffer);
+  free(qs->gauss_row64);
+  free(qs);
+}
+
+
+int kmpqs3_run(void *ctx, mpz_t N, size_t max_bits, mpz_t **factors)
+{
+  mpqs3_ctx_t *qs=(mpqs3_ctx_t *)ctx;
   int err;
 
-  if (setjmp(mpqs3_jmpbuf)) return KMPQS_ERR_INTERNAL;
-  err=mpqs3_factor0(N,max_bits,factors,0);
-  if (err==-4) err=mpqs3_factor0(N,max_bits,factors,1);
-  if (err==-4) err=mpqs3_factor0(N,max_bits,factors,3);
+  if (setjmp(qs->jmpbuf)) return KMPQS_ERR_INTERNAL;
+  err=mpqs3_factor0(qs, N,max_bits,factors,0);
+  if (err==-4) err=mpqs3_factor0(qs, N,max_bits,factors,1);
+  if (err==-4) err=mpqs3_factor0(qs, N,max_bits,factors,3);
 
   return err;
 }

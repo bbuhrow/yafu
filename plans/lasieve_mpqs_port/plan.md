@@ -62,6 +62,39 @@ with the Makefile's flags):
 
 (2000 inputs per size up to 100 bits.)
 
+### Phase 2: context struct / thread safety (done)
+
+- A script (`ctxify.py`, in the session notes, not committed) moved every
+  mutable file-scope variable into `mpqs_ctx_t` / `mpqs3_ctx_t` (112 and
+  109 variables; `mpqs_X` -> `qs->X`, `mpqs_2B` -> `qs->twoB`). It also
+  added a `qs` parameter to every function that touches state, calls a
+  function that does, or can fail. Pure helpers (`invert`, `sqrt`,
+  `powmod_mm`, `inv_64` in kmpqs1, `convert`/`mod3`/`dbl64mod*` in kmpqs3)
+  are unchanged. Only constant tables remain file-scope.
+- The context also holds the prime and multiplier tables lasieve built
+  once in `mpqs_init()`. Init runs once per context, not per call.
+  Context size: about 0.3 MB (kmpqs1) and 1.3 MB (kmpqs3), plus
+  allocations.
+- API (`kmpqs.h`): `kmpqs_ctx_new/free` and `kmpqs[1|3]_factor_ctx`
+  (explicit context; sub-contexts are created on first use).
+  `kmpqs[1|3]_factor` use a thread-local context (`__thread` /
+  `__declspec(thread)`); `kmpqs_thread_cleanup()` frees it.
+  `KMPQS_ERR_INTERNAL` is now public.
+- Other fixes: `C=(B^2-kN)/A` in kmpqs1 is now computed in `uint64_t`
+  (lasieve relied on signed-overflow wraparound, which UBSan flags).
+  kmpqs1 no longer allocates a `gauss_row[0]` that the C path overwrote
+  (leaked in lasieve). kmpqs3's file-static `alog` is now local. Dead
+  `powmod0`/`sqrt0` removed.
+- Makefile: `KMPQS_WFLAGS` silences lasieve's `-Wconversion`/unused-variable
+  noise for `factor/kmpqs` objects.
+- Validation:
+  - counters still match lasieve no-asm exactly (50..100 bits)
+  - `kmpqs_bench -threads T` factors the inputs on T threads and compares
+    every result with a single-threaded run: 0 differences on 3300 mixed
+    50..130-bit inputs, with 4, 12 and 24 threads, on Linux and MinGW
+  - ThreadSanitizer (4 threads) and ASan+UBSan: clean
+  - speed unchanged within noise (±5%)
+
 ## 1. Goal
 
 Move Kleinjung's small-number MPQS (`factor/lasieve5_64/mpqs.c` for
