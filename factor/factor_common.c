@@ -215,6 +215,9 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.qs_tune_freq = 0;
     fobj->qs_obj.no_small_cutoff_opt = 0;
     strcpy(fobj->qs_obj.siqs_savefile, "siqs.dat");
+    strcpy(fobj->qs_obj.siqs_params_file, "siqs_params.txt");
+    fobj->qs_obj.no_tuned_params = 0;
+    fobj->qs_obj.tune_warmup = 0;
     init_lehman();
 
     // initialize stuff for trial division	
@@ -621,6 +624,9 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->qs_obj.qs_tune_freq = src->qs_obj.qs_tune_freq;
     dest->qs_obj.no_small_cutoff_opt = src->qs_obj.no_small_cutoff_opt;
     strcpy(dest->qs_obj.siqs_savefile, src->qs_obj.siqs_savefile);
+    strcpy(dest->qs_obj.siqs_params_file, src->qs_obj.siqs_params_file);
+    dest->qs_obj.no_tuned_params = src->qs_obj.no_tuned_params;
+    dest->qs_obj.tune_warmup = src->qs_obj.tune_warmup;
 
     if (!parameters_only)
     {

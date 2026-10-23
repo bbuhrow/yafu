@@ -903,4 +903,453 @@ double best_fit(double *x, double *y, int numpts,
 	return cov * cov / (varX * varY);
 }
 
+//----------------------- SIQS PARAMETER TUNE ---------------------------------//
+// siqstune(): pick this machine's SIQS parameters from a table of competing
+// parameter sets (siqs_candidates.txt, exported by siqs_tune.py: several sets
+// per digit size, rank 0 being yafu's built-in defaults, each with the number
+// of full and partial relations it needed to finish, measured on the test
+// number n in the row).  At each digit size every set sieves each of those
+// numbers for -siqsT seconds (default 5); the rate of partial relations after
+// a short warmup extrapolates to a full sieving time (on the same n the
+// partials needed reproduce to ~0.5%), plus the table's post-processing time
+// scaled by the sieving speed seen here.  Tables without test numbers fall
+// back to a number made here and the fulls rate.  Inputs small
+// enough to finish within the sample time are simply timed.  The fastest set
+// per size is written to the siqs params file (siqs_params.txt), which SIQS
+// then uses for its defaults; without that file the built-in table is used.
+
+#define SIQS_CANDIDATES_FILE "siqs_candidates.txt"
+#define SIQSTUNE_DEFAULT_SECONDS 5
+#define SIQSTUNE_MAX_FULL_RUNS 3
+#define SIQSTUNE_MAX_NUMBERS 16
+
+typedef struct
+{
+    int ok;
+    int completed;          // finished inside the sample time: timed directly
+    int runs;
+    double est;             // estimated (or measured) total time
+    double t_warm, t_end;   // the sample: warmup snapshot and stop
+    uint32_t full_warm, full_end, partial_warm, partial_end;
+    double fulls_need, partials_need;   // table values scaled to this input
+    double est_fulls;       // sieving time extrapolated from fulls
+    double est_partials;    // ... and from partials
+    int by_partials;        // est used the partials (same input as the table)
+} siqstune_meas_t;
+
+// extrapolate a count that grows linearly after the warmup to 'need'
+static double siqstune_extrap(double t_warm, double t_end, double c_warm,
+    double c_end, double need)
+{
+    double rate;
+    if ((t_end <= t_warm) || (c_end <= c_warm) || (need <= 0))
+        return -1.0;
+    rate = (c_end - c_warm) / (t_end - t_warm);
+    return t_warm + (need - c_warm) / rate;
+}
+
+// a balanced semiprime with exactly 'digits' digits
+static void siqstune_semiprime(mpz_t n, int digits, gmp_randstate_t st)
+{
+    mpz_t lo, t, p, q;
+
+    mpz_init(lo);
+    mpz_init(t);
+    mpz_init(p);
+    mpz_init(q);
+    mpz_ui_pow_ui(lo, 10, digits - 1);
+
+    do
+    {
+        // target t in [10^(d-1), 10^d); p a little below sqrt(t), q ~ t/p
+        mpz_mul_ui(t, lo, 9);
+        mpz_urandomm(t, st, t);
+        mpz_add(t, t, lo);
+        mpz_sqrt(p, t);
+        mpz_tdiv_q_2exp(q, p, 2);
+        mpz_urandomm(q, st, q);
+        mpz_sub(p, p, q);
+        mpz_nextprime(p, p);
+        mpz_tdiv_q(q, t, p);
+        mpz_nextprime(q, q);
+        mpz_mul(n, p, q);
+    } while ((gmp_base10(n) != digits) || (mpz_cmp(p, q) == 0));
+
+    mpz_clear(lo);
+    mpz_clear(t);
+    mpz_clear(p);
+    mpz_clear(q);
+}
+
+// force exactly the row's parameters (none, for rank 0: yafu's defaults)
+static void siqstune_set_params(qs_obj_t* q, siqs_param_row_t* r)
+{
+    uint32_t has = (r->rank == 0) ? 0 : r->has;
+
+    q->gbl_override_B_flag = (has & SIQSP_B) ? 1 : 0;
+    q->gbl_override_B = r->B;
+    q->gbl_override_lpmult_flag = (has & SIQSP_M) ? 1 : 0;
+    q->gbl_override_lpmult = r->M;
+    q->gbl_override_blocks_flag = (has & SIQSP_NB) ? 1 : 0;
+    q->gbl_override_blocks = r->NB;
+    q->gbl_override_tf_flag = (has & SIQSP_TF) ? 1 : 0;
+    q->gbl_override_tf = r->TF;
+    q->gbl_override_small_cutoff_flag = (has & SIQSP_TFSM) ? 1 : 0;
+    q->gbl_override_small_cutoff = r->TFSm;
+    q->no_small_cutoff_opt = 0;
+    q->gbl_override_mfbd = (has & SIQSP_MFBD) ? r->MFBD : 1.85;
+    q->gbl_override_spv_limit_flag = (has & SIQSP_SPV) ? 1 : 0;
+    q->gbl_override_spv_limit = r->SPV;
+    q->gbl_siqs_mid = (has & SIQSP_MID) ? r->mid : SIQS_STRAT_AUTO;
+    q->gbl_siqs_large = (has & SIQSP_LARGE) ? r->large : SIQS_STRAT_AUTO;
+    q->gbl_siqs_kernel = (has & SIQSP_KERNEL) ? r->kernel : SIQS_STRAT_AUTO;
+    q->gbl_override_lpb = 0;
+    q->gbl_override_rel_flag = 0;
+}
+
+static int siqstune_measure(fact_obj_t* fobj, mpz_t n, siqs_param_row_t* r,
+    int same_n, double seconds, siqstune_meas_t* m)
+{
+    qs_obj_t* q = &fobj->qs_obj;
+    double times[SIQSTUNE_MAX_FULL_RUNS];
+    double spent = 0;
+    int i;
+
+    memset(m, 0, sizeof(siqstune_meas_t));
+
+    for (i = 0; i < SIQSTUNE_MAX_FULL_RUNS; i++)
+    {
+        double scale, est_sieve, post;
+
+        siqstune_set_params(q, r);
+        q->gbl_override_time_flag = 1;
+        q->gbl_override_time = (uint32_t)ceil(seconds);
+        q->tune_warmup = (seconds / 4 > 0.5) ? seconds / 4 : 0.5;
+        q->tune_t_warm = q->tune_t_end = 0;
+        q->tune_full_warm = q->tune_partial_warm = 0;
+        q->tune_full_end = q->tune_partial_end = 0;
+        q->tune_needed = 0;
+        q->total_time = 0;
+
+        reset_factobj(fobj);
+        mpz_set(q->gmp_n, n);
+        SIQS(fobj);
+        m->runs++;
+
+        if (q->total_time > 0)
+        {
+            // finished inside the sample: that's the measurement.  Repeat
+            // while it's cheap, and report the median.
+            times[i] = q->total_time;
+            spent += q->total_time;
+            m->completed = 1;
+            if (spent + q->total_time > seconds)
+            {
+                i++;
+                break;
+            }
+            continue;
+        }
+
+        // stopped at the time limit: extrapolate the rates measured after the
+        // warmup to the counts this set needs to finish.  When the row was
+        // measured on this same input (its n column), its partials count
+        // reproduces to ~0.5% and, being ~20x the fulls count, gives the less
+        // noisy rate: partials are the measure.  On any other input the
+        // partials needed vary ~10% between inputs of a size but the fulls
+        // only ~3%, so fall back to fulls, scaled by the relations needed
+        // (B + extra) here vs. there, since the defaults' factor base size
+        // varies within a digit size.
+        if (q->tune_t_end <= 0)
+            return 0;
+
+        scale = ((r->needed > 0) && (q->tune_needed > 0)) ?
+            (double)q->tune_needed / r->needed : 1.0;
+        m->fulls_need = (r->fulls > 0) ? r->fulls * scale : -1.0;
+        m->partials_need = (r->partials > 0) ? r->partials * scale : -1.0;
+        m->t_warm = q->tune_t_warm;
+        m->t_end = q->tune_t_end;
+        m->full_warm = q->tune_full_warm;
+        m->full_end = q->tune_full_end;
+        m->partial_warm = q->tune_partial_warm;
+        m->partial_end = q->tune_partial_end;
+        m->est_fulls = siqstune_extrap(m->t_warm, m->t_end, m->full_warm,
+            m->full_end, m->fulls_need);
+        m->est_partials = siqstune_extrap(m->t_warm, m->t_end, m->partial_warm,
+            m->partial_end, m->partials_need);
+
+        m->by_partials = same_n && (m->est_partials > 0);
+        if (m->by_partials)
+            est_sieve = m->est_partials;
+        else
+            est_sieve = (m->est_fulls > 0) ? m->est_fulls : m->est_partials;
+        if (est_sieve <= 0)
+            return 0;
+        if (est_sieve < q->tune_t_end)
+            est_sieve = q->tune_t_end;
+
+        // post-processing: the table's time, scaled by how fast this machine
+        // sieves compared to the one that made the table
+        if ((r->t_post >= 0) && (r->t_sieve > 0))
+            post = r->t_post * est_sieve / r->t_sieve;
+        else
+            post = 0.03 * est_sieve;
+
+        m->ok = 1;
+        m->est = est_sieve + post;
+        return 1;
+    }
+
+    // median of the completed runs
+    {
+        int j, k;
+        for (j = 1; j < i; j++)
+        {
+            double t = times[j];
+            for (k = j; (k > 0) && (times[k - 1] > t); k--)
+                times[k] = times[k - 1];
+            times[k] = t;
+        }
+        m->ok = 1;
+        m->est = times[i / 2];
+    }
+    return 1;
+}
+
+void siqs_param_tune(fact_obj_t* fobj)
+{
+    qs_obj_t* q = &fobj->qs_obj;
+    qs_obj_t saved;
+    siqs_param_row_t* cand;
+    siqs_param_row_t* out;
+    siqstune_meas_t* meas;
+    double* rank_sum;
+    int* rank_cnt;
+    int* rank_row;
+    int ncand, nout = 0, i, j, maxrank;
+    int saved_vflag = fobj->VFLAG;
+    double seconds;
+    gmp_randstate_t st;
+    mpz_t n;
+    char buf[256];
+    char comment[1024];
+
+    ncand = siqs_read_param_table(SIQS_CANDIDATES_FILE, &cand);
+    if (ncand == 0)
+    {
+        printf("siqstune: no parameter sets found in %s (export them with "
+            "'siqs_tune.py export')\n", SIQS_CANDIDATES_FILE);
+        return;
+    }
+
+    seconds = q->gbl_override_time_flag ? (double)q->gbl_override_time :
+        (double)SIQSTUNE_DEFAULT_SECONDS;
+
+    // the measurements need full control of the SIQS options; the user's
+    // are put back at the end
+    memcpy(&saved, q, sizeof(qs_obj_t));
+    q->no_tuned_params = 1;
+    q->inmem_cutoff = 1000;         // never touch (or resume from) a savefile
+    if (fobj->VFLAG <= 0)
+        fobj->VFLAG = -1;
+
+    printf("siqstune: %d parameter sets from %s, %1.0f second samples, "
+        "%d thread%s\n", ncand, SIQS_CANDIDATES_FILE, seconds, fobj->THREADS,
+        fobj->THREADS > 1 ? "s" : "");
+
+    out = (siqs_param_row_t*)malloc(ncand * sizeof(siqs_param_row_t));
+    meas = (siqstune_meas_t*)malloc(ncand * sizeof(siqstune_meas_t));
+    mpz_init(n);
+    gmp_randinit_default(st);
+
+    for (i = 0, maxrank = 0; i < ncand; i++)
+        if (cand[i].rank > maxrank)
+            maxrank = cand[i].rank;
+    rank_sum = (double*)malloc((maxrank + 1) * sizeof(double));
+    rank_cnt = (int*)malloc((maxrank + 1) * sizeof(int));
+    rank_row = (int*)malloc((maxrank + 1) * sizeof(int));
+
+    for (i = 0; i < ncand; i++)
+    {
+        int d = cand[i].digits;
+        int best = -1, k, rk, ntests;
+        const char* nums[SIQSTUNE_MAX_NUMBERS];
+        int nnum = 0;
+
+        // each digit size once, in file order
+        for (j = 0; j < i; j++)
+            if (cand[j].digits == d)
+                break;
+        if (j < i)
+            continue;
+
+        // the test numbers: the ones the table's rows were measured on.  A
+        // table without them gets one made here, which depends only on its
+        // size, so a size measures the same input whatever else is in the file.
+        for (j = i; j < ncand; j++)
+        {
+            if ((cand[j].digits != d) || (cand[j].n[0] == '\0'))
+                continue;
+            for (k = 0; k < nnum; k++)
+                if (strcmp(nums[k], cand[j].n) == 0)
+                    break;
+            if ((k == nnum) && (nnum < SIQSTUNE_MAX_NUMBERS))
+                nums[nnum++] = cand[j].n;
+        }
+        ntests = (nnum > 0) ? nnum : 1;
+
+        for (rk = 0; rk <= maxrank; rk++)
+        {
+            rank_sum[rk] = 0;
+            rank_cnt[rk] = 0;
+            rank_row[rk] = -1;
+        }
+
+        for (k = 0; k < ntests; k++)
+        {
+            const char* nstr = (nnum > 0) ? nums[k] : "";
+
+            if (nnum > 0)
+            {
+                mpz_set_str(n, nstr, 10);
+                gmp_printf("\n==== c%d: %Zd ====\n", d, n);
+            }
+            else
+            {
+                gmp_randseed_ui(st, 20261022 + d);
+                siqstune_semiprime(n, d, st);
+                gmp_printf("\n==== c%d: %Zd ====\n(the table has no test "
+                    "number for c%d: estimating from fulls)\n", d, n, d);
+            }
+
+            for (j = i; j < ncand; j++)
+            {
+                siqstune_meas_t* m = &meas[j];
+
+                if ((cand[j].digits != d) || (strcmp(cand[j].n, nstr) != 0))
+                    continue;
+
+                siqs_format_params(&cand[j], buf, 256);
+                printf("rank %d: %s\n", cand[j].rank, (cand[j].rank == 0) ?
+                    "(yafu defaults)" : buf);
+                fflush(stdout);
+
+                if (!siqstune_measure(fobj, n, &cand[j], nnum > 0, seconds, m))
+                {
+                    printf("    no estimate (missing counts in table, or no "
+                        "progress in the sample)\n");
+                    continue;
+                }
+
+                if (m->completed)
+                    printf("    finished in the sample: %1.3f s (median of %d)\n",
+                        m->est, m->runs);
+                else
+                {
+                    printf("    sample %1.2f-%1.2f s: partials %u -> %u of %1.0f, "
+                        "fulls %u -> %u of %1.0f\n", m->t_warm, m->t_end,
+                        m->partial_warm, m->partial_end, m->partials_need,
+                        m->full_warm, m->full_end, m->fulls_need);
+                    printf("    sieving est. %1.2f s from partials%s, %1.2f s from "
+                        "fulls%s -> estimated %1.2f s total\n",
+                        m->est_partials, m->by_partials ? " (used)" : "",
+                        m->est_fulls, m->by_partials ? "" : " (used)", m->est);
+                }
+                fflush(stdout);
+
+                rk = cand[j].rank;
+                rank_sum[rk] += m->est;
+                rank_cnt[rk]++;
+                if (rank_row[rk] < 0)
+                    rank_row[rk] = j;
+            }
+        }
+
+        // the fastest set on average over the test numbers, among those
+        // measured on all of them
+        for (rk = 0; rk <= maxrank; rk++)
+        {
+            if ((rank_cnt[rk] == ntests) && ((best < 0) ||
+                (rank_sum[rk] < rank_sum[best])))
+                best = rk;
+        }
+
+        if (best < 0)
+        {
+            printf("c%d: no usable measurements\n", d);
+            continue;
+        }
+
+        out[nout] = cand[rank_row[best]];
+        out[nout].est_time = rank_sum[best] / ntests;
+        out[nout].ratio = (rank_cnt[0] == ntests) ?
+            rank_sum[best] / rank_sum[0] : -1.0;
+        siqs_format_params(&out[nout], buf, 256);
+        printf("c%d best: rank %d, %1.2f s", d, best, out[nout].est_time);
+        if (ntests > 1)
+            printf(" (mean of %d numbers)", ntests);
+        if (rank_cnt[0] == ntests)
+            printf(" (%1.3f x defaults)", out[nout].ratio);
+        printf(": %s\n", (best == 0) ? "(yafu defaults)" : buf);
+        nout++;
+    }
+
+    free(rank_sum);
+    free(rank_cnt);
+    free(rank_row);
+
+    fobj->VFLAG = saved_vflag;
+
+    if (nout > 0)
+    {
+        snprintf(comment, sizeof(comment),
+            "# siqstune: %s, %d thread%s, %1.0f s samples, from %s\n"
+            "# one row per digit size: the fastest parameter set here.  rank 0 "
+            "rows mean yafu's built-in\n# defaults won; SIQS then uses its "
+            "built-in table at that size.  est_time = estimated\n# total "
+            "seconds, ratio = est_time / defaults' est_time.\n",
+            fobj->CPU_ID_STR, fobj->THREADS, fobj->THREADS > 1 ? "s" : "",
+            seconds, SIQS_CANDIDATES_FILE);
+
+        if (siqs_write_param_table(saved.siqs_params_file, out, nout, comment))
+            printf("\nsiqstune: wrote %d rows to %s; SIQS will use them for its "
+                "default parameters\n", nout, saved.siqs_params_file);
+        else
+            printf("\nsiqstune: could not write %s\n", saved.siqs_params_file);
+    }
+
+    // put the user's options back
+    q->gbl_override_B_flag = saved.gbl_override_B_flag;
+    q->gbl_override_B = saved.gbl_override_B;
+    q->gbl_override_lpmult_flag = saved.gbl_override_lpmult_flag;
+    q->gbl_override_lpmult = saved.gbl_override_lpmult;
+    q->gbl_override_blocks_flag = saved.gbl_override_blocks_flag;
+    q->gbl_override_blocks = saved.gbl_override_blocks;
+    q->gbl_override_tf_flag = saved.gbl_override_tf_flag;
+    q->gbl_override_tf = saved.gbl_override_tf;
+    q->gbl_override_small_cutoff_flag = saved.gbl_override_small_cutoff_flag;
+    q->gbl_override_small_cutoff = saved.gbl_override_small_cutoff;
+    q->no_small_cutoff_opt = saved.no_small_cutoff_opt;
+    q->gbl_override_mfbd = saved.gbl_override_mfbd;
+    q->gbl_override_spv_limit_flag = saved.gbl_override_spv_limit_flag;
+    q->gbl_override_spv_limit = saved.gbl_override_spv_limit;
+    q->gbl_siqs_mid = saved.gbl_siqs_mid;
+    q->gbl_siqs_large = saved.gbl_siqs_large;
+    q->gbl_siqs_kernel = saved.gbl_siqs_kernel;
+    q->gbl_override_lpb = saved.gbl_override_lpb;
+    q->gbl_override_rel_flag = saved.gbl_override_rel_flag;
+    q->gbl_override_time_flag = saved.gbl_override_time_flag;
+    q->gbl_override_time = saved.gbl_override_time;
+    q->inmem_cutoff = saved.inmem_cutoff;
+    q->no_tuned_params = saved.no_tuned_params;
+    q->tune_warmup = 0;
+
+    gmp_randclear(st);
+    mpz_clear(n);
+    free(meas);
+    free(out);
+    free(cand);
+    return;
+}
+
 

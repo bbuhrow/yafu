@@ -291,6 +291,21 @@ typedef struct
     uint32_t gbl_siqs_sparse_kernel;// sparse sieve / tdiv_large kernel
     uint32_t gbl_siqs_lp_isa;       // ISA of those kernels (SIQS_ISA_*)
 
+    // tuned parameter table written by siqstune(); when present, SIQS takes
+    // its parameters from it (interpolated by input size) for every option
+    // not set on the command line, else from the built-in table
+    char siqs_params_file[1024];    // "" = don't use one
+    int no_tuned_params;            // 1 = ignore siqs_params_file
+
+    // measurement taps for siqstune(): relation counts (fulls, partials) and
+    // elapsed time at the first status update after tune_warmup seconds, and
+    // when sieving stopped.  tune_warmup = 0 disables them.
+    double tune_warmup;
+    double tune_t_warm, tune_t_end;
+    uint32_t tune_full_warm, tune_partial_warm;
+    uint32_t tune_full_end, tune_partial_end;
+    uint32_t tune_needed;           // relations needed (B + extra) for this input
+
     int gbl_override_B_flag;
     int gbl_override_small_cutoff_flag;
     int gbl_override_spv_limit_flag;
@@ -605,5 +620,6 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 
 // find a crossover between QS and NFS
 void factor_tune(fact_obj_t* inobj);
+void siqs_param_tune(fact_obj_t* fobj);
 
 #endif //_FACTOR_H

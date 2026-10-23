@@ -67,11 +67,13 @@ SIQS_FORCEINLINE uint32_t direct_cstore8(uint32_t* buf, uint32_t n, uint32_t m, 
 
 // ----------------------------------------------------------------------
 // direct scatter: one 16-prime group of [large_B, B) into both intervals
-// (pos hits at r, neg hits at interval + p - r), as direct_scatter16
+// (pos hits at r, neg hits at interval + p - r), as direct_scatter16.
+// CREG appends to the hit list hits[*nc...] and sieves the entries past
+// *flushed once DIRECT_CBUF_FLUSH of them are pending.
 // ----------------------------------------------------------------------
 SIQS_FORCEINLINE void direct_scatter16_avx2(uint8_t* sieve, uint32_t interval,
     const uint32_t* p, const uint32_t* r1, const uint32_t* r2, uint8_t logp,
-    const int kmode, uint32_t* cbuf, uint32_t* nc, uint32_t* sink)
+    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink)
 {
     __m256i vint = _mm256_set1_epi32(interval);
     __m256i vp0 = _mm256_loadu_si256((const __m256i*)p);
@@ -103,18 +105,18 @@ SIQS_FORCEINLINE void direct_scatter16_avx2(uint8_t* sieve, uint32_t interval,
     {
         __m256i vtag = _mm256_set1_epi32((uint32_t)logp << 24);
         uint32_t n = *nc;
-        n = direct_cstore8(cbuf, n, MASK8(ma0), _mm256_or_si256(a0, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(ma1), _mm256_or_si256(a1, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(mb0), _mm256_or_si256(b0, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(mb1), _mm256_or_si256(b1, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(mna0), _mm256_or_si256(na0, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(mna1), _mm256_or_si256(na1, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(mnb0), _mm256_or_si256(nb0, vtag));
-        n = direct_cstore8(cbuf, n, MASK8(mnb1), _mm256_or_si256(nb1, vtag));
-        if (n >= DIRECT_CBUF_FLUSH)
+        n = direct_cstore8(hits, n, MASK8(ma0), _mm256_or_si256(a0, vtag));
+        n = direct_cstore8(hits, n, MASK8(ma1), _mm256_or_si256(a1, vtag));
+        n = direct_cstore8(hits, n, MASK8(mb0), _mm256_or_si256(b0, vtag));
+        n = direct_cstore8(hits, n, MASK8(mb1), _mm256_or_si256(b1, vtag));
+        n = direct_cstore8(hits, n, MASK8(mna0), _mm256_or_si256(na0, vtag));
+        n = direct_cstore8(hits, n, MASK8(mna1), _mm256_or_si256(na1, vtag));
+        n = direct_cstore8(hits, n, MASK8(mnb0), _mm256_or_si256(nb0, vtag));
+        n = direct_cstore8(hits, n, MASK8(mnb1), _mm256_or_si256(nb1, vtag));
+        if ((n - *flushed) >= DIRECT_CBUF_FLUSH)
         {
-            direct_compress_flush(sieve, cbuf, n);
-            n = 0;
+            direct_compress_flush(sieve, hits + *flushed, n - *flushed);
+            *flushed = n;
         }
         *nc = n;
     }
@@ -192,17 +194,22 @@ SIQS_FORCEINLINE void direct_sieve_largeprimes_avx2_body(uint8_t* sieve,
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     uint32_t j;
     uint8_t logp;
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
-    uint32_t nc = 0, sink = 0;
+    direct_pool_t* pool = dconf->dpool;
+    uint32_t* hits;
+    uint32_t nc = 0, flushed = 0, sink = 0;
+
+    direct_hits_reserve(pool, sconf);
+    hits = pool->hits;
 
     for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
     {
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_avx2(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, cbuf, &nc, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink);
+        pool->hit_gend[(j - fb->large_B) / 16] = nc;
     }
-    direct_compress_flush(sieve, cbuf, nc);
+    direct_compress_flush(sieve, hits + flushed, nc - flushed);
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < fb->B; j++)
@@ -263,6 +270,82 @@ SIQS_FORCEINLINE uint32_t direct_rs8(__m256i vpos, __m256i vin, __m256i vpf_lo,
     return MASK8(m);
 }
 
+// resieve [large_B, B)'s 16-groups from the hit list (as direct_resieve_hits):
+// 8 entries at a time through a 1024-bit register prefilter (one bit per
+// 2^shift positions of both intervals); the few lanes that pass get the
+// exact bitmap test, and a group with a survivor hit is resieved in full by
+// direct_resieve_hit_entry.
+static void direct_resieve_hits_avx2(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    fb_list* fb = sconf->factor_base;
+    direct_pool_t* pool = dconf->dpool;
+    const uint32_t* hits = pool->hits;
+    const uint64_t* bitmap = pool->bitmap;
+    uint32_t ngroups = (fb->B - fb->large_B) / 16;
+    uint32_t n = (ngroups > 0) ? pool->hit_gend[ngroups - 1] : 0;
+    ALIGNED_MEM uint32_t pf_words[32];
+    __m256i vmask = _mm256_set1_epi32(0xffffff);
+    __m256i vone = _mm256_set1_epi32(1);
+    __m256i v31 = _mm256_set1_epi32(31);
+    __m256i vpf0, vpf1, vpf2, vpf3, vshift;
+    uint32_t k = 0, skip = 0, pf_shift = 0;
+
+    while (((uint64_t)1024 << pf_shift) < (2 * (uint64_t)pool->interval))
+        pf_shift++;
+    memset(pf_words, 0, sizeof(pf_words));
+    for (k = 0; k < pool->num; k++)
+    {
+        uint32_t b = pool->pos[k] >> pf_shift;
+        pf_words[b >> 5] |= (1u << (b & 31));
+    }
+    vpf0 = _mm256_load_si256((const __m256i*)pf_words);
+    vpf1 = _mm256_load_si256((const __m256i*)(pf_words + 8));
+    vpf2 = _mm256_load_si256((const __m256i*)(pf_words + 16));
+    vpf3 = _mm256_load_si256((const __m256i*)(pf_words + 24));
+    vshift = _mm256_set1_epi32(pf_shift);
+
+    // the loads may run past n into the reserved slack; those lanes are
+    // masked off
+    k = 0;
+    while (k < n)
+    {
+        __m256i vb = _mm256_srlv_epi32(_mm256_and_si256(
+            _mm256_loadu_si256((const __m256i*)(hits + k)), vmask), vshift);
+        __m256i widx = _mm256_srli_epi32(vb, 5);
+        // select the word among the 4 registers by widx bits 3 and 4
+        __m256i sel3 = _mm256_slli_epi32(widx, 28);
+        __m256i sel4 = _mm256_slli_epi32(widx, 27);
+        __m256i w01 = _mm256_castps_si256(_mm256_blendv_ps(
+            _mm256_castsi256_ps(_mm256_permutevar8x32_epi32(vpf0, widx)),
+            _mm256_castsi256_ps(_mm256_permutevar8x32_epi32(vpf1, widx)),
+            _mm256_castsi256_ps(sel3)));
+        __m256i w23 = _mm256_castps_si256(_mm256_blendv_ps(
+            _mm256_castsi256_ps(_mm256_permutevar8x32_epi32(vpf2, widx)),
+            _mm256_castsi256_ps(_mm256_permutevar8x32_epi32(vpf3, widx)),
+            _mm256_castsi256_ps(sel3)));
+        __m256i w = _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(w01),
+            _mm256_castsi256_ps(w23), _mm256_castsi256_ps(sel4)));
+        uint32_t m = MASK8(_mm256_cmpeq_epi32(vone,
+            _mm256_and_si256(_mm256_srlv_epi32(w, _mm256_and_si256(vb, v31)), vone)));
+
+        if ((n - k) < 8)
+            m &= (1u << (n - k)) - 1;
+
+        while (m)
+        {
+            uint32_t i = k + siqs_ctz32(m);
+            uint32_t pos = hits[i] & 0xffffff;
+            m &= m - 1;
+            if ((i >= skip) && ((bitmap[pos >> 6] >> (pos & 63)) & 1))
+                skip = direct_resieve_hit_entry(sconf, dconf, i);
+        }
+
+        k += 8;
+        if (skip > k)
+            k = skip;
+    }
+}
+
 SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
     dynamic_conf_t* dconf, uint8_t* sieve, const int kmode)
 {
@@ -281,20 +364,31 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
     int resieve = (pool->num > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const int* bitmap32 = (const int*)pool->bitmap;
+    // CREG resieves from the hit list its previous scatter left
+    // (direct_resieve_hits); the other kernels test every root
+    const int hitlist = (kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM);
     uint32_t j;
     uint8_t logp;
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
+    uint32_t* hits;
     ALIGNED_MEM uint32_t pf_words[16];
     ALIGNED_MEM uint32_t pos16[16];
-    uint32_t nc = 0, sink = 0;
+    uint32_t nc = 0, flushed = 0, sink = 0;
     __m256i vint = _mm256_set1_epi32(interval);
     __m256i vone = _mm256_set1_epi32(1);
-    __m256i vpf_lo, vpf_hi, vshift;
+    __m256i vpf_lo = _mm256_setzero_si256(), vpf_hi = vpf_lo, vshift = vpf_lo;
 
     if ((sieve == NULL) && (!resieve))
         return;
 
+    direct_hits_reserve(pool, sconf);
+    hits = pool->hits;
+
+    // resieve of the 16-groups by testing every root (the tail below
+    // always tests its roots)
+    int rs_groups = resieve && !hitlist;
+
     // 512-bit prefilter over both intervals, built from this poly's pool
+    if (rs_groups)
     {
         uint32_t k, pf_shift = 0;
         while (((uint64_t)512 << pf_shift) < (2 * (uint64_t)interval))
@@ -310,6 +404,9 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
         vshift = _mm256_set1_epi32(pf_shift);
     }
 
+    if (resieve && hitlist)
+        direct_resieve_hits_avx2(sconf, dconf);
+
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
         __m256i vp0 = _mm256_loadu_si256((const __m256i*)(primes + j));
@@ -319,7 +416,7 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
         __m256i b0 = _mm256_loadu_si256((const __m256i*)(fr2 + j));
         __m256i b1 = _mm256_loadu_si256((const __m256i*)(fr2 + j + 8));
 
-        if (resieve)
+        if (rs_groups)
         {
             // per root kind (pos root1, pos root2, neg root1, neg root2),
             // lanes 0..15 in order: the AVX-512 visiting order
@@ -396,11 +493,12 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
         // sieve the next poly's roots, both sides (as pass 1)
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_avx2(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, cbuf, &nc, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink);
+        pool->hit_gend[(j - large_B) / 16] = nc;
     }
 
     // nc stays 0 when sieve == NULL
-    direct_compress_flush(sieve, cbuf, nc);
+    direct_compress_flush(sieve, hits + flushed, nc - flushed);
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < bound; j++, ptr++)

@@ -779,7 +779,109 @@ static double now_sec(void)
 #endif
 }
 
-void SIQS(fact_obj_t *fobj)
+static void SIQS_run(fact_obj_t* fobj);
+
+// the cmdOptions default for -siqsMFBD; anything else was set by the user
+#define SIQS_MFBD_OPTION_DEFAULT 1.85
+
+void SIQS(fact_obj_t* fobj)
+{
+    // take parameters from the tuned table (siqs_params.txt, written by
+    // siqstune()) for every option not set on the command line, exactly as if
+    // they had been given as -siqsB, -siqsNB, ... flags: that is how
+    // siqs_tune.py and siqstune() measured them.  The options are put back
+    // afterwards, so later jobs of other sizes start from the user's settings.
+    qs_obj_t* q = &fobj->qs_obj;
+    qs_obj_t saved;
+    siqs_param_row_t row;
+    int applied = 0;
+
+    if (!q->no_tuned_params && (q->siqs_params_file[0] != '\0') &&
+        siqs_lookup_tuned(q->siqs_params_file, mpz_sizeinbase(q->gmp_n, 2), &row))
+    {
+        char buf[256];
+
+        // only scalar option fields are restored from this copy
+        memcpy(&saved, q, sizeof(qs_obj_t));
+
+        if ((row.has & SIQSP_B) && !q->gbl_override_B_flag)
+        {
+            q->gbl_override_B_flag = 1;
+            q->gbl_override_B = row.B;
+        }
+        if ((row.has & SIQSP_M) && !q->gbl_override_lpmult_flag && (q->gbl_override_lpb == 0))
+        {
+            q->gbl_override_lpmult_flag = 1;
+            q->gbl_override_lpmult = row.M;
+        }
+        if ((row.has & SIQSP_NB) && !q->gbl_override_blocks_flag)
+        {
+            q->gbl_override_blocks_flag = 1;
+            q->gbl_override_blocks = row.NB;
+        }
+        if ((row.has & SIQSP_TF) && !q->gbl_override_tf_flag)
+        {
+            q->gbl_override_tf_flag = 1;
+            q->gbl_override_tf = row.TF;
+        }
+        if ((row.has & SIQSP_TFSM) && !q->gbl_override_small_cutoff_flag)
+        {
+            q->gbl_override_small_cutoff_flag = 1;
+            q->gbl_override_small_cutoff = row.TFSm;
+        }
+        if ((row.has & SIQSP_MFBD) &&
+            (fabs(q->gbl_override_mfbd - SIQS_MFBD_OPTION_DEFAULT) < 1e-9))
+        {
+            q->gbl_override_mfbd = row.MFBD;
+        }
+        if ((row.has & SIQSP_SPV) && !q->gbl_override_spv_limit_flag)
+        {
+            q->gbl_override_spv_limit_flag = 1;
+            q->gbl_override_spv_limit = row.SPV;
+        }
+        if ((row.has & SIQSP_MID) && (q->gbl_siqs_mid == SIQS_STRAT_AUTO))
+            q->gbl_siqs_mid = row.mid;
+        if ((row.has & SIQSP_LARGE) && (q->gbl_siqs_large == SIQS_STRAT_AUTO))
+            q->gbl_siqs_large = row.large;
+        if ((row.has & SIQSP_KERNEL) && (q->gbl_siqs_kernel == SIQS_STRAT_AUTO))
+            q->gbl_siqs_kernel = row.kernel;
+
+        applied = 1;
+        if (fobj->VFLAG > 0)
+        {
+            siqs_format_params(&row, buf, 256);
+            printf("using tuned SIQS parameters from %s (c%d row): %s\n",
+                q->siqs_params_file, row.digits, buf);
+            printf("  (options given on the command line take precedence)\n");
+        }
+    }
+
+    SIQS_run(fobj);
+
+    if (applied)
+    {
+        q->gbl_override_B_flag = saved.gbl_override_B_flag;
+        q->gbl_override_B = saved.gbl_override_B;
+        q->gbl_override_lpmult_flag = saved.gbl_override_lpmult_flag;
+        q->gbl_override_lpmult = saved.gbl_override_lpmult;
+        q->gbl_override_blocks_flag = saved.gbl_override_blocks_flag;
+        q->gbl_override_blocks = saved.gbl_override_blocks;
+        q->gbl_override_tf_flag = saved.gbl_override_tf_flag;
+        q->gbl_override_tf = saved.gbl_override_tf;
+        q->gbl_override_small_cutoff_flag = saved.gbl_override_small_cutoff_flag;
+        q->gbl_override_small_cutoff = saved.gbl_override_small_cutoff;
+        q->no_small_cutoff_opt = saved.no_small_cutoff_opt;
+        q->gbl_override_mfbd = saved.gbl_override_mfbd;
+        q->gbl_override_spv_limit_flag = saved.gbl_override_spv_limit_flag;
+        q->gbl_override_spv_limit = saved.gbl_override_spv_limit;
+        q->gbl_siqs_mid = saved.gbl_siqs_mid;
+        q->gbl_siqs_large = saved.gbl_siqs_large;
+        q->gbl_siqs_kernel = saved.gbl_siqs_kernel;
+    }
+    return;
+}
+
+static void SIQS_run(fact_obj_t *fobj)
 {
 	// the input fobj->N and this 'n' are pointers to memory which holds
 	// the input number to this function.  a copy in different memory
@@ -6066,6 +6168,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     return 0;
 }
 
+// siqstune() tap: fulls and partials found so far, counted the same way as
+// the "N rels found: F full + C from P partial" status line
+static void siqs_tune_snapshot(static_conf_t* sconf, double t_time,
+    double* t, uint32_t* full, uint32_t* partial)
+{
+    *t = t_time;
+    *full = sconf->num_relations;
+    if (sconf->use_dlp < 2)
+        *partial = sconf->num_cycles;
+    else
+        *partial = sconf->num_slp + sconf->dlp_useful + sconf->tlp_useful;
+}
+
 int update_check(static_conf_t *sconf)
 {
 	// check to see if we should combine partial relations
@@ -6088,6 +6203,11 @@ int update_check(static_conf_t *sconf)
     // threads, update as fast as we can.
     if ((sconf->digits_n >= 90) || (sconf->obj->THREADS >= 32))
         update_time = 0;
+
+    // siqstune() measurements need the warmup snapshot and the time limit
+    // checked promptly, not at the normal 5 second status interval
+    if ((sconf->obj->qs_obj.tune_warmup > 0) && (update_time > 0.1))
+        update_time = 0.1;
 
 	mpz_init(tmp1);
 
@@ -6136,6 +6256,15 @@ int update_check(static_conf_t *sconf)
 
         // if we are only running a specified amount of time
         t_time = ytools_difftime(&sconf->totaltime_start, &update_stop);
+
+        if ((sconf->obj->qs_obj.tune_warmup > 0) &&
+            (sconf->obj->qs_obj.tune_t_warm == 0) &&
+            (t_time >= sconf->obj->qs_obj.tune_warmup))
+        {
+            siqs_tune_snapshot(sconf, t_time, &sconf->obj->qs_obj.tune_t_warm,
+                &sconf->obj->qs_obj.tune_full_warm, &sconf->obj->qs_obj.tune_partial_warm);
+        }
+
 		if (sconf->obj->qs_obj.gbl_override_time_flag &&
 			(t_time > sconf->obj->qs_obj.gbl_override_time))
 		{
@@ -6843,6 +6972,13 @@ int update_final(static_conf_t *sconf)
 	mpz_init(tmp1);
     gettimeofday(&myTVend, NULL);
     t_time = ytools_difftime(&sconf->totaltime_start, &myTVend);
+
+    if (sconf->obj->qs_obj.tune_warmup > 0)
+    {
+        siqs_tune_snapshot(sconf, t_time, &sconf->obj->qs_obj.tune_t_end,
+            &sconf->obj->qs_obj.tune_full_end, &sconf->obj->qs_obj.tune_partial_end);
+        sconf->obj->qs_obj.tune_needed = sconf->factor_base->B + sconf->num_extra_relations;
+    }
 
 	if (sconf->obj->VFLAG >= 0)
 	{

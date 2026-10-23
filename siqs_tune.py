@@ -56,6 +56,13 @@ Examples
   # summarize what's in an output directory
   python3 siqs_tune.py report --outdir siqs_tune_out
 
+  # write the competing parameter sets for yafu's tune (per digit size: the
+  # best, the most different near-best sets, and yafu's defaults), with the
+  # partial relations each needed to finish -> siqs_candidates.txt / .json.
+  # Copy siqs_candidates.txt next to yafu and run siqstune() there: it picks
+  # the fastest set per size on that machine and writes siqs_params.txt.
+  python3 siqs_tune.py export --outdir siqs_tune_out
+
 Note: the direct sieve needs a DLP-sized input (>= 70 digits); below that
 yafu falls back to large-prime buckets, so Large=direct is a no-op there.
 
@@ -168,6 +175,11 @@ PARSE = {
     "a_polys":  (re.compile(r"total polynomials \((\d+) 'A'"), int),
     "rels_sec": (re.compile(r"\(" + FLT + r" rels/sec\)"), float),
     "needed":   (re.compile(r"(\d+) relations needed"), int),
+    # "N rels found: F full + C from P partial" (screen progress line) or
+    # "N relations found: ..." (final summary); the last match wins
+    "partials": (re.compile(r"(?:rels|relations) found:\s*\d+ full \+ \d+ from (\d+) partial"), int),
+    "fulls":    (re.compile(r"(?:rels|relations) found:\s*(\d+) full \+"), int),
+    "cpu":      (re.compile(r"^Detected (?!L1 )(.+?)\s*$", re.M), str),
 }
 RE_FACTORS = re.compile(r"\*\*\*factors found\*\*\*")
 RE_FACTOR = re.compile(r"^[PC]\d+\s*=\s*(\d+)", re.M)
@@ -303,6 +315,24 @@ def pkey(params):
     return ",".join(f"{k}={params[k]}" for k in ORDER if k in params)
 
 
+def run_key(n, params, rep, threads, extra):
+    return f"{n}|{pkey(params)}|{rep}|t{threads}|{extra}"
+
+
+def load_cache(outdir):
+    cache = {}
+    path = os.path.join(outdir, "runs.jsonl")
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                cache[rec["key"]] = rec
+    return cache
+
+
 def parse_kv(s):
     out = {}
     for tok in s.split(","):
@@ -331,19 +361,11 @@ class Runner:
         if a.keep_logs:
             os.makedirs(self.logdir, exist_ok=True)
         self.lock = threading.Lock()
-        self.cache = {}
+        self.cache = load_cache(a.outdir)
         self.nrun = 0
-        if os.path.exists(self.cache_path):
-            with open(self.cache_path) as f:
-                for line in f:
-                    try:
-                        rec = json.loads(line)
-                    except ValueError:
-                        continue
-                    self.cache[rec["key"]] = rec
 
     def key(self, n, params, rep):
-        return f"{n}|{pkey(params)}|{rep}|t{self.a.threads}|{self.a.extra}"
+        return run_key(n, params, rep, self.a.threads, self.a.extra)
 
     def cmd(self, n, params):
         c = [self.yafu, f"siqs({n})", "-v", "-threads", str(self.a.threads),
@@ -428,6 +450,78 @@ def metric(rec, objective):
 
 def gmean(xs):
     return math.exp(sum(math.log(x) for x in xs) / len(xs))
+
+
+STAT_FIELDS = ("partials", "fulls", "needed", "t_sieve", "t_post", "t_total",
+               "rels_sec")
+
+
+def run_stats(recs_by_n):
+    """Per-parameter-set statistics for the yafu tune table.
+
+    recs_by_n: {n: [records]}.  Each number's repeats are reduced to their
+    median first, then summarized across numbers: the median, plus the
+    coefficient of variation of partials (how well 'partials needed'
+    transfers between inputs of the same size)."""
+    per = {k: [] for k in STAT_FIELDS}
+    for n, recs in recs_by_n.items():
+        ok = [r for r in recs if r["ok"]]
+        if not ok:
+            return None
+        for k in STAT_FIELDS:
+            if k == "t_post":
+                vs = [r["t_total"] - r["t_sieve"] for r in ok
+                      if r.get("t_sieve") is not None]
+            else:
+                vs = [r[k] for r in ok if r.get(k) is not None]
+            if vs:
+                per[k].append(statistics.median(vs))
+    out = {k: (statistics.median(vs) if vs else None) for k, vs in per.items()}
+    ps = per["partials"]
+    out["partials_cv"] = (statistics.stdev(ps) / statistics.mean(ps)
+                          if len(ps) > 1 and statistics.mean(ps) > 0 else None)
+    return out
+
+
+def pdist(p, q, names, box):
+    """Distance between parameter sets in the search's unit space (log for B
+    and M); a differing string choice (Mid/Large/Kernel) counts as 1."""
+    s = 0.0
+    for k in names:
+        if k not in p or k not in q:
+            continue
+        if k in STR_CHOICES:
+            s += float(p[k] != q[k])
+        else:
+            s += (to_unit(k, p[k], box) - to_unit(k, q[k], box)) ** 2
+    return math.sqrt(s / max(1, len(names)))
+
+
+def select_diverse(ranked, k, tol, names, box, alpha=0.25):
+    """Pick k parameter sets: the best, then greedily the near-best sets
+    (score within tol of the best) farthest from those already picked, with
+    a mild penalty for being slower.  If fewer than k sets are near-best,
+    fill with the next best by score.
+
+    ranked: list of (params, score) sorted by score."""
+    if not ranked:
+        return []
+    best = ranked[0][1]
+    pool = [x for x in ranked if x[1] <= best * (1 + tol)]
+    chosen = [pool.pop(0)]
+    while pool and len(chosen) < k:
+        def value(x):
+            dmin = min(pdist(x[0], c[0], names, box) for c in chosen)
+            return dmin - alpha * (x[1] / best - 1) / tol
+        x = max(pool, key=value)
+        pool.remove(x)
+        chosen.append(x)
+    for x in ranked:
+        if len(chosen) >= k:
+            break
+        if all(x is not c for c in chosen):
+            chosen.append(x)
+    return chosen
 
 
 # --------------------------------------------------------------------------
@@ -572,17 +666,21 @@ def tune_digits(R, a, digits):
     # ---- holdout verification --------------------------------------------
     ranked = sorted((c for c in cands.values() if not c.failed),
                     key=lambda c: c.score)
-    top = []
-    for c in ranked:
-        if len(top) >= a.final_top:
-            break
-        if c.origin == "default":
-            continue
-        top.append(c)
-    log(f"\nverifying top {len(top)} on {len(hold)} holdout numbers, "
+    # verify the best plus the near-best sets that differ most from it: those
+    # are the ones other CPUs may rank differently
+    by_key = {pkey(c.params): c for c in ranked}
+    picked = select_diverse([(c.params, c.score) for c in ranked
+                             if c.origin != "default"],
+                            a.final_top, a.diverse_tol,
+                            [k for k in names if k not in fixed], box)
+    top = [by_key[pkey(p)] for p, _ in picked]
+    log(f"\nverifying {len(top)} sets (best + most different within "
+        f"{100 * a.diverse_tol:.0f}% of it) on {len(hold)} holdout numbers, "
         f"{a.final_reps} interleaved rounds")
     contenders = [("defaults", {})] + [(fmt_params(c.params), c.params) for c in top]
     times = {i: {n: [] for n in hold} for i in range(len(contenders))}
+    hrecs = {i: {n: [] for n in hold} for i in range(len(contenders))}
+    cpu = None
     for rep in range(a.final_reps):
         for n in hold:
             for i, (_, p) in enumerate(contenders):
@@ -590,6 +688,8 @@ def tune_digits(R, a, digits):
                 rec = R.run(n, p, 100 + rep, timeout=timeout if p else a.max_time)
                 t = metric(rec, a.objective)
                 times[i][n].append(t if t is not None else float("inf"))
+                hrecs[i][n].append(rec)
+                cpu = cpu or rec.get("cpu")
 
     results = []
     for i, (label, p) in enumerate(contenders):
@@ -602,8 +702,11 @@ def tune_digits(R, a, digits):
         results.append(dict(params=p, ratio=sp, se=spread,
                             train=top[i - 1].score if i else 1.0,
                             mean_time=statistics.mean(
-                                statistics.median(times[i][n]) for n in hold)))
-    summary = dict(digits=digits, defaults=eff, base_times=base_t, noise=noise,
+                                statistics.median(times[i][n]) for n in hold),
+                            stats=run_stats(hrecs[i])))
+    bits = statistics.mean(int(n).bit_length() for n in hold)
+    summary = dict(digits=digits, bits=bits, cpu=cpu, names=names,
+                   defaults=eff, base_times=base_t, noise=noise,
                    box={k: box[k] for k in names}, fixed=fixed, train=train,
                    holdout=hold, results=results, objective=a.objective,
                    threads=a.threads, extra=a.extra,
@@ -619,11 +722,16 @@ def print_summary(s):
     print(f"\n===== c{s['digits']}  (objective: {s['objective']} time, "
           f"threads={s['threads']}) =====")
     print(f"yafu defaults: {fmt_params(s['defaults'])}")
-    print(f"{'holdout t/t_def':>16s} {'+-se':>6s} {'train':>6s} {'mean s':>7s}  params")
+    print(f"{'holdout t/t_def':>16s} {'+-se':>6s} {'train':>6s} {'mean s':>7s} "
+          f"{'partials':>9s} {'cv':>5s}  params")
     for r in s["results"]:
         label = fmt_params(r["params"]) if r["params"] else "(yafu defaults)"
+        st = r.get("stats") or {}
+        pt = f"{st['partials']:9.0f}" if st.get("partials") else f"{'-':>9s}"
+        cv = (f"{st['partials_cv']:5.2f}" if st.get("partials_cv") is not None
+              else f"{'-':>5s}")
         print(f"{r['ratio']:16.3f} {r['se']:6.3f} {r['train']:6.3f} "
-              f"{r['mean_time']:7.2f}  {label}")
+              f"{r['mean_time']:7.2f} {pt} {cv}  {label}")
     best = min(s["results"], key=lambda r: r["ratio"])
     if best["params"]:
         print(f"best: {100 * (1 - best['ratio']):.1f}% faster than defaults on holdout"
@@ -655,6 +763,144 @@ def cmd_report(a):
                 print(f"  {sc:.3f} x{len(c['reps'])} {c['origin']:7s} {fmt_params(c['params'])}")
 
 
+def describe_diff(p, ref):
+    """Short description of how parameter set p differs from ref."""
+    out = []
+    for k in ORDER:
+        if k not in p or k not in ref or p[k] == ref[k]:
+            continue
+        if k in LOG_PARAMS:
+            out.append(f"{k} x{p[k] / ref[k]:.2f}")
+        elif k in STR_CHOICES or k in CHOICES:
+            out.append(f"{k}={p[k]}")
+        elif k == "MFBD":
+            out.append(f"{k} {p[k] - ref[k]:+.2f}")
+        else:
+            out.append(f"{k} {p[k] - ref[k]:+d}")
+    return ", ".join(out) or "same"
+
+
+EXPORT_COLS = ["digits", "bits", "rank", "ratio"] + ORDER + \
+    ["partials", "partials_cv", "fulls", "needed", "t_sieve", "t_post", "n"]
+
+
+def cmd_export(a):
+    """Write the competing parameter sets for yafu's tune: per digit size, the
+    holdout-verified sets (best first, then the most different near-best
+    ones) plus yafu's defaults as rank 0.
+
+    Each set gets one row per exported holdout number n, with the relation
+    counts and times measured on that n: yafu's tune re-runs the sets on the
+    same n, where the partials needed to finish reproduce to ~0.5%."""
+    # one summary per digit size; with several outdirs, a later one wins
+    summaries = {}
+    for d in a.outdir:
+        for p in os.listdir(d):
+            if p.startswith("summary_c") and p.endswith(".json"):
+                digits = int(re.findall(r"\d+", p)[0])
+                if digits in summaries:
+                    log(f"c{digits}: using {d}, not {summaries[digits][0]}")
+                summaries[digits] = (d, p)
+    if not summaries:
+        sys.exit(f"no summary_c*.json in {', '.join(a.outdir)}")
+    caches = {}
+    rows, cpus = [], set()
+    for digits in sorted(summaries):
+        outdir, p = summaries[digits]
+        with open(os.path.join(outdir, p)) as f:
+            s = json.load(f)
+        if s.get("cpu"):
+            cpus.add(s["cpu"])
+        if outdir not in caches:
+            caches[outdir] = load_cache(outdir)
+        cache = caches[outdir]
+        suffix = f"|t{s['threads']}|{s['extra']}"
+
+        def holdout_recs(params, n):
+            return [rec for rec in cache.values()
+                    if rec["n"] == n and rec["rep"] >= 100 and
+                    rec["key"].endswith(suffix) and
+                    pkey(rec["params"]) == pkey(params)]
+
+        for r in s["results"]:
+            if r.get("stats") is None:
+                # summary written before stats were recorded: rebuild them
+                # from the holdout runs in the cache
+                recs = {n: holdout_recs(r["params"], n) for n in s["holdout"]}
+                r["stats"] = run_stats(recs) if all(recs.values()) else None
+        res = [r for r in s["results"] if r["params"] and math.isfinite(r["ratio"])]
+        res.sort(key=lambda r: r["ratio"])
+        if not res:
+            continue
+        best = res[0]
+        keep = [best] + [r for r in res[1:] if r["ratio"] <= best["ratio"] * (1 + a.max_gap)]
+        keep = keep[:a.top]
+        default = next(r for r in s["results"] if not r["params"])
+        entries = [(0, {}, default)] + \
+                  [(i + 1, r["params"], r) for i, r in enumerate(keep)]
+        numbers = s["holdout"][:a.numbers] if a.numbers > 0 else s["holdout"]
+        for n in numbers:
+            for rank, params, r in entries:
+                recs = [x for x in holdout_recs(params, n) if x["ok"]]
+                if not recs:
+                    log(f"c{digits} rank {rank}: no holdout run on {n[:12]}..., skipped")
+                    continue
+                st = run_stats({n: recs}) or {}
+                if rank == 0:
+                    # run without flags; list the values yafu chose for this n
+                    params = {k: recs[0][k] for k in ORDER if recs[0].get(k) is not None}
+                row = dict(digits=s["digits"], bits=int(n).bit_length(), rank=rank,
+                           ratio=round(r["ratio"], 4), n=n)
+                row.update({k: params.get(k) for k in ORDER})
+                row.update({k: st.get(k) for k in EXPORT_COLS if k in st})
+                row["vs_best"] = describe_diff(params, best["params"]) if rank > 1 else ""
+                rows.append(row)
+
+    base = a.out or os.path.join(a.outdir[0], "siqs_candidates")
+    with open(base + ".json", "w") as f:
+        json.dump(dict(cpu=sorted(cpus), rows=rows), f, indent=1)
+
+    def cell(v):
+        if v is None:
+            return "-"
+        if isinstance(v, float):
+            return f"{v:.3f}" if abs(v) < 100 else f"{v:.0f}"
+        return str(v)
+
+    with open(base + ".txt", "w") as f:
+        f.write(f"# siqs_tune export; cpu: {'; '.join(sorted(cpus)) or '?'}\n")
+        f.write("# rank 0 = yafu defaults (run without flags; params are the "
+                "values yafu chose for this n), rank 1 = best tuned set on "
+                "this cpu\n")
+        f.write("# one row per set per test number n; partials, fulls, "
+                "needed, t_sieve, t_post = measured on that n (median over "
+                "repeats); ratio = holdout time / defaults time on this cpu, "
+                "over all holdout numbers\n")
+        f.write("# " + " ".join(EXPORT_COLS) + "\n")
+        for row in rows:
+            f.write(" ".join(cell(row.get(k)) for k in EXPORT_COLS) + "\n")
+
+    # human-readable view
+    last = None
+    for row in rows:
+        if (row["digits"], row["n"]) != last:
+            last = (row["digits"], row["n"])
+            print(f"\n===== c{row['digits']} ({row['bits']} bits): {row['n']} =====")
+            print(f"{'rank':>4s} {'ratio':>6s} {'partials':>9s} {'cv':>5s} "
+                  f"{'t_post':>6s}  params / difference from best")
+        pv = row.get("partials")
+        cv = row.get("partials_cv")
+        tp = row.get("t_post")
+        print(f"{row['rank']:4d} {row['ratio']:6.3f} "
+              f"{(f'{pv:9.0f}' if pv else '-'):>9s} "
+              f"{(f'{cv:5.2f}' if cv is not None else '-'):>5s} "
+              f"{(f'{tp:6.2f}' if tp is not None else '-'):>6s}  "
+              f"{fmt_params({k: row[k] for k in ORDER if row.get(k) is not None})}"
+              + (f"\n{'':36s}({row['vs_best']})" if row["vs_best"] else
+                 ("  (yafu defaults)" if row["rank"] == 0 else "")))
+    print(f"\nwrote {base}.txt and {base}.json")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -678,8 +924,10 @@ def main():
                    help="baseline repeats per train number")
     t.add_argument("--max-reps", type=int, default=3,
                    help="max repeats for a competitive candidate (racing)")
-    t.add_argument("--final-top", type=int, default=4,
-                   help="candidates verified on holdout")
+    t.add_argument("--final-top", type=int, default=5,
+                   help="sets verified on holdout: the best + most different near-best")
+    t.add_argument("--diverse-tol", type=float, default=0.05,
+                   help="near-best = train score within this fraction of the best")
     t.add_argument("--final-reps", type=int, default=2,
                    help="interleaved rounds in holdout verification")
     t.add_argument("--objective", choices=["total", "sieve"], default="total",
@@ -706,6 +954,23 @@ def main():
     r.add_argument("--outdir", default="siqs_tune_out")
     r.add_argument("--top", type=int, default=10, help="also list N best train candidates")
     r.set_defaults(func=cmd_report)
+
+    e = sub.add_parser("export", help="write the competing parameter sets "
+                       "(table for yafu's tune)")
+    e.add_argument("--outdir", nargs="+", default=["siqs_tune_out"],
+                   help="tune output dir(s); several dirs are merged")
+    e.add_argument("--top", type=int, default=5,
+                   help="max sets per digit size, best included (default 5)")
+    e.add_argument("--max-gap", type=float, default=0.10,
+                   help="drop sets more than this fraction slower than the "
+                        "best on the holdout (default 0.10)")
+    e.add_argument("--numbers", type=int, default=1,
+                   help="holdout numbers to export per digit size, each with "
+                        "its own rows (default 1; 0 = all).  yafu's tune "
+                        "benchmarks every set on each")
+    e.add_argument("--out", help="output path prefix (default "
+                   "<first outdir>/siqs_candidates -> .txt and .json)")
+    e.set_defaults(func=cmd_export)
 
     a = ap.parse_args()
     a.func(a)

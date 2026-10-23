@@ -357,6 +357,13 @@ typedef struct
     int* smooth_num;        // [alloc] index of last stored fb offset
     uint32_t* fb_offsets;   // [alloc * MAX_SMOOTH_PRIMES]
     uint64_t* bitmap;       // [2 * interval / 64] marks survivor positions
+    // hit list of the compress kernels (creg / cmem): every in-range root
+    // of [large_B, B)'s 16-groups for the current poly, as the
+    // (logp << 24) | position entries the scatter sieved, in scatter
+    // order.  The resieve walks it instead of testing every root.
+    uint32_t* hits;         // [hits_alloc]
+    uint32_t* hit_gend;     // [groups] hits index one past each group's entries
+    uint32_t hits_alloc;    // allocated entries (0: not yet allocated)
 } direct_pool_t;
 
 /************************* SIQS types and functions *****************/
@@ -934,6 +941,9 @@ static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, ui
 
 // portable parts (direct_sieve.c)
 void direct_resieve_hit(direct_pool_t* pool, uint32_t pos, uint32_t fbi, uint32_t prime);
+void direct_hits_reserve(direct_pool_t* pool, static_conf_t* sconf);
+void direct_resieve_hits(static_conf_t* sconf, dynamic_conf_t* dconf);
+uint32_t direct_resieve_hit_entry(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t k);
 void direct_block_sub4(uint8_t* blk);
 void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);

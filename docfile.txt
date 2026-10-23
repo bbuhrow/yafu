@@ -323,6 +323,18 @@ estimating siqs() and nfs() factorizations.  Function coefficients together with
 is automatically added to yafu.ini.  Estimation parameters are used to determine the optimal
 siqs/nfs crossover point.  
 
+[siqstune]
+usage: siqstune()
+
+description:
+chooses this machine's default SIQS parameters.  Reads siqs_candidates.txt (competing
+parameter sets per digit size, exported by siqs_tune.py), sieves a test number at each
+size with each set for -siqsT seconds (default 5), extrapolates the partial-relation
+rate to a full factorization time (inputs that finish within the sample are just timed),
+and writes the fastest set per size to siqs_params.txt.  When siqs_params.txt exists,
+SIQS takes its parameters from it for any option not given on the command line;
+otherwise it uses its built-in table.  Delete the file to go back to the built-in table.
+
 
 [nfs]
 usage: nfs(expression)

@@ -67,11 +67,13 @@ SIQS_FORCEINLINE uint32_t V4_FN(v4_cstore)(uint32_t* buf, uint32_t n, uint32_t m
 }
 
 // ----------------------------------------------------------------------
-// direct scatter: one 16-prime group of [large_B, B) into both intervals
+// direct scatter: one 16-prime group of [large_B, B) into both intervals.
+// CREG / CMEM append to the hit list hits[*nc...] and sieve the entries
+// past *flushed once DIRECT_CBUF_FLUSH of them are pending.
 // ----------------------------------------------------------------------
 SIQS_FORCEINLINE void V4_FN(direct_scatter16)(uint8_t* sieve, uint32_t interval,
     const uint32_t* p, const uint32_t* r1, const uint32_t* r2, uint8_t logp,
-    const int kmode, uint32_t* cbuf, uint32_t* nc, uint32_t* sink)
+    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink)
 {
     v4t vint = V4_SET1(interval);
     v4t vtag = V4_SET1((uint32_t)logp << 24);
@@ -96,11 +98,11 @@ SIQS_FORCEINLINE void V4_FN(direct_scatter16)(uint8_t* sieve, uint32_t interval,
     {
         uint32_t n = *nc;
         for (k = 0; k < 16; k++)
-            n = V4_FN(v4_cstore)(cbuf, n, V4_MASK(msk[k]), V4_OR(pos[k], vtag));
-        if (n >= DIRECT_CBUF_FLUSH)
+            n = V4_FN(v4_cstore)(hits, n, V4_MASK(msk[k]), V4_OR(pos[k], vtag));
+        if ((n - *flushed) >= DIRECT_CBUF_FLUSH)
         {
-            direct_compress_flush(sieve, cbuf, n);
-            n = 0;
+            direct_compress_flush(sieve, hits + *flushed, n - *flushed);
+            *flushed = n;
         }
         *nc = n;
     }
@@ -155,17 +157,22 @@ SIQS_FORCEINLINE void V4_FN(direct_sieve_largeprimes_body)(uint8_t* sieve,
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     uint32_t j;
     uint8_t logp;
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
-    uint32_t nc = 0, sink = 0;
+    direct_pool_t* pool = dconf->dpool;
+    uint32_t* hits;
+    uint32_t nc = 0, flushed = 0, sink = 0;
+
+    direct_hits_reserve(pool, sconf);
+    hits = pool->hits;
 
     for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
     {
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         V4_FN(direct_scatter16)(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, cbuf, &nc, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink);
+        pool->hit_gend[(j - fb->large_B) / 16] = nc;
     }
-    direct_compress_flush(sieve, cbuf, nc);
+    direct_compress_flush(sieve, hits + flushed, nc - flushed);
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < fb->B; j++)
@@ -216,21 +223,30 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
     int resieve = (pool->num > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const uint64_t* bitmap = pool->bitmap;
+    // CREG resieves the 16-groups from the hit list its previous scatter
+    // left (direct_resieve_hits); the other kernels test every root
+    const int hitlist = (kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM);
     uint32_t j;
     int q, k;
     uint8_t logp;
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
+    uint32_t* hits;
     ALIGNED_MEM uint32_t qpos[64];
     ALIGNED_MEM uint32_t qin[64];
-    uint32_t nc = 0, sink = 0;
+    uint32_t nc = 0, flushed = 0, sink = 0;
     v4t vint = V4_SET1(interval);
 
     if ((sieve == NULL) && (!resieve))
         return;
 
+    direct_hits_reserve(pool, sconf);
+    hits = pool->hits;
+
+    if (resieve && hitlist)
+        direct_resieve_hits(sconf, dconf);
+
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
-        if (resieve)
+        if (resieve && !hitlist)
         {
             // positions (masked to 0 when out of range) and in-range masks
             // for the 4 root kinds, lanes 0..15 each: the AVX-512 order
@@ -292,11 +308,12 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
         // sieve the next poly's roots, both sides (as pass 1)
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         V4_FN(direct_scatter16)(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, cbuf, &nc, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink);
+        pool->hit_gend[(j - large_B) / 16] = nc;
     }
 
     // nc stays 0 when sieve == NULL
-    direct_compress_flush(sieve, cbuf, nc);
+    direct_compress_flush(sieve, hits + flushed, nc - flushed);
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < bound; j++, ptr++)

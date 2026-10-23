@@ -63,7 +63,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 82
+#define NUM_FUNC 83
 
 // symbols in calc
 #define EOE 1
@@ -168,7 +168,7 @@ static char function_names[NUM_FUNC][11] = {
     "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
-    "divisors", "expansion"};
+    "divisors", "expansion", "siqstune"};
 
 // Declared arity per function.  This table is what the argument-collection
 // loop in calc() uses to place actual arguments:  with arity na and k
@@ -194,7 +194,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 2,
-    1, 0};
+    1, 0, 0};
 
 
 // =====================================================================
@@ -4240,6 +4240,17 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         
     }
 
+        break;
+
+    case 82:
+        // siqstune, no arguments: choose this machine's SIQS parameters
+        // from siqs_candidates.txt, write siqs_params.txt
+        if (check_args(funcnum, nargs)) break;
+
+        mpz_set_ui(operands[0], 1);
+        new_factorization(fobj, operands[0]);
+
+        siqs_param_tune(fobj);
         break;
 
 	default:

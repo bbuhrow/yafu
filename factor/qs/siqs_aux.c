@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #include "qs_impl.h"
+#include "qs.h"
 #include "soe.h"
 #include "ytools.h"
 #include "gmp_xface.h"
@@ -842,5 +843,330 @@ uint32_t yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 
 	mpz_clear(tmpz);
 	return bitsleft;
+}
+
+// ---------------------------------------------------------------------------
+// SIQS parameter tables (see qs.h): siqs_candidates.txt from siqs_tune.py,
+// siqs_params.txt from siqstune()
+// ---------------------------------------------------------------------------
+
+enum {
+    SIQSC_DIGITS, SIQSC_BITS, SIQSC_RANK, SIQSC_RATIO, SIQSC_B, SIQSC_M,
+    SIQSC_NB, SIQSC_TF, SIQSC_TFSM, SIQSC_MFBD, SIQSC_SPV, SIQSC_MID,
+    SIQSC_LARGE, SIQSC_KERNEL, SIQSC_PARTIALS, SIQSC_PARTIALS_CV, SIQSC_FULLS,
+    SIQSC_NEEDED, SIQSC_T_SIEVE, SIQSC_T_POST, SIQSC_N, SIQSC_EST_TIME, SIQSC_NUM
+};
+
+static const char* siqsp_cols[SIQSC_NUM] = {
+    "digits", "bits", "rank", "ratio", "B", "M", "NB", "TF", "TFSm", "MFBD",
+    "SPV", "Mid", "Large", "Kernel", "partials", "partials_cv", "fulls",
+    "needed", "t_sieve", "t_post", "n", "est_time" };
+
+static const char* siqsp_strat_name(int col, uint32_t v)
+{
+    if (col == SIQSC_MID) return (v == SIQS_MID_SPARSE) ? "sparse" : "bucket";
+    if (col == SIQSC_LARGE) return (v == SIQS_LARGE_DIRECT) ? "direct" : "bucket";
+    switch (v)
+    {
+    case SIQS_K_BITLOOP: return "bitloop";
+    case SIQS_K_SINK: return "sink";
+    case SIQS_K_CREG: return "creg";
+    default: return "cmem";
+    }
+}
+
+static int siqsp_strat_value(int col, const char* s, uint32_t* v)
+{
+    if (col == SIQSC_MID)
+    {
+        if (strcmp(s, "sparse") == 0) { *v = SIQS_MID_SPARSE; return 1; }
+        if (strcmp(s, "bucket") == 0) { *v = SIQS_MID_BUCKET; return 1; }
+    }
+    else if (col == SIQSC_LARGE)
+    {
+        if (strcmp(s, "direct") == 0) { *v = SIQS_LARGE_DIRECT; return 1; }
+        if (strcmp(s, "bucket") == 0) { *v = SIQS_LARGE_BUCKET; return 1; }
+    }
+    else
+    {
+        if (strcmp(s, "bitloop") == 0) { *v = SIQS_K_BITLOOP; return 1; }
+        if (strcmp(s, "sink") == 0) { *v = SIQS_K_SINK; return 1; }
+        if (strcmp(s, "creg") == 0) { *v = SIQS_K_CREG; return 1; }
+        if (strcmp(s, "cmem") == 0) { *v = SIQS_K_CMEM; return 1; }
+    }
+    return 0;
+}
+
+static void siqsp_set(siqs_param_row_t* r, int col, const char* s)
+{
+    if (strcmp(s, "-") == 0)
+        return;
+
+    switch (col)
+    {
+    case SIQSC_DIGITS: r->digits = atoi(s); break;
+    case SIQSC_BITS: r->bits = atoi(s); break;
+    case SIQSC_RANK: r->rank = atoi(s); break;
+    case SIQSC_RATIO: r->ratio = strtod(s, NULL); break;
+    case SIQSC_B: r->B = strtoul(s, NULL, 10); r->has |= SIQSP_B; break;
+    case SIQSC_M: r->M = strtoul(s, NULL, 10); r->has |= SIQSP_M; break;
+    case SIQSC_NB: r->NB = strtoul(s, NULL, 10); r->has |= SIQSP_NB; break;
+    case SIQSC_TF: r->TF = strtoul(s, NULL, 10); r->has |= SIQSP_TF; break;
+    case SIQSC_TFSM: r->TFSm = strtoul(s, NULL, 10); r->has |= SIQSP_TFSM; break;
+    case SIQSC_MFBD: r->MFBD = strtod(s, NULL); r->has |= SIQSP_MFBD; break;
+    case SIQSC_SPV: r->SPV = strtoul(s, NULL, 10); r->has |= SIQSP_SPV; break;
+    case SIQSC_MID:
+        if (siqsp_strat_value(col, s, &r->mid)) r->has |= SIQSP_MID;
+        break;
+    case SIQSC_LARGE:
+        if (siqsp_strat_value(col, s, &r->large)) r->has |= SIQSP_LARGE;
+        break;
+    case SIQSC_KERNEL:
+        if (siqsp_strat_value(col, s, &r->kernel)) r->has |= SIQSP_KERNEL;
+        break;
+    case SIQSC_PARTIALS: r->partials = strtod(s, NULL); break;
+    case SIQSC_PARTIALS_CV: r->partials_cv = strtod(s, NULL); break;
+    case SIQSC_FULLS: r->fulls = strtod(s, NULL); break;
+    case SIQSC_NEEDED: r->needed = strtod(s, NULL); break;
+    case SIQSC_T_SIEVE: r->t_sieve = strtod(s, NULL); break;
+    case SIQSC_T_POST: r->t_post = strtod(s, NULL); break;
+    case SIQSC_EST_TIME: r->est_time = strtod(s, NULL); break;
+    case SIQSC_N:
+        strncpy(r->n, s, sizeof(r->n) - 1);
+        r->n[sizeof(r->n) - 1] = '\0';
+        break;
+    default: break;
+    }
+}
+
+// read a parameter table; returns the number of rows (0 if the file is
+// missing or has none) and a malloc'd array the caller frees.
+int siqs_read_param_table(const char* fname, siqs_param_row_t** rows)
+{
+    FILE* fid = fopen(fname, "r");
+    char line[1024];
+    int colmap[64];
+    int ncols, nrows = 0, alloc = 16, i;
+
+    *rows = NULL;
+    if (fid == NULL)
+        return 0;
+
+    // without a header line, assume siqs_tune.py's column order
+    ncols = SIQSC_N + 1;
+    for (i = 0; i < ncols; i++)
+        colmap[i] = i;
+
+    *rows = (siqs_param_row_t*)malloc(alloc * sizeof(siqs_param_row_t));
+    while (fgets(line, sizeof(line), fid) != NULL)
+    {
+        char* tok[64];
+        int ntok = 0;
+        char* p = line;
+        int is_comment = 0;
+
+        while (isspace((unsigned char)*p)) p++;
+        if (*p == '#')
+        {
+            is_comment = 1;
+            p++;
+        }
+        tok[0] = strtok(p, " \t\r\n");
+        while ((tok[ntok] != NULL) && (ntok < 63))
+            tok[++ntok] = strtok(NULL, " \t\r\n");
+
+        if (ntok == 0)
+            continue;
+
+        if (is_comment)
+        {
+            // the column header names the columns of the rows that follow
+            if (strcmp(tok[0], "digits") == 0)
+            {
+                int c;
+                ncols = ntok;
+                for (i = 0; i < ntok; i++)
+                {
+                    colmap[i] = -1;
+                    for (c = 0; c < SIQSC_NUM; c++)
+                        if (strcmp(tok[i], siqsp_cols[c]) == 0)
+                            colmap[i] = c;
+                }
+            }
+            continue;
+        }
+
+        if (nrows == alloc)
+        {
+            alloc *= 2;
+            *rows = (siqs_param_row_t*)realloc(*rows, alloc * sizeof(siqs_param_row_t));
+        }
+
+        siqs_param_row_t* r = &(*rows)[nrows];
+        memset(r, 0, sizeof(siqs_param_row_t));
+        r->ratio = r->partials = r->partials_cv = r->fulls = r->needed =
+            r->t_sieve = r->t_post = r->est_time = -1.0;
+        for (i = 0; (i < ntok) && (i < ncols); i++)
+        {
+            if (colmap[i] >= 0)
+                siqsp_set(r, colmap[i], tok[i]);
+        }
+        if (r->digits > 0)
+        {
+            if (r->bits == 0)
+                r->bits = (int)(r->digits * 3.3219 + 0.5);
+            nrows++;
+        }
+    }
+    fclose(fid);
+
+    if (nrows == 0)
+    {
+        free(*rows);
+        *rows = NULL;
+    }
+    return nrows;
+}
+
+int siqs_write_param_table(const char* fname, siqs_param_row_t* rows,
+    int num_rows, const char* comment)
+{
+    FILE* fid = fopen(fname, "w");
+    int i, c;
+
+    if (fid == NULL)
+        return 0;
+
+    if (comment != NULL)
+        fputs(comment, fid);
+    fprintf(fid, "#");
+    for (c = 0; c < SIQSC_NUM; c++)
+        fprintf(fid, " %s", siqsp_cols[c]);
+    fprintf(fid, "\n");
+
+    for (i = 0; i < num_rows; i++)
+    {
+        siqs_param_row_t* r = &rows[i];
+        uint32_t uv[5] = { r->B, r->M, r->NB, r->TF, r->TFSm };
+        uint32_t ub[5] = { SIQSP_B, SIQSP_M, SIQSP_NB, SIQSP_TF, SIQSP_TFSM };
+        double dv[6] = { r->partials, r->partials_cv, r->fulls, r->needed,
+            r->t_sieve, r->t_post };
+
+        fprintf(fid, "%d %d %d ", r->digits, r->bits, r->rank);
+        if (r->ratio >= 0) fprintf(fid, "%.4f", r->ratio); else fprintf(fid, "-");
+        for (c = 0; c < 5; c++)
+        {
+            if (r->has & ub[c]) fprintf(fid, " %u", uv[c]); else fprintf(fid, " -");
+        }
+        if (r->has & SIQSP_MFBD) fprintf(fid, " %.2f", r->MFBD); else fprintf(fid, " -");
+        if (r->has & SIQSP_SPV) fprintf(fid, " %u", r->SPV); else fprintf(fid, " -");
+        fprintf(fid, " %s", (r->has & SIQSP_MID) ? siqsp_strat_name(SIQSC_MID, r->mid) : "-");
+        fprintf(fid, " %s", (r->has & SIQSP_LARGE) ? siqsp_strat_name(SIQSC_LARGE, r->large) : "-");
+        fprintf(fid, " %s", (r->has & SIQSP_KERNEL) ? siqsp_strat_name(SIQSC_KERNEL, r->kernel) : "-");
+        for (c = 0; c < 6; c++)
+        {
+            if (dv[c] < 0) fprintf(fid, " -");
+            else if (dv[c] < 100) fprintf(fid, " %.3f", dv[c]);
+            else fprintf(fid, " %.0f", dv[c]);
+        }
+        fprintf(fid, " %s", (r->n[0] != '\0') ? r->n : "-");
+        if (r->est_time < 0) fprintf(fid, " -");
+        else fprintf(fid, " %.3f", r->est_time);
+        fprintf(fid, "\n");
+    }
+    fclose(fid);
+    return 1;
+}
+
+void siqs_format_params(siqs_param_row_t* r, char* buf, int len)
+{
+    int n = 0;
+
+    buf[0] = '\0';
+#define SIQSP_APPEND(...) \
+    if (n < len) n += snprintf(buf + n, len - n, __VA_ARGS__)
+    if (r->has & SIQSP_B) SIQSP_APPEND("B=%u ", r->B);
+    if (r->has & SIQSP_M) SIQSP_APPEND("M=%u ", r->M);
+    if (r->has & SIQSP_NB) SIQSP_APPEND("NB=%u ", r->NB);
+    if (r->has & SIQSP_TF) SIQSP_APPEND("TF=%u ", r->TF);
+    if (r->has & SIQSP_TFSM) SIQSP_APPEND("TFSm=%u ", r->TFSm);
+    if (r->has & SIQSP_MFBD) SIQSP_APPEND("MFBD=%.2f ", r->MFBD);
+    if (r->has & SIQSP_SPV) SIQSP_APPEND("SPV=%u ", r->SPV);
+    if (r->has & SIQSP_MID) SIQSP_APPEND("Mid=%s ", siqsp_strat_name(SIQSC_MID, r->mid));
+    if (r->has & SIQSP_LARGE) SIQSP_APPEND("Large=%s ", siqsp_strat_name(SIQSC_LARGE, r->large));
+    if (r->has & SIQSP_KERNEL) SIQSP_APPEND("Kernel=%s ", siqsp_strat_name(SIQSC_KERNEL, r->kernel));
+#undef SIQSP_APPEND
+    if (n == 0)
+        snprintf(buf, len, "(yafu defaults)");
+    else if (n <= len)
+        buf[n - 1] = '\0';
+}
+
+// parameters for a 'bits'-sized input from a siqs_params.txt table.  B, TF
+// and MFBD are interpolated between the bracketing rows; the others come from
+// the nearer row.  Returns 0 (use the built-in table) when the file is
+// missing, the input is more than 8 bits outside the table, or the nearer row
+// is one where yafu's defaults won.
+int siqs_lookup_tuned(const char* fname, int bits, siqs_param_row_t* out)
+{
+    siqs_param_row_t* rows;
+    siqs_param_row_t* near;
+    int n = siqs_read_param_table(fname, &rows);
+    int i, j, lo, hi;
+
+    if (n == 0)
+        return 0;
+
+    // sort by size, then keep the first row of each digit size
+    for (i = 1; i < n; i++)
+    {
+        siqs_param_row_t t = rows[i];
+        for (j = i; (j > 0) && (rows[j - 1].bits > t.bits); j--)
+            rows[j] = rows[j - 1];
+        rows[j] = t;
+    }
+    for (i = 1, j = 1; i < n; i++)
+    {
+        if (rows[i].digits != rows[j - 1].digits)
+            rows[j++] = rows[i];
+    }
+    n = j;
+
+    if ((bits < rows[0].bits - 8) || (bits > rows[n - 1].bits + 8))
+    {
+        free(rows);
+        return 0;
+    }
+
+    for (lo = 0; (lo < n - 1) && (rows[lo + 1].bits <= bits); lo++);
+    hi = ((lo < n - 1) && (bits > rows[lo].bits)) ? lo + 1 : lo;
+    near = ((hi != lo) && (rows[hi].bits - bits < bits - rows[lo].bits)) ?
+        &rows[hi] : &rows[lo];
+
+    if ((near->rank == 0) || ((near->has & SIQSP_PARAMS) == 0))
+    {
+        free(rows);
+        return 0;
+    }
+
+    *out = *near;
+    if ((hi != lo) && (rows[lo].rank != 0) && (rows[hi].rank != 0))
+    {
+        double f = (double)(bits - rows[lo].bits) / (double)(rows[hi].bits - rows[lo].bits);
+        uint32_t both = rows[lo].has & rows[hi].has;
+
+        if (both & SIQSP_B)
+        {
+            out->B = (uint32_t)(rows[lo].B + f * ((double)rows[hi].B - rows[lo].B) + 0.5);
+            out->B = (out->B + 15) & ~15U;
+        }
+        if (both & SIQSP_TF)
+            out->TF = (uint32_t)(rows[lo].TF + f * ((double)rows[hi].TF - rows[lo].TF) + 0.5);
+        if (both & SIQSP_MFBD)
+            out->MFBD = rows[lo].MFBD + f * (rows[hi].MFBD - rows[lo].MFBD);
+    }
+    out->bits = bits;
+    free(rows);
+    return 1;
 }
 

@@ -59,7 +59,32 @@ direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
     pool->bitmap = (uint64_t*)xmalloc(2 * pool->interval / 8);
     memset(pool->bitmap, 0, 2 * pool->interval / 8);
 
+    // the hit list is sized from the factor base (direct_hits_reserve)
+    pool->hits = NULL;
+    pool->hit_gend = NULL;
+    pool->hits_alloc = 0;
+
     return pool;
+}
+
+// make room for the hit list of [large_B, B): at most 4 entries per prime,
+// plus room for the compress kernels' full-vector stores past the end
+void direct_hits_reserve(direct_pool_t* pool, static_conf_t* sconf)
+{
+    fb_list* fb = sconf->factor_base;
+    uint32_t need = 4 * (fb->B - fb->large_B) + 96;
+
+    if (pool->hits_alloc >= need)
+        return;
+
+    if (pool->hits_alloc > 0)
+    {
+        align_free(pool->hits);
+        free(pool->hit_gend);
+    }
+    pool->hits = (uint32_t*)xmalloc_align(need * sizeof(uint32_t));
+    pool->hit_gend = (uint32_t*)xmalloc(((fb->B - fb->large_B) / 16 + 1) * sizeof(uint32_t));
+    pool->hits_alloc = need;
 }
 
 void direct_pool_free(direct_pool_t* pool)
@@ -73,6 +98,11 @@ void direct_pool_free(direct_pool_t* pool)
     free(pool->smooth_num);
     free(pool->fb_offsets);
     free(pool->bitmap);
+    if (pool->hits_alloc > 0)
+    {
+        align_free(pool->hits);
+        free(pool->hit_gend);
+    }
     free(pool);
 
     return;
@@ -163,6 +193,129 @@ void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
     return;
 }
 
+// resieve one 16-group (fb index j) of [large_B, B) against the survivors,
+// in the AVX-512 order (pos root1 lanes, pos root2 lanes, neg root1, neg
+// root2), so survivors' fb_offsets come out identical on every ISA.
+// Branch-free in-range + survivor-bitmap test (in-range is a coin flip, so
+// a branch on it mispredicts constantly); only the rare survivor hit
+// branches to the out-of-line handler.  Out-of-range lanes test bit 0 of a
+// zero word instead.
+SIQS_FORCEINLINE void direct_resieve_group(direct_pool_t* pool, uint32_t j,
+    const uint32_t* p, const uint32_t* r1, const uint32_t* r2)
+{
+    const uint64_t* bitmap = pool->bitmap;
+    uint32_t interval = pool->interval;
+    int k;
+
+#define DIRECT_SCALAR_HIT(r, off, k) \
+    do { uint32_t _r = (r); \
+        uint32_t _m = 0 - (uint32_t)(_r < interval); \
+        uint32_t _q = (_r + (off)) & _m; \
+        uint64_t _w = bitmap[_q >> 6] & (uint64_t)(int64_t)(int32_t)_m; \
+        if ((_w >> (_q & 63)) & 1) \
+            direct_resieve_hit(pool, _q, j + (k), p[k]); } while (0)
+
+    for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(r1[k], 0, k);
+    for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(r2[k], 0, k);
+    for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(p[k] - r1[k], interval, k);
+    for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(p[k] - r2[k], interval, k);
+#undef DIRECT_SCALAR_HIT
+}
+
+// resieve the 16-groups of [large_B, B) from the hit list the compress
+// kernels left for this poly: the list holds exactly the in-range roots,
+// so a group can have a survivor hit only if one of its entries' positions
+// is marked in the bitmap.  Such a group is resieved in full with
+// direct_resieve_group, so the divisions are the same, in the same order,
+// as testing every root.  Must run before the roots are advanced.
+void direct_resieve_hits(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    fb_list* fb = sconf->factor_base;
+    direct_pool_t* pool = dconf->dpool;
+    const uint64_t* bitmap = pool->bitmap;
+    const uint32_t* hits = pool->hits;
+    const uint32_t* gend = pool->hit_gend;
+    uint32_t* primes = dconf->update_data.prime;
+    uint32_t* fr1 = (uint32_t*)dconf->update_data.firstroots1;
+    uint32_t* fr2 = (uint32_t*)dconf->update_data.firstroots2;
+    uint32_t ngroups = (fb->B - fb->large_B) / 16;
+    uint32_t g, k, start, pf_shift = 0;
+    // 1024-bit prefilter, one bit per 2^pf_shift positions of both
+    // intervals: stays in L1, unlike the bitmap
+    uint64_t pf[16];
+
+    while (((uint64_t)1024 << pf_shift) < (2 * (uint64_t)pool->interval))
+        pf_shift++;
+    memset(pf, 0, sizeof(pf));
+    for (k = 0; k < pool->num; k++)
+    {
+        uint32_t b = pool->pos[k] >> pf_shift;
+        pf[b >> 6] |= (1ULL << (b & 63));
+    }
+
+    for (g = 0, k = 0; g < ngroups; g++)
+    {
+        uint32_t end = gend[g];
+        uint64_t any = 0;
+
+        for (start = k; k < end; k++)
+        {
+            uint32_t b = (hits[k] & 0xffffff) >> pf_shift;
+            any |= pf[b >> 6] >> (b & 63);
+        }
+
+        if ((any & 1) == 0)
+            continue;
+
+        // exact test of the group's entries
+        any = 0;
+        for (; start < end; start++)
+        {
+            uint32_t pos = hits[start] & 0xffffff;
+            any |= bitmap[pos >> 6] >> (pos & 63);
+        }
+
+        if (any & 1)
+        {
+            uint32_t j = fb->large_B + 16 * g;
+            direct_resieve_group(pool, j, primes + j, fr1 + j, fr2 + j);
+        }
+    }
+}
+
+// for vectorized walks of the hit list: if hit list entry k sits on a
+// survivor, resieve its 16-group in full (as direct_resieve_hits) and
+// return the index one past the group's entries, else return k + 1.
+// Entries must be visited in ascending order, skipping to the returned
+// index, so that each group is resieved at most once.
+uint32_t direct_resieve_hit_entry(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t k)
+{
+    fb_list* fb = sconf->factor_base;
+    direct_pool_t* pool = dconf->dpool;
+    const uint32_t* gend = pool->hit_gend;
+    uint32_t pos = pool->hits[k] & 0xffffff;
+    uint32_t lo, hi, j;
+
+    if (((pool->bitmap[pos >> 6] >> (pos & 63)) & 1) == 0)
+        return k + 1;
+
+    // the group holding entry k: the first with gend > k
+    lo = 0;
+    hi = (fb->B - fb->large_B) / 16 - 1;
+    while (lo < hi)
+    {
+        uint32_t mid = (lo + hi) >> 1;
+        if (gend[mid] > k) hi = mid;
+        else lo = mid + 1;
+    }
+
+    j = fb->large_B + 16 * lo;
+    direct_resieve_group(pool, j, dconf->update_data.prime + j,
+        (uint32_t*)dconf->update_data.firstroots1 + j,
+        (uint32_t*)dconf->update_data.firstroots2 + j);
+    return gend[lo];
+}
+
 // finalize every survivor of this poly (both sides): copy it into report
 // slot 0 of the scan arrays and run the normal finalization.  Must run
 // before nextB (trial_divide_Q_siqs uses curr_poly).  Leaves the pool
@@ -238,12 +391,15 @@ void direct_block_sub4(uint8_t* blk)
 // scalar kernels
 // ----------------------------------------------------------------------
 
-// scalar counterpart of direct_scatter16 (qs_impl.h): one 16-prime group
-// of [large_B, B) into both intervals.  p, r1, r2 are the group's primes
-// and roots (pos-side roots; neg side is p - r).
+// scalar counterpart of direct_scatter16 (direct_sieve_avx512.c): one
+// 16-prime group of [large_B, B) into both intervals.  p, r1, r2 are the
+// group's primes and roots (pos-side roots; neg side is p - r).  CREG /
+// CMEM append to the hit list hits[*nc...] and sieve the entries past
+// *flushed once DIRECT_CBUF_FLUSH of them are pending; the caller flushes
+// the rest after its loop.
 SIQS_FORCEINLINE void direct_scatter16_scalar(uint8_t* sieve, uint32_t interval,
     const uint32_t* p, const uint32_t* r1, const uint32_t* r2, uint8_t logp,
-    const int kmode, uint32_t* cbuf, uint32_t* nc, uint32_t* sink)
+    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink)
 {
     uint8_t* sieven = sieve + interval;
     int k;
@@ -253,14 +409,14 @@ SIQS_FORCEINLINE void direct_scatter16_scalar(uint8_t* sieve, uint32_t interval,
         // branch-free append, in the AVX-512 compress order
         uint32_t n = *nc;
         uint32_t tag = (uint32_t)logp << 24;
-        for (k = 0; k < 16; k++) { uint32_t r = r1[k]; cbuf[n] = r | tag; n += (r < interval); }
-        for (k = 0; k < 16; k++) { uint32_t r = r2[k]; cbuf[n] = r | tag; n += (r < interval); }
-        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r1[k]; cbuf[n] = (r + interval) | tag; n += (r < interval); }
-        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r2[k]; cbuf[n] = (r + interval) | tag; n += (r < interval); }
-        if (n >= DIRECT_CBUF_FLUSH)
+        for (k = 0; k < 16; k++) { uint32_t r = r1[k]; hits[n] = r | tag; n += (r < interval); }
+        for (k = 0; k < 16; k++) { uint32_t r = r2[k]; hits[n] = r | tag; n += (r < interval); }
+        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r1[k]; hits[n] = (r + interval) | tag; n += (r < interval); }
+        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r2[k]; hits[n] = (r + interval) | tag; n += (r < interval); }
+        if ((n - *flushed) >= DIRECT_CBUF_FLUSH)
         {
-            direct_compress_flush(sieve, cbuf, n);
-            n = 0;
+            direct_compress_flush(sieve, hits + *flushed, n - *flushed);
+            *flushed = n;
         }
         *nc = n;
     }
@@ -298,17 +454,22 @@ SIQS_FORCEINLINE void direct_sieve_largeprimes_scalar_body(uint8_t* sieve,
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     uint32_t j;
     uint8_t logp;
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
-    uint32_t nc = 0, sink = 0;
+    direct_pool_t* pool = dconf->dpool;
+    uint32_t* hits;
+    uint32_t nc = 0, flushed = 0, sink = 0;
+
+    direct_hits_reserve(pool, sconf);
+    hits = pool->hits;
 
     for (j = fb->large_B; (j + 16) <= fb->B; j += 16)
     {
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_scalar(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, cbuf, &nc, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink);
+        pool->hit_gend[(j - fb->large_B) / 16] = nc;
     }
-    direct_compress_flush(sieve, cbuf, nc);
+    direct_compress_flush(sieve, hits + flushed, nc - flushed);
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < fb->B; j++)
@@ -341,7 +502,9 @@ void direct_sieve_largeprimes_scalar_append(uint8_t* sieve, static_conf_t* sconf
 // fused resieve / root update / next-poly scatter (see
 // direct_resieve_update_body in direct_sieve_avx512.c).  Hits are tested in
 // the AVX-512 order (per 16-group: pos root1 lanes, pos root2 lanes, neg
-// root1, neg root2), so survivors' fb_offsets come out identical.
+// root1, neg root2), so survivors' fb_offsets come out identical.  The
+// compress kernels resieve from the hit list their previous scatter left
+// (direct_resieve_hits) and leave the next poly's.
 SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
     dynamic_conf_t* dconf, uint8_t* sieve, const int kmode)
 {
@@ -359,15 +522,21 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
     uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
     int resieve = (pool->num > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
-    const uint64_t* bitmap = pool->bitmap;
+    const int hitlist = ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM));
     uint32_t j;
     int k;
     uint8_t logp;
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
-    uint32_t nc = 0, sink = 0;
+    uint32_t* hits;
+    uint32_t nc = 0, flushed = 0, sink = 0;
 
     if ((sieve == NULL) && (!resieve))
         return;
+
+    direct_hits_reserve(pool, sconf);
+    hits = pool->hits;
+
+    if (resieve && hitlist)
+        direct_resieve_hits(sconf, dconf);
 
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
@@ -375,26 +544,8 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
         uint32_t* r1 = fr1 + j;
         uint32_t* r2 = fr2 + j;
 
-        if (resieve)
-        {
-            // branch-free in-range + survivor-bitmap test (in-range is a
-            // coin flip, so a branch on it mispredicts constantly); only
-            // the rare survivor hit branches to the out-of-line handler.
-            // Out-of-range lanes test bit 0 of a zero word instead.
-#define DIRECT_SCALAR_HIT(r, off, k) \
-            do { uint32_t _r = (r); \
-                uint32_t _m = 0 - (uint32_t)(_r < interval); \
-                uint32_t _q = (_r + (off)) & _m; \
-                uint64_t _w = bitmap[_q >> 6] & (uint64_t)(int64_t)(int32_t)_m; \
-                if ((_w >> (_q & 63)) & 1) \
-                    direct_resieve_hit(pool, _q, j + (k), p[k]); } while (0)
-
-            for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(r1[k], 0, k);
-            for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(r2[k], 0, k);
-            for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(p[k] - r1[k], interval, k);
-            for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(p[k] - r2[k], interval, k);
-#undef DIRECT_SCALAR_HIT
-        }
+        if (resieve && !hitlist)
+            direct_resieve_group(pool, j, p, r1, r2);
 
         if (sieve == NULL)
             continue;
@@ -425,11 +576,12 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
         // sieve the next poly's roots, both sides (as pass 1)
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_scalar(sieve, interval, p, r1, r2, logp, kmode,
-            cbuf, &nc, &sink);
+            hits, &nc, &flushed, &sink);
+        pool->hit_gend[(j - large_B) / 16] = nc;
     }
 
     // nc stays 0 when sieve == NULL
-    direct_compress_flush(sieve, cbuf, nc);
+    direct_compress_flush(sieve, hits + flushed, nc - flushed);
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < bound; j++, ptr++)
