@@ -220,7 +220,7 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
-    int resieve = (pool->num > 0);
+    int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const uint64_t* bitmap = pool->bitmap;
     // CREG resieves the 16-groups from the hit list its previous scatter
@@ -242,7 +242,10 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
     hits = pool->hits;
 
     if (resieve && hitlist)
+    {
         direct_resieve_hits(sconf, dconf);
+        resieve = (pool->active > 0);
+    }
 
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
@@ -276,6 +279,9 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
                 if ((w >> (qq & 63)) & 1)
                     direct_resieve_hit(pool, qq, j + (k & 15), primes[j + (k & 15)]);
             }
+
+            if (pool->active == 0)
+                resieve = 0;
         }
 
         if (sieve == NULL)

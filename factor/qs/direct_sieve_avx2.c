@@ -340,6 +340,10 @@ static void direct_resieve_hits_avx2(static_conf_t* sconf, dynamic_conf_t* dconf
                 skip = direct_resieve_hit_entry(sconf, dconf, i);
         }
 
+        // whole groups were resieved, so this is a group boundary
+        if (pool->active == 0)
+            break;
+
         k += 8;
         if (skip > k)
             k = skip;
@@ -361,7 +365,7 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
-    int resieve = (pool->num > 0);
+    int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const int* bitmap32 = (const int*)pool->bitmap;
     // CREG resieves from the hit list its previous scatter left
@@ -405,7 +409,10 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
     }
 
     if (resieve && hitlist)
+    {
         direct_resieve_hits_avx2(sconf, dconf);
+        resieve = (pool->active > 0);
+    }
 
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
@@ -449,6 +456,9 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
             DIRECT_RS16(a0, a1, 1);
             DIRECT_RS16(b0, b1, 1);
 #undef DIRECT_RS16
+
+            if (pool->active == 0)
+                rs_groups = resieve = 0;
         }
 
         if (sieve == NULL)

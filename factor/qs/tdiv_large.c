@@ -448,6 +448,14 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 #else
 		uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
 		uint32_t result = 0;
 
 #if defined (_MSC_VER) && !defined(__INTEL_COMPILER) && !defined(__clang__)
@@ -765,6 +773,14 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
 #else
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
         uint32_t result = 0;
 
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
@@ -992,6 +1008,14 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
 #else
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
         uint32_t result = 0;
 
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
@@ -1208,6 +1232,14 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 #else
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
         uint32_t result = 0;
 
 

@@ -350,8 +350,12 @@ typedef struct
 typedef struct
 {
     uint32_t num;           // survivors in the pool for the current poly
-    uint32_t active;        // reduce as survivors are completely factored in resieving.
+    uint32_t active;        // survivors resieving may still divide (act[k] set)
     uint32_t alloc;         // allocated entries
+    uint8_t* act;           // [alloc] 1 while Q >= p^2 for the resieve's current
+                            // prime p; else Q is 1 or prime and resieving it is
+                            // pointless (trial_divide_Q_siqs looks up an fb
+                            // prime Q)
     uint32_t interval;      // num_blocks * 32768
     uint32_t* pos;          // [alloc] interval position, both sides
     mpz_t* Q;               // [alloc] partially factored Q
@@ -575,7 +579,8 @@ typedef struct {
     int scan_unrolling;			// how many bytes to unroll the sieve scan
 
     // large-prime sieve strategy, resolved in siqs_static_init
-    // (siqs_resolve_strategy); see the strategy notes near TRY_DIRECT_SIEVE
+    // (siqs_choose_large before get_params for lp_direct, the rest in
+    // siqs_resolve_strategy); see the strategy notes near TRY_DIRECT_SIEVE
     int lp_direct;              // 1: [large_B, B) direct sieve, 0: buckets
     int mid_bucket;             // 1: [med_B, large_B) buckets, 0: sparse sieve
     int lp_kernel;              // SIQS_K_* for the direct scatter
@@ -938,6 +943,34 @@ static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, ui
         uint32_t e = buf[k];
         sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
     }
+}
+
+// for the large-prime early exits, which leave Q = 1 or prime once Q <
+// p^2: if Q is an fb prime in [lo, hi), record it and set Q = 1 (a full
+// relation instead of a large prime); returns the new smooth_num.
+// primes is sorted ascending.
+static inline int siqs_lp_fb_lookup(mpz_t Q, const uint32_t* primes,
+    uint32_t lo, uint32_t hi, uint32_t* fb_offsets, int smooth_num)
+{
+    uint32_t q;
+
+    if ((lo >= hi) || (mpz_size(Q) != 1) ||
+        (mpz_cmp_ui(Q, primes[hi - 1]) > 0) || (mpz_cmp_ui(Q, primes[lo]) < 0))
+        return smooth_num;
+
+    q = (uint32_t)mpz_get_ui(Q);
+    while (lo < hi)
+    {
+        uint32_t mid = (lo + hi) >> 1;
+        if (primes[mid] < q) lo = mid + 1;
+        else hi = mid;
+    }
+    if ((primes[lo] == q) && (smooth_num < (MAX_SMOOTH_PRIMES - 1)))
+    {
+        fb_offsets[++smooth_num] = lo;
+        mpz_set_ui(Q, 1);
+    }
+    return smooth_num;
 }
 
 static inline void direct_compress_flush_fast(uint8_t* sieve, const uint32_t* buf, uint32_t n, uint8_t logp)

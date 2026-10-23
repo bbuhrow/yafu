@@ -4340,6 +4340,24 @@ static uint32_t siqs_lp_boundary(static_conf_t* sconf, int round_up)
     return fb->B;
 }
 
+// the [large_B, B) strategy (option, else DIRECT_DEFAULT_LARGE / direct).
+// Depends on nothing get_params produces, so it runs before get_params,
+// whose parameter tables differ by strategy.
+static void siqs_choose_large(static_conf_t* sconf)
+{
+    uint32_t large = sconf->obj->qs_obj.gbl_siqs_large;
+
+    if (large == SIQS_STRAT_AUTO)
+    {
+#if defined(DIRECT_DEFAULT_LARGE)
+        large = DIRECT_DEFAULT_LARGE;
+#else
+        large = SIQS_LARGE_DIRECT;
+#endif
+    }
+    sconf->lp_direct = (large == SIQS_LARGE_DIRECT);
+}
+
 // choose the large-prime strategy (options, else DIRECT_DEFAULT_*), check
 // it against what this input/CPU supports, set fb_blk8i / large_B to match
 // and pick the kernels.  Must run after scan_ptr is chosen.
@@ -4348,7 +4366,6 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     fact_obj_t* obj = sconf->obj;
     fb_list* fb = sconf->factor_base;
     uint32_t mid = obj->qs_obj.gbl_siqs_mid;
-    uint32_t large = obj->qs_obj.gbl_siqs_large;
     uint32_t kernel = obj->qs_obj.gbl_siqs_kernel;
     uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
     uint32_t boundary, isa;
@@ -4397,15 +4414,11 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         uint32_t span = 2 * sconf->num_blocks * 32768;
         uint32_t dmid = (wide && (span <= ytools_get_l2_core_size())) ?
             SIQS_MID_SPARSE : SIQS_MID_BUCKET;
-        uint32_t dlarge = SIQS_LARGE_DIRECT;
         uint32_t dkern = ((isa == SIQS_ISA_AVX512) && !ytools_cpu_is_amd()) ?
             SIQS_K_CMEM : SIQS_K_CREG;
         uint32_t dskern = dkern;
 #if defined(DIRECT_DEFAULT_MID)
         dmid = DIRECT_DEFAULT_MID;
-#endif
-#if defined(DIRECT_DEFAULT_LARGE)
-        dlarge = DIRECT_DEFAULT_LARGE;
 #endif
 #if defined(DIRECT_DEFAULT_KERNEL)
         dkern = DIRECT_DEFAULT_KERNEL;
@@ -4414,7 +4427,6 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         dskern = DIRECT_DEFAULT_SPARSE_KERNEL;
 #endif
         if (mid == SIQS_STRAT_AUTO) mid = dmid;
-        if (large == SIQS_STRAT_AUTO) large = dlarge;
         if (kernel == SIQS_STRAT_AUTO) kernel = dkern;
         if (skernel == SIQS_STRAT_AUTO) skernel = dskern;
     }
@@ -4426,7 +4438,7 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         skernel = SIQS_K_CMEM;
     }
 
-    sconf->lp_direct = (large == SIQS_LARGE_DIRECT);
+    // sconf->lp_direct: siqs_choose_large, before get_params
     sconf->mid_bucket = (mid == SIQS_MID_BUCKET);
     sconf->lp_kernel = kernel;
     sconf->sparse_kernel = skernel;
@@ -4964,6 +4976,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		memsize = sconf->cycle_table_alloc * sizeof(qs_cycle_t);
 		printf("\tinitial cycle table: %d bytes\n",memsize);
 	}
+
+	// get_params' tables depend on the large-prime strategy
+#if defined(TRY_DIRECT_SIEVE)
+	siqs_choose_large(sconf);
+#else
+	sconf->lp_direct = 0;
+#endif
 
 	while (1)
 	{

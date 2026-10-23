@@ -398,7 +398,6 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
     }
 #endif
 
-
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
         __m512i vprime = _mm512_loadu_si512(primes + j);
@@ -526,7 +525,10 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
             }
 
             if (pool->active == 0)
+            {
+                //printf("resieve now inactive\n");
                 resieve = 0;
+            }
         }
 
         if (sieve == NULL)

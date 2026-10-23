@@ -298,6 +298,13 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 #endif
     
 
+	// the large-prime early exits (tdiv_LP, the direct resieve) stop once
+	// Q < p^2, leaving Q = an fb prime they would have divided out later:
+	// find it here, so the relation is a full instead of a large prime
+	smooth_num = siqs_lp_fb_lookup(dconf->Qvals[report_num],
+		sconf->factor_base->list->prime, 2, sconf->factor_base->B,
+		fb_offsets, smooth_num);
+
 	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))

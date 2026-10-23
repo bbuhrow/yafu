@@ -53,6 +53,7 @@ direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
     for (i = 0; i < pool->alloc; i++)
         mpz_init(pool->Q[i]);
     pool->smooth_num = (int*)xmalloc(pool->alloc * sizeof(int));
+    pool->act = (uint8_t*)xmalloc(pool->alloc * sizeof(uint8_t));
     pool->fb_offsets = (uint32_t*)xmalloc(
         (size_t)pool->alloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
 
@@ -97,6 +98,7 @@ void direct_pool_free(direct_pool_t* pool)
     free(pool->Q);
     free(pool->pos);
     free(pool->smooth_num);
+    free(pool->act);
     free(pool->fb_offsets);
     free(pool->bitmap);
     if (pool->hits_alloc > 0)
@@ -118,11 +120,21 @@ static void direct_pool_grow(direct_pool_t* pool)
     for (i = pool->alloc; i < newalloc; i++)
         mpz_init(pool->Q[i]);
     pool->smooth_num = (int*)xrealloc(pool->smooth_num, newalloc * sizeof(int));
+    pool->act = (uint8_t*)xrealloc(pool->act, newalloc * sizeof(uint8_t));
     pool->fb_offsets = (uint32_t*)xrealloc(pool->fb_offsets,
         (size_t)newalloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
     pool->alloc = newalloc;
 
     return;
+}
+
+// 1 if Q >= p^2.  Q has no fb factors below p when this is asked, so
+// otherwise Q is 1 or prime: dividing it by p or a larger fb prime can
+// only turn a large prime into a full relation.  p^2 needs 64 bits and
+// unsigned long may be 32, hence the double (exact: p < 2^26).
+static int direct_q_open(mpz_t Q, uint32_t p)
+{
+    return mpz_cmp_d(Q, (double)p * (double)p) >= 0;
 }
 
 // move scan survivor report_num of block bnum, side parity, into the pool.
@@ -131,16 +143,14 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
     direct_pool_t* pool = dconf->dpool;
+    fb_list* fb = sconf->factor_base;
     uint32_t k, pos;
     int smooth_num = dconf->smooth_num[report_num];
-
-    (void)sconf;
 
     if (pool->num == pool->alloc)
         direct_pool_grow(pool);
 
     k = pool->num++;
-    
     pos = parity * pool->interval + (bnum << 15) + dconf->reports[report_num];
     pool->pos[k] = pos;
     mpz_swap(pool->Q[k], dconf->Qvals[report_num]);
@@ -150,10 +160,15 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
             dconf->fb_offsets[report_num], (smooth_num + 1) * sizeof(uint32_t));
     pool->bitmap[pos >> 6] |= (1ULL << (pos & 63));
 
-    // check if resieving is possible
-    uint32_t p = sconf->factor_base->list->prime[sconf->factor_base->large_B];
-    if (mpz_cmp_ui(dconf->Qvals[report_num], p * p) >= 0)
-        pool->active++;
+    // all fb primes below large_B are divided out by now: count the
+    // survivors the [large_B, B) resieve can still divide
+    pool->act[k] = (fb->large_B < fb->B) &&
+        direct_q_open(pool->Q[k], fb->list->prime[fb->large_B]);
+    pool->active += pool->act[k];
+
+    //uint32_t p = sconf->factor_base->list->prime[sconf->factor_base->large_B];
+    //if (mpz_cmp_ui(dconf->Qvals[report_num], p * p) >= 0)
+    //    pool->active++;
 
     return;
 }
@@ -197,8 +212,19 @@ void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
     } while (mpz_tdiv_ui(pool->Q[k], prime) == 0);
     pool->smooth_num[k] = smooth_num;
 
-    if (mpz_cmp_ui(pool->Q[k], prime * prime) < 0)
+    // resieving is done in ascending prime order (to within a 16-group),
+    // so once Q < prime^2 it is 1 or prime.  The flag keeps a survivor
+    // that is hit again (Q itself a larger fb prime) from being
+    // uncounted twice.
+    if (pool->act[k] && !direct_q_open(pool->Q[k], prime))
+    
+    {
+        pool->act[k] = 0;
         pool->active--;
+    }
+
+    //if (mpz_cmp_ui(pool->Q[k], prime * prime) < 0)
+    //    pool->active--;
 
     return;
 }
@@ -269,6 +295,8 @@ void direct_resieve_hits(static_conf_t* sconf, dynamic_conf_t* dconf)
         {
             uint32_t j = fb->large_B + 16 * g;
             direct_resieve_group(pool, j, primes + j, fr1 + j, fr2 + j);
+            if (pool->active == 0)
+                break;
         }
     }
 }
@@ -337,6 +365,7 @@ void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
     }
 
     pool->num = 0;
+    pool->active = 0;
 
     return;
 }
@@ -510,7 +539,7 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
-    int resieve = (pool->num > 0);
+    int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const int hitlist = ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM));
     uint32_t j;
@@ -526,7 +555,10 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
     hits = pool->hits;
 
     if (resieve && hitlist)
+    {
         direct_resieve_hits(sconf, dconf);
+        resieve = (pool->active > 0);
+    }
 
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
@@ -535,7 +567,11 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
         uint32_t* r2 = fr2 + j;
 
         if (resieve && !hitlist)
+        {
             direct_resieve_group(pool, j, p, r1, r2);
+            if (pool->active == 0)
+                resieve = 0;
+        }
 
         if (sieve == NULL)
             continue;
