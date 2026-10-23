@@ -140,7 +140,7 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
         direct_pool_grow(pool);
 
     k = pool->num++;
-    pool->active++;
+    
     pos = parity * pool->interval + (bnum << 15) + dconf->reports[report_num];
     pool->pos[k] = pos;
     mpz_swap(pool->Q[k], dconf->Qvals[report_num]);
@@ -149,6 +149,11 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
         memcpy(&pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
             dconf->fb_offsets[report_num], (smooth_num + 1) * sizeof(uint32_t));
     pool->bitmap[pos >> 6] |= (1ULL << (pos & 63));
+
+    // check if resieving is possible
+    uint32_t p = sconf->factor_base->list->prime[sconf->factor_base->large_B];
+    if (mpz_cmp_ui(dconf->Qvals[report_num], p * p) >= 0)
+        pool->active++;
 
     return;
 }
@@ -191,7 +196,8 @@ void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
         mpz_tdiv_q_ui(pool->Q[k], pool->Q[k], prime);
     } while (mpz_tdiv_ui(pool->Q[k], prime) == 0);
     pool->smooth_num[k] = smooth_num;
-    if (mpz_cmp_ui(pool->Q[k], prime) < 0)
+
+    if (mpz_cmp_ui(pool->Q[k], prime * prime) < 0)
         pool->active--;
 
     return;

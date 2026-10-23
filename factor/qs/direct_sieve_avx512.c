@@ -341,7 +341,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
-    int resieve = (pool->num > 0);
+    int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     uint32_t j;
     uint8_t logp;
