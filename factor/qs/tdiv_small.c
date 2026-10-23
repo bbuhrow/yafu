@@ -128,6 +128,18 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 	{
 		uint64_t q64;
 
+#if defined(SIQS_SKIP_BLOCK_LOC0)
+		// set_aprime_roots gives a-primes > 8192 prime = root = 0, so every
+		// block's location 0 is over-sieved by their logp: a junk report that
+		// otherwise survives into trial division (the sse2 scans skip it; the
+		// avx2/avx512 scans don't)
+		if (dconf->reports[report_num] == 0)
+		{
+			dconf->valid_Qs[report_num] = 0;
+			continue;
+		}
+#endif
+
 #if defined(USE_SS_SEARCH) && defined(USE_POLY_BUCKET_SS)
 		if (dconf->reports[report_num] == 32767)
 		{

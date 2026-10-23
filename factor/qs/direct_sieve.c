@@ -19,6 +19,7 @@ errors.
 //    direct range, whose roots the fused pass advances).
 
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include "qs_impl.h"
 #include "ytools.h"
@@ -46,6 +47,16 @@ direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
 
     pool->num = 0;
     pool->active = 0;
+    pool->ab_saved = 0;
+    pool->ab_miss = 0;
+    pool->ex_polys = pool->ex_resolved = 0;
+    memset(pool->ex_hist, 0, sizeof(pool->ex_hist));
+    memset(pool->ex_qbits, 0, sizeof(pool->ex_qbits));
+    pool->ex_loc0 = 0;
+    pool->ex_skip = pool->ex_groups = 0;
+    pool->ab_samp = pool->ab_sampdiv = 0;
+    pool->ab_num[0] = pool->ab_num[1] = 0;
+    pool->ab_wrong[0] = pool->ab_wrong[1] = 0;
     pool->alloc = 1024;
     pool->interval = num_blocks << 15;
     pool->pos = (uint32_t*)xmalloc(pool->alloc * sizeof(uint32_t));
@@ -54,6 +65,17 @@ direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
         mpz_init(pool->Q[i]);
     pool->smooth_num = (int*)xmalloc(pool->alloc * sizeof(int));
     pool->act = (uint8_t*)xmalloc(pool->alloc * sizeof(uint8_t));
+    pool->ab_est = (int16_t*)xmalloc(pool->alloc * sizeof(int16_t));
+    pool->ab_rem = (int16_t*)xmalloc(pool->alloc * sizeof(int16_t));
+    pool->ab_byte = (uint8_t*)xmalloc(pool->alloc * sizeof(uint8_t));
+    memset(pool->ab_bytes, 0, sizeof(pool->ab_bytes));
+    memset(pool->ab_allq, 0, sizeof(pool->ab_allq));
+    pool->ab_junk = pool->ab_junk_last = pool->ab_junk_first = 0;
+    memset(pool->ab_junk_blk, 0, sizeof(pool->ab_junk_blk));
+    memset(pool->ab_junk_loc, 0, sizeof(pool->ab_junk_loc));
+    pool->ab_junk_side[0] = pool->ab_junk_side[1] = 0;
+    pool->ab_sn0 = (int16_t*)xmalloc(pool->alloc * sizeof(int16_t));
+    memset(pool->ab_hist, 0, sizeof(pool->ab_hist));
     pool->fb_offsets = (uint32_t*)xmalloc(
         (size_t)pool->alloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
 
@@ -93,12 +115,64 @@ void direct_pool_free(direct_pool_t* pool)
 {
     uint32_t i;
 
+#if defined(DIRECT_EXIT_STATS)
+    if (pool->ex_polys > 0)
+        printf("direct exit: %" PRIu64 " polys, %" PRIu64 " with all survivors resolved\n",
+            pool->ex_polys, pool->ex_resolved);
+    if (pool->ex_polys > 0)
+    {
+        for (i = 0; i < 16; i++)
+            printf("  exhist %2u: %" PRIu64 "\n", i, pool->ex_hist[i]);
+        for (i = 0; i < 256; i++)
+            if (pool->ex_qbits[i])
+                printf("  exqbits %3u: %" PRIu64 "\n", i, pool->ex_qbits[i]);
+        printf("  exloc0 %" PRIu64 "\n", pool->ex_loc0);
+        printf("  exskip %" PRIu64 " of %" PRIu64 " resieve groups skipped\n", pool->ex_skip, pool->ex_groups);
+    }
+#endif
+#ifdef DIRECT_ABANDON_STATS
+    if (pool->ab_saved > 0)
+        printf("direct abandon: %" PRIu64 " survivors; nolarge %" PRIu64
+            " (%" PRIu64 " wrong), hopeless %" PRIu64 " (%" PRIu64 " wrong)\n",
+            pool->ab_saved, pool->ab_num[0], pool->ab_wrong[0],
+            pool->ab_num[1], pool->ab_wrong[1]);
+#if defined(DIRECT_ABANDON_NOLARGE)
+    if (pool->ab_saved > 0)
+    {
+        printf("direct abandon: %" PRIu64 " bitmap hits not found in pos[]\n", pool->ab_miss);
+        printf("direct abandon: sampled %" PRIu64 " big-error no-hit survivors, %" PRIu64 " divisible by a range prime\n",
+            pool->ab_samp, pool->ab_sampdiv);
+        for (i = 0; i < 256; i++)
+            if (pool->ab_bytes[i])
+                printf("  sminusq %4d: %" PRIu64 "\n", (int)i - 128, pool->ab_bytes[i]);
+        for (i = 0; i < 256; i++)
+            if (pool->ab_allq[i])
+                printf("  allsminusq %4d: %" PRIu64 "\n", (int)i - 128, pool->ab_allq[i]);
+        printf("  blockinit %u\n", (uint32_t)pool->ab_init);
+        printf("  junk %" PRIu64 " loc32767 %" PRIu64 " loc0 %" PRIu64 " side0 %" PRIu64 " side1 %" PRIu64 "\n",
+            pool->ab_junk, pool->ab_junk_last, pool->ab_junk_first, pool->ab_junk_side[0], pool->ab_junk_side[1]);
+        for (i = 0; i < 16; i++)
+            printf("  junkblk %2u: %" PRIu64 "  junkloc %5u: %" PRIu64 "\n", i, pool->ab_junk_blk[i],
+                i << 11, pool->ab_junk_loc[i]);
+        printf("direct abandon: est large logp histogram (est: no-resieve-hit / hit)\n");
+        for (i = 0; i < 64; i++)
+            if (pool->ab_hist[0][i] | pool->ab_hist[1][i])
+                printf("  est %2u: %" PRIu64 " / %" PRIu64 "\n", i,
+                    pool->ab_hist[0][i], pool->ab_hist[1][i]);
+    }
+#endif
+#endif
+
     for (i = 0; i < pool->alloc; i++)
         mpz_clear(pool->Q[i]);
     free(pool->Q);
     free(pool->pos);
     free(pool->smooth_num);
     free(pool->act);
+    free(pool->ab_est);
+    free(pool->ab_rem);
+    free(pool->ab_byte);
+    free(pool->ab_sn0);
     free(pool->fb_offsets);
     free(pool->bitmap);
     if (pool->hits_alloc > 0)
@@ -121,6 +195,10 @@ static void direct_pool_grow(direct_pool_t* pool)
         mpz_init(pool->Q[i]);
     pool->smooth_num = (int*)xrealloc(pool->smooth_num, newalloc * sizeof(int));
     pool->act = (uint8_t*)xrealloc(pool->act, newalloc * sizeof(uint8_t));
+    pool->ab_est = (int16_t*)xrealloc(pool->ab_est, newalloc * sizeof(int16_t));
+    pool->ab_rem = (int16_t*)xrealloc(pool->ab_rem, newalloc * sizeof(int16_t));
+    pool->ab_byte = (uint8_t*)xrealloc(pool->ab_byte, newalloc * sizeof(uint8_t));
+    pool->ab_sn0 = (int16_t*)xrealloc(pool->ab_sn0, newalloc * sizeof(int16_t));
     pool->fb_offsets = (uint32_t*)xrealloc(pool->fb_offsets,
         (size_t)newalloc * MAX_SMOOTH_PRIMES * sizeof(uint32_t));
     pool->alloc = newalloc;
@@ -136,6 +214,63 @@ static int direct_q_open(mpz_t Q, uint32_t p)
 {
     return mpz_cmp_d(Q, (double)p * (double)p) >= 0;
 }
+
+#if defined(DIRECT_ABANDON_NOLARGE)
+// 1 if the sieve byte of this survivor shows no [large_B, B) prime hit:
+// the total logp sieved here, less that of the fb primes below large_B
+// that tdiv found dividing Q (once per prime, as sieved; tiny primes
+// aren't sieved), is less than one range prime's logp.  The minblock's
+// lower init, the per-16 logp approximation and powers only inflate the
+// remainder, i.e. err toward keeping the survivor active.
+static int direct_large_logp(uint32_t report_num, static_conf_t* sconf,
+    dynamic_conf_t* dconf)
+{
+    fb_list* fb = sconf->factor_base;
+    uint32_t* offs = dconf->fb_offsets[report_num];
+    int smooth_num = dconf->smooth_num[report_num];
+    int init = sconf->blockinit;
+#if defined(DIRECT_ABANDON_STATS)
+    dconf->dpool->ab_init = sconf->blockinit;
+#endif
+    int v = dconf->sieve[dconf->reports[report_num]];
+    int sieved, j;
+    uint32_t prev = 0xffffffff;
+
+    // reports have the high bit set, i.e. init - sieved wrapped below 0
+    if (init >= 128)
+        return 255;
+    if (v > init)
+        v -= 256;
+    sieved = init - v;
+
+    for (j = 0; j <= smooth_num; j++)
+    {
+        uint32_t i = offs[j];
+        if ((i != prev) && (i >= sconf->sieve_small_fb_start) && (i < fb->large_B))
+            sieved -= (int)fb->list->logprime[i];
+        prev = i;
+    }
+
+    return sieved;
+}
+
+static int direct_no_large_hit(int large_logp, static_conf_t* sconf)
+{
+    return large_logp < ((int)sconf->factor_base->list->logprime[
+        sconf->factor_base->large_B] - DIRECT_ABANDON_MARGIN);
+}
+#endif
+
+#if defined(DIRECT_ABANDON_HOPELESS)
+// largest cofactor finalization keeps under this LP variation
+static double direct_cofactor_max(static_conf_t* sconf)
+{
+    if (sconf->use_dlp >= 3) return sconf->large_prime_max4;
+    if (sconf->use_dlp >= 2) return sconf->large_prime_max3;
+    if (sconf->use_dlp >= 1) return (double)sconf->large_prime_max2;
+    return (double)sconf->large_prime_max;
+}
+#endif
 
 // move scan survivor report_num of block bnum, side parity, into the pool.
 // Called in scan order, so pool->pos stays sorted.
@@ -164,7 +299,84 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
     // survivors the [large_B, B) resieve can still divide
     pool->act[k] = (fb->large_B < fb->B) &&
         direct_q_open(pool->Q[k], fb->list->prime[fb->large_B]);
-    pool->active += pool->act[k];
+
+#if defined(DIRECT_ABANDON_NOLARGE) || defined(DIRECT_ABANDON_HOPELESS)
+    pool->ab_saved++;
+#endif
+#if defined(DIRECT_ABANDON_NOLARGE)
+    int large_logp = direct_large_logp(report_num, sconf, dconf);
+#if defined(DIRECT_ABANDON_EXHAUSTED)
+    // range logp still unaccounted for; the resieve hits count it down
+    pool->ab_rem[k] = (int16_t)large_logp;
+    pool->logprime = fb->list->logprime;
+#endif
+#if defined(DIRECT_ABANDON_STATS)
+    // calibration: histogrammed at finalization by whether the resieve
+    // divided the survivor
+    pool->ab_est[k] = (int16_t)large_logp;
+    {
+        // diagnostic: sieved logp S against the size of Q(x) itself
+        mpz_t qx, t;
+        uint32_t off = (bnum << sconf->qs_blockbits) + dconf->reports[report_num];
+        int v = dconf->sieve[dconf->reports[report_num]], d;
+        mpz_init(qx);
+        mpz_init(t);
+        if (sconf->knmod8 == 1)
+        {
+            mpz_mul_ui(t, dconf->curr_poly->mpz_poly_a, off);
+            if (parity) mpz_sub(qx, t, dconf->curr_poly->mpz_poly_b);
+            else mpz_add(qx, t, dconf->curr_poly->mpz_poly_b);
+        }
+        else
+        {
+            mpz_mul_ui(t, dconf->curr_poly->mpz_poly_a, off);
+            if (parity) mpz_submul_ui(t, dconf->curr_poly->mpz_poly_b, 2);
+            else mpz_addmul_ui(t, dconf->curr_poly->mpz_poly_b, 2);
+            mpz_set(qx, t);
+        }
+        mpz_mul_ui(qx, qx, off);
+        mpz_add(qx, qx, dconf->curr_poly->mpz_poly_c);
+        if (v > (int)sconf->blockinit) v -= 256;
+        d = ((int)sconf->blockinit - v) - (int)mpz_sizeinbase(qx, 2);
+        d += 128;
+        pool->ab_byte[k] = (uint8_t)((d < 0) ? 0 : ((d > 255) ? 255 : d));
+        pool->ab_allq[pool->ab_byte[k]]++;
+        if (d > 128 + 4)
+        {
+            uint32_t loc = dconf->reports[report_num];
+            pool->ab_junk++;
+            if (loc == 32767) pool->ab_junk_last++;
+            if (loc == 0) pool->ab_junk_first++;
+            pool->ab_junk_blk[(bnum < 15) ? bnum : 15]++;
+            pool->ab_junk_side[parity]++;
+            pool->ab_junk_loc[loc >> 11]++;
+        }
+        mpz_clear(qx);
+        mpz_clear(t);
+    }
+    pool->ab_sn0[k] = (int16_t)smooth_num;
+#endif
+    if (pool->act[k] && direct_no_large_hit(large_logp, sconf))
+    {
+        pool->act[k] = 2;
+        pool->ab_num[0]++;
+    }
+#endif
+#if defined(DIRECT_ABANDON_HOPELESS)
+    if ((pool->act[k] == 1) && (mpz_cmp_d(pool->Q[k], direct_cofactor_max(sconf) *
+        pow((double)sconf->pmax, DIRECT_ABANDON_K)) > 0))
+    {
+        pool->act[k] = 3;
+        pool->ab_num[1]++;
+    }
+#endif
+
+#if defined(DIRECT_ABANDON_STATS)
+    // abandoned survivors stay counted, so resieving sees every one
+    pool->active += (pool->act[k] != 0);
+#else
+    pool->active += (pool->act[k] == 1);
+#endif
 
     //uint32_t p = sconf->factor_base->list->prime[sconf->factor_base->large_B];
     //if (mpz_cmp_ui(dconf->Qvals[report_num], p * p) >= 0)
@@ -197,7 +409,12 @@ void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
         else hi = mid - 1;
     }
     if (k < 0)
+    {
+#if defined(DIRECT_ABANDON_STATS)
+        pool->ab_miss++;
+#endif
         return;
+    }
 
     if ((mpz_sgn(pool->Q[k]) == 0) || (mpz_tdiv_ui(pool->Q[k], prime) != 0))
         return;
@@ -212,11 +429,38 @@ void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
     } while (mpz_tdiv_ui(pool->Q[k], prime) == 0);
     pool->smooth_num[k] = smooth_num;
 
+#if defined(DIRECT_ABANDON_STATS)
+    // an abandoned survivor that the resieve divides was abandoned wrongly;
+    // it stays counted in active (see direct_save_survivor)
+    if ((pool->act[k] == 2) || (pool->act[k] == 3))
+    {
+        pool->ab_wrong[pool->act[k] - 2]++;
+        pool->act[k] = 4;     // counted once; stays in active
+    }
+#endif
+
+#if defined(DIRECT_ABANDON_EXHAUSTED)
+    // the range primes divided so far account for all of the range logp
+    // in this survivor's sieve byte: no more resieve hits can come (e.g.
+    // Q = q * L1 * L2 is left as L1 * L2 > prime^2, never hit again)
+    pool->ab_rem[k] = (int16_t)(pool->ab_rem[k] - (int)pool->logprime[fbi]);
+    if ((pool->act[k] == 1) &&
+        (pool->ab_rem[k] < ((int)pool->logprime[fbi] - DIRECT_ABANDON_MARGIN)))
+    {
+        pool->act[k] = 2;
+        pool->ab_num[0]++;
+#if !defined(DIRECT_ABANDON_STATS)
+        pool->active--;
+#endif
+        return;
+    }
+#endif
+
     // resieving is done in ascending prime order (to within a 16-group),
     // so once Q < prime^2 it is 1 or prime.  The flag keeps a survivor
     // that is hit again (Q itself a larger fb prime) from being
     // uncounted twice.
-    if (pool->act[k] && !direct_q_open(pool->Q[k], prime))
+    if ((pool->act[k] == 1) && !direct_q_open(pool->Q[k], prime))
     
     {
         pool->act[k] = 0;
@@ -344,6 +588,19 @@ void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t interval = pool->interval;
     uint32_t k;
 
+#if defined(DIRECT_EXIT_STATS)
+    for (k = 0; k < pool->num; k++)
+    {
+        // the survivors still active at the end: what are they?
+        if (pool->act[k] == 1)
+        {
+            size_t b = mpz_sizeinbase(pool->Q[k], 2);
+            pool->ex_qbits[(b < 255) ? b : 255]++;
+            pool->ex_loc0 += ((pool->pos[k] & 32767) == 0);
+        }
+    }
+#endif
+
     for (k = 0; k < pool->num; k++)
     {
         uint32_t pos = pool->pos[k];
@@ -352,6 +609,42 @@ void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
         int smooth_num = pool->smooth_num[k];
 
         pool->bitmap[pos >> 6] &= ~(1ULL << (pos & 63));
+
+#if defined(DIRECT_ABANDON_STATS) && defined(DIRECT_ABANDON_NOLARGE)
+        {
+            // estimate error: est less the exact logp of the range primes
+            // the resieve divided (once per prime, as sieved)
+            uint32_t* offs = &pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES];
+            uint32_t prev = 0xffffffff;
+            int j, e = pool->ab_est[k];
+            for (j = pool->ab_sn0[k] + 1; j <= smooth_num; j++)
+            {
+                if (offs[j] != prev)
+                    e -= (int)sconf->factor_base->list->logprime[offs[j]];
+                prev = offs[j];
+            }
+            // sample the big-error no-hit survivors: does any range prime
+            // still divide Q (a resieve miss)?
+            if ((e >= 31) && (smooth_num == pool->ab_sn0[k]) &&
+                ((pool->ab_hist[0][63] % 10) == 0))
+            {
+                uint32_t pi;
+                pool->ab_samp++;
+                pool->ab_bytes[pool->ab_byte[k]]++;
+                for (pi = sconf->factor_base->large_B; pi < sconf->factor_base->B; pi++)
+                {
+                    if (mpz_tdiv_ui(pool->Q[k], sconf->factor_base->list->prime[pi]) == 0)
+                    {
+                        pool->ab_sampdiv++;
+                        break;
+                    }
+                }
+            }
+            e += 32;
+            e = (e < 0) ? 0 : ((e > 63) ? 63 : e);
+            pool->ab_hist[smooth_num > pool->ab_sn0[k]][e]++;
+        }
+#endif
 
         mpz_swap(dconf->Qvals[0], pool->Q[k]);
         dconf->smooth_num[0] = smooth_num;
@@ -364,6 +657,12 @@ void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
         trial_divide_Q_siqs(0, side, dconf->numB - 1, loc >> 15, sconf, dconf);
     }
 
+#if defined(DIRECT_EXIT_STATS)
+    // polys whose survivors all resolved (so the resieve could stop early)
+    pool->ex_polys++;
+    pool->ex_resolved += ((pool->num > 0) && (pool->active == 0));
+    pool->ex_hist[(pool->active < 15) ? pool->active : 15]++;
+#endif
     pool->num = 0;
     pool->active = 0;
 

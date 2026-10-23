@@ -143,6 +143,40 @@
 #ifndef DIRECT_PREFILTER_BITS
 #define DIRECT_PREFILTER_BITS 1024
 #endif
+// experimental: start survivors inactive for the resieve early exit
+// (direct_save_survivor) when the [large_B, B) resieve can't help them.
+// An inactive survivor is still divided while resieving runs for others.
+//  DIRECT_ABANDON_NOLARGE: the sieve byte, less the logp of the fb primes
+//    below large_B that tdiv found, leaves less than one [large_B, B)
+//    prime's logp (minus DIRECT_ABANDON_MARGIN): no prime of the range
+//    hit this position, so Q's cofactor is a large-prime pair or worse.
+//  DIRECT_ABANDON_HOPELESS: Q > (largest cofactor kept: large_prime_max,
+//    max2, max3 or max4 by LP variation) * pmax^DIRECT_ABANDON_K, i.e.
+//    more than DIRECT_ABANDON_K range primes must divide Q for it to be
+//    kept.
+//  DIRECT_ABANDON_STATS: count abandoned survivors and how many a resieve
+//    hit later divided (wrongly abandoned), printed when the pool is
+//    freed.  Abandoned survivors stay counted as active here, so resieving
+//    always runs to B and every wrong abandonment is seen.
+//#define DIRECT_ABANDON_NOLARGE 1
+//  DIRECT_ABANDON_EXHAUSTED: NOLARGE, and also deactivate a survivor once
+//    the range primes the resieve has divided account for all of that
+//    estimated range logp (e.g. q * L1 * L2 after q is divided).
+//#define DIRECT_ABANDON_EXHAUSTED 1
+#if defined(DIRECT_ABANDON_EXHAUSTED) && !defined(DIRECT_ABANDON_NOLARGE)
+#define DIRECT_ABANDON_NOLARGE 1
+#endif
+//#define DIRECT_ABANDON_HOPELESS 1
+//#define DIRECT_ABANDON_STATS 1
+// DIRECT_EXIT_STATS: count polys whose survivors all resolved (the
+// resieve could stop early), printed when the pool is freed
+//#define DIRECT_EXIT_STATS 1
+#ifndef DIRECT_ABANDON_MARGIN
+#define DIRECT_ABANDON_MARGIN 3
+#endif
+#ifndef DIRECT_ABANDON_K
+#define DIRECT_ABANDON_K 2
+#endif
 // The large-prime strategy is chosen at run time (sconf->mid_bucket,
 // sconf->lp_direct, sconf->lp_kernel, sconf->sparse_kernel; see
 // siqs_resolve_strategy in SIQS.c and the -siqsMid / -siqsLarge /
@@ -233,6 +267,13 @@
 
 // store only largish smooth factors of relations; trial divide during filtering
 #define SPARSE_STORE
+
+// drop every block's location 0 in filter_SPV: it is over-sieved by the
+// a-primes > 8192 (set_aprime_roots), so it's a junk report.
+// -DSIQS_KEEP_BLOCK_LOC0 to A/B.
+#ifndef SIQS_KEEP_BLOCK_LOC0
+#define SIQS_SKIP_BLOCK_LOC0
+#endif
 
 #ifdef SPARSE_STORE
 #define MAX_SMOOTH_PRIMES 200	//maximum number of factors for a smooth, including duplicates
@@ -355,7 +396,26 @@ typedef struct
     uint8_t* act;           // [alloc] 1 while Q >= p^2 for the resieve's current
                             // prime p; else Q is 1 or prime and resieving it is
                             // pointless (trial_divide_Q_siqs looks up an fb
-                            // prime Q)
+                            // prime Q).  0 done, 1 active, 2/3 abandoned
+                            // (DIRECT_ABANDON_NOLARGE / _HOPELESS)
+    uint64_t ab_saved;      // DIRECT_ABANDON_STATS: survivors saved,
+    uint64_t ab_num[2];     // abandoned (nolarge, hopeless),
+    uint64_t ab_wrong[2];   // and abandoned but later divided
+    int16_t* ab_rem;        // [alloc] EXHAUSTED: range logp not yet divided
+    const uint32_t* logprime; // EXHAUSTED: fb logp
+    int16_t* ab_est;        // [alloc] NOLARGE + STATS calibration: estimated
+    int16_t* ab_sn0;        // [range] logp and smooth_num at save, binned in
+    uint64_t ab_hist[2][64];// [resieve divided][est] at finalization
+    uint64_t ab_miss;       // STATS: bitmap set but position not found
+    uint64_t ex_polys, ex_resolved; // DIRECT_EXIT_STATS
+    uint64_t ex_hist[16], ex_qbits[256], ex_loc0;
+    uint64_t ex_skip, ex_groups; // avx512: resieve groups skipped / run
+    uint64_t ab_samp, ab_sampdiv; // STATS: sampled big-error survivors
+    uint8_t* ab_byte;       // STATS: sieve byte at save
+    uint64_t ab_bytes[256]; // STATS: byte histogram of sampled survivors
+    uint64_t ab_allq[256];  // STATS: S - log2 Q(x) over all survivors
+    uint64_t ab_junk, ab_junk_last, ab_junk_first, ab_junk_side[2], ab_junk_blk[16], ab_junk_loc[16];
+    uint8_t ab_init;
     uint32_t interval;      // num_blocks * 32768
     uint32_t* pos;          // [alloc] interval position, both sides
     mpz_t* Q;               // [alloc] partially factored Q

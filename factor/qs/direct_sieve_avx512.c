@@ -370,6 +370,10 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
 
     if ((sieve == NULL) && (!resieve))
         return;
+#if defined(DIRECT_EXIT_STATS)
+    if (resieve)
+        pool->ex_groups += (bound - large_B) / 16;
+#endif
 
     if (use_cmp)
     {
@@ -528,6 +532,10 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
             {
                 //printf("resieve now inactive\n");
                 resieve = 0;
+#if defined(DIRECT_EXIT_STATS)
+                // 16-groups of [large_B, B) left unresieved
+                pool->ex_skip += (bound - j) / 16;
+#endif
             }
         }
 
