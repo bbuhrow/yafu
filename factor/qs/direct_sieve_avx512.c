@@ -29,7 +29,7 @@ errors.
 // helpers: compress stores and the 16-prime scatter
 // ----------------------------------------------------------------------
 
-#define ENABLE_AMDEYPC_FASTPATH 1
+//#define ENABLE_AMDEYPC_FASTPATH 1
 
 // append the lanes of v selected by m to buf[n...]; returns the new count.
 // kmode (a compile-time constant at every call site) picks the form:
