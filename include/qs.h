@@ -50,7 +50,11 @@ typedef struct
 {
     int digits;
     int bits;
-    int rank;               // 0 = yafu's built-in defaults
+    int rank;               // 0 = yafu as it runs without flags (built-in
+                            // table, automatic pipeline, adaptive TFSm);
+                            // 1 = the built-in parameters on the bucket
+                            // pipeline; 2+ = tuned sets.  All but rank 0
+                            // are forced exactly as listed.
     double ratio;           // time relative to the defaults (where measured)
     uint32_t has;           // SIQSP_* bits of the parameters present
     uint32_t B, M, NB, TF, TFSm, SPV;

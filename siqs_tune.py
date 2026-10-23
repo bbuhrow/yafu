@@ -215,6 +215,13 @@ SPV_DEFAULT = 256           # yafu's small_limit; not printed at -v
 STR_CHOICES = {"Mid": ["sparse", "bucket"],
                "Large": ["direct", "bucket"],
                "Kernel": ["cmem", "creg", "sink", "bitloop"]}
+# on/off yafu switches a parameter set can carry (not searched)
+SWITCHES = {"noopt": "-noopt"}
+# yafu's built-in parameters run on the full bucket pipeline they were tuned
+# for, with the formula TFSm (no adaptive TFSm tuning, which isn't
+# reproducible run to run).  Without flags, yafu runs them on the direct
+# sieve and may cap NB to the L2 size.
+BUILTIN_BUCKET = {"Mid": "bucket", "Large": "bucket", "noopt": 1}
 
 
 def choices(name, box):
@@ -232,14 +239,15 @@ def default_box(d):
     """Search ranges around yafu's defaults d (dict of parsed effective params)."""
     box = {
         "B":    (max(256, int(d["B"] * 0.35)), int(d["B"] * 1.3)),
-        "M":    (20, 600),
+        "M":    (50, 600),
         "NB":   (1, max(8, d["NB"] + 2)),
         "TF":   (max(10, d["TF"] - 14), d["TF"] + 3),
         # a raised SPV bound leaves more small primes unsieved, so the
         # matching TFSm correction can sit a few bits above the default's
-        "TFSm": (max(6, d["TFSm"] - 8), d["TFSm"] + 6),
-        "MFBD": (1.45, 1.95),
-        "SPV":  (min(CHOICES["SPV"]), max(CHOICES["SPV"])),
+        "TFSm": (max(6, d["TFSm"] - 8), d["TFSm"] + 4),
+        "MFBD": (1.60, 1.90),
+        #"SPV":  (min(CHOICES["SPV"]), max(CHOICES["SPV"])),
+        "SPV":  (256,256),
     }
     for k in STR_CHOICES:
         box[k] = (0, 0)             # unused; choices come from STR_CHOICES
@@ -312,7 +320,8 @@ def perturb(center, names, box, fixed, scale, rng):
 
 
 def pkey(params):
-    return ",".join(f"{k}={params[k]}" for k in ORDER if k in params)
+    return ",".join([f"{k}={params[k]}" for k in ORDER if k in params] +
+                    [k for k in SWITCHES if params.get(k)])
 
 
 def run_key(n, params, rep, threads, extra):
@@ -373,6 +382,7 @@ class Runner:
         for k in ORDER:
             if k in params:
                 c += [FLAGS[k], str(params[k])]
+        c += [SWITCHES[k] for k in SWITCHES if params.get(k)]
         if self.a.extra:
             c += self.a.extra.split()
         return c
@@ -546,11 +556,29 @@ def log(*args):
 
 
 def fmt_params(p):
-    return " ".join(f"{k}={p[k]}" for k in ORDER if k in p)
+    return " ".join([f"{k}={p[k]}" for k in ORDER if k in p] +
+                    [k for k in SWITCHES if p.get(k)])
 
 
 def yafu_flags(p):
-    return " ".join(f"{FLAGS[k]} {p[k]}" for k in ORDER if k in p)
+    return " ".join([f"{FLAGS[k]} {p[k]}" for k in ORDER if k in p] +
+                    [SWITCHES[k] for k in SWITCHES if p.get(k)])
+
+
+def result_kind(r):
+    """'asis' (yafu as it runs today: no flags), 'builtin' (its built-in
+    parameters on the bucket pipeline they were tuned for) or 'tuned'."""
+    if "kind" in r:
+        return r["kind"]
+    if not r["params"]:
+        return "asis"
+    return "builtin" if r["params"] == BUILTIN_BUCKET else "tuned"
+
+
+def result_label(r):
+    return {"asis": "(yafu defaults, as run today)",
+            "builtin": "(built-in params, bucket pipeline)"}.get(
+                result_kind(r), fmt_params(r["params"]))
 
 
 def tune_digits(R, a, digits):
@@ -677,30 +705,33 @@ def tune_digits(R, a, digits):
     log(f"\nverifying {len(top)} sets (best + most different within "
         f"{100 * a.diverse_tol:.0f}% of it) on {len(hold)} holdout numbers, "
         f"{a.final_reps} interleaved rounds")
-    contenders = [("defaults", {})] + [(fmt_params(c.params), c.params) for c in top]
+    # the reference is yafu as it runs today (no flags); also measure its
+    # built-in parameters on the bucket pipeline they were tuned for
+    contenders = [("asis", {}, None), ("builtin", BUILTIN_BUCKET, None)] + \
+        [("tuned", c.params, c) for c in top]
     times = {i: {n: [] for n in hold} for i in range(len(contenders))}
     hrecs = {i: {n: [] for n in hold} for i in range(len(contenders))}
     cpu = None
     for rep in range(a.final_reps):
         for n in hold:
-            for i, (_, p) in enumerate(contenders):
-                # holdout baseline is yafu's own default (no flags)
-                rec = R.run(n, p, 100 + rep, timeout=timeout if p else a.max_time)
+            for i, (kind, p, _) in enumerate(contenders):
+                rec = R.run(n, p, 100 + rep,
+                            timeout=timeout if kind == "tuned" else a.max_time)
                 t = metric(rec, a.objective)
                 times[i][n].append(t if t is not None else float("inf"))
                 hrecs[i][n].append(rec)
                 cpu = cpu or rec.get("cpu")
 
     results = []
-    for i, (label, p) in enumerate(contenders):
+    for i, (kind, p, c) in enumerate(contenders):
         per_n = []
         for n in hold:
             bt = statistics.median(times[0][n])
             per_n.append(statistics.median(times[i][n]) / bt)
         sp = gmean(per_n) if all(math.isfinite(x) for x in per_n) else float("inf")
         spread = statistics.stdev(per_n) / math.sqrt(len(per_n)) if len(per_n) > 1 else 0.0
-        results.append(dict(params=p, ratio=sp, se=spread,
-                            train=top[i - 1].score if i else 1.0,
+        results.append(dict(params=p, kind=kind, ratio=sp, se=spread,
+                            train=c.score if c else (1.0 if kind == "asis" else None),
                             mean_time=statistics.mean(
                                 statistics.median(times[i][n]) for n in hold),
                             stats=run_stats(hrecs[i])))
@@ -725,17 +756,17 @@ def print_summary(s):
     print(f"{'holdout t/t_def':>16s} {'+-se':>6s} {'train':>6s} {'mean s':>7s} "
           f"{'partials':>9s} {'cv':>5s}  params")
     for r in s["results"]:
-        label = fmt_params(r["params"]) if r["params"] else "(yafu defaults)"
         st = r.get("stats") or {}
         pt = f"{st['partials']:9.0f}" if st.get("partials") else f"{'-':>9s}"
         cv = (f"{st['partials_cv']:5.2f}" if st.get("partials_cv") is not None
               else f"{'-':>5s}")
-        print(f"{r['ratio']:16.3f} {r['se']:6.3f} {r['train']:6.3f} "
-              f"{r['mean_time']:7.2f} {pt} {cv}  {label}")
+        tr = f"{r['train']:6.3f}" if r.get("train") is not None else f"{'-':>6s}"
+        print(f"{r['ratio']:16.3f} {r['se']:6.3f} {tr} "
+              f"{r['mean_time']:7.2f} {pt} {cv}  {result_label(r)}")
     best = min(s["results"], key=lambda r: r["ratio"])
-    if best["params"]:
+    if result_kind(best) != "asis":
         print(f"best: {100 * (1 - best['ratio']):.1f}% faster than defaults on holdout"
-              f" -> {yafu_flags(best['params'])}")
+              f" -> {result_label(best)}: {yafu_flags(best['params'])}")
     else:
         print("no candidate beat the defaults on the holdout set")
 
@@ -828,32 +859,43 @@ def cmd_export(a):
                 # from the holdout runs in the cache
                 recs = {n: holdout_recs(r["params"], n) for n in s["holdout"]}
                 r["stats"] = run_stats(recs) if all(recs.values()) else None
-        res = [r for r in s["results"] if r["params"] and math.isfinite(r["ratio"])]
+        res = [r for r in s["results"]
+               if result_kind(r) == "tuned" and math.isfinite(r["ratio"])]
         res.sort(key=lambda r: r["ratio"])
         if not res:
             continue
         best = res[0]
         keep = [best] + [r for r in res[1:] if r["ratio"] <= best["ratio"] * (1 + a.max_gap)]
         keep = keep[:a.top]
-        default = next(r for r in s["results"] if not r["params"])
-        entries = [(0, {}, default)] + \
-                  [(i + 1, r["params"], r) for i, r in enumerate(keep)]
+        # rank 0: yafu as it runs today (siqstune runs it without flags);
+        # rank 1: the built-in parameters on the bucket pipeline (summaries
+        # from before it was measured don't have it); 2+: the tuned sets
+        entries = [(0, next(r for r in s["results"] if result_kind(r) == "asis"))]
+        builtin = [r for r in s["results"] if result_kind(r) == "builtin"]
+        if builtin and math.isfinite(builtin[0]["ratio"]):
+            entries.append((1, builtin[0]))
+        entries += [(i + 2, r) for i, r in enumerate(keep)]
         numbers = s["holdout"][:a.numbers] if a.numbers > 0 else s["holdout"]
         for n in numbers:
-            for rank, params, r in entries:
-                recs = [x for x in holdout_recs(params, n) if x["ok"]]
+            for rank, r in entries:
+                recs = [x for x in holdout_recs(r["params"], n) if x["ok"]]
                 if not recs:
                     log(f"c{digits} rank {rank}: no holdout run on {n[:12]}..., skipped")
                     continue
                 st = run_stats({n: recs}) or {}
-                if rank == 0:
-                    # run without flags; list the values yafu chose for this n
+                if rank <= 1:
+                    # list the values yafu chose for this n.  For rank 1 that
+                    # includes the formula TFSm, so siqstune can force the row
+                    # exactly as measured.
                     params = {k: recs[0][k] for k in ORDER if recs[0].get(k) is not None}
+                else:
+                    params = r["params"]
                 row = dict(digits=s["digits"], bits=int(n).bit_length(), rank=rank,
                            ratio=round(r["ratio"], 4), n=n)
                 row.update({k: params.get(k) for k in ORDER})
                 row.update({k: st.get(k) for k in EXPORT_COLS if k in st})
-                row["vs_best"] = describe_diff(params, best["params"]) if rank > 1 else ""
+                row["vs_best"] = (describe_diff(params, best["params"])
+                                  if rank == 1 or rank > 2 else "")
                 rows.append(row)
 
     base = a.out or os.path.join(a.outdir[0], "siqs_candidates")
@@ -869,9 +911,11 @@ def cmd_export(a):
 
     with open(base + ".txt", "w") as f:
         f.write(f"# siqs_tune export; cpu: {'; '.join(sorted(cpus)) or '?'}\n")
-        f.write("# rank 0 = yafu defaults (run without flags; params are the "
-                "values yafu chose for this n), rank 1 = best tuned set on "
-                "this cpu\n")
+        f.write("# rank 0 = yafu as it runs today (siqstune runs it without "
+                "flags; params are the values yafu chose for this n); rank 1 = "
+                "yafu's built-in params on the bucket pipeline they were tuned "
+                "for, with the formula TFSm (forced as listed); rank 2 = best "
+                "tuned set on this cpu, 3+ = the most different near-best\n")
         f.write("# one row per set per test number n; partials, fulls, "
                 "needed, t_sieve, t_post = measured on that n (median over "
                 "repeats); ratio = holdout time / defaults time on this cpu, "
@@ -896,8 +940,9 @@ def cmd_export(a):
               f"{(f'{cv:5.2f}' if cv is not None else '-'):>5s} "
               f"{(f'{tp:6.2f}' if tp is not None else '-'):>6s}  "
               f"{fmt_params({k: row[k] for k in ORDER if row.get(k) is not None})}"
-              + (f"\n{'':36s}({row['vs_best']})" if row["vs_best"] else
-                 ("  (yafu defaults)" if row["rank"] == 0 else "")))
+              + {0: "  (yafu defaults, as run today)",
+                 1: "  (built-in params, bucket pipeline)"}.get(row["rank"], "")
+              + (f"\n{'':36s}({row['vs_best']})" if row["vs_best"] else ""))
     print(f"\nwrote {base}.txt and {base}.json")
 
 

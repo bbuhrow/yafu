@@ -906,9 +906,12 @@ double best_fit(double *x, double *y, int numpts,
 //----------------------- SIQS PARAMETER TUNE ---------------------------------//
 // siqstune(): pick this machine's SIQS parameters from a table of competing
 // parameter sets (siqs_candidates.txt, exported by siqs_tune.py: several sets
-// per digit size, rank 0 being yafu's built-in defaults, each with the number
-// of full and partial relations it needed to finish, measured on the test
-// number n in the row).  At each digit size every set sieves each of those
+// per digit size, each with the number of full and partial relations it
+// needed to finish, measured on the test number n in the row).  Rank 0 is yafu
+// as it runs without flags and is run that way here; every other row (rank 1:
+// the built-in parameters on the bucket pipeline they were tuned for, with the
+// formula TFSm; 2+: tuned sets) is forced exactly as listed, so the partials
+// it needs reproduce.  At each digit size every set sieves each of those
 // numbers for -siqsT seconds (default 5); the rate of partial relations after
 // a short warmup extrapolates to a full sieving time (on the same n the
 // partials needed reproduce to ~0.5%), plus the table's post-processing time
@@ -981,7 +984,7 @@ static void siqstune_semiprime(mpz_t n, int digits, gmp_randstate_t st)
     mpz_clear(q);
 }
 
-// force exactly the row's parameters (none, for rank 0: yafu's defaults)
+// force exactly the row's parameters (none for rank 0: yafu without flags)
 static void siqstune_set_params(qs_obj_t* q, siqs_param_row_t* r)
 {
     uint32_t has = (r->rank == 0) ? 0 : r->has;
@@ -1125,6 +1128,7 @@ void siqs_param_tune(fact_obj_t* fobj)
     siqstune_meas_t* meas;
     double* rank_sum;
     int* rank_cnt;
+    int* rank_full;
     int* rank_row;
     int ncand, nout = 0, i, j, maxrank;
     int saved_vflag = fobj->VFLAG;
@@ -1167,12 +1171,13 @@ void siqs_param_tune(fact_obj_t* fobj)
             maxrank = cand[i].rank;
     rank_sum = (double*)malloc((maxrank + 1) * sizeof(double));
     rank_cnt = (int*)malloc((maxrank + 1) * sizeof(int));
+    rank_full = (int*)malloc((maxrank + 1) * sizeof(int));
     rank_row = (int*)malloc((maxrank + 1) * sizeof(int));
 
     for (i = 0; i < ncand; i++)
     {
         int d = cand[i].digits;
-        int best = -1, k, rk, ntests;
+        int best = -1, ref, k, rk, ntests;
         const char* nums[SIQSTUNE_MAX_NUMBERS];
         int nnum = 0;
 
@@ -1202,6 +1207,7 @@ void siqs_param_tune(fact_obj_t* fobj)
         {
             rank_sum[rk] = 0;
             rank_cnt[rk] = 0;
+            rank_full[rk] = 0;
             rank_row[rk] = -1;
         }
 
@@ -1230,8 +1236,12 @@ void siqs_param_tune(fact_obj_t* fobj)
                     continue;
 
                 siqs_format_params(&cand[j], buf, 256);
-                printf("rank %d: %s\n", cand[j].rank, (cand[j].rank == 0) ?
-                    "(yafu defaults)" : buf);
+                if (cand[j].rank == 0)
+                    printf("rank 0: (yafu without flags)\n");
+                else if (cand[j].rank == 1)
+                    printf("rank 1: (built-in params, bucket pipeline) %s\n", buf);
+                else
+                    printf("rank %d: %s\n", cand[j].rank, buf);
                 fflush(stdout);
 
                 if (!siqstune_measure(fobj, n, &cand[j], nnum > 0, seconds, m))
@@ -1260,19 +1270,33 @@ void siqs_param_tune(fact_obj_t* fobj)
                 rk = cand[j].rank;
                 rank_sum[rk] += m->est;
                 rank_cnt[rk]++;
+                if (m->completed)
+                    rank_full[rk]++;
                 if (rank_row[rk] < 0)
                     rank_row[rk] = j;
             }
         }
 
         // the fastest set on average over the test numbers, among those
-        // measured on all of them
-        for (rk = 0; rk <= maxrank; rk++)
+        // measured on all of them.  Rank 0 (no flags) runs yafu's adaptive
+        // TFSm tuning, which tries TFSm +-5 during the first polynomials --
+        // a large part of a short sample -- and settles differently from run
+        // to run, so its extrapolated estimate is unreliable (17% low in a
+        // c70 test).  It only competes where it was timed outright, or when
+        // nothing else was measured; rank 1, the same built-in parameters
+        // forced, is its reproducible stand-in.
+        for (rk = 1; rk <= maxrank; rk++)
         {
             if ((rank_cnt[rk] == ntests) && ((best < 0) ||
                 (rank_sum[rk] < rank_sum[best])))
                 best = rk;
         }
+        if ((rank_cnt[0] == ntests) && ((best < 0) ||
+            ((rank_full[0] == ntests) && (rank_sum[0] < rank_sum[best]))))
+            best = 0;
+        if ((rank_cnt[0] == ntests) && (rank_full[0] < ntests))
+            printf("(rank 0's estimate is for reference only: adaptive TFSm "
+                "makes it unreliable)\n");
 
         if (best < 0)
         {
@@ -1280,22 +1304,27 @@ void siqs_param_tune(fact_obj_t* fobj)
             continue;
         }
 
+        // ratios are relative to the built-in parameters: rank 1 where
+        // measured, else rank 0
+        ref = (rank_cnt[1] == ntests) ? 1 : ((rank_cnt[0] == ntests) ? 0 : -1);
         out[nout] = cand[rank_row[best]];
         out[nout].est_time = rank_sum[best] / ntests;
-        out[nout].ratio = (rank_cnt[0] == ntests) ?
-            rank_sum[best] / rank_sum[0] : -1.0;
+        out[nout].ratio = (ref >= 0) ? rank_sum[best] / rank_sum[ref] : -1.0;
         siqs_format_params(&out[nout], buf, 256);
         printf("c%d best: rank %d, %1.2f s", d, best, out[nout].est_time);
         if (ntests > 1)
             printf(" (mean of %d numbers)", ntests);
-        if (rank_cnt[0] == ntests)
-            printf(" (%1.3f x defaults)", out[nout].ratio);
-        printf(": %s\n", (best == 0) ? "(yafu defaults)" : buf);
+        if (ref >= 0)
+            printf(" (%1.3f x rank %d)", out[nout].ratio, ref);
+        printf(": %s%s\n", (best == 0) ? "(yafu without flags)" :
+            (best == 1) ? "(built-in params, bucket pipeline) " : "",
+            (best == 0) ? "" : buf);
         nout++;
     }
 
     free(rank_sum);
     free(rank_cnt);
+    free(rank_full);
     free(rank_row);
 
     fobj->VFLAG = saved_vflag;
@@ -1305,9 +1334,10 @@ void siqs_param_tune(fact_obj_t* fobj)
         snprintf(comment, sizeof(comment),
             "# siqstune: %s, %d thread%s, %1.0f s samples, from %s\n"
             "# one row per digit size: the fastest parameter set here.  rank 0 "
-            "rows mean yafu's built-in\n# defaults won; SIQS then uses its "
-            "built-in table at that size.  est_time = estimated\n# total "
-            "seconds, ratio = est_time / defaults' est_time.\n",
+            "rows mean yafu without\n# flags won; SIQS then uses its built-in "
+            "table at that size.  rank 1 = the built-in\n# params on the "
+            "bucket pipeline, 2+ = tuned sets.  est_time = estimated total "
+            "seconds,\n# ratio = est_time / rank 1's (else rank 0's) est_time.\n",
             fobj->CPU_ID_STR, fobj->THREADS, fobj->THREADS > 1 ? "s" : "",
             seconds, SIQS_CANDIDATES_FILE);
 
