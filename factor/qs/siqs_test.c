@@ -22,6 +22,7 @@ code to the public domain.
 #include "qs_impl.h"
 #include "ytools.h"
 #include "tinyecm.h"
+#include "../kmpqs/kmpqs.h"
 
 int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG, int knmod8)
 {
@@ -108,6 +109,52 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 	return retval;
 }
 
+/* Inputs up to this size go to kmpqs (lasieve's MPQS, factor/kmpqs) before
+   tinysiqs or SIQS: single-threaded it beats yafu's SIQS, even with 6-12
+   threads, up to about 145 bits on an i5-11600K (SIQS's fixed setup cost
+   dominates there). */
+#define SIQS_KMPQS_MAX_BITS 140
+
+/* Factor fobj->qs_obj.gmp_n with kmpqs.  Returns 1 if it was completely
+   factored (the factors are added to the factor list), 0 otherwise, in
+   which case nothing has changed. */
+static int siqs_try_kmpqs(fact_obj_t* fobj)
+{
+	mpz_t* f;
+	mpz_t prod;
+	int nf, i, ok = 1;
+
+	nf = kmpqs_factor(fobj->qs_obj.gmp_n, 1000, &f);
+	if (nf < 2)
+		return 0;
+
+	mpz_init_set_ui(prod, 1);
+	for (i = 0; i < nf; i++)
+	{
+		mpz_mul(prod, prod, f[i]);
+		if (!is_mpz_prp(f[i], fobj->NUM_WITNESSES))
+			ok = 0;
+	}
+	if (mpz_cmp(prod, fobj->qs_obj.gmp_n) != 0)
+		ok = 0;
+	mpz_clear(prod);
+	if (!ok)
+		return 0;
+
+	for (i = 0; i < nf; i++)
+	{
+		add_to_factor_list(fobj->factors, f[i], fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+		if ((fobj->qs_obj.flags != 12345) && (fobj->logfile != NULL))
+		{
+			char* s = mpz_get_str(NULL, 10, f[i]);
+			logprint(fobj->logfile, "prp%d = %s\n", gmp_base10(f[i]), s);
+			free(s);
+		}
+	}
+	mpz_set_ui(fobj->qs_obj.gmp_n, 1);
+	return 1;
+}
+
 int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 {
 	// check for some special cases of input number
@@ -173,6 +220,20 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			}
 		}
 		return 1;
+	}
+
+	if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 2) <= SIQS_KMPQS_MAX_BITS)
+	{
+		if ((fobj->qs_obj.flags != 12345) && (fobj->logfile != NULL))
+		{
+			char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
+			logprint(fobj->logfile, "starting kmpqs on C%d = %s\n",
+				gmp_base10(fobj->qs_obj.gmp_n), s);
+			free(s);
+		}
+
+		if (siqs_try_kmpqs(fobj))
+			return 1;
 	}
 
 	if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 2) < 115)

@@ -29,12 +29,7 @@ SOFTWARE.
 #include "batch_factor.h"
 #include "gpu_cofactorization.h"
 
-#ifdef HAVE_LASIEVE_MPQS
-#include "mpqs3/mpqs.h"
-#include "mpqs3/mpqs3.h"
-#include "mpqs3/if.h"
-#include "mpqs3/gmp-aux.h"
-#endif
+#include "kmpqs/kmpqs.h"
 #include "cofactorize.h"
 
 #ifdef _MSC_VER
@@ -432,13 +427,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 			//if (prp_uecm(cofactor) == 0)
 			if ((bits2 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zc, 1) == 0))
 			{
-#ifdef HAVE_LASIEVE_MPQS
-				int nf = mpqs_factor(zc, t->lpb_3lp, &flist);
+				int nf = kmpqs_factor(zc, t->lpb_3lp, &flist);
 				(*num_mpqs)++;
-#else
-				(*num_mpqs)++;
-				int nf = tinysiqs(t->params, zc, flist[0], flist[1], flist[2], t->lpb_3lp);
-#endif
 				if (nf == 2)
 				{
 					//gmp_printf("factored %Zd as %Zd * %Zd by tinysiqs\n", zc, flist[0], flist[1]);
@@ -548,13 +538,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 			//if (prp_uecm(cofactor) == 0)
 			if ((bits1 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zf, 1) == 0))
 			{
-#ifdef HAVE_LASIEVE_MPQS
-				int nf = mpqs_factor(zf, t->lpb_3lp, &flist);
+				int nf = kmpqs_factor(zf, t->lpb_3lp, &flist);
 				(*num_mpqs)++;
-#else
-				(*num_mpqs)++;
-				int nf = tinysiqs(t->params, zf, flist[0], flist[1], flist[2], t->lpb_3lp);
-#endif
 
 				if (nf == 2)
 				{
