@@ -2550,154 +2550,29 @@ int factor_tiny(mpz_t in, mpz_t* out,
 			uint64_t f = getfactor_uecm(n64, 1, prng);
 			if (f > 1)
 			{
-				if (prp_uecm(f) == 0)
-				{
-					// found a composite factor.  try P-1 and rho on the factor.
-					uint64_t f1 = getfactor_upm1(f, 33);
-					if (f1 > 1) {
-						if (prp_uecm(f1) == 1)
-						{
-							mpz_init(out[numout]);
-							mpz_set_ui(out[numout], f1);
-							numout++;
-							mpz_tdiv_q_ui(in, in, f1);
-							if (prp_uecm(f / f1) == 1)
-							{
-								mpz_init(out[numout]);
-								mpz_set_ui(out[numout], f / f1);
-								numout++;
-								mpz_tdiv_q_ui(in, in, f / f1);
-							}
-							continue;
-						}
-					}
-					f1 = getfactor_upm1(f, 100);
-					if (f1 > 1) {
-						if (prp_uecm(f1) == 1)
-						{
-							mpz_init(out[numout]);
-							mpz_set_ui(out[numout], f1);
-							numout++;
-							mpz_tdiv_q_ui(in, in, f1);
-							if (prp_uecm(f / f1) == 1)
-							{
-								mpz_init(out[numout]);
-								mpz_set_ui(out[numout], f / f1);
-								numout++;
-								mpz_tdiv_q_ui(in, in, f / f1);
-							}
-							continue;
-						}
-					}
-					f1 = getfactor_upm1(f, 333);
-					if (f1 > 1) {
-						if (prp_uecm(f1) == 1)
-						{
-							mpz_init(out[numout]);
-							mpz_set_ui(out[numout], f1);
-							numout++;
-							mpz_tdiv_q_ui(in, in, f1);
-							if (prp_uecm(f / f1) == 1)
-							{
-								mpz_init(out[numout]);
-								mpz_set_ui(out[numout], f / f1);
-								numout++;
-								mpz_tdiv_q_ui(in, in, f / f1);
-							}
-							continue;
-						}
-					}
-					int imax = 64;
-					int found = 0;
-					for (; imax < 8192; imax *= 2)
-					{
-						f1 = spbrent64(f, imax);
-						if (f1 > 1) {
-							if (prp_uecm(f1) == 1)
-							{
-								found = 1;
-								mpz_init(out[numout]);
-								mpz_set_ui(out[numout], f1);
-								numout++;
-								mpz_tdiv_q_ui(in, in, f1);
-								if (prp_uecm(f / f1) == 1)
-								{
-									mpz_init(out[numout]);
-									mpz_set_ui(out[numout], f / f1);
-									numout++;
-									mpz_tdiv_q_ui(in, in, f / f1);
-								}
-								break;
-							}
-						}
-					}
-					if (!found)
-					{
-						printf("failed to split composite factor %"PRIu64" of input %"PRIu64"\n", f, n64);
-						break;
-					}
-				}
-				else
-				{
-					mpz_init(out[numout]);
-					mpz_set_ui(out[numout], f);
-					numout++;
-					mpz_tdiv_q_ui(in, in, f);
-				}
+				mpz_init(out[numout]);
+				mpz_set_ui(out[numout], f);
+				numout++;
+				mpz_tdiv_q_ui(in, in, f);
+				continue;
 			}
 			else
 			{
-				// uecm failed. try PM1, rho, then MPQS.
-				f = getfactor_upm1(n64, 33);
-				if (f > 1) {
-					if (prp_uecm(f) == 1)
-					{
-						mpz_init(out[numout]);
-						mpz_set_ui(out[numout], f);
-						numout++;
-						mpz_tdiv_q_ui(in, in, f);
-						continue;
-					}
-				}
-				f = getfactor_upm1(n64, 100);
-				if (f > 1) {
-					if (prp_uecm(f) == 1)
-					{
-						mpz_init(out[numout]);
-						mpz_set_ui(out[numout], f);
-						numout++;
-						mpz_tdiv_q_ui(in, in, f);
-						continue;
-					}
-				}
-				f = getfactor_upm1(n64, 333);
-				if (f > 1) {
-					if (prp_uecm(f) == 1)
-					{
-						mpz_init(out[numout]);
-						mpz_set_ui(out[numout], f);
-						numout++;
-						mpz_tdiv_q_ui(in, in, f);
-						continue;
-					}
-				}
-				int imax = 64;
-				for (; imax < 8192; imax *= 2)
+				mpz_t* kf;
+				int nf, i;
+				nf = kmpqs_factor(in, 1000, &kf);
+				if (nf < 2)
 				{
-					f = spbrent64(n64, imax);
-					if (f > 1) {
-						if (prp_uecm(f) == 1)
-						{
-							mpz_init(out[numout]);
-							mpz_set_ui(out[numout], f);
-							numout++;
-							mpz_tdiv_q_ui(in, in, f);
-							break;
-						}
-					}
+					gmp_printf("failed to find factor of %Zd\n", in);
+					break;
 				}
-				printf("failed to find factor of %"PRIu64"\n", n64);
-				break;
+				for (i = 0; i < nf; i++)
+				{
+					mpz_init(out[numout]);
+					mpz_set(out[numout], kf[i]);
+					numout++;
+				}
+				mpz_set_ui(in, 1);
 			}
 		}
 		else
@@ -2707,7 +2582,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 			mpz_t* kf;
 			int nf, i;
 
-			if ((getfactor_tecm(in, gmpf, 0, prng) > 0) &&
+			if ((getfactor_tecm(in, gmpf, mpz_sizeinbase(in, 2) / 3 - 2, prng) > 0) &&
 				(mpz_cmp_ui(gmpf, 1) > 0) && (mpz_cmp(gmpf, in) < 0) &&
 				mpz_divisible_p(in, gmpf) && (mpz_probab_prime_p(gmpf, 1) > 0))
 			{
@@ -2733,7 +2608,6 @@ int factor_tiny(mpz_t in, mpz_t* out,
 			mpz_set_ui(in, 1);
 		}
 	}
-
 
 	mpz_clear(gmpf);
 	return numout;

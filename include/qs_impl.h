@@ -350,6 +350,7 @@ typedef struct
 typedef struct
 {
     uint32_t num;           // survivors in the pool for the current poly
+    uint32_t active;        // reduce as survivors are completely factored in resieving.
     uint32_t alloc;         // allocated entries
     uint32_t interval;      // num_blocks * 32768
     uint32_t* pos;          // [alloc] interval position, both sides
@@ -936,6 +937,15 @@ static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, ui
     {
         uint32_t e = buf[k];
         sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
+    }
+}
+
+static inline void direct_compress_flush_fast(uint8_t* sieve, const uint32_t* buf, uint32_t n, uint8_t logp)
+{
+    uint32_t k;
+    for (k = 0; k < n; k++)
+    {
+        sieve[buf[k] & 0xffffff] -= logp;
     }
 }
 

@@ -29,6 +29,8 @@ errors.
 // helpers: compress stores and the 16-prime scatter
 // ----------------------------------------------------------------------
 
+#define ENABLE_AMDEYPC_FASTPATH 1
+
 // append the lanes of v selected by m to buf[n...]; returns the new count.
 // kmode (a compile-time constant at every call site) picks the form:
 // SIQS_K_CREG compresses in a register and stores the whole vector (buf
@@ -132,6 +134,44 @@ SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
     __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
     __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
 
+#ifdef ENABLE_AMDEYPC_FASTPATH
+    __m512i vint = _mm512_set1_epi32(interval);
+    //__m512i vtag = _mm512_set1_epi32((uint32_t)logp << 24);
+    __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
+    __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
+    __mmask16 m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
+    __mmask16 m4 = _mm512_cmplt_epu32_mask(vnroot2, vint);
+    //__m512i v1 = _mm512_or_epi32(vroot1, vtag);
+    //__m512i v2 = _mm512_or_epi32(vroot2, vtag);
+    //__m512i v3 = _mm512_or_epi32(_mm512_add_epi32(vnroot1, vint), vtag);
+    //__m512i v4 = _mm512_or_epi32(_mm512_add_epi32(vnroot2, vint), vtag);
+    __m512i v1 = vroot1;
+    __m512i v2 = vroot2;
+    __m512i v3 = _mm512_add_epi32(vnroot1, vint);
+    __m512i v4 = _mm512_add_epi32(vnroot2, vint);
+
+    v1 = _mm512_maskz_compress_epi32(m1, v1);
+    v2 = _mm512_maskz_compress_epi32(m2, v2);
+    v3 = _mm512_maskz_compress_epi32(m3, v3);
+    v4 = _mm512_maskz_compress_epi32(m4, v4);
+    int idx1 = _mm_popcnt_u32(m1);
+    int idx2 = _mm_popcnt_u32(m2);
+    int idx3 = _mm_popcnt_u32(m3);
+    int idx4 = _mm_popcnt_u32(m4);
+    _mm512_storeu_si512((__m512i*)(cbuf + *nc), v1);
+    _mm512_storeu_si512((__m512i*)(cbuf + *nc + idx1), v2);
+    _mm512_storeu_si512((__m512i*)(cbuf + *nc + idx1 + idx2), v3);
+    _mm512_storeu_si512((__m512i*)(cbuf + *nc + idx1 + idx2 + idx3), v4);
+    *nc = *nc + idx1 + idx2 + idx3 + idx4;
+
+    if (*nc >= DIRECT_CBUF_FLUSH)
+    {
+        direct_compress_flush_fast(sieve, cbuf, *nc, logp);
+        *nc = 0;
+    }
+
+#else
+
     if ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM))
     {
         *nc = direct_compress16(cbuf, *nc, interval, vroot1, vroot2,
@@ -190,6 +230,8 @@ SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
             m4 = _reset_lsb(m4);
         }
     }
+
+#endif
 }
 
 // ----------------------------------------------------------------------
@@ -227,8 +269,11 @@ SIQS_FORCEINLINE void direct_sieve_largeprimes_body(uint8_t* sieve, static_conf_
             _mm512_loadu_si512(fr1 + j), _mm512_loadu_si512(fr2 + j), logp, kmode,
             cbuf, &nc, &sink);
     }
+#ifdef ENABLE_AMDEYPC_FASTPATH
+    direct_compress_flush_fast(sieve, cbuf, nc, update_data.logp[fb->B - 1]);
+#else
     direct_compress_flush(sieve, cbuf, nc);
-
+#endif
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < fb->B; j++)
     {
@@ -353,6 +398,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
     }
 #endif
 
+
     for (j = large_B; (j + 16) <= bound; j += 16, ptr += 16)
     {
         __m512i vprime = _mm512_loadu_si512(primes + j);
@@ -401,6 +447,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
 #undef DIRECT_PF_WORD
 #endif
 
+#if 0
             if (use_cmp)
             {
                 // few survivors: every prime here is > interval, so a root
@@ -431,6 +478,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
                 m1 = c1; m2 = c2; m3 = c3; m4 = c4;
             }
             else
+#endif
             {
                 // many survivors: test the survivor bitmap for the remaining
                 // lanes (gather the 32-bit word holding each position's bit),
@@ -476,6 +524,9 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
                     m4 = _reset_lsb(m4);
                 }
             }
+
+            if (pool->active == 0)
+                resieve = 0;
         }
 
         if (sieve == NULL)
@@ -511,8 +562,12 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
             cbuf, &nc, &sink);
     }
 
+#ifdef ENABLE_AMDEYPC_FASTPATH
+    direct_compress_flush_fast(sieve, cbuf, nc, update_data.logp[bound - 1]);
+#else
     // nc stays 0 when sieve == NULL
     direct_compress_flush(sieve, cbuf, nc);
+#endif
 
     // scalar tail (empty when B - large_B is a multiple of 16)
     for (; j < bound; j++, ptr++)

@@ -45,6 +45,7 @@ direct_pool_t* direct_pool_alloc(uint32_t num_blocks)
     uint32_t i;
 
     pool->num = 0;
+    pool->active = 0;
     pool->alloc = 1024;
     pool->interval = num_blocks << 15;
     pool->pos = (uint32_t*)xmalloc(pool->alloc * sizeof(uint32_t));
@@ -139,6 +140,7 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
         direct_pool_grow(pool);
 
     k = pool->num++;
+    pool->active++;
     pos = parity * pool->interval + (bnum << 15) + dconf->reports[report_num];
     pool->pos[k] = pos;
     mpz_swap(pool->Q[k], dconf->Qvals[report_num]);
@@ -189,6 +191,8 @@ void direct_resieve_hit(direct_pool_t* pool, uint32_t pos,
         mpz_tdiv_q_ui(pool->Q[k], pool->Q[k], prime);
     } while (mpz_tdiv_ui(pool->Q[k], prime) == 0);
     pool->smooth_num[k] = smooth_num;
+    if (mpz_cmp_ui(pool->Q[k], prime) < 0)
+        pool->active--;
 
     return;
 }

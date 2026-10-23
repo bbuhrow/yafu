@@ -29,6 +29,8 @@ code to the public domain.
 #include "monty.h"
 #include "cofactorize.h"
 #include "smallmpqs.h"
+//#include "..\factor\kmpqs\kmpqs.h"
+#include "kmpqs.h"
 #ifdef HAVE_GMP_ECM
 #include <ecm.h>
 #endif
@@ -146,13 +148,66 @@ int test_tinysiqs(mpz_t* inputs, int num_inputs)
 	gettimeofday(&gstop, NULL);
 	double t_time = ytools_difftime(&gstart, &gstop);
 
-	params = free_tinysiqs(params);
+	free_tinysiqs(params);
 	mpz_clear(n);
 	mpz_clear(r);
 	mpz_clear(f1);
 	mpz_clear(f2);
 	mpz_clear(f3);
 	printf("tinysiqs got %d of %d correct in %2.2f sec\n", correct, num_inputs, t_time);
+	printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num_inputs);
+	printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num_inputs);
+	return correct;
+}
+
+int test_kmpqs(mpz_t* inputs, int num_inputs)
+{
+	struct timeval gstart;
+	struct timeval gstop;
+	mpz_t n, r, *factors;
+	mpz_init(n);
+	mpz_init(r);
+
+	kmpqs_ctx_t* ctx = kmpqs_ctx_new();
+
+	gettimeofday(&gstart, NULL);
+
+	int i;
+	int correct = 0;
+	for (i = 0; i < num_inputs; i++)
+	{
+		int numf = kmpqs_factor_ctx(ctx, inputs[i], 60, &factors);
+
+		if (numf > 0)
+		{
+			mpz_set(n, inputs[i]);
+			int j;
+
+			for (j = 0; j < numf; j++) {
+				if (mpz_cmp_ui(factors[j], 1) > 0)
+				{
+					mpz_tdiv_r(r, n, factors[j]);
+					if (mpz_cmp_ui(r, 0) == 0)
+					{
+						mpz_tdiv_q(n, n, factors[j]);
+					}
+				}
+			}
+
+			if ((mpz_cmp_ui(n, 1) == 0) || (mpz_probab_prime_p(n, 1) > 0))
+			{
+				correct++;
+			}
+		}
+	}
+
+	gettimeofday(&gstop, NULL);
+	double t_time = ytools_difftime(&gstart, &gstop);
+
+	kmpqs_ctx_free(ctx);
+	mpz_clear(n);
+	mpz_clear(r);
+	printf("kmpqs got %d of %d correct in %2.2f sec\n", correct, num_inputs, t_time);
 	printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num_inputs);
 	printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num_inputs);
 	return correct;
@@ -224,11 +279,11 @@ void test_dlp_composites(void)
 	f64b = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 	uint64_t* outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 
-    goto tinyqs_marker;
+    //goto tinyqs_marker;
     //goto spfermat_marker;
     //goto tinyecm_104_list_marker;
 	//goto tinyecm_128_marker;
-	//goto microecm_marker;
+	goto microecm_marker;
 	//goto uecm_52_list_marker;
 	//goto brent_marker;
 	//goto mpqs_marker;
@@ -487,18 +542,19 @@ brent_marker:
 tinyqs_marker:
 
     i = 0;
-	//strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
 	//strcpy(filenames[i++], "semiprimes_52bit.dat");
 	//strcpy(filenames[i++], "semiprimes_54bit.dat");
     //strcpy(filenames[i++], "semiprimes_56bit.dat");
 	//strcpy(filenames[i++], "semiprimes_58bit.dat");
-    //strcpy(filenames[i++], "semiprimes_60bit.dat");
+    strcpy(filenames[i++], "semiprimes_60bit.dat");
     //strcpy(filenames[i++], "semiprimes_64bit.dat");
     strcpy(filenames[i++], "semiprimes_70bit.dat");
     strcpy(filenames[i++], "semiprimes_80bit.dat");
     strcpy(filenames[i++], "semiprimes_90bit.dat");
     strcpy(filenames[i++], "semiprimes_100bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_120bit.dat");
+    strcpy(filenames[i++], "semiprimes_110bit.dat");
+	strcpy(filenames[i++], "semiprimes_120bit.dat");
     //strcpy(filenames[i++], "pseudoprimes_125bit.dat");
     num_files = i;
     num = 10000;
@@ -513,6 +569,60 @@ tinyqs_marker:
             uint64_t known1, known2;
             char buf[1024];
             in = fopen(filenames[nf], "r");
+
+			if (in == NULL)
+			{
+				printf("couldn't find %s to open\n", filenames[nf]);
+				continue;
+			}
+
+			num = 1000;
+			totBits = 0;
+			minBits = 99999;
+			maxBits = 0;
+
+			mpz_t* inputs = (mpz_t*)xmalloc(num * sizeof(mpz_t));
+
+			for (i = 0; i < num; i++)
+			{
+				fgets(buf, 1024, in);
+#ifdef _MSC_VER
+				gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
+					gmp_comp, &known1, &known2);
+#else
+				gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+					gmp_comp, &known1, &known2);
+#endif
+
+				bits = mpz_sizeinbase(gmp_comp, 2);
+				totBits += bits;
+				if (bits < minBits) minBits = bits;
+				if (bits > maxBits) maxBits = bits;
+
+				mpz_init(inputs[i]);
+				mpz_set(inputs[i], gmp_comp);
+			}
+
+			fclose(in);
+
+			printf("average bits of input numbers: %1.2f\n", (double)totBits / (double)num);
+			printf("minimum bits of input numbers: %u\n", minBits);
+			printf("maximum bits of input numbers: %u\n", maxBits);
+			printf("commencing mpqs test\n");
+
+			test_tinysiqs(inputs, num);
+
+			for (i = 0; i < num; i++)
+			{
+				mpz_clear(inputs[i]);
+			}
+        }
+
+		for (nf = 0; nf < num_files; nf++)
+		{
+			uint64_t known1, known2;
+			char buf[1024];
+			in = fopen(filenames[nf], "r");
 
 			if (in == NULL)
 			{
@@ -554,13 +664,13 @@ tinyqs_marker:
 			printf("maximum bits of input numbers: %u\n", maxBits);
 			printf("commencing mpqs test\n");
 
-			test_tinysiqs(inputs, num);
+			test_kmpqs(inputs, num);
 
 			for (i = 0; i < num; i++)
 			{
 				mpz_clear(inputs[i]);
 			}
-        }
+		}
 
         mpz_clear(gmp_comp);
     }   
@@ -1200,7 +1310,7 @@ microecm_marker:
 		mpz_clear(gmp_comp);
 		mpz_clear(gmp_f);
 	}
-    
+	goto done;
 
 mpqs_marker:
 	i = 0;

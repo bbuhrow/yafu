@@ -401,6 +401,7 @@ CFLAGS += \
     -Ignfs/poly \
     -Ignfs/poly/stage1 \
     -Ifactor/avx-ecm \
+    -Ifactor/kmpqs \
     -Ifactor
 
 # External dependency includes
