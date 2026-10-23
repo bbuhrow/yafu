@@ -181,6 +181,9 @@
     <ClCompile Include="..\..\factor\trialdiv.c" />
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
     <ClCompile Include="..\..\top\aprcl\tinyprp.c" />
+    <ClCompile Include="..\..\factor\kmpqs\kmpqs.c" />
+    <ClCompile Include="..\..\factor\kmpqs\kmpqs1.c" />
+    <ClCompile Include="..\..\factor\kmpqs\kmpqs3.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\cuda_intrinsics.h">
@@ -205,6 +208,8 @@
     <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
     <ClInclude Include="..\..\top\aprcl\tinyprp.h" />
+    <ClInclude Include="..\..\factor\kmpqs\kmpqs.h" />
+    <ClInclude Include="..\..\factor\kmpqs\kmpqs_common.h" />
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm" />

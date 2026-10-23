@@ -3,6 +3,10 @@
 *.o
 *.a
 /yafu
+/kmpqs_bench
+/kmpqs_bench_stat
+/kmpqs_bench.exe
+/kmpqs_bench_stat.exe
 *.no
 *.qo
 .deps/

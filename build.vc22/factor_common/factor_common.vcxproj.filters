@@ -57,6 +57,15 @@
     <ClCompile Include="..\..\top\aprcl\tinyprp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\kmpqs\kmpqs.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\kmpqs\kmpqs1.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\kmpqs\kmpqs3.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\factor\batch_factor.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -90,6 +99,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\top\aprcl\tinyprp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\kmpqs\kmpqs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\kmpqs\kmpqs_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\batch_factor.h">

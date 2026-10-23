@@ -867,6 +867,9 @@ COMMON_SRCS = \
     ysieve/wrapper.c \
     top/aprcl/mpz_aprcl.c \
     factor/gpu_cofactorization.c \
+    factor/kmpqs/kmpqs.c \
+    factor/kmpqs/kmpqs1.c \
+    factor/kmpqs/kmpqs3.c \
 	common/vec_bitonic_sort.c
 
 COMMON_BATCH_GPU_SRCS = \
@@ -1341,6 +1344,23 @@ test-full: _dep_status $(TEST_ARCHIVES)
 
 test-full-run: test-full
 	./$(TEST_FULL_BIN)
+
+
+# -----------------------------------------------------------------------------
+# 25c. kmpqs bench -- benchmark/validation driver for factor/kmpqs
+#
+#   make kmpqs-bench     builds kmpqs_bench (plain) and kmpqs_bench_stat
+#                        (with lasieve's counters, for tools/kmpqs_compare.sh)
+# -----------------------------------------------------------------------------
+.PHONY: kmpqs-bench
+
+KMPQS_SRCS       := factor/kmpqs/kmpqs.c factor/kmpqs/kmpqs1.c factor/kmpqs/kmpqs3.c
+KMPQS_BENCH_DEPS := factor/kmpqs/kmpqs_bench.c top/aprcl/tinyprp.c arith/monty.c ytools/ytools.c
+
+kmpqs-bench: _dep_status
+	$(CC) $(CFLAGS) $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) -o kmpqs_bench$(EXE_EXT) $(LIBS)
+	$(CC) $(CFLAGS) -DMPQS_STAT -DMPQS3_STAT $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) \
+	    -o kmpqs_bench_stat$(EXE_EXT) $(LIBS)
 
 
 # -----------------------------------------------------------------------------
