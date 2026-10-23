@@ -110,10 +110,10 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 }
 
 /* Inputs up to this size go to kmpqs (lasieve's MPQS, factor/kmpqs) before
-   tinysiqs or SIQS: single-threaded it beats yafu's SIQS, even with 6-12
-   threads, up to about 145 bits on an i5-11600K (SIQS's fixed setup cost
-   dominates there). */
-#define SIQS_KMPQS_MAX_BITS 140
+   tinysiqs or SIQS: single-threaded, with the tuned tables, it beats yafu's
+   SIQS even with 6-12 threads all the way to kmpqs3's limit (i5-11600K:
+   14.5 ms vs 40+ ms at 145 bits; SIQS's fixed setup cost dominates). */
+#define SIQS_KMPQS_MAX_BITS KMPQS3_MAX_BITS
 
 /* Factor fobj->qs_obj.gmp_n with kmpqs.  Returns 1 if it was completely
    factored (the factors are added to the factor list), 0 otherwise, in

@@ -17,6 +17,11 @@ Options:
   -seed S        seed for -gen (default 42)
   -dump          write the generated numbers to stdout and exit
   -v             kmpqs_verbose = 1
+  -rows          print "<row> <N>" for each input (kmpqs1 for -1, kmpqs3
+                 for -3, by size for -a) and exit
+  -param V,R,a,b,c,d,e,f,g   replace row R of kmpqs<V>'s parameter table
+                 (repeatable; see kmpqs_param in kmpqs.h)
+  -showparams    print both parameter tables and exit
   -reps R        time R passes over the inputs and report the fastest
   -threads T     also factor the inputs with T threads (thread-local
                  contexts) and compare with a single-threaded run
@@ -141,7 +146,7 @@ static void *bench_worker_thread(void *arg)
 
 int main(int argc, char **argv)
 {
-	int nthreads = 1, reps = 1;
+	int nthreads = 1, reps = 1, rows = 0;
 	jobs_t jobs;
 	int variant = 1, i, dump = 0;
 	int suc = 0, fail = 0, wrong = 0, count = 0;
@@ -163,6 +168,36 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[i], "-maxbits") == 0 && i + 1 < argc) maxbits = atol(argv[++i]);
 		else if (strcmp(argv[i], "-threads") == 0 && i + 1 < argc) nthreads = atoi(argv[++i]);
 		else if (strcmp(argv[i], "-reps") == 0 && i + 1 < argc) reps = atoi(argv[++i]);
+		else if (strcmp(argv[i], "-rows") == 0) rows = 1;
+		else if (strcmp(argv[i], "-param") == 0 && i + 1 < argc) {
+			int v, r, k;
+			unsigned int a[7];
+			unsigned short pv[7];
+
+			if (sscanf(argv[++i], "%d,%d,%u,%u,%u,%u,%u,%u,%u", &v, &r,
+				&a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6]) != 9) {
+				fprintf(stderr, "bad -param %s\n", argv[i]);
+				return 1;
+			}
+			for (k = 0; k < 7; k++) pv[k] = (unsigned short)a[k];
+			if (kmpqs_param(v, r, NULL, pv) < 0) {
+				fprintf(stderr, "rejected -param %s\n", argv[i]);
+				return 1;
+			}
+		}
+		else if (strcmp(argv[i], "-showparams") == 0) {
+			int v, r, k;
+			unsigned short pv[7];
+
+			for (v = 1; v <= 3; v += 2)
+				for (r = 0; r < (v == 1 ? KMPQS1_NROWS : KMPQS3_NROWS); r++) {
+					kmpqs_param(v, r, pv, NULL);
+					printf("%d,%d", v, r);
+					for (k = 0; k < 7; k++) printf(",%u", pv[k]);
+					printf("\n");
+				}
+			return 0;
+		}
 		else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc) seed = strtoul(argv[++i], NULL, 10);
 		else if (strcmp(argv[i], "-gen") == 0 && i + 2 < argc) {
 			gen_bits = atoi(argv[++i]);
@@ -231,6 +266,14 @@ int main(int argc, char **argv)
 		}
 		if (fi != stdin)
 			fclose(fi);
+	}
+
+	if (rows) {
+		for (i = 0; i < count; i++) {
+			int v = variant ? variant : (mpz_sizeinbase(inputs[i], 2) > KMPQS1_MAX_BITS ? 3 : 1);
+			gmp_printf("%d %Zd\n", kmpqs_param_row(v, inputs[i]), inputs[i]);
+		}
+		return 0;
 	}
 
 	if (dump) {
@@ -318,7 +361,7 @@ int main(int argc, char **argv)
 		(unsigned long long)stat_pf, (unsigned long long)stat_comb);
 #endif
 	printf("wrong: %d\n", wrong);
-	printf("time: %.3f s (%.2f us per input)\n", t1 - t0,
+	printf("time: %.6f s (%.2f us per input)\n", t1 - t0,
 		count ? 1e6 * (t1 - t0) / count : 0.0);
 
 	return wrong ? 2 : 0;

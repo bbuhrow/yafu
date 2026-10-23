@@ -23,25 +23,27 @@ lasieve's TINY3 variant with MOD3.
 /* every function that can fail has the context in scope as 'qs' */
 #define KMPQS_JMPBUF (qs->jmpbuf)
 
-/* from asm/mpqs-config.h (TINY3): nFB, sievebegin (unused in TINY3), nAdiv,
+/* lasieve's TINY3 table (asm/mpqs-config.h), retuned for kmpqs with
+   tools/kmpqs_tune.py (2026-10-23, i5-11600K, AVX-512): nFB, sievebegin
+   (unused in TINY3), nAdiv,
    nAdiv_total, accept, td_begin, sievelen; one row per 4 bits, 92..148 */
-static uint16_t mpqs3_param[15][7]={ /* TODO: optimize parameters */
- { 160, 0, 4, 7, 17, 160, 4096},    /* 92 */
- { 170, 0, 4, 8, 17, 180, 4096},    /* 96 */
- { 200, 0, 4, 8, 17, 200, 5120},   /* 100 */
- { 220, 0, 4, 8, 19, 220, 5120},   /* 104 */
- { 240, 0, 4, 8, 19, 240, 6144},   /* 108 */
- { 270, 0, 5, 8, 21, 272, 7168},   /* 112 */
- { 310, 0, 5, 9, 21, 312, 8192},   /* 116 */
- { 350, 0, 5, 9, 21, 350, 10240},   /* 120 */
- { 380, 0, 5, 9, 22, 380, 11264},   /* 124 */
- { 410, 0, 5, 9, 22, 410, 12800},   /* 128 bit */
+static uint16_t mpqs3_param[15][7]={
+ { 160, 0, 4, 7, 15, 160, 4096 },         /* 92 */
+ { 170, 0, 4, 8, 17, 180, 4096 },         /* 96 */
+ { 200, 0, 4, 8, 17, 200, 5120 },         /* 100 */
+ { 220, 0, 4, 8, 17, 220, 5120 },         /* 104 */
+ { 240, 0, 4, 8, 19, 240, 6144 },         /* 108 */
+ { 297, 0, 4, 8, 19, 299, 7168 },         /* 112 */
+ { 341, 0, 4, 9, 19, 343, 8192 },         /* 116 */
+ { 385, 0, 5, 9, 21, 385, 10240 },        /* 120 */
+ { 475, 0, 5, 9, 21, 475, 11264 },        /* 124 */
+ { 512, 0, 5, 9, 22, 512, 9728 },         /* 128 bit */
 
- { 440, 0, 5, 9, 22, 420, 12800},   /* experimental */
- { 500, 0, 6, 10, 22, 500, 16384},
- { 512, 0, 6, 10, 22, 512, 16384},
- { 512, 0, 6, 10, 22, 512, 16384},
- { 512, 0, 7, 10, 22, 512, 16384}
+ { 484, 0, 5, 9, 22, 462, 10752 },        /* experimental */
+ { 688, 0, 5, 10, 22, 688, 16384 },
+ { 800, 0, 5, 10, 22, 800, 16384 },
+ { 800, 0, 5, 10, 22, 800, 16384 },
+ { 800, 0, 6, 10, 22, 800, 16384 }
 };
 
 /* 2^-64 */
@@ -63,7 +65,7 @@ static uint16_t mpqs3_param[15][7]={ /* TODO: optimize parameters */
 #define MPQS3_MAX_NCRELS      1024  /* ??? */
 #define MPQS3_MAX_NRELS_BUF   256  /* ??? */
 #define MPQS3_MIN_RELBUFFER   16
-#define MPQS3_GAUSS_MAX       1024      // was 1024, lots of -6 errors with MFB=107
+#define MPQS3_GAUSS_MAX       2048  /* room for the tuned FB sizes (up to ~800 primes, +25% on retry) */
 #define MPQS3_MAX_FACTORS     6
 #define MPQS3_MAX_NPRIMES     2048   /* largest prime MUST be <16384 (final) */
 #define MPQS3_HASH_OVERFLOW   65535
@@ -2327,3 +2329,36 @@ int kmpqs3_run(void *ctx, mpz_t N, size_t max_bits, mpz_t **factors)
   return err;
 }
 
+
+/* Parameter table access for tools/kmpqs_tune.py.  Not thread-safe: call
+   before any factoring starts.  Returns 0, or -1 for a bad row or values. */
+int kmpqs3_param(int row, uint16_t *get, const uint16_t *set)
+{
+  if (row<0 || row>=15) return -1;
+  if (set) {
+    if (set[0]<20 || set[0]>=MPQS3_MAX_FBSIZE-1) return -1;
+    if (set[2]<1 || set[2]>=set[3] || set[3]>MPQS3_MAX_ADIV_ALL) return -1;
+    if (set[4]<4 || set[4]>40) return -1;
+    if (set[5]<2) return -1;
+    if (set[6]<256 || set[6]>16384 || (set[6]&255)) return -1;
+    memcpy(mpqs3_param[row],set,7*sizeof(uint16_t));
+  }
+  if (get) memcpy(get,mpqs3_param[row],7*sizeof(uint16_t));
+  return 0;
+}
+
+
+/* The parameter row kmpqs3 uses for N (first attempt), or -1. */
+int kmpqs3_row(void *ctx, mpz_t N)
+{
+  mpqs3_ctx_t *qs=(mpqs3_ctx_t *)ctx;
+  int n;
+
+  if (setjmp(qs->jmpbuf)) return -1;
+  mpz_set(qs->N,N);
+  mpqs3_choose_multiplier(qs);
+  n=(int)(qs->complexity+0.5);
+  if (n>148) n=148;
+  if (n<91) n=91;
+  return (n+3)/4-23;
+}

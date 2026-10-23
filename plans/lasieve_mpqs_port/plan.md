@@ -1,6 +1,7 @@
 # Porting lasieve5 mpqs / mpqs3 into yafu: plan
 
-*Drafted 2026-10-23 on branch `L2sieve` (head `d52b9b7`). Status of each
+*Drafted 2026-10-23 on branch `L2sieve` (head `d52b9b7`); all five phases
+done the same day. Status of each
 phase is in section 0.*
 
 ## 0. Status
@@ -154,6 +155,87 @@ changes the counters, so it belongs to Phase 5.
 Checks: ASan+UBSan, TSan (4 threads), MinGW native at three ISA levels
 (threaded, results identical), and clang-cl `/arch:AVX512`, `/arch:AVX2`,
 default.
+
+### Phase 4: integration (done; commits `0c779eb`, `de94086`)
+
+- **SIQS** (`factor/qs/siqs_test.c`, `check_specialcase`): inputs of up
+  to `SIQS_KMPQS_MAX_BITS` (140 at first; 148 = `KMPQS3_MAX_BITS` after
+  Phase 5) go to kmpqs first. Factors are verified
+  (product and PRP) before they are accepted. Otherwise the old path runs
+  (tinysiqs below 115 bits, then SIQS). Per `siqs()` call through yafu,
+  single thread (including about 4.5 ms of yafu's per-call overhead):
+
+  | bits | yafu before | yafu now | kmpqs alone |
+  |---|---|---|---|
+  | 96 | 6.7 ms | 5.2 ms | 0.45 ms |
+  | 120 | 47 ms | 7.0 ms | 2.6 ms |
+  | 140 | 59 ms | 18 ms | 14 ms |
+
+  Multi-threaded SIQS (6 or 12 threads) still took 25-45 ms per input at
+  116-145 bits, so kmpqs wins there too. The break-even is about 145-148
+  bits.
+- **batch factoring** (`factor/batch_factor.c`, SIQS TLP batches and NFS
+  `process_batch`): the 8 dead `HAVE_LASIEVE_MPQS` fallbacks (cofactors
+  > 64 bits that tecm failed to split) now go through `batch_split_qs`.
+  That function checks compositeness, that every factor is within the
+  large-prime cutoff, and that they fit in `MAX_LARGE_PRIMES` slots. The
+  old code also ignored negative (failure) returns.
+- **GPU cofactorization** (`gpu_cofactorization.c`, `_cl.c`): kmpqs
+  replaces both the lasieve call and the tinysiqs fallback. The OpenCL
+  file no longer defines `HAVE_LASIEVE_MPQS` or includes the missing
+  `mpqs3/*.h`.
+- **`factor_tiny`** (`autofactor.c`): its branch for inputs > 64 bits was
+  all `#if 0`, so a composite never made progress. It now runs tecm for
+  a small prime factor, then kmpqs (283 random 65-128 bit composites with
+  2-4 factors: all correct, about 1.1 ms each).
+- **lasieve5_64**: the `mpqs3_convert` rounding fix is applied to its own
+  `mpqs3.c`. Its mpqs3 now factors every 110- and 120-bit test input
+  (before: nearly none). lasieve keeps its own copy and asm otherwise.
+- Not exercised by a run: the batch QS fallback. A forced-TLP SIQS run on
+  a C85 factored correctly, but tecm split every residue (`qs: 0` in its
+  statistics).
+
+### Phase 5: retuned parameter tables (done)
+
+- Tuning hooks: `kmpqs_param()` reads or replaces a table row, and
+  `kmpqs_param_row()` gives the row an input uses (it depends on the
+  multiplier). `kmpqs_bench` has `-param V,R,...`, `-rows` and
+  `-showparams`, and prints times to the microsecond.
+- `tools/kmpqs_tune.py` classifies random semiprimes by row, then runs a
+  coordinate search per row over sieve length, FB size, threshold, number
+  of A factors and their pool size. Candidates are timed back to back
+  against the current row, twice, and must factor every input. A winner is
+  kept only if it is also at least 1.5% faster on a separate hold-out set.
+  Two rounds were run (the second on kmpqs3 rows 9-14); logs are in the
+  session notes.
+- Changes kept: kmpqs1 rows 0, 3, 4, 5, 6, 8, 9, 13 (mostly one fewer
+  A-pool prime, longer intervals at 76-80 bits). kmpqs3 rows 0, 3 and 5-14:
+  larger factor bases (e.g. 512 -> 800 primes at 136-148 bits) and fewer A
+  factors. `MPQS3_GAUSS_MAX` was raised to 2048 (and the Gauss kernel's
+  row bound to match) to leave room for these FB sizes plus the 25% retry
+  growth.
+- Tuned vs lasieve tables (single thread, best of 3, all inputs factored):
+
+  | bits | 50 | 64 | 80 | 90 | 96 | 100 | 110 | 120 | 130 | 140 | 145 |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | time ratio | 1.00 | 1.00 | 0.95 | 1.00 | 1.02 | 0.99 | 0.93 | 0.96 | 0.94 | 0.75 | 0.63 |
+
+- kmpqs vs lasieve asm now (`tools/kmpqs_compare.sh`, best of 5): 1.00,
+  0.95, 0.86, 0.89, 0.90, 0.85 at 50/64/80/90/96/100 bits. The script's
+  exact counter check now runs kmpqs with lasieve's original tables
+  (`-param`), and still matches at every size.
+- The kmpqs1/kmpqs3 switch stays at 96 bits: kmpqs1 is equal or faster at
+  86-96 bits (e.g. 0.236 s vs 0.236 s at 96, 0.158 vs 0.162 at 90).
+- With 145 bits now at 14.5 ms, SIQS's kmpqs cutoff is `KMPQS3_MAX_BITS`
+  (148). Through yafu `siqs()`: 145 bits 20 ms, 148 bits 29 ms; 149 bits
+  falls through to SIQS at 65 ms.
+- Checks: all five ISA builds give identical counters (64-140 bits);
+  `-threads 8/12` results identical to single-threaded at 50-148 bits.
+- Not done: algorithmic sieve changes (small-prime variation, a larger
+  tiny-prime pattern). At 120+ bits the sieve is still about 55% of the
+  time, so these are the next lever if more speed is wanted. The tables
+  were tuned on one machine (i5-11600K, AVX-512); `tools/kmpqs_tune.py`
+  can retune elsewhere.
 
 ## 1. Goal
 

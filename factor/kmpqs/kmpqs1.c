@@ -22,23 +22,25 @@ timing hooks are dropped.  Configuration is lasieve's TINY variant.
 /* every function that can fail has the context in scope as 'qs' */
 #define KMPQS_JMPBUF (qs->jmpbuf)
 
-/* from asm/mpqs-config.h (TINY): nFB, sievebegin (unused in TINY), nAdiv,
+/* lasieve's TINY table (asm/mpqs-config.h), retuned for kmpqs with
+   tools/kmpqs_tune.py (2026-10-23, i5-11600K, AVX-512): nFB, sievebegin
+   (unused in TINY), nAdiv,
    nAdiv_total, accept, td_begin, sievelen; one row per 4 bits, 44..96 */
 static uint16_t mpqs_param[14][7]={
- { 30, 3, 2, 5, 7, 30, 768},      /* 44 */
- { 30, 3, 3, 5, 9, 30, 1024},     /* 48 */
- { 35, 3, 3, 5, 10, 40, 1280},    /* 52 */
- { 40, 3, 3, 6, 10, 50, 1536},    /* 56 */
- { 50, 3, 3, 6, 10, 50, 1536},    /* 60 */
- { 60, 3, 3, 6, 11, 60, 1536},    /* 64 */
- { 60, 3, 3, 7, 11, 60, 1792},    /* 68 */
- { 80, 3, 3, 7, 12, 80, 2048},    /* 72 */
- { 90, 3, 3, 7, 13, 90, 2048},    /* 76 */
- { 110, 3, 3, 7, 14, 110, 2560},   /* 80 */
- { 120, 3, 4, 7, 14, 120, 2560},   /* 84 */
- { 140, 3, 4, 7, 15, 140, 3072},   /* 88 */
- { 150, 3, 4, 7, 16, 150, 3072},   /* 92 */
- { 160, 4, 4, 8, 17, 160, 3072}    /* 96 */
+ { 27, 3, 2, 5, 7, 27, 768 },             /* 44 */
+ { 30, 3, 3, 5, 9, 30, 1024 },            /* 48 */
+ { 35, 3, 3, 5, 10, 40, 1280 },           /* 52 */
+ { 40, 3, 3, 5, 10, 50, 1536 },           /* 56 */
+ { 50, 3, 3, 5, 10, 50, 1536 },           /* 60 */
+ { 48, 3, 3, 6, 11, 48, 1536 },           /* 64 */
+ { 60, 3, 3, 6, 11, 60, 1792 },           /* 68 */
+ { 80, 3, 3, 7, 12, 80, 2048 },           /* 72 */
+ { 90, 3, 3, 6, 13, 90, 2560 },           /* 76 */
+ { 110, 3, 3, 6, 14, 110, 3840 },         /* 80 */
+ { 120, 3, 4, 7, 14, 120, 2560 },         /* 84 */
+ { 140, 3, 4, 7, 15, 140, 3072 },         /* 88 */
+ { 150, 3, 4, 7, 16, 150, 3072 },         /* 92 */
+ { 160, 4, 4, 7, 17, 160, 3072 }          /* 96 */
 };
 
 
@@ -1967,4 +1969,38 @@ int kmpqs1_run(void *ctx, mpz_t N, size_t max_bits, mpz_t **factors)
   if (err==-4) err=mpqs_factor0(qs, N,max_bits,factors,1);
   if (err==-4) err=mpqs_factor0(qs, N,max_bits,factors,2);
   return err;
+}
+
+
+/* Parameter table access for tools/kmpqs_tune.py.  Not thread-safe: call
+   before any factoring starts.  Returns 0, or -1 for a bad row or values. */
+int kmpqs1_param(int row, uint16_t *get, const uint16_t *set)
+{
+  if (row<0 || row>=14) return -1;
+  if (set) {
+    if (set[0]<20 || set[0]>=MPQS_MAX_FBSIZE-1) return -1;
+    if (set[2]<1 || set[2]>=set[3] || set[3]>MPQS_MAX_ADIV_ALL) return -1;
+    if (set[4]<4 || set[4]>40) return -1;
+    if (set[5]<2) return -1;
+    if (set[6]<256 || set[6]>MPQS_SIEVELENMAX || (set[6]&255)) return -1;
+    memcpy(mpqs_param[row],set,7*sizeof(uint16_t));
+  }
+  if (get) memcpy(get,mpqs_param[row],7*sizeof(uint16_t));
+  return 0;
+}
+
+
+/* The parameter row kmpqs1 uses for N (first attempt), or -1. */
+int kmpqs1_row(void *ctx, mpz_t N)
+{
+  mpqs_ctx_t *qs=(mpqs_ctx_t *)ctx;
+  int n;
+
+  if (setjmp(qs->jmpbuf)) return -1;
+  mpz_set(qs->N,N);
+  mpqs_choose_multiplier(qs);
+  n=(int)(qs->complexity+0.5);
+  if (n>96) n=96;
+  if (n<43) n=43;
+  return (n+3)/4-11;
 }

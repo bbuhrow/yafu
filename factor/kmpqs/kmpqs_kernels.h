@@ -543,7 +543,7 @@ static inline void kmpqs_np_newA(uint32_t nfb, const uint16_t *fb,
    return d[c] is the pivot row of column c, or -1 for a free column
    (d[] must be -1 on entry).  m <= KMPQS_GAUSS_MAXROWS.
    --------------------------------------------------------------------------- */
-#define KMPQS_GAUSS_MAXROWS 1024
+#define KMPQS_GAUSS_MAXROWS 2048
 
 static inline void kmpqs_rowechelon(uint64_t *M, uint32_t m, uint32_t n,
 	uint32_t n64, short *d)

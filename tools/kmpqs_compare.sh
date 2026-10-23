@@ -75,6 +75,26 @@ best_of() {    # best_of cmd... : fastest of $REPS runs
 	echo "$best"
 }
 
+# kmpqs's parameter tables are retuned; the exact comparison runs it with
+# lasieve's original TINY / TINY3 tables (asm/mpqs-config.h) instead
+LASIEVE_PARAMS=""
+i=0
+for row in 30,3,2,5,7,30,768 30,3,3,5,9,30,1024 35,3,3,5,10,40,1280 \
+	40,3,3,6,10,50,1536 50,3,3,6,10,50,1536 60,3,3,6,11,60,1536 \
+	60,3,3,7,11,60,1792 80,3,3,7,12,80,2048 90,3,3,7,13,90,2048 \
+	110,3,3,7,14,110,2560 120,3,4,7,14,120,2560 140,3,4,7,15,140,3072 \
+	150,3,4,7,16,150,3072 160,4,4,8,17,160,3072; do
+	LASIEVE_PARAMS="$LASIEVE_PARAMS -param 1,$i,$row"; i=$((i + 1))
+done
+i=0
+for row in 160,0,4,7,17,160,4096 170,0,4,8,17,180,4096 200,0,4,8,17,200,5120 \
+	220,0,4,8,19,220,5120 240,0,4,8,19,240,6144 270,0,5,8,21,272,7168 \
+	310,0,5,9,21,312,8192 350,0,5,9,21,350,10240 380,0,5,9,22,380,11264 \
+	410,0,5,9,22,410,12800 440,0,5,9,22,420,12800 500,0,6,10,22,500,16384 \
+	512,0,6,10,22,512,16384 512,0,6,10,22,512,16384 512,0,7,10,22,512,16384; do
+	LASIEVE_PARAMS="$LASIEVE_PARAMS -param 3,$i,$row"; i=$((i + 1))
+done
+
 status=0
 printf "%5s %6s  %-8s %10s %10s %7s\n" bits count counters lasieve_s kmpqs_s ratio
 for b in $SIZES; do
@@ -83,7 +103,7 @@ for b in $SIZES; do
 	./kmpqs_bench -gen "$b" "$n" -dump > "$in"
 	if [ "$b" -le 96 ]; then v=-1; t=mpqstest; else v=-3; t=mpqs3test; fi
 
-	k=$(./kmpqs_bench_stat $v "$in")
+	k=$(./kmpqs_bench_stat $v $LASIEVE_PARAMS "$in")
 	if echo "$k" | grep -q '^wrong: [1-9]'; then
 		echo "$b: kmpqs returned a wrong factorization"; status=1
 	fi

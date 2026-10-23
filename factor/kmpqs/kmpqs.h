@@ -62,6 +62,20 @@ int kmpqs1_factor(mpz_t N, size_t max_bits, mpz_t **factors);
 int kmpqs3_factor(mpz_t N, size_t max_bits, mpz_t **factors);
 void kmpqs_thread_cleanup(void);
 
+/*
+ * Parameter tables, for tools/kmpqs_tune.py.  variant is 1 or 3; a row
+ * holds 7 values: FB size, (unused), number of A factors, size of the pool
+ * the A factors are drawn from, sieve threshold, number of FB primes
+ * handled by trial division (the rest by resieving), sieve length.
+ * kmpqs_param reads a row into get and/or replaces it with set (either
+ * may be NULL); it is not thread-safe.  kmpqs_param_row gives the row used
+ * for N.  Both return -1 on bad arguments.
+ */
+#define KMPQS1_NROWS 14
+#define KMPQS3_NROWS 15
+int kmpqs_param(int variant, int row, unsigned short *get, const unsigned short *set);
+int kmpqs_param_row(int variant, mpz_t N);
+
 /* Nonzero: print lasieve's warnings and internal errors to stderr. */
 extern int kmpqs_verbose;
 

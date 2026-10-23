@@ -8,6 +8,7 @@ WITHOUT ANY WARRANTY.  See factor/lasieve5_64/COPYING.
 */
 
 #include <stdlib.h>
+#include <stdint.h>
 #include "kmpqs.h"
 
 /* implemented in kmpqs1.c / kmpqs3.c; ctx is mpqs_ctx_t / mpqs3_ctx_t */
@@ -103,4 +104,35 @@ void kmpqs_thread_cleanup(void)
 {
 	kmpqs_ctx_free(kmpqs_tls_ctx);
 	kmpqs_tls_ctx = NULL;
+}
+
+/* ---- parameter tables ---- */
+
+int kmpqs1_param(int row, uint16_t *get, const uint16_t *set);
+int kmpqs3_param(int row, uint16_t *get, const uint16_t *set);
+int kmpqs1_row(void *ctx, mpz_t N);
+int kmpqs3_row(void *ctx, mpz_t N);
+
+int kmpqs_param(int variant, int row, unsigned short *get, const unsigned short *set)
+{
+	if (variant == 1) return kmpqs1_param(row, get, set);
+	if (variant == 3) return kmpqs3_param(row, get, set);
+	return -1;
+}
+
+int kmpqs_param_row(int variant, mpz_t N)
+{
+	kmpqs_ctx_t *ctx = tls_ctx();
+
+	if (ctx == NULL)
+		return -1;
+	if (variant == 1) {
+		if (ctx->c1 == NULL && (ctx->c1 = kmpqs1_ctx_new()) == NULL) return -1;
+		return kmpqs1_row(ctx->c1, N);
+	}
+	if (variant == 3) {
+		if (ctx->c3 == NULL && (ctx->c3 = kmpqs3_ctx_new()) == NULL) return -1;
+		return kmpqs3_row(ctx->c3, N);
+	}
+	return -1;
 }
