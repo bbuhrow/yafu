@@ -2507,14 +2507,6 @@ void* process_poly(void* vptr)
             dconf->t_lpsieve += (now_sec() - tstart);
 #endif
         }
-#elif defined(TRY_LIST_SIEVE)
-        // build both procedures' per-block lists for this poly/side
-        list_sieve_init_32k(dconf->sieve_p, fb, dconf->lsctx_p);
-#elif defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
-        //printf("starting p-side L2 sieve\n"); fflush(stdout);
-        memset(sieve, blockinit, 32768 * 8);
-        L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_p, fb, start_prime, blockinit);
-        //printf("finished p-side L2 sieve\n"); fflush(stdout);
 #endif
 
         for (i = 0; i < num_blocks; i++)
@@ -2523,8 +2515,6 @@ void* process_poly(void* vptr)
             // the direct sieve keeps both whole intervals; otherwise one
             // block window is reused
             uint8_t* blk_sieve = sconf->lp_direct ? sieve + i * 32768 : sieve;
-#elif (defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)) //|| defined(TRY_LIST_SIEVE)
-            uint8_t* blk_sieve = sieve + i * 32768;
 #else
             uint8_t* blk_sieve = sieve;
 #endif
@@ -2561,7 +2551,7 @@ void* process_poly(void* vptr)
 #if defined(TRY_DIRECT_SIEVE)
                 if (!sconf->lp_direct)
                     memset(blk_sieve, blockinit - 4, 32768);
-#elif (!defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE) || defined(TRY_LIST_SIEVE))
+#else
                 memset(blk_sieve, blockinit - 4, 32768);
 #endif
 
@@ -2573,7 +2563,7 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
-#if defined(TRY_SPARSE_SIEVE) && !defined(TRY_LIST_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit - 4);
 #endif
             }
@@ -2584,7 +2574,7 @@ void* process_poly(void* vptr)
 #if defined(TRY_DIRECT_SIEVE)
                 if (!sconf->lp_direct)
                     memset(blk_sieve, blockinit, 32768);
-#elif (!defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE) || defined(TRY_LIST_SIEVE))
+#else
                 memset(blk_sieve, blockinit, 32768);
 #endif
 
@@ -2596,7 +2586,7 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit);
-#if defined(TRY_SPARSE_SIEVE) && !defined(TRY_LIST_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit);
 #endif
             }
@@ -2639,9 +2629,6 @@ void* process_poly(void* vptr)
             // buckets
             if ((!sconf->lp_direct) || sconf->mid_bucket)
                 lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 0, dconf);
-#elif defined(TRY_LIST_SIEVE)
-            // linked-list sieve covers [med_B, B) for this block
-            list_sieveblock_32k_avx512bw(blk_sieve, i, dconf->sieve_p, fb, dconf->lsctx_p);
 #else
             lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 0, dconf);
 #endif
@@ -2690,22 +2677,12 @@ void* process_poly(void* vptr)
 
 #if defined(TRY_DIRECT_SIEVE)
         // neg interval was initialized and direct-sieved with the pos side
-#elif defined(TRY_LIST_SIEVE)
-        // build both procedures' per-block lists for this poly/side
-        list_sieve_init_32k(dconf->sieve_n, fb, dconf->lsctx_n);
-#elif defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
-        //printf("starting n-side L2 sieve\n"); fflush(stdout);
-        memset(sieve, blockinit, 32768 * 8);
-        L2_sieveblock_32k_avx512bw(sieve, dconf->sieve_n, fb, start_prime, blockinit);
-        //printf("finished n-side L2 sieve\n"); fflush(stdout);
 #endif
 
         for (i = 0; i < num_blocks; i++)
         {
 #if defined(TRY_DIRECT_SIEVE)
             uint8_t* blk_sieve = sconf->lp_direct ? sieve + (num_blocks + i) * 32768 : sieve;
-#elif (defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)) // || defined(TRY_LIST_SIEVE)
-            uint8_t* blk_sieve = sieve + i * 32768;
 #else
             uint8_t* blk_sieve = sieve;
 #endif
@@ -2737,7 +2714,7 @@ void* process_poly(void* vptr)
 #if defined(TRY_DIRECT_SIEVE)
                 if (!sconf->lp_direct)
                     memset(blk_sieve, blockinit - 4, 32768);
-#elif (!defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE) || defined(TRY_LIST_SIEVE))
+#else
                 memset(blk_sieve, blockinit - 4, 32768);
 #endif
 
@@ -2749,7 +2726,7 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
-#if defined(TRY_SPARSE_SIEVE) && !defined(TRY_LIST_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit - 4);
 #endif
             }
@@ -2760,7 +2737,7 @@ void* process_poly(void* vptr)
 #if defined(TRY_DIRECT_SIEVE)
                 if (!sconf->lp_direct)
                     memset(blk_sieve, blockinit, 32768);
-#elif (!defined(TRY_L2_SIEVE) || defined(TRY_SPARSE_SIEVE) || defined(TRY_LIST_SIEVE))
+#else
                 memset(blk_sieve, blockinit, 32768);
 #endif
 
@@ -2772,7 +2749,7 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit);
-#if defined(TRY_SPARSE_SIEVE) && !defined(TRY_LIST_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit);
 #endif
             }
@@ -2792,9 +2769,6 @@ void* process_poly(void* vptr)
             // buckets
             if ((!sconf->lp_direct) || sconf->mid_bucket)
                 lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 1, dconf);
-#elif defined(TRY_LIST_SIEVE)
-            // linked-list sieve covers [med_B, B) for this block
-            list_sieveblock_32k_avx512bw(blk_sieve, i, dconf->sieve_n, fb, dconf->lsctx_n);
 #else
             lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 1, dconf);
 #endif
@@ -3095,8 +3069,6 @@ void* process_poly(void* vptr)
                 nextRoots_32k_knl_largebucket(sconf, dconf, bi, cb, bv,
                     ptr, np_p, np_n, sl_p, sl_n);
             }
-#elif defined(TRY_LIST_SIEVE)
-            // no bucket sieve
 #else
             if (num_blocks > 16)
                 nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
@@ -3447,22 +3419,12 @@ static void print_siqs_experiments(static_conf_t* sconf, int to_screen, FILE* lo
             fb->med_B, fb->large_B, EXP_RANGE(fb->med_B, fb->large_B));
 #endif
 
-#if defined(TRY_LIST_SIEVE)
-    EXP_LINE("TRY_LIST_SIEVE: linked-list sieve, fb [%u, %u) primes %u..%u\n",
-        fb->med_B, fb->B, EXP_RANGE(fb->med_B, fb->B));
-#endif
-
-#if defined(TRY_L2_SIEVE)
-#if defined(TRY_SPARSE_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
     if (fb->fb_blk8i > fb->med_B)
-        EXP_LINE("TRY_SPARSE_SIEVE: per-block sparse sieve, fb [%u, %u) primes %u..%u\n",
+        EXP_LINE("sparse sieve: per-block, fb [%u, %u) primes %u..%u\n",
             fb->med_B, fb->fb_blk8i, EXP_RANGE(fb->med_B, fb->fb_blk8i));
     else
-        EXP_LINE("TRY_SPARSE_SIEVE: compiled in, range empty\n");
-#else
-    EXP_LINE("TRY_L2_SIEVE: whole-interval L2 sieve, fb [%u, %u) primes %u..%u\n",
-        fb->med_B, fb->fb_blk8i, EXP_RANGE(fb->med_B, fb->fb_blk8i));
-#endif
+        EXP_LINE("sparse sieve: compiled in, range empty\n");
 #endif
 
 #if defined(TRY_COMPRESS_SORT_LARGEP)
@@ -3834,12 +3796,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->comp_sieve_n->logp = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
 
-#if defined(TRY_LIST_SIEVE)
-    // the list sieve's per-poly root updates cover the entire factor base
-    uint32_t sievefb_alloc = sconf->factor_base->B;
-#else
     uint32_t sievefb_alloc = sconf->factor_base->fb_blk8i;
-#endif
     dconf->sieve_p->prime = (uint32_t*)xmalloc_align(
         (size_t)(sievefb_alloc * sizeof(uint32_t)));
     dconf->sieve_p->root1 = (uint32_t*)xmalloc_align(
@@ -3858,14 +3815,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->sieve_n->logp = (uint32_t*)xmalloc_align(
         (size_t)(sievefb_alloc * sizeof(uint32_t)));
 
-#if defined(TRY_LIST_SIEVE)
-    // per-thread contexts for the experimental linked-list sieve,
-    // covering [med_B, B) (replaces the L2/sparse sieve and the buckets)
-    dconf->lsctx_p = list_sieve_alloc_32k(sconf->factor_base->med_B,
-        sconf->factor_base->B, sconf->num_blocks);
-    dconf->lsctx_n = list_sieve_alloc_32k(sconf->factor_base->med_B,
-        sconf->factor_base->B, sconf->num_blocks);
-#endif
 #if defined(TRY_DIRECT_SIEVE)
     dconf->dpool = direct_pool_alloc(sconf->num_blocks);
 #endif
@@ -3949,9 +3898,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     // both whole intervals (pos then neg) plus 2 guard blocks on each end
     dconf->sieve = (uint8_t*)xmalloc_align(
         (size_t)(sconf->qs_blocksize * (2 * sconf->num_blocks + 4) * sizeof(uint8_t)));
-#elif defined(TRY_L2_SIEVE)
-    dconf->sieve = (uint8_t*)xmalloc_align(
-        (size_t)(sconf->qs_blocksize * 20 * sizeof(uint8_t)));
 #else
     dconf->sieve = (uint8_t*)xmalloc_align(
         (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
@@ -5425,7 +5371,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	}
 	sconf->factor_base->med_B = i;
 
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
     for (; i < sconf->factor_base->B; i++)
     {
         // find the point at which factor base primes exceed 8x block
@@ -5438,9 +5384,6 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
             ((i % 16) == 0))
         {
-#if !defined(TRY_DIRECT_SIEVE)
-            i -= 16;
-#endif
             // with TRY_DIRECT_SIEVE compiled in this is provisional (rounded
             // up); siqs_resolve_strategy sets the final fb_blk8i / large_B
             // once the strategy is known.
@@ -5467,7 +5410,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			break;
 		}
 	}
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
     // fb_blk8i is computed against sieve_interval, so large_B == fb_blk8i
     // for any num_blocks.  TRY_DIRECT_SIEVE relies on this: the sparse
     // sieve covers [med_B, fb_blk8i), the direct sieve [large_B, B).
@@ -7159,10 +7102,6 @@ int free_sieve(dynamic_conf_t* dconf)
 	free(dconf->comp_sieve_p);
 	free(dconf->comp_sieve_n);
 
-#if defined(TRY_LIST_SIEVE)
-	list_sieve_free_32k(dconf->lsctx_p);
-	list_sieve_free_32k(dconf->lsctx_n);
-#endif
 #if defined(TRY_DIRECT_SIEVE)
 	direct_pool_free(dconf->dpool);
 #endif

@@ -85,62 +85,37 @@
 // new largep bucket sorting idea
 // #define TRY_COMPRESS_SORT_LARGEP 1
 
-// The experimental sieves below (L2 / sparse / list / direct) are compiled
-// at every ISA level; the large-prime strategy and its kernels (AVX-512 or
-// portable scalar) are chosen at run time.  -DSIQS_NO_EXPERIMENTAL_SIEVES
-// builds the stock bucket sieve only (a reference for the bucket+bucket
-// strategy).
+// The experimental large-prime sieves (sparse / direct, all under
+// TRY_DIRECT_SIEVE) are compiled at every ISA level; the large-prime
+// strategy and its kernels are chosen at run time.
+// -DSIQS_NO_EXPERIMENTAL_SIEVES builds the stock bucket sieve only (a
+// reference for the bucket+bucket strategy).
 #if !defined(SIQS_NO_EXPERIMENTAL_SIEVES)
 #define SIQS_EXPERIMENTAL_SIEVES
 #endif
 
 #if defined(SIQS_EXPERIMENTAL_SIEVES)
-// L2 sieving
-#define TRY_L2_SIEVE
-// change the L2 sieve to a sparse sieve up to 8x blocksize primes
-#define TRY_SPARSE_SIEVE
-
-// experimental linked-list sieve for primes in [med_B, B): one list per
-// sieve block; each node is one (prime, root) hit.  Sieving a block walks
-// its list, and each visited hit advances its root by prime, re-appending
-// to a later block's list if the new root is still inside the interval.
-// Requires:
-//  1. per-poly root updates extended to cover [med_B, B) (guarded edits in
-//     update_poly_roots_32k_avx2.c and poly_roots_32k.c)
-//  2. dconf->sieve_p/n arrays allocated with B entries instead of fb_blk8i
-//     (guarded edit in SIQS.c)
-//  3. one list_sieve_ctx_t per thread per side (list_sieve_alloc_32k),
-//     wired into process_poly (sieve) and tdiv_scan.c (resieve)
-#define TRY_LIST_SIEVE
-
 // experimental direct interval sieve for the primes p > interval,
-// fb indices [large_B, B) (see direct_sieve.md).  Both sides' whole
-// intervals live in memory at once (pos then neg, 2*num_blocks blocks).
+// fb indices [large_B, B) (see direct_sieve.md), plus the per-block sparse
+// sieve for [med_B, large_B).  Both sides' whole intervals live in memory
+// at once (pos then neg, 2*num_blocks blocks).
 // Per poly:
 //  1. the intervals arrive already holding [large_B, B)'s hits for this
 //     poly (from the previous poly's fused pass, or for the first poly of
 //     an 'a' from a standalone pass 1 straight from update_data.firstroots).
 //  2. the block loops run med + sparse sieves and the scan per block as
-//     before (scan sees complete sieve bytes); [med_B, large_B) keeps the
-//     TRY_SPARSE_SIEVE machinery.  Survivors of the scan are moved into a
-//     per-poly pool instead of being finalized.
+//     before (scan sees complete sieve bytes).  Survivors of the scan are
+//     moved into a per-poly pool instead of being finalized.
 //  3. the intervals are re-initialized and one fused pass over [large_B, B)
 //     resieves the survivors (bitmap of their interval positions, guarded
 //     divisions), updates the firstroots to the next poly, and sieves the
 //     next poly's roots.
 //  4. survivors are finalized (trial_divide_Q_siqs), then nextB.
-// The bucket sieve is not used.  Requires TRY_L2_SIEVE + TRY_SPARSE_SIEVE,
-// AVX512F, and check_relations_siqs_16_avx512 as the scan.  Not
-// compatible with USE_SS_SEARCH / USE_BATCHPOLY / USE_XLBATCHPOLY.
-// Takes precedence over TRY_LIST_SIEVE (which is undefined below).
+// Not compatible with USE_SS_SEARCH / USE_BATCHPOLY / USE_XLBATCHPOLY.
 #define TRY_DIRECT_SIEVE
 #endif  // SIQS_EXPERIMENTAL_SIEVES
 
 #if defined(TRY_DIRECT_SIEVE)
-#undef TRY_LIST_SIEVE
-#if !defined(TRY_L2_SIEVE) || !defined(TRY_SPARSE_SIEVE)
-#error "TRY_DIRECT_SIEVE requires TRY_L2_SIEVE and TRY_SPARSE_SIEVE"
-#endif
 #if defined(USE_SS_SEARCH) || defined(USE_BATCHPOLY) || defined(USE_XLBATCHPOLY)
 #error "TRY_DIRECT_SIEVE is not compatible with SS search or batch polys"
 #endif
@@ -367,49 +342,6 @@ typedef struct
     uint32_t* root2;
     uint32_t* logp;
 } sieve_fb;
-
-// context for the experimental linked-list sieve (TRY_LIST_SIEVE).
-// One instance per thread per side (p/n).  Node ids encode a factor base
-// index and which root of that prime the node represents:
-//      node = 2 * (fb_index - start) + root_slot      (root_slot 0 or 1)
-// so next[] has 2*(stop-start) entries.  The sieve and the resieve run the
-// same procedure in lockstep, block by block, so each keeps its OWN set of
-// per-block lists (both hold pending hits for future blocks at the same
-// time and cannot share storage).  The sieve's lists are built from the
-// current poly's fb->root1/2; the resieve's lists are built from the
-// pristine roots saved in oroot1/oroot2 and advanced in rroot1/rroot2.
-#define LISTSIEVE_NULL 0xffffffffu
-
-// append node to the end of block b's list
-#define LIST_SIEVE_APPEND(hd, tl, nx, b, node) \
-    do { \
-        if ((tl)[(b)] == LISTSIEVE_NULL) \
-            (hd)[(b)] = (node); \
-        else \
-            (nx)[(tl)[(b)]] = (node); \
-        (nx)[(node)] = LISTSIEVE_NULL; \
-        (tl)[(b)] = (node); \
-    } while (0)
-
-typedef struct
-{
-    uint32_t start;         // first fb index covered by the list sieve
-    uint32_t stop;          // one past the last fb index covered
-    uint32_t numblocks;     // blocks per poly interval
-    uint32_t* next;         // [2*(stop-start)] sieve list links
-    uint32_t* head;         // [numblocks] sieve per-block list heads
-    uint32_t* tail;         // [numblocks] sieve per-block list tails
-    uint32_t* rnext;        // [2*(stop-start)] resieve list links
-    uint32_t* rhead;        // [numblocks] resieve per-block list heads
-    uint32_t* rtail;        // [numblocks] resieve per-block list tails
-    uint32_t* oroot1;       // [stop-start] pristine roots saved at init
-    uint32_t* oroot2;       // [stop-start]
-    uint32_t* rroot1;       // [stop-start] resieve running roots
-    uint32_t* rroot2;       // [stop-start]
-    uint16_t* flags;        // [32768] resieve: report_num+1 marks, 0 = none
-    int resieve_ready;      // resieve lists built for the current poly
-    uint32_t rblock;        // next block index the resieve state expects
-} list_sieve_ctx_t;
 
 // per-poly pool of scan survivors for the direct interval sieve
 // (TRY_DIRECT_SIEVE).  Survivors are appended in scan order (pos side
@@ -805,10 +737,6 @@ typedef struct {
 
     sieve_fb* sieve_p;		// scratch space for a packed versions of fb
     sieve_fb* sieve_n;		// for use during sieving medium primes
-#if defined(TRY_LIST_SIEVE)
-    list_sieve_ctx_t* lsctx_p;	// linked-list sieve context, positive side
-    list_sieve_ctx_t* lsctx_n;	// linked-list sieve context, negative side
-#endif
 #if defined(TRY_DIRECT_SIEVE)
     direct_pool_t* dpool;		// scan survivors awaiting the large-prime resieve
 #endif
@@ -961,15 +889,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
-void L2_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
-    uint32_t start_prime, uint8_t s_init);
 // the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
 extern void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
-list_sieve_ctx_t* list_sieve_alloc_32k(uint32_t start, uint32_t stop, uint32_t numblocks);
-void list_sieve_free_32k(list_sieve_ctx_t* ctx);
-void list_sieve_init_32k(sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
-void list_sieveblock_32k_avx512bw(uint8_t* blk_sieve, uint32_t bnum,
-    sieve_fb* fb, fb_list* full_fb, list_sieve_ctx_t* ctx);
 // direct sieve pass 1, selected by sconf->lp_kernel
 extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
 
@@ -1151,12 +1072,8 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 
-void tdiv_L2primes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
 // the sparse-sieve tdiv for [med_B, fb_blk8i), selected by sconf->sparse_kernel
 extern void (*tdiv_large_ptr)(uint8_t, uint32_t, uint32_t, static_conf_t*, dynamic_conf_t*);
-void resieve_large_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf, list_sieve_ctx_t* ctx);
 direct_pool_t* direct_pool_alloc(uint32_t num_blocks);
 void direct_pool_free(direct_pool_t* pool);
 void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,

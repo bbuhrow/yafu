@@ -1961,7 +1961,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
     int root1, root2, nroot1, nroot2, prime, amodp, bmodp, inv, x, bnum, j, numblocks;
 	int s = poly->s;
 	int bound_index = 0, k;
-#if defined(TRY_L2_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
 	uint32_t bound_val = fb->fb_blk8i;
 #else
 	uint32_t bound_val = fb->med_B;
@@ -2276,16 +2276,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
-#if defined(TRY_L2_SIEVE)
-#if defined(TRY_LIST_SIEVE)
-	// compute first roots and rootupdate values for the whole large-prime
-	// range so the list sieve and its resieve have per-poly roots for
-	// every prime up to B.  Requires dconf->sieve_p/n arrays allocated
-	// with B entries.
-	for (i = fb->med_B; i < fb->B; i++)
-#else
+#if defined(TRY_DIRECT_SIEVE)
 	for (i = fb->med_B; i < fb->fb_blk8i; i++)
-#endif
 	{
 		uint64_t tmp, t2;
 

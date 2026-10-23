@@ -693,12 +693,11 @@ SIQS_FORCEINLINE void large_sieveblock_body(uint8_t* sieve, sieve_fb* fb, fb_lis
 
     // any primes left over after the vector loop (fewer than 16 of them;
     // zero when med_B and fb_blk8i are both 16-aligned) must still be sieved
-    // and have their roots wrapped.  If they are skipped, their fb roots
-    // remain the unwrapped poly roots, and tdiv_L2primes' interval-end
-    // advance will match them against the wrong residue class (off by
-    // 8*blocksize mod p), causing Q to be divided by non-divisors.
-    // These use L2 (whole 8-block interval) semantics: hits everywhere the
-    // root is < 8*32768, then wrap both roots into [0, p) for tdiv.
+    // and have their roots advanced.  If they are skipped, their roots fall
+    // behind the block and the sparse tdiv matches them against the wrong
+    // residue class, causing Q to be divided by non-divisors.  Same
+    // per-block semantics as the vector loop: hits where the root is
+    // < 32768, then both roots move to the next block in min/max order.
     for (; i < bound; i++)
     {
         prime = fb->prime[i];

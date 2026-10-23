@@ -3260,17 +3260,10 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             j = h.stop;
         }
 
-#if defined(TRY_L2_SIEVE) && defined(USE_AVX512F)
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512F)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
 
-#if defined(TRY_LIST_SIEVE)
-        // cover the whole large-prime range so the list sieve and its
-        // resieve have per-poly roots for every prime up to B.
-        // Requires dconf->sieve_p/n arrays allocated with B entries.
-        l2upd_bound = sconf->factor_base->B;
-#else
         l2upd_bound = sconf->factor_base->fb_blk8i;
-#endif
 
         for (j = sconf->factor_base->med_B;
             (j + 16) < l2upd_bound; j += 16, ptr += 16)
@@ -3420,17 +3413,10 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             j = h.stop;
         }
 
-#if defined(TRY_L2_SIEVE) && defined(USE_AVX512F)
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512F)
         ptr = &rootupdates[(v - 1) * bound + sconf->factor_base->med_B];
 
-#if defined(TRY_LIST_SIEVE)
-        // cover the whole large-prime range so the list sieve and its
-        // resieve have per-poly roots for every prime up to B.
-        // Requires dconf->sieve_p/n arrays allocated with B entries.
-        l2upd_bound = sconf->factor_base->B;
-#else
         l2upd_bound = sconf->factor_base->fb_blk8i;
-#endif
         
         for (j = sconf->factor_base->med_B;
             (j + 16) < l2upd_bound; j += 16, ptr += 16)

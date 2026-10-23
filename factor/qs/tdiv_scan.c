@@ -46,7 +46,7 @@ static int siqs_report_lp(uint32_t j, uint8_t parity, uint32_t blocknum,
 }
 
 // the sparse sieve's tdiv for [med_B, fb_blk8i) (empty range when unused)
-#if defined(TRY_SPARSE_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
 #define SIQS_SPARSE_TDIV(parity, blocknum) 	tdiv_large_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf)
 #else
 #define SIQS_SPARSE_TDIV(parity, blocknum)
@@ -1058,13 +1058,8 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 
         dconf->num_reports = 0;
 
-#if defined(TRY_L2_SIEVE) && !defined(TRY_SPARSE_SIEVE)
-		sieveblock = (uint64_t*)(dconf->sieve + blocknum * 32768);
-		sieveblock32 = (uint32_t*)(dconf->sieve + blocknum * 32768);
-#else
         sieveblock = (uint64_t*)dconf->sieve;
         sieveblock32 = (uint32_t*)dconf->sieve;
-#endif
 
         for (j = 0; j < 4096; j += 8)
         {
@@ -1107,29 +1102,12 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     dconf->total_blocks++;
 
     // remove small primes, and test if its worth continuing for each report
-#if defined(TRY_L2_SIEVE)
-#if defined(TRY_SPARSE_SIEVE)
 	filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
-#else
-    filter_SPV(parity, dconf->sieve + blocknum * 32768, dconf->numB - 1, blocknum, sconf, dconf);
-#endif
-#else
-	filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
-#endif
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
-#if defined(TRY_LIST_SIEVE)
-	// the linked-list resieve has already divided the covered range
-	// ([med_B, B)) into every valid report of this block
-	resieve_large_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf,
-		(parity ? dconf->lsctx_n : dconf->lsctx_p));
-#elif defined(TRY_L2_SIEVE)
-#if defined(TRY_SPARSE_SIEVE)
+#if defined(TRY_DIRECT_SIEVE)
 	// sparse range [med_B, fb_blk8i) (empty with mid buckets)
 	tdiv_large_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
-#else
-	tdiv_L2primes_32k_avx2(parity, dconf->numB - 1, blocknum, sconf, dconf);
-#endif
 #endif
 	//tdiv_LP_avx512_allreports(parity, blocknum, sconf, dconf);
 
@@ -1176,8 +1154,6 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 				direct_save_survivor(j, parity, blocknum, sconf, dconf);
 				continue;
 			}
-#elif defined(TRY_LIST_SIEVE)
-			// bucket primes were already divided by resieve_large_32k_avx2
 #else
 			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 #endif

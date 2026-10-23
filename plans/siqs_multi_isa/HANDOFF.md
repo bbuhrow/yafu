@@ -92,9 +92,11 @@ extension, an NB cap, and two bug fixes found along the way.
 
 - **`include/qs_impl.h:94` `SIQS_EXPERIMENTAL_SIEVES`** is defined for every
   ISA unless `-DSIQS_NO_EXPERIMENTAL_SIEVES` is given (which builds the
-  stock-only reference). It switches on `TRY_L2_SIEVE`, `TRY_SPARSE_SIEVE`
-  and `TRY_DIRECT_SIEVE` (`qs_impl.h:136`). `TRY_LIST_SIEVE` is undefined
-  by DIRECT.
+  stock-only reference). It switches on `TRY_DIRECT_SIEVE`, the one macro
+  for both the sparse and the direct sieve. `TRY_L2_SIEVE`,
+  `TRY_SPARSE_SIEVE` and `TRY_LIST_SIEVE` were folded into it or removed
+  after `858a047`, together with the whole-interval L2 sieve and the
+  linked-list sieve.
 - **Each kernel ISA's code lives in its own file**, compiled when the
   build has that ISA:
 
@@ -454,10 +456,9 @@ SSE4.1 configuration varied by 9% between two sessions.
    but they are untested. Watch for `SIQS_FORCEINLINE`, the intrinsics in
    `direct_sieve_avx2.c`, and `siqs_ctz32`.
 7. **Possible cleanup.**
-   - The old compile-time `TRY_LIST_SIEVE` and whole-interval
-     `TRY_L2_SIEVE` (non-sparse) branches are dead under DIRECT.
-   - `L2_sieveblock_32k_avx512bw` and the `TRY_LIST_SIEVE` code could be
-     removed once nobody needs them.
+   - Done: the `TRY_LIST_SIEVE` and whole-interval `TRY_L2_SIEVE` code is
+     removed, and `TRY_L2_SIEVE` / `TRY_SPARSE_SIEVE` are folded into
+     `TRY_DIRECT_SIEVE`.
 8. **Calibration.** Bucket and direct use different logp conventions (per
    slice vs per 16-group; `DIRECT_LOGP_BIAS`), which mixes yield into the
    speed comparisons. A common convention would make strategy comparisons
