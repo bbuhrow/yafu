@@ -17,6 +17,7 @@ Options:
   -seed S        seed for -gen (default 42)
   -dump          write the generated numbers to stdout and exit
   -v             kmpqs_verbose = 1
+  -reps R        time R passes over the inputs and report the fastest
   -threads T     also factor the inputs with T threads (thread-local
                  contexts) and compare with a single-threaded run
 
@@ -140,7 +141,7 @@ static void *bench_worker_thread(void *arg)
 
 int main(int argc, char **argv)
 {
-	int nthreads = 1;
+	int nthreads = 1, reps = 1;
 	jobs_t jobs;
 	int variant = 1, i, dump = 0;
 	int suc = 0, fail = 0, wrong = 0, count = 0;
@@ -161,6 +162,7 @@ int main(int argc, char **argv)
 		else if (strcmp(argv[i], "-dump") == 0) dump = 1;
 		else if (strcmp(argv[i], "-maxbits") == 0 && i + 1 < argc) maxbits = atol(argv[++i]);
 		else if (strcmp(argv[i], "-threads") == 0 && i + 1 < argc) nthreads = atoi(argv[++i]);
+		else if (strcmp(argv[i], "-reps") == 0 && i + 1 < argc) reps = atoi(argv[++i]);
 		else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc) seed = strtoul(argv[++i], NULL, 10);
 		else if (strcmp(argv[i], "-gen") == 0 && i + 2 < argc) {
 			gen_bits = atoi(argv[++i]);
@@ -285,14 +287,25 @@ int main(int argc, char **argv)
 #endif
 	}
 	else {
-		worker_arg_t w = { &jobs, 0, 1, 0, 0, 0 };
+		double best = 0;
+		int r;
 
-		t0 = now_sec();
-		bench_worker(&w);
-		t1 = now_sec();
-		suc = w.suc;
-		fail = w.fail;
-		wrong = w.wrong;
+		/* counters (MPQS_STAT builds) and success counts are from the first pass */
+		for (r = 0; r < reps; r++) {
+			worker_arg_t w = { &jobs, 0, 1, 0, 0, 0 };
+
+			t0 = now_sec();
+			bench_worker(&w);
+			t1 = now_sec();
+			if (r == 0 || t1 - t0 < best) best = t1 - t0;
+			if (r == 0) {
+				suc = w.suc;
+				fail = w.fail;
+				wrong = w.wrong;
+			}
+		}
+		t0 = 0;
+		t1 = best;
 	}
 
 	printf("success: %d  failure: %d\n", suc, fail);

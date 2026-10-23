@@ -122,6 +122,9 @@
     <ClInclude Include="..\..\factor\kmpqs\kmpqs_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\factor\kmpqs\kmpqs_kernels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\batch_factor.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -95,6 +95,66 @@ with the Makefile's flags):
   - ThreadSanitizer (4 threads) and ASan+UBSan: clean
   - speed unchanged within noise (±5%)
 
+### Phase 3: kernels (done)
+
+`factor/kmpqs/kmpqs_kernels.h` is shared by both variants. The ISA comes
+from the compiler's target macros: AVX-512 (F+BW+VL, plus VBMI2 for
+compress), AVX2, SSE4.1, SSE2, or scalar (`-DKMPQS_NO_SIMD` forces
+scalar). Every kernel computes exactly what lasieve's C code computes, so
+the relation counters do not change. `tools/kmpqs_isa_check.sh` builds all
+five ISA levels and diffs their counters (identical at 64..130 bits).
+
+| kernel | replaces | how |
+|---|---|---|
+| `kmpqs_sieve_fb`, `kmpqs_sieve_one` | asm sieve / C loops | branch-free C with pointers and the asm's sentinel trick: roots sorted, boundary hits clamped to `sv[L]` |
+| `kmpqs_sieve_init` | asm sieve init | pattern + log mask in 64-bit lanes, 64/32/16/8 bytes per op |
+| `kmpqs_eval_scan` | asm eval | movemask scan + zeroing, keeps lasieve's per-4-byte-word truncation rule |
+| `kmpqs_np_update` | asm next_pol3plus/minus | `s = min_u16(s+a, s+a-p)` on (s1,s2) pairs with duplicated p/add arrays |
+| `kmpqs_np_newA` | asm next_pol10/11 | 16-bit Montgomery reductions in 32-bit lanes, 16 primes per op |
+| `kmpqs_td_roots` | asm td | exact 16-bit test `mulhi((ind+p-s)*inv16, p) == 0` (needs ind+p < 2^16), 32 roots per op; VBMI2 `vpcompressw` for the hit list |
+| `kmpqs_rowechelon` | asm gauss / C | one word-major layout for both variants; AVX-512 `vpermt2q` applies the 16-entry pivot table to 8 rows per op |
+| inverse divisibility | `ulqx % p` loops | `x*p^-1 mod 2^32 <= floor((2^32-1)/p)` |
+| `kmpqs_jacobi`, `kmpqs_mod_words` | subtractive jacobi, `mpz_mod_ui` | ctz-based binary Jacobi; kN mod p from cached 32-bit words |
+
+kmpqs vs lasieve asm (`tools/kmpqs_compare.sh`, best of 5, WSL,
+i5-11600K, yafu Makefile flags `-O2 -march=icelake-client`):
+
+| bits | lasieve asm | kmpqs | ratio |
+|---|---|---|---|
+| 50 | 0.066 s | 0.062 s | 0.94 |
+| 64 | 0.142 s | 0.125 s | 0.88 |
+| 80 | 0.386 s | 0.325 s | 0.84 |
+| 90 | 0.630 s | 0.575 s | 0.91 |
+| 96 (kmpqs1) | 0.953 s | 0.939 s | 0.99 |
+| 100 (kmpqs3) | 1.283 s | 1.199 s | 0.93 |
+| 110 / 120 (500 each) | fails | 0.648 / 1.201 s | |
+
+(2000 inputs per size up to 100 bits.) kmpqs3 against its own pure-C
+Phase 2 build: about 1.6-1.8x faster at 100-130 bits (e.g. 300 inputs at
+120 bits: 1.39 s -> 0.79 s).
+
+ISA spread (`tools/kmpqs_isa_check.sh`, 1000 inputs per size):
+
+| bits | scalar | sse2 | sse4.1 | avx2 | avx512 |
+|---|---|---|---|---|---|
+| 64 | 0.090 | 0.075 | 0.081 | 0.070 | 0.062 |
+| 80 | 0.256 | 0.220 | 0.220 | 0.211 | 0.177 |
+| 96 | 0.762 | 0.617 | 0.601 | 0.516 | 0.479 |
+| 100 | 0.954 | 0.840 | 0.778 | 0.695 | 0.608 |
+| 120 | 4.924 | 3.623 | 3.372 | 2.871 | 2.623 |
+| 130 | 10.48 | 8.055 | 7.596 | 6.475 | 5.885 |
+
+Where the time goes now (AVX-512, perf): at 120 bits the sieve is about
+55% and close to one byte-add per cycle; TD/decompose about 20%. At 64
+bits, per-N setup (generate_FB, SI_init, sqrt, the final square roots)
+is about 25-30%. Further sieve gains need fewer adds, i.e. parameter or
+algorithm changes (small-prime variation, larger tiny-prime pattern). That
+changes the counters, so it belongs to Phase 5.
+
+Checks: ASan+UBSan, TSan (4 threads), MinGW native at three ISA levels
+(threaded, results identical), and clang-cl `/arch:AVX512`, `/arch:AVX2`,
+default.
+
 ## 1. Goal
 
 Move Kleinjung's small-number MPQS (`factor/lasieve5_64/mpqs.c` for

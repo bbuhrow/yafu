@@ -210,6 +210,7 @@
     <ClInclude Include="..\..\top\aprcl\tinyprp.h" />
     <ClInclude Include="..\..\factor\kmpqs\kmpqs.h" />
     <ClInclude Include="..\..\factor\kmpqs\kmpqs_common.h" />
+    <ClInclude Include="..\..\factor\kmpqs\kmpqs_kernels.h" />
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm" />

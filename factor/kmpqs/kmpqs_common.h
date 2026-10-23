@@ -72,6 +72,26 @@ static inline void kmpqs_mpz_set_u64(mpz_t z, uint64_t v)
 	mpz_add_ui(z, z, (unsigned long)(v & 0xffffffffULL));
 }
 
+/* |z| as 32-bit words, least significant first; returns the count (>= 1).
+   w must hold max words; higher words are dropped. */
+static inline int kmpqs_mpz_words(mpz_t z, uint32_t *w, int max)
+{
+	int i, n = 0;
+
+	for (i = 0; i < (int)mpz_size(z) && n < max; i++) {
+		mp_limb_t l = mpz_getlimbn(z, i);
+#if GMP_LIMB_BITS == 64
+		w[n++] = (uint32_t)l;
+		if (n < max) w[n++] = (uint32_t)(l >> 32);
+#else
+		w[n++] = (uint32_t)l;
+#endif
+	}
+	while (n > 1 && w[n - 1] == 0) n--;
+	if (n == 0) w[n++] = 0;
+	return n;
+}
+
 /* Base-2 strong probable prime test (lasieve's psp()); returns 0 or 1. */
 static inline int kmpqs_psp(mpz_t n)
 {

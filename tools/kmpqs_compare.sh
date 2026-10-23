@@ -26,6 +26,7 @@
 #   GMP_PREFIX  GMP install prefix       (default <src>/../gmp-install/6.2.1)
 #   COUNT       inputs per size          (default 2000; 500 above 100 bits)
 #   KMPQS_ONLY  =1: skip the lasieve builds and comparisons, just time kmpqs
+#   REPS        timing runs per program and size, best one reported (default 5)
 
 set -e
 
@@ -65,6 +66,14 @@ fi
 cd "$WORK"
 counters() { grep -E '^(success|Stat|  ff)' | sed -E 's/ \([0-9]+\)$//'; }
 secs() { grep -E 'total:|^time:' | grep -oE '[0-9]+\.[0-9]+ ?s' | head -1 | tr -d ' s'; }
+best_of() {    # best_of cmd... : fastest of $REPS runs
+	local r t best=
+	for r in $(seq ${REPS:-5}); do
+		t=$("$@" | secs)
+		if [ -z "$best" ] || awk -v a="$t" -v b="$best" 'BEGIN { exit !(a < b) }'; then best=$t; fi
+	done
+	echo "$best"
+}
 
 status=0
 printf "%5s %6s  %-8s %10s %10s %7s\n" bits count counters lasieve_s kmpqs_s ratio
@@ -78,7 +87,7 @@ for b in $SIZES; do
 	if echo "$k" | grep -q '^wrong: [1-9]'; then
 		echo "$b: kmpqs returned a wrong factorization"; status=1
 	fi
-	kt=$(./kmpqs_bench $v "$in" | secs)
+	kt=$(./kmpqs_bench $v -reps ${REPS:-5} "$in" | secs)
 
 	if [ "$KMPQS_ONLY" = 1 ]; then
 		cmp="-"; lt="-"; ratio="-"
@@ -89,7 +98,7 @@ for b in $SIZES; do
 			else
 				cmp=DIFF; status=1
 			fi
-			lt=$(./lasieve_asm/$t "$in" | secs)
+			lt=$(best_of ./lasieve_asm/$t "$in")
 			ratio=$(awk -v a="$lt" -v k="$kt" 'BEGIN { printf "%.2f", k / a }')
 		else
 			# lasieve's mpqs3 mostly fails here (and takes seconds per input)

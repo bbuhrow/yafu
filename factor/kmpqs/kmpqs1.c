@@ -17,6 +17,7 @@ timing hooks are dropped.  Configuration is lasieve's TINY variant.
 */
 
 #include "kmpqs_common.h"
+#include "kmpqs_kernels.h"
 
 /* every function that can fail has the context in scope as 'qs' */
 #define KMPQS_JMPBUF (qs->jmpbuf)
@@ -115,12 +116,10 @@ typedef struct {
   uint8_t *rel_active; /* auf bitarray umstellen !!! */
   uint16_t nrels_active, nlp_active;
   uint16_t lp_count[128*16+MPQS_MAX_FBSIZE+3+MPQS_MAX_ADIV_ALL];
-  uint32_t **gauss_row;
-  uint64_t **gauss_row64;
+  uint64_t *gauss_row64;  /* word-major, see kmpqs_rowechelon */
   uint8_t sol[MPQS_GAUSS_MAX];
-  short gauss_c[MPQS_GAUSS_MAX], gauss_d[MPQS_GAUSS_MAX];
-  short gauss_col[MPQS_GAUSS_MAX];
-  uint32_t gauss_m, gauss_n, gauss_n32, gauss_k, gauss_j;
+  short gauss_d[MPQS_GAUSS_MAX];
+  uint32_t gauss_m, gauss_n, gauss_k;
   uint32_t gauss_n64;
   short exp[128*16+MPQS_MAX_FBSIZE+3+MPQS_MAX_ADIV_ALL];
   mpz_t sq1, sq2;
@@ -136,6 +135,14 @@ typedef struct {
   uint16_t sinit_tab[8*MPQS_SI_NVALUES];
   double multiplier_cand_log[4][MPQS_MULT_NCAND];
   char multiplier_cand_jacobi[4][MPQS_MULT_NCAND][MPQS_MULT_NTESTPR];
+  uint32_t kN_w[8]; int kN_nw;  /* kN as 32-bit words, for kN mod p */
+  /* for the kernels in kmpqs_kernels.h */
+  uint16_t FB_p2[2*MPQS_MAX_FBSIZE+KMPQS_VPAD];
+  uint16_t FB_inv2[2*MPQS_MAX_FBSIZE+KMPQS_VPAD];
+  uint16_t SI_add2[MPQS_MAX_ADIV_ALL][2*MPQS_MAX_FBSIZE+KMPQS_VPAD];
+  uint16_t td_list[MPQS_MAX_FBSIZE+KMPQS_VPAD];  /* +slack for vector stores */
+  /* floor((2^32-1)/p): x*inv(p) mod 2^32 <= lim  <=>  p | x */
+  uint32_t FB_lim[MPQS_MAX_FBSIZE], FBk_lim[3], FB_A_lim[MPQS_MAX_ADIV_ALL];
 } mpqs_ctx_t;
 
 
@@ -224,38 +231,8 @@ static uint8_t mpqs_jacobi_tab2[8]={0,0,0,1,0,1,0,0};
 
 static int mpqs_jacobi(mpqs_ctx_t *qs, uint16_t a, uint16_t b) /* always gcd(a,b)=1 and 0<a<b */
 {
-  int e, l, m, n, r;
-
-//zeitA(26);
-  m=(int)a; n=(int)b;
-  if (!(n&1)) KMPQS_FAIL("mpqs_jacobi: b even\n");
-  e=0;
-  if (!(m&1)) {
-    l=mpqs_jacobi_tab2[n&7];
-    do {
-      m/=2; e+=l;
-    } while (!(m&1));
-  }
-  while (m>1) {
-    r=n-m;
-    if (r>0) {
-      l=m&n;
-      l>>=1;
-      e+=l;
-      n=m; m=r;
-    } else {
-      m=-r;
-    }
-    if (m&1) continue;
-    l=mpqs_jacobi_tab2[n&7];
-    do {
-      m/=2; e+=l;
-    } while (!(m&1));
-  }
-  if (!m) KMPQS_FAIL("jacobi\n");
-  e=e&1; e=1-2*e;
-//zeitB(26);
-  return e;
+  if (!(b&1)) KMPQS_FAIL("mpqs_jacobi: b even\n");
+  return kmpqs_jacobi(a,b);
 }
 
 
@@ -480,7 +457,7 @@ static void mpqs_init(mpqs_ctx_t *qs)
   mpz_init(qs->sq2);
   for (i=0; i<MPQS_MAX_FACTORS; i++) mpz_init(qs->factors[i]);
   qs->sievearray=(uint8_t *)kmpqs_xmalloc((1+MPQS_SIEVELENMAX)*sizeof(uint8_t));
-  qs->tinyarray=(uint8_t *)kmpqs_xmalloc(32*MPQS_MAX_TINYPROD*sizeof(uint8_t));
+  qs->tinyarray=(uint8_t *)kmpqs_xmalloc(32*MPQS_MAX_TINYPROD*sizeof(uint8_t)+64);
   qs->relations=(uint16_t **)kmpqs_xmalloc(MPQS_MAX_NRELS*sizeof(uint16_t *));
   qs->relations[0]=(uint16_t *)kmpqs_xmalloc(MPQS_MAX_NRELS*MPQS_REL_ENTRIES*sizeof(uint16_t));
   for (i=1; i<MPQS_MAX_NRELS; i++)
@@ -499,10 +476,7 @@ static void mpqs_init(mpqs_ctx_t *qs)
     qs->rel_buffer[i]=qs->rel_buffer[i-1]+MPQS_REL_ENTRIES;
 
   qs->rel_active=(uint8_t *)kmpqs_xmalloc(MPQS_MAX_NRELS*sizeof(uint8_t));
-  qs->gauss_row64=(uint64_t **)kmpqs_xmalloc(MPQS_GAUSS_MAX*sizeof(uint64_t *));
-  qs->gauss_row64[0]=(uint64_t *)kmpqs_xmalloc(MPQS_GAUSS_MAX*MPQS_GAUSS_MAX/64*sizeof(uint64_t));
-  /* gauss_row[i] aliases gauss_row64[i]; set in mpqs_matrix_init */
-  qs->gauss_row=(uint32_t **)kmpqs_xmalloc(MPQS_GAUSS_MAX*sizeof(uint32_t *));
+  qs->gauss_row64=(uint64_t *)kmpqs_xmalloc(MPQS_GAUSS_MAX*MPQS_GAUSS_MAX/64*sizeof(uint64_t));
 
   qs->prime_table[0]=2;
   qs->prime_table[1]=3;
@@ -547,12 +521,15 @@ static void mpqs_choose_multiplier(mpqs_ctx_t *qs)
   char jac[MPQS_MULT_NTESTPR], c;
   uint32_t i, j;
 
+  uint32_t Nw[8];
+  int nNw=kmpqs_mpz_words(qs->N,Nw,8);
+
   for (i=1; i<MPQS_MULT_NTESTPR; i++) {
     p=qs->prime_table[i];
-    r=(uint16_t)mpz_mod_ui(qs->dummy,qs->N,(unsigned long)p);
+    r=(uint16_t)kmpqs_mod_words(Nw,nNw,p);
     jac[i]=(char)mpqs_jacobi(qs, r,p);
   }
-  Nmod8=(uint16_t)mpz_mod_ui(qs->dummy,qs->N,8);
+  Nmod8=(uint16_t)(Nw[0]&7);
   dn=log(mpz_get_d(qs->N))/log(2.);
   dn=100.9-dn;
   if (dn>7) mm=128; else mm=(uint16_t)(exp(dn*log(2)));
@@ -586,6 +563,7 @@ static void mpqs_choose_multiplier(mpqs_ctx_t *qs)
 // printf("%u ",mpqs_multiplier);
 #endif
   mpz_mul_ui(qs->kN,qs->N,(unsigned long)qs->multiplier);
+  qs->kN_nw=kmpqs_mpz_words(qs->kN,qs->kN_w,8);
   qs->kN_64=kmpqs_mpz_get_u64(qs->kN);  /* kN mod 2^64 */
 }
 
@@ -636,7 +614,7 @@ static void mpqs_generate_FB(mpqs_ctx_t *qs)
   for (i=1; i<MPQS_MAX_NPRIMES; i++) {
     p=qs->prime_table[i];
     if (p>MPQS_FB_MAXPRIME) break;
-    rest=(uint16_t)mpz_mod_ui(qs->dummy,qs->kN,(unsigned long)p);
+    rest=(uint16_t)kmpqs_mod_words(qs->kN_w,qs->kN_nw,p);
     if (rest) {
 //zeitA(25);
       if (mpqs_jacobi(qs, rest,p)==1) {
@@ -982,6 +960,19 @@ printf("\n");*/
 
   qs->FB[2*qs->nFB]=qs->sievelen;
   qs->FB[2*qs->nFB]=0xffff;
+
+/* duplicated primes and 16-bit inverses for the kernels */
+  memset(qs->FB_p2,0,sizeof(qs->FB_p2));
+  memset(qs->FB_inv2,0,sizeof(qs->FB_inv2));
+  for (j=1; j<qs->nFB; j++) {
+    qs->FB_p2[2*j]=qs->FB_p2[2*j+1]=qs->FB[2*j];
+    qs->FB_inv2[2*j]=qs->FB_inv2[2*j+1]=(uint16_t)qs->FB_inv[j];
+  }
+  for (j=1; j<qs->nFB; j++) qs->FB_lim[j]=0xffffffffU/qs->FB[2*j];
+  for (j=0; j<qs->nFBk; j++) qs->FBk_lim[j]=0xffffffffU/qs->FBk[j];
+  for (j=0; j<qs->nAdiv_total; j++) qs->FB_A_lim[j]=0xffffffffU/qs->Adiv_all[j];
+/* kmpqs_td_roots needs ind+p < 2^16; lasieve's parameters keep it far below */
+  if (qs->sievelen+qs->pmax>=65536) KMPQS_FAIL("sievelen+pmax too large\n");
   return 1;
 }
 
@@ -1068,37 +1059,17 @@ static int mpqs_next_pol(mpqs_ctx_t *qs)
    h32+=hh32*p; h32=h32>>16
 */
 {
-    uint32_t mmi, h32, hh32, p32;
-    uint32_t cc1, cc2, bbb;
-    uint32_t jj, pi, pi0;
+/* roots and root increments of all FB primes (lasieve's asm_next_pol10/11) */
+    const uint16_t *inv_rows[MPQS_MAX_ADIV_ALL];
+    uint16_t *add_rows[MPQS_MAX_ADIV_ALL], *add2_rows[MPQS_MAX_ADIV_ALL];
 
-    pi0=1<<(16-qs->nAdiv);
-    for (i=1; i<qs->nFB; i++) {
-      p=fb[2*i]; p32=(uint32_t)p;
-      mmi=qs->FB_mm_inv[i];
-
-      bbb=0; pi=pi0;
-      for (j=0; j<qs->nAdiv; j++) {
-        jj=Adiv_nr[j];
-        cc=qs->SI_inv_table[jj][i];
-        cc*=Bi_mul[j]; h32=cc;
-        MMREDUCE; cc=h32; if (cc>=p) cc-=p;
-        qs->SI_add[j][i]=(uint16_t)cc;
-        bbb+=qs->SI_add[j][i]; if (bbb>=p) bbb-=p;
-        pi*=((uint32_t)qs->SI_inv_table[jj][i]); h32=pi;
-        MMREDUCE; pi=h32;
-      }
-      cc=bbb;
-      if (cc&1) cc+=p; cc>>=1;
-      cc=qs->FB_disp[i]+(p-cc); if (cc>=p) cc-=p;
-      cc1=fb[2*i+1];
-      h32=cc1*pi; MMREDUCE; cc1=h32;
-      if (cc1>=p) cc1-=p;
-      cc2=p-cc1;
-      cc1+=cc; if (cc1>=p) cc1-=p;
-      cc2+=cc; if (cc2>=p) cc2-=p;
-      fbs[2*i]=(uint16_t)cc1; fbs[2*i+1]=(uint16_t)cc2;
+    for (j=0; j<qs->nAdiv; j++) {
+      inv_rows[j]=qs->SI_inv_table[Adiv_nr[j]];
+      add_rows[j]=qs->SI_add[j];
+      add2_rows[j]=qs->SI_add2[j];
     }
+    kmpqs_np_newA(qs->nFB,fb,qs->FB_mm_inv,qs->FB_disp,qs->nAdiv,inv_rows,
+                  add_rows,add2_rows,Bi_mul,1u<<(16-qs->nAdiv),fbs);
 }
 
     qs->twoB=2*qs->B;
@@ -1191,7 +1162,6 @@ static int mpqs_next_pol(mpqs_ctx_t *qs)
       qs->FBk_start[i]=(uint16_t)c1;
     }
     qs->B_index=0;
-//printf("pol1: %lld %lld %lld \n",mpqs_A,mpqs_B,mpqs_C);
     return 1;
   }
   ind=qs->B_index; i=0;
@@ -1203,12 +1173,7 @@ static int mpqs_next_pol(mpqs_ctx_t *qs)
   add=2*qs->Bi[i];
   if (ind&1) {
     qs->B-=add;
-    for (j=1; j<qs->nFB; j++) {
-      p=fb[2*j]; aa=qs->SI_add[i][j];
-      fbs[2*j]+=aa; fbs[2*j+1]+=aa;
-      if (fbs[2*j]>=p) fbs[2*j]-=p;
-      if (fbs[2*j+1]>=p) fbs[2*j+1]-=p;
-    }
+    kmpqs_np_update(fbs,qs->FB_p2,qs->SI_add2[i],2*qs->nFB,0);
     for (j=0; j<qs->nFBk; j++) {
       p=qs->FBk[j];
       aa=qs->FBk_start[j]+qs->SIk_add[i][j];
@@ -1217,12 +1182,7 @@ static int mpqs_next_pol(mpqs_ctx_t *qs)
     }
   } else {
     qs->B+=add;
-    for (j=1; j<qs->nFB; j++) {
-      p=fb[2*j]; aa=p-qs->SI_add[i][j];
-      fbs[2*j]+=aa; fbs[2*j+1]+=aa;
-      if (fbs[2*j]>=p) fbs[2*j]-=p;
-      if (fbs[2*j+1]>=p) fbs[2*j+1]-=p;
-    }
+    kmpqs_np_update(fbs,qs->FB_p2,qs->SI_add2[i],2*qs->nFB,1);
     for (j=0; j<qs->nFBk; j++) {
       p=qs->FBk[j];
       aa=qs->FBk_start[j]+(p-qs->SIk_add[i][j]);
@@ -1333,104 +1293,11 @@ static void mpqs_sieve(mpqs_ctx_t *qs)
   }
 
 /* contribution of log |q(x)| */
-{
-  uint64_t *tptr0, *tptr1, *tptr, mask;
-
-  tptr0=(uint64_t *)qs->tinyarray;
-  tptr1=tptr0+2*qs->tiny_prod;
-  tptr=tptr0;
-  i=0;
-  ullsv=(uint64_t *)qs->sievearray;
-  while (1) {
-    if (qs->sinit_tab[2*i]==qs->sievelen) break;
-    ullsvend=((uint64_t *)qs->sievearray)+qs->sinit_tab[2*i+2]/8;
-    mask=0x0101010101010101ULL*(uint64_t)(lo*qs->sinit_tab[2*i+1]);
-
-    while (ullsv<ullsvend) {
-      *ullsv++=*tptr+++mask;
-      *ullsv++=*tptr+++mask;
-      if (tptr==tptr1) tptr=tptr0;
-    }
-    i++;
-  }
-}
+  kmpqs_sieve_init(qs->sievearray,qs->sievelen,qs->sinit_tab,qs->tinyarray,
+                   16*qs->tiny_prod,lo);
 
 
-  pb=qs->sievelen>>2;
-  i=qs->sievebegin; fb+=2*i; fbs+=2*i;
-  for (;;) {
-    p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=qs->sievearray;
-    fb+=2;
-    s1=*fbs++; s2=*fbs++;
-    svend=sv+qs->sievelen-4*p;
-    while (sv<svend) {
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    }
-    svend+=(p+p);
-    if (sv<svend) {
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    }
-    svend+=p;
-    if (sv<svend) {
-      sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    }
-    svend+=p;
-    if (sv+s1<svend) sv[s1]+=lo;
-    if (sv+s2<svend) sv[s2]+=lo;
-    i++;
-  }
-  svend=qs->sievearray+qs->sievelen;
-  pb=qs->sievelen/3;
-  for (;;) {
-    p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=qs->sievearray;
-    fb+=2;
-    s1=*fbs++; s2=*fbs++;
-    sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    if (sv+s1<svend) sv[s1]+=lo;
-    if (sv+s2<svend) sv[s2]+=lo;
-    i++;
-  }
-  pb=qs->sievelen>>1;
-  for (;;) {
-    p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=qs->sievearray;
-    fb+=2;
-    s1=*fbs++; s2=*fbs++;
-    sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    if (sv+s1<svend) sv[s1]+=lo;
-    if (sv+s2<svend) sv[s2]+=lo;
-    i++;
-  }
-  pb=qs->sievelen;
-  for (;;) {
-    p=*fb; if (p>pb) break;
-    lo=fblog[i]; sv=qs->sievearray;
-    fb+=2;
-    s1=*fbs++; s2=*fbs++;
-    sv[s1]+=lo; sv[s2]+=lo; sv+=p;
-    if (sv+s1<svend) sv[s1]+=lo;
-    if (sv+s2<svend) sv[s2]+=lo;
-    i++;
-  }
-
-  for (; i<qs->nFB;) {
-    p=*fb;
-    lo=fblog[i]; sv=qs->sievearray;
-    fb+=2;
-    s1=*fbs++; s2=*fbs++;
-    if (sv+s1<svend) sv[s1]+=lo;
-    if (sv+s2<svend) sv[s2]+=lo;
-    i++;
-  }
+  kmpqs_sieve_fb(qs->sievearray,qs->sievelen,qs->FB,qs->FB_start,qs->FB_log,qs->sievebegin);
   sv=qs->sievearray;
   for (i=0; i<qs->nAdiv_total; i++)
     if (!qs->Adiv_active[i]) {
@@ -1444,37 +1311,13 @@ static void mpqs_sieve(mpqs_ctx_t *qs)
       s1=qs->Adiv_start1[i];
       while (s1<qs->sievelen) { sv[s1]+=lo; s1+=p; }
     }
-  for (i=qs->sievebegink; i<qs->nFBk; i++) {
-    p=qs->FBk[i];
-    lo=qs->FBk_log[i];
-    s1=qs->FBk_start[i];
-    sv=qs->sievearray;
-    svend=sv+qs->sievelen-4*p;
-    while (sv<svend) {
-      sv[s1]+=lo; sv+=p;
-      sv[s1]+=lo; sv+=p;
-      sv[s1]+=lo; sv+=p;
-      sv[s1]+=lo; sv+=p;
-    }
-    svend+=(p+p);
-    if (sv<svend) {
-      sv[s1]+=lo; sv+=p;
-      sv[s1]+=lo; sv+=p;
-    }
-    svend+=p;
-    if (sv<svend) {
-      sv[s1]+=lo; sv+=p;
-    }
-    svend+=p;
-    if (sv+s1<svend) sv[s1]+=lo;
-  }
+  for (i=qs->sievebegink; i<qs->nFBk; i++)
+    kmpqs_sieve_one(qs->sievearray,qs->sievelen,qs->FBk[i],qs->FBk_start[i],qs->FBk_log[i]);
 }
 
 
 static uint16_t mpqs_evaluate(mpqs_ctx_t *qs)
 {
-  uint32_t *ulsv, *ulsvend, h;
-  uint8_t *sv;
   uint16_t **rels, buffer[256];
   uint32_t i, nmaxsurv;
 
@@ -1486,38 +1329,11 @@ static uint16_t mpqs_evaluate(mpqs_ctx_t *qs)
     nmaxsurv=MPQS_MAX_NCRELS-qs->ncrels;
   if (nmaxsurv<MPQS_MIN_RELBUFFER) return 0;
   if (nmaxsurv>255) nmaxsurv=255;  /* 1 weniger als buffer-Länge !!! */
-  ulsv=(uint32_t *)qs->sievearray;
-  ulsvend=ulsv+(qs->sievelen>>2);
   rels=qs->rel_buffer;
 #ifdef MPQS_STAT
   stat_asm_eval++;
 #endif
-  while (ulsv<ulsvend) {
-    h=*ulsv;
-    if (h&0x80808080) {
-      sv=(uint8_t *)ulsv;
-      for (i=0; i<4; i++)
-        if (*sv++&0x80)
-          buffer[qs->nsurvivors++]=(uint16_t)(sv-qs->sievearray-1);
-      if (qs->nsurvivors>nmaxsurv-8) {
-        while (ulsv<ulsvend) *ulsv++=0;
-        break;
-      }
-    }
-    *ulsv++=0;
-    h=*ulsv;
-    if (h&0x80808080) {
-      sv=(uint8_t *)ulsv;
-      for (i=0; i<4; i++)
-        if (*sv++&0x80)
-          buffer[qs->nsurvivors++]=(uint16_t)(sv-qs->sievearray-1);
-      if (qs->nsurvivors>nmaxsurv-8) {
-        while (ulsv<ulsvend) *ulsv++=0;
-        break;
-      }
-    }
-    *ulsv++=0;
-  }
+  qs->nsurvivors=(uint16_t)kmpqs_eval_scan(qs->sievearray,qs->sievelen,buffer,nmaxsurv);
 
   for (i=0; i<qs->nsurvivors; i++) {
     qs->sievearray[buffer[i]]=(uint8_t)(i+1);
@@ -1650,15 +1466,11 @@ static void mpqs_decompose(mpqs_ctx_t *qs)
    stat_asm_td++;
 #endif
 
-    for (j=1; j<qs->td_begin; j++) {
-      p=qs->FB[2*j];
-      inv=qs->FB_inv[j];
-      ls1=ind+(p-qs->FB_start[2*j]); ls2=ind+(p-qs->FB_start[2*j+1]);
-      ls1*=inv; ls2*=inv;
-      ls1&=0xffff0000; ls2&=0xffff0000;
-      if (!ls1 || !ls2) {
-        rels[i][5+nr]=qs->nFBk_1+j; nr++; /*printf("%d.",p);*/
-      }
+    {
+      uint32_t ntd=kmpqs_td_roots(ind,qs->FB_start,qs->FB_p2,qs->FB_inv2,
+                                  qs->td_begin,qs->td_list);
+      for (j=0; j<ntd; j++) rels[i][5+nr+j]=qs->nFBk_1+qs->td_list[j];
+      nr+=ntd;
     }
 
     pr=1;
@@ -1691,12 +1503,13 @@ static void mpqs_decompose(mpqs_ctx_t *qs)
     ulqx=az;
 
     for (j=0; j<nr; j++) {
-      ii=rels[i][5+j];
-      p=qs->FB[2*(ii-qs->nFBk_1)];
-      while (ulqx%(uint32_t)p==0) {
+      uint32_t q;
+
+      ii=rels[i][5+j]; jj=ii-qs->nFBk_1;
+      while ((q=ulqx*qs->FB_inv[jj])<=qs->FB_lim[jj]) {  /* p | ulqx */
         if (rels[i][4]<MPQS_TD_MAX_NDIV) {
           rels[i][5+rels[i][4]]=ii; rels[i][4]++;
-          ulqx/=(uint32_t)p;
+          ulqx=q;
         } else {
           goto next;
         }
@@ -1706,11 +1519,12 @@ static void mpqs_decompose(mpqs_ctx_t *qs)
 
     if (ulqx>1)
       for (j=0; j<qs->nFBk; j++) {
-        p=qs->FBk[j];
-        while (ulqx%(uint32_t)p==0) {
+        uint32_t q;
+
+        while ((q=ulqx*qs->FBk_inv[j])<=qs->FBk_lim[j]) {
           if (rels[i][4]<MPQS_TD_MAX_NDIV) {
             rels[i][5+rels[i][4]]=1+j; rels[i][4]++;
-            ulqx/=(uint32_t)p;
+            ulqx=q;
           } else {
             goto next;
           }
@@ -1719,11 +1533,12 @@ static void mpqs_decompose(mpqs_ctx_t *qs)
       }
     if (ulqx>1)
       for (j=0; j<qs->nAdiv_total; j++) {
-        p=qs->Adiv_all[j];
-        while (ulqx%(uint32_t)p==0) {
+        uint32_t q;
+
+        while ((q=ulqx*qs->FB_A_inv[j])<=qs->FB_A_lim[j]) {
           if (rels[i][4]<MPQS_TD_MAX_NDIV) {
             rels[i][5+rels[i][4]]=1+qs->nFB+qs->nFBk+j; rels[i][4]++;
-            ulqx/=(uint32_t)p;
+            ulqx=q;
           } else {
             goto next;
           }
@@ -1808,32 +1623,25 @@ order of the primes:
 
 static int mpqs_matrix_init(mpqs_ctx_t *qs)
 {
-  uint32_t i, j, n64, i64;
+  uint32_t i, j, i64, m;
   uint16_t nr, ii, pi;
-  uint64_t mask;
+  uint64_t mask, *M=qs->gauss_row64;
 
   qs->gauss_n=qs->nrels+qs->ncrels;
   if (qs->gauss_n>=MPQS_GAUSS_MAX) {
     return -1;
   }
-  qs->gauss_m=qs->nsp;
+  qs->gauss_m=m=qs->nsp;
   if (qs->gauss_m>=qs->gauss_n) KMPQS_FAIL("gauss: no excess\n");
-/* build matrix */
+/* build matrix, word-major: bit c of row r in M[r+m*(c>>6)] */
   qs->gauss_n64=(qs->gauss_n+63)/64;
-  qs->gauss_n32=2*qs->gauss_n64;
-  for (i=1; i<qs->gauss_m; i++)
-    qs->gauss_row64[i]=qs->gauss_row64[i-1]+qs->gauss_n64;
-  for (i=0; i<qs->gauss_m; i++)
-    qs->gauss_row[i]=(uint32_t *)(qs->gauss_row64[i]);
-  for (i=0; i<qs->gauss_m; i++)
-    for (j=0; j<qs->gauss_n64; j++)
-      qs->gauss_row64[i][j]=0;
+  memset(M,0,m*qs->gauss_n64*sizeof(uint64_t));
   for (i=0; i<qs->nrels; i++) {
     nr=qs->relations[i][4];
     ii=i+qs->ncrels; mask=1ULL<<(ii&63); i64=ii>>6;
     for (j=0; j<nr; j++) {
       pi=qs->relations[i][5+j];
-      qs->gauss_row64[pi][i64]^=mask;
+      M[pi+m*i64]^=mask;
     }
   }
   for (i=0; i<qs->ncrels; i++) {
@@ -1841,13 +1649,11 @@ static int mpqs_matrix_init(mpqs_ctx_t *qs)
     ii=i; mask=1ULL<<(ii&63); i64=ii>>6;
     for (j=0; j<nr; j++) {
       pi=qs->comb_rels[i][9+j];
-      qs->gauss_row64[pi][i64]^=mask;
+      M[pi+m*i64]^=mask;
     }
   }
-  for (i=0; i<qs->gauss_m+1; i++) qs->gauss_c[i]=-1;
   qs->gauss_k=qs->gauss_n;
   for (i=0; i<qs->gauss_n; i++) qs->gauss_d[i]=-1;
-  qs->gauss_j=0;
   return 0;
 }
 
@@ -1855,78 +1661,7 @@ static int mpqs_matrix_init(mpqs_ctx_t *qs)
 
 static int mpqs_rowechelon(mpqs_ctx_t *qs)
 {
-  uint32_t i, j, k, l, t, k64, col, row, r0, c0, zz;
-  uint64_t tmp, tab[16];
-  uint8_t ucm[1024], mm[4], m, z;
-
-//zeitA(8);
-  col=0; row=0;
-  while (1) {
-    if (row>=qs->gauss_m) break;
-    if (col>=qs->gauss_n) break;
-
-    k64=col>>6;
-    r0=row; c0=col;
-    for (i=0; i<4; i++,col++) {
-//zeitA(26);
-      for (j=row; j<qs->gauss_m; j++) {
-        m=(uint8_t)(0xf&qs->gauss_row64[j][k64]>>(c0&63));
-        if (!m) continue;
-        for (k=0,z=1; k<i; k++,z+=z) if (m&z) m^=mm[k];
-        if (m&z) break;
-      }
-//zeitB(26);
-      if (j>=qs->gauss_m) {
-        qs->gauss_d[col]=-1;
-        continue;
-       }
-      if (j>row) {
-        for (l=k64; l<qs->gauss_n64; l++) {
-          tmp=qs->gauss_row64[j][l];
-          qs->gauss_row64[j][l]=qs->gauss_row64[row][l];
-          qs->gauss_row64[row][l]=tmp;
-        }
-      }
-      m=(uint8_t)(qs->gauss_row64[row][k64]>>(c0&63));
-      for (k=0,z=1; k<i; k++,z+=z) {
-        if (m&z) {
-          m^=mm[k];
-          for (l=k64; l<qs->gauss_n64; l++)
-            qs->gauss_row64[row][l]^=
-                qs->gauss_row64[qs->gauss_d[c0+k]][l];
-        }
-      }
-      mm[i]=m;
-      for (k=0; k<i; k++) {
-        if (qs->gauss_d[c0+k]==-1) continue;
-        if (mm[k]&z) {
-          mm[k]^=mm[i];
-          for (l=k64; l<qs->gauss_n64; l++)
-            qs->gauss_row64[qs->gauss_d[c0+k]][l]^=
-                qs->gauss_row64[row][l];
-        }
-      }
-      qs->gauss_d[col]=row;
-      qs->gauss_c[row]=col;
-      row++;
-      if (row>=qs->gauss_m) break;
-    }
-//zeitA(25);
-    for (j=0; j<qs->gauss_m; j++)
-      ucm[j]=(uint8_t)((qs->gauss_row64[j][k64]>>(c0&63))&0xf);
-    for (j=r0; j<row; j++) ucm[j]=0;
-    for (l=k64; l<qs->gauss_n64; l++) {
-      tab[0]=0ULL;
-      for (j=0,zz=1; j<4; j++,zz+=zz) {
-        if (qs->gauss_d[c0+j]==-1) tab[zz]=0ULL;
-        else tab[zz]=qs->gauss_row64[qs->gauss_d[c0+j]][l];
-        for (k=1; k<zz; k++) tab[zz+k]=tab[k]^tab[zz];
-      }
-      for (t=0; t<qs->gauss_m; t++)
-        qs->gauss_row64[t][l]^=tab[ucm[t]];
-    }
-//zeitB(25);
-  }
+  kmpqs_rowechelon(qs->gauss_row64,qs->gauss_m,qs->gauss_n,qs->gauss_n64,qs->gauss_d);
   qs->gauss_k=0;
   return 0;
 }
@@ -1945,7 +1680,7 @@ static int mpqs_matrix(mpqs_ctx_t *qs)
     mask=1ULL<<(qs->gauss_k&63); k64=qs->gauss_k>>6;
     for (i=0; i<qs->gauss_k; i++)
       if (qs->gauss_d[i]!=-1)
-        if (qs->gauss_row64[qs->gauss_d[i]][k64] & mask) {
+        if (qs->gauss_row64[qs->gauss_d[i]+qs->gauss_m*k64] & mask) {
           qs->sol[i]=1;
           notzero=1;
         }
@@ -2217,8 +1952,7 @@ void kmpqs1_ctx_free(void *ctx)
   free(qs->comb_rels[0]); free(qs->comb_rels);
   free(qs->rel_buffer[0]); free(qs->rel_buffer);
   free(qs->rel_active);
-  free(qs->gauss_row64[0]); free(qs->gauss_row64);
-  free(qs->gauss_row);
+  free(qs->gauss_row64);
   free(qs);
 }
 
