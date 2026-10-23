@@ -21,16 +21,73 @@ code to the public domain.
 #include "qs_impl.h"
 #include "ytools.h"
 
-/* below, the routines for building and solving a qs matrix using
-jasonp's block lanczos routines are implemented */
+/* below, the routines for building a qs matrix and solving it with
+the block lanczos solver in common/lanczos (shared with NFS) are
+implemented */
 
-static void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols, 
+static void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 		    	siqs_r *relation_list, uint32_t num_relations);
 
+/* entry points into common/lanczos.  These are declared in
+ms_include/ms_common.h in terms of la_col_t, which can't be included
+alongside yafu's msieve headers.  la_col_t/la_cycle_t have exactly the
+same layout as qs_la_col_t/qs_la_cycle_t (uint32 data pointer, uint32
+weight, then {uint32 num_relations, uint32 *list}), and both sides
+share the msieve_obj definition, so we declare them here directly. */
+
+uint64_t * block_lanczos(msieve_obj *obj,
+			uint32_t nrows, uint32_t max_nrows, uint32_t start_row,
+			uint32_t num_dense_rows,
+			uint32_t ncols, uint32_t max_ncols, uint32_t start_col,
+			qs_la_col_t *cols, uint32_t *deps_found);
+
+uint64_t count_matrix_nonzero(msieve_obj *obj,
+			uint32_t nrows, uint32_t num_dense_rows,
+			uint32_t ncols, qs_la_col_t *cols);
+
+uint64_t reduce_matrix(msieve_obj *obj, uint32_t *nrows,
+		uint32_t num_dense_rows, uint32_t *ncols,
+		qs_la_col_t *cols, uint32_t num_excess);
+
+/* number of times to re-run lanczos (from a new random start)
+   before giving up and asking for more relations */
+#define QS_LANCZOS_ATTEMPTS 3
 
 /*------------------------------------------------------------------*/
-int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size, 
-		    uint64_t **bitfield, siqs_r *relation_list, 
+static msieve_obj * qs_la_obj_new(fact_obj_t *obj) {
+
+	/* make a temporary msieve_obj carrying the settings that
+	   common/lanczos reads: threads, cache size, random state,
+	   logging, and a name for checkpoint files (only written
+	   for matrices with more than 1M rows) */
+
+	msieve_obj *mobj;
+	uint32_t flags = 0;
+	uint32_t threads = (uint32_t)((obj->LATHREADS > 0) ?
+		obj->LATHREADS : obj->THREADS);
+	char *logname = NULL;
+
+	if (obj->VFLAG > 0)
+		flags |= MSIEVE_FLAG_LOG_TO_STDOUT;
+
+	if ((obj->LOGFLAG) && (obj->flogname[0] != '\0')) {
+		flags |= MSIEVE_FLAG_USE_LOGFILE;
+		logname = obj->flogname;
+		if (obj->logfile != NULL)
+			fflush(obj->logfile);
+	}
+
+	mobj = msieve_obj_new("", flags, obj->qs_obj.siqs_savefile, logname,
+		NULL, obj->seed1, obj->seed2, (uint32_t)0, 9,
+		(uint32_t)obj->L1CACHE, (uint32_t)obj->L2CACHE,
+		threads, (uint32_t)0, NULL);
+
+	return mobj;
+}
+
+/*------------------------------------------------------------------*/
+int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size,
+		    uint64_t **bitfield, siqs_r *relation_list,
 		    qs_la_col_t *cycle_list, uint32_t *num_cycles) {
 
 	/* Generate linear dependencies among the relations
@@ -38,14 +95,17 @@ int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size,
 
 	qs_la_col_t *cols;
 	uint32_t nrows, ncols;
-	uint64_t *dependencies;
-	uint32_t num_deps;
+	uint64_t *dependencies = NULL;
+	uint32_t num_deps = 0;
+	msieve_obj *mobj;
+	int attempt;
+	int status;
 
 	ncols = *num_cycles;
 	nrows = fb_size;
 	cols = cycle_list;
 
-	/* convert the list of relations from the sieving 
+	/* convert the list of relations from the sieving
 	   stage into a matrix. */
 
 	uint32_t max_rel_index = 0;
@@ -60,38 +120,67 @@ int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size,
 		}
 	}
 
+	mobj = qs_la_obj_new(obj);
+
 	build_qs_matrix(ncols, cols, relation_list, max_rel_index);
-	count_qs_matrix_nonzero(obj, fb_size, 0, ncols, cols);
+	count_matrix_nonzero(mobj, fb_size, 0, ncols, cols);
 
 	/* reduce the matrix dimensions to ignore almost empty rows */
 
-	reduce_qs_matrix(obj, &nrows, 0, &ncols, cols, NUM_EXTRA_QS_RELATIONS);
+	reduce_matrix(mobj, &nrows, 0, &ncols, cols, NUM_EXTRA_QS_RELATIONS);
 
-	if (ncols == 0) {
-		printf("matrix is corrupt; skipping linear algebra\n");
-        cols = NULL;
+	if ((ncols == 0) || (ncols <= nrows)) {
+		printf("matrix is corrupt (%u x %u); skipping linear algebra\n",
+			nrows, ncols);
 		*num_cycles = 0;
+		msieve_obj_free(mobj);
 		return -2;
 	}
 
-	/* solve the linear system */
+	/* solve the linear system.  block_lanczos frees the column
+	   data (but not the cycle lists) when it finishes, so a retry
+	   rebuilds the columns that survived reduce_matrix.  The random
+	   state in mobj advances with each attempt. */
 
-	dependencies = qs_block_lanczos(obj, nrows, 0, ncols, cols, &num_deps);
+	for (attempt = 0; attempt < QS_LANCZOS_ATTEMPTS; attempt++) {
 
-    if (num_deps == (uint32_t)-1)
-    {
-        return -2;
-    }
+		if (attempt > 0) {
+			uint32_t new_nrows = fb_size;
 
-	if (num_deps == 0) {
+			printf("lanczos failed, retrying (attempt %d of %d)\n",
+				attempt + 1, QS_LANCZOS_ATTEMPTS);
+			build_qs_matrix(ncols, cols, relation_list, max_rel_index);
+			reduce_matrix(mobj, &new_nrows, 0, &ncols, cols,
+				NUM_EXTRA_QS_RELATIONS);
+			nrows = new_nrows;
+		}
+
+		dependencies = block_lanczos(mobj, nrows, nrows, 0, 0,
+			ncols, ncols, 0, cols, &num_deps);
+
+		if ((dependencies != NULL) && (num_deps > 0))
+			break;
+
 		free(dependencies);
-		return -1;
+		dependencies = NULL;
+		num_deps = 0;
 	}
 
-	*bitfield = dependencies;
-	*num_cycles = ncols;
+	/* keep yafu's random state moving forward */
+	obj->seed1 = mobj->seed1;
+	obj->seed2 = mobj->seed2;
+	msieve_obj_free(mobj);
 
-    return 0;
+	if (num_deps == 0) {
+		status = -1;
+	}
+	else {
+		*bitfield = dependencies;
+		*num_cycles = ncols;
+		status = 0;
+	}
+
+    return status;
 }
 
 /*------------------------------------------------------------------*/

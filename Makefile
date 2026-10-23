@@ -818,11 +818,6 @@ OBJ_EXT := .o
 # 12. MSIEVE / YAFU shared sources
 # -----------------------------------------------------------------------------
 MSIEVE_YAFU_SRCS = \
-    factor/qs/msieve/lanczos.c \
-    factor/qs/msieve/lanczos_matmul0.c \
-    factor/qs/msieve/lanczos_matmul1.c \
-    factor/qs/msieve/lanczos_matmul2.c \
-    factor/qs/msieve/lanczos_pre.c \
     factor/qs/msieve/sqrt.c \
     factor/qs/msieve/gf2.c
 

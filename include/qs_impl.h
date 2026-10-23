@@ -1276,21 +1276,6 @@ uint32_t qs_merge_relations(uint32_t* merge_array,
     uint32_t* src1, uint32_t n1,
     uint32_t* src2, uint32_t n2);
 
-uint64_t* qs_block_lanczos(fact_obj_t* obj,
-    uint32_t nrows,
-    uint32_t num_dense_rows,
-    uint32_t ncols,
-    qs_la_col_t* cols,
-    uint32_t* deps_found);
-
-void count_qs_matrix_nonzero(fact_obj_t* obj,
-    uint32_t nrows, uint32_t num_dense_rows,
-    uint32_t ncols, qs_la_col_t* cols);
-
-void reduce_qs_matrix(fact_obj_t* obj, uint32_t* nrows,
-    uint32_t num_dense_rows, uint32_t* ncols,
-    qs_la_col_t* cols, uint32_t num_excess);
-
 void qs_free_cycle_list(qs_la_col_t* cycle_list, uint32_t num_cycles);
 
 /*-------------- MPQS SQUARE ROOT RELATED DECLARATIONS ---------------------*/

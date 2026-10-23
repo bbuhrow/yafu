@@ -152,11 +152,6 @@
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul0.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul1.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul2.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_pre.c" />
     <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
     <ClCompile Include="..\..\factor\qs\new_poly.c" />
     <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
@@ -198,7 +193,6 @@
     <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
     <ClInclude Include="..\..\include\cofactorize.h" />
-    <ClInclude Include="..\..\include\lanczos.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\qs_impl.h" />
     <ClInclude Include="..\..\ms_include\savefile.h" />
