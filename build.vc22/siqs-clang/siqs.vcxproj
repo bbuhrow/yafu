@@ -158,6 +158,7 @@
     <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\SIQS.c" />
     <ClCompile Include="..\..\factor\qs\siqs_aux.c" />
+    <ClCompile Include="..\..\factor\qs\siqs_params.c" />
     <ClCompile Include="..\..\factor\qs\siqs_test.c" />
     <ClCompile Include="..\..\factor\qs\tdiv.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_large.c" />

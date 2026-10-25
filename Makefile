@@ -912,6 +912,7 @@ YAFU_SIQS_SRCS = \
     factor/qs/new_poly.c \
     factor/qs/siqs_test.c \
     factor/qs/siqs_aux.c \
+    factor/qs/siqs_params.c \
     factor/qs/smallmpqs.c \
     factor/qs/SIQS.c \
     factor/qs/med_sieve_32k.c \

@@ -204,7 +204,9 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_ssalloc_flag = (options->siqsSSalloc > 0);
     fobj->qs_obj.gbl_override_ssalloc = options->siqsSSalloc;
     fobj->qs_obj.inmem_cutoff = options->inmem_cutoff;
-    if ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0))
+    // MFBD/MFBT 0 = not given (SIQS chooses)
+    if ((options->siqsMFBD != 0.0) &&
+        ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0)))
     {
         if (options->siqsMFBD < 1.0)
             options->siqsMFBD = 1.0;
@@ -213,7 +215,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         printf("DLP Tdiv exponent should be between 1.0 and 2.0; setting MFBD = %1.2f\n",
             options->siqsMFBD);
     }
-    if ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0))
+    if ((options->siqsMFBT != 0.0) &&
+        ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0)))
     {
         if (options->siqsMFBT < 2.0)
             options->siqsMFBT = 2.0;

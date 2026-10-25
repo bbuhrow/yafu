@@ -651,6 +651,17 @@ typedef struct {
     int lp_portable_roots;      // 1: per-poly roots via nextRoots_32k_generic_small
                                 // + nextRoots_32k_lp_portable
 
+    // get_params: the built-in table used and the values it gives for
+    // the TF bound, TFSm, MFBD and MFBT (0 = not tabulated at this size,
+    // so siqs_static_init uses its formulas/defaults).  Applied in
+    // siqs_static_init exactly as -siqsTF, -siqsTFSm, -siqsMFBD and
+    // -siqsMFBT would be, and overridden by them.
+    const char* param_table_name;
+    uint32_t param_tf;
+    uint32_t param_tfsm;
+    double param_mfbd;
+    double param_mfbt;
+
     uint32_t tf_small_cutoff;		// bit level to determine whether to bail early from tf
     uint32_t tf_closnuf;			// subject anything sieved beyond this to tf
 
@@ -1352,6 +1363,36 @@ int siqs_dynamic_init(dynamic_conf_t* dconf, static_conf_t* sconf);
 int siqs_check_restart(dynamic_conf_t* dconf, static_conf_t* sconf);
 uint32_t siqs_merge_data(dynamic_conf_t* dconf, static_conf_t* sconf);
 
+// built-in parameter tables (siqs_params.c).  A table applies to the
+// large-prime kernel ISA, [large_B, B) strategy and kernel it names
+// (SIQS_ISA_*, SIQS_LARGE_*, SIQS_K_*; SIQS_STRAT_AUTO = any); get_params
+// uses the most specific table matching sconf->lp_isa, lp_direct and
+// lp_kernel.  0 in TF, TFSm, MFBD or MFBT = not tabulated (use the
+// formula/default); TF and TFSm are absolute, as -siqsTF and -siqsTFSm.
+typedef struct
+{
+    uint32_t bits;
+    uint32_t B;                 // factor base primes
+    uint32_t M;                 // large prime multiplier
+    uint32_t NB;                // 32k blocks per side
+    uint32_t TF;                // trial factoring bound (tf_closnuf)
+    uint32_t TFSm;              // small prime variation cutoff (tf_small_cutoff)
+    double MFBD;                // DLP exponent (dlp_exp)
+    double MFBT;                // TLP exponent (tlp_exp)
+} siqs_builtin_row_t;
+
+typedef struct
+{
+    const char* name;
+    uint32_t isa;
+    uint32_t large;
+    uint32_t kernel;
+    int num_rows;
+    const siqs_builtin_row_t* rows;
+} siqs_builtin_table_t;
+
+const siqs_builtin_table_t* siqs_find_param_table(uint32_t isa, int lp_direct,
+    uint32_t kernel);
 void get_params(static_conf_t* sconf);
 void get_gray_code(siqs_poly* poly);
 void set_aprime_roots(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t val, 

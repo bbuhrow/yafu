@@ -44,7 +44,8 @@ extern void siqsbench(fact_obj_t* qsobj, info_t *comp_info, uint32_t digit_limit
 #define SIQSP_MID       0x0080
 #define SIQSP_LARGE     0x0100
 #define SIQSP_KERNEL    0x0200
-#define SIQSP_PARAMS    0x03ff
+#define SIQSP_MFBT      0x0400
+#define SIQSP_PARAMS    0x07ff
 
 typedef struct
 {
@@ -58,7 +59,7 @@ typedef struct
     double ratio;           // time relative to the defaults (where measured)
     uint32_t has;           // SIQSP_* bits of the parameters present
     uint32_t B, M, NB, TF, TFSm, SPV;
-    double MFBD;
+    double MFBD, MFBT;
     uint32_t mid, large, kernel;    // SIQS_MID_*, SIQS_LARGE_*, SIQS_K_*
     // measurements, < 0 when missing
     double partials;        // partial relations collected at completion
@@ -76,6 +77,9 @@ extern int siqs_write_param_table(const char* fname, siqs_param_row_t* rows,
     int num_rows, const char* comment);
 extern int siqs_lookup_tuned(const char* fname, int bits, siqs_param_row_t* out);
 extern void siqs_format_params(siqs_param_row_t* row, char* buf, int len);
+// the row as a C initializer for a built-in table in siqs_params.c
+// (siqs_builtin_row_t: bits, B, M, NB, TF, TFSm, MFBD, MFBT; 0 = missing)
+extern void siqs_format_builtin_row(siqs_param_row_t* row, char* buf, int len);
 
 #endif /* _SIQS_H_ */
 

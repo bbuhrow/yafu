@@ -783,9 +783,6 @@ static double now_sec(void)
 
 static void SIQS_run(fact_obj_t* fobj);
 
-// the cmdOptions default for -siqsMFBD; anything else was set by the user
-#define SIQS_MFBD_OPTION_DEFAULT 1.85
-
 void SIQS(fact_obj_t* fobj)
 {
     // take parameters from the tuned table (siqs_params.txt, written by
@@ -831,10 +828,14 @@ void SIQS(fact_obj_t* fobj)
             q->gbl_override_small_cutoff_flag = 1;
             q->gbl_override_small_cutoff = row.TFSm;
         }
-        if ((row.has & SIQSP_MFBD) &&
-            (fabs(q->gbl_override_mfbd - SIQS_MFBD_OPTION_DEFAULT) < 1e-9))
+        // MFBD/MFBT: 0 = not given on the command line
+        if ((row.has & SIQSP_MFBD) && (fabs(q->gbl_override_mfbd) < 1e-9))
         {
             q->gbl_override_mfbd = row.MFBD;
+        }
+        if ((row.has & SIQSP_MFBT) && (fabs(q->gbl_override_mfbt) < 1e-9))
+        {
+            q->gbl_override_mfbt = row.MFBT;
         }
         if ((row.has & SIQSP_SPV) && !q->gbl_override_spv_limit_flag)
         {
@@ -874,6 +875,7 @@ void SIQS(fact_obj_t* fobj)
         q->gbl_override_small_cutoff = saved.gbl_override_small_cutoff;
         q->no_small_cutoff_opt = saved.no_small_cutoff_opt;
         q->gbl_override_mfbd = saved.gbl_override_mfbd;
+        q->gbl_override_mfbt = saved.gbl_override_mfbt;
         q->gbl_override_spv_limit_flag = saved.gbl_override_spv_limit_flag;
         q->gbl_override_spv_limit = saved.gbl_override_spv_limit;
         q->gbl_siqs_mid = saved.gbl_siqs_mid;
@@ -3654,6 +3656,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("using SPV correction of %d bits, starting at offset %d\n",
             sconf->tf_small_cutoff, sconf->sieve_small_fb_start);
 		printf("trial factoring cutoff at %d bits\n",sconf->tf_closnuf);
+        printf("built-in parameter table: %s\n", sconf->param_table_name);
 	}
 
 	if (sconf->obj->VFLAG >= 0)
@@ -3772,6 +3775,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
 			sconf->tf_closnuf);
+		logprint(sconf->obj->logfile, "built-in parameter table: %s\n",
+			sconf->param_table_name);
 		print_siqs_experiments(sconf, 0, sconf->obj->logfile);
 		if (sconf->obj->THREADS == 1)
 			logprint(sconf->obj->logfile,"==== sieving started (1 thread) ====\n");
@@ -4401,52 +4406,42 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	return 0;
 }
 
-#if defined(TRY_DIRECT_SIEVE)
-// first 16-aligned fb index from med_B whose prime exceeds the sieve interval,
-// rounded down by one 16-group unless round_up (the direct sieve needs every
-// prime in [large_B, B) > interval; buckets historically round down)
-static uint32_t siqs_lp_boundary(static_conf_t* sconf, int round_up)
+// the default scatter kernel for a kernel ISA: compressstoreu (cmem) on
+// Intel AVX-512; register compress (creg) elsewhere, including AMD, where the
+// memory form of vpcompressd is reported to be slow (not measured here).
+static uint32_t siqs_isa_default_kernel(uint32_t isa)
 {
-    fb_list* fb = sconf->factor_base;
-    uint32_t i;
-
-    for (i = fb->med_B; i < fb->B; i++)
-    {
-        if ((fb->list->prime[i] > sconf->sieve_interval) && ((i % 16) == 0))
-            return round_up ? i : i - 16;
-    }
-    return fb->B;
+    return ((isa == SIQS_ISA_AVX512) && !ytools_cpu_is_amd()) ?
+        SIQS_K_CMEM : SIQS_K_CREG;
 }
 
-// the [large_B, B) strategy (option, else DIRECT_DEFAULT_LARGE / direct).
-// Depends on nothing get_params produces, so it runs before get_params,
-// whose parameter tables differ by strategy.
-static void siqs_choose_large(static_conf_t* sconf)
-{
-    uint32_t large = sconf->obj->qs_obj.gbl_siqs_large;
-
-    if (large == SIQS_STRAT_AUTO)
-    {
-#if defined(DIRECT_DEFAULT_LARGE)
-        large = DIRECT_DEFAULT_LARGE;
-#else
-        large = SIQS_LARGE_DIRECT;
-#endif
-    }
-    sconf->lp_direct = (large == SIQS_LARGE_DIRECT);
-}
-
-// choose the large-prime strategy (options, else DIRECT_DEFAULT_*), check
-// it against what this input/CPU supports, set fb_blk8i / large_B to match
-// and pick the kernels.  Must run after scan_ptr is chosen.
-static void siqs_resolve_strategy(static_conf_t* sconf)
+// the large-prime kernel ISA, [large_B, B) strategy and kernel (options,
+// else the best available / DIRECT_DEFAULT_*).  These depend on nothing
+// get_params produces and key its parameter tables, so they're chosen before
+// it; siqs_resolve_strategy then checks them and picks the rest.
+static void siqs_choose_table_keys(static_conf_t* sconf)
 {
     fact_obj_t* obj = sconf->obj;
-    fb_list* fb = sconf->factor_base;
-    uint32_t mid = obj->qs_obj.gbl_siqs_mid;
     uint32_t kernel = obj->qs_obj.gbl_siqs_kernel;
-    uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
-    uint32_t boundary, isa;
+    uint32_t isa;
+
+#if defined(TRY_DIRECT_SIEVE)
+    {
+        uint32_t large = obj->qs_obj.gbl_siqs_large;
+
+        if (large == SIQS_STRAT_AUTO)
+        {
+#if defined(DIRECT_DEFAULT_LARGE)
+            large = DIRECT_DEFAULT_LARGE;
+#else
+            large = SIQS_LARGE_DIRECT;
+#endif
+        }
+        sconf->lp_direct = (large == SIQS_LARGE_DIRECT);
+    }
+#else
+    sconf->lp_direct = 0;
+#endif
 
     // kernel ISA: the requested one if this build and CPU have it, else
     // the best available
@@ -4476,6 +4471,49 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
             isa = best;
     }
 
+    if (kernel == SIQS_STRAT_AUTO)
+    {
+#if defined(DIRECT_DEFAULT_KERNEL)
+        kernel = DIRECT_DEFAULT_KERNEL;
+#else
+        kernel = siqs_isa_default_kernel(isa);
+#endif
+    }
+
+    sconf->lp_isa = isa;
+    sconf->lp_kernel = kernel;
+}
+
+#if defined(TRY_DIRECT_SIEVE)
+// first 16-aligned fb index from med_B whose prime exceeds the sieve interval,
+// rounded down by one 16-group unless round_up (the direct sieve needs every
+// prime in [large_B, B) > interval; buckets historically round down)
+static uint32_t siqs_lp_boundary(static_conf_t* sconf, int round_up)
+{
+    fb_list* fb = sconf->factor_base;
+    uint32_t i;
+
+    for (i = fb->med_B; i < fb->B; i++)
+    {
+        if ((fb->list->prime[i] > sconf->sieve_interval) && ((i % 16) == 0))
+            return round_up ? i : i - 16;
+    }
+    return fb->B;
+}
+
+// choose the large-prime strategy (options, else DIRECT_DEFAULT_*), check
+// it against what this input/CPU supports, set fb_blk8i / large_B to match
+// and pick the kernels.  Must run after scan_ptr is chosen.
+static void siqs_resolve_strategy(static_conf_t* sconf)
+{
+    fact_obj_t* obj = sconf->obj;
+    fb_list* fb = sconf->factor_base;
+    uint32_t mid = obj->qs_obj.gbl_siqs_mid;
+    uint32_t kernel = sconf->lp_kernel;     // siqs_choose_table_keys
+    uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
+    uint32_t boundary;
+    uint32_t isa = sconf->lp_isa;           // siqs_choose_table_keys
+
     // defaults table (measured on an i5-11600K, see
     // plans/siqs_multi_isa/plan.md section 6 and direct_sieve.md):
     //  - [large_B, B): the direct sieve; large buckets were slower at every
@@ -4485,29 +4523,21 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     //    at NB 12/16 with a 512 KB L2); buckets with scalar kernels (sparse
     //    -10% there).  SSE4.1 used buckets until its 4-lane compress stopped
     //    calling libgcc's popcount; sparse is now ~5% ahead (C85).
-    //  - kernel: compressstoreu (cmem) on Intel AVX-512; register compress
-    //    (creg) elsewhere, including AMD, where the memory form of
-    //    vpcompressd is reported to be slow (not measured here).
+    //  - kernel: siqs_isa_default_kernel (chosen in siqs_choose_table_keys)
     {
         int wide = (isa == SIQS_ISA_AVX512) || (isa == SIQS_ISA_AVX2) ||
             (isa == SIQS_ISA_SSE41);
         uint32_t span = 2 * sconf->num_blocks * 32768;
         uint32_t dmid = (wide && (span <= ytools_get_l2_core_size())) ?
             SIQS_MID_SPARSE : SIQS_MID_BUCKET;
-        uint32_t dkern = ((isa == SIQS_ISA_AVX512) && !ytools_cpu_is_amd()) ?
-            SIQS_K_CMEM : SIQS_K_CREG;
-        uint32_t dskern = dkern;
+        uint32_t dskern = siqs_isa_default_kernel(isa);
 #if defined(DIRECT_DEFAULT_MID)
         dmid = DIRECT_DEFAULT_MID;
-#endif
-#if defined(DIRECT_DEFAULT_KERNEL)
-        dkern = DIRECT_DEFAULT_KERNEL;
 #endif
 #if defined(DIRECT_DEFAULT_SPARSE_KERNEL)
         dskern = DIRECT_DEFAULT_SPARSE_KERNEL;
 #endif
         if (mid == SIQS_STRAT_AUTO) mid = dmid;
-        if (kernel == SIQS_STRAT_AUTO) kernel = dkern;
         if (skernel == SIQS_STRAT_AUTO) skernel = dskern;
     }
 
@@ -4518,11 +4548,9 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         skernel = SIQS_K_CMEM;
     }
 
-    // sconf->lp_direct: siqs_choose_large, before get_params
+    // sconf->lp_direct, lp_isa, lp_kernel: siqs_choose_table_keys
     sconf->mid_bucket = (mid == SIQS_MID_BUCKET);
-    sconf->lp_kernel = kernel;
     sconf->sparse_kernel = skernel;
-    sconf->lp_isa = isa;
     nextRoots_lp_ptr = &nextRoots_32k_lp_portable;
 
     // per-poly root updates for [med_B, B): the AVX-512 path
@@ -5065,12 +5093,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		printf("\tinitial cycle table: %d bytes\n",memsize);
 	}
 
-	// get_params' tables depend on the large-prime strategy
-#if defined(TRY_DIRECT_SIEVE)
-	siqs_choose_large(sconf);
-#else
-	sconf->lp_direct = 0;
-#endif
+	// get_params' tables are keyed on the large-prime ISA/strategy/kernel
+	siqs_choose_table_keys(sconf);
 
 	while (1)
 	{
@@ -5911,6 +5935,12 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	sconf->tlp_exp = 2.7;
     sconf->qlp_exp = 3.4;
 
+    // the built-in table's values (get_params)
+    if (sconf->param_mfbd > 0)
+        sconf->dlp_exp = sconf->param_mfbd;
+    if (sconf->param_mfbt > 0)
+        sconf->tlp_exp = sconf->param_mfbt;
+
 	// check for user overrides
 	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt) > 1e-9)     // - 2.8 
 	{
@@ -6042,6 +6072,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     else
     {
         closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
+    }
+
+    // the built-in table's values (get_params), applied as -siqsTF and
+    // -siqsTFSm would be: TF replaces the bound computed above, and TFSm the
+    // formula cutoff after the bound used it.  Unlike -siqsTFSm, a table TFSm
+    // still gets the adaptive tuning in siqs_sync (it's the starting point).
+    if (sconf->param_tf > 0)
+    {
+        closnuf = sconf->param_tf;
+    }
+    if (sconf->param_tfsm > 0)
+    {
+        sconf->tf_small_cutoff = sconf->param_tfsm;
     }
 
     if (sconf->obj->qs_obj.gbl_override_tf_flag)

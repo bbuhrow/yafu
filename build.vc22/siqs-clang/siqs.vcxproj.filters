@@ -99,6 +99,9 @@
     <ClCompile Include="..\..\factor\qs\siqs_aux.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\qs\siqs_params.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\factor\qs\siqs_test.c">
       <Filter>Source Files</Filter>
     </ClCompile>

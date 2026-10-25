@@ -385,392 +385,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	return 0;
 }
 
-#define NUM_PARAM_ROWS 31
-void get_params(static_conf_t *sconf)
-{
-	int bits,i;
-	double scale;
-	fb_list *fb = sconf->factor_base;
-    double param_table[NUM_PARAM_ROWS][7];
-
-	//parameter table
-	//bits, fb primes, lp mulitplier, 32k blocks, dlp_exp, tlp_exp, tlp_bdiv
-	//adjustment in v1.27 - more primes and less blocks for numbers > ~80 digits
-	//also different scaling for numbers bigger than 100 digits (constant increase
-	//of 20% per line)
-
-    if (sconf->lp_direct == 0)
-    {
-        // lp bucket algorithm -> use original tuning
-        
-        // Haswell also likes smaller sieve intervals for the 
-        // larger numbers... maybe this table needs to be 
-        // processor dependent...
-#if defined(USE_AVX512F)
-    // another adjustment smaller (testing on skylake-x)
-        double _table[NUM_PARAM_ROWS][7] = {
-            {50,	30,	    30,	    1,  1.0, 0, 0},
-            {60,	36,	    40,	    1,  1.0, 0, 0},
-            {70,	50,	    40,	    1,  1.0, 0, 0},
-            {80,	80,	    40,	    1,  1.0, 0, 0},
-            {90,	120,	40,	    1,  1.0, 0, 0},
-            {100,	175,	50,	    2,  1.0, 0, 0},
-            {110,	275,	50,	    2,  1.0, 0, 0},
-            {120,	375,	50,	    2,  1.0, 0, 0},
-            {140,	828,	50,	    2,  1.0, 0, 0},
-            {148,	1028,	60,	    2,  1.0, 0, 0},
-            // everything above this line is now handled by kmpqs
-            {165,	1228,	60,	    2,  1.0, 0, 0},
-            {181,	2247,	70,	    2,  1.0, 0, 0},
-            {198,	3485,	70,	    2,  1.0, 0, 0},
-            {215,	6357,	80,	    2,  1.0, 0, 0},
-            {232,	12132,	80,	    4,  1.75, 0, 0},         // 70 digits, DLP starts
-            {248,	26379,	90,	    6,  1.75, 0, 0},         // 75 digits
-            {265,	47158,	90,	    6,  1.75, 0, 0},         // 80 digits
-            {281,	60650,	100,	8,  1.8, 0, 0},
-            {298,	71768,	120,	8,  1.8, 0, 0},         // 90 digits
-            {310,	86071 ,	120,	10, 1.85, 0, 0},
-            {320,	99745 ,	140,	10, 1.85, 0, 0},        // 95 digits
-            {330,	115500, 150,    12, 1.85, 0, 0},        // 100 digits 
-
-            /* These are the DLP numbers (guesses) */
-            {340,	139120, 150,    12, 1.85, 0, 2},
-            {350,	166320, 150,    14, 1.85, 0, 2},        // 105 digits
-            {360,   199584, 150,    14, 1.85, 0, 2},
-            {370,	239500, 150,    16, 1.9, 0, 2},        // 110 digits
-            {380,	287400, 175,    16, 1.9, 0, 2},
-            {390,	344881, 175,    18, 1.9, 0, 2},
-            {400,	413857, 175,    20, 1.9, 0, 2},        // 120 digits
-            {410,	496628, 175,    22, 1.9, 0, 2},
-
-
-            /* These are the TLP numbers (guesses)
-            // row 22
-            {340,	72000, 27,    6  , 1.8, 2.8, 2},          // here we start using TLP: 3rd column is LPB in bits
-            {350,	80880,  27,    6 , 1.8, 2.8, 2},         // 105 digits
-            {360,   139708, 28,    7 , 1.8, 2.8, 2},
-            {370,	167650, 28,    8 , 1.8, 2.8, 2},        // 110 digits
-            {380,	201180, 29,    8 , 1.8, 2.8, 2},
-            {390,	241416, 29,    10, 1.8, 2.8, 2},
-            {396,	289700, 30,    12, 1.8, 2.8, 2},        // 120 digits
-            {429,	500000, 31,    14, 1.8, 2.8, 2},        // 130 digits
-            {462,	750000, 32,    16, 1.8, 2.8, 2},        // 140 digits
-            */
-
-
-        };
-#else
-        double _table[NUM_PARAM_ROWS][7] = {
-            {50,	30,	    30,	    2 , 1.8, 0, 0},
-            {60,	36,	    40,	    2 , 1.8, 0, 0},
-            {70,	50,	    40,	    2 , 1.8, 0, 0},
-            {80,	80,	    40,	    2 , 1.8, 0, 0},
-            {90,	120,	40,	    2 , 1.8, 0, 0},
-            {100,	175,	50,	    2 , 1.8, 0, 0},
-            {110,	275,	50,	    2 , 1.8, 0, 0},
-            {120,	375,	50,	    2 , 1.8, 0, 0},
-            {140,	828,	50,	    2 , 1.8, 0, 0},
-            {148,	1028,	60,	    2 , 1.8, 0, 0},
-            // everything above this line is now handled by kmpqs
-            {165,	1228,	60,	    2 , 1.8, 0, 0},
-            {181,	2247,	70,	    2 , 1.8, 0, 0},
-            {198,	3485,	70,	    4 , 1.8, 0, 0},
-            {215,	6357,	80,	    4 , 1.8, 0, 0},
-            {232,	12132,	80,	    6 , 1.8, 0, 0},      // 70 digits
-            {248,	26379,	90,	    8 , 1.8, 0, 0},
-            {265,	47158,	90,	    10, 1.8, 0, 0},     // 80 digits
-            {281,	60650,	100,	12, 1.8, 0, 0},
-            {298,	71768,	120,	12, 1.8, 0, 0},     // 90 digits
-            {310,	86071 ,	120,	14, 1.8, 0, 0},
-            {320,	99745 ,	140,	16, 1.8, 0, 0},     // 95 digits
-            {330,	115500, 150,    16, 1.8, 0, 0},     // 100 digits 
-
-            /* These are the DLP numbers (guesses) */
-            {340,	139120, 150,    12, 1.85, 0, 2},
-            {350,	166320, 150,    14, 1.85, 0, 2},        // 105 digits
-            {360,   199584, 150,    14, 1.85, 0, 2},
-            {370,	239500, 150,    16, 1.9, 0, 2},        // 110 digits
-            {380,	287400, 175,    16, 1.9, 0, 2},
-            {390,	344881, 175,    18, 1.9, 0, 2},
-            {400,	413857, 175,    20, 1.9, 0, 2},        // 120 digits
-            {410,	496628, 175,    22, 1.9, 0, 2},
-
-
-            /* These are the TLP numbers (guesses)
-
-            // row 22
-            {340,	72000, 27,    6  , 1.9, 2.6, 3},          // here we start using TLP: 3rd column is LPB in bits
-            {350,	80880,  27,    6 , 1.9, 2.6, 3},         // 105 digits
-            {360,   139708, 28,    7 , 1.9, 2.7, 3},
-            {370,	167650, 28,    8 , 1.9, 2.7, 3},        // 110 digits
-            {380,	201180, 29,    8 , 1.9, 2.8, 2.5},
-            {390,	241416, 29,    10, 1.9, 2.8, 2.5},
-            {396,	289700, 30,    12, 1.95, 2.9, 2},        // 120 digits
-            {429,	500000, 31,    14, 1.95, 2.9, 2},        // 130 digits
-            {462,	750000, 32,    16, 1.95, 2.95, 2},        // 140 digits
-
-
-            // These were the DLP numbers (guesses)
-
-            {340,	138600, 150,    18},     // above 100 it is basically guesswork
-            {350,	166320, 150,    18},     // 105 digits
-            {360,   199584, 150,    20},
-            {370,	239500, 150,    22},     // 110 digits
-            {380,	287400, 175,    24},
-            {390,	344881, 175,    26},
-            {400,	413857, 175,    28},
-            {410,	496628, 175,    30},
-            */
-
-
-        };
-#endif
-
-        for (i = 0; i < NUM_PARAM_ROWS; i++)
-        {
-            int j;
-            for (j = 0; j < 7; j++)
-            {
-                param_table[i][j] = _table[i][j];
-            }
-        }
-    }
-    else
-    {
-        // lp direct -> use new tuning (smaller intervals, smaller B)
-        double _table[NUM_PARAM_ROWS][7] = {
-            {50,	30,	    30,	    1,  1.0, 0, 0},
-            {60,	36,	    40,	    1,  1.0, 0, 0},
-            {70,	50,	    40,	    1,  1.0, 0, 0},
-            {80,	80,	    40,	    1,  1.0, 0, 0},
-            {90,	120,	40,	    1,  1.0, 0, 0},
-            {100,	175,	50,	    2,  1.0, 0, 0},
-            {110,	275,	50,	    2,  1.0, 0, 0},
-            {120,	375,	50,	    2,  1.0, 0, 0},
-            {140,	828,	50,	    2,  1.0, 0, 0},
-            {148,	1028,	60,	    2,  1.0, 0, 0},
-            // everything above this line is now handled by kmpqs
-            // until we have better tuning, for DLP we generally reduce B, increase M, 
-            // decrease TF threshold, decrease NB.  for SLP its about the same.
-            {165,	1616,	66,	    2,  1.0, 0, 0},         // 50 digits
-            {181,	3008,	85,	    2,  1.0, 0, 0},         // 55 digits
-            {198,	4784,	105,    2,  1.0, 0, 0},         // 60 digits
-            {215,	6592,	250,	4,  1.0, 0, 0},         // 65 digits
-            {232,	8064,	240,    2,  1.72, 0, 0},         // 70 digits, DLP starts
-            {248,	14928,	240,	3,  1.69, 0, 0},         // 75 digits
-            {265,	23376,	250,	3,  1.72, 0, 0},         // 80 digits
-            {281,	43008,	250,	4,  1.72, 0, 0},         // 85 digits
-            {298,	57000,	250,	6,  1.8, 0, 0},         // 90 digits
-            {310,	86071 ,	120,	10, 1.85, 0, 0},
-            {320,	99745 ,	140,	10, 1.85, 0, 0},        // 95 digits
-            {330,	115500, 150,    12, 1.85, 0, 0},        // 100 digits 
-            
-
-            /* These are the DLP numbers (guesses) */
-            {340,	139120, 150,    12, 1.85, 0, 2},
-            {350,	166320, 150,    14, 1.85, 0, 2},        // 105 digits
-            {360,   199584, 150,    14, 1.85, 0, 2},
-            {370,	239500, 150,    16, 1.9, 0, 2},        // 110 digits
-            {380,	287400, 175,    16, 1.9, 0, 2},
-            {390,	344881, 175,    18, 1.9, 0, 2},
-            {400,	413857, 175,    20, 1.9, 0, 2},        // 120 digits
-            {410,	496628, 175,    22, 1.9, 0, 2},
-
-
-            /* These are the TLP numbers (guesses)
-            // row 22
-            {340,	72000, 27,    6  , 1.8, 2.8, 2},          // here we start using TLP: 3rd column is LPB in bits
-            {350,	80880,  27,    6 , 1.8, 2.8, 2},         // 105 digits
-            {360,   139708, 28,    7 , 1.8, 2.8, 2},
-            {370,	167650, 28,    8 , 1.8, 2.8, 2},        // 110 digits
-            {380,	201180, 29,    8 , 1.8, 2.8, 2},
-            {390,	241416, 29,    10, 1.8, 2.8, 2},
-            {396,	289700, 30,    12, 1.8, 2.8, 2},        // 120 digits
-            {429,	500000, 31,    14, 1.8, 2.8, 2},        // 130 digits
-            {462,	750000, 32,    16, 1.8, 2.8, 2},        // 140 digits
-            */
-
-
-        };
-
-        for (i = 0; i < NUM_PARAM_ROWS; i++)
-        {
-            int j;
-            for (j = 0; j < 7; j++)
-            {
-                param_table[i][j] = _table[i][j];
-            }
-        }
-    }
-
-
-    int param_table_bkup[NUM_PARAM_ROWS][4] = {
-        { 50, 30, 30, 1 },
-        { 60, 36, 40, 1 },
-        { 70, 50, 40, 1 },
-        { 80, 80, 40, 1 },
-        { 90, 120, 40, 1 },
-        { 100, 175, 50, 1 },
-        { 110, 275, 50, 1 },
-        { 120, 375, 50, 1 },
-
-        { 140, 828, 50, 1 },
-        { 149, 1028, 50, 1 },
-        { 165, 1228, 50, 1 },
-        { 181, 2247, 50, 1 },
-        { 198, 3485, 60, 2 },
-        { 215, 6357, 60, 2 },
-        { 232, 12132, 70, 3 },      // 70 digits
-        { 248, 26379, 80, 4 },
-        { 265, 47158, 90, 5 },      // 80 digits
-        { 281, 60650, 100, 6 },
-        { 298, 71768, 120, 7 },     // 90 digits
-        { 310, 86071, 120, 8 },     
-        { 320, 99745, 140, 9 },     // 95 digits (for benchmark c95)
-        { 330, 115500, 150, 10 },   // 100 digits
-        { 340, 138600, 150, 12 },
-        { 350, 166320, 150, 14 },
-        { 360, 199584, 150, 16 },   // 110 digits
-        { 370, 239500, 150, 18 },
-        { 380, 287400, 175, 22 },
-        { 390, 344881, 175, 26 },
-        { 400, 413857, 175, 30 },
-        { 410, 496628, 175, 32 },
-    };
-
-	/*
-	int param_table[22][4] = {
-		{140,	600,	40,	    1},
-		{149,	875,	40,	    1},
-		{165,	1228,	50,	    1},
-		{181,	2247,	50,	    1},
-		{198,	3485,	60,	    2},
-		{215,	6357,	60,	    2},	
-		{232,	12132,	70,	    3},
-		{248,	26379,	80,	    4},
-		{265,	42871,	90,	    6},
-		{281,	55137,	100,	8},
-		{298,	65244,	120,	10},
-		{310,	78247,	120,	12},
-		{320,	90678,	140,	14},
-		{330,	105000, 150,    18},
-		{340,	125000, 150,    21},
-		{350,	155000, 150,    25},
-		{360,	195000, 150,    29},
-		{370,	250000, 150,    34},
-		{380,	310000, 150,    40},
-		{390,	380000, 150,    47},
-		{400,	460000, 150,    55},
-		{410,	550000, 150,    64},
-	};
-	*/
-
-	// linear interpolation according to bit size to determine
-	// factor base bound.  use the closest parameter for lp multiplier
-	// and number of blocks.
-
-	bits = sconf->obj->bits;
-
-	fb->B = 0;
-	if (bits <= param_table[0][0])
-	{
-		scale = (double)bits / (double)param_table[0][0];
-		fb->B = (uint32_t)(scale * (double)(param_table[0][1]));		
-		sconf->large_mult = 40;
-		sconf->num_blocks = 1;
-	}
-	else if (bits <= 1000)       // up to 100 digits, above that we use TLP
-	{
-        for (i = 0; i < NUM_PARAM_ROWS - 1; i++)
-        {
-            if (bits > param_table[i][0] && bits <= param_table[i + 1][0])
-            {
-                scale = (double)(param_table[i + 1][0] - bits) /
-                    (double)(param_table[i + 1][0] - param_table[i][0]);
-                // interpolate in double: B can decrease between rows, and a
-                // negative double cast to uint32_t is undefined (with AVX512F
-                // gcc saturates it to 0xffffffff, B wraps to 0 and SIQS hangs
-                // in new_poly_a with a 16-prime factor base)
-                fb->B = (uint32_t)(param_table[i + 1][1] -
-                    scale * (param_table[i + 1][1] - param_table[i][1]));
-
-                sconf->large_mult = (uint32_t)((param_table[i + 1][2] + param_table[i][2]) / 2.0 + 0.5);
-                sconf->num_blocks = (uint32_t)((param_table[i + 1][3] + param_table[i][3]) / 2.0 + 0.5);
-            }
-        }
-	}
-    else
-    {
-        // this can still be overridden with forceDLP.
-        sconf->obj->qs_obj.gbl_force_TLP = 1;
-        for (i = 21; i < NUM_PARAM_ROWS - 1; i++)
-        {
-            if ((bits > param_table[i][0]) && (bits <= param_table[i + 1][0]))
-            {
-                scale = (double)(param_table[i + 1][0] - bits) /
-                    (double)(param_table[i + 1][0] - param_table[i][0]);
-                // interpolate in double: B can decrease between rows, and a
-                // negative double cast to uint32_t is undefined (with AVX512F
-                // gcc saturates it to 0xffffffff, B wraps to 0 and SIQS hangs
-                // in new_poly_a with a 16-prime factor base)
-                fb->B = (uint32_t)(param_table[i + 1][1] -
-                    scale * (param_table[i + 1][1] - param_table[i][1]));
-
-                if ((param_table[i + 1][0] - bits) < (bits - param_table[i][0]))
-                {
-                    sconf->large_mult = 1 << (int)param_table[i + 1][2];
-                    sconf->num_blocks = param_table[i + 1][3];
-                }
-                else
-                {
-                    sconf->large_mult = 1 << (int)param_table[i][2];
-                    sconf->num_blocks = param_table[i][3];
-                }
-            }
-        }
-    }
-
-	if (fb->B == 0)
-	{
-		//off the end of the table, extrapolate based on the slope of 
-		//the last two
-
-		scale = (double)(param_table[NUM_PARAM_ROWS-1][1] - param_table[NUM_PARAM_ROWS-2][1]) /
-			(double)(param_table[NUM_PARAM_ROWS-1][0] - param_table[NUM_PARAM_ROWS-2][0]);
-		fb->B = (uint32_t)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
-			scale + param_table[NUM_PARAM_ROWS-1][1]);
-		sconf->large_mult = param_table[NUM_PARAM_ROWS-1][2];	//reuse last one
-
-		scale = (double)(param_table[NUM_PARAM_ROWS-1][3] - param_table[NUM_PARAM_ROWS-2][3]) /
-			(double)(param_table[NUM_PARAM_ROWS-1][0] - param_table[NUM_PARAM_ROWS-2][0]);
-		//sconf->num_blocks = param_table[NUM_PARAM_ROWS-1][3];	//reuse last one
-		sconf->num_blocks = (uint32_t)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
-			scale + param_table[NUM_PARAM_ROWS-1][3]);
-
-	}
-
-    // make B divisible by 16
-    while ((fb->B & 15) != 0)
-    {
-        fb->B++;
-    }
-
-	// minimum factor base - for use with really small inputs.
-	// not efficient, but needed for decent poly selection
-	//if (fb->B < 250)
-    //		fb->B = 250;
-
-	if (sconf->obj->qs_obj.gbl_override_B_flag)
-		fb->B = sconf->obj->qs_obj.gbl_override_B;
-
-	if (sconf->obj->qs_obj.gbl_override_blocks_flag)
-		sconf->num_blocks = sconf->obj->qs_obj.gbl_override_blocks;
-
-	if (sconf->obj->qs_obj.gbl_override_lpmult_flag)
-		sconf->large_mult = sconf->obj->qs_obj.gbl_override_lpmult;
-
-	return;
-}
+// get_params and the built-in parameter tables are in siqs_params.c
 
 int qcomp_siqs(const void *x, const void *y)
 {
@@ -906,13 +521,14 @@ enum {
     SIQSC_DIGITS, SIQSC_BITS, SIQSC_RANK, SIQSC_RATIO, SIQSC_B, SIQSC_M,
     SIQSC_NB, SIQSC_TF, SIQSC_TFSM, SIQSC_MFBD, SIQSC_SPV, SIQSC_MID,
     SIQSC_LARGE, SIQSC_KERNEL, SIQSC_PARTIALS, SIQSC_PARTIALS_CV, SIQSC_FULLS,
-    SIQSC_NEEDED, SIQSC_T_SIEVE, SIQSC_T_POST, SIQSC_N, SIQSC_EST_TIME, SIQSC_NUM
+    SIQSC_NEEDED, SIQSC_T_SIEVE, SIQSC_T_POST, SIQSC_N, SIQSC_EST_TIME,
+    SIQSC_MFBT, SIQSC_NUM
 };
 
 static const char* siqsp_cols[SIQSC_NUM] = {
     "digits", "bits", "rank", "ratio", "B", "M", "NB", "TF", "TFSm", "MFBD",
     "SPV", "Mid", "Large", "Kernel", "partials", "partials_cv", "fulls",
-    "needed", "t_sieve", "t_post", "n", "est_time" };
+    "needed", "t_sieve", "t_post", "n", "est_time", "MFBT" };
 
 static const char* siqsp_strat_name(int col, uint32_t v)
 {
@@ -966,6 +582,7 @@ static void siqsp_set(siqs_param_row_t* r, int col, const char* s)
     case SIQSC_TF: r->TF = strtoul(s, NULL, 10); r->has |= SIQSP_TF; break;
     case SIQSC_TFSM: r->TFSm = strtoul(s, NULL, 10); r->has |= SIQSP_TFSM; break;
     case SIQSC_MFBD: r->MFBD = strtod(s, NULL); r->has |= SIQSP_MFBD; break;
+    case SIQSC_MFBT: r->MFBT = strtod(s, NULL); r->has |= SIQSP_MFBT; break;
     case SIQSC_SPV: r->SPV = strtoul(s, NULL, 10); r->has |= SIQSP_SPV; break;
     case SIQSC_MID:
         if (siqsp_strat_value(col, s, &r->mid)) r->has |= SIQSP_MID;
@@ -1124,6 +741,7 @@ int siqs_write_param_table(const char* fname, siqs_param_row_t* rows,
         fprintf(fid, " %s", (r->n[0] != '\0') ? r->n : "-");
         if (r->est_time < 0) fprintf(fid, " -");
         else fprintf(fid, " %.3f", r->est_time);
+        if (r->has & SIQSP_MFBT) fprintf(fid, " %.2f", r->MFBT); else fprintf(fid, " -");
         fprintf(fid, "\n");
     }
     fclose(fid);
@@ -1143,6 +761,7 @@ void siqs_format_params(siqs_param_row_t* r, char* buf, int len)
     if (r->has & SIQSP_TF) SIQSP_APPEND("TF=%u ", r->TF);
     if (r->has & SIQSP_TFSM) SIQSP_APPEND("TFSm=%u ", r->TFSm);
     if (r->has & SIQSP_MFBD) SIQSP_APPEND("MFBD=%.2f ", r->MFBD);
+    if (r->has & SIQSP_MFBT) SIQSP_APPEND("MFBT=%.2f ", r->MFBT);
     if (r->has & SIQSP_SPV) SIQSP_APPEND("SPV=%u ", r->SPV);
     if (r->has & SIQSP_MID) SIQSP_APPEND("Mid=%s ", siqsp_strat_name(SIQSC_MID, r->mid));
     if (r->has & SIQSP_LARGE) SIQSP_APPEND("Large=%s ", siqsp_strat_name(SIQSC_LARGE, r->large));
@@ -1154,8 +773,26 @@ void siqs_format_params(siqs_param_row_t* r, char* buf, int len)
         buf[n - 1] = '\0';
 }
 
-// parameters for a 'bits'-sized input from a siqs_params.txt table.  B, TF
-// and MFBD are interpolated between the bracketing rows; the others come from
+void siqs_format_builtin_row(siqs_param_row_t* r, char* buf, int len)
+{
+    snprintf(buf, len, "{%d, %u, %u, %u, %u, %u, %.2f, %.2f}, // c%d, rank %d%s%s%s%s",
+        r->bits,
+        (r->has & SIQSP_B) ? r->B : 0,
+        (r->has & SIQSP_M) ? r->M : 0,
+        (r->has & SIQSP_NB) ? r->NB : 0,
+        (r->has & SIQSP_TF) ? r->TF : 0,
+        (r->has & SIQSP_TFSM) ? r->TFSm : 0,
+        (r->has & SIQSP_MFBD) ? r->MFBD : 0.0,
+        (r->has & SIQSP_MFBT) ? r->MFBT : 0.0,
+        r->digits, r->rank,
+        (r->has & SIQSP_LARGE) ? ", large " : "",
+        (r->has & SIQSP_LARGE) ? siqsp_strat_name(SIQSC_LARGE, r->large) : "",
+        (r->has & SIQSP_KERNEL) ? ", kernel " : "",
+        (r->has & SIQSP_KERNEL) ? siqsp_strat_name(SIQSC_KERNEL, r->kernel) : "");
+}
+
+// parameters for a 'bits'-sized input from a siqs_params.txt table.  B, TF,
+// TFSm, MFBD and MFBT are interpolated between the bracketing rows; the others come from
 // the nearer row.  Returns 0 (use the built-in table) when the file is
 // missing, the input is more than 8 bits outside the table, or the nearer row
 // is one where yafu's defaults won.
@@ -1214,8 +851,12 @@ int siqs_lookup_tuned(const char* fname, int bits, siqs_param_row_t* out)
         }
         if (both & SIQSP_TF)
             out->TF = (uint32_t)(rows[lo].TF + f * ((double)rows[hi].TF - rows[lo].TF) + 0.5);
+        if (both & SIQSP_TFSM)
+            out->TFSm = (uint32_t)(rows[lo].TFSm + f * ((double)rows[hi].TFSm - rows[lo].TFSm) + 0.5);
         if (both & SIQSP_MFBD)
             out->MFBD = rows[lo].MFBD + f * (rows[hi].MFBD - rows[lo].MFBD);
+        if (both & SIQSP_MFBT)
+            out->MFBT = rows[lo].MFBT + f * (rows[hi].MFBT - rows[lo].MFBT);
     }
     out->bits = bits;
     free(rows);

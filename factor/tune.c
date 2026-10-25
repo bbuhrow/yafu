@@ -1000,7 +1000,8 @@ static void siqstune_set_params(qs_obj_t* q, siqs_param_row_t* r)
     q->gbl_override_small_cutoff_flag = (has & SIQSP_TFSM) ? 1 : 0;
     q->gbl_override_small_cutoff = r->TFSm;
     q->no_small_cutoff_opt = 0;
-    q->gbl_override_mfbd = (has & SIQSP_MFBD) ? r->MFBD : 1.85;
+    q->gbl_override_mfbd = (has & SIQSP_MFBD) ? r->MFBD : 0.0;
+    q->gbl_override_mfbt = (has & SIQSP_MFBT) ? r->MFBT : 0.0;
     q->gbl_override_spv_limit_flag = (has & SIQSP_SPV) ? 1 : 0;
     q->gbl_override_spv_limit = r->SPV;
     q->gbl_siqs_mid = (has & SIQSP_MID) ? r->mid : SIQS_STRAT_AUTO;
@@ -1346,6 +1347,17 @@ void siqs_param_tune(fact_obj_t* fobj)
                 "default parameters\n", nout, saved.siqs_params_file);
         else
             printf("\nsiqstune: could not write %s\n", saved.siqs_params_file);
+
+        // the same winners as rows for the built-in tables (siqs_params.c),
+        // for the table matching this cpu's kernel ISA and the rows'
+        // large-prime strategy/kernel.  0 = not tabulated: the formula/default.
+        printf("\nsiqstune: as built-in table rows (siqs_params.c; "
+            "bits, B, M, NB, TF, TFSm, MFBD, MFBT), %s:\n", fobj->CPU_ID_STR);
+        for (i = 0; i < nout; i++)
+        {
+            siqs_format_builtin_row(&out[i], buf, 256);
+            printf("    %s\n", buf);
+        }
     }
 
     // put the user's options back
@@ -1361,6 +1373,7 @@ void siqs_param_tune(fact_obj_t* fobj)
     q->gbl_override_small_cutoff = saved.gbl_override_small_cutoff;
     q->no_small_cutoff_opt = saved.no_small_cutoff_opt;
     q->gbl_override_mfbd = saved.gbl_override_mfbd;
+    q->gbl_override_mfbt = saved.gbl_override_mfbt;
     q->gbl_override_spv_limit_flag = saved.gbl_override_spv_limit_flag;
     q->gbl_override_spv_limit = saved.gbl_override_spv_limit;
     q->gbl_siqs_mid = saved.gbl_siqs_mid;

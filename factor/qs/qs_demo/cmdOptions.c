@@ -460,8 +460,9 @@ options_t* initOpt(void)
     options->siqsNobat = 0;
     options->siqsForceTLP = 0;
     options->siqsLPB = 0;
-    options->siqsMFBD = 1.85;
-    options->siqsMFBT = 2.9;
+    // 0 = not given: SIQS uses its parameter tables / defaults
+    options->siqsMFBD = 0.0;
+    options->siqsMFBT = 0.0;
     options->siqsBDiv = 3.0;
     // larger batches of relations in TLP are more efficient
     // to run in the batch GCD:
