@@ -671,9 +671,7 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 // unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
 // int __builtin_subc (unsigned int a, unsigned int b, unsigned int carry_in, unsigned int *carry_out)
 #define rettype uint64_t
-#define _addcarry_u64(c_in, a, b, c_out)  __builtin_addcll(a, b, c_in, c_out)
-#define _subborrow_u64(c_in, a, b, c_out) __builtin_subcll(a, b, c_in, c_out)
-#define _subborrow_u32(c_in, a, b, c_out) __builtin_subc(a, b, c_in, c_out)
+#include "portable_carry.h"
 
 static __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
 {
