@@ -2638,10 +2638,270 @@ static void firstRoots_32k_body(static_conf_t *sconf, dynamic_conf_t *dconf, int
 	return;
 }
 
-#if defined(USE_AVX512F)
+// ----------------------------------------------------------------------
+// batched per-A setup for firstRoots_32k
+// ----------------------------------------------------------------------
+// The pre-passes below compute, for fb [istart, B) and several primes at a
+// time: a, b and every Bl[j] mod p (as the sum of 16-bit chunks times
+// 2^(16k) mod p, exact in doubles), inv = (a or 2a)^-1 mod p by Fermat
+// (0 -> 1, as modinv_1 does), the inv-multiplied first roots into
+// dconf->fr_r1/2 (unordered: from t - b and p - t - b) and every
+// rootupdates[j * B + i] = Bl[j] * inv mod p.  All residues are canonical,
+// matching the scalar Barrett / % reductions exactly.  With p < 2^26 every
+// product (x * y, q * p) is an integer below 2^52, so plain double
+// multiplies are exact and no FMA is needed.  Each returns 0 (nothing
+// done) when p >= 2^26 or a number has more than FR_MAX_CHUNKS chunks.
 
 // largest number of 16-bit chunks in a, b or Bl[j] the pre-pass handles
 #define FR_MAX_CHUNKS 64
+
+typedef struct
+{
+    int nx;         // numbers: a, b, Bl[0..s-1]
+    int nchunk;     // 16-bit chunks per number (zero-padded)
+    int ebits;      // bits in the largest p - 2
+    double chunk[MAX_A_FACTORS + 2][FR_MAX_CHUNKS];
+    uint32_t ichunk[MAX_A_FACTORS + 2][FR_MAX_CHUNKS];
+} fr_chunks_t;
+
+// split |a|, |b| and |Bl[j]| (what mpz_tdiv_ui reduces) into 16-bit chunks;
+// returns 0 if the pre-pass can't be used
+static int fr_get_chunks(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t istart,
+    fr_chunks_t* fc)
+{
+    fb_list* fb = sconf->factor_base;
+    siqs_poly* poly = dconf->curr_poly;
+    uint32_t pmax;
+    int s = poly->s;
+    int x, j, k;
+    int per = GMP_LIMB_BITS / 16;
+    mpz_ptr num[MAX_A_FACTORS + 2];
+
+    if ((istart >= fb->B) || (fb->list->prime[fb->B - 1] >= (1u << 26)) ||
+        (s > MAX_A_FACTORS))
+        return 0;
+
+    num[0] = poly->mpz_poly_a;
+    num[1] = poly->mpz_poly_b;
+    for (j = 0; j < s; j++)
+        num[2 + j] = dconf->Bl[j];
+    fc->nx = s + 2;
+    fc->nchunk = 1;
+
+    for (x = 0; x < fc->nx; x++)
+    {
+        int nl = (int)mpz_size(num[x]);
+
+        if (nl * per > FR_MAX_CHUNKS)
+            return 0;
+        for (k = 0; k < FR_MAX_CHUNKS; k++)
+        {
+            fc->chunk[x][k] = 0.0;
+            fc->ichunk[x][k] = 0;
+        }
+        for (k = 0; k < nl; k++)
+        {
+            mp_limb_t limb = mpz_getlimbn(num[x], k);
+            int q;
+            for (q = 0; q < per; q++)
+            {
+                fc->ichunk[x][k * per + q] = (uint32_t)((limb >> (16 * q)) & 0xffff);
+                fc->chunk[x][k * per + q] = (double)fc->ichunk[x][k * per + q];
+            }
+        }
+        if (nl * per > fc->nchunk)
+            fc->nchunk = nl * per;
+    }
+
+    // trim chunks that are zero in every number
+    while (fc->nchunk > 1)
+    {
+        for (x = 0; x < fc->nx; x++)
+            if (fc->chunk[x][fc->nchunk - 1] != 0.0)
+                break;
+        if (x < fc->nx)
+            break;
+        fc->nchunk--;
+    }
+
+    pmax = fb->list->prime[fb->B - 1];
+    fc->ebits = 0;
+    while ((pmax >> fc->ebits) > 0)
+        fc->ebits++;
+    return 1;
+}
+
+// portable version (SSE4.1, generic and NEON builds, and the AVX2 tail),
+// one prime at a time in 64-bit integers.  Sums of chunk * 2^(16k) mod p
+// stay below 2^47; x mod p for x < 2^52 takes its quotient from a double
+// reciprocal (off by at most one).  The inverse is modinv_1 itself: a
+// scalar Fermat ladder measured slower than its Euclid.
+static inline uint64_t fr_mod1(uint64_t x, uint64_t p, double pinv)
+{
+    int64_t r = (int64_t)(x - (uint64_t)((double)x * pinv) * p);
+    r += (int64_t)p & (r >> 63);
+    r -= (int64_t)p & ((int64_t)(p - 1 - (uint64_t)r) >> 63);
+    return (uint64_t)r;
+}
+
+static void fr_prep_one(static_conf_t* sconf, dynamic_conf_t* dconf,
+    const fr_chunks_t* fc, uint32_t i)
+{
+    fb_list* fb = sconf->factor_base;
+    uint64_t p = fb->list->prime[i];
+    uint64_t t = sconf->modsqrt_array[i];
+    int* rootupdates = dconf->rootupdates;
+    uint32_t B = fb->B;
+    double pinv = 1.0 / (double)p;
+    uint64_t R = 1, S[MAX_A_FACTORS + 2], bm, base, inv, r1, r2;
+    int x, k;
+
+    for (x = 0; x < fc->nx; x++)
+        S[x] = fc->ichunk[x][0];
+    for (k = 1; k < fc->nchunk; k++)
+    {
+        R = fr_mod1(R << 16, p, pinv);
+        for (x = 0; x < fc->nx; x++)
+            S[x] += (uint64_t)fc->ichunk[x][k] * R;
+    }
+
+    // inv = (a or 2a)^-1 mod p, exactly as the scalar path computes it
+    base = fr_mod1(S[0], p, pinv);
+    if (sconf->knmod8 == 1)
+        base = fr_mod1(2 * base, p, pinv);
+    inv = modinv_1((uint32_t)base, (uint32_t)p);
+
+    // first roots: inv * (t - b), inv * (p - t - b)
+    bm = fr_mod1(S[1], p, pinv);
+    r1 = fr_mod1(t + p - bm, p, pinv);
+    r2 = fr_mod1(2 * p - t - bm, p, pinv);
+    dconf->fr_r1[i] = (uint32_t)fr_mod1(r1 * inv, p, pinv);
+    dconf->fr_r2[i] = (uint32_t)fr_mod1(r2 * inv, p, pinv);
+
+    // root updates: Bl[j] * inv
+    for (x = 2; x < fc->nx; x++)
+        rootupdates[(x - 2) * B + i] = (int)fr_mod1(fr_mod1(S[x], p, pinv) * inv, p, pinv);
+}
+
+static int firstRoots_prep_generic(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t istart)
+{
+    fr_chunks_t fc;
+    uint32_t i, B = sconf->factor_base->B;
+
+    if (!fr_get_chunks(sconf, dconf, istart, &fc))
+        return 0;
+    for (i = istart; i < B; i++)
+        fr_prep_one(sconf, dconf, &fc, i);
+    return 1;
+}
+
+#if defined(USE_AVX2)
+
+// AVX2 version: 4 primes per __m256d, no FMA (see above); a tail of fewer
+// than 4 primes goes through fr_prep_one
+#define FR_REDUCE4(x) \
+    { \
+        __m256d q_ = _mm256_floor_pd(_mm256_mul_pd(x, vpinv)); \
+        x = _mm256_sub_pd(x, _mm256_mul_pd(q_, vp)); \
+        x = _mm256_add_pd(x, _mm256_and_pd(vp, _mm256_cmp_pd(x, vzero, _CMP_LT_OQ))); \
+        x = _mm256_sub_pd(x, _mm256_and_pd(vp, _mm256_cmp_pd(x, vp, _CMP_GE_OQ))); \
+    }
+
+#define FR_MULMOD4(r, x, y) \
+    { \
+        r = _mm256_mul_pd(x, y); \
+        FR_REDUCE4(r); \
+    }
+
+static int firstRoots_prep_avx2(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t istart)
+{
+    fb_list* fb = sconf->factor_base;
+    uint32_t* primes = fb->list->prime;
+    uint32_t* modsqrt = sconf->modsqrt_array;
+    int* rootupdates = dconf->rootupdates;
+    uint32_t B = fb->B;
+    fr_chunks_t fc;
+    int x, j, k, b;
+    uint32_t i;
+    __m256d vone = _mm256_set1_pd(1.0);
+    __m256d vzero = _mm256_setzero_pd();
+    __m256d v65536 = _mm256_set1_pd(65536.0);
+    __m256d S[MAX_A_FACTORS + 2];
+
+    if (!fr_get_chunks(sconf, dconf, istart, &fc))
+        return 0;
+
+    for (i = istart; (i + 4) <= B; i += 4)
+    {
+        __m128i vpi = _mm_loadu_si128((const __m128i*)(primes + i));
+        __m256d vp = _mm256_cvtepi32_pd(vpi);
+        __m256d vpinv = _mm256_div_pd(vone, vp);
+        __m128i ve = _mm_sub_epi32(vpi, _mm_set1_epi32(2));
+        __m256d vR = vone;
+        __m256d vbase, vinv, vt, vr1, vr2, tmp;
+
+        for (x = 0; x < fc.nx; x++)
+            S[x] = _mm256_set1_pd(fc.chunk[x][0]);
+        for (k = 1; k < fc.nchunk; k++)
+        {
+            FR_MULMOD4(vR, vR, v65536);
+            for (x = 0; x < fc.nx; x++)
+                S[x] = _mm256_add_pd(S[x], _mm256_mul_pd(_mm256_set1_pd(fc.chunk[x][k]), vR));
+        }
+        for (x = 0; x < fc.nx; x++)
+            FR_REDUCE4(S[x]);
+
+        // inv = base^(p-2), base = a or 2a mod p
+        vbase = S[0];
+        if (sconf->knmod8 == 1)
+        {
+            vbase = _mm256_add_pd(vbase, vbase);
+            vbase = _mm256_sub_pd(vbase, _mm256_and_pd(vp, _mm256_cmp_pd(vbase, vp, _CMP_GE_OQ)));
+        }
+        vinv = vone;
+        for (b = fc.ebits - 1; b >= 0; b--)
+        {
+            // lanes whose exponent has bit b set, widened to 64-bit masks
+            __m256d eb = _mm256_castsi256_pd(_mm256_cvtepi32_epi64(_mm_cmpeq_epi32(
+                _mm_and_si128(ve, _mm_set1_epi32(1 << b)), _mm_set1_epi32(1 << b))));
+            FR_MULMOD4(vinv, vinv, vinv);
+            FR_MULMOD4(tmp, vinv, vbase);
+            vinv = _mm256_blendv_pd(vinv, tmp, eb);
+        }
+        vinv = _mm256_blendv_pd(vinv, vone, _mm256_cmp_pd(vbase, vzero, _CMP_EQ_OQ));
+
+        // first roots: inv * (t - b), inv * (p - t - b)
+        vt = _mm256_cvtepi32_pd(_mm_loadu_si128((const __m128i*)(modsqrt + i)));
+        vr1 = _mm256_sub_pd(vt, S[1]);
+        vr1 = _mm256_add_pd(vr1, _mm256_and_pd(vp, _mm256_cmp_pd(vr1, vzero, _CMP_LT_OQ)));
+        vr2 = _mm256_sub_pd(_mm256_sub_pd(vp, vt), S[1]);
+        vr2 = _mm256_add_pd(vr2, _mm256_and_pd(vp, _mm256_cmp_pd(vr2, vzero, _CMP_LT_OQ)));
+        vr2 = _mm256_sub_pd(vr2, _mm256_and_pd(vp, _mm256_cmp_pd(vr2, vp, _CMP_GE_OQ)));
+        FR_MULMOD4(vr1, vr1, vinv);
+        FR_MULMOD4(vr2, vr2, vinv);
+        _mm_storeu_si128((__m128i*)(dconf->fr_r1 + i), _mm256_cvttpd_epi32(vr1));
+        _mm_storeu_si128((__m128i*)(dconf->fr_r2 + i), _mm256_cvttpd_epi32(vr2));
+
+        // root updates: Bl[j] * inv
+        for (j = 0; j < fc.nx - 2; j++)
+        {
+            FR_MULMOD4(tmp, S[2 + j], vinv);
+            _mm_storeu_si128((__m128i*)(rootupdates + j * B + i), _mm256_cvttpd_epi32(tmp));
+        }
+    }
+
+    for (; i < B; i++)
+        fr_prep_one(sconf, dconf, &fc, i);
+
+    return 1;
+}
+
+#undef FR_MULMOD4
+#undef FR_REDUCE4
+
+#endif
+
+#if defined(USE_AVX512F)
 
 // x mod p for 0 <= x < 2^52 (vp = primes, vpinv = 1/p as doubles): the
 // quotient estimate is off by at most one either way
@@ -2803,6 +3063,33 @@ static int firstRoots_vec_avx512(static_conf_t* sconf, dynamic_conf_t* dconf, ui
 
 #endif
 
+// the best pre-pass for this build and CPU; FIRSTROOTS_FORCE (0 = none,
+// 1 = generic, 2 = AVX2) picks a lower one for testing
+typedef int (*fr_prep_fn)(static_conf_t*, dynamic_conf_t*, uint32_t);
+
+#if defined(FIRSTROOTS_FORCE) && (FIRSTROOTS_FORCE == 0)
+static int firstRoots_prep_none(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t istart)
+{
+    return 0;
+}
+#endif
+
+static fr_prep_fn fr_choose_prep(static_conf_t* sconf)
+{
+#if defined(FIRSTROOTS_FORCE) && (FIRSTROOTS_FORCE == 0)
+    return &firstRoots_prep_none;
+#endif
+#if defined(USE_AVX512F) && !defined(FIRSTROOTS_FORCE)
+    if (sconf->obj->HAS_AVX512F)
+        return &firstRoots_vec_avx512;
+#endif
+#if defined(USE_AVX2) && (!defined(FIRSTROOTS_FORCE) || (FIRSTROOTS_FORCE == 2))
+    if (sconf->obj->HAS_AVX2)
+        return &firstRoots_prep_avx2;
+#endif
+    return &firstRoots_prep_generic;
+}
+
 #ifdef FIRSTROOTS_VERIFY
 // compare two firstRoots_32k results (scalar first, vector second)
 #define FR_CMP(name, a, b, n) \
@@ -2818,14 +3105,15 @@ static int firstRoots_vec_avx512(static_conf_t* sconf, dynamic_conf_t* dconf, ui
 void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     int vec = 0;
+    fr_prep_fn prep = fr_choose_prep(sconf);
 
-#if defined(USE_AVX512F)
-    if (sconf->obj->HAS_AVX512F && !((sconf->factor_base->ss_start_B > 0) &&
+    // (subset-sum search reuses amodp/bmodp/inv in the loops, so it keeps
+    // the per-prime path)
+    if (!((sconf->factor_base->ss_start_B > 0) &&
         (sconf->factor_base->ss_start_B < sconf->factor_base->B)))
     {
-        vec = firstRoots_vec_avx512(sconf, dconf, sconf->sieve_small_fb_start);
+        vec = prep(sconf, dconf, sconf->sieve_small_fb_start);
     }
-#endif
 
 #ifdef FIRSTROOTS_VERIFY
     if (vec)
@@ -2871,7 +3159,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
             memcpy(blist, lpb->list, nlist * 4);
         }
 
-        firstRoots_vec_avx512(sconf, dconf, sconf->sieve_small_fb_start);
+        prep(sconf, dconf, sconf->sieve_small_fb_start);
         firstRoots_32k_body(sconf, dconf, 1);
 
         FR_CMP("comp_sieve_p->root1", r16, dconf->comp_sieve_p->root1, medB);

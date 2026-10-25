@@ -4480,15 +4480,17 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     // plans/siqs_multi_isa/plan.md section 6 and direct_sieve.md):
     //  - [large_B, B): the direct sieve; large buckets were slower at every
     //    ISA and NB measured.
-    //  - [med_B, large_B): the sparse sieve with 8/16-lane kernels while
+    //  - [med_B, large_B): the sparse sieve with 4/8/16-lane kernels while
     //    both intervals fit in the per-core L2 (it fell 3-4% behind buckets
-    //    at NB 12/16 with a 512 KB L2); buckets with 4-lane and scalar
-    //    kernels (SSE4.1: -2..-4% vs sparse).
+    //    at NB 12/16 with a 512 KB L2); buckets with scalar kernels (sparse
+    //    -10% there).  SSE4.1 used buckets until its 4-lane compress stopped
+    //    calling libgcc's popcount; sparse is now ~5% ahead (C85).
     //  - kernel: compressstoreu (cmem) on Intel AVX-512; register compress
     //    (creg) elsewhere, including AMD, where the memory form of
     //    vpcompressd is reported to be slow (not measured here).
     {
-        int wide = (isa == SIQS_ISA_AVX512) || (isa == SIQS_ISA_AVX2);
+        int wide = (isa == SIQS_ISA_AVX512) || (isa == SIQS_ISA_AVX2) ||
+            (isa == SIQS_ISA_SSE41);
         uint32_t span = 2 * sconf->num_blocks * 32768;
         uint32_t dmid = (wide && (span <= ytools_get_l2_core_size())) ?
             SIQS_MID_SPARSE : SIQS_MID_BUCKET;
@@ -4844,7 +4846,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         {
             resieve_med_ptr = &resieve_medprimes_32k_avx2;
             lp_sieveblock_ptr = &lp_sieveblock_avx512f;
-            med_sieve_ptr = &med_sieveblock_32k_avx2;
+            med_sieve_ptr = &MED_SIEVE_AVX2_FN;
             if (sconf->obj->VFLAG > 1)
             {
                 printf("assigning resieve_medprimes_32k_avx2 ptr\n");
@@ -4856,7 +4858,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #else
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         lp_sieveblock_ptr = &lp_sieveblock_avx512f;
-        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        med_sieve_ptr = &MED_SIEVE_AVX2_FN;
         if (sconf->obj->VFLAG > 1)
         {
             printf("assigning resieve_medprimes_32k_avx2 ptr\n");
@@ -4879,7 +4881,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
         tdiv_LP_ptr = &tdiv_LP_avx2;
-        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        med_sieve_ptr = &MED_SIEVE_AVX2_FN;
 
 #if defined(_MSC_VER)
         // the avx2 code path for nextroots involves lots of inline 
@@ -4946,7 +4948,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
         tdiv_LP_ptr = &tdiv_LP_avx2;
-        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        med_sieve_ptr = &MED_SIEVE_AVX2_FN;
 
 #if defined(_MSC_VER)
         // the avx2 code path for nextroots involves lots of inline 

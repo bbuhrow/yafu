@@ -968,10 +968,18 @@ void med_sieveblock_32k_sse41(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* 
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 // avx512bw med sieve with fixed-trip-count, sink-strip passes for p > 32768/3
 #define MED_SIEVE_SPLIT
+// the AVX2 med sieve: with MED_SIEVE_SPLIT, the same fixed-pass split
+#ifdef MED_SIEVE_SPLIT
+#define MED_SIEVE_AVX2_FN med_sieveblock_32k_avx2_split
+#else
+#define MED_SIEVE_AVX2_FN med_sieveblock_32k_avx2
+#endif
 void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 // the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
@@ -999,7 +1007,18 @@ static __forceinline uint32_t siqs_popcnt32(uint32_t x)
 #else
 #define SIQS_FORCEINLINE static inline __attribute__((always_inline))
 #define siqs_ctz32(x) ((uint32_t)__builtin_ctz(x))
+#if defined(__POPCNT__) || !(defined(__x86_64__) || defined(__i386__))
 #define siqs_popcnt32(x) ((uint32_t)__builtin_popcount(x))
+#else
+// without -mpopcnt (SSE4.1 and AVX2 builds) gcc turns __builtin_popcount
+// into a call to libgcc's __popcountdi2, which cost ~7% of an SSE4.1 run
+static inline __attribute__((always_inline)) uint32_t siqs_popcnt32(uint32_t x)
+{
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    return (((x + (x >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+}
+#endif
 #endif
 
 // buffer size for the compress kernels: a flush threshold plus room for one

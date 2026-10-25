@@ -63,7 +63,8 @@ void V4_FN(direct_v4_init)(void)
 SIQS_FORCEINLINE uint32_t V4_FN(v4_cstore)(uint32_t* buf, uint32_t n, uint32_t m, v4t v)
 {
     V4_STORE(buf + n, V4_COMPRESS(v, m));
-    return n + siqs_popcnt32(m);
+    // popcount of the 4-bit mask from a packed nibble table
+    return n + (uint32_t)((0x4332322132212110ull >> (4 * m)) & 15);
 }
 
 // ----------------------------------------------------------------------

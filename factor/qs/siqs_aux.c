@@ -687,8 +687,12 @@ void get_params(static_conf_t *sconf)
             {
                 scale = (double)(param_table[i + 1][0] - bits) /
                     (double)(param_table[i + 1][0] - param_table[i][0]);
-                fb->B = param_table[i + 1][1] -
-                    (uint32_t)(scale * (double)(param_table[i + 1][1] - param_table[i][1]));
+                // interpolate in double: B can decrease between rows, and a
+                // negative double cast to uint32_t is undefined (with AVX512F
+                // gcc saturates it to 0xffffffff, B wraps to 0 and SIQS hangs
+                // in new_poly_a with a 16-prime factor base)
+                fb->B = (uint32_t)(param_table[i + 1][1] -
+                    scale * (param_table[i + 1][1] - param_table[i][1]));
 
                 sconf->large_mult = (uint32_t)((param_table[i + 1][2] + param_table[i][2]) / 2.0 + 0.5);
                 sconf->num_blocks = (uint32_t)((param_table[i + 1][3] + param_table[i][3]) / 2.0 + 0.5);
@@ -705,8 +709,12 @@ void get_params(static_conf_t *sconf)
             {
                 scale = (double)(param_table[i + 1][0] - bits) /
                     (double)(param_table[i + 1][0] - param_table[i][0]);
-                fb->B = param_table[i + 1][1] -
-                    (uint32_t)(scale * (double)(param_table[i + 1][1] - param_table[i][1]));
+                // interpolate in double: B can decrease between rows, and a
+                // negative double cast to uint32_t is undefined (with AVX512F
+                // gcc saturates it to 0xffffffff, B wraps to 0 and SIQS hangs
+                // in new_poly_a with a 16-prime factor base)
+                fb->B = (uint32_t)(param_table[i + 1][1] -
+                    scale * (param_table[i + 1][1] - param_table[i][1]));
 
                 if ((param_table[i + 1][0] - bits) < (bits - param_table[i][0]))
                 {
