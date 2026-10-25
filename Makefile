@@ -70,6 +70,11 @@ else
     EXE_EXT     :=
 endif
 
+DETECTED_ARCH := $(shell $(or $(CC),gcc) -dumpmachine 2>/dev/null)
+ifneq (,$(filter aarch64% arm64% arm%,$(DETECTED_ARCH)))
+    IS_ARM := 1
+endif
+
 MKDIR  := mkdir -p
 RM_RF  := rm -rf
 
@@ -380,6 +385,12 @@ CFLAGS := \
 # Todo: audit __m256i casts throughout siqs when using avx2 only.
 ifeq ($(OS),Windows_NT)
     CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+endif
+
+ifeq ($(IS_ARM),1)
+    # -m64 is x86-only.  Plain char is unsigned on ARM Linux, but SIQS
+    # (e.g. the gray-code sign arrays) and msieve assume signed char.
+    CFLAGS := $(filter-out -m64,$(CFLAGS)) -fsigned-char
 endif
 
 VBITS ?= 64
