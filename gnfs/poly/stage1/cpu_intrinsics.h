@@ -110,6 +110,19 @@ extern "C"
 		: "+r"(a0), "+r"(a1), "+r"(a2)	\
 		: "g"(b0), "g"(b1) : "cc")
 
+#elif defined(__GNUC__) && defined(__SIZEOF_INT128__)
+
+	/* portable C (e.g. aarch64): accumN subtracts (b1:b0) from
+	   (a2:a1:a0), propagating the borrow into a2 */
+
+	#define PROD32(hi, lo, a, b) 		{ uint64 __t = (uint64)(a) * (b); 		  hi = (uint32)(__t >> 32);			  lo = (uint32)(__t); }
+
+	#define PROD64(hi, lo, a, b) 		{ unsigned __int128 __t = (unsigned __int128)(a) * (b); 		  hi = (uint64)(__t >> 64);			  lo = (uint64)(__t); }
+
+	#define accum32(a0, a1, a2, b0, b1)			{ uint32 __b0 = (b0), __b1 = (b1);			  uint32 __c0 = (a0) < __b0;				  uint32 __t1 = (a1) - __b1;				  uint32 __c1 = ((a1) < __b1) | (__t1 < __c0); 		  (a0) -= __b0;					  (a1) = __t1 - __c0;					  (a2) -= __c1; }
+
+	#define accum64(a0, a1, a2, b0, b1)			{ uint64 __b0 = (b0), __b1 = (b1);			  uint64 __c0 = (a0) < __b0;				  uint64 __t1 = (a1) - __b1;				  uint64 __c1 = ((a1) < __b1) | (__t1 < __c0); 		  (a0) -= __b0;					  (a1) = __t1 - __c0;					  (a2) -= __c1; }
+
 #else
 	#error "unsupported compiler combination"
 #endif
