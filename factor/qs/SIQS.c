@@ -169,6 +169,8 @@ void siqs_start(void *vptr)
 
     static_conf->t_mpsieve = 0.0;
     static_conf->t_lpsieve = 0.0;
+    static_conf->t_sparsesieve = 0.0;
+    static_conf->t_lpresieve = 0.0;
     static_conf->t_tdiv = 0.0;
     static_conf->t_polyupdate = 0.0;
 
@@ -1809,6 +1811,8 @@ void* process_poly(void* vptr)
 
     dconf->t_mpsieve = 0.0;
     dconf->t_lpsieve = 0.0;
+    dconf->t_sparsesieve = 0.0;
+    dconf->t_lpresieve = 0.0;
     dconf->t_tdiv = 0.0;
     dconf->t_polyupdate = 0.0;
 
@@ -2488,11 +2492,11 @@ void* process_poly(void* vptr)
             // minblock is initialized to blockinit - 4.  It depends on this
             // poly's b, so it can't be folded into the fused pass's memset;
             // the sieve is subtractive, so -= 4 now is equivalent.
-            if (minblock < num_blocks)
-            {
-                direct_block_sub4(sieve + minblock * 32768);
-                direct_block_sub4(sieve + (num_blocks + minblock) * 32768);
-            }
+            //if (minblock < num_blocks)
+            //{
+            //    direct_block_sub4(sieve + minblock * 32768);
+            //    direct_block_sub4(sieve + (num_blocks + minblock) * 32768);
+            //}
             dconf->dpool->num = 0;
 #ifdef SIQS_PROFILE
             dconf->t_lpsieve += (now_sec() - tstart);
@@ -2554,8 +2558,22 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #endif
             }
             else
@@ -2577,8 +2595,22 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #endif
             }
 #if defined(TRY_DIRECT_SIEVE)
@@ -2609,9 +2641,7 @@ void* process_poly(void* vptr)
 #endif
 
 #ifdef SIQS_PROFILE
-            double tstop = now_sec();
-            dconf->t_mpsieve += (tstop - tstart);
-            tstart = tstop;
+            tstart = now_sec();
 #endif
 
 #if defined(TRY_DIRECT_SIEVE)
@@ -2625,7 +2655,7 @@ void* process_poly(void* vptr)
 #endif
 
 #ifdef SIQS_PROFILE
-            tstop = now_sec();
+            double tstop = now_sec();
             dconf->t_lpsieve += (tstop - tstart);
             tstart = tstop;
 #endif
@@ -2717,8 +2747,22 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #if defined(TRY_DIRECT_SIEVE)
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #endif
             }
             else
@@ -2740,8 +2784,23 @@ void* process_poly(void* vptr)
 #endif
 
                 med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #if defined(TRY_DIRECT_SIEVE)
+
                 large_sieveblock_ptr(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
 #endif
             }
 #if defined(TRY_DIRECT_SIEVE)
@@ -2749,9 +2808,7 @@ void* process_poly(void* vptr)
 #endif
 
 #ifdef SIQS_PROFILE
-            double tstop = now_sec();
-            dconf->t_mpsieve += (tstop - tstart);
-            tstart = tstop;
+            tstart = now_sec();
 #endif
 
 #if defined(TRY_DIRECT_SIEVE)
@@ -2765,7 +2822,7 @@ void* process_poly(void* vptr)
 #endif
 
 #ifdef SIQS_PROFILE
-            tstop = now_sec();
+            double tstop = now_sec();
             dconf->t_lpsieve += (tstop - tstart);
             tstart = tstop;
 #endif
@@ -2806,14 +2863,22 @@ void* process_poly(void* vptr)
             if (next)
                 memset(sieve, blockinit, 2 * num_blocks * 32768);
             direct_resieve_update_ptr(sconf, dconf, next ? sieve : NULL);
+
+#ifdef SIQS_PROFILE
+            dconf->t_polyupdate += (now_sec() - tstart);
+            tstart = now_sec();
+#endif
+
             direct_primed = next;
             direct_finalize_survivors(sconf, dconf);
+
 #ifdef SIQS_PROFILE
             dconf->t_tdiv += (now_sec() - tstart);
 #endif
+
+
         }
 #endif
-
 
         gettimeofday(&stop1, NULL);
         t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
@@ -3223,6 +3288,8 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 
     sconf->t_mpsieve += dconf->t_mpsieve;
     sconf->t_lpsieve += dconf->t_lpsieve;
+    sconf->t_sparsesieve += dconf->t_sparsesieve;
+    sconf->t_lpresieve += dconf->t_lpresieve;
     sconf->t_tdiv += dconf->t_tdiv;
     sconf->t_polyupdate += dconf->t_polyupdate;
 
@@ -3826,6 +3893,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         (size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(int)));
     dconf->sm_rootupdates = (uint16_t *)xmalloc_align(
         (size_t)(MAX_A_FACTORS * sconf->factor_base->med_B * sizeof(uint16_t)));
+    dconf->fr_r1 = (uint32_t*)xmalloc_align(
+        (size_t)((sconf->factor_base->B + 16) * sizeof(uint32_t)));
+    dconf->fr_r2 = (uint32_t*)xmalloc_align(
+        (size_t)((sconf->factor_base->B + 16) * sizeof(uint32_t)));
 
 
     if (sconf->obj->VFLAG > 2)
@@ -4315,6 +4386,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->total_surviving_reports = 0;
     dconf->total_blocks = 0;
 
+    dconf->t_mpsieve = 0.0;
+    dconf->t_lpsieve = 0.0;
+    dconf->t_sparsesieve = 0.0;
+    dconf->t_lpresieve = 0.0;
+    dconf->t_tdiv = 0.0;
+    dconf->t_polyupdate = 0.0;
+
     dconf->num_scatter_opp = 0;
     dconf->num_scatter = 0;
 
@@ -4745,13 +4823,21 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         if (obj->HAS_AVX512BW)
         {
             resieve_med_ptr = &resieve_medprimes_32k_avx512bw;
+#ifdef MED_SIEVE_SPLIT
+            med_sieve_ptr = &med_sieveblock_32k_avx512bw_split;
+#else
             med_sieve_ptr = &med_sieveblock_32k_avx512bw;
+#endif
             lp_sieveblock_ptr = &lp_sieveblock_avx512bw;
             if (sconf->obj->VFLAG > 1)
             {
                 printf("assigning resieve_medprimes_32k_avx512bw ptr\n");
                 printf("assigning lp_sieveblock_avx512bw ptr\n");
+#ifdef MED_SIEVE_SPLIT
+                printf("assigning med_sieveblock_32k_avx512bw_split ptr\n");
+#else
                 printf("assigning med_sieveblock_32k_avx512bw ptr\n");
+#endif
             }
         }
         else
@@ -6967,7 +7053,9 @@ int update_final(static_conf_t *sconf)
 
 #ifdef SIQS_PROFILE
             printf("\tMed sieve time: %1.4f sec\n", sconf->t_mpsieve);
+            printf("\tSparse sieve time: %1.4f sec\n", sconf->t_sparsesieve);
             printf("\tLarge sieve time: %1.4f sec\n", sconf->t_lpsieve);
+            printf("\tLarge resieve time: %1.4f sec\n", sconf->t_lpresieve);
             printf("\tTdiv time: %1.4f sec\n", sconf->t_tdiv);
             printf("\tPoly update time: %1.4f sec\n", sconf->t_polyupdate);
 #endif
@@ -7163,6 +7251,8 @@ int free_sieve(dynamic_conf_t* dconf)
 
 	align_free(dconf->rootupdates);
 	align_free(dconf->sm_rootupdates);
+	align_free(dconf->fr_r1);
+	align_free(dconf->fr_r2);
 
 	align_free(dconf->update_data.sm_firstroots1);
 	align_free(dconf->update_data.sm_firstroots2);

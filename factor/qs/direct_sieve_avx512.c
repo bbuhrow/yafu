@@ -412,6 +412,10 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
 
         if (resieve)
         {
+#ifdef SIQS_PROFILE
+            struct timeval start, stop;
+            gettimeofday(&start, NULL);
+#endif
             // interval positions of all 4 roots (neg side offset by interval)
             __m512i vnpos1 = _mm512_add_epi32(_mm512_sub_epi32(vprime, vroot1), vint);
             __m512i vnpos2 = _mm512_add_epi32(_mm512_sub_epi32(vprime, vroot2), vint);
@@ -450,7 +454,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
 #undef DIRECT_PF_WORD
 #endif
 
-#if 0
+#if 1
             if (use_cmp)
             {
                 // few survivors: every prime here is > interval, so a root
@@ -537,6 +541,11 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
                 pool->ex_skip += (bound - j) / 16;
 #endif
             }
+
+#ifdef SIQS_PROFILE
+            gettimeofday(&stop, NULL);
+            dconf->t_lpresieve += ytools_difftime(&start, &stop);
+#endif
         }
 
         if (sieve == NULL)

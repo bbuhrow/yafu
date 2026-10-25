@@ -55,6 +55,8 @@
 // or this one, but not both
 //#define USE_POLY_BUCKET_SS
 
+//#define SIQS_PROFILE
+
 #ifdef USE_SS_SEARCH
 #define USE_POLY_BUCKET_PN_COMBINED_VARIATION
 
@@ -737,6 +739,8 @@ typedef struct {
     double t_mpsieve;
     double t_lpsieve;
     double t_tdiv;
+    double t_lpresieve;
+    double t_sparsesieve;
     double t_polyupdate;
 
     // stuff for sqrt
@@ -819,6 +823,8 @@ typedef struct {
     lp_bucket* buckets;			// bins holding sieve updates
     int* rootupdates;			// updates to apply to roots of primes
     uint16_t* sm_rootupdates;			// updates to apply to roots of primes
+    uint32_t* fr_r1;            // firstRoots_32k vector pre-pass: first roots
+    uint32_t* fr_r2;            // (inv-multiplied, unordered) for fb [small, B)
     uint32_t* mask2;
 
 #ifdef USE_XLBUCKET
@@ -937,6 +943,8 @@ typedef struct {
 
     double t_mpsieve;
     double t_lpsieve;
+    double t_sparsesieve;
+    double t_lpresieve;
     double t_tdiv;
     double t_polyupdate;
 
@@ -961,6 +969,10 @@ void med_sieveblock_32k_sse41(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* 
 void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+// avx512bw med sieve with fixed-trip-count, sink-strip passes for p > 32768/3
+#define MED_SIEVE_SPLIT
+void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 // the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
 extern void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
