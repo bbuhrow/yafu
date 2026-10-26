@@ -15,7 +15,7 @@ NEON + dotprod, no SVE).*
 | P0 | ARM builds without `FORCE_GENERIC` | done (see 0.1) |
 | P1 | relation scanner | done (`check_relations_siqs_neon`); qemu A/B matches; N1 timing pending |
 | P2 | nextRoots (poly root updates) | done: `nextRoots_32k_neon_small`; NEON defaults to the sparse mid sieve (5% ahead of the NEON bucket fill on the N1) |
-| P3 | med sieve | done: `split` is the default (C73: 39.6 s vs 41.1 s `ranges`, 48.2 s `-noneon`); med-sieve-only gain pending (`YAFU_NEON_MED=portable`) |
+| P3 | med sieve | done: `splitsink` is the default (C73: -2.7% cycles vs `split`, which beat `ranges` and `-noneon`); RMW-bound now |
 | P4 | tdiv_med + resieve_med | not started |
 | P5 | tdiv_LP (bucket tdiv) | not started |
 | P6 | firstRoots pre-pass, lp_sieveblock | only if the profile says so |
@@ -215,6 +215,19 @@ Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
       fixed passes above 32768/3.
     - `hybridsink`: both.
     All four match `-noneon` exactly with `-DMED_NEON_EXACT_LOGP`.
+  - N1, C73 (`rsa(240)`), 2 reps, Mcycles: splitsink 90,640, hybridsink
+    92,010, hybrid 92,295, split 93,150. **`splitsink` is the default.**
+    Vectorizing p < 8192 helps (split vs hybrid only once the sink strip
+    is in), and the sink strip helps both layouts.
+  - `perf annotate` of split: the top ~40 instructions are the dump-all
+    loop's 16 `umov` lane extracts, `ldrb` and `sub` per step, spread
+    evenly: it is RMW-throughput bound (one load + one store per hit),
+    not bound by any one instruction. Further gains have to come from
+    fewer hits: the SPV bound (`-siqsSPV`, default 256; primes below it
+    are not sieved, hits per prime ~ 1/p) and the sieve parameters, i.e.
+    a NEON parameter table (P8). NEON currently uses the generic `direct`
+    table, tuned on x86; `siqs_tune_v2.py` sweeps B, M, TF, TFSm, NB but
+    not SPV.
   - `tools/neon_ab.sh` now pins `-siqsMid sparse` for both runs (unless
     given `-siqsMid`): since NEON defaults to sparse and portable to
     buckets, unpinned A/Bs compare different strategies.

@@ -1000,7 +1000,8 @@ void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, 
 // run time by the environment variable YAFU_NEON_MED=ranges|split|
 // splitsink|hybrid|hybridsink|portable (portable: med_sieveblock_32k, with
 // the other NEON kernels still on).
-// On a Neoverse-N1, C73, 1 thread: split 39.6 s, ranges 41.1 s.
+// On a Neoverse-N1, C73, 1 thread: split 39.6 s, ranges 41.1 s; later
+// (Mcycles) splitsink 90,640, hybridsink 92,010, hybrid 92,295, split 93,150.
 void med_sieveblock_32k_neon(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
@@ -1012,7 +1013,7 @@ void med_sieveblock_32k_neon_hybrid(uint8_t* sieve, sieve_fb_compressed* fb, fb_
 void med_sieveblock_32k_neon_hybridsink(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 #ifndef MED_SIEVE_NEON_FN
-#define MED_SIEVE_NEON_FN med_sieveblock_32k_neon_split
+#define MED_SIEVE_NEON_FN med_sieveblock_32k_neon_splitsink
 #endif
 #define MED_SIEVE_NEON_STR2(x) #x
 #define MED_SIEVE_NEON_STR(x) MED_SIEVE_NEON_STR2(x)
