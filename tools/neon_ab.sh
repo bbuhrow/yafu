@@ -9,8 +9,14 @@
 #
 # -noopt is always passed: the SPV tuner picks tf_small_cutoff from
 # measured rels/sec, which makes otherwise identical runs differ.
+# -siqsMid sparse is passed unless the extra args set -siqsMid: NEON and
+# portable kernels default to different mid strategies (sparse / bucket).
 cd "$1" || exit 1
 expr="$2"; shift 2
+case " $* " in
+    *" -siqsMid "*) ;;
+    *) set -- -siqsMid sparse "$@" ;;
+esac
 run=""
 [ "$(uname -m)" != aarch64 ] && run=qemu-aarch64-static
 out=${TMPDIR:-/tmp}
@@ -25,7 +31,7 @@ for mode in neon noneon; do
     grep -E "total polynomials|trial division touched|total reports|total blocks|dlp-ecm|^P[0-9]+ = " \
         "$out/ab_$mode.txt" | sed 's/(.*//' > "$out/ab_$mode.stats"
     printf "== %s (%s s): %s\n" $mode "$(awk "BEGIN { printf \"%.1f\", $end - $start }")" \
-        "$(grep -E 'strategy:' "$out/ab_$mode.txt" | sed 's/.*(//; s/).*//')"
+        "$(grep -E 'strategy:' "$out/ab_$mode.txt" | sed 's/strategy: //')"
     cat "$out/ab_$mode.stats"
 done
 if cmp -s "$out/ab_neon.stats" "$out/ab_noneon.stats"; then

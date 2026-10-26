@@ -14,7 +14,7 @@ NEON + dotprod, no SVE).*
 | P0 | `neon_util.h` (movemask, mulhi_u16) | done |
 | P0 | ARM builds without `FORCE_GENERIC` | done (see 0.1) |
 | P1 | relation scanner | done (`check_relations_siqs_neon`); qemu A/B matches; N1 timing pending |
-| P2 | nextRoots (poly root updates) | small primes done (`nextRoots_32k_neon_small`, exact under qemu); mid buckets dropped: NEON now defaults to the sparse mid sieve |
+| P2 | nextRoots (poly root updates) | done: `nextRoots_32k_neon_small`; NEON defaults to the sparse mid sieve (5% ahead of the NEON bucket fill on the N1) |
 | P3 | med sieve | done: `split` is the default (C73: 39.6 s vs 41.1 s `ranges`, 48.2 s `-noneon`); med-sieve-only gain pending (`YAFU_NEON_MED=portable`) |
 | P4 | tdiv_med + resieve_med | not started |
 | P5 | tdiv_LP (bucket tdiv) | not started |
@@ -172,11 +172,16 @@ Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
     the NEON emulation keep the portable fill). Roots 4 primes at a time;
     the fill goes prime by prime after each `CHECK_NEW_SLICE`, so slices,
     bucket contents and element order are identical to the portable fill.
-    Fill modes (`YAFU_NEON_BUCKETS`): `fixed` (default) runs
-    K = interval / p_min + 1 branch-free passes per root stream, a miss
-    writing bucket 0's next free slot without counting it; `loop` is the
-    portable while loop. Exact builds match `-noneon` with
-    `-siqsMid bucket` in both modes.
+    Fill modes (`YAFU_NEON_BUCKETS`): `loop` (default) is the portable
+    while loop; `fixed` runs K = interval / p_min + 1 branch-free passes
+    per root stream, a miss writing bucket 0's next free slot without
+    counting it. Exact builds match `-noneon` with `-siqsMid bucket` in
+    both modes.
+  - N1, C73 (`rsa(240)`), 2 reps, Mcycles: sparse (`split`) 93,650;
+    buckets + `loop` 98,575 (+5%); buckets + `fixed` 106,120 (+13%: with
+    p close to the interval most fixed passes are wasted stores). Sparse
+    stays the NEON default; the bucket fill only matters with
+    `-siqsMid bucket`.
 - **P3 med sieve:** from the SSE4.1 file; then try the fixed-pass `_split`
   structure that won on AVX2 and AVX-512. Done, in
   `factor/qs/med_sieve_32k_neon.c`:
@@ -197,7 +202,22 @@ Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
     prime's own logp; with it both variants match `-noneon` exactly on
     the C61 and C70 under qemu.
   - Selection: `MED_SIEVE_NEON_FN` (default `med_sieveblock_32k_neon_split`),
-    overridden at run time by `YAFU_NEON_MED=ranges|split|portable`.
+    overridden at run time by `YAFU_NEON_MED=ranges|split|splitsink|
+    hybrid|hybridsink|portable`.
+  - Split-family variants (one always-inlined body,
+    `med_neon_split_body(small_scalar, sink_select)`):
+    - `splitsink`: the selective loops below `fb_32k_div3` (after the
+      dump-all loop, and the last root1 hit) write every lane, missed
+      lanes to the sink strip, instead of a ctz / clear-lowest-bit loop
+      over the live lanes (like `MED_SINK_STRIP` bit 0 on AVX-512).
+    - `hybrid`: scalar loops below 2^13 (as `ranges`), split above, to
+      see whether split's win came from vectorizing p < 8192 or from the
+      fixed passes above 32768/3.
+    - `hybridsink`: both.
+    All four match `-noneon` exactly with `-DMED_NEON_EXACT_LOGP`.
+  - `tools/neon_ab.sh` now pins `-siqsMid sparse` for both runs (unless
+    given `-siqsMid`): since NEON defaults to sparse and portable to
+    buckets, unpinned A/Bs compare different strategies.
   - N1, `tools/neon_bench.sh 'siqs(rsa(240))' 2` (C73, 1 thread, -noopt),
     QS seconds / Mcycles / polys, two reps each within 0.1 s:
 
@@ -215,5 +235,15 @@ Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
 - **P6** firstRoots, lp_sieveblock, SPV: only what the profile shows.
 - **P7 Lanczos:** `v_t` as `uint64x2_t`.
 - **P8 tuning:** a NEON column in the per-ISA params tables (siqs_tune);
-  try 64 KB sieve blocks (the 64k code paths exist) since N1 has 64 KB L1d;
   revisit the mid-range strategy (bucket vs sparse) with NEON kernels in.
+  - 64 KB blocks (N1 has 64 KB L1d): the old `YAFU_64K` path is dead
+    (only sieve.c / tdiv_resieve.c mention it, no `*_64k.c` SIQS file is
+    in the Makefile, `qs_blocksize` is fixed at 32768), and everything
+    since (direct + sparse sieves, 4/8/16-lane kernels, NEON) hard-codes
+    32768: 15-bit block offsets, the loc 65534 rule, 15-bit bucket
+    locations. A real port, not an experiment. What a bigger block buys
+    the med sieve is fewer per-prime visits for primes with few hits per
+    block (p > 2^14: <= 2 per 32 KB); a cheaper way to get some of that
+    may be a med sieve that covers two adjacent blocks of the contiguous
+    direct layout in one visit for its largest primes, if the sieve/scan
+    order allows sieving block b+1 before block b is scanned.

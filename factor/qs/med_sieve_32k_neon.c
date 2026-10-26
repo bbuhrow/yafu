@@ -241,26 +241,59 @@ static const uint16_t med_neon_sink_lanes[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
     vr1 = vaddq_u16(vr1, vandq_u16(vp, m1)); \
     vr2 = vaddq_u16(vr2, vandq_u16(vp, m2));
 
+// one sink-strip pass over the selective lanes of the first part: lanes in
+// mask m hit sieve[root] (sbase-relative, so biased), the rest write the
+// strip; 16 RMWs and no branches
+#define MED_NEON_SINK_RMW(m, va, vb) \
+    vst1q_u16(r1, vbslq_u16(m, vaddq_u16(va, vsink_bias), vsink1)); \
+    vst1q_u16(r2, vbslq_u16(m, vaddq_u16(vb, vsink_bias), vsink2)); \
+    sbase[r1[0]] -= MLP(0); sbase[r2[0]] -= MLP(0); \
+    sbase[r1[1]] -= MLP(1); sbase[r2[1]] -= MLP(1); \
+    sbase[r1[2]] -= MLP(2); sbase[r2[2]] -= MLP(2); \
+    sbase[r1[3]] -= MLP(3); sbase[r2[3]] -= MLP(3); \
+    sbase[r1[4]] -= MLP(4); sbase[r2[4]] -= MLP(4); \
+    sbase[r1[5]] -= MLP(5); sbase[r2[5]] -= MLP(5); \
+    sbase[r1[6]] -= MLP(6); sbase[r2[6]] -= MLP(6); \
+    sbase[r1[7]] -= MLP(7); sbase[r2[7]] -= MLP(7); \
+    vsink1 = vandq_u16(vaddq_u16(vsink1, vsink_step), vsink_wrap); \
+    vsink2 = vaddq_u16(vsink1, vsink_half);
+
+// the same for one root per lane (the last root1 hits): 8 RMWs
+#define MED_NEON_SINK_RMW8(m, va) \
+    vst1q_u16(r1, vbslq_u16(m, vaddq_u16(va, vsink_bias), vsink1)); \
+    sbase[r1[0]] -= MLP(0); sbase[r1[1]] -= MLP(1); \
+    sbase[r1[2]] -= MLP(2); sbase[r1[3]] -= MLP(3); \
+    sbase[r1[4]] -= MLP(4); sbase[r1[5]] -= MLP(5); \
+    sbase[r1[6]] -= MLP(6); sbase[r1[7]] -= MLP(7); \
+    vsink1 = vandq_u16(vaddq_u16(vsink1, vsink_step), vsink_wrap); \
+    vsink2 = vaddq_u16(vsink1, vsink_half);
+
 // NEON counterpart of med_sieveblock_32k_avx2_split:
-//  - from the first multiple of 8 at or past start_prime up to fb_32k_div3,
-//    8 primes at a time: dump both roots of every lane while all valid
-//    lanes are in the block, then only the lanes still in it, then a last
-//    root1 hit (logp of the group's first prime for all 8 lanes)
+//  - below fb_32k_div3, 8 primes at a time: dump both roots of every lane
+//    while all valid lanes are in the block, then only the lanes still in
+//    it, then a last root1 hit (logp of the group's first prime for all 8
+//    lanes).  With small_scalar, primes below 2^13 use the scalar loops
+//    instead (as med_sieveblock_32k_neon does) and the vector loop starts
+//    at fb_13bit_B.  With sink_select, the "only the lanes still in it"
+//    loops write every lane, missed lanes to the sink strip, instead of
+//    looping over the set lanes (MED_SINK_STRIP in the AVX-512 version).
 //  - above fb_32k_div3, groups of 8 with K fixed passes each, K from the
 //    group's smallest prime: 32768/3 < p < 2^14: 3, 2^14 < p < 2^15: 2,
 //    2^15 < p: 1 (lanes with p > 2^15 sit out the later passes, where a
 //    wrapped root would look like another hit)
 // Invalid lanes in the first part (a-primes: root 0xffff, or prime 0) are
 // parked at 0xffff and dump to sieve[65535], as in the AVX2 version (guard
-// space, or saved/restored by the caller with the direct layout).
-void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
-    uint32_t start_prime, uint8_t s_init)
+// space, or saved/restored by the caller with the direct layout).  The
+// sink strip is sieve[-MED_NEON_SINK_BYTES, 0).
+static inline __attribute__((always_inline)) void med_neon_split_body(
+    uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, const int small_scalar, const int sink_select)
 {
     uint32_t i;
     uint32_t med_B = full_fb->med_B;
     const uint32_t* plist = full_fb->list->prime;
     uint32_t prime, root1, root2, tmp, stop;
-    uint32_t b3, vbound;
+    uint32_t b13, b3, vbound;
     uint8_t logp;
 #ifdef MED_NEON_EXACT_LOGP
     uint8_t lp[8];
@@ -280,14 +313,37 @@ void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
     uint16x8_t vsink2 = vaddq_u16(vsink1, vsink_half);
 
     b3 = MIN(full_fb->fb_32k_div3, med_B);
+    b13 = MIN(full_fb->fb_13bit_B, b3);
     vbound = b3 & ~7u;
 
-    for (i = start_prime; i < b3; i++)
+    i = start_prime;
+    if (small_scalar)
+    {
+        // p < 2^13: scalar loops
+        for (; i < b13; i++)
+        {
+            uint8_t* s2;
+
+            prime = fb->prime[i];
+            root1 = fb->root1[i];
+            root2 = fb->root2[i];
+            logp = (uint8_t)fb->logp[i];
+
+            // invalid root (part of poly->a)
+            if (prime == 0)
+                continue;
+
+            SIEVE_2X;
+            SIEVE_1X;
+            SIEVE_LAST;
+            UPDATE_ROOTS;
+        }
+    }
+
+    // up to the next multiple of 8
+    for (; (i < b3) && (i & 7); i++)
     {
         uint8_t* s2;
-
-        if ((i & 7) == 0)
-            break;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -328,15 +384,22 @@ void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         vp = vandq_u16(vp, vval2);
         while (vmaxvq_u16(vval2) != 0)
         {
-            vst1q_u16(r1, vr1);
-            vst1q_u16(r2, vr2);
-            bm = MED_NEON_LANEBITS(vval2);
-            while (bm)
+            if (sink_select)
             {
-                uint32_t k = (uint32_t)__builtin_ctzll(bm) >> 3;
-                sieve[r2[k]] -= MLP(k);
-                sieve[r1[k]] -= MLP(k);
-                bm &= bm - 1;
+                MED_NEON_SINK_RMW(vval2, vr1, vr2);
+            }
+            else
+            {
+                vst1q_u16(r1, vr1);
+                vst1q_u16(r2, vr2);
+                bm = MED_NEON_LANEBITS(vval2);
+                while (bm)
+                {
+                    uint32_t k = (uint32_t)__builtin_ctzll(bm) >> 3;
+                    sieve[r2[k]] -= MLP(k);
+                    sieve[r1[k]] -= MLP(k);
+                    bm &= bm - 1;
+                }
             }
 
             vr1 = vaddq_u16(vr1, vp);
@@ -346,14 +409,21 @@ void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         }
 
         // last hit for root1s still in the block
-        vst1q_u16(r1, vr1);
         vval1 = vbicq_u16(vinit, vcgtq_u16(vr1, vlast));
-        bm = MED_NEON_LANEBITS(vval1);
-        while (bm)
+        if (sink_select)
         {
-            uint32_t k = (uint32_t)__builtin_ctzll(bm) >> 3;
-            sieve[r1[k]] -= MLP(k);
-            bm &= bm - 1;
+            MED_NEON_SINK_RMW8(vval1, vr1);
+        }
+        else
+        {
+            vst1q_u16(r1, vr1);
+            bm = MED_NEON_LANEBITS(vval1);
+            while (bm)
+            {
+                uint32_t k = (uint32_t)__builtin_ctzll(bm) >> 3;
+                sieve[r1[k]] -= MLP(k);
+                bm &= bm - 1;
+            }
         }
 
         // advance those root1s, reduce both roots, store sorted
@@ -401,6 +471,36 @@ void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
     return;
 }
 
+// all small primes vector, selective loops over set lanes
+void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
+{
+    med_neon_split_body(sieve, fb, full_fb, start_prime, 0, 0);
+}
+
+// all small primes vector, sink-strip selective loops
+void med_sieveblock_32k_neon_splitsink(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
+{
+    med_neon_split_body(sieve, fb, full_fb, start_prime, 0, 1);
+}
+
+// scalar below 2^13, then as split
+void med_sieveblock_32k_neon_hybrid(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
+{
+    med_neon_split_body(sieve, fb, full_fb, start_prime, 1, 0);
+}
+
+// scalar below 2^13, then as splitsink
+void med_sieveblock_32k_neon_hybridsink(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
+{
+    med_neon_split_body(sieve, fb, full_fb, start_prime, 1, 1);
+}
+
+#undef MED_NEON_SINK_RMW
+#undef MED_NEON_SINK_RMW8
 #undef MED_NEON_FIXED_PASS
 #undef MED_NEON_LANEBITS
 #undef MED_NEON_LOAD

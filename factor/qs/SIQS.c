@@ -5064,24 +5064,29 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     if (sconf->obj->HAS_NEON)
     {
         // YAFU_NEON_MED picks the variant at run time, for benchmarking
+        static const struct {
+            const char* key;
+            void (*fn)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
+            const char* name;
+        } medv_tab[] = {
+            { "ranges", &med_sieveblock_32k_neon, "med_sieveblock_32k_neon" },
+            { "split", &med_sieveblock_32k_neon_split, "med_sieveblock_32k_neon_split" },
+            { "splitsink", &med_sieveblock_32k_neon_splitsink, "med_sieveblock_32k_neon_splitsink" },
+            { "hybrid", &med_sieveblock_32k_neon_hybrid, "med_sieveblock_32k_neon_hybrid" },
+            { "hybridsink", &med_sieveblock_32k_neon_hybridsink, "med_sieveblock_32k_neon_hybridsink" },
+            { "portable", &med_sieveblock_32k, "med_sieveblock_32k" } };
         const char* medv = getenv("YAFU_NEON_MED");
         const char* medname = MED_SIEVE_NEON_NAME;
+        int t;
 
         med_sieve_ptr = &MED_SIEVE_NEON_FN;
-        if ((medv != NULL) && (strcmp(medv, "split") == 0))
+        for (t = 0; (medv != NULL) && (t < (int)(sizeof(medv_tab) / sizeof(medv_tab[0]))); t++)
         {
-            med_sieve_ptr = &med_sieveblock_32k_neon_split;
-            medname = "med_sieveblock_32k_neon_split";
-        }
-        else if ((medv != NULL) && (strcmp(medv, "ranges") == 0))
-        {
-            med_sieve_ptr = &med_sieveblock_32k_neon;
-            medname = "med_sieveblock_32k_neon";
-        }
-        else if ((medv != NULL) && (strcmp(medv, "portable") == 0))
-        {
-            med_sieve_ptr = &med_sieveblock_32k;
-            medname = "med_sieveblock_32k";
+            if (strcmp(medv, medv_tab[t].key) == 0)
+            {
+                med_sieve_ptr = medv_tab[t].fn;
+                medname = medv_tab[t].name;
+            }
         }
         if (sconf->obj->VFLAG > 1)
             printf("assigning %s ptr\n", medname);

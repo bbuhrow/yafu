@@ -173,7 +173,10 @@ void nextRoots_32k_neon_small(static_conf_t* sconf, dynamic_conf_t* dconf)
 // The fills then go prime by prime in the portable order (root1, root2,
 // -root1, -root2), each after its own CHECK_NEW_SLICE, so slice bounds,
 // bucket contents and element order all match nextRoots_32k_lp_buckets.
-// YAFU_NEON_BUCKETS=loop|fixed picks the fill (default fixed).
+// YAFU_NEON_BUCKETS=loop|fixed picks the fill (default loop).  On a
+// Neoverse-N1 (C73, mid buckets) fixed took 106 Gcyc vs 98.6 for loop: most
+// of its passes are wasted stores when p is close to the interval.  The
+// sparse mid sieve (the NEON default) took 93.6.
 void nextRoots_32k_lp_buckets_neon(static_conf_t* sconf, dynamic_conf_t* dconf)
 {
     static int fill_mode = -1;   // 0 loop, 1 fixed
@@ -205,7 +208,7 @@ void nextRoots_32k_lp_buckets_neon(static_conf_t* sconf, dynamic_conf_t* dconf)
     if (fill_mode < 0)
     {
         const char* s = getenv("YAFU_NEON_BUCKETS");
-        fill_mode = ((s != NULL) && (strcmp(s, "loop") == 0)) ? 0 : 1;
+        fill_mode = ((s != NULL) && (strcmp(s, "fixed") == 0)) ? 1 : 0;
     }
 
     interval = (uint32_t)numblocks << 15;
