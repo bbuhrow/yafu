@@ -280,6 +280,11 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
         char AVX512VL;
         char AVX512IFMA;
         char AVX512F;
+        // aarch64 features (Linux hwcaps)
+        char NEON;
+        char DOTPROD;
+        char SVE;
+        char SVE2;
 
 
     } info_t;

@@ -1183,6 +1183,20 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #ifdef IFMA
     if (comp_info->AVX512IFMA) logprint(logfile, "AVX512IFMA ");
 #endif
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+#ifdef __ARM_NEON
+    if (comp_info->NEON) logprint(logfile, "NEON ");
+#endif
+#ifdef __ARM_FEATURE_DOTPROD
+    if (comp_info->DOTPROD) logprint(logfile, "DOTPROD ");
+#endif
+#ifdef __ARM_FEATURE_SVE
+    if (comp_info->SVE) logprint(logfile, "SVE ");
+#endif
+#ifdef __ARM_FEATURE_SVE2
+    if (comp_info->SVE2) logprint(logfile, "SVE2 ");
+#endif
+#endif
     logprint(logfile, "\n");
 
     if (freq > 100.0)
@@ -1230,6 +1244,20 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #endif
 #ifdef IFMA 
         if (comp_info->AVX512IFMA) printf("AVX512IFMA ");
+#endif
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+#ifdef __ARM_NEON
+        if (comp_info->NEON) printf("NEON ");
+#endif
+#ifdef __ARM_FEATURE_DOTPROD
+        if (comp_info->DOTPROD) printf("DOTPROD ");
+#endif
+#ifdef __ARM_FEATURE_SVE
+        if (comp_info->SVE) printf("SVE ");
+#endif
+#ifdef __ARM_FEATURE_SVE2
+        if (comp_info->SVE2) printf("SVE2 ");
+#endif
 #endif
         printf("\n");
 

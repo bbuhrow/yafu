@@ -40,6 +40,10 @@ SOFTWARE.
 #endif
 
 #define _POSIX_C_SOURCE 200112L
+#if defined(__APPLE__)
+// sysctlbyname and <sys/sysctl.h>'s u_int types are hidden by plain POSIX
+#define _DARWIN_C_SOURCE
+#endif
 #include "ytools.h"
 #include <stdlib.h>
 #include <math.h>
@@ -540,13 +544,332 @@ void* xrealloc(void* iptr, size_t len) {
 // computer info
 // ============================================================================
 
+#if defined(__aarch64__) && defined(__linux__)
+
+#include <stdio.h>
+#include <string.h>
+#include <sys/auxv.h>
+
+#ifndef HWCAP_ASIMD
+#define HWCAP_ASIMD (1 << 1)
+#endif
+#ifndef HWCAP_ASIMDDP
+#define HWCAP_ASIMDDP (1 << 20)
+#endif
+#ifndef HWCAP_SVE
+#define HWCAP_SVE (1 << 22)
+#endif
+#ifndef HWCAP2_SVE2
+#define HWCAP2_SVE2 (1 << 1)
+#endif
+
+// read the first line of a (sysfs/proc) text file, newline stripped
+static int ytools_read_line(const char* path, char* buf, int len)
+{
+    FILE* f = fopen(path, "r");
+    if (f == NULL)
+        return 0;
+    if (fgets(buf, len, f) == NULL)
+    {
+        fclose(f);
+        return 0;
+    }
+    fclose(f);
+    buf[strcspn(buf, "\r\n")] = '\0';
+    return 1;
+}
+
+// sysfs cache sizes look like "64K", "1024K" or "32M"
+static uint32_t ytools_parse_size(const char* s)
+{
+    char* end;
+    unsigned long v = strtoul(s, &end, 10);
+    if ((*end == 'K') || (*end == 'k'))
+        v *= 1024;
+    else if ((*end == 'M') || (*end == 'm'))
+        v *= 1024 * 1024;
+    return (uint32_t)v;
+}
+
+// Cache sizes for cpu0 from /sys/devices/system/cpu/cpu0/cache/index*.
+// L2 is the actual L2 (per core on Neoverse), not the larger of L2/L3.
+// Zero for anything sysfs doesn't report; line size falls back to CTR_EL0.
+static void ytools_arm_cache_info(uint32_t* l1d, uint32_t* l2, uint32_t* l3,
+    uint32_t* linesize)
+{
+    // read once; later calls (e.g. ytools_get_l2_core_size from SIQS) reuse it.
+    // A race between threads on the first call is benign: same values.
+    static int cached = 0;
+    static uint32_t c_l1d, c_l2, c_l3, c_line;
+    char path[128], buf[64];
+    int i;
+
+    if (cached)
+    {
+        *l1d = c_l1d; *l2 = c_l2; *l3 = c_l3; *linesize = c_line;
+        return;
+    }
+
+    *l1d = *l2 = *l3 = *linesize = 0;
+    for (i = 0; i < 16; i++)
+    {
+        int level;
+        uint32_t size;
+
+        snprintf(path, sizeof(path),
+            "/sys/devices/system/cpu/cpu0/cache/index%d/level", i);
+        if (!ytools_read_line(path, buf, sizeof(buf)))
+            break;
+        level = atoi(buf);
+
+        snprintf(path, sizeof(path),
+            "/sys/devices/system/cpu/cpu0/cache/index%d/type", i);
+        if (!ytools_read_line(path, buf, sizeof(buf)) ||
+            (strncmp(buf, "Instruction", 11) == 0))
+            continue;
+
+        snprintf(path, sizeof(path),
+            "/sys/devices/system/cpu/cpu0/cache/index%d/size", i);
+        if (!ytools_read_line(path, buf, sizeof(buf)))
+            continue;
+        size = ytools_parse_size(buf);
+
+        if (level == 1)
+        {
+            *l1d = size;
+            snprintf(path, sizeof(path),
+                "/sys/devices/system/cpu/cpu0/cache/index%d/coherency_line_size", i);
+            if (ytools_read_line(path, buf, sizeof(buf)))
+                *linesize = (uint32_t)atoi(buf);
+        }
+        else if (level == 2)
+            *l2 = size;
+        else if (level == 3)
+            *l3 = size;
+    }
+
+    if (*linesize == 0)
+    {
+        // CTR_EL0.DminLine = log2 of the smallest D-cache line, in 4-byte words
+        uint64_t ctr;
+        __asm__ volatile("mrs %0, ctr_el0" : "=r"(ctr));
+        *linesize = 4u << ((ctr >> 16) & 0xf);
+    }
+
+    c_l1d = *l1d; c_l2 = *l2; c_l3 = *l3; c_line = *linesize;
+    cached = 1;
+}
+
+static const char* ytools_arm_implementer(uint32_t impl)
+{
+    switch (impl)
+    {
+    case 0x41: return "ARM";
+    case 0x42: return "Broadcom";
+    case 0x43: return "Cavium";
+    case 0x46: return "Fujitsu";
+    case 0x48: return "HiSilicon";
+    case 0x4e: return "NVIDIA";
+    case 0x51: return "Qualcomm";
+    case 0x61: return "Apple";
+    case 0xc0: return "Ampere";
+    default: return NULL;
+    }
+}
+
+static const char* ytools_arm_part(uint32_t impl, uint32_t part)
+{
+    if (impl == 0x41)
+    {
+        switch (part)
+        {
+        case 0xd03: return "Cortex-A53";
+        case 0xd04: return "Cortex-A35";
+        case 0xd05: return "Cortex-A55";
+        case 0xd07: return "Cortex-A57";
+        case 0xd08: return "Cortex-A72";
+        case 0xd09: return "Cortex-A73";
+        case 0xd0a: return "Cortex-A75";
+        case 0xd0b: return "Cortex-A76";
+        case 0xd0c: return "Neoverse-N1";
+        case 0xd0d: return "Cortex-A77";
+        case 0xd40: return "Neoverse-V1";
+        case 0xd41: return "Cortex-A78";
+        case 0xd44: return "Cortex-X1";
+        case 0xd46: return "Cortex-A510";
+        case 0xd47: return "Cortex-A710";
+        case 0xd48: return "Cortex-X2";
+        case 0xd49: return "Neoverse-N2";
+        case 0xd4a: return "Neoverse-E1";
+        case 0xd4b: return "Cortex-A78C";
+        case 0xd4f: return "Neoverse-V2";
+        case 0xd84: return "Neoverse-V3";
+        case 0xd8e: return "Neoverse-N3";
+        default: return NULL;
+        }
+    }
+    if ((impl == 0x48) && (part == 0xd01)) return "Kunpeng-920";
+    if ((impl == 0x46) && (part == 0x001)) return "A64FX";
+    if ((impl == 0xc0) && (part == 0xac3)) return "Ampere-1";
+    if ((impl == 0xc0) && (part == 0xac4)) return "Ampere-1a";
+    return NULL;
+}
+
+// "<vendor> <core> r<variant>p<revision>" from MIDR_EL1 (sysfs), or from
+// the "CPU implementer/variant/part/revision" fields of /proc/cpuinfo
+static void ytools_arm_cpu_name(char* idstr, int len)
+{
+    char buf[256];
+    uint32_t impl = 0, variant = 0, part = 0, rev = 0;
+    int have = 0;
+    const char* vname;
+    const char* pname;
+
+    if (ytools_read_line("/sys/devices/system/cpu/cpu0/regs/identification/midr_el1",
+        buf, sizeof(buf)))
+    {
+        uint64_t midr = strtoull(buf, NULL, 16);
+        impl = (uint32_t)(midr >> 24) & 0xff;
+        variant = (uint32_t)(midr >> 20) & 0xf;
+        part = (uint32_t)(midr >> 4) & 0xfff;
+        rev = (uint32_t)midr & 0xf;
+        have = (impl != 0);
+    }
+
+    if (!have)
+    {
+        FILE* f = fopen("/proc/cpuinfo", "r");
+        if (f != NULL)
+        {
+            while (fgets(buf, sizeof(buf), f) != NULL)
+            {
+                char* colon = strchr(buf, ':');
+                if (colon == NULL)
+                    continue;
+                if (strncmp(buf, "CPU implementer", 15) == 0)
+                    impl = (uint32_t)strtoul(colon + 1, NULL, 0), have = 1;
+                else if (strncmp(buf, "CPU variant", 11) == 0)
+                    variant = (uint32_t)strtoul(colon + 1, NULL, 0);
+                else if (strncmp(buf, "CPU part", 8) == 0)
+                    part = (uint32_t)strtoul(colon + 1, NULL, 0);
+                else if (strncmp(buf, "CPU revision", 12) == 0)
+                {
+                    rev = (uint32_t)strtoul(colon + 1, NULL, 0);
+                    break;  // first core is enough
+                }
+            }
+            fclose(f);
+        }
+    }
+
+    if (!have)
+    {
+        snprintf(idstr, len, "N/A");
+        return;
+    }
+
+    vname = ytools_arm_implementer(impl);
+    pname = ytools_arm_part(impl, part);
+    if (vname && pname)
+        snprintf(idstr, len, "%s %s r%up%u", vname, pname, variant, rev);
+    else if (vname)
+        snprintf(idstr, len, "%s part 0x%03x r%up%u", vname, part, variant, rev);
+    else
+        snprintf(idstr, len, "implementer 0x%02x part 0x%03x r%up%u",
+            impl, part, variant, rev);
+}
+
+#endif // __aarch64__ && __linux__
+
+#if defined(__APPLE__)
+
+#include <string.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
+
+// integer sysctl (4- or 8-byte), 0 if absent
+static uint64_t ytools_apple_sysctl(const char* name)
+{
+    uint64_t v = 0;
+    size_t len = sizeof(v);
+    if (sysctlbyname(name, &v, &len, NULL, 0) != 0)
+        return 0;
+    if (len == sizeof(uint32_t))
+    {
+        uint32_t v32;
+        memcpy(&v32, &v, sizeof(v32));
+        return v32;
+    }
+    return v;
+}
+
+// L1d and L2 of the performance cores (hw.perflevel0.*, macOS 12+ on Apple
+// silicon), else the generic hw.* values (Intel Macs).  On Apple silicon the
+// L2 is shared per cluster; there is no separate L3 to confuse it with.
+static void ytools_apple_cache_info(uint32_t* l1d, uint32_t* l2, uint32_t* linesize)
+{
+    uint64_t v;
+
+    v = ytools_apple_sysctl("hw.perflevel0.l1dcachesize");
+    if (v == 0)
+        v = ytools_apple_sysctl("hw.l1dcachesize");
+    *l1d = (uint32_t)v;
+
+    v = ytools_apple_sysctl("hw.perflevel0.l2cachesize");
+    if (v == 0)
+        v = ytools_apple_sysctl("hw.l2cachesize");
+    *l2 = (uint32_t)v;
+
+    *linesize = (uint32_t)ytools_apple_sysctl("hw.cachelinesize");
+}
+
+#endif // __APPLE__
+
 void ytools_get_computer_info(info_t* info, int do_print)
 {
 
-#if defined(__APPLE__) || defined(__aarch64__)
-    // something in extended cpuid causes a segfault on mac builds.
-    // just disable it for now - this information is typically not critical for
-    // program operation.
+#if defined(__aarch64__) && defined(__linux__)
+    {
+        uint32_t l1d, l2, l3, linesize;
+        unsigned long hwcap = getauxval(AT_HWCAP);
+        unsigned long hwcap2 = getauxval(AT_HWCAP2);
+
+        ytools_arm_cache_info(&l1d, &l2, &l3, &linesize);
+        info->L1cache = l1d ? l1d : DEFAULT_L1_CACHE_SIZE;
+        info->L2cache = l2 ? l2 : DEFAULT_L2_CACHE_SIZE;
+        info->cachelinesize = (int)linesize;
+        ytools_arm_cpu_name(info->idstr, sizeof(info->idstr));
+
+        info->NEON = (hwcap & HWCAP_ASIMD) != 0;
+        info->DOTPROD = (hwcap & HWCAP_ASIMDDP) != 0;
+        info->SVE = (hwcap & HWCAP_SVE) != 0;
+        info->SVE2 = (hwcap2 & HWCAP2_SVE2) != 0;
+    }
+
+#elif defined(__APPLE__)
+    {
+        // extended cpuid has segfaulted on mac builds, so use sysctl instead
+        uint32_t l1d, l2, linesize;
+        size_t len = sizeof(info->idstr);
+
+        ytools_apple_cache_info(&l1d, &l2, &linesize);
+        info->L1cache = l1d ? l1d : DEFAULT_L1_CACHE_SIZE;
+        info->L2cache = l2 ? l2 : DEFAULT_L2_CACHE_SIZE;
+        info->cachelinesize = (int)linesize;
+        if (sysctlbyname("machdep.cpu.brand_string", info->idstr, &len, NULL, 0) != 0)
+            strcpy(info->idstr, "N/A");
+
+#if defined(__aarch64__)
+        info->NEON = 1;
+        info->DOTPROD = ytools_apple_sysctl("hw.optional.arm.FEAT_DotProd") != 0;
+        info->SVE = 0;
+        info->SVE2 = 0;
+#endif
+    }
+
+#elif defined(__aarch64__)
+    // aarch64 on other OSes: no detection yet.  This information is
+    // typically not critical for program operation.
     strcpy(info->idstr, "N/A");
     info->L1cache = DEFAULT_L1_CACHE_SIZE;
     info->L2cache = DEFAULT_L2_CACHE_SIZE;
@@ -674,7 +997,21 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
     uint32_t cache_size1 = DEFAULT_L1_CACHE_SIZE;
     uint32_t cache_size2 = DEFAULT_L2_CACHE_SIZE;
 
-#if defined(HAS_CPUID) && !defined(__APPLE__)
+#if defined(__aarch64__) && defined(__linux__)
+
+    uint32_t l1d, l2, l3, linesize;
+    ytools_arm_cache_info(&l1d, &l2, &l3, &linesize);
+    if (l1d) cache_size1 = l1d;
+    if (l2) cache_size2 = l2;
+
+#elif defined(__APPLE__)
+
+    uint32_t l1d, l2, linesize;
+    ytools_apple_cache_info(&l1d, &l2, &linesize);
+    if (l1d) cache_size1 = l1d;
+    if (l2) cache_size2 = l2;
+
+#elif defined(HAS_CPUID)
 
     /* reading the CPU-specific features of x86
        processors is a simple 57-step process.
@@ -722,18 +1059,26 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
 
                 if (type.s.cache_level == 1)
                     j1 = MAX(j1, d);
-                else
+                else if (type.s.cache_level == 2)
                     j2 = MAX(j2, d);
             }
         }
 
+        /* leaf 0x80000006 ECX[31:16] is the L2 size in KB, but can be
+           stale (256 KB on e.g. Rocket Lake, whose L2 is 512 KB), so
+           only use it when leaf 4 found nothing */
+
         CPUID(0x80000000, max_special, b, c, d);
-        if (max_special >= 0x80000006) {
+        if ((j2 == 0) && (max_special >= 0x80000006)) {
             CPUID(0x80000006, a, b, c, d);
-            j2 = MAX(j2, 1024 * (c >> 16));
+            j2 = 1024 * (c >> 16);
         }
 
-        /* handle older Intel, possibly overriding the above */
+        /* handle older Intel without leaf 4: legacy leaf 2 descriptors.
+           Only fills in sizes the above didn't find. */
+
+        if ((j1 == 0) || (j2 == 0)) {
+        uint32_t k1 = 0, k2 = 0;
 
         CPUID(2, a, b, c, d);
 
@@ -753,7 +1098,9 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
         features[13] = (d >> 16);
         features[14] = (d >> 24);
 
-        /* use the maximum of the (known) L2 and L3 cache sizes */
+        /* level 1 and level 2 cache codes only; level 3 codes (0x22,
+           0x23, 0x25, 0x29, 0x46, 0x47, 0x4a-0x4d, 0xe4, 0xea-0xec)
+           are ignored so that L2 is the actual L2 */
 
         for (i = 0; i < sizeof(features); i++) {
             switch (features[i]) {
@@ -761,74 +1108,61 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
             case 0x06:
             case 0x0a:
             case 0x66:
-                j1 = MAX(j1, 8 * 1024); break;
+                k1 = MAX(k1, 8 * 1024); break;
             case 0x08:
             case 0x0c:
             case 0x0d:
             case 0x60:
             case 0x67:
-                j1 = MAX(j1, 16 * 1024); break;
+                k1 = MAX(k1, 16 * 1024); break;
             case 0x0e:
-                j1 = MAX(j1, 24 * 1024); break;
+                k1 = MAX(k1, 24 * 1024); break;
             case 0x09:
             case 0x2c:
             case 0x30:
             case 0x68:
-                j1 = MAX(j1, 32 * 1024); break;
+                k1 = MAX(k1, 32 * 1024); break;
 
-                /* level 2 and level 3 cache codes */
+                /* level 2 cache codes */
             case 0x41:
             case 0x79:
-                j2 = MAX(j2, 128 * 1024); break;
+                k2 = MAX(k2, 128 * 1024); break;
             case 0x21:
             case 0x42:
             case 0x7a:
             case 0x82:
-                j2 = MAX(j2, 256 * 1024); break;
-            case 0x22:
+                k2 = MAX(k2, 256 * 1024); break;
             case 0x43:
             case 0x7b:
             case 0x7f:
             case 0x80:
             case 0x83:
             case 0x86:
-                j2 = MAX(j2, 512 * 1024); break;
-            case 0x23:
+                k2 = MAX(k2, 512 * 1024); break;
             case 0x44:
             case 0x78:
             case 0x7c:
             case 0x84:
             case 0x87:
-                j2 = MAX(j2, 1 * 1024 * 1024); break;
-            case 0x25:
+                k2 = MAX(k2, 1 * 1024 * 1024); break;
             case 0x45:
             case 0x7d:
             case 0x85:
-                j2 = MAX(j2, 2 * 1024 * 1024); break;
+                k2 = MAX(k2, 2 * 1024 * 1024); break;
             case 0x48:
-                j2 = MAX(j2, 3 * 1024 * 1024); break;
-            case 0x29:
-            case 0x46:
+                k2 = MAX(k2, 3 * 1024 * 1024); break;
             case 0x49:
-                j2 = MAX(j2, 4 * 1024 * 1024); break;
-            case 0x4a:
+                k2 = MAX(k2, 4 * 1024 * 1024); break;
             case 0x4e:
-                j2 = MAX(j2, 6 * 1024 * 1024); break;
-            case 0x47:
-            case 0x4b:
-            case 0xe4:
-                j2 = MAX(j2, 8 * 1024 * 1024); break;
-            case 0x4c:
-            case 0xea:
-                j2 = MAX(j2, 12 * 1024 * 1024); break;
-            case 0x4d:
-                j2 = MAX(j2, 16 * 1024 * 1024); break;
-            case 0xeb:
-                j2 = MAX(j2, 18 * 1024 * 1024); break;
-            case 0xec:
-                j2 = MAX(j2, 24 * 1024 * 1024); break;
+                k2 = MAX(k2, 6 * 1024 * 1024); break;
             }
         }
+        if (j1 == 0)
+            j1 = k1;
+        if (j2 == 0)
+            j2 = k2;
+        }
+
         if (j1 > 0)
             cache_size1 = j1;
         if (j2 > 0)
@@ -843,10 +1177,11 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
             CPUID(0x80000005, a, b, c, d);
             cache_size1 = 1024 * (c >> 24);
 
+            /* ECX[31:16] is the L2 size in KB (EDX[31:18] would be L3) */
             if (max_special >= 0x80000006) {
                 CPUID(0x80000006, a, b, c, d);
-                cache_size2 = MAX(1024 * (c >> 16),
-                    512 * 1024 * (d >> 18));
+                if ((c >> 16) > 0)
+                    cache_size2 = 1024 * (c >> 16);
             }
         }
     }
@@ -856,44 +1191,15 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
     *level2_size_out = cache_size2;
 }
 
-// ytools_get_cache_sizes reports the largest of the L2 and L3 caches as its
-// "level 2" size (msieve's linear algebra sizes its blocks from that).
-// This returns the private, per-core L2 size alone, which is what the
-// SIQS sieve-strategy choices care about.  Intel: the level-2 data/unified
-// entry of deterministic cache leaf 4 (leaf 0x80000006 reports a stale
-// 256 KB on e.g. Rocket Lake, whose L2 is 512 KB).  AMD: leaf 0x80000006
-// ECX[31:16], the L2 size in KB.
+// The private L2 size (per core on Intel/AMD/Neoverse; per cluster on
+// Apple silicon), which is what the SIQS sieve-strategy choices care about.
+// ytools_get_cache_sizes now reports the actual L2 on every platform, so
+// this is just its level-2 result.
 uint32_t ytools_get_l2_core_size(void)
 {
-#if defined(HAS_CPUID) && !defined(__APPLE__)
-    uint32_t a, b, c, d, max_std, max_special, i;
-
-    CPUID(0, max_std, b, c, d);
-    if (((b & 0xff) == 'G') && (max_std >= 4))
-    {
-        for (i = 0; i < 16; i++)
-        {
-            uint32_t type, level;
-            CPUID2(4, i, a, b, c, d);
-            type = a & 31;
-            level = (a >> 5) & 7;
-            if (type == 0)
-                break;
-            if ((level == 2) && ((type == 1) || (type == 3)))
-                return ((b >> 22) + 1) * (((b >> 12) & 0x3ff) + 1) *
-                    ((b & 0xfff) + 1) * (c + 1);
-        }
-    }
-
-    CPUID(0x80000000, max_special, b, c, d);
-    if (max_special >= 0x80000006)
-    {
-        CPUID(0x80000006, a, b, c, d);
-        if ((c >> 16) > 0)
-            return 1024 * (c >> 16);
-    }
-#endif
-    return DEFAULT_L2_CACHE_SIZE;
+    uint32_t l1, l2;
+    ytools_get_cache_sizes(&l1, &l2);
+    return l2;
 }
 
 // 1 if the CPU vendor is AMD ("AuthenticAMD"), else 0
