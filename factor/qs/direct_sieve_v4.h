@@ -22,12 +22,19 @@ errors.
 //   V4_COMPRESS(v, m)                  set lanes of v (mask m) packed low,
 //                                      using v4_cmp_lut[m] (16-byte table)
 //   V4_FN(name)                        name##_<isa>
+//   V4_LP_BUCKETS (optional)           mid/large bucket fill called by
+//                                      nextRoots_32k_lp (default: the
+//                                      portable nextRoots_32k_lp_buckets)
 //
 // Each 16-prime group is handled as four quarters, so the logp
 // approximation, fb boundaries and the order in which hits and divisions
 // are visited match the AVX-512 / AVX2 / scalar kernels: all do
 // bit-identical work.  CREG and CMEM are the same here (compress through
 // the table, then a full store).
+
+#ifndef V4_LP_BUCKETS
+#define V4_LP_BUCKETS nextRoots_32k_lp_buckets
+#endif
 
 // byte shuffle per 4-bit lane mask: the set lanes' bytes packed to the low
 // end, the rest 0x80 (zero for both pshufb and vqtbl1q)
@@ -671,5 +678,5 @@ void V4_FN(nextRoots_32k_lp)(static_conf_t* sconf, dynamic_conf_t* dconf)
         dconf->sieve_n->root2[j] = prime - root1;
     }
 
-    nextRoots_32k_lp_buckets(sconf, dconf);
+    V4_LP_BUCKETS(sconf, dconf);
 }

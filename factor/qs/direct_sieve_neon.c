@@ -60,6 +60,10 @@ static inline uint32_t v4_mask_neon(uint32x4_t m)
 #define V4_COMPRESS(v, m)   vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32(v), \
                                 vld1q_u8(V4_FN(v4_cmp_lut)[m])))
 #define V4_FN(name)         name##_neon
+#if !defined(SIQS_NEON_EMU)
+// the NEON bucket fill (update_poly_roots_32k_neon.c), AArch64 only
+#define V4_LP_BUCKETS       nextRoots_32k_lp_buckets_neon
+#endif
 
 #include "direct_sieve_v4.h"
 

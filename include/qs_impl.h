@@ -1123,6 +1123,10 @@ void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_lp_sparse_scalar(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf);
+// AArch64 NEON nextRoots_32k_generic_small (primes below med_B) and
+// nextRoots_32k_lp_buckets (YAFU_NEON_BUCKETS=loop|fixed picks the fill)
+void nextRoots_32k_neon_small(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_buckets_neon(static_conf_t* sconf, dynamic_conf_t* dconf);
 // per-poly roots for [med_B, B) when sconf->lp_portable_roots
 // (nextRoots_32k_lp_portable or nextRoots_32k_lp_avx2)
 extern void (*nextRoots_lp_ptr)(static_conf_t*, dynamic_conf_t*);

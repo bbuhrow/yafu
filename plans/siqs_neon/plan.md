@@ -14,7 +14,7 @@ NEON + dotprod, no SVE).*
 | P0 | `neon_util.h` (movemask, mulhi_u16) | done |
 | P0 | ARM builds without `FORCE_GENERIC` | done (see 0.1) |
 | P1 | relation scanner | done (`check_relations_siqs_neon`); qemu A/B matches; N1 timing pending |
-| P2 | nextRoots (poly root updates) | not started |
+| P2 | nextRoots (poly root updates) | small primes done (`nextRoots_32k_neon_small`, exact under qemu); mid buckets dropped: NEON now defaults to the sparse mid sieve |
 | P3 | med sieve | done: `split` is the default (C73: 39.6 s vs 41.1 s `ranges`, 48.2 s `-noneon`); med-sieve-only gain pending (`YAFU_NEON_MED=portable`) |
 | P4 | tdiv_med + resieve_med | not started |
 | P5 | tdiv_LP (bucket tdiv) | not started |
@@ -153,7 +153,30 @@ Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
   small share on x86, so expect a small gain.
 - **P2 nextRoots:** med primes from the SSE4.1 macros, then bucket primes
   from the AVX2 intrinsic code. The x86 survey suggests this plus the med
-  sieve is most of the non-direct time.
+  sieve is most of the non-direct time. Status:
+  - `nextRoots_32k_neon_small` (update_poly_roots_32k_neon.c) replaces
+    `nextRoots_32k_generic_small` (4.7%) on the `lp_portable_roots` path:
+    `[sieve_small_fb_start, med_B)` in 8 lanes of 16 bits; the sign < 0
+    update is done as r - (p - u) + borrow, since r + u can exceed 16
+    bits. Exact-logp builds still match `-noneon` on the C61 and C70.
+  - The 12% `nextRoots_32k_lp_buckets` was the mid-range bucket fill,
+    used only because the `wide` test in `siqs_resolve_strategy` left
+    NEON out (buckets by default). On the N1 (C73) `-siqsMid sparse` was
+    42.0 s vs 43.7 s for buckets, so NEON is now in `wide`: the sparse
+    mid sieve (NEON kernels, vector sparse root update) is the default
+    and no NEON bucket fill is needed. `-noneon` (scalar ISA) still gets
+    buckets, as before.
+  - A NEON bucket fill anyway, in case it beats sparse:
+    `nextRoots_32k_lp_buckets_neon` (update_poly_roots_32k_neon.c),
+    called from `nextRoots_32k_lp_neon` via `V4_LP_BUCKETS` (SSE4.1 and
+    the NEON emulation keep the portable fill). Roots 4 primes at a time;
+    the fill goes prime by prime after each `CHECK_NEW_SLICE`, so slices,
+    bucket contents and element order are identical to the portable fill.
+    Fill modes (`YAFU_NEON_BUCKETS`): `fixed` (default) runs
+    K = interval / p_min + 1 branch-free passes per root stream, a miss
+    writing bucket 0's next free slot without counting it; `loop` is the
+    portable while loop. Exact builds match `-noneon` with
+    `-siqsMid bucket` in both modes.
 - **P3 med sieve:** from the SSE4.1 file; then try the fixed-pass `_split`
   structure that won on AVX2 and AVX-512. Done, in
   `factor/qs/med_sieve_32k_neon.c`:

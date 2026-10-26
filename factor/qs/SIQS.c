@@ -3175,6 +3175,11 @@ void* process_poly(void* vptr)
                 nextRoots_32k_avx2_small(sconf, dconf);
             else
 #endif
+#if defined(__aarch64__) && defined(__ARM_NEON)
+            if (sconf->obj->HAS_NEON)
+                nextRoots_32k_neon_small(sconf, dconf);
+            else
+#endif
                 nextRoots_32k_generic_small(sconf, dconf);
             nextRoots_lp_ptr(sconf, dconf);
         }
@@ -4527,11 +4532,12 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     //    both intervals fit in the per-core L2 (it fell 3-4% behind buckets
     //    at NB 12/16 with a 512 KB L2); buckets with scalar kernels (sparse
     //    -10% there).  SSE4.1 used buckets until its 4-lane compress stopped
-    //    calling libgcc's popcount; sparse is now ~5% ahead (C85).
+    //    calling libgcc's popcount; sparse is now ~5% ahead (C85).  NEON
+    //    (Neoverse-N1, C73): sparse 42.0 s vs buckets 43.7 s.
     //  - kernel: siqs_isa_default_kernel (chosen in siqs_choose_table_keys)
     {
         int wide = (isa == SIQS_ISA_AVX512) || (isa == SIQS_ISA_AVX2) ||
-            (isa == SIQS_ISA_SSE41);
+            (isa == SIQS_ISA_SSE41) || (isa == SIQS_ISA_NEON);
         uint32_t span = 2 * sconf->num_blocks * 32768;
         uint32_t dmid = (wide && (span <= ytools_get_l2_core_size())) ?
             SIQS_MID_SPARSE : SIQS_MID_BUCKET;
