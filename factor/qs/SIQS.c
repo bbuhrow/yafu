@@ -5053,7 +5053,30 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
 
 #endif
-		
+
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    if (sconf->obj->HAS_NEON)
+    {
+        // YAFU_NEON_MED picks the variant at run time, for benchmarking
+        const char* medv = getenv("YAFU_NEON_MED");
+        const char* medname = MED_SIEVE_NEON_NAME;
+
+        med_sieve_ptr = &MED_SIEVE_NEON_FN;
+        if ((medv != NULL) && (strcmp(medv, "split") == 0))
+        {
+            med_sieve_ptr = &med_sieveblock_32k_neon_split;
+            medname = "med_sieveblock_32k_neon_split";
+        }
+        else if ((medv != NULL) && (strcmp(medv, "ranges") == 0))
+        {
+            med_sieve_ptr = &med_sieveblock_32k_neon;
+            medname = "med_sieveblock_32k_neon";
+        }
+        if (sconf->obj->VFLAG > 1)
+            printf("assigning %s ptr\n", medname);
+    }
+#endif
+
 #if defined( __amd64__ ) && defined(USE_AVX512F) && !defined(TRY_COMPRESS_SORT_LARGEP)
     // amd eypc (zen4) was slower when using the avx512 variants of these
     lp_sieveblock_ptr = &lp_sieveblock;

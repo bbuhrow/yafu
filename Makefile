@@ -919,6 +919,7 @@ YAFU_SIQS_SRCS = \
     factor/qs/direct_sieve_avx512.c \
     factor/qs/direct_sieve_sse41.c \
     factor/qs/direct_sieve_neon.c \
+    factor/qs/med_sieve_32k_neon.c \
     factor/qs/large_sieve.c \
     factor/qs/new_poly.c \
     factor/qs/siqs_test.c \

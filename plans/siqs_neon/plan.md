@@ -9,13 +9,13 @@ NEON + dotprod, no SVE).*
 | phase | item | status |
 |---|---|---|
 | P0 | local cross build + qemu test loop | done: `tools/neon_cross_build.sh`, `tools/neon_ab.sh` |
-| P0 | baseline profile on the N1 | waiting on perf run |
+| P0 | baseline profile on the N1 | done (0.2): med sieve 46%, root updates 15% |
 | P0 | NEON on/off switch for A/B checks | done: `-noneon`, `fact_obj_t.HAS_NEON` |
 | P0 | `neon_util.h` (movemask, mulhi_u16) | done |
 | P0 | ARM builds without `FORCE_GENERIC` | done (see 0.1) |
 | P1 | relation scanner | done (`check_relations_siqs_neon`); qemu A/B matches; N1 timing pending |
 | P2 | nextRoots (poly root updates) | not started |
-| P3 | med sieve | not started |
+| P3 | med sieve | two variants written (`ranges`, `split`), exact-logp builds match portable under qemu; N1 timing pending |
 | P4 | tdiv_med + resieve_med | not started |
 | P5 | tdiv_LP (bucket tdiv) | not started |
 | P6 | firstRoots pre-pass, lp_sieveblock | only if the profile says so |
@@ -48,6 +48,24 @@ Reference point: C70 `rsa(232)`, `-noopt`, 1 thread: 27.5 s sieving
 - `-noneon` reverts every NEON kernel (scanner, direct-sieve LP kernels,
   and later ones) to the portable code, so `tools/neon_ab.sh` compares
   the whole NEON set against portable in one binary.
+
+### 0.2 N1 baseline profile (2026-10-25)
+
+Plain build (no `FORCE_GENERIC`), with the NEON scanner (1.78%),
+`siqs(rsa(240))` `-threads 1 -seed 1 -noopt`, `perf record` on cycles,
+top of `--no-children --sort symbol`:
+
+| share | symbol | NEON status |
+|---|---|---|
+| 45.98% | `med_sieveblock_32k` | portable C -> **P3, do first** |
+| 12.17% | `direct_resieve_update_creg_neon` | NEON already (half is `direct_compress_flush`) |
+| 11.03% | `nextRoots_32k_lp_buckets` | portable -> P2 |
+| 4.10% | `nextRoots_32k_generic_small` | portable -> P2 |
+| 3.91% | `firstRoots_prep_generic` | portable scalar pre-pass -> P6 |
+| 3.82% | `direct_resieve_hits` | scalar |
+
+The med sieve is a much bigger share than on x86 (33% with AVX-512BW),
+so the phase order below is now P3, P2, then the rest by profile.
 
 ## 1. Approach
 
@@ -121,8 +139,8 @@ Missing instructions to plan around:
 
 ## 4. Phases
 
-Order is provisional until the N1 profile is in: port in descending order
-of measured share.
+Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
+(root updates, 15%), then P4-P6 by their measured shares.
 
 - **P0 infrastructure:** cross toolchain + qemu loop; the NEON on/off
   switch; `neon_util.h`; the baseline `perf record` on the N1.
@@ -137,7 +155,26 @@ of measured share.
   from the AVX2 intrinsic code. The x86 survey suggests this plus the med
   sieve is most of the non-direct time.
 - **P3 med sieve:** from the SSE4.1 file; then try the fixed-pass `_split`
-  structure that won on AVX2 and AVX-512.
+  structure that won on AVX2 and AVX-512. Done, in
+  `factor/qs/med_sieve_32k_neon.c`:
+  - `med_sieveblock_32k_neon` ("ranges"): the SSE4.1 structure. Scalar
+    below 2^13, then 8 lanes of 16-bit roots with 3/2/1/0 unconditional
+    steps + 1 conditional for 8192-10922, -2^14, -2^15, >2^15. The
+    `fb_*_B` bounds are the first multiple-of-8 index *past* each
+    threshold, so each vector loop checks its limit on the group's last
+    prime (`full_fb->list->prime`, unaffected by a-prime zeroing); the
+    first version trusted the bounds and gave 2 extra reports on a C61.
+  - `med_sieveblock_32k_neon_split`: the AVX2 `_split` structure. 8-lane
+    dump/selective/last-root1 loops from start_prime to `fb_32k_div3`
+    (so primes < 8192 are vectorized too), then branch-free fixed passes
+    (K = 3/2/1 by the group's smallest prime) with the sink strip at
+    `sieve[-256, 0)`.
+  - logp: one value per range (ranges: 13/14/15) or per 8-group (split:
+    the group's first prime), like x86. `-DMED_NEON_EXACT_LOGP` uses each
+    prime's own logp; with it both variants match `-noneon` exactly on
+    the C61 and C70 under qemu.
+  - Selection: `MED_SIEVE_NEON_FN` (default `med_sieveblock_32k_neon`),
+    overridden at run time by `YAFU_NEON_MED=ranges|split`.
 - **P4 tdiv_med / resieve_med:** 16-bit Barrett checks with the
   `pmulhuw` replacement.
 - **P5 tdiv_LP:** 4-lane compare of bucket entries.

@@ -996,6 +996,18 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 #endif
 void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+// AArch64 NEON med sieves; the default is MED_SIEVE_NEON_FN, overridden at
+// run time by the environment variable YAFU_NEON_MED=ranges|split
+void med_sieveblock_32k_neon(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+#ifndef MED_SIEVE_NEON_FN
+#define MED_SIEVE_NEON_FN med_sieveblock_32k_neon
+#endif
+#define MED_SIEVE_NEON_STR2(x) #x
+#define MED_SIEVE_NEON_STR(x) MED_SIEVE_NEON_STR2(x)
+#define MED_SIEVE_NEON_NAME MED_SIEVE_NEON_STR(MED_SIEVE_NEON_FN)
 // the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
 extern void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
 // direct sieve pass 1, selected by sconf->lp_kernel
