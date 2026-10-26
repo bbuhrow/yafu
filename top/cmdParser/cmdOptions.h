@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 139
+#define NUMOPTIONS 140
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -108,6 +108,7 @@ typedef struct
     uint32_t siqsKernel;        // SIQS_K_* (0 = auto)
     uint32_t siqsSparseKernel;  // SIQS_K_* (0 = auto)
     uint32_t siqsLPisa;         // SIQS_ISA_* (0 = auto)
+    uint32_t noneon;            // AArch64: use the portable kernels instead of NEON
     uint32_t siqsNobat;
     uint32_t siqsR;
     uint32_t siqsT;

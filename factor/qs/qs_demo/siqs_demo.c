@@ -132,6 +132,11 @@ int main(int argc, char *argv[])
     fobj->LOGFLAG = obj.LOGFLAG;
     fobj->THREADS = obj.THREADS;
     fobj->HAS_BMI2 = comp_info.BMI2;
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    fobj->HAS_NEON = comp_info.NEON = 1;
+#else
+    fobj->HAS_NEON = 0;
+#endif
 
 #if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))

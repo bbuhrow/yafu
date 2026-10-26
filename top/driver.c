@@ -294,6 +294,14 @@ int main(int argc, char *argv[])
         fobj->HAS_AVX512BW = comp_info.AVX512BW = 1;
     }
 
+    // NEON is architecturally mandatory on AArch64; -noneon selects the
+    // portable kernels instead, for A/B testing
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    fobj->HAS_NEON = comp_info.NEON = (options->noneon == 0);
+#else
+    fobj->HAS_NEON = 0;
+#endif
+
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;
 #else

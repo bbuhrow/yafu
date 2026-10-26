@@ -1,0 +1,148 @@
+# Plan: AArch64 NEON kernels for SIQS
+
+*Started 2026-10-25 on branch `L2sieve` (after `f26dee4`). Target machine:
+Neoverse-N1 (AWS Graviton2, 2 cores, 64 KB L1d, 1 MB L2/core, 32 MB L3,
+NEON + dotprod, no SVE).*
+
+## 0. Status
+
+| phase | item | status |
+|---|---|---|
+| P0 | local cross build + qemu test loop | done: `tools/neon_cross_build.sh`, `tools/neon_ab.sh` |
+| P0 | baseline profile on the N1 | waiting on perf run |
+| P0 | NEON on/off switch for A/B checks | done: `-noneon`, `fact_obj_t.HAS_NEON` |
+| P0 | `neon_util.h` (movemask, mulhi_u16) | done |
+| P0 | ARM builds without `FORCE_GENERIC` | done (see 0.1) |
+| P1 | relation scanner | done (`check_relations_siqs_neon`); qemu A/B matches; N1 timing pending |
+| P2 | nextRoots (poly root updates) | not started |
+| P3 | med sieve | not started |
+| P4 | tdiv_med + resieve_med | not started |
+| P5 | tdiv_LP (bucket tdiv) | not started |
+| P6 | firstRoots pre-pass, lp_sieveblock | only if the profile says so |
+| P7 | Lanczos `v_t` ops | last |
+| P8 | tuning: params table, 64k blocks | after the kernels |
+
+What already works on ARM (as of `f26dee4`): the whole build, SIQS with
+correct factors, the 4-lane direct-sieve large-prime kernels
+(`direct_sieve_neon.c` via `direct_sieve_v4.h`), and CPU/cache detection.
+Everything else runs the portable C paths. The banner shows this as
+"Generic C enabled 32k sieve core" and "portable root updates".
+
+Reference point: C70 `rsa(232)`, `-noopt`, 1 thread: 27.5 s sieving
+(`FORCE_GENERIC=1` build).
+
+### 0.1 Build notes
+
+- The first N1 builds used `FORCE_GENERIC=1` because `MOD_CMP_8X` (tdiv
+  med) and `spPRP2` exist only as x86 asm. Now `USE_8X_MOD_ASM` and
+  `SSE2_RESIEVING` are x86-only (qs_impl.h), and tdiv.c uses the GMP
+  PRP check where `spPRP2` is missing, so a plain `make` works on ARM.
+  Resieving (`USE_RESIEVING`, portable path) stays on. On a C61 the
+  plain build and the `FORCE_GENERIC` build give identical statistics.
+- `common/vec_bitonic_sort.c` is x86-64 only (only the KNL root updates
+  use it).
+- **Always A/B with `-noopt`.** The SPV tuner (SIQS.c, `tf_small_cutoff`)
+  picks its value from measured rels/sec, so without `-noopt` the same
+  seed can give different polys/reports/relations (seen often under
+  qemu).
+- `-noneon` reverts every NEON kernel (scanner, direct-sieve LP kernels,
+  and later ones) to the portable code, so `tools/neon_ab.sh` compares
+  the whole NEON set against portable in one binary.
+
+## 1. Approach
+
+- **Port from the intrinsic versions, not the inline asm.** Most x86 SIQS
+  kernels exist twice: GCC inline asm (`GCC_ASM64X`) and an MSVC
+  intrinsic build of the same algorithm. The intrinsic versions (and the
+  SSE4.1 files) are 128-bit and mostly 16-bit lanes, which map almost
+  1:1 onto NEON (`vaddq_u16`, `vqsubq_u16`, `vceqq_u16`, `vminq_u16`, ...).
+- **Selection.** NEON is mandatory on AArch64, so there is no runtime
+  check. Add `*_neon` kernels behind
+  `#if defined(__aarch64__) && defined(__ARM_NEON)` and assign them in
+  the dispatch block of `siqs_static_init` (SIQS.c, around the
+  `med_sieve_ptr`/`nextRoots_ptr` assignments) and next to the
+  `scan_ptr` choice.
+- **Keep the portable path selectable** (e.g. `-siqsLPisa generic` or a
+  new `-noneon`) so every kernel can be A/B'd on the same seed.
+- **Shared helpers** go in one header (`factor/qs/neon_util.h`):
+  movemask equivalents (`vshrn_n_u16` to a 64-bit nibble mask, or
+  `vaddvq` with bit weights as `direct_sieve_neon.c` does), the unsigned
+  16x16 high multiply (`vmull_u16` + `vuzp2q_u16`, since NEON has no
+  `pmulhuw`), and compress via `vqtbl1q_u8`.
+- **No x86-only flags leak in**: kernels compile with plain
+  `-march=armv8-a`; dotprod only behind `__ARM_FEATURE_DOTPROD`.
+
+Missing instructions to plan around:
+
+| x86 | NEON replacement |
+|---|---|
+| `pmovmskb` / `movemask_epi8` | `vshrn_n_u16(vreinterpretq_u16_u8(m), 4)` gives a 64-bit mask, 4 bits per byte |
+| `pmulhuw` | `vmull_u16` (lo/hi halves) then `vuzp2q_u16` |
+| `vpcompressd` | 16-entry `vqtbl1q_u8` LUT (already used) |
+| `tzcnt` / `blsr` | `__builtin_ctzll` (`rbit`+`clz`) / `x & (x-1)` |
+| scatter / gather | scalar |
+
+## 2. Inventory: x86 SIMD kernels vs. the current ARM path
+
+| stage | x86 kernels | ARM now | NEON port source |
+|---|---|---|---|
+| relation scan | `check_relations_siqs_16_{sse2,avx2,avx512}` (tdiv_scan.c) | C fallback of `_sse2` | SSE2/AVX2 scan: OR blocks, test high bits, then find bytes |
+| poly root update, med primes | `nextRoots_32k_sse41`, `_avx2(_intrin)` | `nextRoots_32k` scalar | `poly_macros_common_sse4.1.h` + MSVC paths in update_poly_roots_32k.c |
+| poly root update, bucket primes | AVX2/AVX-512 bucket fill | scalar | AVX2 intrin version, 4 lanes of 32 bits |
+| first roots (per A) | `firstRoots_vec_avx512/avx2`, scalar pre-pass | scalar pre-pass | the scalar pre-pass; maybe `float64x2_t` modmul later |
+| med sieve | `med_sieveblock_32k_{sse41,avx2,avx512bw}(_split)` | `med_sieveblock_32k` C | `med_sieve_32k_sse4.1.c`, `sieve_macros_32k_sse4.1.h` (MSVC branch) |
+| tdiv med primes | `tdiv_medprimes_32k(_avx2)`, SSE2 blocks under `D_HAS_SSE2` | C | SSE2 16-bit Barrett check: needs the `pmulhuw` replacement |
+| resieve med primes | `resieve_medprimes_32k_{avx2,avx512bw}`, SSE2 | C | same as tdiv med |
+| tdiv large (bucket) | `tdiv_LP_{sse2,avx2,avx512}` (tdiv_large.c) | C branch of `_sse2` | AVX2 compare of bucket fb/loc fields, 4 lanes |
+| bucket sieve dump | `lp_sieveblock_avx512{f,bw}` | `lp_sieveblock` C | scatter-bound; probably stays scalar |
+| small-prime tdiv (SPV) | AVX-512BW under `TRY_SMALLP_OPT` | C | only if profiled hot |
+| direct large primes | creg/cmem kernels | **NEON (done)** | n/a |
+| Lanczos | msieve `v_t` ops, `VBITS=128` | C on 2x64 | `uint64x2_t` `veorq`/`vandq`; small share at SIQS sizes |
+
+## 3. Testing
+
+1. **Local correctness loop (no cloud round trip).** In WSL (Ubuntu
+   22.04) with `gcc-aarch64-linux-gnu` and `qemu-user-static`:
+   `tools/neon_cross_build.sh` syncs the checkout to `~/neon/yafu` and
+   cross-builds a static aarch64 yafu (GMP 6.2.1 cross-built to
+   `~/neon/gmp-arm64`); `tools/neon_ab.sh ~/neon/yafu 'siqs(rsa(200))'`
+   runs NEON vs `-noneon` and compares statistics. A C61 takes ~10 s
+   under qemu. qemu timings mean nothing; the same `neon_ab.sh` runs
+   natively on the N1.
+2. **Bit-exact kernel checks.** Each new kernel gets a verify build
+   (as `FIRSTROOTS_VERIFY` does): run NEON and portable on the same input
+   and compare outputs (roots, sieve bytes, reports, relations).
+   `SIQS_NEON_EMU` + `arm_neon_emu.h` stay available for x86-side checks
+   of small kernels.
+3. **Performance on the N1 only.** `perf stat -e cycles:u` and
+   cycles/poly with a fixed `-seed`, 1 thread, on c70/c75/c80, since wall
+   time is noisy. If the VM has no PMU, use `-e cpu-clock` and more
+   repetitions.
+
+## 4. Phases
+
+Order is provisional until the N1 profile is in: port in descending order
+of measured share.
+
+- **P0 infrastructure:** cross toolchain + qemu loop; the NEON on/off
+  switch; `neon_util.h`; the baseline `perf record` on the N1.
+- **P1 scanner:** small, self-contained, and it settles the movemask idiom
+  that the later kernels reuse. Done: `check_relations_siqs_neon`
+  (tdiv_scan.c) replaces the 4/8/16 variants for every size: max-reduce
+  of 64 bytes, exact movemask only on a hit. Same report rules as the
+  SSE2 scanner (skip loc 0 and >= 65534); with TLP/QLP it compares
+  against `tf_closnuf` like the AVX512BW scanner. The scanner was a
+  small share on x86, so expect a small gain.
+- **P2 nextRoots:** med primes from the SSE4.1 macros, then bucket primes
+  from the AVX2 intrinsic code. The x86 survey suggests this plus the med
+  sieve is most of the non-direct time.
+- **P3 med sieve:** from the SSE4.1 file; then try the fixed-pass `_split`
+  structure that won on AVX2 and AVX-512.
+- **P4 tdiv_med / resieve_med:** 16-bit Barrett checks with the
+  `pmulhuw` replacement.
+- **P5 tdiv_LP:** 4-lane compare of bucket entries.
+- **P6** firstRoots, lp_sieveblock, SPV: only what the profile shows.
+- **P7 Lanczos:** `v_t` as `uint64x2_t`.
+- **P8 tuning:** a NEON column in the per-ISA params tables (siqs_tune);
+  try 64 KB sieve blocks (the 64k code paths exist) since N1 has 64 KB L1d;
+  revisit the mid-range strategy (bucket vs sparse) with NEON kernels in.

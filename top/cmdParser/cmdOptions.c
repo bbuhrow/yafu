@@ -87,7 +87,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "nfs_params", "poly_testsieve", "poly_percent_max", "td", "jsonlog",
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
     "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV", "siqsMid",
-    "siqsLarge", "siqsKernel", "siqsSparseKernel", "siqsLPisa" };
+    "siqsLarge", "siqsKernel", "siqsSparseKernel", "siqsLPisa", "noneon" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -231,7 +231,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : SIQS sieve for primes > interval: bucket or direct (default: auto)",
     "(String)          : SIQS direct sieve scatter kernel: bitloop, sink, creg or cmem (default: auto)",
     "(String)          : SIQS sparse sieve kernel: bitloop, creg or cmem (default: auto)",
-    "(String)          : SIQS large-prime kernel ISA: scalar, sse41, avx2, avx512, neon (default: best)"
+    "(String)          : SIQS large-prime kernel ISA: scalar, sse41, avx2, avx512, neon (default: best)",
+    "                  : AArch64: use the portable C kernels instead of NEON (for A/B testing)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -268,7 +269,7 @@ int needsArg[NUMOPTIONS] = {
     0,1,0,1,0,     // forceQLP, qlp_exp, nfs_batch_3lp, soe analysis, keep_afb
     1,1,1,         // nfs_stage1_args, cuda_sieve, cuda_dev
     1,1,1,1,1,     // siqsSPV, siqsMid, siqsLarge, siqsKernel, siqsSparseKernel
-    1              // siqsLPisa
+    1, 0           // siqsLPisa, noneon
 };
 
 // command line option aliases, specified by '--'
@@ -302,7 +303,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", ""
+    "", "", "", "", ""
 };
 
 
@@ -1384,6 +1385,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         else if (strcmp(arg, "neon") == 0) options->siqsLPisa = SIQS_ISA_NEON;
         else printf("*** siqsLPisa must be scalar, sse41, avx2, avx512 or neon; ignoring ***\n");
     }
+    else if (strcmp(opt, OptionArray[139]) == 0)
+    {
+        // argument "noneon"
+        options->noneon = 1;
+    }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {
         //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
@@ -1576,6 +1582,7 @@ options_t* initOpt(void)
     options->siqsKernel = 0;
     options->siqsSparseKernel = 0;
     options->siqsLPisa = 0;
+    options->noneon = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;

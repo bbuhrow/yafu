@@ -765,6 +765,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->HAS_BMI2 = src->HAS_BMI2;
     dest->HAS_AVX512F = src->HAS_AVX512F;
     dest->HAS_AVX512BW = src->HAS_AVX512BW;
+    dest->HAS_NEON = src->HAS_NEON;
     dest->VFLAG = src->VFLAG;
     dest->LATHREADS = src->LATHREADS;
 

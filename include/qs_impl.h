@@ -298,11 +298,14 @@
 #define BUCKET_BITStxt "11"
 
 
-// always use these optimizations using sse2
+// always use these optimizations using sse2 (x86 only; resieving
+// itself has a portable path)
 #if !defined (FORCE_GENERIC)
+#if !defined(__aarch64__)
 #define USE_8X_MOD_ASM 1
-#define USE_RESIEVING
 #define SSE2_RESIEVING 1
+#endif
+#define USE_RESIEVING
 #endif
 
 // multiplication by inverse constants
@@ -1204,6 +1207,8 @@ int check_relations_siqs_8_avx2(uint32_t blocknum, uint8_t parity,
 int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+int check_relations_siqs_neon(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 extern int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
 

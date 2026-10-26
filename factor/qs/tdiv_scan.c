@@ -990,6 +990,87 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
 
 #endif
 
+#if defined(__aarch64__) && defined(__ARM_NEON)
+#include "neon_util.h"
+
+// NEON scanner for every input size (the x86 4/8/16 variants differ only
+// in unrolling).  A location is reported when its sieve byte exceeds the
+// cutoff: 127 (high bit set) normally, or tf_closnuf with TLP/QLP
+// (use_dlp >= 2), where the cutoff can exceed 127 (as in the AVX512BW
+// scanner).  Locations 0 and >= 65534 are skipped, as in the SSE2 scanners.
+int check_relations_siqs_neon(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    uint32_t j;
+    uint8_t* sieve = dconf->sieve;
+    uint8_t cutoff = 127;
+    uint8x16_t vcut;
+
+    if (sconf->use_dlp >= 2)
+        cutoff = (uint8_t)MIN(sconf->tf_closnuf, 255);
+    vcut = vdupq_n_u8(cutoff);
+
+    dconf->num_reports = 0;
+
+    for (j = 0; j < sconf->qs_blocksize; j += 64)
+    {
+        uint8x16_t s0 = vld1q_u8(sieve + j);
+        uint8x16_t s1 = vld1q_u8(sieve + j + 16);
+        uint8x16_t s2 = vld1q_u8(sieve + j + 32);
+        uint8x16_t s3 = vld1q_u8(sieve + j + 48);
+        uint64_t msk;
+
+        // no hits in these 64 bytes: the common case
+        if (vmaxvq_u8(vmaxq_u8(vmaxq_u8(s0, s1), vmaxq_u8(s2, s3))) <= cutoff)
+            continue;
+
+        msk = neon_movemask64_u8(vcgtq_u8(s0, vcut), vcgtq_u8(s1, vcut),
+            vcgtq_u8(s2, vcut), vcgtq_u8(s3, vcut));
+
+        do
+        {
+            uint32_t thisloc = j + (uint32_t)__builtin_ctzll(msk);
+            msk &= msk - 1;
+
+            //see discussion near line 323
+            if ((thisloc >= 65534) || (thisloc == 0))
+                continue;
+
+            // log this report
+            if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                dconf->reports[dconf->num_reports++] = thisloc;
+        } while (msk);
+    }
+
+    if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+        dconf->num_reports = MAX_SIEVE_REPORTS - 1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
+
+    //remove small primes, and test if its worth continuing for each report
+    filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+    tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+    resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+    // after resieve_med, so fb_offsets stay sorted (the filter merges them)
+    SIQS_SPARSE_TDIV(parity, blocknum);
+
+    // factor all reports in this block
+    for (j = 0; j < dconf->num_reports; j++)
+    {
+        if (dconf->valid_Qs[j])
+        {
+            dconf->total_surviving_reports++;
+            if (siqs_report_lp(j, parity, blocknum, sconf, dconf))
+                continue;
+            trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
+        }
+    }
+
+    return 0;
+}
+#endif
+
 #ifdef USE_AVX512F
 #include <immintrin.h>
 int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,

@@ -554,6 +554,7 @@ typedef struct
     int HAS_AVX512VL;
     int HAS_AVX512PF;
     int HAS_AVX512IFMA52;
+    int HAS_NEON;           // AArch64 NEON kernels enabled (cleared by -noneon)
     int L1CACHE;
     int L2CACHE;
     int L3CACHE;

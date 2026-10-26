@@ -491,7 +491,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 			mpz_powm_ui(dconf->gmptmp1, dconf->gmptmp2, q64 - 1, dconf->gmptmp1);
 			res = mpz_get_64(dconf->gmptmp1);
-#elif defined (FORCE_GENERIC)
+#elif defined (FORCE_GENERIC) || !defined(GCC_ASM64X) || defined(ASM_ARITH_DEBUG)
+			// spPRP2 exists only in arith.c's x86-64 asm branch
 			mpz_set_64(dconf->gmptmp1, q64);
 			mpz_set_64(dconf->gmptmp2, 2);
 			mpz_set_64(dconf->gmptmp3, q64 - 1);

@@ -3530,6 +3530,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     else strcpy(inst_set, "SSE2");
 #elif defined (FORCE_GENERIC)
     strcpy(inst_set, "Generic C");
+#elif defined(__aarch64__)
+    if (sconf->obj->HAS_NEON) strcpy(inst_set, "NEON");
+    else strcpy(inst_set, "Generic C");
 #else
     strcpy(inst_set, "SSE2");
 #endif
@@ -4453,9 +4456,11 @@ static void siqs_choose_table_keys(static_conf_t* sconf)
         if (have[SIQS_ISA_SSE41]) best = SIQS_ISA_SSE41;
 #endif
 #if defined(SIQS_HAVE_NEON_KERNELS)
+#if defined(SIQS_NEON_EMU)
         have[SIQS_ISA_NEON] = 1;
-#if !defined(SIQS_NEON_EMU)
-        best = SIQS_ISA_NEON;
+#else
+        have[SIQS_ISA_NEON] = obj->HAS_NEON;
+        if (have[SIQS_ISA_NEON]) best = SIQS_ISA_NEON;
 #endif
 #endif
 #if defined(USE_AVX2)
@@ -5797,6 +5802,16 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #endif
 		sconf->scan_unrolling = 128;
 	}
+
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    // one NEON scanner covers every size and LP variation
+    if (sconf->obj->HAS_NEON)
+    {
+        scan_ptr = &check_relations_siqs_neon;
+        if (sconf->obj->VFLAG > 1)
+            printf("assigning check_relations_siqs_neon ptr\n");
+    }
+#endif
 
 #if defined(TRY_DIRECT_SIEVE)
     siqs_resolve_strategy(sconf);
