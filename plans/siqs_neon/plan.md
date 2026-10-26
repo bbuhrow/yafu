@@ -15,7 +15,7 @@ NEON + dotprod, no SVE).*
 | P0 | ARM builds without `FORCE_GENERIC` | done (see 0.1) |
 | P1 | relation scanner | done (`check_relations_siqs_neon`); qemu A/B matches; N1 timing pending |
 | P2 | nextRoots (poly root updates) | not started |
-| P3 | med sieve | two variants written (`ranges`, `split`), exact-logp builds match portable under qemu; N1 timing pending |
+| P3 | med sieve | done: `split` is the default (C73: 39.6 s vs 41.1 s `ranges`, 48.2 s `-noneon`); med-sieve-only gain pending (`YAFU_NEON_MED=portable`) |
 | P4 | tdiv_med + resieve_med | not started |
 | P5 | tdiv_LP (bucket tdiv) | not started |
 | P6 | firstRoots pre-pass, lp_sieveblock | only if the profile says so |
@@ -173,8 +173,19 @@ Order after the N1 profile (0.2): P3 (med sieve, 46%) first, then P2
     the group's first prime), like x86. `-DMED_NEON_EXACT_LOGP` uses each
     prime's own logp; with it both variants match `-noneon` exactly on
     the C61 and C70 under qemu.
-  - Selection: `MED_SIEVE_NEON_FN` (default `med_sieveblock_32k_neon`),
-    overridden at run time by `YAFU_NEON_MED=ranges|split`.
+  - Selection: `MED_SIEVE_NEON_FN` (default `med_sieveblock_32k_neon_split`),
+    overridden at run time by `YAFU_NEON_MED=ranges|split|portable`.
+  - N1, `tools/neon_bench.sh 'siqs(rsa(240))' 2` (C73, 1 thread, -noopt),
+    QS seconds / Mcycles / polys, two reps each within 0.1 s:
+
+    | config | QS s | Mcyc | polys |
+    |---|---|---|---|
+    | `-noneon` (all portable) | 48.2 | 123,115 | 113,929 |
+    | ranges | 41.1 | 105,620 | 112,786 |
+    | split | 39.6 | 102,040 | 114,564 |
+
+    `-noneon` also turns off the NEON direct-sieve kernels and scanner, so
+    the med sieve's own gain needs `YAFU_NEON_MED=portable` vs `split`.
 - **P4 tdiv_med / resieve_med:** 16-bit Barrett checks with the
   `pmulhuw` replacement.
 - **P5 tdiv_LP:** 4-lane compare of bucket entries.

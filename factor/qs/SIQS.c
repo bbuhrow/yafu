@@ -5072,6 +5072,11 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             med_sieve_ptr = &med_sieveblock_32k_neon;
             medname = "med_sieveblock_32k_neon";
         }
+        else if ((medv != NULL) && (strcmp(medv, "portable") == 0))
+        {
+            med_sieve_ptr = &med_sieveblock_32k;
+            medname = "med_sieveblock_32k";
+        }
         if (sconf->obj->VFLAG > 1)
             printf("assigning %s ptr\n", medname);
     }

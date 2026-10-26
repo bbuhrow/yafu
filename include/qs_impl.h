@@ -997,13 +997,15 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 // AArch64 NEON med sieves; the default is MED_SIEVE_NEON_FN, overridden at
-// run time by the environment variable YAFU_NEON_MED=ranges|split
+// run time by the environment variable YAFU_NEON_MED=ranges|split|portable
+// (portable: med_sieveblock_32k, with the other NEON kernels still on).
+// On a Neoverse-N1, C73, 1 thread: split 39.6 s, ranges 41.1 s.
 void med_sieveblock_32k_neon(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 #ifndef MED_SIEVE_NEON_FN
-#define MED_SIEVE_NEON_FN med_sieveblock_32k_neon
+#define MED_SIEVE_NEON_FN med_sieveblock_32k_neon_split
 #endif
 #define MED_SIEVE_NEON_STR2(x) #x
 #define MED_SIEVE_NEON_STR(x) MED_SIEVE_NEON_STR2(x)

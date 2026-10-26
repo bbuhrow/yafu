@@ -6,8 +6,10 @@
 #
 # Usage: tools/neon_bench.sh '<expr>' [reps]
 #   e.g. tools/neon_bench.sh 'siqs(rsa(240))' 2
+#        CONFIGS="portable split" tools/neon_bench.sh 'siqs(rsa(240))'
 expr="$1"; reps=${2:-1}
-configs="noneon ranges split"
+# noneon: every kernel portable; portable: NEON except the med sieve
+configs=${CONFIGS:-"noneon portable ranges split"}
 perf_ok=0
 perf stat -e cycles:u true > /dev/null 2>&1 && perf_ok=1
 # yafu ignores the command-line expression when stdin is not a tty, so
