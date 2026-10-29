@@ -144,14 +144,11 @@ static const siqs_builtin_row_t siqs_table_direct[] = {
     {215,	10096,	225,	1,  73, 0, 1.62, 0},     // 65 digits, pass-1 fit 0.896 (MFBD: for interpolation; SLP here)
     {232,	8208,	225,    1,  68, 0, 1.62, 0},     // 70 digits, pass-1 fit 0.721, DLP starts
     {248,	8416,	300,	1,  72, 0, 1.72, 0},     // 75 digits, pass-1 fit 0.810
-    {265,	11856,	300,	1,  76, 0, 1.76, 0},     // 80 digits, pass-1 fit 0.813
-    {281,	32256,	250,	3,  85, 0, 1.74, 0},     // 85 digits (accepted after testing)
-    {298,	43000,	250,	4,  89, 0, 1.74, 0},     // 90 digits
-    {310,	56071,	250,	4,  94, 0, 1.74, 0},
-    {320,	71745,	300,	4,  97, 0, 1.78, 0},     // 95 digits (testing)
-    //best 0.974 (B=1.15,M=300,TF=+2,TFSm=+0,NB=5) (with 1.74)
-    //best 0.966 (B=1,M=300,TF=+0,TFSm=+0,NB=5) (with 1.70) (accepted after testing)
-    //{330,	87500,  250,    6, 100, 20, 1.74, 0},     // 100 digits (testing)
+    {265,	11856,	300,	1,  77, 0, 1.76, 0},     // 80 digits, pass-1 fit 0.813
+    {281,	16128,	300,	2,  85, 0, 1.74, 0},     // 85 digits (accepted after testing)
+    {298,	35232,	350,	2,  89, 0, 1.74, 0},     // 90 digits
+    {310,	56071,	350,	3,  94, 0, 1.74, 0},
+    {320,	71745,	350,	3,  97, 0, 1.78, 0},     // 95 digits (testing)
     {330,	87500,  350,    4, 102, 0, 1.8, 0},       // 100 digits (accepted after testing)
     // above 100 digits: guesses
     {340,	102120, 350,    5, 105, 0,  1.8, 0},
