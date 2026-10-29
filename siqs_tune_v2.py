@@ -75,19 +75,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import siqs_tune as v1  # noqa: E402
 
 GRID_PARAMS = ["B", "M", "TF", "TFSm", "NB"]
-DEFAULT_PIPELINE = "Mid=sparse,Large=direct,Kernel=cmem"
+DEFAULT_PIPELINE = "Mid=sparse,Large=direct,Kernel=creg"
 FIT_TERMS = 5               # b, m, t, s, nb
 
 
 def default_levels(d):
     if d <= 70:
         nb, ts = [1, 2, 3], [-6, -4, -2]
+        #nb, ts = [1, 2], [0]
     elif d <= 80:
         nb, ts = [2, 3, 4], [-4, -2, 0]
+        #nb, ts = [2], [-2, 0, 2]
     else:
         nb, ts = [3, 4, 5], [-2, 0, 2]
-    return {"B": [0.5, 0.65, 0.8, 1.0], "M": [100, 180, 300],
-            "TF": [-8, -4, 0], "TFSm": ts, "NB": nb}
+        #nb, ts = [5], [0]
+    return {"B": [0.70, 0.85, 1.0, 1.15, 1.3], "M": [225, 300, 375],
+            "TF": [-4, -2, 0, 2, 4], "TFSm": ts, "NB": nb}
 
 
 def log(*args):
@@ -693,7 +696,8 @@ def cmd_refine(a):
 
         # center: the fit's optimum, the best measured grid point, or explicit
         refmed = {k: statistics.median(r[k] for r in refs.values())
-                  for k in ("B", "TF", "TFSm", "NB")}
+                    for k in ("B", "TF", "NB")}
+                  #for k in ("B", "TF", "TFSm", "NB")}
         if a.center in ("fit", "best"):
             fp = os.path.join(a.outdir, f"fit_c{d}.json")
             if a.center == "fit" and os.path.exists(fp):
@@ -708,8 +712,8 @@ def cmd_refine(a):
                 if a.center == "fit":
                     log(f"c{d}: no fit_c{d}.json, centering on the best measured point")
             center = dict(B=v1.quantize("B", pt["B"] * refmed["B"]), M=int(pt["M"]),
-                          TF=int(refmed["TF"] + pt["TF"]),
-                          TFSm=int(refmed["TFSm"] + pt["TFSm"]), NB=int(pt["NB"]))
+                          TF=int(refmed["TF"] + pt["TF"]), NB=int(pt["NB"]))
+                          #TFSm=int(refmed["TFSm"] + pt["TFSm"])
         else:
             center = {k: v1.quantize(k, v if k in v1.STR_CHOICES else float(v))
                       for k, v in v1.parse_kv(a.center).items()}
@@ -717,7 +721,7 @@ def cmd_refine(a):
         for k, v in meta["pipeline"].items():
             center.setdefault(k, v)
 
-        names = ["B", "M", "NB", "TF", "TFSm"]
+        names = ["B", "M", "NB", "TF"] #, "TFSm"]
         fixed = {}
         if d >= 70:
             names.append("MFBD")
@@ -727,12 +731,13 @@ def cmd_refine(a):
             if k not in names:
                 fixed[k] = center[k]
         box = {k: (0, 0) for k in v1.STR_CHOICES}
-        box.update(B=(v1.quantize("B", center["B"] * 0.8), v1.quantize("B", center["B"] * 1.25)),
-                   M=(max(20, int(center["M"] * 0.7)), int(center["M"] * 1.4) + 1),
+        box.update(B=(v1.quantize("B", center["B"] * 0.85), v1.quantize("B", center["B"] * 1.15)),
+                   M=(max(20, int(center["M"] * 0.8)), int(center["M"] * 1.2) + 1),
                    NB=(max(1, center["NB"] - 1), center["NB"] + 1),
                    TF=(center["TF"] - 3, center["TF"] + 3),
-                   TFSm=(max(1, center["TFSm"] - 3), center["TFSm"] + 3),
-                   MFBD=(round(center["MFBD"] - 0.1, 2), round(center["MFBD"] + 0.1, 2)))
+                   MFBD=(round(center["MFBD"] - 0.02, 2), round(center["MFBD"] + 0.02, 2)))
+                   #TFSm=(max(1, center["TFSm"] - 3), center["TFSm"] + 3),
+                   
         log(f"\n===== c{d} refine around {v1.fmt_params(center)} on {len(train)} "
             f"grid inputs, {a.trials} trials =====")
         log("box: " + "  ".join(f"{k}=[{box[k][0]},{box[k][1]}]" for k in names

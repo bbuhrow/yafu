@@ -1,0 +1,14 @@
+# siqs_tune_v2 prune list for c80, from input(s) [1]; best 0.820 (B=1,M=250,TF=+0,TFSm=+0,NB=2)
+# 'level' lines drop a whole level whose best point is > 8% slower than the best; 'point' lines drop points > 15% slower (or timed out / failed).  Delete lines to keep them.
+level B=0.5   # best 1.070
+level B=0.75   # best 0.910
+level B=1.25   # best 0.894
+level B=1.5   # best 0.945
+level M=150   # best 0.894
+level M=200   # best 0.904
+level M=300   # best 0.912
+level TF=-4   # best 0.904
+level TF=-2   # best 0.912
+level TF=+2   # best 0.908
+level TF=+4   # best 0.894
+level NB=3   # best 0.945
