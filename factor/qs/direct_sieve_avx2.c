@@ -69,11 +69,13 @@ SIQS_FORCEINLINE uint32_t direct_cstore8(uint32_t* buf, uint32_t n, uint32_t m, 
 // direct scatter: one 16-prime group of [large_B, B) into both intervals
 // (pos hits at r, neg hits at interval + p - r), as direct_scatter16.
 // CREG appends to the hit list hits[*nc...] and sieves the entries past
-// *flushed once DIRECT_CBUF_FLUSH of them are pending.
+// *flushed once DIRECT_CBUF_FLUSH of them are pending (never, with single:
+// the caller flushes the whole list after its loop).
 // ----------------------------------------------------------------------
 SIQS_FORCEINLINE void direct_scatter16_avx2(uint8_t* sieve, uint32_t interval,
     const uint32_t* p, const uint32_t* r1, const uint32_t* r2, uint8_t logp,
-    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink)
+    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink,
+    const int single)
 {
     __m256i vint = _mm256_set1_epi32(interval);
     __m256i vp0 = _mm256_loadu_si256((const __m256i*)p);
@@ -113,7 +115,7 @@ SIQS_FORCEINLINE void direct_scatter16_avx2(uint8_t* sieve, uint32_t interval,
         n = direct_cstore8(hits, n, MASK8(mna1), _mm256_or_si256(na1, vtag));
         n = direct_cstore8(hits, n, MASK8(mnb0), _mm256_or_si256(nb0, vtag));
         n = direct_cstore8(hits, n, MASK8(mnb1), _mm256_or_si256(nb1, vtag));
-        if ((n - *flushed) >= DIRECT_CBUF_FLUSH)
+        if (!single && ((n - *flushed) >= DIRECT_CBUF_FLUSH))
         {
             direct_compress_flush(sieve, hits + *flushed, n - *flushed);
             *flushed = n;
@@ -206,7 +208,7 @@ SIQS_FORCEINLINE void direct_sieve_largeprimes_avx2_body(uint8_t* sieve,
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_avx2(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, hits, &nc, &flushed, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink, 0);
         pool->hit_gend[(j - fb->large_B) / 16] = nc;
     }
     direct_compress_flush(sieve, hits + flushed, nc - flushed);
@@ -503,7 +505,7 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
         // sieve the next poly's roots, both sides (as pass 1)
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_avx2(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, hits, &nc, &flushed, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink, DIRECT_SINGLE_FLUSH);
         pool->hit_gend[(j - large_B) / 16] = nc;
     }
 

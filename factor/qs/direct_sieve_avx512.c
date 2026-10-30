@@ -126,10 +126,12 @@ SIQS_FORCEINLINE void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
 // neg hits at p - r in sieve[interval, 2*interval).  BITLOOP and SINK write
 // at once; CREG / CMEM append to cbuf (count *nc) and sieve it whenever it
 // reaches DIRECT_CBUF_FLUSH, so callers must direct_compress_flush the rest
-// after their loop.  *sink is the sink-stripe rotation (SINK only).
+// after their loop.  *sink is the sink-stripe rotation (SINK only).  With
+// single (a compile-time constant) CREG / CMEM never flush here: cbuf must
+// hold every hit of the caller's walk.
 SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
     __m512i vprime, __m512i vroot1, __m512i vroot2, uint8_t logp, const int kmode,
-    uint32_t* cbuf, uint32_t* nc, uint32_t* sink)
+    uint32_t* cbuf, uint32_t* nc, uint32_t* sink, const int single)
 {
     __m512i vnroot1 = _mm512_sub_epi32(vprime, vroot1);
     __m512i vnroot2 = _mm512_sub_epi32(vprime, vroot2);
@@ -164,7 +166,7 @@ SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
     _mm512_storeu_si512((__m512i*)(cbuf + *nc + idx1 + idx2 + idx3), v4);
     *nc = *nc + idx1 + idx2 + idx3 + idx4;
 
-    if (*nc >= DIRECT_CBUF_FLUSH)
+    if (!single && (*nc >= DIRECT_CBUF_FLUSH))
     {
         direct_compress_flush_fast(sieve, cbuf, *nc, logp);
         *nc = 0;
@@ -176,7 +178,7 @@ SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
     {
         *nc = direct_compress16(cbuf, *nc, interval, vroot1, vroot2,
             vnroot1, vnroot2, logp, kmode);
-        if (*nc >= DIRECT_CBUF_FLUSH)
+        if (!single && (*nc >= DIRECT_CBUF_FLUSH))
         {
             direct_compress_flush(sieve, cbuf, *nc);
             *nc = 0;
@@ -267,7 +269,7 @@ SIQS_FORCEINLINE void direct_sieve_largeprimes_body(uint8_t* sieve, static_conf_
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16(sieve, interval, _mm512_loadu_si512(primes + j),
             _mm512_loadu_si512(fr1 + j), _mm512_loadu_si512(fr2 + j), logp, kmode,
-            cbuf, &nc, &sink);
+            cbuf, &nc, &sink, 0);
     }
 #ifdef ENABLE_AMDEYPC_FASTPATH
     direct_compress_flush_fast(sieve, cbuf, nc, update_data.logp[fb->B - 1]);
@@ -365,11 +367,21 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
     // bitmap gathers otherwise (4 gathers per 16 primes regardless).
     int use_cmp = resieve && (pool->num <= DIRECT_CMP_MAX_SURVIVORS);
     uint32_t nsp = 0;   // pos-side survivors: pool->pos[0, nsp) < interval
-    ALIGNED_MEM uint32_t cbuf[DIRECT_CBUF_SIZE];
     uint32_t nc = 0, sink = 0;
+    // single-flush compress kernels buffer the whole walk's hits in the
+    // pool's hit list (at most 4 per prime, plus store slack)
+    const int single = DIRECT_SINGLE_FLUSH &&
+        ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM));
+    ALIGNED_MEM uint32_t cbuf_stack[DIRECT_CBUF_SIZE];
+    uint32_t* cbuf = cbuf_stack;
 
     if ((sieve == NULL) && (!resieve))
         return;
+    if (single)
+    {
+        direct_hits_reserve(pool, sconf);
+        cbuf = pool->hits;
+    }
 #if defined(DIRECT_EXIT_STATS)
     if (resieve)
         pool->ex_groups += (bound - large_B) / 16;
@@ -578,7 +590,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16(sieve, interval, vprime, vroot1, vroot2, logp, kmode,
-            cbuf, &nc, &sink);
+            cbuf, &nc, &sink, single);
     }
 
 #ifdef ENABLE_AMDEYPC_FASTPATH

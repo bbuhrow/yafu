@@ -77,11 +77,13 @@ SIQS_FORCEINLINE uint32_t V4_FN(v4_cstore)(uint32_t* buf, uint32_t n, uint32_t m
 // ----------------------------------------------------------------------
 // direct scatter: one 16-prime group of [large_B, B) into both intervals.
 // CREG / CMEM append to the hit list hits[*nc...] and sieve the entries
-// past *flushed once DIRECT_CBUF_FLUSH of them are pending.
+// past *flushed once DIRECT_CBUF_FLUSH of them are pending (never, with
+// single: the caller flushes the whole list after its loop).
 // ----------------------------------------------------------------------
 SIQS_FORCEINLINE void V4_FN(direct_scatter16)(uint8_t* sieve, uint32_t interval,
     const uint32_t* p, const uint32_t* r1, const uint32_t* r2, uint8_t logp,
-    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink)
+    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink,
+    const int single)
 {
     v4t vint = V4_SET1(interval);
     v4t vtag = V4_SET1((uint32_t)logp << 24);
@@ -107,7 +109,7 @@ SIQS_FORCEINLINE void V4_FN(direct_scatter16)(uint8_t* sieve, uint32_t interval,
         uint32_t n = *nc;
         for (k = 0; k < 16; k++)
             n = V4_FN(v4_cstore)(hits, n, V4_MASK(msk[k]), V4_OR(pos[k], vtag));
-        if ((n - *flushed) >= DIRECT_CBUF_FLUSH)
+        if (!single && ((n - *flushed) >= DIRECT_CBUF_FLUSH))
         {
             direct_compress_flush(sieve, hits + *flushed, n - *flushed);
             *flushed = n;
@@ -177,7 +179,7 @@ SIQS_FORCEINLINE void V4_FN(direct_sieve_largeprimes_body)(uint8_t* sieve,
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         V4_FN(direct_scatter16)(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, hits, &nc, &flushed, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink, 0);
         pool->hit_gend[(j - fb->large_B) / 16] = nc;
     }
     direct_compress_flush(sieve, hits + flushed, nc - flushed);
@@ -322,7 +324,7 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
         // sieve the next poly's roots, both sides (as pass 1)
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         V4_FN(direct_scatter16)(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, hits, &nc, &flushed, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink, DIRECT_SINGLE_FLUSH);
         pool->hit_gend[(j - large_B) / 16] = nc;
     }
 

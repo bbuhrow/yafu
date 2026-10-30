@@ -215,6 +215,19 @@
 #ifndef DIRECT_CBUF_FLUSH
 #define DIRECT_CBUF_FLUSH 512
 #endif
+// single-flush scatter: the fused pass's compress kernels (CREG / CMEM)
+// append all of the next poly's [large_B, B) hits to the pool's hit list
+// and sieve them in one flush after the walk, instead of every
+// DIRECT_CBUF_FLUSH entries, so the interval is not touched while the fb
+// arrays stream through L2.  Same relations; on Rocket Lake, fixed-work
+// C95 cycles -2.6..-3.0% at NB=2, -0.7% at NB=4, -1.1% with the AVX2
+// kernels (NB=2).  Pass 1 is unchanged.  Undefine for the batched flushes.
+#define TRY_SINGLE_FLUSH_SCATTER
+#ifdef TRY_SINGLE_FLUSH_SCATTER
+#define DIRECT_SINGLE_FLUSH 1
+#else
+#define DIRECT_SINGLE_FLUSH 0
+#endif
 #endif
 
 // as part of analyzing 3lp parameterizations, we save off the 

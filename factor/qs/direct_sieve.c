@@ -713,11 +713,12 @@ void direct_block_sub4(uint8_t* blk)
 // 16-prime group of [large_B, B) into both intervals.  p, r1, r2 are the
 // group's primes and roots (pos-side roots; neg side is p - r).  CREG /
 // CMEM append to the hit list hits[*nc...] and sieve the entries past
-// *flushed once DIRECT_CBUF_FLUSH of them are pending; the caller flushes
-// the rest after its loop.
+// *flushed once DIRECT_CBUF_FLUSH of them are pending (never, with single);
+// the caller flushes the rest after its loop.
 SIQS_FORCEINLINE void direct_scatter16_scalar(uint8_t* sieve, uint32_t interval,
     const uint32_t* p, const uint32_t* r1, const uint32_t* r2, uint8_t logp,
-    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink)
+    const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink,
+    const int single)
 {
     uint8_t* sieven = sieve + interval;
     int k;
@@ -731,7 +732,7 @@ SIQS_FORCEINLINE void direct_scatter16_scalar(uint8_t* sieve, uint32_t interval,
         for (k = 0; k < 16; k++) { uint32_t r = r2[k]; hits[n] = r | tag; n += (r < interval); }
         for (k = 0; k < 16; k++) { uint32_t r = p[k] - r1[k]; hits[n] = (r + interval) | tag; n += (r < interval); }
         for (k = 0; k < 16; k++) { uint32_t r = p[k] - r2[k]; hits[n] = (r + interval) | tag; n += (r < interval); }
-        if ((n - *flushed) >= DIRECT_CBUF_FLUSH)
+        if (!single && ((n - *flushed) >= DIRECT_CBUF_FLUSH))
         {
             direct_compress_flush(sieve, hits + *flushed, n - *flushed);
             *flushed = n;
@@ -784,7 +785,7 @@ SIQS_FORCEINLINE void direct_sieve_largeprimes_scalar_body(uint8_t* sieve,
         // approximate the next 16 logp's as equal to the largest
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_scalar(sieve, interval, primes + j, fr1 + j, fr2 + j,
-            logp, kmode, hits, &nc, &flushed, &sink);
+            logp, kmode, hits, &nc, &flushed, &sink, 0);
         pool->hit_gend[(j - fb->large_B) / 16] = nc;
     }
     direct_compress_flush(sieve, hits + flushed, nc - flushed);
@@ -901,7 +902,7 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
         // sieve the next poly's roots, both sides (as pass 1)
         logp = update_data.logp[j + 15] + DIRECT_LOGP_BIAS;
         direct_scatter16_scalar(sieve, interval, p, r1, r2, logp, kmode,
-            hits, &nc, &flushed, &sink);
+            hits, &nc, &flushed, &sink, DIRECT_SINGLE_FLUSH);
         pool->hit_gend[(j - large_B) / 16] = nc;
     }
 

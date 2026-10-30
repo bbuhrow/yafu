@@ -474,6 +474,59 @@ med_B. So with num_blocks > 16, the plain TRY_SPARSE build would cover
   tf_small_cutoff, DIRECT_LOGP_BIAS, and the large-prime multipliers (the
   single large prime cutoff is currently 90 * pmax).
 
+### 6.8 Fused-pass profile and single-flush scatter (2026-10-29)
+
+**Setup.** perf on the i5-11600K, `-threads 1 -seed 777 -noopt`, current
+defaults (mid = sparse, kernel = cmem). Samples are sorted into phases by
+the inline chain from addr2line.
+
+**Fused pass share of the run:**
+
+| input | NB=2 | NB=4 | NB=8 |
+|---|---|---|---|
+| c77 | 27% | 17% | 7% |
+| c95 | 56% | 43% | — |
+
+**Split within the pass (C95 NB=2):**
+
+| phase | share of the pass |
+|---|---|
+| flush RMWs | 33% |
+| compress/store | 39% |
+| resieve masks/prefilter/gathers | 14% |
+| loads | 7% |
+| root update | 5% |
+
+**Conclusions:**
+- The root update is cheap, so subset-sum and multi-poly batching can save
+  little. Batching shares only the loads and the update, at most ~7% of a
+  C95 NB=2 run.
+- The flush RMWs cause 44% (NB=2) and 70% (NB=4) of all L2-miss loads: the
+  ~1.4 MB/poly fb stream evicts the interval. But there are only a few
+  hundred L2 misses per poly. The flush runs at ~2 cycles per hit, bound by
+  L1 misses into the 128-256 KB interval.
+
+**Single-flush scatter.** `TRY_SINGLE_FLUSH_SCATTER` (qs_impl.h, on by
+default):
+- The fused pass's CREG / CMEM kernels append every next-poly hit to
+  `pool->hits` and flush once after the walk. Pass 1 is unchanged.
+- AVX-512 now uses `pool->hits` instead of its stack buffer. The other ISAs
+  already filled that list for their hit-list resieve; they only skip the
+  in-loop flushes.
+
+**Results.** Relations are bit-identical with the define on and off for the
+avx512, avx2, sse41 and scalar kernels (c77 NB=2). Fixed-work C95 cycles
+(`-siqsR 110000`; `-siqsR 60000` for AVX2):
+
+| config | change in cycles |
+|---|---|
+| NB=2, AVX-512 | -2.6 / -3.0% |
+| NB=4, AVX-512 | -0.7% |
+| NB=2, AVX2 | -1.1% |
+
+Moving the next interval's memset to just before the flush was slightly
+worse, so the memset stays before the pass.
+
 ## 7. Not done / caveats
 
 - USE_SS_SEARCH and batch polys are excluded at compile time. TLP
