@@ -230,6 +230,8 @@ void siqs_sync(void *vptr)
         udata->num_found = siqs_merge_data(t[tid].dconf, static_conf);        
         static_conf->num_found = udata->num_found;
 
+        fobj->qs_obj.no_small_cutoff_opt = 1;
+
 #ifdef TRY_SMALLP_OPT
         if (fobj->qs_obj.no_small_cutoff_opt == 0)
         {

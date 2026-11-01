@@ -101,7 +101,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 		uint32_t lo = sconf->sieve_small_fb_start; //(fb->B-1) / 4;
 		uint32_t id;
 		uint64_t p;
-		int doover, k;
 
 		// we have to be careful not to pick primes that fall into the
 		// SPV region.  This is because polya roots are not computed correctly
@@ -112,108 +111,45 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 		// to limit our prime pool to those larger than the SPV cutoff.
 
 		*s = 3;
-		do {		
-			// pick two factors randomly
-			j = 0;
-			mpz_set_ui(poly->mpz_poly_a, 1);
-			for (i=0; i<2; i++)
-			{
-				id = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+		while (1)
+		{
+			int k3 = lo, hi3 = hi;
 
-				// make sure they are unique
-				doover = 0;
-				for (k=0; k < j; k++)
-				{
-					if (id == qli[k])
-					{
-						doover = 1;
-						break;
-					}
-				}
-
-				if (doover)
-					break;
-
-				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, fb->list->prime[id]);
-				qli[j++] = id;
-			}
-
-			if (doover)
+			// pick two unique factors randomly
+			qli[0] = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+			qli[1] = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+			if (qli[0] == qli[1])
 				continue;
 
-			// then a 3rd to try to get close to target_a
-			mpz_tdiv_q(tmp, target_a, poly->mpz_poly_a);
+			mpz_set_ui(poly_a, fb->list->prime[qli[0]]);
+			mpz_mul_ui(poly_a, poly_a, fb->list->prime[qli[1]]);
+
+			// then the 3rd is the smallest pool prime at or above the
+			// remaining cofactor, or the largest pool prime if none is.
+			mpz_tdiv_q(tmp, target_a, poly_a);
 			p = mpz_get_ui(tmp);
-			if (p > fb->list->prime[fb->B - 1])
+			while (k3 < hi3)
 			{
-				id = 0 + (uint32_t)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
-				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
-					fb->list->prime[fb->B - 1 - id]);
+				int mid = k3 + (hi3 - k3) / 2;
+				if (fb->list->prime[mid] < p)
+					k3 = mid + 1;
+				else
+					hi3 = mid;
 			}
-			else if (p < 32)
-			{
-				id = lo + (uint32_t)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
-				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
-					fb->list->prime[id]);				
-			}
-			else
-			{
-				// quarter the rest of the fb and pick one randomly from the 
-				// best region
-				uint32_t q = (fb->list->prime[hi] - fb->list->prime[lo]) / 4;
-				if ((p > fb->list->prime[lo]) && 
-					(p < fb->list->prime[lo + q-1]))
-				{
-					id = lo + 
-						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
-					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
-						fb->list->prime[id]);
-				}
-				else if ((p > fb->list->prime[lo + q]) && 
-					(p < fb->list->prime[lo + q+q-1]))
-				{
-					id = lo + q + 
-						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
-					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
-						fb->list->prime[id]);
-				}
-				else if ((p > fb->list->prime[lo + q+q]) && 
-					(p < fb->list->prime[lo + q+q+q-1]))
-				{
-					id = lo + (q+q) + 
-						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
-					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
-						fb->list->prime[id]);
-				}
-				else if (p > fb->list->prime[lo + q+q+q])
-				{
-					id = lo + (q+q+q) + 
-						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
-					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
-						fb->list->prime[id]);
-				}
-			}
+			id = k3;
 
-			// make sure it is unique
-			doover = 0;
-			for (k=0; k < j; k++)
-			{
-				if (id == qli[k])
-				{
-					doover = 1;
-					break;
-				}
-			}
-			if (doover)
+			if ((id == (uint32_t)qli[0]) || (id == (uint32_t)qli[1]))
 				continue;
 
-			qli[j++] = id;
+			qli[2] = id;
+			mpz_mul_ui(poly_a, poly_a, fb->list->prime[id]);
 
-			mpz_sub(tmp, target_a, poly->mpz_poly_a);
-			if (mpz_sgn(tmp) < 0)
-				mpz_neg(tmp, tmp);
-
-		} while ( mpz_cmp(tmp, target_a) > 0);
+			// a must be no more than twice the target
+			mpz_sub(tmp, target_a, poly_a);
+			mpz_abs(tmp, tmp);
+			if (mpz_cmp(tmp, target_a) <= 0)
+				break;
+		}
 
 		goto done;
 
@@ -402,9 +338,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 				// this one is taken.  for now, just try the next bigger one
 				randindex++;
 			}
-		} while (!found_a_factor);
+		} while (!found_a_factor && (randindex < fb->small_B));
 
-		if (randindex > fb->small_B)
+		if (randindex >= fb->small_B)
 		{
 #ifdef POLYA_DEBUG
 			printf("last prime in poly_a > small_B\n");
