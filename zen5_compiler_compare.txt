@@ -1,0 +1,218 @@
+YAFU Version 3.1.9
+Built with llvm compiler 17.0.6 (CLANG: AOCC_5.0.0-Build#1377 2024_09_24)
+Using GMP-ECM 7.0.5, Powered by GMP 6.2.0
+Detected AMD EPYC 9475F 48-Core Processor
+Detected L1 = 49152 bytes, L2 = 1048576 bytes, CL = 64 bytes
+CPU features enabled: SSE41 AVX2 BMI2 AVX512F AVX512BW AVX512IFMA
+Using 1 random witness for Rabin-Miller PRP checks
+Cached 664579 primes; max prime is 9999991
+Parsed yafu.ini from /sppdg/scratch/buhrow/projects/factoring/yafu.git
+
+===============================================================
+======= Welcome to YAFU (Yet Another Factoring Utility) =======
+=======             bbuhrow@gmail.com                   =======
+=======     Type help at any time, or quit to quit      =======
+===============================================================
+
+>>
+starting SIQS on c85: 1877138824359859508015524119652506869600959721781289179190693027302028679377371001561
+
+==== sieve params ====
+n = 85 digits, 280 bits
+factor base: 31808 primes (max prime = 794477)
+single large prime cutoff: 198619250 (250 * pmax)
+double large prime range from 631193703529 to 268030737167193
+DLP MFB = 1.74
+allocating 6 large prime slices of factor base
+buckets hold 2048 elements
+large prime hashtables have 294912 bytes
+using AVX512BW enabled 32k sieve core
+sieve interval: 3 blocks of size 32768
+polynomial A has ~ 11 factors
+using multiplier of 1
+using Q2(x) polynomials for kN mod 8 = 1
+using in-memory storage, aborts will lose all progress
+using SPV correction of 20 bits, starting at offset 28
+trial factoring cutoff at 85 bits
+built-in parameter table: direct-avx512
+
+==== experimental sieve options ====
+per-core L2 = 1024 KB; both-side interval = 192 KB
+strategy: mid = sparse, large = direct, kernel = creg, sparse kernel = creg (avx512 kernels)
+direct interval sieve, fb [4768, 31808) primes 98467..794477 (> interval 98304)
+  DIRECT_PREFILTER_BITS = 1024, DIRECT_CMP_MAX_SURVIVORS = 0, DIRECT_LOGP_BIAS = 0, DIRECT_CBUF_FLUSH = 512
+sparse sieve: per-block, fb [2544, 4768) primes 49279..98453
+
+==== sieving in progress (1 thread):   31872 relations needed ====
+====           Press ctrl-c to abort and save state           ====
+31930 rels found: 8558 full + 23372 from 459235 partial, (9797.79 rels/sec) ETA 13 sec)
+
+sieving required 640145 total polynomials (1391 'A' polynomials)
+trial division touched 10080312 sieve locations out of 125857628160
+dlp-ecm: 149314 slp, 0 failures, 316557 attempts, 1431671 outside range, 1457644 prp, 309922 useful
+total reports = 12015060, total surviving reports = 3363743
+total blocks sieved = 3840870, avg surviving reports per block = 0.88
+Elapsed time: 47.7447 sec
+QS elapsed time = 47.7448 seconds.
+
+==== post processing stage (msieve-1.38) ====
+read 467793 relations
+begin singleton removal with 467793 relations
+reduce to 76569 relations in 12 passes
+attempting to read and process 76569 relations
+recovered 76569 relations
+recovered 72122 polynomials
+attempting to build 31930 cycles
+found 31930 cycles from 76569 relations in 5 passes
+distribution of cycle lengths:
+   length 1 : 8558
+   length 2 : 6941
+   length 3 : 5804
+   length 4 : 4193
+   length 5 : 2809
+   length 6 : 1690
+   length 7 : 928
+   length 9+: 1007
+largest cycle: 18 relations
+matrix is 31808 x 31930 (7.7 MB) with weight 1765905 (55.31/col)
+sparse part has weight 1765905 (55.31/col)
+filtering completed in 3 passes
+matrix is 29700 x 29764 (7.3 MB) with weight 1668426 (56.06/col)
+sparse part has weight 1668426 (56.06/col)
+saving the first 112 matrix rows for later
+matrix includes 128 packed rows
+matrix is 29588 x 29764 (5.5 MB) with weight 1301504 (43.73/col)
+sparse part has weight 1087634 (36.54/col)
+using block size 8192 and superblock size 49152 for processor cache size 1024 kB
+commencing Lanczos iteration
+memory use: 6.3 MB
+VBITS = 128
+lanczos halted after 234 iterations (dim = 29588)
+recovered 16 nontrivial dependencies
+Lanczos elapsed time = 1.2928 seconds.
+Sqrt elapsed time = 0.0340 seconds.
+SIQS elapsed time = 49.0717 seconds
+
+
+***factors found***
+P43 = 1263789702211268559063981919736415575710439
+P43 = 1485325304578290487744454354798448608807999
+
+***factorization:***
+1877138824359859508015524119652506869600959721781289179190693027302028679377371001561=1263789702211268559063981919736415575710439*1485325304578290487744454354798448608807999
+
+
+YAFU Version 3.1.9
+Built with GCC 14
+Using GMP-ECM, Powered by GMP
+Detected AMD EPYC 9B45
+Detected L1 = 49152 bytes, L2 = 1048576 bytes, CL = 64 bytes
+CPU features enabled: SSE41 AVX2 BMI2 AVX512F AVX512BW AVX512IFMA 
+Using 1 random witness for Rabin-Miller PRP checks
+Cached 664579 primes; max prime is 9999991
+Parsed yafu.ini from /home/bbuhrow/src/yafu
+
+===============================================================
+======= Welcome to YAFU (Yet Another Factoring Utility) =======
+=======             bbuhrow@gmail.com                   =======
+=======     Type help at any time, or quit to quit      =======
+===============================================================
+
+>> 
+starting SIQS on c85: 1877138824359859508015524119652506869600959721781289179190693027302028679377371001561
+
+==== sieve params ====
+n = 85 digits, 280 bits
+factor base: 31808 primes (max prime = 794477)
+single large prime cutoff: 198619250 (250 * pmax)
+double large prime range from 631193703529 to 268030737167193
+DLP MFB = 1.74
+allocating 6 large prime slices of factor base
+buckets hold 2048 elements
+large prime hashtables have 294912 bytes
+using AVX512BW enabled 32k sieve core
+sieve interval: 3 blocks of size 32768
+polynomial A has ~ 11 factors
+using multiplier of 1
+using Q2(x) polynomials for kN mod 8 = 1
+using SPV correction of 20 bits, starting at offset 28
+trial factoring cutoff at 85 bits
+built-in parameter table: direct-avx512
+
+==== experimental sieve options ====
+per-core L2 = 1024 KB; both-side interval = 192 KB
+strategy: mid = sparse, large = direct, kernel = creg, sparse kernel = creg (avx512 kernels)
+direct interval sieve, fb [4768, 31808) primes 98467..794477 (> interval 98304)
+  DIRECT_PREFILTER_BITS = 1024, DIRECT_CMP_MAX_SURVIVORS = 0, DIRECT_LOGP_BIAS = 0, DIRECT_CBUF_FLUSH = 512
+sparse sieve: per-block, fb [2544, 4768) primes 49279..98453
+
+==== sieving in progress (1 thread):   31872 relations needed ====
+====           Press ctrl-c to abort and save state           ====
+31884 rels found: 15033 full + 16851 from 459461 partial, (1945.48 rels/sec) ETA 0 sec)
+
+sieving required 2517913 total polynomials (5479 'A' polynomials)
+trial division touched 39667117 sieve locations out of 495041839104
+dlp-ecm: 118657 slp, 0 failures, 977138 attempts, 10874563 outside range, 1250294 prp, 340804 useful
+total reports = 46912389, total surviving reports = 13235685
+total blocks sieved = 15107478, avg surviving reports per block = 0.88
+Elapsed time: 243.8956 sec
+QS elapsed time = 243.8957 seconds.
+
+==== post processing stage (msieve-1.38) ====
+read 474494 relations
+begin singleton removal with 474494 relations
+reduce to 70102 relations in 10 passes
+attempting to read and process 70102 relations
+recovered 70102 relations
+recovered 69180 polynomials
+attempting to build 31884 cycles
+found 31884 cycles from 70102 relations in 6 passes
+distribution of cycle lengths:
+   length 1 : 15033
+   length 2 : 4278
+   length 3 : 3614
+   length 4 : 2897
+   length 5 : 2181
+   length 6 : 1435
+   length 7 : 938
+   length 9+: 1508
+largest cycle: 18 relations
+matrix is 31808 x 31884 (7.0 MB) with weight 1567779 (49.17/col)
+sparse part has weight 1567779 (49.17/col)
+filtering completed in 3 passes
+matrix is 30458 x 30522 (6.7 MB) with weight 1512753 (49.56/col)
+sparse part has weight 1512753 (49.56/col)
+saving the first 48 matrix rows for later
+matrix includes 64 packed rows
+matrix is 30410 x 30522 (5.8 MB) with weight 1310253 (42.93/col)
+sparse part has weight 1202789 (39.41/col)
+using block size 8192 and superblock size 98304 for processor cache size 1024 kB
+commencing Lanczos iteration
+memory use: 4.8 MB
+VBITS = 64
+lanczos halted after 483 iterations (dim = 30405)
+recovered 12 nontrivial dependencies
+Lanczos elapsed time = 1.4128 seconds.
+Sqrt elapsed time = 0.0264 seconds.
+SIQS elapsed time = 245.3349 seconds
+
+
+***factors found***
+P43 = 1263789702211268559063981919736415575710439
+P43 = 1485325304578290487744454354798448608807999
+
+***factorization:***
+1877138824359859508015524119652506869600959721781289179190693027302028679377371001561=1263789702211268559063981919736415575710439*1485325304578290487744454354798448608807999
+
+
+gcc -v
+Using built-in specs.
+COLLECT_GCC=gcc
+COLLECT_LTO_WRAPPER=/usr/libexec/gcc/x86_64-linux-gnu/14/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Debian 14.2.0-19' --with-bugurl=file:///usr/share/doc/gcc-14/README.Bugs --enable-languages=c,ada,c++,go,d,fortran,objc,obj-c++,m2,rust --prefix=/usr --with-gcc-major-version-only --program-suffix=-14 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/libexec --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-libstdcxx-backtrace --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/reproducible-path/gcc-14-14.2.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/reproducible-path/gcc-14-14.2.0/debian/tmp-gcn/usr --enable-offload-defaulted --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=3
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 14.2.0 (Debian 14.2.0-19) 
