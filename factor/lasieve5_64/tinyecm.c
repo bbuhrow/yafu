@@ -46,9 +46,9 @@ either expressed or implied, of the FreeBSD Project.
 #define base_t uint64_t
 #define base_digits 2
 
-#ifdef USE_AVX512F
+/* Always: the portable mulmod128 (used when USE_MULX is off) needs
+   _addcarry_u64.  Including the header enables no instructions. */
 #include <immintrin.h>
-#endif
 
 // aligned memory allocation
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
