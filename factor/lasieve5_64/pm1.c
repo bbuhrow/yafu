@@ -88,13 +88,11 @@ static u32_t mm_B2_tab1_len=0, mm_B2_tab2_len=0;
 
 static void mpz_set_v(mpz_t targ, ulong *v)
 {
-  size_t i;
-
-  mpz_set_ui(targ,0);
-  for (i=0; i<montgomery_ulongs; i++) {
-    mpz_mul_2exp(targ,targ,mp_bits_per_limb);
-    mpz_add_ui(targ,targ,v[montgomery_ulongs-1-i]);
-  }
+  /* v[] holds montgomery_ulongs 64-bit words, least significant first.
+     Not mpz_add_ui(): on LLP64 Windows its argument is a 32-bit unsigned
+     long while ulong here is 64-bit, so the top half of every word (and
+     with it every factor above 2^32) was silently dropped. */
+  mpz_import(targ, montgomery_ulongs, -1, sizeof(ulong), 0, 0, v);
 }
 
 

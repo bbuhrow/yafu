@@ -1163,10 +1163,40 @@ int main(int argc, char** argv)
                     complain("Cannot open %s for append: %m\n", g_ofile_raw_name);
             }
 
+            int ends_in_newline = 1;
+            long complete_end = 0;  /* offset just past the last '\n' */
+
             while (fgets(buf, LINE_BUF_SIZE, g_ofile)) {
+                size_t len = strlen(buf);
                 ret = parse_q_from_line(buf);
+                if (len > 0) {
+                    ends_in_newline = (buf[len - 1] == '\n');
+                    if (ends_in_newline)
+                        complete_end = ftell(g_ofile);
+                }
             }
-            if (ret < 0)
+
+            /* A run killed mid-write (BOINC client stopping the task, a
+               shutdown, a crash) leaves a partial last line.  It is not a
+               relation: cut anywhere, it is malformed or -- cut just after a
+               hex digit -- a well-formed relation with a wrong factor.
+               Every complete line ends in '\n', so drop everything after the
+               last one. */
+            if (!ends_in_newline) {
+                fflush(g_ofile);
+                if (complete_end >= 0 &&
+                    ftruncate(fileno(g_ofile), complete_end) == 0) {
+                    printf(" Dropped an incomplete last line\n");
+                    ends_in_newline = 1;
+                    ret = 0;
+                }
+            }
+            /* C requires a seek between reading and writing the same stream. */
+            fseek(g_ofile, 0, SEEK_END);
+            /* If the fragment could not be dropped, at least terminate it --
+               whether or not it parses -- so the next relation is not glued
+               onto it. */
+            if (ret < 0 || !ends_in_newline)
             {
                 fprintf(g_ofile, "\n");
 
