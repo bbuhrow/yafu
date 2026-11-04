@@ -289,7 +289,13 @@ typedef struct
 } monty128_t;
 
 #define GCC_ASM64X
+/* The mulx inline asm needs BMI2 (Haswell / Excavator and later).  Use it
+   only when the compiler is targeting BMI2; otherwise a baseline x86-64
+   build dies with an illegal instruction on older CPUs as soon as a
+   cofactor above 64 bits reaches tinyecm. */
+#ifdef __BMI2__
 #define USE_MULX
+#endif
 
 void to_monty128(monty128_t* mdata, uint64_t* x);
 void monty128_init(monty128_t* mdata, uint64_t* n);
