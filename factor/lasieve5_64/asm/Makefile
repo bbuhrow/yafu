@@ -55,6 +55,10 @@ ifndef DETECTED_OS
         DETECTED_OS := Windows
     else
         DETECTED_OS := $(shell uname -s)
+        # an MSYS2 MinGW shell (MINGW64, UCRT64, ...) doesn't always export OS
+        ifneq ($(filter MINGW%,$(DETECTED_OS)),)
+            DETECTED_OS := Windows
+        endif
     endif
 endif
 
