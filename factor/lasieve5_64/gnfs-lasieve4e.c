@@ -869,23 +869,25 @@ int parse_q_from_line(char* buf) {
 #ifdef HAVE_BOINC
 
 /* this main talks with BOINC */
-//you must ensure this is enough
 
-#define ARGVCOUNT 12
+/* boincstart() appends 4 arguments (-R -o output input) plus the
+   terminating NULL that getopt() expects at argv[argc]. */
+#define BOINC_EXTRA_ARGS 5
+#define ARGVCOUNT 64
 
 int main(int argc, char** argv)
 {
-    int app_argc;
+    int app_argc, i;
     char* app_argv[ARGVCOUNT];
     int retcode;
-    app_argv[0] = argv[0];
-    app_argv[1] = argv[1];
-    app_argv[2] = argv[2];
-    app_argv[3] = argv[3];
-    app_argv[4] = argv[4];
-    app_argv[5] = argv[5];
-    app_argc = boincstart(6, app_argv);
-    if (argc < 0) {
+    if (argc > ARGVCOUNT - BOINC_EXTRA_ARGS) {
+        fprintf(stderr, "too many command line arguments (%d)\n", argc);
+        return 1;
+    }
+    for (i = 0; i < argc; i++)
+        app_argv[i] = argv[i];
+    app_argc = boincstart(argc, app_argv);
+    if (app_argc < 0) {
         retcode = 1;
     }
     else {
@@ -1161,10 +1163,40 @@ int main(int argc, char** argv)
                     complain("Cannot open %s for append: %m\n", g_ofile_raw_name);
             }
 
+            int ends_in_newline = 1;
+            long complete_end = 0;  /* offset just past the last '\n' */
+
             while (fgets(buf, LINE_BUF_SIZE, g_ofile)) {
+                size_t len = strlen(buf);
                 ret = parse_q_from_line(buf);
+                if (len > 0) {
+                    ends_in_newline = (buf[len - 1] == '\n');
+                    if (ends_in_newline)
+                        complete_end = ftell(g_ofile);
+                }
             }
-            if (ret < 0)
+
+            /* A run killed mid-write (BOINC client stopping the task, a
+               shutdown, a crash) leaves a partial last line.  It is not a
+               relation: cut anywhere, it is malformed or -- cut just after a
+               hex digit -- a well-formed relation with a wrong factor.
+               Every complete line ends in '\n', so drop everything after the
+               last one. */
+            if (!ends_in_newline) {
+                fflush(g_ofile);
+                if (complete_end >= 0 &&
+                    ftruncate(fileno(g_ofile), complete_end) == 0) {
+                    printf(" Dropped an incomplete last line\n");
+                    ends_in_newline = 1;
+                    ret = 0;
+                }
+            }
+            /* C requires a seek between reading and writing the same stream. */
+            fseek(g_ofile, 0, SEEK_END);
+            /* If the fragment could not be dropped, at least terminate it --
+               whether or not it parses -- so the next relation is not glued
+               onto it. */
+            if (ret < 0 || !ends_in_newline)
             {
                 fprintf(g_ofile, "\n");
 
@@ -7243,10 +7275,14 @@ fail("cannot resolve result file name");
 fprintf(stderr,"work files resolved, now working\n");
 
 
+/* Options first, positional job file last: getopt() implementations that
+   don't permute (MinGW's) stop at the first non-option argument, and would
+   then never see -o. */
 argv[argc_init++]= "-R";
-argv[argc_init++]= path_in;
 argv[argc_init++]= "-o";
 argv[argc_init++]= path_out;
+argv[argc_init++]= path_in;
+argv[argc_init]= NULL;
 
 for(i= 0;i<argc_init;i++){
 fprintf(stderr,"-> %s\n",argv[i]);
@@ -7264,17 +7300,12 @@ void boincstatus(double percent)
 {
 if(percent<1.0)boinc_fraction_done(percent);
 
-#ifdef _WIN32
-Sleep(1);
-#else
-#line 5291 "gnfs-lasieve4e.w"
- sleep(1);
-#endif
-#line 5293 "gnfs-lasieve4e.w"
+/* No sleep here: this runs after every special-q, and the sleep(1) that
+   used to be here cost a full second per q on Linux. */
 
 if(boinc_time_to_checkpoint()){
 
-fflush(ofile);
+fflush(g_ofile);
 boinc_checkpoint_completed();
 }
 }
