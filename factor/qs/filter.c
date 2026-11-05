@@ -311,7 +311,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
             r_out->fb_offsets[k++] = rel->fb_offsets[i++];
         }
         else if (rel->fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
-            // add in the one factor that will always be there because a | Q
+            // add in the one factor that will always be there because a | Q.
             r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
             prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
 
@@ -324,10 +324,15 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
             j++;
         }
         else {
-            r_out->fb_offsets[k] = rel->fb_offsets[i++];
-            r_out->fb_offsets[k + 1] = sconf->curr_poly->qlisort[j];
+			// if an a-poly factor also is a normal divisor of Q then
+			// trial division will already have removed it from Q as many times
+			// as it can.  So it is not always still a divisor of Q.
+			while (rel->fb_offsets[i] == sconf->curr_poly->qlisort[j])
+				i++;
+            //r_out->fb_offsets[k] = rel->fb_offsets[i++];
+            r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
             prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
-            k += 2;
+            //k += 2;
             while (mpz_tdiv_ui(Q, prime) == 0)
             {
                 r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];

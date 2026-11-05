@@ -237,7 +237,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	// check for additional factors of the a-poly factors
 	// make a separate list then merge it with fb_offsets
 	it=0;	// max 20 factors allocated for - should be overkill
-	for (j = 0; (j < dconf->curr_poly->s - dconf->num_alp) && (it < 20); j++)
+	//for (j = 0; (j < dconf->curr_poly->s - dconf->num_alp) && (it < 20); j++)
+    for (j = 0; j < dconf->curr_poly->s && (it < 20); j++)
 	{
         prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
 

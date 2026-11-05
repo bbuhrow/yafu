@@ -3619,8 +3619,30 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
                 dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t));
         }
         printf("using %s enabled 32k sieve core\n", inst_set);
+
+        
+
+#if defined(TRY_DIRECT_SIEVE)
         printf("sieve interval: %d blocks of size %d\n",
             sconf->num_blocks, sconf->qs_blocksize);
+        printf("per-core L2 = %u KB; both-side interval = %u KB\n",
+            ytools_get_l2_core_size() / 1024, 2 * sconf->num_blocks * 32);
+#else
+        printf("sieve interval: %d blocks of size %d\n",
+            sconf->num_blocks, sconf->qs_blocksize);
+#endif
+
+        {
+            static const char* kname[] = { "auto", "bitloop", "sink", "creg", "cmem" };
+            static const char* iname[] = { "auto", "scalar", "avx2", "avx512", "sse41", "neon" };
+            printf("strategy: mid = %s, large = %s, kernel = %s, sparse kernel = %s "
+                "(%s kernels%s)\n",
+                sconf->mid_bucket ? "bucket" : "sparse",
+                sconf->lp_direct ? "direct" : "bucket",
+                kname[sconf->lp_kernel], kname[sconf->sparse_kernel], iname[sconf->lp_isa],
+                sconf->lp_portable_roots ? ", portable root updates" : "");
+        }
+
         printf("polynomial A has ~ %d factors\n",
             (int)mpz_sizeinbase(sconf->target_a, 2) / 11);
 
@@ -3672,8 +3694,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 	if (sconf->obj->VFLAG >= 0)
 	{
 		// always show which experimental sieve paths this binary runs
-		printf("\n");
-		print_siqs_experiments(sconf, 1, NULL);
+		//printf("\n");
+		//print_siqs_experiments(sconf, 1, NULL);
 
 		if (sconf->obj->THREADS == 1)
 		{
