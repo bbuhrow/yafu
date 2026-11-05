@@ -95,12 +95,6 @@ void precompute(uint32_t d, uint32_t* m, uint32_t* c, uint32_t* s) {
 		*c = 0;
 		*s = p - 32;
 	}
-
-	//if (d < 1024)
-	//{
-	//	printf("p = %u, lz = %u, nc = %lu, p2 = %u, mult = %lu, inv = %u, corr = %u, shift = %u\n",
-	//		d, lz, nc, p, mult, *m, *c, *s);
-	//}
 }
 
 uint32_t make_fb_siqs(static_conf_t *sconf)
@@ -275,6 +269,14 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 				}
 #endif
 
+				uint32_t inv = prime;                 // 3 bits correct
+				inv *= 2 - prime * inv;               // 6
+				inv *= 2 - prime * inv;               // 12
+				inv *= 2 - prime * inv;               // 24
+				inv *= 2 - prime * inv;               // 48 (>= 32)
+				fb->list->minv32[j] = inv;                // p * inv == 1 mod 2^32
+				fb->list->thresh32[j] = 0xFFFFFFFFu / prime;    // x divisible by p  <=>  x*inv <= thresh
+
 				precompute(prime, &fb->list->inv32[j], &fb->list->corr32[j], &fb->list->shift32[j]);
 			}
 
@@ -373,6 +375,13 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 				}
 #endif
 
+				uint32_t inv = prime;                 // 3 bits correct
+				inv *= 2 - prime * inv;               // 6
+				inv *= 2 - prime * inv;               // 12
+				inv *= 2 - prime * inv;               // 24
+				inv *= 2 - prime * inv;               // 48 (>= 32)
+				fb->list->minv32[j] = inv;                // p * inv == 1 mod 2^32
+				fb->list->thresh32[j] = 0xFFFFFFFFu / prime;    // x divisible by p  <=>  x*inv <= thresh
 				precompute(prime, &fb->list->inv32[j], &fb->list->corr32[j], &fb->list->shift32[j]);
 			}
 

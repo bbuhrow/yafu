@@ -495,6 +495,8 @@ typedef struct
     uint32_t* inv32;
     uint32_t* corr32;
     uint32_t* shift32;
+    uint32_t* minv32;
+    uint32_t* thresh32;
     uint32_t* prime;
     uint32_t* logprime;
     uint64_t* binv;

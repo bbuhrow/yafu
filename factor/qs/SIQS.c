@@ -5216,11 +5216,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			(size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 #endif
 
-        sconf->factor_base->list->inv32 = (uint32_t*)xmalloc_align(
+        // Lemire divisibility test
+        sconf->factor_base->list->minv32 = (uint32_t*)xmalloc_align(
             (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
-        sconf->factor_base->list->corr32 = (uint32_t*)xmalloc_align(
-            (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
-        sconf->factor_base->list->shift32 = (uint32_t*)xmalloc_align(
+        sconf->factor_base->list->thresh32 = (uint32_t*)xmalloc_align(
             (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 		
 		sconf->factor_base->list->logprime = (uint32_t *)xmalloc_align(
@@ -7484,10 +7483,14 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->list->small_inv);
 	align_free(sconf->factor_base->list->correction);
 	align_free(sconf->factor_base->list->logprime);
+    align_free(sconf->factor_base->list->minv32);
+    align_free(sconf->factor_base->list->thresh32);
+
 	align_free(sconf->factor_base->tinylist->prime);
 	align_free(sconf->factor_base->tinylist->small_inv);
 	align_free(sconf->factor_base->tinylist->correction);
 	align_free(sconf->factor_base->tinylist->logprime);
+    
 #ifdef TRY_SMALLP_OPT
 	align_free(sconf->factor_base->tinylist->invmod);
 	align_free(sconf->factor_base->tinylist->thresh);

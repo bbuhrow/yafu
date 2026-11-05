@@ -255,7 +255,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	// temporary diagnostic: count fb primes still dividing Q after all
 	// trial division, by range (0: [2,med_B), 1: [med_B,large_B), 2: [large_B,B))
 	{
-		static uint64_t nchk = 0, nmiss[3] = { 0, 0, 0 }, nq = 0;
+		static uint64_t nchk = 0, nmiss[3] = { 0, 0, 0, 0 }, nq = 0;
 		fb_list* fbl = sconf->factor_base;
 		uint32_t k;
 		int missed = 0;
@@ -263,7 +263,10 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		{
 			if (mpz_tdiv_ui(dconf->Qvals[report_num], fbl->list->prime[k]) == 0)
 			{
-				int r = (k < fbl->med_B) ? 0 : ((k < fbl->large_B) ? 1 : 2);
+                if (k < fbl->sieve_small_fb_start) r = 0;
+                else if (k < fbl->med_B) r = 1;
+                else if (k < fbl->large_B) r = 2;
+                else r = 3;
 				nmiss[r]++;
 				missed = 1;
 			}
@@ -272,8 +275,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		nq += missed;
 		if ((nchk % 200000) == 0)
 			printf("\nmissed-fb-primes: %" PRIu64 " reports, %" PRIu64 " with misses; "
-				"small/med %" PRIu64 ", sparse %" PRIu64 ", large %" PRIu64 "\n",
-				nchk, nq, nmiss[0], nmiss[1], nmiss[2]);
+				"small %" PRIu64 ", med %" PRIu64 ", sparse %" PRIu64 ", large %" PRIu64 "\n",
+				nchk, nq, nmiss[0], nmiss[1], nmiss[2], nmiss[3]);
 	}
 #endif
 
