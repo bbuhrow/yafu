@@ -24,79 +24,6 @@ code to the public domain.
 #include "ytools.h"
 #include "gmp_xface.h"
 
-// Precompute the magic reciprocal constants (Done once per divisor)
-// d <-- divisor
-// multiplier --> m
-// correction --> c
-// shift      --> s
-void precompute2(uint32_t d, uint32_t* m, uint32_t* c, uint32_t* s) {
-	if (d == 1) {
-		*m = 1; *s = 0; *c = 0;
-		return;
-	}
-
-	// Calculate leading zeros to find the power-of-two threshold
-	uint32_t lz = __builtin_clz(d);
-	uint64_t nc = ((uint64_t)1ull << 32) - (((uint64_t)1ull << 32) % d) - 1;
-	uint32_t p = 32 + (32 - lz);
-
-	// Find the lowest power of 2 that yields an exact calculation
-	while (((uint64_t)1ull << p) < d * (((uint64_t)1ull << p) - nc)) {
-		p++;
-	}
-
-	uint64_t mult = (((uint64_t)1ull << p) + nc) / d;
-
-	if (mult >= ((uint64_t)1ull << 32)) {
-		// If the multiplier overflows 32 bits, we flag an addition correction
-		*m = (uint32_t)(mult - ((uint64_t)1 << 32));
-		*c = 1;
-		*s = p - 32 - 1;
-	}
-	else {
-		*m = (uint32_t)mult;
-		*c = 0;
-		*s = p - 32;
-	}
-
-	if (d < 1024)
-	{
-		printf("p = %u, lz = %u, nc = %lu, p2 = %u, mult = %lu, inv = %u, corr = %u, shift = %u\n",
-			d, lz, nc, p, mult, *m, *c, *s);
-	}
-}
-
-void precompute(uint32_t d, uint32_t* m, uint32_t* c, uint32_t* s) {
-	if (d == 1) {
-		*m = 1; *s = 0; *c = 0;
-		return;
-	}
-
-	// Calculate leading zeros to find the power-of-two threshold
-	uint32_t lz = __builtin_clz(d);
-	uint64_t nc = (1ull << 32) - (((uint64_t)1ull << 32) % d) - 1;
-	uint32_t p = 32; // +(32 - lz) - 1;
-
-	// Find the lowest power of 2 that yields an exact calculation
-	while ((1ull << p) <= (nc * (uint64_t)(d - 1 - ((1ull << p) % d)))) {
-		p++;
-	}
-
-	uint64_t mult = ((1ull << p) + d - 1 - (((1ull << p) - 1) % d)) / d;
-
-	if (mult >= (1ull << 32)) {
-		// If the multiplier overflows 32 bits, we flag an addition correction
-		*m = (uint32_t)(mult - (1ull << 32));
-		*c = 1;
-		*s = p - 32 - 1;
-	}
-	else {
-		*m = (uint32_t)mult;
-		*c = 0;
-		*s = p - 32;
-	}
-}
-
 uint32_t make_fb_siqs(static_conf_t *sconf)
 {
 	// finds the factor base primes, and computes the solutions to the congruence x^2 = N mod p
@@ -277,7 +204,6 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 				fb->list->minv32[j] = inv;                // p * inv == 1 mod 2^32
 				fb->list->thresh32[j] = 0xFFFFFFFFu / prime;    // x divisible by p  <=>  x*inv <= thresh
 
-				precompute(prime, &fb->list->inv32[j], &fb->list->corr32[j], &fb->list->shift32[j]);
 			}
 
 			j++;
@@ -382,7 +308,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 				inv *= 2 - prime * inv;               // 48 (>= 32)
 				fb->list->minv32[j] = inv;                // p * inv == 1 mod 2^32
 				fb->list->thresh32[j] = 0xFFFFFFFFu / prime;    // x divisible by p  <=>  x*inv <= thresh
-				precompute(prime, &fb->list->inv32[j], &fb->list->corr32[j], &fb->list->shift32[j]);
+
 			}
 
 			j++;
