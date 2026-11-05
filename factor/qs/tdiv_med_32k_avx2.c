@@ -19,13 +19,12 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #include "common.h"
-
-
-#if defined( USE_AVX2 )
-
 #include "tdiv_macros_common.h"
 #include "qs_impl.h"
+
+#if defined( USE_AVX2 ) || defined( USE_AVX512F ) || defined( USE_SSE41 ) 
 #include <immintrin.h>
+#endif
 
 //#define SIQSDEBUG 1
 
@@ -123,8 +122,6 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         // the "check for exact division of a difference" method described above,
         // but are only implemented in portable C.  See code below for more detail.
 
-        CLEAN_AVX2;
-
         // pull the details of this report to get started.
         fb_offsets = &dconf->fb_offsets[report_num][0];
         smooth_num = dconf->smooth_num[report_num];
@@ -139,29 +136,29 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         for (; i < sconf->factor_base->fb_13bit_B; i++)
         {
             if ((i & 15) == 0) break;
-
+        
             prime = fbc->prime[i];
             root1 = fbc->root1[i];
             root2 = fbc->root2[i];
-
+        
             uint32_t minv = fullfb_ptr->minv32[i];
             uint32_t thresh = fullfb_ptr->thresh32[i];
-
+        
             // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
             uint32_t off = base + ((uint32_t)prime << 15) + prime;
-
+        
             // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
             if ((uint32_t)((off - root1) * minv) <= thresh ||
                 (uint32_t)((off - root2) * minv) <= thresh)
             {
                 // it will divide Q(x).  do so as many times as we can.
-                DIVIDE_ONE_PRIME;
+                DIVIDE_RESIEVED_PRIME_2(i);
             }
         }
 
         __m512i vbase = _mm512_set1_epi32((int)(block_loc - 32768));
 
-        for (; i + 16 <= sconf->factor_base->fb_13bit_B; i += 16)
+        for (; i + 16 < sconf->factor_base->fb_13bit_B; i += 16)
         {
             __m512i vp = _mm512_cvtepu16_epi32(_mm256_load_si256((const __m256i*) &fbc->prime[i]));
             __m512i vr1 = _mm512_cvtepu16_epi32(_mm256_load_si256((const __m256i*) &fbc->root1[i]));
@@ -206,7 +203,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                 (uint32_t)((off - root2) * minv) <= thresh)
             {
                 // it will divide Q(x).  do so as many times as we can.
-                DIVIDE_ONE_PRIME;
+                DIVIDE_RESIEVED_PRIME_2(i);
             }
         }
 
@@ -238,11 +235,11 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                 (uint32_t)((off - root2) * minv) <= thresh)
             {
                 // it will divide Q(x).  do so as many times as we can.
-                DIVIDE_ONE_PRIME;
+                DIVIDE_RESIEVED_PRIME_2(i);
             }
         }
 
-        for (; i + 8 <= sconf->factor_base->fb_13bit_B; i += 8)
+        for (; i + 8 < sconf->factor_base->fb_13bit_B; i += 8)
         {
             __m256i vp = _mm256_cvtepu16_epi32(_mm_load_si128((const __m128i*) &fbc->prime[i]));
             __m256i vr1 = _mm256_cvtepu16_epi32(_mm_load_si128((const __m128i*) &fbc->root1[i]));
@@ -285,17 +282,42 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                 (uint32_t)((off - root2) * minv) <= thresh)
             {
                 // it will divide Q(x).  do so as many times as we can.
-                DIVIDE_ONE_PRIME;
+                DIVIDE_RESIEVED_PRIME_2(i);
             }
         }
 
         dconf->smooth_num[report_num] = smooth_num;
 
-#elif defined(USE_SSE41)
+#elif defined(USE_SSE41) || !(FORCE_GENERIC)
+
+        uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            if ((i & 7) == 0) break;
+
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
 
         __m128i vbase = _mm_set1_epi32((int)(block_loc - 32768));
 
-        for (; i + 4 <= sconf->factor_base->fb_13bit_B; i += 4)
+        for (; i + 4 < sconf->factor_base->fb_13bit_B; i += 4)
         {
             // 4 x uint16 = 64 bits, zero-extended to 4 x uint32
             __m128i vp = _mm_cvtepu16_epi32(_mm_loadu_si128((const __m128i*) &fbc->prime[i]));
@@ -341,7 +363,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                 (uint32_t)((off - root2) * minv) <= thresh)
             {
                 // it will divide Q(x).  do so as many times as we can.
-                DIVIDE_ONE_PRIME;
+                DIVIDE_RESIEVED_PRIME_2(i);
             }
         }
 
@@ -366,7 +388,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                 (uint32_t)((off - root2) * minv) <= thresh)
             {
                 // it will divide Q(x).  do so as many times as we can.
-                DIVIDE_ONE_PRIME;
+                DIVIDE_RESIEVED_PRIME_2(i);
             }
         }
 
@@ -380,4 +402,3 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     return;
 }
 
-#endif // USE_AVX2

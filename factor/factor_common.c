@@ -499,6 +499,9 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->OUTPUT_TERSE = src->OUTPUT_TERSE;
     dest->THREADS = src->THREADS;
     dest->LATHREADS = src->LATHREADS;
+    dest->L1CACHE = src->L1CACHE;
+    dest->L2CACHE = src->L2CACHE;
+    dest->L3CACHE = src->L3CACHE;
 
     if (!parameters_only)
     {
@@ -627,6 +630,10 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     strcpy(dest->qs_obj.siqs_params_file, src->qs_obj.siqs_params_file);
     dest->qs_obj.no_tuned_params = src->qs_obj.no_tuned_params;
     dest->qs_obj.tune_warmup = src->qs_obj.tune_warmup;
+    dest->qs_obj.gbl_siqs_kernel = src->qs_obj.gbl_siqs_kernel;
+    dest->qs_obj.gbl_siqs_sparse_kernel = src->qs_obj.gbl_siqs_sparse_kernel;
+    dest->qs_obj.gbl_siqs_mid = src->qs_obj.gbl_siqs_mid;
+    dest->qs_obj.gbl_siqs_large = src->qs_obj.gbl_siqs_large;
 
     if (!parameters_only)
     {

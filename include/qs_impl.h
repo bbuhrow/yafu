@@ -1270,6 +1270,8 @@ extern void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
 
 void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 

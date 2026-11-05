@@ -940,10 +940,10 @@ endif
 
 ifeq ($(USE_AVX2),1)
     YAFU_SIQS_SRCS += \
-        factor/qs/tdiv_med_32k_avx2.c \
         factor/qs/update_poly_roots_32k_avx2.c \
         factor/qs/med_sieve_32k_avx2.c \
-        factor/qs/tdiv_resieve_32k_avx2.c
+        factor/qs/tdiv_resieve_32k_avx2.c \
+        factor/qs/tdiv_med_32k_avx2.c
 endif
 
 ifeq ($(USE_AVX512),1)

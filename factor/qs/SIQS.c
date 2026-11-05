@@ -4844,7 +4844,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     testRoots_ptr = &testfirstRoots_32k;
 
     // tdiv core functions
-    tdiv_med_ptr = &tdiv_medprimes_32k;
+    tdiv_med_ptr = &tdiv_medprimes_32k_new;
     tdiv_LP_ptr = &tdiv_LP_sse2;
     resieve_med_ptr = &resieve_medprimes_32k;
 
@@ -5270,6 +5270,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			align_free(sconf->factor_base->list->small_inv);
 			align_free(sconf->factor_base->list->correction);
 			align_free(sconf->factor_base->list->logprime);
+            align_free(sconf->factor_base->list->minv32);
+            align_free(sconf->factor_base->list->thresh32);
 			align_free(sconf->factor_base->list);	
 		}
 	}
