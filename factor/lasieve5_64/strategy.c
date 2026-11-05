@@ -854,7 +854,9 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 
 		done:
 
+#ifdef __AVX__
 			_mm256_zeroupper();
+#endif
 
 		
 

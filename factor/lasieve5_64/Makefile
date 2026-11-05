@@ -27,6 +27,18 @@
 #   DETECTED_OS   Windows or Linux            (auto-detected if absent)
 #   DEBUG         Set to 1 for a debug build
 #
+# Target CPU (also forwarded to asm/):
+#   ARCH          -march value                (default: native)
+#   TUNE          -mtune value                (default: none)
+#                 For distributable binaries use e.g. ARCH=x86-64 TUNE=generic,
+#                 or ARCH=x86-64-v4 TUNE=generic AVX512_ALL=1.
+#
+# BOINC build (main() then talks to the BOINC client):
+#   BOINC=1       Define HAVE_BOINC, link libboinc_api/libboinc with $(CXX)
+#   BOINC_INC_DIR Path to boinc_api.h          (default: /usr/local/include/boinc)
+#   BOINC_LIB_DIR Path to libboinc*.a          (default: /usr/local/lib)
+#   BOINC_LDFLAGS Extra link flags             (default: -static on Windows)
+#
 # AVX-512 feature flags (set individually or use AVX512_ALL=1 for all):
 #   AVX512_ALL        Enable all AVX-512 sieve paths
 #   AVX512_ECM        AVX-512 ECM
@@ -44,6 +56,8 @@
 #   make alle
 #   make alle AVX512_ALL=1
 #   make alle GMP_INCDIR=/path/to/include GMP_LIBDIR=/path/to/lib
+#   make gnfs-lasieve4I14e ARCH=x86-64 TUNE=generic BOINC=1 \
+#        BOINC_INC_DIR=/path/to/include/boinc BOINC_LIB_DIR=/path/to/lib
 #   make clean
 # -----------------------------------------------------------------------------
 
@@ -52,6 +66,10 @@
 CC         ?= gcc
 GMP_INCDIR ?= /usr/include
 GMP_LIBDIR ?= /usr/lib
+ARCH       ?= native
+TUNE       ?=
+
+ARCH_FLAGS := -march=$(ARCH) $(if $(TUNE),-mtune=$(TUNE))
 
 ifndef DETECTED_OS
     ifeq ($(OS),Windows_NT)
@@ -93,7 +111,7 @@ GMP_LIB := $(GMP_LIBDIR)/libgmp.a
 #
 CFLAGS_BASE := \
     -Wall -Wno-unused-variable -Wno-unused-function \
-    -Ofast -fomit-frame-pointer -march=native -funroll-loops \
+    -Ofast -fomit-frame-pointer $(ARCH_FLAGS) -funroll-loops \
     -I$(GMP_INCDIR) -L$(GMP_LIBDIR) -I../../include -fcommon
 
 ifeq ($(DETECTED_OS),Windows)
@@ -105,15 +123,35 @@ else
 endif
 
 ifeq ($(DEBUG),1)
-    CFLAGS := $(filter-out -Ofast -fomit-frame-pointer -march=native -funroll-loops,$(CFLAGS))
+    CFLAGS := $(filter-out -Ofast -fomit-frame-pointer $(ARCH_FLAGS) -funroll-loops,$(CFLAGS))
     CFLAGS += -O0 -g
 endif
 
 
+# --- BOINC -------------------------------------------------------------------
+# The BOINC API is C++, so BOINC builds link with $(CXX).  On Windows the
+# binary is linked fully static so it needs no MinGW runtime DLLs on the host.
+LINK        = $(CC)
+BOINC_LIBS  =
+ifeq ($(BOINC),1)
+    BOINC_INC_DIR ?= /usr/local/include/boinc
+    BOINC_LIB_DIR ?= /usr/local/lib
+    CFLAGS  += -DHAVE_BOINC -I$(BOINC_INC_DIR)
+    LINK     = $(CXX)
+    ifeq ($(DETECTED_OS),Windows)
+        BOINC_LDFLAGS ?= -static
+        BOINC_LIBS = $(BOINC_LDFLAGS) -L$(BOINC_LIB_DIR) -lboinc_api -lboinc -lpsapi
+    else
+        BOINC_LIBS = $(BOINC_LDFLAGS) -L$(BOINC_LIB_DIR) -lboinc_api -lboinc -lpthread
+    endif
+endif
+
+
 # --- ASM_FLAGS: variables forwarded to the asm/ sub-make --------------------
-# Always forward the compiler, GMP path, and OS so the asm Makefile doesn't
-# need its own hardcoded values.  AVX512 flags are appended below as needed.
+# Always forward the compiler, GMP path, OS and target CPU so the asm Makefile
+# doesn't need its own hardcoded values.  AVX512 flags are appended below.
 ASM_FLAGS := CC=$(CC) GMP_INCDIR=$(GMP_INCDIR) DETECTED_OS=$(DETECTED_OS) \
+             ARCH=$(ARCH) $(if $(TUNE),TUNE=$(TUNE)) \
              $(if $(DEBUG),DEBUG=$(DEBUG))
 
 
@@ -276,7 +314,7 @@ gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
 	strategy.o ecm.o mpqs3.o pm1.o microecm.o micropm1.o tinyecm.o \
 	asm/liblasieve.a asm/liblasieveI%.a
-	$(CC) $(CFLAGS) -o $@ $^ $(GMP_LIB) -lm
+	$(LINK) $(CFLAGS) -o $@ $^ $(GMP_LIB) $(BOINC_LIBS) -lm
 
 gnfs-lasieve4I%f: gnfs-lasieve4fI%.o if.o input-poly-orig.o libgmp-aux.a redu2.o \
 	recurrence6.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
