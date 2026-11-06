@@ -30,6 +30,7 @@ code to the public domain.
 
 #if defined(GCC_ASM64X)
 
+#undef TDIV_MED_CLEAN
 #define TDIV_MED_CLEAN __asm__ volatile("emms");
 
 
@@ -657,22 +658,22 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         CLEAN_AVX2;
 
-        bl_locs[0] = block_loc;
-        bl_locs[1] = block_loc;
-        bl_locs[2] = block_loc;
-        bl_locs[3] = block_loc;
-        bl_locs[4] = block_loc;
-        bl_locs[5] = block_loc;
-        bl_locs[6] = block_loc;
-        bl_locs[7] = block_loc;
-        bl_locs[8] = block_loc;
-        bl_locs[9] = block_loc;
-        bl_locs[10] = block_loc;
-        bl_locs[11] = block_loc;
-        bl_locs[12] = block_loc;
-        bl_locs[13] = block_loc;
-        bl_locs[14] = block_loc;
-        bl_locs[15] = block_loc;
+        bl_locs[0] = (uint16_t)block_loc;
+        bl_locs[1] = (uint16_t)block_loc;
+        bl_locs[2] = (uint16_t)block_loc;
+        bl_locs[3] = (uint16_t)block_loc;
+        bl_locs[4] = (uint16_t)block_loc;
+        bl_locs[5] = (uint16_t)block_loc;
+        bl_locs[6] = (uint16_t)block_loc;
+        bl_locs[7] = (uint16_t)block_loc;
+        bl_locs[8] = (uint16_t)block_loc;
+        bl_locs[9] = (uint16_t)block_loc;
+        bl_locs[10] = (uint16_t)block_loc;
+        bl_locs[11] = (uint16_t)block_loc;
+        bl_locs[12] = (uint16_t)block_loc;
+        bl_locs[13] = (uint16_t)block_loc;
+        bl_locs[14] = (uint16_t)block_loc;
+        bl_locs[15] = (uint16_t)block_loc;
 
         MOD_INIT_16X;
 
@@ -715,7 +716,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                     //this offset is on the progression of the sieve for this prime
                     if (tmp == root1 || tmp == root2)
                     {
-                        buffer[tmp3++] = i;
+                        buffer[tmp3++] = (uint16_t)i;
                     }
                     i++;
                 }
@@ -762,7 +763,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                     if (tmp == root1 || tmp == root2)
                     {
                         //it will divide Q(x).  do so as many times as we can.
-                        buffer[tmp3++] = i;
+                        buffer[tmp3++] = (uint16_t)i;
                     }
                     i++;
                 }

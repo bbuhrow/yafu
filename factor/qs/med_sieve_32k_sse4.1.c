@@ -102,7 +102,7 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
-		logp = fb->logp[i];
+		logp = (uint8_t)fb->logp[i];
 
 		//// special exit condition: when prime > 8192 and i % 8 is 0;
 		//if ((prime > 8192) && ((i&7) == 0))
@@ -132,7 +132,7 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
-		logp = fb->logp[i];
+		logp = (uint8_t)fb->logp[i];
 
 		// invalid root (part of poly->a)
 		if (prime == 0) 
@@ -155,7 +155,7 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
-		logp = fb->logp[i];
+		logp = (uint8_t)fb->logp[i];
 
 		// invalid root (part of poly->a)
 		if (prime == 0) 
@@ -178,7 +178,7 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
-		logp = fb->logp[i];
+		logp = (uint8_t)fb->logp[i];
 
 		if ((prime > 32768) && ((i&7) == 0))
 			break;

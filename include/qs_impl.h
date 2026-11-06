@@ -1,6 +1,16 @@
 #ifndef _SIQS_IMPL_H_
 #define _SIQS_IMPL_H_
 
+// =====================================================================
+// SIQS small-prime-variation (SPV) tuning experiment.
+// See docs/siqs_spv_plan.md.  Commenting out this single define reverts
+// the qs library to pre-experiment behavior with zero code deletion:
+// every experimental edit in the qs library is wrapped as
+//   #ifdef TRY_SMALLP_OPT  <new code>
+//   #else                  <original code, preserved verbatim>
+//   #endif
+#define TRY_SMALLP_OPT 1
+
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -45,6 +55,8 @@
 // or this one, but not both
 //#define USE_POLY_BUCKET_SS
 
+//#define SIQS_PROFILE
+
 #ifdef USE_SS_SEARCH
 #define USE_POLY_BUCKET_PN_COMBINED_VARIATION
 
@@ -74,6 +86,149 @@
 
 // new largep bucket sorting idea
 // #define TRY_COMPRESS_SORT_LARGEP 1
+
+// The experimental large-prime sieves (sparse / direct, all under
+// TRY_DIRECT_SIEVE) are compiled at every ISA level; the large-prime
+// strategy and its kernels are chosen at run time.
+// -DSIQS_NO_EXPERIMENTAL_SIEVES builds the stock bucket sieve only (a
+// reference for the bucket+bucket strategy).
+#if !defined(SIQS_NO_EXPERIMENTAL_SIEVES)
+#define SIQS_EXPERIMENTAL_SIEVES
+#endif
+
+#if defined(SIQS_EXPERIMENTAL_SIEVES)
+// experimental direct interval sieve for the primes p > interval,
+// fb indices [large_B, B) (see direct_sieve.md), plus the per-block sparse
+// sieve for [med_B, large_B).  Both sides' whole intervals live in memory
+// at once (pos then neg, 2*num_blocks blocks).
+// Per poly:
+//  1. the intervals arrive already holding [large_B, B)'s hits for this
+//     poly (from the previous poly's fused pass, or for the first poly of
+//     an 'a' from a standalone pass 1 straight from update_data.firstroots).
+//  2. the block loops run med + sparse sieves and the scan per block as
+//     before (scan sees complete sieve bytes).  Survivors of the scan are
+//     moved into a per-poly pool instead of being finalized.
+//  3. the intervals are re-initialized and one fused pass over [large_B, B)
+//     resieves the survivors (bitmap of their interval positions, guarded
+//     divisions), updates the firstroots to the next poly, and sieves the
+//     next poly's roots.
+//  4. survivors are finalized (trial_divide_Q_siqs), then nextB.
+// Not compatible with USE_SS_SEARCH / USE_BATCHPOLY / USE_XLBATCHPOLY.
+#define TRY_DIRECT_SIEVE
+#endif  // SIQS_EXPERIMENTAL_SIEVES
+
+#if defined(TRY_DIRECT_SIEVE)
+#if defined(USE_SS_SEARCH) || defined(USE_BATCHPOLY) || defined(USE_XLBATCHPOLY)
+#error "TRY_DIRECT_SIEVE is not compatible with SS search or batch polys"
+#endif
+// added to the logp the direct sieve uses for [large_B, B).  The bucket
+// sieve uses one logp per slice, the logp of the slice's last prime, so it
+// credits these primes slightly more than the per-16 approximation; a bias
+// of 1 roughly matches it.
+#ifndef DIRECT_LOGP_BIAS
+#define DIRECT_LOGP_BIAS 0
+#endif
+// the large-prime resieve finds survivor hits by comparing roots against
+// the survivor positions directly when a poly has at most this many
+// survivors (both sides), and by gathering from the survivor bitmap
+// otherwise.  0 = always gather.  Without the prefilter, compares won at
+// ~10 survivors/poly and lost above ~17 (Rocket Lake, 77 digits); with the
+// 1024-bit prefilter they gave no measurable gain over gathers, so the
+// default is gathers only.  Kept selectable for other input sizes.
+#ifndef DIRECT_CMP_MAX_SURVIVORS
+#define DIRECT_CMP_MAX_SURVIVORS 0
+#endif
+// register-resident prefilter in front of the survivor compares/gathers:
+// one bit per bucket of positions across both intervals says whether the
+// bucket holds a survivor.  0 (off), 512 (one zmm) or 1024 (two zmm).
+// 1024 measured best: -12% resieve time at NB 2/4, -9% at NB=8.
+#ifndef DIRECT_PREFILTER_BITS
+#define DIRECT_PREFILTER_BITS 1024
+#endif
+// experimental: start survivors inactive for the resieve early exit
+// (direct_save_survivor) when the [large_B, B) resieve can't help them.
+// An inactive survivor is still divided while resieving runs for others.
+//  DIRECT_ABANDON_NOLARGE: the sieve byte, less the logp of the fb primes
+//    below large_B that tdiv found, leaves less than one [large_B, B)
+//    prime's logp (minus DIRECT_ABANDON_MARGIN): no prime of the range
+//    hit this position, so Q's cofactor is a large-prime pair or worse.
+//  DIRECT_ABANDON_HOPELESS: Q > (largest cofactor kept: large_prime_max,
+//    max2, max3 or max4 by LP variation) * pmax^DIRECT_ABANDON_K, i.e.
+//    more than DIRECT_ABANDON_K range primes must divide Q for it to be
+//    kept.
+//  DIRECT_ABANDON_STATS: count abandoned survivors and how many a resieve
+//    hit later divided (wrongly abandoned), printed when the pool is
+//    freed.  Abandoned survivors stay counted as active here, so resieving
+//    always runs to B and every wrong abandonment is seen.
+//#define DIRECT_ABANDON_NOLARGE 1
+//  DIRECT_ABANDON_EXHAUSTED: NOLARGE, and also deactivate a survivor once
+//    the range primes the resieve has divided account for all of that
+//    estimated range logp (e.g. q * L1 * L2 after q is divided).
+//#define DIRECT_ABANDON_EXHAUSTED 1
+#if defined(DIRECT_ABANDON_EXHAUSTED) && !defined(DIRECT_ABANDON_NOLARGE)
+#define DIRECT_ABANDON_NOLARGE 1
+#endif
+//#define DIRECT_ABANDON_HOPELESS 1
+//#define DIRECT_ABANDON_STATS 1
+// DIRECT_EXIT_STATS: count polys whose survivors all resolved (the
+// resieve could stop early), printed when the pool is freed
+//#define DIRECT_EXIT_STATS 1
+#ifndef DIRECT_ABANDON_MARGIN
+#define DIRECT_ABANDON_MARGIN 3
+#endif
+#ifndef DIRECT_ABANDON_K
+#define DIRECT_ABANDON_K 2
+#endif
+// The large-prime strategy is chosen at run time (sconf->mid_bucket,
+// sconf->lp_direct, sconf->lp_kernel, sconf->sparse_kernel; see
+// siqs_resolve_strategy in SIQS.c and the -siqsMid / -siqsLarge /
+// -siqsKernel / -siqsSparseKernel options):
+//  [med_B, large_B): SIQS_MID_SPARSE  per-block sparse sieve
+//                    (large_sieveblock + tdiv_large), or
+//                    SIQS_MID_BUCKET  stock bucket sieve (medbucket +
+//                    lp_sieveblock + tdiv_LP), done by fb_blk8i = med_B,
+//                    which empties every sparse-range loop.
+//  [large_B, B):     SIQS_LARGE_DIRECT the direct sieve above, or
+//                    SIQS_LARGE_BUCKET stock largebucket sieve.
+// Direct scatter kernels (standalone pass 1 and the fused pass's next-poly
+// sieve), see Sink-Stripe Sieve Stores.md:
+//  SIQS_K_BITLOOP loop over the set bits of the in-range masks.
+//  SIQS_K_SINK    every one of the 64 root lanes per 16 primes does a
+//                 read-modify-write; misses are blended to a rotating
+//                 address in an unscanned stripe past the neg interval.
+//  SIQS_K_CREG    compress the in-range lanes (logp << 24 | position) in
+//                 registers, append with unaligned stores, sieve the buffer
+//                 once it holds DIRECT_CBUF_FLUSH entries.
+//  SIQS_K_CMEM    as CREG, appending with compressstoreu to memory.
+// The sparse sieve / tdiv_large take BITLOOP, CREG or CMEM.
+// Defaults when the options are not given come from a table in
+// siqs_resolve_strategy (kernel ISA, CPU vendor, interval size vs per-core
+// L2).  -DDIRECT_DEFAULT_MID / _LARGE / _KERNEL / _SPARSE_KERNEL=<SIQS_*
+// value> override the table at compile time.
+// size of the sink stripe in bytes: a multiple of 64, at most 32768
+#ifndef DIRECT_SINK_BYTES
+#define DIRECT_SINK_BYTES 1024
+#endif
+// compress kernels: sieve the compressed hit buffer once it holds at least
+// this many entries (1 = after every 16 primes).  Flat from 256 to 4096 on
+// Rocket Lake (CMEM, 77-79 digits, NB 2/4/8); 128 is ~1-2% slower at NB=2.
+#ifndef DIRECT_CBUF_FLUSH
+#define DIRECT_CBUF_FLUSH 512
+#endif
+// single-flush scatter: the fused pass's compress kernels (CREG / CMEM)
+// append all of the next poly's [large_B, B) hits to the pool's hit list
+// and sieve them in one flush after the walk, instead of every
+// DIRECT_CBUF_FLUSH entries, so the interval is not touched while the fb
+// arrays stream through L2.  Same relations; on Rocket Lake, fixed-work
+// C95 cycles -2.6..-3.0% at NB=2, -0.7% at NB=4, -1.1% with the AVX2
+// kernels (NB=2).  Pass 1 is unchanged.  Undefine for the batched flushes.
+#define TRY_SINGLE_FLUSH_SCATTER
+#ifdef TRY_SINGLE_FLUSH_SCATTER
+#define DIRECT_SINGLE_FLUSH 1
+#else
+#define DIRECT_SINGLE_FLUSH 0
+#endif
+#endif
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
@@ -128,6 +283,13 @@
 // store only largish smooth factors of relations; trial divide during filtering
 #define SPARSE_STORE
 
+// drop every block's location 0 in filter_SPV: it is over-sieved by the
+// a-primes > 8192 (set_aprime_roots), so it's a junk report.
+// -DSIQS_KEEP_BLOCK_LOC0 to A/B.
+#ifndef SIQS_KEEP_BLOCK_LOC0
+#define SIQS_SKIP_BLOCK_LOC0
+#endif
+
 #ifdef SPARSE_STORE
 #define MAX_SMOOTH_PRIMES 200	//maximum number of factors for a smooth, including duplicates
 #else
@@ -149,11 +311,14 @@
 #define BUCKET_BITStxt "11"
 
 
-// always use these optimizations using sse2
+// always use these optimizations using sse2 (x86 only; resieving
+// itself has a portable path)
 #if !defined (FORCE_GENERIC)
+#if !defined(__aarch64__)
 #define USE_8X_MOD_ASM 1
-#define USE_RESIEVING
 #define SSE2_RESIEVING 1
+#endif
+#define USE_RESIEVING
 #endif
 
 // multiplication by inverse constants
@@ -229,6 +394,61 @@ typedef struct
 #endif
 } sieve_fb_compressed;
 
+typedef struct
+{
+    uint32_t* prime;
+    uint32_t* root1;
+    uint32_t* root2;
+    uint32_t* logp;
+} sieve_fb;
+
+// per-poly pool of scan survivors for the direct interval sieve
+// (TRY_DIRECT_SIEVE).  Survivors are appended in scan order (pos side
+// blocks 0..nb-1, then neg side), so pos[] is sorted ascending.
+//      pos = side * interval + block * 32768 + block_loc
+typedef struct
+{
+    uint32_t num;           // survivors in the pool for the current poly
+    uint32_t active;        // survivors resieving may still divide (act[k] set)
+    uint32_t alloc;         // allocated entries
+    uint8_t* act;           // [alloc] 1 while Q >= p^2 for the resieve's current
+                            // prime p; else Q is 1 or prime and resieving it is
+                            // pointless (trial_divide_Q_siqs looks up an fb
+                            // prime Q).  0 done, 1 active, 2/3 abandoned
+                            // (DIRECT_ABANDON_NOLARGE / _HOPELESS)
+    uint64_t ab_saved;      // DIRECT_ABANDON_STATS: survivors saved,
+    uint64_t ab_num[2];     // abandoned (nolarge, hopeless),
+    uint64_t ab_wrong[2];   // and abandoned but later divided
+    int16_t* ab_rem;        // [alloc] EXHAUSTED: range logp not yet divided
+    const uint32_t* logprime; // EXHAUSTED: fb logp
+    int16_t* ab_est;        // [alloc] NOLARGE + STATS calibration: estimated
+    int16_t* ab_sn0;        // [range] logp and smooth_num at save, binned in
+    uint64_t ab_hist[2][64];// [resieve divided][est] at finalization
+    uint64_t ab_miss;       // STATS: bitmap set but position not found
+    uint64_t ex_polys, ex_resolved; // DIRECT_EXIT_STATS
+    uint64_t ex_hist[16], ex_qbits[256], ex_loc0;
+    uint64_t ex_skip, ex_groups; // avx512: resieve groups skipped / run
+    uint64_t ab_samp, ab_sampdiv; // STATS: sampled big-error survivors
+    uint8_t* ab_byte;       // STATS: sieve byte at save
+    uint64_t ab_bytes[256]; // STATS: byte histogram of sampled survivors
+    uint64_t ab_allq[256];  // STATS: S - log2 Q(x) over all survivors
+    uint64_t ab_junk, ab_junk_last, ab_junk_first, ab_junk_side[2], ab_junk_blk[16], ab_junk_loc[16];
+    uint8_t ab_init;
+    uint32_t interval;      // num_blocks * 32768
+    uint32_t* pos;          // [alloc] interval position, both sides
+    mpz_t* Q;               // [alloc] partially factored Q
+    int* smooth_num;        // [alloc] index of last stored fb offset
+    uint32_t* fb_offsets;   // [alloc * MAX_SMOOTH_PRIMES]
+    uint64_t* bitmap;       // [2 * interval / 64] marks survivor positions
+    // hit list of the compress kernels (creg / cmem): every in-range root
+    // of [large_B, B)'s 16-groups for the current poly, as the
+    // (logp << 24) | position entries the scatter sieved, in scatter
+    // order.  The resieve walks it instead of testing every root.
+    uint32_t* hits;         // [hits_alloc]
+    uint32_t* hit_gend;     // [groups] hits index one past each group's entries
+    uint32_t hits_alloc;    // allocated entries (0: not yet allocated)
+} direct_pool_t;
+
 /************************* SIQS types and functions *****************/
 #define MAXLP 4
 
@@ -255,6 +475,12 @@ typedef struct
     uint32_t* small_inv;
     uint32_t* prime;
     uint32_t* logprime;
+#ifdef TRY_SMALLP_OPT
+    // Lemire-style divisibility constants for the vectorized SPV check
+    // in tdiv_small.c: invmod = p^-1 mod 2^32, thresh = (2^32-1)/p
+    uint32_t* invmod;
+    uint32_t* thresh;
+#endif
 } tiny_fb_element_siqs;
 
 typedef struct
@@ -266,10 +492,38 @@ typedef struct
     uint32_t* correction;
     uint32_t* small_inv;
 #endif
+#if !defined(USE_8X_MOD_ASM) && defined(__aarch64__) && defined(__ARM_NEON)
+    // the 16-bit tables of USE_8X_MOD_ASM builds, for the NEON
+    // tdiv_medprimes_32k_old_neon (small_inv/correction keep the FOGSHIFT
+    // form here for the portable code)
+    uint16_t* correction16;
+    uint16_t* small_inv16;
+#endif
+    uint32_t* inv32;
+    uint32_t* corr32;
+    uint32_t* shift32;
+    uint32_t* minv32;
+    uint32_t* thresh32;
     uint32_t* prime;
     uint32_t* logprime;
     uint64_t* binv;
 } fb_element_siqs;
+
+// 16-bit Barrett tables for tdiv_medprimes_32k_old(_neon): per fb prime,
+// small_inv = 2^shift / p (rounded per make_fb_siqs) and a 0/1 correction,
+// where shift is 24, 26 or 28 and steps up only at indices j % 8 == 0 (the
+// first such j with p > 1024, resp. p > 4096).  x86 builds keep them in
+// small_inv/correction; NEON builds in the extra small_inv16/correction16.
+#if defined(USE_8X_MOD_ASM)
+#define SIQS_HAVE_SINV16
+#define SIQS_SINV16(fb) ((fb)->small_inv)
+#define SIQS_CORR16(fb) ((fb)->correction)
+#elif defined(__aarch64__) && defined(__ARM_NEON)
+#define SIQS_HAVE_SINV16
+#define SIQS_SINV16_SEPARATE
+#define SIQS_SINV16(fb) ((fb)->small_inv16)
+#define SIQS_CORR16(fb) ((fb)->correction16)
+#endif
 
 // we trade a few bit operations per prime 
 // to be able to load both the fb_index and the sieve location in a single 
@@ -367,6 +621,7 @@ typedef struct
     uint32_t fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 8)
     uint32_t fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 8)
     uint32_t med_B;				//index at which primes are bigger than blocksize (and a multiple of 8)
+    uint32_t fb_blk8i;          // index at which primes are bigger than 8x a block (and a multiple of 8)
     uint32_t large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 8)
     uint32_t x2_large_B;
     uint32_t ss_start_B;
@@ -425,6 +680,28 @@ typedef struct {
 
     uint32_t pmax;				// largest prime in factor base
     int scan_unrolling;			// how many bytes to unroll the sieve scan
+
+    // large-prime sieve strategy, resolved in siqs_static_init
+    // (siqs_choose_large before get_params for lp_direct, the rest in
+    // siqs_resolve_strategy); see the strategy notes near TRY_DIRECT_SIEVE
+    int lp_direct;              // 1: [large_B, B) direct sieve, 0: buckets
+    int mid_bucket;             // 1: [med_B, large_B) buckets, 0: sparse sieve
+    int lp_kernel;              // SIQS_K_* for the direct scatter
+    int sparse_kernel;          // SIQS_K_* for the sparse sieve / tdiv_large
+    int lp_isa;                 // SIQS_ISA_* of those kernels
+    int lp_portable_roots;      // 1: per-poly roots via nextRoots_32k_generic_small
+                                // + nextRoots_32k_lp_portable
+
+    // get_params: the built-in table used and the values it gives for
+    // the TF bound, TFSm, MFBD and MFBT (0 = not tabulated at this size,
+    // so siqs_static_init uses its formulas/defaults).  Applied in
+    // siqs_static_init exactly as -siqsTF, -siqsTFSm, -siqsMFBD and
+    // -siqsMFBT would be, and overridden by them.
+    const char* param_table_name;
+    uint32_t param_tf;
+    uint32_t param_tfsm;
+    double param_mfbd;
+    double param_mfbt;
 
     uint32_t tf_small_cutoff;		// bit level to determine whether to bail early from tf
     uint32_t tf_closnuf;			// subject anything sieved beyond this to tf
@@ -514,6 +791,8 @@ typedef struct {
     double t_mpsieve;
     double t_lpsieve;
     double t_tdiv;
+    double t_lpresieve;
+    double t_sparsesieve;
     double t_polyupdate;
 
     // stuff for sqrt
@@ -585,13 +864,19 @@ typedef struct {
     sieve_fb_compressed* comp_sieve_p;		// scratch space for a packed versions of fb
     sieve_fb_compressed* comp_sieve_n;		// for use during sieving smallish primes
 
-    
+    sieve_fb* sieve_p;		// scratch space for a packed versions of fb
+    sieve_fb* sieve_n;		// for use during sieving medium primes
+#if defined(TRY_DIRECT_SIEVE)
+    direct_pool_t* dpool;		// scan survivors awaiting the large-prime resieve
+#endif
 
     //large prime sieving
     update_t update_data;		// data for updating root values
     lp_bucket* buckets;			// bins holding sieve updates
     int* rootupdates;			// updates to apply to roots of primes
     uint16_t* sm_rootupdates;			// updates to apply to roots of primes
+    uint32_t* fr_r1;            // firstRoots_32k vector pre-pass: first roots
+    uint32_t* fr_r2;            // (inv-multiplied, unordered) for fb [small, B)
     uint32_t* mask2;
 
 #ifdef USE_XLBUCKET
@@ -710,6 +995,8 @@ typedef struct {
 
     double t_mpsieve;
     double t_lpsieve;
+    double t_sparsesieve;
+    double t_lpresieve;
     double t_tdiv;
     double t_polyupdate;
 
@@ -733,8 +1020,229 @@ void med_sieveblock_32k_sse41(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* 
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
+// avx512bw med sieve with fixed-trip-count, sink-strip passes for p > 32768/3
+#define MED_SIEVE_SPLIT
+// the AVX2 med sieve: with MED_SIEVE_SPLIT, the same fixed-pass split
+#ifdef MED_SIEVE_SPLIT
+#define MED_SIEVE_AVX2_FN med_sieveblock_32k_avx2_split
+#else
+#define MED_SIEVE_AVX2_FN med_sieveblock_32k_avx2
+#endif
+void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+// AArch64 NEON med sieves; the default is MED_SIEVE_NEON_FN, overridden at
+// run time by the environment variable YAFU_NEON_MED=ranges|split|
+// splitsink|hybrid|hybridsink|portable (portable: med_sieveblock_32k, with
+// the other NEON kernels still on).
+// On a Neoverse-N1, C73, 1 thread: split 39.6 s, ranges 41.1 s; later
+// (Mcycles) splitsink 90,640, hybridsink 92,010, hybrid 92,295, split 93,150.
+void med_sieveblock_32k_neon(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_neon_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_neon_splitsink(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_neon_hybrid(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void med_sieveblock_32k_neon_hybridsink(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+#ifndef MED_SIEVE_NEON_FN
+#define MED_SIEVE_NEON_FN med_sieveblock_32k_neon_splitsink
+#endif
+#define MED_SIEVE_NEON_STR2(x) #x
+#define MED_SIEVE_NEON_STR(x) MED_SIEVE_NEON_STR2(x)
+#define MED_SIEVE_NEON_NAME MED_SIEVE_NEON_STR(MED_SIEVE_NEON_FN)
+// the sparse sieve for [med_B, fb_blk8i), selected by sconf->sparse_kernel
+extern void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
+// direct sieve pass 1, selected by sconf->lp_kernel
+extern void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
+
+#if defined(TRY_DIRECT_SIEVE)
+#if defined(_MSC_VER) && !defined(__clang__)
+#define SIQS_FORCEINLINE static __forceinline
+#include <intrin.h>
+// trailing zero count of a nonzero word, and population count
+static __forceinline uint32_t siqs_ctz32(uint32_t x)
+{
+    unsigned long p;
+    _BitScanForward(&p, x);
+    return (uint32_t)p;
+}
+static __forceinline uint32_t siqs_popcnt32(uint32_t x)
+{
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    return (((x + (x >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+}
+#else
+#define SIQS_FORCEINLINE static inline __attribute__((always_inline))
+#define siqs_ctz32(x) ((uint32_t)__builtin_ctz(x))
+#if defined(__POPCNT__) || !(defined(__x86_64__) || defined(__i386__))
+#define siqs_popcnt32(x) ((uint32_t)__builtin_popcount(x))
+#else
+// without -mpopcnt (SSE4.1 and AVX2 builds) gcc turns __builtin_popcount
+// into a call to libgcc's __popcountdi2, which cost ~7% of an SSE4.1 run
+static inline __attribute__((always_inline)) uint32_t siqs_popcnt32(uint32_t x)
+{
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    return (((x + (x >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+}
+#endif
+#endif
+
+// buffer size for the compress kernels: a flush threshold plus room for one
+// more 16-prime group (64 entries) and the last unaligned store's 16-lane tail
+#define DIRECT_CBUF_SIZE (DIRECT_CBUF_FLUSH + 80)
+
+// sieve the buffered hits ((logp << 24) | position entries)
+static inline void direct_compress_flush(uint8_t* sieve, const uint32_t* buf, uint32_t n)
+{
+    uint32_t k;
+    for (k = 0; k < n; k++)
+    {
+        uint32_t e = buf[k];
+        sieve[e & 0xffffff] -= (uint8_t)(e >> 24);
+    }
+}
+
+// for the large-prime early exits, which leave Q = 1 or prime once Q <
+// p^2: if Q is an fb prime in [lo, hi), record it and set Q = 1 (a full
+// relation instead of a large prime); returns the new smooth_num.
+// primes is sorted ascending.
+static inline int siqs_lp_fb_lookup(mpz_t Q, const uint32_t* primes,
+    uint32_t lo, uint32_t hi, uint32_t* fb_offsets, int smooth_num)
+{
+    uint32_t q;
+
+    if ((lo >= hi) || (mpz_size(Q) != 1) ||
+        (mpz_cmp_ui(Q, primes[hi - 1]) > 0) || (mpz_cmp_ui(Q, primes[lo]) < 0))
+        return smooth_num;
+
+    q = (uint32_t)mpz_get_ui(Q);
+    while (lo < hi)
+    {
+        uint32_t mid = (lo + hi) >> 1;
+        if (primes[mid] < q) lo = mid + 1;
+        else hi = mid;
+    }
+    if ((primes[lo] == q) && (smooth_num < (MAX_SMOOTH_PRIMES - 1)))
+    {
+        fb_offsets[++smooth_num] = lo;
+        mpz_set_ui(Q, 1);
+    }
+    return smooth_num;
+}
+
+static inline void direct_compress_flush_fast(uint8_t* sieve, const uint32_t* buf, uint32_t n, uint8_t logp)
+{
+    uint32_t k;
+    for (k = 0; k < n; k++)
+    {
+        sieve[buf[k] & 0xffffff] -= logp;
+    }
+}
+
+// portable parts (direct_sieve.c)
+void direct_resieve_hit(direct_pool_t* pool, uint32_t pos, uint32_t fbi, uint32_t prime);
+void direct_hits_reserve(direct_pool_t* pool, static_conf_t* sconf);
+void direct_resieve_hits(static_conf_t* sconf, dynamic_conf_t* dconf);
+uint32_t direct_resieve_hit_entry(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t k);
+void direct_block_sub4(uint8_t* blk);
+void nextRoots_32k_lp_portable(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_scalar_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_scalar_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_scalar_append(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_scalar_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_scalar_sink(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_scalar_append(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void large_sieveblock_scalar_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_scalar_append(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_sparse_scalar(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf);
+// AArch64 NEON nextRoots_32k_generic_small (primes below med_B) and
+// nextRoots_32k_lp_buckets (YAFU_NEON_BUCKETS=loop|fixed picks the fill)
+void nextRoots_32k_neon_small(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_buckets_neon(static_conf_t* sconf, dynamic_conf_t* dconf);
+// per-poly roots for [med_B, B) when sconf->lp_portable_roots
+// (nextRoots_32k_lp_portable or nextRoots_32k_lp_avx2)
+extern void (*nextRoots_lp_ptr)(static_conf_t*, dynamic_conf_t*);
+
+// AVX-512 kernels (direct_sieve_avx512.c; AVX-512BW builds)
+void direct_sieve_largeprimes_avx512_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx512_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx512_creg(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx512_cmem(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_avx512_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx512_sink(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx512_creg(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx512_cmem(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void large_sieveblock_avx512_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_avx512_creg(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_avx512_cmem(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void tdiv_large_avx512_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_avx512_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_avx512_cmem(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+
+// AVX2 kernels (direct_sieve_avx2.c; AVX2 and AVX-512 builds)
+void direct_avx2_init(void);
+void direct_sieve_largeprimes_avx2_bitloop(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx2_sink(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_sieve_largeprimes_avx2_creg(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf);
+void direct_resieve_update_avx2_bitloop(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx2_sink(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void direct_resieve_update_avx2_creg(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve);
+void large_sieveblock_avx2_bitloop(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void large_sieveblock_avx2_creg(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init);
+void tdiv_large_avx2_bitloop(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_large_avx2_creg(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_lp_avx2(static_conf_t* sconf, dynamic_conf_t* dconf);
+
+// 4-lane kernels (direct_sieve_v4.h): SSE4.1 (direct_sieve_sse41.c) and
+// NEON (direct_sieve_neon.c; on x86 with -DSIQS_NEON_EMU for testing)
+#define SIQS_DECLARE_V4_KERNELS(sfx) \
+    void direct_v4_init_##sfx(void); \
+    void direct_sieve_largeprimes_bitloop_##sfx(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void direct_sieve_largeprimes_sink_##sfx(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void direct_sieve_largeprimes_creg_##sfx(uint8_t* sieve, static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void direct_resieve_update_bitloop_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve); \
+    void direct_resieve_update_sink_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve); \
+    void direct_resieve_update_creg_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf, uint8_t* sieve); \
+    void large_sieveblock_bitloop_##sfx(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb, \
+        uint32_t start_prime, uint8_t s_init); \
+    void large_sieveblock_creg_##sfx(uint8_t* sieve, sieve_fb* fb, fb_list* full_fb, \
+        uint32_t start_prime, uint8_t s_init); \
+    void tdiv_large_bitloop_##sfx(uint8_t parity, uint32_t poly_id, uint32_t bnum, \
+        static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void tdiv_large_creg_##sfx(uint8_t parity, uint32_t poly_id, uint32_t bnum, \
+        static_conf_t* sconf, dynamic_conf_t* dconf); \
+    void nextRoots_32k_lp_##sfx(static_conf_t* sconf, dynamic_conf_t* dconf);
+SIQS_DECLARE_V4_KERNELS(sse41)
+SIQS_DECLARE_V4_KERNELS(neon)
+#if defined(SIQS_NEON_EMU) || (defined(__aarch64__) && defined(__ARM_NEON))
+#define SIQS_HAVE_NEON_KERNELS
+#endif
+#endif
+
 extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 
 void lp_sieveblock(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
@@ -764,6 +1272,8 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+int check_relations_siqs_neon(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
 extern int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
 
 void filter_SPV(uint8_t parity, uint8_t* sieve, uint32_t poly_id, uint32_t bnum,
@@ -783,8 +1293,31 @@ extern void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
 
 void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+// the 16-bit Barrett ("old", the former MOD_CMP_8X asm) tdiv_med test,
+// for comparison with _new; selected by YAFU_TDIV_MED=old (see SIQS.c)
+void tdiv_medprimes_32k_old(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+#if defined(__aarch64__) && defined(__ARM_NEON)
+void tdiv_medprimes_32k_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_medprimes_32k_old_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+#endif
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+
+// the sparse-sieve tdiv for [med_B, fb_blk8i), selected by sconf->sparse_kernel
+extern void (*tdiv_large_ptr)(uint8_t, uint32_t, uint32_t, static_conf_t*, dynamic_conf_t*);
+direct_pool_t* direct_pool_alloc(uint32_t num_blocks);
+void direct_pool_free(direct_pool_t* pool);
+void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+// the direct sieve's fused pass, selected by sconf->lp_kernel
+extern void (*direct_resieve_update_ptr)(static_conf_t*, dynamic_conf_t*, uint8_t*);
+void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf);
+
 // TBD
 //void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
 //    uint8_t parity, uint32_t poly_id, uint32_t bnum,
@@ -911,6 +1444,36 @@ int siqs_dynamic_init(dynamic_conf_t* dconf, static_conf_t* sconf);
 int siqs_check_restart(dynamic_conf_t* dconf, static_conf_t* sconf);
 uint32_t siqs_merge_data(dynamic_conf_t* dconf, static_conf_t* sconf);
 
+// built-in parameter tables (siqs_params.c).  A table applies to the
+// large-prime kernel ISA, [large_B, B) strategy and kernel it names
+// (SIQS_ISA_*, SIQS_LARGE_*, SIQS_K_*; SIQS_STRAT_AUTO = any); get_params
+// uses the most specific table matching sconf->lp_isa, lp_direct and
+// lp_kernel.  0 in TF, TFSm, MFBD or MFBT = not tabulated (use the
+// formula/default); TF and TFSm are absolute, as -siqsTF and -siqsTFSm.
+typedef struct
+{
+    uint32_t bits;
+    uint32_t B;                 // factor base primes
+    uint32_t M;                 // large prime multiplier
+    uint32_t NB;                // 32k blocks per side
+    uint32_t TF;                // trial factoring bound (tf_closnuf)
+    uint32_t TFSm;              // small prime variation cutoff (tf_small_cutoff)
+    double MFBD;                // DLP exponent (dlp_exp)
+    double MFBT;                // TLP exponent (tlp_exp)
+} siqs_builtin_row_t;
+
+typedef struct
+{
+    const char* name;
+    uint32_t isa;
+    uint32_t large;
+    uint32_t kernel;
+    int num_rows;
+    const siqs_builtin_row_t* rows;
+} siqs_builtin_table_t;
+
+const siqs_builtin_table_t* siqs_find_param_table(uint32_t isa, int lp_direct,
+    uint32_t kernel);
 void get_params(static_conf_t* sconf);
 void get_gray_code(siqs_poly* poly);
 void set_aprime_roots(static_conf_t* sconf, dynamic_conf_t* dconf, uint32_t val, 
@@ -968,21 +1531,6 @@ int qs_solve_linear_system(fact_obj_t* obj, uint32_t fb_size,
 uint32_t qs_merge_relations(uint32_t* merge_array,
     uint32_t* src1, uint32_t n1,
     uint32_t* src2, uint32_t n2);
-
-uint64_t* qs_block_lanczos(fact_obj_t* obj,
-    uint32_t nrows,
-    uint32_t num_dense_rows,
-    uint32_t ncols,
-    qs_la_col_t* cols,
-    uint32_t* deps_found);
-
-void count_qs_matrix_nonzero(fact_obj_t* obj,
-    uint32_t nrows, uint32_t num_dense_rows,
-    uint32_t ncols, qs_la_col_t* cols);
-
-void reduce_qs_matrix(fact_obj_t* obj, uint32_t* nrows,
-    uint32_t num_dense_rows, uint32_t* ncols,
-    qs_la_col_t* cols, uint32_t num_excess);
 
 void qs_free_cycle_list(qs_la_col_t* cycle_list, uint32_t num_cycles);
 

@@ -342,14 +342,14 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
-		fb_offsets[++smooth_num] = i;	\
+		fb_offsets[++smooth_num] = (uint32_t)i;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
 
 #define DIVIDE_RESIEVED_PRIME(pid) \
     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
     {						\
-		fb_offsets[++smooth_num] = (pid);	\
+		fb_offsets[++smooth_num] = (uint32_t)(pid);	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
     }
 
@@ -400,14 +400,14 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
 
-    mask[0] = block_loc;
-    mask[2] = block_loc;
-    mask[4] = block_loc;
-    mask[6] = block_loc;
-    mask[8] = block_loc;
-    mask[10] = block_loc;
-    mask[12] = block_loc;
-    mask[14] = block_loc;
+    mask[0] = (uint16_t)block_loc;
+    mask[2] = (uint16_t)block_loc;
+    mask[4] = (uint16_t)block_loc;
+    mask[6] = (uint16_t)block_loc;
+    mask[8] = (uint16_t)block_loc;
+    mask[10] = (uint16_t)block_loc;
+    mask[12] = (uint16_t)block_loc;
+    mask[14] = (uint16_t)block_loc;
 
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
@@ -442,12 +442,20 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
         //uint32_t lpnum = bptr[0];
 #endif
 
-        int r, q;
+        int r;
 #if defined(USE_BATCHPOLY_X2)
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k + pnum * dconf->buckets->alloc_slices);
 #else
 		uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
 		uint32_t result = 0;
 
 #if defined (_MSC_VER) && !defined(__INTEL_COMPILER) && !defined(__clang__)
@@ -598,18 +606,20 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 
         CLEAN_AVX2;
 
+//#define CHECK_AVX2_ERROR 1
+
 #if CHECK_AVX2_ERROR
         int numerr = 0;
 #if (defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)) && defined(USE_AVX2)
-        printf("avx2 (asm) scan found %u results to divide\n", result);
+        //printf("avx2 (asm) scan found %u results to divide\n", result);
 #else
-        printf("avx2 scan found %u results to divide\n", result);
+        //printf("avx2 scan found %u results to divide\n", result);
 #endif
 #endif
 
         for (r = 0; r < result; r++)
         {
-            i = fb_bound + (bptr[buffer[r]] >> 16);
+            i = (int)(fb_bound + (bptr[buffer[r]] >> 16));
             prime = fb[i];
 
             // Is this only necessary with AVX2, or with the new vector approach?
@@ -634,7 +644,7 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 
             DIVIDE_RESIEVED_PRIME(i);
 #else
-            DIVIDE_ONE_PRIME(i);
+            DIVIDE_ONE_PRIME;
 #endif
 
         }
@@ -643,7 +653,7 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 		{
 			if ((bptr[j] & 0x0000ffff) == block_loc)
 			{
-				i = fb_bound + (bptr[j] >> 16);
+				i = (int)(fb_bound + (bptr[j] >> 16));
                 prime = fb[i];
 
                 if ((prime < 2) || (i >= sconf->factor_base->B))
@@ -688,7 +698,7 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
     uint32_t* fb = sconf->sieve_primes;
     uint32_t block_loc;
     uint16_t* mask = dconf->mask;
-    uint16_t buffer[32];
+    UNUSED_VAR uint16_t buffer[32];
 
 #if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
@@ -714,14 +724,14 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
     smooth_num = dconf->smooth_num[report_num];
     block_loc = dconf->reports[report_num];
 
-    mask[0] = block_loc;
-    mask[2] = block_loc;
-    mask[4] = block_loc;
-    mask[6] = block_loc;
-    mask[8] = block_loc;
-    mask[10] = block_loc;
-    mask[12] = block_loc;
-    mask[14] = block_loc;
+    mask[0] = (uint16_t)block_loc;
+    mask[2] = (uint16_t)block_loc;
+    mask[4] = (uint16_t)block_loc;
+    mask[6] = (uint16_t)block_loc;
+    mask[8] = (uint16_t)block_loc;
+    mask[10] = (uint16_t)block_loc;
+    mask[12] = (uint16_t)block_loc;
+    mask[14] = (uint16_t)block_loc;
 
 
     //primes bigger than med_B are bucket sieved, so we need
@@ -757,12 +767,20 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
         //uint32_t lpnum = bptr[0];
 #endif
 
-        int r, q;
+        UNUSED_VAR int r;
 #if defined(USE_BATCHPOLY_X2)
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k + pnum * dconf->buckets->alloc_slices);
 #else
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
         uint32_t result = 0;
 
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
@@ -778,25 +796,25 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 // could be j = 0, 4, 8, or 12
                 if ((bptr[j] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j] >> 16);
+                    i = (int)(fb_bound + (bptr[j] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 4] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 4] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 4] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 8] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 8] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 8] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 12] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 12] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 12] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
@@ -806,25 +824,25 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 // could be j = 1, 5, 9, or 13
                 if ((bptr[j + 1] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 1] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 1] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 5] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 5] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 5] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 9] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 9] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 9] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 13] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 13] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 13] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
@@ -834,25 +852,25 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 // could be j = 2, 6, 10, or 14
                 if ((bptr[j + 2] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 2] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 2] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 6] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 6] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 6] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 10] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 10] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 10] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 14] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 14] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 14] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
@@ -862,25 +880,25 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
                 // could be j= 3, 7, 11, or 15
                 if ((bptr[j + 3] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 3] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 3] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 7] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 7] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 7] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 11] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 11] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 11] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 15] & 0x0000ffff) == block_loc)
                 {
-                    i = fb_bound + (bptr[j + 15] >> 16);
+                    i = (int)(fb_bound + (bptr[j + 15] >> 16));
                     prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
@@ -893,7 +911,7 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
         {
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j] >> 16);
+                i = (int)(fb_bound + (bptr[j] >> 16));
                 prime = fb[i];
                 //printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
                 //	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
@@ -926,8 +944,8 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
     uint32_t* bptr;
     uint32_t* fb = sconf->sieve_primes;
     uint32_t block_loc;
-    uint64_t mask;
-    uint16_t buffer[32];
+    UNUSED_VAR uint64_t mask;
+    UNUSED_VAR uint16_t buffer[32];
 
 #if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
@@ -984,63 +1002,71 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
         //uint32_t lpnum = bptr[0];
 #endif
 
-        int r, q;
+        UNUSED_VAR int r;
 #if defined(USE_BATCHPOLY_X2)
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k + pnum * dconf->buckets->alloc_slices);
 #else
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
-        uint32_t result = 0;
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
+        UNUSED_VAR uint32_t result = 0;
 
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             // noticably faster to not put these in a loop!
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j] >> 16);
+                i = (int)(fb_bound + (bptr[j] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 1] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 1] >> 16);
+                i = (int)(fb_bound + (bptr[j + 1] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 2] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 2] >> 16);
+                i = (int)(fb_bound + (bptr[j + 2] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 3] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 3] >> 16);
+                i = (int)(fb_bound + (bptr[j + 3] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
 
             if ((bptr[j + 4] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 4] >> 16);
+                i = (int)(fb_bound + (bptr[j + 4] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 5] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 5] >> 16);
+                i = (int)(fb_bound + (bptr[j + 5] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 6] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 6] >> 16);
+                i = (int)(fb_bound + (bptr[j + 6] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 7] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 7] >> 16);
+                i = (int)(fb_bound + (bptr[j + 7] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
@@ -1048,49 +1074,49 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
             if ((bptr[j + 8] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 8] >> 16);
+                i = (int)(fb_bound + (bptr[j + 8] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 9] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 9] >> 16);
+                i = (int)(fb_bound + (bptr[j + 9] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 10] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 10] >> 16);
+                i = (int)(fb_bound + (bptr[j + 10] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 11] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 11] >> 16);
+                i = (int)(fb_bound + (bptr[j + 11] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 12] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 12] >> 16);
+                i = (int)(fb_bound + (bptr[j + 12] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 13] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 13] >> 16);
+                i = (int)(fb_bound + (bptr[j + 13] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 14] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 14] >> 16);
+                i = (int)(fb_bound + (bptr[j + 14] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
             if ((bptr[j + 15] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j + 15] >> 16);
+                i = (int)(fb_bound + (bptr[j + 15] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
@@ -1101,7 +1127,7 @@ void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
         {
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
-                i = fb_bound + (bptr[j] >> 16);
+                i = (int)(fb_bound + (bptr[j] >> 16));
                 prime = fb[i];
                 DIVIDE_ONE_PRIME;
             }
@@ -1131,8 +1157,8 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
     uint32_t* bptr;
     uint32_t* fb = sconf->sieve_primes;
     uint32_t block_loc;
-    uint16_t* mask = dconf->mask;
-    uint16_t buffer[32];
+    UNUSED_VAR uint16_t* mask = dconf->mask;
+    UNUSED_VAR uint16_t buffer[32];
     __m512i vmask, vblock;
 
 
@@ -1164,7 +1190,7 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     // 16 copies of the 16-bit block_loc in the lower half of
     // each of the 32-bit vector elements.
-    vblock = _mm512_set1_epi32(block_loc);
+    vblock = _mm512_set1_epi32((int)block_loc);
     vmask = _mm512_set1_epi32(0x0000ffff);
 
     //primes bigger than med_B are bucket sieved, so we need
@@ -1200,12 +1226,20 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
         //uint32_t lpnum = bptr[0];
 #endif
 
-        int r, q;
+        UNUSED_VAR int r;
 #if defined(USE_BATCHPOLY_X2)
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k + pnum * dconf->buckets->alloc_slices);
 #else
         uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
 #endif
+
+        // every fb prime below this slice is divided out by now, so once
+        // Q < p^2 for the slice's smallest prime p, Q is 1 or prime: no
+        // need to scan the remaining slices for it (an fb prime Q is
+        // looked up in trial_divide_Q_siqs)
+        if (mpz_cmp_d(dconf->Qvals[report_num],
+            (double)fb[fb_bound] * (double)fb[fb_bound]) < 0)
+            break;
         uint32_t result = 0;
 
 
@@ -1226,8 +1260,8 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
             while (result > 0)
             {
-                idx = _trail_zcnt(result);
-                i = fb_bound + (bptr[j + idx] >> 16);
+                idx = (uint32_t)_trail_zcnt(result);
+                i = (int)(fb_bound + (bptr[(uint32_t)j + idx] >> 16));
                 prime = fb[i];
                 DIVIDE_RESIEVED_PRIME(i);
 
@@ -1546,7 +1580,7 @@ __inline static void do_tdiv(uint32_t results, uint32_t reportnum, uint32_t* bpt
     uint32_t* fb_offsets = &dconf->fb_offsets[reportnum][0];
     while (results > 0)
     {
-        uint32_t idx = _trail_zcnt(results);
+        uint32_t idx = (uint32_t)_trail_zcnt(results);
         uint32_t i = fb_bound + (bptr[idx] >> 16);
         uint32_t prime = fb[i];
 
@@ -1564,16 +1598,16 @@ __inline static void do_tdiv(uint32_t results, uint32_t reportnum, uint32_t* bpt
 void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
-    int i, j, k;
-    uint32_t basebucket, prime;
-    int smooth_num;
-    uint32_t* fb_offsets;
+    UNUSED_VAR int i, j, k;
+    UNUSED_VAR uint32_t basebucket, prime;
+    UNUSED_VAR int smooth_num;
+    UNUSED_VAR uint32_t* fb_offsets;
     uint32_t* bptr;
     uint32_t* fb = sconf->sieve_primes;
-    uint32_t block_loc;
-    uint16_t* mask = dconf->mask;
-    uint16_t buffer[32];
-    __m512i vmask, vblock;
+    UNUSED_VAR uint32_t block_loc;
+    UNUSED_VAR uint16_t* mask = dconf->mask;
+    UNUSED_VAR uint16_t buffer[32];
+    UNUSED_VAR __m512i vmask, vblock;
 
     // 16 copies of the 16-bit block_loc in the lower half of
     // each of the 32-bit vector elements.
@@ -1591,7 +1625,7 @@ void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
     {
         if (dconf->valid_Qs[r])
         {
-            valid_reports[numvalid] = r;
+            valid_reports[numvalid] = (uint32_t)r;
             numvalid++;
         }
         if (numvalid >= 32)
@@ -1621,14 +1655,14 @@ void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
 
             for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
             {
-                uint32_t idx;
+                UNUSED_VAR uint32_t idx;
                 __m512i velements = _mm512_load_epi32(bptr + j);
                 velements = _mm512_and_epi32(velements, vmask);
 
-                __m512i vblock1 = _mm512_set1_epi32(dconf->reports[reports[0]]);
-                __m512i vblock2 = _mm512_set1_epi32(dconf->reports[reports[1]]);
-                __m512i vblock3 = _mm512_set1_epi32(dconf->reports[reports[2]]);
-                __m512i vblock4 = _mm512_set1_epi32(dconf->reports[reports[3]]);
+                __m512i vblock1 = _mm512_set1_epi32((int)(dconf->reports[reports[0]]));
+                __m512i vblock2 = _mm512_set1_epi32((int)(dconf->reports[reports[1]]));
+                __m512i vblock3 = _mm512_set1_epi32((int)(dconf->reports[reports[2]]));
+                __m512i vblock4 = _mm512_set1_epi32((int)(dconf->reports[reports[3]]));
 
                 uint32_t result1 = _mm512_cmp_epu32_mask(velements, vblock1, _MM_CMPINT_EQ);
                 uint32_t result2 = _mm512_cmp_epu32_mask(velements, vblock2, _MM_CMPINT_EQ);
@@ -1671,12 +1705,12 @@ void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
 
             for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
             {
-                uint32_t idx;
+                UNUSED_VAR uint32_t idx;
                 __m512i velements = _mm512_load_epi32(bptr + j);
                 velements = _mm512_and_epi32(velements, vmask);
 
-                __m512i vblock1 = _mm512_set1_epi32(dconf->reports[reports[0]]);
-                __m512i vblock2 = _mm512_set1_epi32(dconf->reports[reports[1]]);
+                __m512i vblock1 = _mm512_set1_epi32((int)(dconf->reports[reports[0]]));
+                __m512i vblock2 = _mm512_set1_epi32((int)(dconf->reports[reports[1]]));
 
                 uint32_t result1 = _mm512_cmp_epu32_mask(velements, vblock1, _MM_CMPINT_EQ);
                 uint32_t result2 = _mm512_cmp_epu32_mask(velements, vblock2, _MM_CMPINT_EQ);
@@ -1709,7 +1743,7 @@ void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
             basebucket = 0;
         }
 
-        r = reports[rnum];
+        r = (int)reports[rnum];
 
         for (k = 0; (uint32_t)k < dconf->buckets->num_slices; k++)
         {
@@ -1721,7 +1755,7 @@ void tdiv_LP_avx512_allreports(uint8_t parity, uint32_t bnum,
                 __m512i velements = _mm512_load_epi32(bptr + j);
                 velements = _mm512_and_epi32(velements, vmask);
 
-                __m512i vblock1 = _mm512_set1_epi32(dconf->reports[r]);
+                __m512i vblock1 = _mm512_set1_epi32((int)dconf->reports[r]);
                 uint32_t result1 = _mm512_cmp_epu32_mask(velements, vblock1, _MM_CMPINT_EQ);
 
                 do_tdiv(result1, reports[rnum], &bptr[j], fb_bound, fb, dconf);

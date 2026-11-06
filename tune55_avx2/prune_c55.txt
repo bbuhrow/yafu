@@ -1,0 +1,11 @@
+# siqs_tune_v2 prune list for c55, from input(s) [1, 2, 3]; best 0.953 (B=1,M=50,TF=+4,TFSm=+0,NB=1)
+# 'level' lines drop a whole level whose best point is > 8% slower than the best; 'point' lines drop points > 15% slower (or timed out / failed).  Delete lines to keep them.
+level B=0.5   # best 1.126
+level TF=-4   # best 1.076
+point B=1.5,M=50,TF=+0,TFSm=+0,NB=1   # 1.102
+point B=1.25,M=50,TF=-2,TFSm=+0,NB=1   # 1.111
+point B=1.25,M=100,TF=-2,TFSm=+0,NB=1   # 1.113
+point B=1.25,M=200,TF=-2,TFSm=+0,NB=1   # 1.126
+point B=1.5,M=100,TF=-2,TFSm=+0,NB=1   # 1.166
+point B=1.5,M=200,TF=-2,TFSm=+0,NB=1   # 1.169
+point B=1.5,M=50,TF=-2,TFSm=+0,NB=1   # 1.192

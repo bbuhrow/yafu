@@ -1,0 +1,3 @@
+# shell and python tools run under bash / WSL: keep LF line endings
+*.sh text eol=lf
+tools/*.py text eol=lf

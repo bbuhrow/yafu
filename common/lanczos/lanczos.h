@@ -145,7 +145,11 @@ static const v_t v_zero = {{0}};
 /* the smallest matrix size that will be converted 
    to packed format */
 
-#define MIN_NROWS_TO_PACK 30000
+/* was 30000; lowered for yafu's SIQS, whose 10k-30k row matrices
+   run about 2x faster packed. NFS matrices are unaffected. */
+#ifndef MIN_NROWS_TO_PACK
+#define MIN_NROWS_TO_PACK 10000
+#endif
 
 /* routines for cache-efficient multiplication of
    sparse matrices */

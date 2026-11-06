@@ -216,9 +216,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
 	uint64_t q64, f64;
-	int j, i, it;
+	UNUSED_VAR int j, i, it;
 	uint32_t prime;
-	int dlp_done = 0;
 	int smooth_num;
 	uint32_t *fb_offsets;
 	uint32_t polya_factors[20];
@@ -237,7 +236,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	// check for additional factors of the a-poly factors
 	// make a separate list then merge it with fb_offsets
 	it=0;	// max 20 factors allocated for - should be overkill
-	for (j = 0; (j < dconf->curr_poly->s - dconf->num_alp) && (it < 20); j++)
+	//for (j = 0; (j < dconf->curr_poly->s - dconf->num_alp) && (it < 20); j++)
+    for (j = 0; j < dconf->curr_poly->s && (it < 20); j++)
 	{
         prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
 
@@ -250,6 +250,35 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 #endif
 		}
 	}
+
+#ifdef DEBUG_MISSED_FB_PRIMES
+	// temporary diagnostic: count fb primes still dividing Q after all
+	// trial division, by range (0: [2,med_B), 1: [med_B,large_B), 2: [large_B,B))
+	{
+		static uint64_t nchk = 0, nmiss[3] = { 0, 0, 0, 0 }, nq = 0;
+		fb_list* fbl = sconf->factor_base;
+		uint32_t k;
+		int missed = 0;
+		for (k = 2; k < fbl->B; k++)
+		{
+			if (mpz_tdiv_ui(dconf->Qvals[report_num], fbl->list->prime[k]) == 0)
+			{
+                if (k < fbl->sieve_small_fb_start) r = 0;
+                else if (k < fbl->med_B) r = 1;
+                else if (k < fbl->large_B) r = 2;
+                else r = 3;
+				nmiss[r]++;
+				missed = 1;
+			}
+		}
+		nchk++;
+		nq += missed;
+		if ((nchk % 200000) == 0)
+			printf("\nmissed-fb-primes: %" PRIu64 " reports, %" PRIu64 " with misses; "
+				"small %" PRIu64 ", med %" PRIu64 ", sparse %" PRIu64 ", large %" PRIu64 "\n",
+				nchk, nq, nmiss[0], nmiss[1], nmiss[2], nmiss[3]);
+	}
+#endif
 
 #if 0 //def SPARSE_STORE
     // edit: removed because med_B seems to be a little too high
@@ -271,6 +300,13 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
     smooth_num = i - 1;
 #endif
     
+
+	// the large-prime early exits (tdiv_LP, the direct resieve) stop once
+	// Q < p^2, leaving Q = an fb prime they would have divided out later:
+	// find it here, so the relation is a full instead of a large prime
+	smooth_num = siqs_lp_fb_lookup(dconf->Qvals[report_num],
+		sconf->factor_base->list->prime, 2, sconf->factor_base->B,
+		fb_offsets, smooth_num);
 
 	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
@@ -315,9 +351,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
         }
 
 		// add this one
-        buffer_relation(offset, large_prime, smooth_num + 1,
-            fb_offsets, dconf->curr_poly->index, poly_id, 
-            parity, dconf, polya_factors, it, 1);
+        buffer_relation(offset, large_prime, (uint32_t)smooth_num + 1,
+            fb_offsets, (uint32_t)dconf->curr_poly->index, poly_id, 
+            parity, dconf, polya_factors, (uint32_t)it, 1);
 
 		return;
 	}
@@ -340,7 +376,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
             // processing DLP's only with the batch GCD is slower...
             if ((sconf->use_dlp >= 2) && (dconf->do_batch) && 0)
             {
-                int32_t soffset = offset;
+                int32_t soffset = (int32_t)offset;
 
                 if (parity)
                 {
@@ -352,7 +388,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                 // use this field to record how many we've batched.
                 dconf->attempted_cosiqs++;
                 mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
-                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
+                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, (uint32_t)smooth_num + 1,
                     dconf->gmptmp2, NULL, 0, dconf->gmptmp1, &dconf->rb);
 
                 // start processing the relations in the indicated buffer if running
@@ -365,7 +401,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     struct timeval stop;
                     double ttime;
                     relation_batch_t* rb;
-                    int i;
 
                     if (THREADS == 1)
                         rb = &sconf->rb[0];
@@ -401,7 +436,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
                         if (c->success)
                         {
-                            uint8_t parity = c->signed_offset < 0 ? 1 : 0;
+                            uint8_t c_parity = (uint8_t)(c->signed_offset < 0 ? 1 : 0);
 
                             if (c->success == 4)
                                 dconf->qlp_useful++;
@@ -412,8 +447,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             else if (c->success == 1)
                                 dconf->num_slp++;
 
-                            buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
-                                f, c->a, c->b, parity, dconf, NULL, 0, 1);
+                            buffer_relation((uint32_t)abs(c->signed_offset), c->lp_r, c->num_factors_r,
+                                f, (uint32_t)c->a, c->b, c_parity, dconf, NULL, 0, 1);
                         }
                     }
 
@@ -458,7 +493,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 			mpz_powm_ui(dconf->gmptmp1, dconf->gmptmp2, q64 - 1, dconf->gmptmp1);
 			res = mpz_get_64(dconf->gmptmp1);
-#elif defined (FORCE_GENERIC)
+#elif defined (FORCE_GENERIC) || !defined(GCC_ASM64X) || defined(ASM_ARITH_DEBUG)
+			// spPRP2 exists only in arith.c's x86-64 asm branch
 			mpz_set_64(dconf->gmptmp1, q64);
 			mpz_set_64(dconf->gmptmp2, 2);
 			mpz_set_64(dconf->gmptmp3, q64 - 1);
@@ -500,7 +536,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     large_prime[1] = (q64 / f64);
                     if (dconf->num_alp == 1)
                     {
-                        large_prime[2] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
+                        large_prime[2] = (uint64_t)dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
                         dconf->tlp_useful++;
                     }
                     else
@@ -511,9 +547,9 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     large_prime[3] = 1;
 
 					
-					buffer_relation(offset, large_prime, smooth_num + 1,
-						fb_offsets, dconf->curr_poly->index, poly_id, parity,
-                        dconf, polya_factors, it, 1);
+					buffer_relation(offset, large_prime, (uint32_t)smooth_num + 1,
+						fb_offsets, (uint32_t)dconf->curr_poly->index, poly_id, parity,
+                        dconf, polya_factors, (uint32_t)it, 1);
 				}
 			}
 			else
@@ -573,7 +609,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
             if (dconf->do_batch)
             {
-                int32_t soffset = offset;
+                int32_t soffset = (int32_t)offset;
                 
                 if (parity)
                 {
@@ -588,7 +624,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                 // that interface specification here: negate the Qval to be factored.
                 mpz_set_ui(dconf->gmptmp1, 0);
                 mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
-                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
+                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, (uint32_t)smooth_num + 1,
                     dconf->gmptmp2, NULL, 0, dconf->gmptmp1, &dconf->rb);
 
                 // the relation batch persists across polynomials (we save enough
@@ -618,7 +654,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     struct timeval stop;
                     double ttime;
                     relation_batch_t *rb;
-                    int i;
 
                     // if single threaded and we've reached the number of target relations.
                     // or if multi-threaded and the dispatcher has released a buffer
@@ -765,7 +800,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
                         if (c->success)
                         {
-                            uint8_t parity = c->signed_offset < 0 ? 1 : 0;
+                            uint8_t c_parity = (uint8_t)(c->signed_offset < 0 ? 1 : 0);
 
                             if (c->success == 4)
                             {
@@ -778,8 +813,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             else if (c->success == 1)
                                 dconf->num_slp++;
 
-                            buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
-                                f, c->a, c->b, parity, dconf, NULL, 0, 1);
+                            buffer_relation((uint32_t)abs(c->signed_offset), c->lp_r, c->num_factors_r,
+                                f, (uint32_t)c->a, c->b, c_parity, dconf, NULL, 0, 1);
                         }
                     }
 
@@ -851,7 +886,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
             if (dconf->do_batch)
             {
-                int32_t soffset = offset;
+                int32_t soffset = (int32_t)offset;
 
                 if (parity)
                 {
@@ -862,7 +897,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                 dconf->attempted_cosiqs++;
                 mpz_set_ui(dconf->gmptmp1, 0);
                 mpz_neg(dconf->gmptmp2, dconf->Qvals[report_num]);
-                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
+                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, (uint32_t)(smooth_num + 1),
                     dconf->gmptmp2, NULL, 0, dconf->gmptmp1, &dconf->rb);
 
                 // the relation batch persists across polynomials (we save enough
@@ -892,7 +927,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     struct timeval stop;
                     double ttime;
                     relation_batch_t* rb;
-                    int i;
 
                     // if single threaded and we've reached the number of target relations.
                     // or if multi-threaded and the dispatcher has released a buffer
@@ -968,7 +1002,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
                         if (c->success)
                         {
-                            uint8_t parity = c->signed_offset < 0 ? 1 : 0;
+                            uint8_t c_parity = (uint8_t)(c->signed_offset < 0 ? 1 : 0);
 
                             if (c->success == 4)
                             {
@@ -981,8 +1015,8 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                             else if (c->success == 1)
                                 dconf->num_slp++;
 
-                            buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
-                                f, c->a, c->b, parity, dconf, NULL, 0, 1);
+                            buffer_relation((uint32_t)abs(c->signed_offset), c->lp_r, c->num_factors_r,
+                                f, (uint32_t)c->a, c->b, c_parity, dconf, NULL, 0, 1);
                         }
                     }
 
@@ -1029,7 +1063,7 @@ void buffer_relation(uint32_t offset, uint64_t *large_prime, uint32_t num_factor
     // will get merged with other such buffers (if multi-threaded) and
     // dumped to file once the threads are joined.
     siqs_r *rel;
-    uint32_t i, j, k;
+    UNUSED_VAR uint32_t i, j, k;
 
     // first check that this relation won't overflow the buffer
     if (conf->buffered_rels >= conf->buffered_rel_alloc)
@@ -1089,10 +1123,10 @@ void buffer_relation(uint32_t offset, uint64_t *large_prime, uint32_t num_factor
     rel->num_factors = num_factors + num_polya_factors;
 #endif
 
-    rel->large_prime[0] = large_prime[0];
-	rel->large_prime[1] = large_prime[1];
-	rel->large_prime[2] = large_prime[2];
-    rel->large_prime[3] = large_prime[3];
+    rel->large_prime[0] = (uint32_t)large_prime[0];
+	rel->large_prime[1] = (uint32_t)large_prime[1];
+	rel->large_prime[2] = (uint32_t)large_prime[2];
+    rel->large_prime[3] = (uint32_t)large_prime[3];
 
 	conf->buffered_rels++;
 	return;
@@ -1198,18 +1232,18 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 	else
 	{
 		//store to file
-		i = sprintf(buf, "R ");
+		i = (uint32_t)sprintf(buf, "R ");
 
 		if (parity)
-			i += sprintf(buf + i, "-%x ", offset);
+			i += (uint32_t)sprintf(buf + i, "-%x ", offset);
 		else
-			i += sprintf(buf + i, "%x ", offset);
+			i += (uint32_t)sprintf(buf + i, "%x ", offset);
 	
-		i += sprintf(buf + i, "%x ", poly_id);
+		i += (uint32_t)sprintf(buf + i, "%x ", poly_id);
 	
 		k = 0;
 		while (k < num_factors)
-			i += sprintf(buf + i, "%x ", fb_offsets[k++]);
+			i += (uint32_t)sprintf(buf + i, "%x ", fb_offsets[k++]);
 
         buf_offset = i;
 

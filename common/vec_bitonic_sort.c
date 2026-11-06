@@ -34,6 +34,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+
+// AVX-512 only (used by the KNL root updates); nothing to build elsewhere
+#if defined(__x86_64__) || defined(_M_X64)
+
 #include <immintrin.h>
 #include <x86intrin.h>
 #include <ytools.h>
@@ -6387,3 +6391,5 @@ void bucket_sort32(uint32_t *buckets, uint32_t bucket_size, uint32_t *bucket_cou
 #endif
 
 	
+
+#endif // __x86_64__ || _M_X64

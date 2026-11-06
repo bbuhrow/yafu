@@ -24,6 +24,18 @@ code to the public domain.
 #include "tdiv_macros_common.h"
 #include "tdiv_macros_32k.h"
 
+
+#if defined(__aarch64__) && defined(__ARM_NEON)
+#include <arm_neon.h>
+#include "neon_util.h"
+#elif defined( USE_AVX2 ) || defined( USE_AVX512F ) || defined( USE_SSE41 ) || defined( D_HAS_SSE2 )
+#include <immintrin.h>
+#endif
+
+#if !defined(__aarch64__) && (defined(USE_SSE41) || defined(D_HAS_SSE2))
+#include "tdiv_med_sse.h"
+#endif
+
 //#define SIQSDEBUG 1
 
 /*
@@ -66,9 +78,9 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32_t block_loc;
-    uint16_t buffer[32];
-    uint32_t tmp3 = 0;
-    int r;
+    UNUSED_VAR uint16_t buffer[32];
+    UNUSED_VAR uint32_t tmp3 = 0;
+    UNUSED_VAR int r;
 
 #ifdef USE_8X_MOD_ASM
     uint16_t *bl_sizes = dconf->bl_sizes;
@@ -131,7 +143,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         smooth_num = dconf->smooth_num[report_num];
         block_loc = dconf->reports[report_num];
 
-        i = sconf->sieve_small_fb_start;
+        i = (int)sconf->sieve_small_fb_start;
 
         // 8x trial division
         bound = sconf->factor_base->fb_10bit_B;
@@ -175,14 +187,14 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         bl_sizes[6] = 32768;
         bl_sizes[7] = 32768;
 
-        bl_locs[0] = block_loc;
-        bl_locs[1] = block_loc;
-        bl_locs[2] = block_loc;
-        bl_locs[3] = block_loc;
-        bl_locs[4] = block_loc;
-        bl_locs[5] = block_loc;
-        bl_locs[6] = block_loc;
-        bl_locs[7] = block_loc;
+        bl_locs[0] = (uint16_t)block_loc;
+        bl_locs[1] = (uint16_t)block_loc;
+        bl_locs[2] = (uint16_t)block_loc;
+        bl_locs[3] = (uint16_t)block_loc;
+        bl_locs[4] = (uint16_t)block_loc;
+        bl_locs[5] = (uint16_t)block_loc;
+        bl_locs[6] = (uint16_t)block_loc;
+        bl_locs[7] = (uint16_t)block_loc;
 
         tmp3 = 0;
 
@@ -437,7 +449,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
             tmp1 = tmp1 + fullfb_ptr->correction[i];
             q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
-            tmp1 = q64 >> FOGSHIFT;
+            tmp1 = (uint32_t)(q64 >> FOGSHIFT);
             tmp1 = tmp1 + 1;
             tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
 
@@ -468,3 +480,717 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 }
 
 
+void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    // we have flagged this sieve offset as likely to produce a relation
+    // nothing left to do now but check and see.
+    uint32_t i;
+    uint32_t prime, root1, root2, report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr, * fullfb = sconf->factor_base->list;
+    uint32_t block_loc;
+
+    fullfb_ptr = fullfb;
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        // for each report, we trial divide, and then either trial divide or
+        // resieve.  for the first trial division step, we have either
+        // unrolled C routines or SIMD assembly routines to choose from.  The
+        // second trial division step only has a C routine - the more optimized
+        // path is resieving.
+        //
+        // the basic idea of trial division is to test if the block location
+        // in question lies on the arithmetic progression of a prime.  By the time
+        // we get to this routine, the arithmetic progression has been reset for
+        // the next sieve block, so we have to do a few manipulations to revert
+        // to the "real" progression (add the blocksize back to the roots).  
+        // there are various methods for doing the test depending on the size of
+        // the primes (and therefore how many times it could have possibly landed
+        // in the sieve block).  The most straightforward, and the method the SIMD
+        // assembly uses, is to see if the roots (adjusted for the "real" progression)
+        // minus the block location in question, divided by the prime, is zero.  if
+        // so, this block location is on the arithmetic progression of that prime,
+        // and we can proceed to trial divide the prime into Q(x) for this sieve hit.
+        // 
+        // the basic idea of resieving is to start from the end of the "real"
+        // arithmetic progression, repeatedly subtract each prime, and test after
+        // each subtraction if we've hit the sieve location in question.  if so,
+        // we know this location is on the prime's arithmetic progression and can 
+        // proceed to trial divide.  For "large enough" primes, this is very efficient
+        // because we only need to do a few subtractions and tests instead of a 
+        // division.  Since we are not really doing division tests, and instead are
+        // doing multiplication by inverses, and futhermore since we might be doing those
+        // multiplications 8 at a time using SIMD, resieving is only a win for the 
+        // very largest primes less than 16 bits in size.  
+        //
+        // for OS/architecture/compilers where resieving isn't implemented, there are
+        // further trial division steps instead.  These are more efficient than
+        // the "check for exact division of a difference" method described above,
+        // but are only implemented in portable C.  See code below for more detail.
+
+        // pull the details of this report to get started.
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        i = sconf->sieve_small_fb_start;
+
+#if defined(USE_AVX512F)
+
+        uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            if ((i & 15) == 0) break;
+
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        __m512i vbase = _mm512_set1_epi32((int)(block_loc - 32768));
+
+        for (; i + 16 < sconf->factor_base->fb_13bit_B; i += 16)
+        {
+            __m512i vp = _mm512_cvtepu16_epi32(_mm256_load_si256((const __m256i*) & fbc->prime[i]));
+            __m512i vr1 = _mm512_cvtepu16_epi32(_mm256_load_si256((const __m256i*) & fbc->root1[i]));
+            __m512i vr2 = _mm512_cvtepu16_epi32(_mm256_load_si256((const __m256i*) & fbc->root2[i]));
+            __m512i vminv = _mm512_load_si512(&fullfb_ptr->minv32[i]);
+            __m512i vthresh = _mm512_load_si512(&fullfb_ptr->thresh32[i]);
+
+            // voff = block_loc - 32768 + 32769*p   (32769*p = (p << 15) + p)
+            __m512i voff = _mm512_add_epi32(vbase,
+                _mm512_add_epi32(_mm512_slli_epi32(vp, 15), vp));
+
+            __m512i t1 = _mm512_sub_epi32(voff, vr1);
+            __m512i t2 = _mm512_sub_epi32(voff, vr2);
+
+            __mmask16 hit1 = _mm512_cmple_epu32_mask(_mm512_mullo_epi32(t1, vminv), vthresh);
+            __mmask16 hit2 = _mm512_cmple_epu32_mask(_mm512_mullo_epi32(t2, vminv), vthresh);
+            unsigned mask = (unsigned)(hit1 | hit2);
+
+            while (mask)
+            {
+                int lane = _trail_zcnt(mask);
+                mask &= mask - 1;
+
+                DIVIDE_RESIEVED_PRIME_2(i + (uint32_t)lane);
+            }
+        }
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+
+
+#elif defined(USE_AVX2)
+
+        __m256i vbase = _mm256_set1_epi32((int)(block_loc - 32768));
+
+        uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            if ((i & 7) == 0) break;
+
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        for (; i + 8 < sconf->factor_base->fb_13bit_B; i += 8)
+        {
+            __m256i vp = _mm256_cvtepu16_epi32(_mm_load_si128((const __m128i*) & fbc->prime[i]));
+            __m256i vr1 = _mm256_cvtepu16_epi32(_mm_load_si128((const __m128i*) & fbc->root1[i]));
+            __m256i vr2 = _mm256_cvtepu16_epi32(_mm_load_si128((const __m128i*) & fbc->root2[i]));
+            __m256i vminv = _mm256_load_si256((const __m256i*) & fullfb_ptr->minv32[i]);
+            __m256i vthresh = _mm256_load_si256((const __m256i*) & fullfb_ptr->thresh32[i]);
+
+            __m256i voff = _mm256_add_epi32(vbase,
+                _mm256_add_epi32(_mm256_slli_epi32(vp, 15), vp));
+
+            __m256i x1 = _mm256_mullo_epi32(_mm256_sub_epi32(voff, vr1), vminv);
+            __m256i x2 = _mm256_mullo_epi32(_mm256_sub_epi32(voff, vr2), vminv);
+
+            __m256i h1 = _mm256_cmpeq_epi32(_mm256_min_epu32(x1, vthresh), x1);
+            __m256i h2 = _mm256_cmpeq_epi32(_mm256_min_epu32(x2, vthresh), x2);
+            unsigned mask = (unsigned int)(_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_or_si256(h1, h2))));
+
+            while (mask) {
+                int lane = _trail_zcnt(mask);
+                mask &= mask - 1;
+                DIVIDE_RESIEVED_PRIME_2(i + (uint32_t)lane);
+            }
+        }
+
+        // scalar tail loop for the remaining < 8 primes
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+
+#elif defined(USE_SSE41) || defined(D_HAS_SSE2)
+
+        uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            if ((i & 7) == 0) break;
+
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        __m128i vbase = _mm_set1_epi32((int)(block_loc - 32768));
+
+        for (; i + 4 < sconf->factor_base->fb_13bit_B; i += 4)
+        {
+            // 4 x uint16 = 64 bits, zero-extended to 4 x uint32
+            __m128i vp = tdm_load4_u16(&fbc->prime[i]);
+            __m128i vr1 = tdm_load4_u16(&fbc->root1[i]);
+            __m128i vr2 = tdm_load4_u16(&fbc->root2[i]);
+            __m128i vminv = _mm_loadu_si128((const __m128i*) & fullfb_ptr->minv32[i]);
+            __m128i vthresh = _mm_loadu_si128((const __m128i*) & fullfb_ptr->thresh32[i]);
+
+            // voff = block_loc - 32768 + 32769*p
+            __m128i voff = _mm_add_epi32(vbase,
+                _mm_add_epi32(_mm_slli_epi32(vp, 15), vp));
+
+            __m128i x1 = tdm_mullo_epi32(_mm_sub_epi32(voff, vr1), vminv);
+            __m128i x2 = tdm_mullo_epi32(_mm_sub_epi32(voff, vr2), vminv);
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh (unsigned)
+            __m128i h1 = tdm_cmple_epu32(x1, vthresh);
+            __m128i h2 = tdm_cmple_epu32(x2, vthresh);
+            unsigned mask = (unsigned int)(_mm_movemask_ps(_mm_castsi128_ps(_mm_or_si128(h1, h2))));
+
+            while (mask) {
+                int lane = _trail_zcnt(mask);
+                mask &= mask - 1;
+                DIVIDE_RESIEVED_PRIME_2(i + (uint32_t)lane);
+            }
+        }
+
+        // scalar tail loop for the remaining < 4 primes
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+
+#else
+
+        uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
+
+        for (; i < sconf->factor_base->fb_13bit_B; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+
+            // off = block_loc - 32768 + 32769*p, a multiple-of-p shift that keeps t >= 0
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                // it will divide Q(x).  do so as many times as we can.
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+
+
+#endif
+
+    }
+
+    return;
+}
+
+
+#if defined(__aarch64__) && defined(__ARM_NEON)
+
+// AArch64 NEON version of tdiv_medprimes_32k_new: the same Lemire test,
+// x divisible by p  <=>  x * minv (mod 2^32) <= thresh, on 8 primes per
+// iteration (two uint32x4 halves, so the two vmulq chains overlap).  NEON
+// has unsigned compares and no alignment rules, so no head loop is needed.
+// Primes are visited in ascending order, as in the x86 kernels, so
+// fb_offsets come out identical.  Selected under HAS_NEON (-noneon reverts
+// to tdiv_medprimes_32k_new's portable loop).
+void tdiv_medprimes_32k_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    uint32_t i;
+    uint32_t prime, root1, root2, report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr = sconf->factor_base->list;
+    uint32_t block_loc;
+    uint32_t bound = sconf->factor_base->fb_13bit_B;
+    static const uint8_t lanebit[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
+    const uint8x8_t vlanebit = vld1_u8(lanebit);
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        // wraps mod 2^32; off = base + 32769*p keeps t >= 0 (see _new)
+        uint32_t base = block_loc - 32768;
+        uint32x4_t vbase = vdupq_n_u32(base);
+
+        i = sconf->sieve_small_fb_start;
+
+        for (; i + 8 <= bound; i += 8)
+        {
+            uint16x8_t p16 = vld1q_u16(&fbc->prime[i]);
+            uint16x8_t r1_16 = vld1q_u16(&fbc->root1[i]);
+            uint16x8_t r2_16 = vld1q_u16(&fbc->root2[i]);
+
+            uint32x4_t plo = vmovl_u16(vget_low_u16(p16));
+            uint32x4_t phi = vmovl_high_u16(p16);
+
+            // voff = block_loc - 32768 + 32769*p   (32769*p = (p << 15) + p)
+            uint32x4_t offlo = vaddq_u32(vbase, vsliq_n_u32(plo, plo, 15));
+            uint32x4_t offhi = vaddq_u32(vbase, vsliq_n_u32(phi, phi, 15));
+
+            uint32x4_t minvlo = vld1q_u32(&fullfb_ptr->minv32[i]);
+            uint32x4_t minvhi = vld1q_u32(&fullfb_ptr->minv32[i + 4]);
+            uint32x4_t thrlo = vld1q_u32(&fullfb_ptr->thresh32[i]);
+            uint32x4_t thrhi = vld1q_u32(&fullfb_ptr->thresh32[i + 4]);
+
+            uint32x4_t x1lo = vmulq_u32(vsubq_u32(offlo, vmovl_u16(vget_low_u16(r1_16))), minvlo);
+            uint32x4_t x1hi = vmulq_u32(vsubq_u32(offhi, vmovl_high_u16(r1_16)), minvhi);
+            uint32x4_t x2lo = vmulq_u32(vsubq_u32(offlo, vmovl_u16(vget_low_u16(r2_16))), minvlo);
+            uint32x4_t x2hi = vmulq_u32(vsubq_u32(offhi, vmovl_high_u16(r2_16)), minvhi);
+
+            uint32x4_t hlo = vorrq_u32(vcleq_u32(x1lo, thrlo), vcleq_u32(x2lo, thrlo));
+            uint32x4_t hhi = vorrq_u32(vcleq_u32(x1hi, thrhi), vcleq_u32(x2hi, thrhi));
+
+            // narrow the 8 lane masks to 8 bytes (0x00 / 0xff); hits are
+            // rare, so test the 64-bit word before building a lane mask
+            uint8x8_t h8 = vmovn_u16(vcombine_u16(vmovn_u32(hlo), vmovn_u32(hhi)));
+            if (vget_lane_u64(vreinterpret_u64_u8(h8), 0) == 0)
+                continue;
+
+            uint32_t mask = vaddv_u8(vand_u8(h8, vlanebit));
+            while (mask)
+            {
+                uint32_t lane = (uint32_t)__builtin_ctz(mask);
+                mask &= mask - 1;
+                DIVIDE_RESIEVED_PRIME_2(i + lane);
+            }
+        }
+
+        // scalar tail loop for the remaining < 8 primes
+        for (; i < bound; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+
+    return;
+}
+
+#endif
+
+
+// ----------------------------------------------------------------------
+// tdiv_medprimes_32k_old: the 16-bit Barrett test of the old SSE2/AVX2
+// asm (MOD_CMP_8X_vec / MOD_CMP_16X_vec) in intrinsics, for comparison
+// with tdiv_medprimes_32k_new's 32-bit Lemire test.  For each prime the
+// number of steps from block_loc past the block end is
+//     q + 1,  q = ((LOC_BASE - block_loc + correction) * small_inv) >> shift
+// in 16-bit lanes (mulhi, then shift - 16 more), and block_loc is on the
+// progression iff  (q + 1) * p + block_loc - 32768  (mod 2^16)  is root1
+// or root2.  The tables (SIQS_SINV16 / SIQS_CORR16, qs_impl.h) change
+// shift at multiples of 8, so a report is done in three regions of fixed
+// shift; within one, the widest vector that fits goes first (32, 16, 8
+// lanes as the ISA allows), then scalar.  Hits are buffered and divided
+// in ascending prime order, as in the other tdiv_med kernels.
+// ----------------------------------------------------------------------
+
+#include "tdiv_med_old.h"
+
+
+#if !defined(__aarch64__) || !defined(SIQS_HAVE_SINV16)
+
+void tdiv_medprimes_32k_old(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    uint32_t report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr = sconf->factor_base->list;
+    uint32_t block_loc, r;
+    uint32_t start = sconf->sieve_small_fb_start;
+    uint32_t end = sconf->factor_base->fb_13bit_B;
+    uint16_t buf[TDIV_OLD_MAXHITS];
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+#ifdef SIQS_HAVE_SINV16
+    const uint16_t* sinv = SIQS_SINV16(fullfb_ptr);
+    const uint16_t* corr = SIQS_CORR16(fullfb_ptr);
+    uint32_t b[2];
+
+    tdm_old_bounds(fbc->prime, start, end, b);
+#endif
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        uint32_t nb = 0;
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+#ifdef SIQS_HAVE_SINV16
+        nb = tdm_old_range(fbc, sinv, corr, start, b[0], block_loc, 8, buf, nb);
+        nb = tdm_old_range(fbc, sinv, corr, b[0], b[1], block_loc, 10, buf, nb);
+        nb = tdm_old_range(fbc, sinv, corr, b[1], end, block_loc, 12, buf, nb);
+#else
+        // no 16-bit tables (FORCE_GENERIC, or ARM without NEON): the
+        // portable FOGSHIFT form.  Note these tables are not exact for the
+        // larger primes < 2^13 (a few thousand (p, block_loc) misses over
+        // all of them, even with the 32767 base).
+        {
+            uint32_t i;
+            for (i = start; i < end; i++)
+            {
+                uint32_t t = TDIV_OLD_LOC_BASE - block_loc + fullfb_ptr->correction[i];
+                uint32_t y = (uint32_t)(((uint64_t)t * fullfb_ptr->small_inv[i]) >> FOGSHIFT);
+                y = block_loc + (y + 1) * fbc->prime[i] - 32768;
+                if ((y == fbc->root1[i]) || (y == fbc->root2[i]))
+                    buf[nb++] = (uint16_t)i;
+            }
+        }
+#endif
+
+        for (r = 0; r < nb; r++)
+        {
+            DIVIDE_RESIEVED_PRIME_2((buf[r]));
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+
+    return;
+}
+
+#endif
+
+#if defined(__aarch64__) && defined(__ARM_NEON) && defined(SIQS_HAVE_SINV16)
+
+// NEON tdiv_medprimes_32k_old: the same 16-bit test, 16 primes per step
+// (two uint16x8 vectors), then 8, then scalar.  NEON lacks pmulhuw
+// (neon_mulhi_u16) and a byte movemask: the lane masks are narrowed to 8
+// bytes and only turned into a bit mask when some lane hit.
+// tdiv_medprimes_32k_old is this function on aarch64 builds, so the
+// YAFU_TDIV_MED=old selection works with or without -noneon.
+
+SIQS_FORCEINLINE uint32_t tdm_old_mask8(uint16x8_t y, const uint16_t* r1,
+    const uint16_t* r2, uint8x8_t vlanebit)
+{
+    uint16x8_t h = vorrq_u16(vceqq_u16(y, vld1q_u16(r1)), vceqq_u16(y, vld1q_u16(r2)));
+    uint8x8_t h8 = vmovn_u16(h);
+
+    if (vget_lane_u64(vreinterpret_u64_u8(h8), 0) == 0)
+        return 0;
+    return vaddv_u8(vand_u8(h8, vlanebit));
+}
+
+SIQS_FORCEINLINE uint16x8_t tdm_old_y8(const uint16_t* p, const uint16_t* sinv,
+    const uint16_t* corr, uint16x8_t vt, uint16x8_t vbl, int16x8_t vsh)
+{
+    uint16x8_t t = vaddq_u16(vt, vld1q_u16(corr));
+    // (t * sinv) >> 16, then >> xtra (vshlq by -xtra)
+    uint16x8_t q = vshlq_u16(neon_mulhi_u16(t, vld1q_u16(sinv)), vsh);
+    return vaddq_u16(vmulq_u16(vaddq_u16(q, vdupq_n_u16(1)), vld1q_u16(p)), vbl);
+}
+
+SIQS_FORCEINLINE uint32_t tdm_old_range_neon(const sieve_fb_compressed* fbc,
+    const uint16_t* sinv, const uint16_t* corr, uint32_t i, uint32_t end,
+    uint32_t block_loc, const int xtra, uint16_t* buf, uint32_t nb, uint8x8_t vlanebit)
+{
+    uint16x8_t vt = vdupq_n_u16((uint16_t)(TDIV_OLD_LOC_BASE - block_loc));
+    uint16x8_t vbl = vdupq_n_u16((uint16_t)(block_loc - 32768));
+    int16x8_t vsh = vdupq_n_s16((int16_t)(-xtra));
+
+    for (; i + 16 <= end; i += 16)
+    {
+        uint16x8_t y0 = tdm_old_y8(fbc->prime + i, sinv + i, corr + i, vt, vbl, vsh);
+        uint16x8_t y1 = tdm_old_y8(fbc->prime + i + 8, sinv + i + 8, corr + i + 8, vt, vbl, vsh);
+        uint32_t m = tdm_old_mask8(y0, fbc->root1 + i, fbc->root2 + i, vlanebit) |
+            (tdm_old_mask8(y1, fbc->root1 + i + 8, fbc->root2 + i + 8, vlanebit) << 8);
+
+        while (m)
+        {
+            buf[nb++] = (uint16_t)(i + (uint32_t)__builtin_ctz(m));
+            m &= m - 1;
+        }
+    }
+
+    for (; i + 8 <= end; i += 8)
+    {
+        uint16x8_t y0 = tdm_old_y8(fbc->prime + i, sinv + i, corr + i, vt, vbl, vsh);
+        uint32_t m = tdm_old_mask8(y0, fbc->root1 + i, fbc->root2 + i, vlanebit);
+
+        while (m)
+        {
+            buf[nb++] = (uint16_t)(i + (uint32_t)__builtin_ctz(m));
+            m &= m - 1;
+        }
+    }
+
+    for (; i < end; i++)
+        TDM_OLD_SCALAR(i, xtra);
+
+    return nb;
+}
+
+// the scalar 16-bit version, for -noneon A/B against tdiv_medprimes_32k_old_neon
+SIQS_FORCEINLINE uint32_t tdm_old_range_scalar(const sieve_fb_compressed* fbc,
+    const uint16_t* sinv, const uint16_t* corr, uint32_t i, uint32_t end,
+    uint32_t block_loc, const int xtra, uint16_t* buf, uint32_t nb)
+{
+    for (; i < end; i++)
+        TDM_OLD_SCALAR(i, xtra);
+    return nb;
+}
+
+SIQS_FORCEINLINE void tdm_old_body_neon(uint8_t parity, static_conf_t* sconf,
+    dynamic_conf_t* dconf, const int use_neon)
+{
+    uint32_t report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr = sconf->factor_base->list;
+    uint32_t block_loc, r;
+    uint32_t start = sconf->sieve_small_fb_start;
+    uint32_t end = sconf->factor_base->fb_13bit_B;
+    uint16_t buf[TDIV_OLD_MAXHITS];
+    const uint16_t* sinv = SIQS_SINV16(fullfb_ptr);
+    const uint16_t* corr = SIQS_CORR16(fullfb_ptr);
+    static const uint8_t lanebit[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
+    const uint8x8_t vlanebit = vld1_u8(lanebit);
+    uint32_t b[2];
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+    tdm_old_bounds(fbc->prime, start, end, b);
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        uint32_t nb = 0;
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        if (use_neon)
+        {
+            nb = tdm_old_range_neon(fbc, sinv, corr, start, b[0], block_loc, 8, buf, nb, vlanebit);
+            nb = tdm_old_range_neon(fbc, sinv, corr, b[0], b[1], block_loc, 10, buf, nb, vlanebit);
+            nb = tdm_old_range_neon(fbc, sinv, corr, b[1], end, block_loc, 12, buf, nb, vlanebit);
+        }
+        else
+        {
+            nb = tdm_old_range_scalar(fbc, sinv, corr, start, b[0], block_loc, 8, buf, nb);
+            nb = tdm_old_range_scalar(fbc, sinv, corr, b[0], b[1], block_loc, 10, buf, nb);
+            nb = tdm_old_range_scalar(fbc, sinv, corr, b[1], end, block_loc, 12, buf, nb);
+        }
+
+        for (r = 0; r < nb; r++)
+        {
+            DIVIDE_RESIEVED_PRIME_2((buf[r]));
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+}
+
+void tdiv_medprimes_32k_old_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdm_old_body_neon(parity, sconf, dconf, 1);
+}
+
+// aarch64 portable version (the 16-bit tables exist only in NEON builds)
+void tdiv_medprimes_32k_old(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdm_old_body_neon(parity, sconf, dconf, 0);
+}
+
+#endif

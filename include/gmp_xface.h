@@ -43,7 +43,7 @@ static INLINE void gmp2mp_t(mpz_t src, mp_t *dest) {
 	memset(dest->val, 0, MAX_MP_WORDS * sizeof(uint32_t)); //mp_clear(dest);
 	mpz_export(dest->val, &count, -1, sizeof(uint32_t),
 			0, (size_t)0, src);
-	dest->nwords = count;
+	dest->nwords = (uint32_t)count;
 }
 
 

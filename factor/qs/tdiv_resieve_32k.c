@@ -88,7 +88,7 @@ void resieve_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 		block_loc = dconf->reports[report_num];
 		
 		// where tdiv_medprimes left off
-		i = sconf->factor_base->fb_13bit_B;
+		i = (int)sconf->factor_base->fb_13bit_B;
 
 		// the roots have already been advanced to the next block.
 		// we need to correct them back to where they were before resieving.

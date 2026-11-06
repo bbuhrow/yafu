@@ -23,6 +23,10 @@ code to the public domain.
 #include "common.h"
 #include "gmp_xface.h"
 
+#if defined(TRY_SMALLP_OPT) && defined(USE_AVX512BW)
+#include <immintrin.h>
+#endif
+
 /*
 We are given an array of bytes that has been sieved.  The basic trial 
 division strategy is as follows:
@@ -72,22 +76,27 @@ this file contains code implementing 2)
 
 //#define DO_4X_SPV 1
 
+// temporary (TRY_SMALLP_OPT experiment): define to cross-check the
+// vectorized SPV hit set against the scalar hit detection for every
+// candidate; aborts on any mismatch.  Slow - correctness checking only.
+//#define SPV_ASSERT_BOTH 1
+
 void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	// we have flagged this sieve offset as likely to produce a relation
 	// nothing left to do now but check and see.
-	int i;
-	uint32_t bound, tmp, prime, root1, root2;
+	UNUSED_VAR int i;
+	UNUSED_VAR uint32_t bound, tmp, prime, root1, root2;
 	int smooth_num;
 	sieve_fb_compressed *fbc;
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
 	uint8_t logp;
     uint8_t bits;
     //uint8_t sm_bits;
-    uint32_t tmp1, tmp2, tmp3, tmp4, offset, report_num;
+    UNUSED_VAR uint32_t tmp1, tmp2, tmp3, tmp4, offset, report_num;
     // the minimum value of the poly (near its root)
-    uint32_t minoffset = mpz_get_ui(dconf->gmptmp3);
+    UNUSED_VAR uint32_t minoffset = (uint32_t)mpz_get_ui(dconf->gmptmp3);
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -117,7 +126,19 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
-		uint64_t q64;
+		UNUSED_VAR uint64_t q64;
+
+#if defined(SIQS_SKIP_BLOCK_LOC0)
+		// set_aprime_roots gives a-primes > 8192 prime = root = 0, so every
+		// block's location 0 is over-sieved by their logp: a junk report that
+		// otherwise survives into trial division (the sse2 scans skip it; the
+		// avx2/avx512 scans don't)
+		if (dconf->reports[report_num] == 0)
+		{
+			dconf->valid_Qs[report_num] = 0;
+			continue;
+		}
+#endif
 
 #if defined(USE_SS_SEARCH) && defined(USE_POLY_BUCKET_SS)
 		if (dconf->reports[report_num] == 32767)
@@ -187,7 +208,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		// primes, then abort the trial division early because it is likely to fail to
 		// produce even a partial relation.
 		bits = sieve[dconf->reports[report_num]];
-		bits = (255 - bits) + sconf->tf_closnuf + 1;
+		bits = (uint8_t)((255 - bits) + sconf->tf_closnuf + 1);
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
@@ -210,6 +231,104 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		// the whole cache line at once (16 byte structure)
 
 
+#if defined(TRY_SMALLP_OPT) && defined(USE_AVX512BW)
+		// vectorized SPV check (docs/siqs_spv_plan.md): 16 primes per zmm
+		// using the Lemire divisibility test with the invmod/thresh
+		// constants computed in make_fb_siqs.  one 32x32 mullo per root,
+		// no 64-bit splitting.  the (offset + p - root) form covers the
+		// root == prime / root == 0 corner cases the scalar path
+		// special-cases below.  hits are rare (0-2 per candidate), so the
+		// actual division stays scalar via DIVIDE_ONE_PRIME.
+		//
+		// hit test per root:  p | (offset - root)  <=>
+		//   (offset + p - root) * invmod <= thresh  (mod 2^32)
+		// where invmod = p^-1 mod 2^32 and thresh = (2^32-1)/p.
+		{
+			uint32_t vstop = sconf->sieve_small_fb_start;
+			__m512i voffset = _mm512_set1_epi32((int)offset);
+			uint32_t vi;
+#ifdef SPV_ASSERT_BOTH
+			uint32_t vhit_idx[64], shit_idx[64];
+			int vhit_n = 0, shit_n = 0;
+#endif
+
+			for (vi = 2; vi < vstop; vi += 16)
+			{
+				uint32_t nlanes = vstop - vi;
+				__mmask16 valid = (nlanes >= 16) ? (__mmask16)0xffff :
+					(__mmask16)((1u << nlanes) - 1);
+
+				// masked loads keep the final partial group from reading
+				// past the end of the (shorter) fb arrays
+				__m256i vpr = _mm256_maskz_loadu_epi16(valid, fbc->prime + vi);
+				__m256i vr1 = _mm256_maskz_loadu_epi16(valid, fbc->root1 + vi);
+				__m256i vr2 = _mm256_maskz_loadu_epi16(valid, fbc->root2 + vi);
+				__m512i vp = _mm512_cvtepu16_epi32(vpr);
+				__m512i vroot1 = _mm512_cvtepu16_epi32(vr1);
+				__m512i vroot2 = _mm512_cvtepu16_epi32(vr2);
+				__m512i vminv = _mm512_maskz_loadu_epi32(valid, fullfb_ptr->invmod + vi);
+				__m512i vthresh = _mm512_maskz_loadu_epi32(valid, fullfb_ptr->thresh + vi);
+
+				// t = offset + p - root; the add of p keeps t >= 0 and is
+				// a no-op mod p
+				__m512i t1 = _mm512_add_epi32(_mm512_sub_epi32(voffset, vroot1), vp);
+				__m512i t2 = _mm512_add_epi32(_mm512_sub_epi32(voffset, vroot2), vp);
+
+				// both mullos issue back-to-back before the compares so
+				// the ~10 cycle vpmulld latency overlaps
+				__mmask16 hit1 = _mm512_cmple_epu32_mask(
+					_mm512_mullo_epi32(t1, vminv), vthresh);
+				__mmask16 hit2 = _mm512_cmple_epu32_mask(
+					_mm512_mullo_epi32(t2, vminv), vthresh);
+				uint32_t hits = ((uint32_t)hit1 | (uint32_t)hit2) & (uint32_t)valid;
+
+				while (hits > 0)
+				{
+					uint32_t fbi = vi + (uint32_t)_trail_zcnt(hits);
+					prime = fbc->prime[fbi];
+					logp = (uint8_t)fbc->logp[fbi];
+#ifdef SPV_ASSERT_BOTH
+					if (vhit_n < 64) vhit_idx[vhit_n++] = fbi;
+#endif
+					DIVIDE_ONE_PRIME(fbi);
+					hits = _reset_lsb(hits);
+				}
+			}
+
+#ifdef SPV_ASSERT_BOTH
+			// scalar reference: same hit detection as the pre-experiment
+			// batch-of-4 + tail loops, on this candidate
+			{
+				uint32_t si, stmp;
+				uint64_t sq64;
+				shit_n = 0;
+				for (si = 2; si < vstop; si++)
+				{
+					stmp = offset + fullfb_ptr->correction[si];
+					sq64 = (uint64_t)stmp * (uint64_t)fullfb_ptr->small_inv[si];
+					stmp = (uint32_t)(sq64 >> 32);
+					stmp = offset - stmp * fullfb_ptr->prime[si];
+					if ((stmp == fbc->root1[si]) || (stmp == fbc->root2[si]))
+					{
+						if (shit_n < 64) shit_idx[shit_n++] = si;
+					}
+				}
+				if ((shit_n != vhit_n) ||
+					(memcmp(shit_idx, vhit_idx, vhit_n * sizeof(uint32_t)) != 0))
+				{
+					int z;
+					printf("SPV assert mismatch: offset %u, vec %d hits [",
+						offset, vhit_n);
+					for (z = 0; z < vhit_n; z++) printf("%u ", vhit_idx[z]);
+					printf("] scalar %d hits [", shit_n);
+					for (z = 0; z < shit_n; z++) printf("%u ", shit_idx[z]);
+					printf("]\n");
+					exit(1);
+				}
+			}
+#endif
+		}
+#else
 		// do the small primes in optimized batches of 4
 		bound = (sconf->sieve_small_fb_start - 4);
 		
@@ -217,24 +336,24 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		{
 			tmp1 = offset + fullfb_ptr->correction[i];
 			q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
-			tmp1 = q64 >> 32; 
+			tmp1 = (uint32_t)(q64 >> 32); 
 			// at this point tmp1 is offset / prime
 			tmp1 = offset - tmp1 * fullfb_ptr->prime[i];
 			// now tmp1 is offset % prime
 
 			tmp2 = offset + fullfb_ptr->correction[i+1];
 			q64 = (uint64_t)tmp2 * (uint64_t)fullfb_ptr->small_inv[i+1];
-			tmp2 = q64 >> 32; 
+			tmp2 = (uint32_t)(q64 >> 32); 
 			tmp2 = offset - tmp2 * fullfb_ptr->prime[i+1];
 
 			tmp3 = offset + fullfb_ptr->correction[i+2];
 			q64 = (uint64_t)tmp3 * (uint64_t)fullfb_ptr->small_inv[i+2];
-			tmp3 = q64 >> 32;
+			tmp3 = (uint32_t)(q64 >> 32);
 			tmp3 = offset - tmp3 * fullfb_ptr->prime[i+2];
 
 			tmp4 = offset + fullfb_ptr->correction[i+3];
 			q64 = (uint64_t)tmp4 * (uint64_t)fullfb_ptr->small_inv[i+3];
-			tmp4 = q64 >> 32; 
+			tmp4 = (uint32_t)(q64 >> 32); 
 			tmp4 = offset - tmp4 * fullfb_ptr->prime[i+3];
 			
 			root1 = fbc->root1[i];
@@ -243,7 +362,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp1 == root1 || tmp1 == root2)
 			{
 				prime = fbc->prime[i];
-				logp = fbc->logp[i];
+				logp = (uint8_t)fbc->logp[i];
                 DIVIDE_ONE_PRIME(i);
 			}
 
@@ -253,7 +372,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp2 == root1 || tmp2 == root2)
 			{
 				prime = fbc->prime[i+1];
-				logp = fbc->logp[i+1];
+				logp = (uint8_t)fbc->logp[i+1];
                 DIVIDE_ONE_PRIME(i+1);
 			}
 
@@ -263,7 +382,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp3 == root1 || tmp3 == root2)
 			{
 				prime = fbc->prime[i+2];
-				logp = fbc->logp[i+2];
+				logp = (uint8_t)fbc->logp[i+2];
                 DIVIDE_ONE_PRIME(i+2);
 			}
 
@@ -273,7 +392,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp4 == root1 || tmp4 == root2)
 			{
 				prime = fbc->prime[i+3];
-				logp = fbc->logp[i+3];
+				logp = (uint8_t)fbc->logp[i+3];
                 DIVIDE_ONE_PRIME(i+3);
 			}
 
@@ -283,17 +402,16 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		// finish up the rest of the small primes
 		while ((uint32_t)i < sconf->sieve_small_fb_start)
 		{
-			uint64_t q64;
 
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
+			logp = (uint8_t)fbc->logp[i];
 			
 			// this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];
 			q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
-			tmp = q64 >>  32; 
+			tmp = (uint32_t)(q64 >>  32); 
 			tmp = offset - tmp * prime;
 
 			// if offset % prime == either root, it's on the progression.  also
@@ -306,6 +424,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			}
 			i++;
 		}
+#endif
 
         // don't reject a sieve hit if it is within a small distance
         // of the poly root as these locations are much more likely
@@ -313,6 +432,26 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		//if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
         //    abs(offset - minoffset) > 2000)
 
+#ifdef TRY_THRESH_PROFILE
+        if (sconf->lp_direct && (sconf->tprof_alpha > 0.0) && sconf->tprof_exact)
+        {
+            // the sieve byte carries this offset's chunk credit (bits is
+            // that much high); require the offset's own credit instead
+            double side = (double)(sconf->num_blocks << 15);
+            double x0 = mpz_get_d(dconf->gmptmp3);
+            uint32_t lo = offset & ~(sconf->tprof_chunk - 1);
+            int cd = tprof_credit(sconf->tprof_alpha, sconf->tprof_max, x0,
+                side, (double)lo, (double)(lo + sconf->tprof_chunk));
+            int pd = tprof_credit(sconf->tprof_alpha, sconf->tprof_max, x0,
+                side, (double)offset, (double)offset);
+
+            if (((int)bits - cd) < ((int)sconf->tf_closnuf + (int)dconf->tf_small_cutoff - pd))
+                dconf->valid_Qs[report_num] = 0;
+            else
+                dconf->valid_Qs[report_num] = 1;
+        }
+        else
+#endif
         if (bits < (sconf->tf_closnuf + dconf->tf_small_cutoff))
 			dconf->valid_Qs[report_num] = 0;
 		else

@@ -105,13 +105,13 @@ int feval(int func, int nargs, meta_t* metadata);
 int new_uvar(const char* name, mpz_t data);
 int set_uvar(const char* name, mpz_t data);
 int get_uvar(const char* name, mpz_t data);
-void free_uvars();
+void free_uvars(void);
 int new_strvar(const char* name, char* data);
 int set_strvar(const char* name, char* data);
 int get_strvar(const char* name, char* data);
 char* get_strvarname(const char* data);
 int is_strvar(const char* name);
-void free_strvars();
+void free_strvars(void);
 int invalid_dest(char* dest);
 int invalid_num(char* num);
 char** tokenize(char* in, int* token_types, int* num_tokens);
@@ -207,12 +207,12 @@ void toStr(char* src, str_t* dest)
 {
     if ((int)strlen(src) > dest->alloc)
     {
-        sGrow(dest, strlen(src) + 10);
-        dest->alloc = strlen(src) + 10;
+        sGrow(dest, (int)(strlen(src) + 10));
+        dest->alloc = (int)(strlen(src) + 10);
     }
     memcpy(dest->s, src, strlen(src) * sizeof(char));
     dest->s[strlen(src)] = '\0';
-    dest->nchars = strlen(src) + 1;
+    dest->nchars = (int)(strlen(src) + 1);
 
     return;
 }
@@ -220,7 +220,7 @@ void toStr(char* src, str_t* dest)
 void sGrow(str_t* str, int size)
 {
     //printf("growing str_t size...\n");
-    str->s = (char*)realloc(str->s, size * sizeof(char));
+    str->s = (char*)realloc(str->s, (size_t)size * sizeof(char));
     if (str->s == NULL)
     {
         printf("unable to reallocate string in sGrow\n");
@@ -235,12 +235,12 @@ void sAppend(const char* src, str_t* dest)
 {
     if (((int)strlen(src) + dest->nchars) >= dest->alloc)
     {
-        sGrow(dest, strlen(src) + dest->nchars + 10);
-        dest->alloc = strlen(src) + dest->nchars + 10;
+        sGrow(dest, (int)(strlen(src) + (size_t)dest->nchars + 10));
+        dest->alloc = (int)(strlen(src) + (size_t)dest->nchars + 10);
     }
 
     memcpy(dest->s + dest->nchars - 1, src, strlen(src) * sizeof(char));
-    dest->nchars += strlen(src);	//already has a null char accounted for
+    dest->nchars += (int)strlen(src);	//already has a null char accounted for
     dest->s[dest->nchars - 1] = '\0';
 
     return;
@@ -250,10 +250,10 @@ void sCopy(str_t* dest, str_t* src)
 {
     if (dest->alloc < src->nchars + 2)
     {
-        dest->s = (char*)realloc(dest->s, (src->nchars + 2) * sizeof(char));
+        dest->s = (char*)realloc(dest->s, (size_t)(src->nchars + 2) * sizeof(char));
         dest->alloc = src->nchars + 2;
     }
-    memcpy(dest->s, src->s, src->nchars * sizeof(char));
+    memcpy(dest->s, src->s, (size_t)src->nchars * sizeof(char));
     dest->nchars = src->nchars;
     return;
 }
@@ -265,7 +265,7 @@ void sCopy(str_t* dest, str_t* src)
 int stack_init(int num, bstack_t* stack, int type)
 {
     int i;
-    stack->elements = (str_t * *)malloc(num * sizeof(str_t*));		//array of elements
+    stack->elements = (str_t * *)malloc((size_t)num * sizeof(str_t*));		//array of elements
     //space for each element (a str_t)
     for (i = 0; i < num; i++)
     {
@@ -302,7 +302,7 @@ void push(str_t* str, bstack_t* stack)
     {
         stack->size *= 2;
         stack->elements = (str_t * *)realloc(stack->elements,
-            stack->size * sizeof(str_t*));
+            (size_t)stack->size * sizeof(str_t*));
         if (stack->elements == NULL)
         {
             printf("error allocating stack space\n");
@@ -637,13 +637,13 @@ str_t* preprocess(str_t* in, int* numlines)
             in->s[i++] = ' ';
 
         i = 1;
-        while ((in->s[strlen(in->s) - i] == ',') ||
-            (in->s[strlen(in->s) - i] == '}') ||
-            (in->s[strlen(in->s) - i] == ')'))
+        while ((in->s[strlen(in->s) - (size_t)i] == ',') ||
+            (in->s[strlen(in->s) - (size_t)i] == '}') ||
+            (in->s[strlen(in->s) - (size_t)i] == ')'))
         {
-            if ((in->s[strlen(in->s) - i] == ',') ||
-                (in->s[strlen(in->s) - i] == '}'))
-                in->s[strlen(in->s) - i] = ' ';
+            if ((in->s[strlen(in->s) - (size_t)i] == ',') ||
+                (in->s[strlen(in->s) - (size_t)i] == '}'))
+                in->s[strlen(in->s) - (size_t)i] = ' ';
             i++;
         }
     }
@@ -684,7 +684,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -768,7 +768,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -839,7 +839,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -901,7 +901,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -927,7 +927,7 @@ str_t* preprocess(str_t* in, int* numlines)
         else if (eptr[strlen(eptr) + 1] == '\0')
         {
             // no else statement and no output suppression character
-            strncpy(str, eptr, strlen(eptr) - 1);
+            memcpy(str, eptr, strlen(eptr) - 1);
             str[strlen(eptr) - 1] = '\0';
             sprintf(vname, "%s_body", pre);
             if (set_strvar(vname, str))
@@ -947,7 +947,7 @@ str_t* preprocess(str_t* in, int* numlines)
                     new_strvar(vname, str);
 
                 ptr = strtok(NULL, "\0");
-                strncpy(str, ptr, strlen(ptr) - 1);
+                memcpy(str, ptr, strlen(ptr) - 1);
                 str[strlen(ptr) - 1] = '\0';
                 sprintf(vname, "%s_elsebody", pre);
                 if (set_strvar(vname, str))
@@ -974,7 +974,7 @@ str_t* preprocess(str_t* in, int* numlines)
                     new_strvar(vname, str);
 
                 ptr = strtok(NULL, "\0");
-                strncpy(str, ptr, strlen(ptr) - 1);
+                memcpy(str, ptr, strlen(ptr) - 1);
                 str[strlen(ptr) - 1] = '\0';
                 sprintf(vname, "%s_elsebody", pre);
                 if (set_strvar(vname, str))
@@ -999,7 +999,7 @@ str_t* preprocess(str_t* in, int* numlines)
     // time and count open/closed parens/braces, while looking for
     // commas.
     openp = openb = closedp = closedb = 0;
-    k = strlen(current->s);
+    k = (int)strlen(current->s);
     for (i = 0, j = 0; i < k; i++, j++)
     {
         if (current->s[i] == '(') openp++;
@@ -1010,7 +1010,7 @@ str_t* preprocess(str_t* in, int* numlines)
             if ((openp == closedp) && (openb == closedb))
             {
                 (*numlines)++;
-                out = (str_t*)realloc(out, *numlines * sizeof(str_t));
+                out = (str_t*)realloc(out, (size_t)*numlines * sizeof(str_t));
                 out[*numlines - 2].s[i] = '\0';
                 sInit(&out[*numlines - 1]);
                 current = &out[*numlines - 1];
@@ -1071,13 +1071,13 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 	// for each character read, decide if we've found the start of a new token
 
 	int inpos, i, el_type, el_type2, token_alloc, tmpsize = GSTR_MAXSIZE;
-	int len = strlen(in);
+	int len = (int)strlen(in);
 	char ch;
 	char *tmp;
 	char **tokens;
 
 	token_alloc = 100;		//100 tokens
-	tokens = (char **)malloc(token_alloc * sizeof(char *));
+	tokens = (char **)malloc((size_t)token_alloc * sizeof(char *));
 	*num_tokens = 0;
 
 	tmp = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
@@ -1200,8 +1200,8 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 
 				if (*num_tokens >= token_alloc)
 				{
-					tokens = (char **)realloc(tokens, token_alloc * 2 * sizeof(char *));
-					token_types = (int *)realloc(token_types, token_alloc * 2 * sizeof(int));
+					tokens = (char **)realloc(tokens, (size_t)token_alloc * 2 * sizeof(char *));
+					token_types = (int *)realloc(token_types, (size_t)token_alloc * 2 * sizeof(int));
 					token_alloc *= 2;
 				}
 			}
@@ -1216,7 +1216,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 			if (i == (tmpsize - 1))
 			{
 				tmpsize += GSTR_MAXSIZE;
-				tmp = (char *)realloc(tmp,tmpsize * sizeof(char));
+				tmp = (char *)realloc(tmp,(size_t)tmpsize * sizeof(char));
 			}
 			tmp[i] = ch;
 			i++;
@@ -1501,8 +1501,8 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
 
     if ((ptr = strchr(in->s, '=')) != NULL)
     {
-        offset = (ptr - in->s);
-        strncpy(varname, in->s, offset);
+        offset = (int)(ptr - in->s);
+        strncpy(varname, in->s, (size_t)offset);
         varname[offset++] = '\0';
     }
     else
@@ -1614,7 +1614,6 @@ int calc(str_t *in, meta_t *metadata)
 	str_t *post;		//post fix expression
 	char **tokens;		//pointer to an array of strings holding tokens
 	char *tok;
-	char *strN;			/* use this to make a copy of the post-fix string */
 	char delim[2];
 	int *token_types;	//type of each token
 	int num_tokens;		//number of tokens in the array.
@@ -1926,14 +1925,14 @@ int calc(str_t *in, meta_t *metadata)
 				// put result back on stack
 				for (j=0;j<na;j++)
 				{
-					int sz = mpz_sizeinbase(operands[j], 10) + 10;
+					int sz = (int)(mpz_sizeinbase(operands[j], 10) + 10);
 					if (tmp->alloc < sz)
 					{
-						tmp->s = (char *)realloc(tmp->s, sz * sizeof(char));
+						tmp->s = (char *)realloc(tmp->s, (size_t)sz * sizeof(char));
 						tmp->alloc = sz;
 					}
 					mpz_get_str(tmp->s, 10, operands[j]);
-					tmp->nchars = strlen(tmp->s)+1;
+					tmp->nchars = (int)(strlen(tmp->s)+1);
 					push(tmp,&stk);
 				}
 			}
@@ -1943,14 +1942,14 @@ int calc(str_t *in, meta_t *metadata)
 
                 // the string token is not a function, check if it's a defined variable
 
-                sz = mpz_sizeinbase(tmpz, 10) + 10;
+                sz = (int)(mpz_sizeinbase(tmpz, 10) + 10);
                 if (gstr1.alloc < sz)
                 {
-                    gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+                    gstr1.s = (char *)realloc(gstr1.s, (size_t)sz * sizeof(char));
                     gstr1.alloc = sz;
                 }
                 mpz_get_str(gstr1.s, 10, tmpz);
-                gstr1.nchars = strlen(gstr1.s) + 1;
+                gstr1.nchars = (int)(strlen(gstr1.s) + 1);
                 sCopy(tmp, &gstr1);
                 push(tmp, &stk);
             }
@@ -2023,17 +2022,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	// in the mpz_t array 'operands'.
 	// place return values in operands[0]
 	mpz_t mp1, mp2, mp3, tmp1, tmp2;
-	mpz_t gmpz;
 
 	str_t str;
-	uint32_t i=0;
-	uint64_t n64;
-	uint32_t j,k;
-	double t;
-	struct timeval tstart, tstop;
-	uint64_t lower, upper, inc, count;
+	UNUSED_VAR uint32_t i=0;
+	UNUSED_VAR uint32_t j,k;
+	UNUSED_VAR double t;
+	UNUSED_VAR uint64_t upper, count;
     fact_obj_t* fobj = metadata->fobj;
-    soe_staticdata_t* sdata = metadata->sdata;
 
 	mpz_init(mp1);
 	mpz_init(mp2);
@@ -2093,7 +2088,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	case 7:
 		// ln - one argument
         if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], (uint32_t)((mpz_sizeinbase(operands[0], 2)-1) * log(2.0)));
+		mpz_set_ui(operands[0], (uint32_t)((double)(mpz_sizeinbase(operands[0], 2)-1) * log(2.0)));
 		break;
 
 	case 8:
@@ -2123,7 +2118,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 		if (mpz_sgn(operands[1]) >= 0)
 			mpz_mul_2exp(operands[0], operands[0], mpz_get_ui(operands[1]));
 		else
-			mpz_tdiv_q_2exp(operands[0], operands[0], -1*mpz_get_si(operands[1]));
+			mpz_tdiv_q_2exp(operands[0], operands[0], (mp_bitcnt_t)(-1*mpz_get_si(operands[1])));
 
 		break;
 
@@ -2205,7 +2200,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // 2: n - reduction modulus
         // 3: r - bits in R
         mpz_set_ui(mp1, 1);
-        j = mpz_get_ui(operands[2]);
+        j = (uint32_t)mpz_get_ui(operands[2]);
         mpz_mul_2exp(mp1, mp1, j);
         mpz_invert(mp2, operands[1], mp1);
         mpz_sub(mp2, mp1, mp2);
@@ -2244,7 +2239,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 29:
         // popcnt
         if (check_args(funcnum, nargs)) break;
-        j = mpz_popcount(operands[0]);
+        j = (uint32_t)mpz_popcount(operands[0]);
         mpz_set_ui(operands[0], j);
         break;
     case 30:
@@ -2297,7 +2292,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 38:
         // hamdist
         if (check_args(funcnum, nargs)) break;
-        j = mpz_hamdist(operands[0], operands[1]);
+        j = (uint32_t)mpz_hamdist(operands[0], operands[1]);
         mpz_set_ui(operands[0], j);
         break;
 
@@ -2318,7 +2313,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("Paranoid, huh?  This might take a minute\n");
         }
 
-        build_RSA(mpz_get_ui(operands[0]), operands[0], gmp_randstate);
+        build_RSA((int)mpz_get_ui(operands[0]), operands[0], gmp_randstate);
         break;
     case 40:
         // siqs - one argument
@@ -2352,7 +2347,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // siqsbench
         if (nargs == 1)
         {
-            uint32_t digit_limit = mpz_get_ui(operands[0]);
+            uint32_t digit_limit = (uint32_t)mpz_get_ui(operands[0]);
             mpz_set_ui(operands[0], 1);
             new_factorization(fobj, operands[0]);
 
@@ -2397,7 +2392,7 @@ int new_uvar(const char *name, mpz_t data)
 	if (uvars.num == uvars.alloc)
 	{
 		//need more room for variables
-		uvars.vars = (uvar_t *)realloc(uvars.vars, uvars.num * 2 * sizeof(uvar_t));
+		uvars.vars = (uvar_t *)realloc(uvars.vars, (size_t)uvars.num * 2 * sizeof(uvar_t));
 		uvars.alloc *= 2;
 		for (i=uvars.num;i<uvars.alloc;i++)
 			mpz_init(uvars.vars[i].data);
@@ -2416,7 +2411,7 @@ int set_uvar(const char *name, mpz_t data)
 	// else return 1
 	int i;
 
-	i = mpz_get_ui(data);
+	i = (int)mpz_get_ui(data);
 	// first look if it is a global constant
 	if (strcmp(name,"IBASE") == 0)
 	{
@@ -2465,9 +2460,9 @@ int get_uvar(const char *name, mpz_t data)
 
 	// first look if it is a global constant
 	if (strcmp(name,"IBASE") == 0) {
-		mpz_set_ui(data, IBASE); return 0;}
+		mpz_set_ui(data, (unsigned long)IBASE); return 0;}
 	else if (strcmp(name,"OBASE") == 0) {
-		mpz_set_ui(data, OBASE); return 0;}
+		mpz_set_ui(data, (unsigned long)OBASE); return 0;}
 	
 
 	for (i=0;i<uvars.num;i++)
@@ -2502,7 +2497,7 @@ int get_uvar(const char *name, mpz_t data)
 	return 1;
 }
 
-void free_uvars()
+void free_uvars(void)
 {
 	int i;
 	for (i=0;i<uvars.alloc;i++)
@@ -2518,7 +2513,7 @@ int new_strvar(const char *name, char *data)
     if (strvars.num == strvars.alloc)
     {
         // need more room for variables
-        strvars.vars = (strvar_t *)realloc(strvars.vars, strvars.num * 2 * sizeof(strvar_t));
+        strvars.vars = (strvar_t *)realloc(strvars.vars, (size_t)strvars.num * 2 * sizeof(strvar_t));
         strvars.alloc *= 2;
         for (i = strvars.num; i<strvars.alloc; i++)
             strvars.vars[i].data = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
@@ -2611,7 +2606,7 @@ int get_strvar(const char *name, char *data)
     return 1;
 }
 
-void free_strvars()
+void free_strvars(void)
 {
     int i;
     for (i = 0; i < strvars.alloc; i++)

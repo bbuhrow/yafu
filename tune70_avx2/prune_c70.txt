@@ -1,0 +1,24 @@
+# siqs_tune_v2 prune list for c70, from input(s) [1, 2, 3]; best 0.915 (B=1,M=250,TF=-4,TFSm=+0,NB=1)
+# 'level' lines drop a whole level whose best point is > 8% slower than the best; 'point' lines drop points > 15% slower (or timed out / failed).  Delete lines to keep them.
+level B=0.5   # best 1.012
+point B=0.75,M=250,TF=+0,TFSm=+0,NB=2   # 1.055
+point B=0.75,M=150,TF=+0,TFSm=+0,NB=1   # 1.057
+point B=0.75,M=250,TF=+0,TFSm=+0,NB=1   # 1.057
+point B=0.75,M=200,TF=+0,TFSm=+0,NB=2   # 1.057
+point B=0.75,M=150,TF=+0,TFSm=+0,NB=2   # 1.061
+point B=0.75,M=300,TF=+2,TFSm=+0,NB=1   # 1.109
+point B=0.75,M=250,TF=+2,TFSm=+0,NB=1   # 1.111
+point B=0.75,M=150,TF=+2,TFSm=+0,NB=1   # 1.121
+point B=0.75,M=200,TF=+2,TFSm=+0,NB=1   # 1.126
+point B=0.75,M=200,TF=+2,TFSm=+0,NB=2   # 1.134
+point B=0.75,M=250,TF=+4,TFSm=+0,NB=1   # 1.134
+point B=0.75,M=250,TF=+2,TFSm=+0,NB=2   # 1.137
+point B=0.75,M=300,TF=+2,TFSm=+0,NB=2   # 1.140
+point B=0.75,M=150,TF=+2,TFSm=+0,NB=2   # 1.146
+point B=0.75,M=200,TF=+4,TFSm=+0,NB=1   # 1.147
+point B=0.75,M=300,TF=+4,TFSm=+0,NB=1   # 1.149
+point B=0.75,M=150,TF=+4,TFSm=+0,NB=1   # 1.154
+point B=0.75,M=250,TF=+4,TFSm=+0,NB=2   # 1.179
+point B=0.75,M=200,TF=+4,TFSm=+0,NB=2   # 1.192
+point B=0.75,M=150,TF=+4,TFSm=+0,NB=2   # 1.194
+point B=0.75,M=300,TF=+4,TFSm=+0,NB=2   # 1.203

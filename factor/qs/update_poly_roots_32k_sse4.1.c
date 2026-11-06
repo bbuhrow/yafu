@@ -53,15 +53,15 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32_t large_B = sconf->factor_base->large_B;
 
 	uint32_t j, interval; //, fb_offset;
-	int k,numblocks;
+	UNUSED_VAR int k,numblocks;
 	uint32_t root1, root2, prime;
 
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
 	uint32_t bound_val = med_B;
 	uint32_t *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
-    uint8_t* slicelogp_ptr = NULL;
-    uint32_t* slicebound_ptr = NULL;
+    UNUSED_VAR uint8_t* slicelogp_ptr = NULL;
+    UNUSED_VAR uint32_t* slicebound_ptr = NULL;
 	
 #if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
 	uint32_t *bptr;
@@ -71,8 +71,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint8_t logp=0;
 	polysieve_t helperstruct;
 
-	numblocks = sconf->num_blocks;
-	interval = numblocks << 15;
+	numblocks = (int)sconf->num_blocks;
+	interval = (uint32_t)(numblocks << 15);
 	
 	if (lp_bucket_p->alloc_slices != 0) //NULL)
 	{
@@ -103,21 +103,21 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 	}
 
 	k=0;
-	ptr = &rootupdates[(v-1) * bound + startprime];	
+	ptr = &rootupdates[(uint32_t)(v-1) * bound + startprime];	
 
 	if (sign > 0)
 	{
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = (uint32_t)update_data.firstroots1[j];
+			root2 = (uint32_t)update_data.firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
 
 			//we don't sieve these, so ordering doesn't matter
-			update_data.firstroots1[j] = root1;
-			update_data.firstroots2[j] = root2;
+			update_data.firstroots1[j] = (int)root1;
+			update_data.firstroots2[j] = (int)root2;
 
 			fb_p->root1[j] = (uint16_t)root1;
 			fb_p->root2[j] = (uint16_t)root2;
@@ -171,7 +171,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
 		
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -230,7 +230,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// do things in blocks of 8 there.  Make sure we are at the 15 bit
 		// boundary before we switch to using update_data.firstroots1/2.
 		// this should only run a few iterations, if any.
-		ptr = &dconf->rootupdates[(v-1) * bound + j];
+		ptr = &dconf->rootupdates[(uint32_t)(v-1) * bound + j];
 		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
@@ -266,7 +266,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined (_WIN64))
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -285,7 +285,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}	
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B + j];
 
 #else
 
@@ -324,7 +324,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		bound_index = 0;
 		bound_val = med_B;
-		check_bound = med_B + BUCKET_ALLOC/2;
+		check_bound = (int)(med_B + BUCKET_ALLOC/2);
 		
 
 		
@@ -353,7 +353,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];						//72
 		helperstruct.large_B = med_B;				//80
 		helperstruct.B = large_B;					//84
 		helperstruct.interval = interval;			//88
@@ -683,7 +683,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];  //72;						//72
 		helperstruct.large_B = large_B;				//80
 		helperstruct.B = bound;						//84
 		helperstruct.interval = interval;			//88
@@ -981,14 +981,14 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = (uint32_t)update_data.firstroots1[j];
+			root2 = (uint32_t)update_data.firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			//we don't sieve these, so ordering doesn't matter
-			update_data.firstroots1[j] = root1;
-			update_data.firstroots2[j] = root2;
+			update_data.firstroots1[j] = (int)root1;
+			update_data.firstroots2[j] = (int)root2;
 
 			fb_p->root1[j] = (uint16_t)root1;
 			fb_p->root2[j] = (uint16_t)root2;
@@ -1042,7 +1042,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 #if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
 		// update 8 at a time using SSE2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1063,7 +1063,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B + j];
 		
 
 #else
@@ -1103,7 +1103,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// do things in blocks of 8 there.  Make sure we are at the 15 bit
 		// boundary before we switch to using update_data.firstroots1/2.
 		// this should only run a few iterations, if any.
-		ptr = &dconf->rootupdates[(v-1) * bound + j];
+		ptr = &dconf->rootupdates[(uint32_t)(v-1) * bound + j];
 		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
@@ -1142,7 +1142,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
 
 		// update 8 at a time using SSE2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1161,7 +1161,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			j = h.stop;
 		}
-        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B + j];
+        sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v - 1) * med_B + j];
 		
 		
 #else
@@ -1201,7 +1201,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		bound_index = 0;
 		bound_val = med_B;
-		check_bound = med_B + BUCKET_ALLOC/2;
+		check_bound = (int)(med_B + BUCKET_ALLOC/2);
 		
 		
 #if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
@@ -1229,7 +1229,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];  //72;						//72
 		helperstruct.large_B = med_B;				//80
 		helperstruct.B = large_B;					//84
 		helperstruct.interval = interval;			//88
@@ -1558,7 +1558,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];  //72;						//72
 		helperstruct.large_B = large_B;				//80
 		helperstruct.B = bound;						//84
 		helperstruct.interval = interval;			//88
@@ -1856,7 +1856,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	if (lp_bucket_p->list != NULL)
 	{
-		lp_bucket_p->num_slices = bound_index + 1;
+		lp_bucket_p->num_slices = (uint32_t)(bound_index + 1);
 		lp_bucket_p->logp[bound_index] = logp;
 	}
 

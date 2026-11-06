@@ -29,7 +29,9 @@ code to the public domain.
 #include "gmp.h"
 #include "microecm.h"
 #include "cofactorize.h"
+#ifdef HAVE_GMP_ECM
 #include <ecm.h>
+#endif
 #ifndef __aarch64__
 #include <immintrin.h>
 #endif
@@ -291,6 +293,14 @@ int main(int argc, char *argv[])
     {
         fobj->HAS_AVX512BW = comp_info.AVX512BW = 1;
     }
+
+    // NEON is architecturally mandatory on AArch64; -noneon selects the
+    // portable kernels instead, for A/B testing
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    fobj->HAS_NEON = comp_info.NEON = (options->noneon == 0);
+#else
+    fobj->HAS_NEON = 0;
+#endif
 
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;
@@ -1181,6 +1191,20 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #ifdef IFMA
     if (comp_info->AVX512IFMA) logprint(logfile, "AVX512IFMA ");
 #endif
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+#ifdef __ARM_NEON
+    if (comp_info->NEON) logprint(logfile, "NEON ");
+#endif
+#ifdef __ARM_FEATURE_DOTPROD
+    if (comp_info->DOTPROD) logprint(logfile, "DOTPROD ");
+#endif
+#ifdef __ARM_FEATURE_SVE
+    if (comp_info->SVE) logprint(logfile, "SVE ");
+#endif
+#ifdef __ARM_FEATURE_SVE2
+    if (comp_info->SVE2) logprint(logfile, "SVE2 ");
+#endif
+#endif
     logprint(logfile, "\n");
 
     if (freq > 100.0)
@@ -1228,6 +1252,20 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #endif
 #ifdef IFMA 
         if (comp_info->AVX512IFMA) printf("AVX512IFMA ");
+#endif
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+#ifdef __ARM_NEON
+        if (comp_info->NEON) printf("NEON ");
+#endif
+#ifdef __ARM_FEATURE_DOTPROD
+        if (comp_info->DOTPROD) printf("DOTPROD ");
+#endif
+#ifdef __ARM_FEATURE_SVE
+        if (comp_info->SVE) printf("SVE ");
+#endif
+#ifdef __ARM_FEATURE_SVE2
+        if (comp_info->SVE2) printf("SVE2 ");
+#endif
 #endif
         printf("\n");
 
@@ -1719,6 +1757,13 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_B = options->siqsB;
     fobj->qs_obj.gbl_override_small_cutoff_flag = (options->siqsTFSm > 0);
     fobj->qs_obj.gbl_override_small_cutoff = options->siqsTFSm;
+    fobj->qs_obj.gbl_override_spv_limit_flag = (options->siqsSPV > 0);
+    fobj->qs_obj.gbl_override_spv_limit = options->siqsSPV;
+    fobj->qs_obj.gbl_siqs_mid = options->siqsMid;
+    fobj->qs_obj.gbl_siqs_large = options->siqsLarge;
+    fobj->qs_obj.gbl_siqs_kernel = options->siqsKernel;
+    fobj->qs_obj.gbl_siqs_sparse_kernel = options->siqsSparseKernel;
+    fobj->qs_obj.gbl_siqs_lp_isa = options->siqsLPisa;
     fobj->qs_obj.gbl_override_blocks_flag = (options->siqsNB > 0);
     fobj->qs_obj.gbl_override_blocks = options->siqsNB;
     fobj->qs_obj.gbl_override_lpmult_flag = (options->siqsM > 0);
@@ -1734,7 +1779,9 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_ssalloc_flag = (options->siqsSSalloc > 0);
     fobj->qs_obj.gbl_override_ssalloc = options->siqsSSalloc;
     fobj->qs_obj.inmem_cutoff = options->inmem_cutoff;
-    if ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0))
+    // MFBD/MFBT 0 = not given (SIQS chooses)
+    if ((options->siqsMFBD != 0.0) &&
+        ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0)))
     {
         if (options->siqsMFBD < 1.0)
             options->siqsMFBD = 1.0;
@@ -1743,7 +1790,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         printf("DLP Tdiv exponent should be between 1.0 and 2.0; setting MFBD = %1.2f\n",
             options->siqsMFBD);
     }
-    if ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0))
+    if ((options->siqsMFBT != 0.0) &&
+        ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0)))
     {
         if (options->siqsMFBT < 2.0)
             options->siqsMFBT = 2.0;

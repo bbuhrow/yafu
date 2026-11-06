@@ -206,7 +206,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 	sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
 	sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
 	int *rootupdates = dconf->rootupdates;
-    int it;
+    UNUSED_VAR int it;
 
 	update_t update_data = dconf->update_data;
 
@@ -223,15 +223,15 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32_t large_B = sconf->factor_base->large_B;
 
 	uint32_t j, interval; //, fb_offset;
-	int k,numblocks;
+	UNUSED_VAR int k,numblocks;
 	uint32_t root1, root2, prime;
 
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
 	uint32_t bound_val = med_B;
 	uint32_t *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
-    uint8_t* slicelogp_ptr;
-    uint32_t* slicebound_ptr;
+    UNUSED_VAR uint8_t* slicelogp_ptr;
+    UNUSED_VAR uint32_t* slicebound_ptr;
 	
 #if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
 	uint32_t *bptr;
@@ -241,8 +241,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint8_t logp=0;
 	polysieve_t helperstruct;
 
-	numblocks = sconf->num_blocks;
-	interval = numblocks << 15;
+	numblocks = (int)sconf->num_blocks;
+	interval = (uint32_t)(numblocks << 15);
 
     CLEAN_AVX2;
 	
@@ -289,21 +289,21 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
     dconf->polyscratch[15] = 0x00007fff;
 
 	k=0;
-	ptr = &rootupdates[(v-1) * bound + startprime];	
+	ptr = &rootupdates[(uint32_t)(v-1) * bound + startprime];	
 
 	if (sign > 0)
 	{
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = (uint32_t)update_data.firstroots1[j];
+			root2 = (uint32_t)update_data.firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
 
 			//we don't sieve these, so ordering doesn't matter
-			update_data.firstroots1[j] = root1;
-			update_data.firstroots2[j] = root2;
+			update_data.firstroots1[j] = (int)root1;
+			update_data.firstroots2[j] = (int)root2;
 
 			fb_p->root1[j] = (uint16_t)root1;
 			fb_p->root2[j] = (uint16_t)root2;
@@ -355,7 +355,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		// update 16 at a time using AVX2
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -377,7 +377,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		bound_index = 0;
 		bound_val = med_B;
-		check_bound = med_B + BUCKET_ALLOC/2;
+		check_bound = (int)(med_B + BUCKET_ALLOC/2);
 		
 		logp = update_data.logp[med_B-1];
 
@@ -392,7 +392,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];						//72
 		helperstruct.large_B = med_B;				//80
 		helperstruct.B = large_B;					//84
 		helperstruct.interval = interval;			//88
@@ -694,7 +694,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];  //72;						//72
 		helperstruct.large_B = large_B;				//80
 		helperstruct.B = bound;						//84
         helperstruct.interval = interval;			//88
@@ -1077,14 +1077,14 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = (uint32_t)update_data.firstroots1[j];
+			root2 = (uint32_t)update_data.firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			//we don't sieve these, so ordering doesn't matter
-			update_data.firstroots1[j] = root1;
-			update_data.firstroots2[j] = root2;
+			update_data.firstroots1[j] = (int)root1;
+			update_data.firstroots2[j] = (int)root2;
 
 			fb_p->root1[j] = (uint16_t)root1;
 			fb_p->root2[j] = (uint16_t)root2;
@@ -1137,7 +1137,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 		
 		// update 16 at a time using avx2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1156,11 +1156,11 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
+		sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v-1) * med_B + j];
 
 		bound_index = 0;
 		bound_val = med_B;
-		check_bound = med_B + BUCKET_ALLOC/2;
+		check_bound = (int)(med_B + BUCKET_ALLOC/2);
 		logp = update_data.logp[med_B-1];
 
 		//load up our helper struct, so we don't have a list
@@ -1174,7 +1174,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];  //72;						//72
 		helperstruct.large_B = med_B;				//80
 		helperstruct.B = large_B;					//84
 		helperstruct.interval = interval;			//88
@@ -1472,7 +1472,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.ptr = &rootupdates[(uint32_t)(v-1) * bound];  //72;						//72
 		helperstruct.large_B = large_B;				//80
 		helperstruct.B = bound;						//84
 		helperstruct.interval = interval;			//88
@@ -1848,7 +1848,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	if (lp_bucket_p->list != NULL)
 	{
-		lp_bucket_p->num_slices = bound_index + 1;
+		lp_bucket_p->num_slices = (uint32_t)(bound_index + 1);
 		lp_bucket_p->logp[bound_index] = logp;
 	}
 
@@ -1883,7 +1883,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32_t startprime = 2;
+    UNUSED_VAR uint32_t startprime = 2;
     uint32_t bound = sconf->factor_base->B;
 
     char v = dconf->curr_poly->nu[dconf->numB];
@@ -1893,7 +1893,6 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
     lp_bucket* lp_bucket_p = dconf->buckets;
     uint32_t med_B = sconf->factor_base->med_B;
     uint32_t large_B = sconf->factor_base->large_B;
-    uint32_t xlarge_B = sconf->factor_base->x2_large_B;
 
     uint32_t j, interval;
     int k, numblocks, idx;
@@ -1913,7 +1912,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         0, 65536, 131072, 196608,
         262144, 327680, 393216, 458752);
 
-    __m256i vone = _mm256_set1_epi32(1);
+    UNUSED_VAR __m256i vone = _mm256_set1_epi32(1);
 
     __m256i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval;
     __m256i velement1, velement2, vblockm1 = _mm256_set1_epi32(32767);
@@ -1922,12 +1921,12 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
     ALIGNED_MEM uint32_t e1[32];
     ALIGNED_MEM uint32_t b1[32];
-    ALIGNED_MEM uint32_t b2[32];
+    UNUSED_VAR ALIGNED_MEM uint32_t b2[32];
     // ALIGNED_MEM uint32_t e2[32];
 
-    numblocks = sconf->num_blocks;
-    interval = numblocks << 15;
-    vinterval = _mm256_set1_epi32(interval);
+    numblocks = (int)sconf->num_blocks;
+    interval = (uint32_t)(numblocks << 15);
+    vinterval = _mm256_set1_epi32((int)interval);
 
     if (lp_bucket_p->alloc_slices != 0) // != NULL)
     {
@@ -1963,13 +1962,13 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
     nextRoots_32k_avx2_small(sconf, dconf);
 
     k = 0;
-    ptr = &rootupdates[(v - 1) * bound + med_B];
+    ptr = &rootupdates[(uint32_t)(v - 1) * bound + med_B];
 
     if (sign > 0)
     {
 
         bound_val = med_B;
-        check_bound = med_B + BUCKET_ALLOC / 2;
+        check_bound = (int)(med_B + BUCKET_ALLOC / 2);
         logp = update_data.logp[med_B];
         
 #if defined(GCC_ASM64X) && !defined(_MSC_VER)
@@ -2005,7 +2004,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         helperstruct.update_data_root2 = update_data.firstroots2;	//48
         helperstruct.update_data_logp = update_data.logp;	//56
         helperstruct.lp_bucket_p = lp_bucket_p;		//64
-        helperstruct.ptr = &rootupdates[(v - 1) * bound];						//72
+        helperstruct.ptr = &rootupdates[(uint32_t)(v - 1) * bound];						//72
         helperstruct.large_B = med_B;				//80
         helperstruct.B = large_B;					//84
         helperstruct.interval = interval;			//88
@@ -2291,7 +2290,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             numptr_p = helperstruct.numptr_p;
             sliceptr_n = helperstruct.sliceptr_n;
             sliceptr_p = helperstruct.sliceptr_p;
-            ptr = &rootupdates[(v - 1) * bound + large_B];
+            ptr = &rootupdates[(uint32_t)(v - 1) * bound + large_B];
             bound_val = helperstruct.bound_val;
             check_bound = helperstruct.check_bound;
             bound_index = helperstruct.bound_index;
@@ -2340,8 +2339,6 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 #endif
         {
             //int i;
-            int k;
-
             CHECK_NEW_SLICE(j);
 
             vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
@@ -2359,15 +2356,15 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             
             vbnum1 = _mm256_srli_epi32(vroot1, 15);
             vbnum2 = _mm256_srli_epi32(vroot2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
 
             mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
             mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
-            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
-            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            bitmask1 = ((uint32_t)(_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((uint32_t)(_mm256_movemask_epi8(mask2)) & 0x88888888);
 
             // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
             // intrinsic, so we fall back on this almost-as-fast code.
@@ -2405,14 +2402,14 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             vroot2 = _mm256_sub_epi32(vprime, vroot2);
             vbnum1 = _mm256_srli_epi32(vroot1, 15);
             vbnum2 = _mm256_srli_epi32(vroot2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
             mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
             mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
-            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
-            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            bitmask1 = ((uint32_t)(_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((uint32_t)(_mm256_movemask_epi8(mask2)) & 0x88888888);
 
             // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
             // intrinsic, so we fall back on this almost-as-fast code.
@@ -2451,7 +2448,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             vbnum1 = _mm256_srli_epi32(vt1, 15);
             vbnum2 = _mm256_srli_epi32(vt2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
 
@@ -2501,7 +2498,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             vbnum1 = _mm256_srli_epi32(vt1, 15);
             vbnum2 = _mm256_srli_epi32(vt2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
 
@@ -2556,7 +2553,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         // sort.
         //bound_index = 0;
         bound_val = med_B;
-        check_bound = med_B + BUCKET_ALLOC / 2;
+        check_bound = (int)(med_B + BUCKET_ALLOC / 2);
 
 
         logp = update_data.logp[med_B];
@@ -2594,7 +2591,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         helperstruct.update_data_root2 = update_data.firstroots2;	//48
         helperstruct.update_data_logp = update_data.logp;	//56
         helperstruct.lp_bucket_p = lp_bucket_p;		//64
-        helperstruct.ptr = &rootupdates[(v - 1) * bound];  //72;						//72
+        helperstruct.ptr = &rootupdates[(uint32_t)(v - 1) * bound];  //72;						//72
         helperstruct.large_B = med_B;				//80
         helperstruct.B = large_B;					//84
         helperstruct.interval = interval;			//88
@@ -2875,7 +2872,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         numptr_p = helperstruct.numptr_p;
         sliceptr_n = helperstruct.sliceptr_n;
         sliceptr_p = helperstruct.sliceptr_p;
-        ptr = &rootupdates[(v - 1) * bound + large_B];
+        ptr = &rootupdates[(uint32_t)(v - 1) * bound + large_B];
         bound_val = helperstruct.bound_val;
         check_bound = helperstruct.check_bound;
         bound_index = helperstruct.bound_index;
@@ -2944,14 +2941,14 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             vbnum1 = _mm256_srli_epi32(vroot1, 15);
             vbnum2 = _mm256_srli_epi32(vroot2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
             mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
             mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
-            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
-            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            bitmask1 = ((uint32_t)(_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((uint32_t)(_mm256_movemask_epi8(mask2)) & 0x88888888);
 
             // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
             // intrinsic, so we fall back on this almost-as-fast code.
@@ -2988,14 +2985,14 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             vroot2 = _mm256_sub_epi32(vprime, vroot2);
             vbnum1 = _mm256_srli_epi32(vroot1, 15);
             vbnum2 = _mm256_srli_epi32(vroot2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
 
             mask1 = _emu_mm256_cmplt_epi32(vroot1, vinterval);
             mask2 = _emu_mm256_cmplt_epi32(vroot2, vinterval);
-            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
-            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            bitmask1 = ((uint32_t)(_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((uint32_t)(_mm256_movemask_epi8(mask2)) & 0x88888888);
 
             // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
             // intrinsic, so we fall back on this almost-as-fast code.
@@ -3034,7 +3031,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             vbnum1 = _mm256_srli_epi32(vt1, 15);
             vbnum2 = _mm256_srli_epi32(vt2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
 
@@ -3085,7 +3082,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             vbnum1 = _mm256_srli_epi32(vt1, 15);
             vbnum2 = _mm256_srli_epi32(vt2, 15);
-            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((int)((j - bound_val) << 16)), vshifted_index);
             velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vt2, vblockm1));
             velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vt1, vblockm1));
 
@@ -3132,7 +3129,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
     if (lp_bucket_p->list != NULL)
     {
         // all done bucket sieving, record final logp and number of slices.
-        lp_bucket_p->num_slices = bound_index + 1;
+        lp_bucket_p->num_slices = (uint32_t)(bound_index + 1);
         slicelogp_ptr[bound_index] = logp;
     }
 
@@ -3162,16 +3159,17 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
     uint16_t *sm_ptr;
 
     uint32_t med_B = sconf->factor_base->med_B;
+    UNUSED_VAR uint32_t l2upd_bound;
 
     uint32_t j;
-    int k;
+    UNUSED_VAR int k;
     uint32_t root1, root2, prime;
-    uint8_t logp = 0;
+    UNUSED_VAR uint8_t logp = 0;
 
     CLEAN_AVX2;
 
     k = 0;
-    ptr = &rootupdates[(v - 1) * bound + startprime];
+    ptr = &rootupdates[(uint32_t)(v - 1) * bound + startprime];
 
     if (sign > 0)
     {
@@ -3179,14 +3177,14 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         for (j = startprime; j<sconf->sieve_small_fb_start; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = update_data.firstroots1[j];
-            root2 = update_data.firstroots2[j];
+            root1 = (uint32_t)update_data.firstroots1[j];
+            root2 = (uint32_t)update_data.firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_P;
 
             //we don't sieve these, so ordering doesn't matter
-            update_data.firstroots1[j] = root1;
-            update_data.firstroots2[j] = root2;
+            update_data.firstroots1[j] = (int)root1;
+            update_data.firstroots2[j] = (int)root2;
 
             fb_p->root1[j] = (uint16_t)root1;
             fb_p->root2[j] = (uint16_t)root2;
@@ -3238,7 +3236,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
         // update 16 at a time using AVX2
-        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B];
+        sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v - 1) * med_B];
         
         {
             small_update_t h;
@@ -3258,6 +3256,70 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         
             j = h.stop;
         }
+
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512F)
+        ptr = &rootupdates[(uint32_t)(v - 1) * bound + sconf->factor_base->med_B];
+
+        l2upd_bound = sconf->factor_base->fb_blk8i;
+
+        for (j = sconf->factor_base->med_B;
+            (j + 16) < l2upd_bound; j += 16, ptr += 16)
+        {
+            __m512i vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+            __m512i vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+            __m512i vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+            __m512i vpval = _mm512_load_epi32((__m512i*)ptr);
+            __mmask16 mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+            __mmask16 mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+            vroot1 = _mm512_sub_epi32(vroot1, vpval);
+            vroot2 = _mm512_sub_epi32(vroot2, vpval);
+            vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+
+            __m512i vsmall = _mm512_min_epu32(vroot1, vroot2);
+            __m512i vlarge = _mm512_max_epu32(vroot1, vroot2);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vlarge);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root2[j]), vlarge);
+            vroot1 = _mm512_sub_epi32(vprime, vlarge);  // small on other side
+            vroot2 = _mm512_sub_epi32(vprime, vsmall);  // large on other side
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root1[j]), vroot1);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root2[j]), vroot2);
+        }
+
+
+        for ( ; j < l2upd_bound; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = (uint32_t)update_data.firstroots1[j];
+            root2 = (uint32_t)update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            if (root2 < root1)
+            {
+                update_data.firstroots1[j] = (int)root2;
+                update_data.firstroots2[j] = (int)root1;
+
+                dconf->sieve_p->root1[j] = root2;
+                dconf->sieve_p->root2[j] = root1;
+                dconf->sieve_n->root1[j] = (prime - root1);
+                dconf->sieve_n->root2[j] = (prime - root2);
+            }
+            else
+            {
+                update_data.firstroots1[j] = (int)root1;
+                update_data.firstroots2[j] = (int)root2;
+
+                dconf->sieve_p->root1[j] = root1;
+                dconf->sieve_p->root2[j] = root2;
+                dconf->sieve_n->root1[j] = (prime - root2);
+                dconf->sieve_n->root2[j] = (prime - root1);
+            }
+        }
+#endif
+
     }
     else
     {
@@ -3268,14 +3330,14 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         for (j = startprime; j<sconf->sieve_small_fb_start; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = update_data.firstroots1[j];
-            root2 = update_data.firstroots2[j];
+            root1 = (uint32_t)update_data.firstroots1[j];
+            root2 = (uint32_t)update_data.firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_N;
 
             //we don't sieve these, so ordering doesn't matter
-            update_data.firstroots1[j] = root1;
-            update_data.firstroots2[j] = root2;
+            update_data.firstroots1[j] = (int)root1;
+            update_data.firstroots2[j] = (int)root2;
 
             fb_p->root1[j] = (uint16_t)root1;
             fb_p->root2[j] = (uint16_t)root2;
@@ -3328,7 +3390,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
         // update 16 at a time using AVX2 and no branching		
-        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B];
+        sm_ptr = &dconf->sm_rootupdates[(uint32_t)(v - 1) * med_B];
         {
             small_update_t h;
         
@@ -3347,6 +3409,70 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         
             j = h.stop;
         }
+
+#if defined(TRY_DIRECT_SIEVE) && defined(USE_AVX512F)
+        ptr = &rootupdates[(uint32_t)(v - 1) * bound + sconf->factor_base->med_B];
+
+        l2upd_bound = sconf->factor_base->fb_blk8i;
+        
+        for (j = sconf->factor_base->med_B;
+            (j + 16) < l2upd_bound; j += 16, ptr += 16)
+        {
+
+            __m512i vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
+            __m512i vroot1 = _mm512_load_epi32((__m512i*)(&update_data.firstroots1[j]));
+            __m512i vroot2 = _mm512_load_epi32((__m512i*)(&update_data.firstroots2[j]));
+            __m512i vpval = _mm512_load_epi32((__m512i*)ptr);
+            vroot1 = _mm512_add_epi32(vroot1, vpval);
+            vroot2 = _mm512_add_epi32(vroot2, vpval);
+            __mmask16 mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+            __mmask16 mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+            vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vprime);
+
+            __m512i vsmall = _mm512_min_epu32(vroot1, vroot2);
+            __m512i vlarge = _mm512_max_epu32(vroot1, vroot2);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vlarge);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root1[j]), vsmall);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_p->root2[j]), vlarge);
+            vroot1 = _mm512_sub_epi32(vprime, vlarge);  // small on other side
+            vroot2 = _mm512_sub_epi32(vprime, vsmall);  // large on other side
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root1[j]), vroot1);
+            _mm512_store_epi32((__m512i*)(&dconf->sieve_n->root2[j]), vroot2);
+        }
+
+
+        for ( ; j < l2upd_bound; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = (uint32_t)update_data.firstroots1[j];
+            root2 = (uint32_t)update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            if (root2 < root1)
+            {
+                update_data.firstroots1[j] = (int)root2;
+                update_data.firstroots2[j] = (int)root1;
+
+                dconf->sieve_p->root1[j] = root2;
+                dconf->sieve_p->root2[j] = root1;
+                dconf->sieve_n->root1[j] = (prime - root1);
+                dconf->sieve_n->root2[j] = (prime - root2);
+            }
+            else
+            {
+                update_data.firstroots1[j] = (int)root1;
+                update_data.firstroots2[j] = (int)root2;
+
+                dconf->sieve_p->root1[j] = root1;
+                dconf->sieve_p->root2[j] = root2;
+                dconf->sieve_n->root1[j] = (prime - root2);
+                dconf->sieve_n->root2[j] = (prime - root1);
+            }
+        }
+#endif
     }
 
     CLEAN_AVX2;

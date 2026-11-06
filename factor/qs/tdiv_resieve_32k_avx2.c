@@ -28,22 +28,22 @@ code to the public domain.
 
 
 #define INIT_CORRECTIONS \
-	corrections[0] = 32768 - block_loc; \
-	corrections[1] = 32768 - block_loc; \
-	corrections[2] = 32768 - block_loc; \
-	corrections[3] = 32768 - block_loc; \
-	corrections[4] = 32768 - block_loc; \
-	corrections[5] = 32768 - block_loc; \
-	corrections[6] = 32768 - block_loc; \
-	corrections[7] = 32768 - block_loc; \
-	corrections[8] = 32768 - block_loc; \
-	corrections[9] = 32768 - block_loc; \
-	corrections[10] = 32768 - block_loc; \
-	corrections[11] = 32768 - block_loc; \
-	corrections[12] = 32768 - block_loc; \
-	corrections[13] = 32768 - block_loc; \
-	corrections[14] = 32768 - block_loc; \
-	corrections[15] = 32768 - block_loc; 
+	corrections[0] = (uint16_t)(32768 - block_loc); \
+	corrections[1] = (uint16_t)(32768 - block_loc); \
+	corrections[2] = (uint16_t)(32768 - block_loc); \
+	corrections[3] = (uint16_t)(32768 - block_loc); \
+	corrections[4] = (uint16_t)(32768 - block_loc); \
+	corrections[5] = (uint16_t)(32768 - block_loc); \
+	corrections[6] = (uint16_t)(32768 - block_loc); \
+	corrections[7] = (uint16_t)(32768 - block_loc); \
+	corrections[8] = (uint16_t)(32768 - block_loc); \
+	corrections[9] = (uint16_t)(32768 - block_loc); \
+	corrections[10] = (uint16_t)(32768 - block_loc); \
+	corrections[11] = (uint16_t)(32768 - block_loc); \
+	corrections[12] = (uint16_t)(32768 - block_loc); \
+	corrections[13] = (uint16_t)(32768 - block_loc); \
+	corrections[14] = (uint16_t)(32768 - block_loc); \
+	corrections[15] = (uint16_t)(32768 - block_loc); 
 
 #if defined(GCC_ASM64X)
 
@@ -578,7 +578,7 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         block_loc = dconf->reports[report_num];
 
         // where tdiv_medprimes left off
-        i = sconf->factor_base->fb_13bit_B;
+        i = (int)sconf->factor_base->fb_13bit_B;
 
         // the roots have already been advanced to the next block.
         // we need to correct them back to where they were before resieving.
@@ -696,7 +696,7 @@ void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t b
         block_loc = dconf->reports[report_num];
 
         // where tdiv_medprimes left off
-        i = sconf->factor_base->fb_13bit_B;
+        i = (int)sconf->factor_base->fb_13bit_B;
 
         // the roots have already been advanced to the next block.
         // we need to correct them back to where they were before resieving.
@@ -766,5 +766,7 @@ void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t b
 
     return;
 }
+
+
 #endif
 

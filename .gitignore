@@ -3,9 +3,14 @@
 *.o
 *.a
 /yafu
+/kmpqs_bench
+/kmpqs_bench_stat
+/kmpqs_bench.exe
+/kmpqs_bench_stat.exe
 *.no
 *.qo
 .deps/
+msiqs/
 
 # Logs / Checkpoints / data files
 *.log
@@ -17,6 +22,7 @@ nfs.*
 *.obj
 *.tlog
 *.last_spq*
+semiprimes*.dat
 
 # visual studio build
 build.vc22/.vs/*
@@ -29,3 +35,7 @@ build.vc22/.vs/*
 config.mk
 
 
+
+# BEGIN oh-my-opencode-slim clonedeps
+.slim/clonedeps/repos/
+# END oh-my-opencode-slim clonedeps

@@ -28,12 +28,7 @@ either or both sides.
 #include "mpz_aprcl.h"
 #include <math.h>
 #include "gmp.h"
-#ifdef HAVE_LASIEVE_MPQS
-#include "../factor/lasieve5_64/mpqs.h"
-#include "../factor/lasieve5_64/mpqs3.h"
-#include "../factor/lasieve5_64/if.h"
-#include "../factor/lasieve5_64/gmp-aux.h"
-#endif
+#include "kmpqs/kmpqs.h"
 #include "ytools.h"
 #include "cofactorize.h"
 
@@ -668,6 +663,34 @@ uint64_t pow2m(uint64_t b, uint64_t n)
    of the batch factoring handles an arbitrary number of large primes,
    so only this routine needs to change when more advanced factoring
    code becomes available. */
+/* Split a composite cofactor n that ECM did not split, with kmpqs (lasieve's
+   MPQS, factor/kmpqs).  Every prime factor must be <= cutoff; they are
+   appended to lp[], which holds at most MAX_LARGE_PRIMES entries.
+   Returns 1 on success, 0 if the relation should be dropped. */
+static int batch_split_qs(mpz_t n, int lpb, uint64_t cutoff, uint64_t* lp, uint32_t* num)
+{
+    mpz_t* f;
+    int nf, i;
+
+    if (mpz_sizeinbase(n, 2) > KMPQS3_MAX_BITS || mpz_probab_prime_p(n, 1))
+        return 0;
+
+    nf = kmpqs_factor(n, (size_t)lpb, &f);
+    if (nf <= 0 || *num + (uint32_t)nf > MAX_LARGE_PRIMES)
+        return 0;
+
+    for (i = 0; i < nf; i++)
+    {
+        if ((mpz_sizeinbase(f[i], 2) > 64) || (mpz_get_ui(f[i]) > cutoff))
+            return 0;
+    }
+
+    for (i = nf - 1; i >= 0; i--)
+        lp[(*num)++] = mpz_get_ui(f[i]);
+
+    return 1;
+}
+
 void check_batch_relation(relation_batch_t* rb,
     uint32_t index, uint64_t* lcg_state,
     mpz_t prime_product) {
@@ -1092,35 +1115,12 @@ process_r:
                 else
                 {
                     rb->num_qs++;
-                    mpz_t flist[3];
-                    mpz_init(flist[0]);
-                    mpz_init(flist[1]);
-                    mpz_init(flist[2]);
-
-                    mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-                    int nf = mpqs_factor(_large, rb->lpbr, &fac);
-#else
-                    // todo: run tinysiqs instead
-                    int nf = 0;
-#endif
-
-                    if (nf == 0)
+                    if (!batch_split_qs(_large, rb->lpbr, rb->lp_cutoff_r,
+                        lp_r, &num_r))
                     {
                         rb->num_abort[7]++;
                         return;
                     }
-
-                    while (nf > 0)
-                    {
-                        lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
-                        nf--;
-                    }
-
-                    mpz_clear(flist[0]);
-                    mpz_clear(flist[1]);
-                    mpz_clear(flist[2]);
                 }
 
             }
@@ -1172,35 +1172,12 @@ process_r:
         else
         {
             rb->num_qs++;
-            mpz_t flist[3];
-            mpz_init(flist[0]);
-            mpz_init(flist[1]);
-            mpz_init(flist[2]);
-
-            mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-            int nf = mpqs_factor(f1r, rb->lpbr, &fac);
-#else
-            int nf = 0;
-#endif
-
-
-            if (nf == 0)
+            if (!batch_split_qs(f1r, rb->lpbr, rb->lp_cutoff_r,
+                lp_r, &num_r))
             {
                 rb->num_abort[7]++;
                 return;
             }
-
-            while (nf > 0)
-            {
-                lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
-                nf--;
-            }
-
-            mpz_clear(flist[0]);
-            mpz_clear(flist[1]);
-            mpz_clear(flist[2]);
         }
 
     }
@@ -1416,34 +1393,12 @@ process_r:
                 {
                     rb->num_qs++;
 
-                    mpz_t flist[3];
-                    mpz_init(flist[0]);
-                    mpz_init(flist[1]);
-                    mpz_init(flist[2]);
-
-                    mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-                    int nf = mpqs_factor(_large, rb->lpbr, &fac);
-#else
-                    int nf = 0;
-#endif
-
-                    if (nf == 0)
+                    if (!batch_split_qs(_large, rb->lpbr, rb->lp_cutoff_r,
+                        lp_r, &num_r))
                     {
                         rb->num_abort[7]++;
                         return;
                     }
-
-                    while (nf > 0)
-                    {
-                        lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
-                        nf--;
-                    }
-
-                    mpz_clear(flist[0]);
-                    mpz_clear(flist[1]);
-                    mpz_clear(flist[2]);
                 }
 
             }
@@ -1499,34 +1454,12 @@ process_r:
         {
             rb->num_qs++;
 
-            mpz_t flist[3];
-            mpz_init(flist[0]);
-            mpz_init(flist[1]);
-            mpz_init(flist[2]);
-
-            mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-            int nf = mpqs_factor(f2r, rb->lpbr, &fac);
-#else
-            int nf = 0;
-#endif
-
-            if (nf == 0)
+            if (!batch_split_qs(f2r, rb->lpbr, rb->lp_cutoff_r,
+                lp_r, &num_r))
             {
                 rb->num_abort[7]++;
                 return;
             }
-
-            while (nf > 0)
-            {
-                lp_r[num_r++] = mpz_get_ui(fac[nf - 1]);
-                nf--;
-            }
-
-            mpz_clear(flist[0]);
-            mpz_clear(flist[1]);
-            mpz_clear(flist[2]);
         }
     }
 
@@ -1930,34 +1863,12 @@ process_a:
                 {
                     rb->num_qs_a++;
 
-                    mpz_t flist[3];
-                    mpz_init(flist[0]);
-                    mpz_init(flist[1]);
-                    mpz_init(flist[2]);
-
-                    mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-                    int nf = mpqs_factor(_large, rb->lpba, &fac);
-#else
-                    int nf = 0;
-#endif
-
-                    if (nf == 0)
+                    if (!batch_split_qs(_large, rb->lpba, rb->lp_cutoff_a,
+                        lp_a, &num_a))
                     {
                         rb->num_abort_a[7]++;
                         return;
                     }
-
-                    while (nf > 0)
-                    {
-                        lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
-                        nf--;
-                    }
-
-                    mpz_clear(flist[0]);
-                    mpz_clear(flist[1]);
-                    mpz_clear(flist[2]);
                 }
 
             }
@@ -2011,34 +1922,12 @@ process_a:
             // split with mpqs
             rb->num_qs_a++;
 
-            mpz_t flist[3];
-            mpz_init(flist[0]);
-            mpz_init(flist[1]);
-            mpz_init(flist[2]);
-
-            mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-            int nf = mpqs_factor(f1a, rb->lpba, &fac);
-#else
-            int nf = 0;
-#endif
-
-            if (nf == 0)
+            if (!batch_split_qs(f1a, rb->lpba, rb->lp_cutoff_a,
+                lp_a, &num_a))
             {
                 rb->num_abort_a[7]++;
                 return;
             }
-
-            while (nf > 0)
-            {
-                lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
-                nf--;
-            }
-
-            mpz_clear(flist[0]);
-            mpz_clear(flist[1]);
-            mpz_clear(flist[2]);
         }
     }
 
@@ -2248,34 +2137,12 @@ process_a:
                 {
                     rb->num_qs_a++;
 
-                    mpz_t flist[3];
-                    mpz_init(flist[0]);
-                    mpz_init(flist[1]);
-                    mpz_init(flist[2]);
-
-                    mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-                    int nf = mpqs_factor(_large, rb->lpba, &fac);
-#else
-                    int nf = 0;
-#endif
-
-                    if (nf == 0)
+                    if (!batch_split_qs(_large, rb->lpba, rb->lp_cutoff_a,
+                        lp_a, &num_a))
                     {
                         rb->num_abort_a[7]++;
                         return;
                     }
-
-                    while (nf > 0)
-                    {
-                        lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
-                        nf--;
-                    }
-
-                    mpz_clear(flist[0]);
-                    mpz_clear(flist[1]);
-                    mpz_clear(flist[2]);
                 }
 
             }
@@ -2328,34 +2195,12 @@ process_a:
         {
             rb->num_qs_a++;
 
-            mpz_t flist[3];
-            mpz_init(flist[0]);
-            mpz_init(flist[1]);
-            mpz_init(flist[2]);
-
-            mpz_t* fac = flist;
-
-#ifdef HAVE_LASIEVE_MPQS
-            int nf = mpqs_factor(f2a, rb->lpba, &fac);
-#else
-            int nf = 0;
-#endif
-
-            if (nf == 0)
+            if (!batch_split_qs(f2a, rb->lpba, rb->lp_cutoff_a,
+                lp_a, &num_a))
             {
                 rb->num_abort_a[7]++;
                 return;
             }
-
-            while (nf > 0)
-            {
-                lp_a[num_a++] = mpz_get_ui(fac[nf - 1]);
-                nf--;
-            }
-
-            mpz_clear(flist[0]);
-            mpz_clear(flist[1]);
-            mpz_clear(flist[2]);
         }
     }
 

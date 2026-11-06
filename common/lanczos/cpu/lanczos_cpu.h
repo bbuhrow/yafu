@@ -43,7 +43,11 @@ typedef struct {
 } packed_block_t;
 
 #define MAX_THREADS 32
-#define MIN_NROWS_TO_THREAD 60000
+/* was 60000; lowered for yafu's SIQS, whose 30k-60k row matrices
+   benefit from threading. NFS matrices are unaffected. */
+#ifndef MIN_NROWS_TO_THREAD
+#define MIN_NROWS_TO_THREAD 20000
+#endif
 
 /* struct used by threads for computing partial
    matrix multiplies */

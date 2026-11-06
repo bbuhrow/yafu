@@ -62,7 +62,7 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
 #endif
 
 #else 
-    int pnum = 0;
+    UNUSED_VAR int pnum = 0;
 #endif
 
 	// finally, dump the buckets into the now cached 
@@ -150,10 +150,9 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 
     __m512i vmask = _mm512_set1_epi32(0x0000ffff);
     __m512i vlomask = _mm512_set1_epi32(0x000000ff);
-    __m512i vhimask = _mm512_set1_epi32(0xffffff00);
+    __m512i vhimask = _mm512_set1_epi32((int)0xffffff00);
     __m512i vbuckets, vnextbuckets, vlosieve, vhisieve;
-    __m512i vblock = _mm512_set1_epi32(BLOCKSIZE);
-    __mmask16 mask16;
+    UNUSED_VAR __m512i vblock = _mm512_set1_epi32(BLOCKSIZE);
 
 
 #if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
@@ -176,7 +175,7 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 #endif
 
 #else 
-    int pnum = 0;
+    UNUSED_VAR int pnum = 0;
 #endif
 
     // finally, dump the buckets into the now cached 
@@ -318,11 +317,10 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     uint32_t* bptr;
 
     __m512i vmask = _mm512_set1_epi32(0x0000ffff);
-    __m512i vlomask = _mm512_set1_epi32(0x000000ff);
-    __m512i vhimask = _mm512_set1_epi32(0xffffff00);
+    UNUSED_VAR __m512i vlomask = _mm512_set1_epi32(0x000000ff);
+    UNUSED_VAR __m512i vhimask = _mm512_set1_epi32((int)0xffffff00);
     __m512i vbuckets, vnextbuckets, vlosieve, vhisieve;
-    __m512i vblock = _mm512_set1_epi32(BLOCKSIZE);
-    __mmask16 mask16;
+    UNUSED_VAR __m512i vblock = _mm512_set1_epi32(BLOCKSIZE);
 
 #if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
@@ -344,7 +342,7 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 #endif
 
 #else 
-    int pnum = 0;
+    UNUSED_VAR int pnum = 0;
 #endif
 
     // finally, dump the buckets into the now cached 

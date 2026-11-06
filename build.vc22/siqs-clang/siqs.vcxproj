@@ -153,16 +153,12 @@
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul0.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul1.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul2.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_pre.c" />
     <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
     <ClCompile Include="..\..\factor\qs\new_poly.c" />
     <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\SIQS.c" />
     <ClCompile Include="..\..\factor\qs\siqs_aux.c" />
+    <ClCompile Include="..\..\factor\qs\siqs_params.c" />
     <ClCompile Include="..\..\factor\qs\siqs_test.c" />
     <ClCompile Include="..\..\factor\qs\tdiv.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_large.c" />
@@ -172,6 +168,11 @@
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
+    <ClCompile Include="..\..\factor\qs\direct_sieve.c" />
+    <ClCompile Include="..\..\factor\qs\direct_sieve_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\direct_sieve_avx512.c" />
+    <ClCompile Include="..\..\factor\qs\direct_sieve_sse41.c" />
+    <ClCompile Include="..\..\factor\qs\direct_sieve_neon.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
@@ -192,7 +193,6 @@
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
-    <ClInclude Include="..\..\include\lanczos.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\qs_impl.h" />
     <ClInclude Include="..\..\ms_include\savefile.h" />

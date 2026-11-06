@@ -183,6 +183,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.gbl_override_B = 0;
     fobj->qs_obj.gbl_override_small_cutoff_flag = 0;
     fobj->qs_obj.gbl_override_small_cutoff = 0;
+    fobj->qs_obj.gbl_override_spv_limit_flag = 0;
+    fobj->qs_obj.gbl_override_spv_limit = 0;
     fobj->qs_obj.gbl_override_blocks_flag = 0;
     fobj->qs_obj.gbl_override_blocks = 0;
     fobj->qs_obj.gbl_override_lpmult_flag = 0;
@@ -213,6 +215,9 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.qs_tune_freq = 0;
     fobj->qs_obj.no_small_cutoff_opt = 0;
     strcpy(fobj->qs_obj.siqs_savefile, "siqs.dat");
+    strcpy(fobj->qs_obj.siqs_params_file, "siqs_params.txt");
+    fobj->qs_obj.no_tuned_params = 0;
+    fobj->qs_obj.tune_warmup = 0;
     init_lehman();
 
     // initialize stuff for trial division	
@@ -494,6 +499,9 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->OUTPUT_TERSE = src->OUTPUT_TERSE;
     dest->THREADS = src->THREADS;
     dest->LATHREADS = src->LATHREADS;
+    dest->L1CACHE = src->L1CACHE;
+    dest->L2CACHE = src->L2CACHE;
+    dest->L3CACHE = src->L3CACHE;
 
     if (!parameters_only)
     {
@@ -588,6 +596,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->qs_obj.gbl_override_B = src->qs_obj.gbl_override_B;
     dest->qs_obj.gbl_override_small_cutoff_flag = src->qs_obj.gbl_override_small_cutoff_flag;
     dest->qs_obj.gbl_override_small_cutoff = src->qs_obj.gbl_override_small_cutoff;
+    dest->qs_obj.gbl_override_spv_limit_flag = src->qs_obj.gbl_override_spv_limit_flag;
+    dest->qs_obj.gbl_override_spv_limit = src->qs_obj.gbl_override_spv_limit;
     dest->qs_obj.gbl_override_blocks_flag = src->qs_obj.gbl_override_blocks_flag;
     dest->qs_obj.gbl_override_blocks = src->qs_obj.gbl_override_blocks;
     dest->qs_obj.gbl_override_lpmult_flag = src->qs_obj.gbl_override_lpmult_flag;
@@ -617,6 +627,13 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->qs_obj.qs_tune_freq = src->qs_obj.qs_tune_freq;
     dest->qs_obj.no_small_cutoff_opt = src->qs_obj.no_small_cutoff_opt;
     strcpy(dest->qs_obj.siqs_savefile, src->qs_obj.siqs_savefile);
+    strcpy(dest->qs_obj.siqs_params_file, src->qs_obj.siqs_params_file);
+    dest->qs_obj.no_tuned_params = src->qs_obj.no_tuned_params;
+    dest->qs_obj.tune_warmup = src->qs_obj.tune_warmup;
+    dest->qs_obj.gbl_siqs_kernel = src->qs_obj.gbl_siqs_kernel;
+    dest->qs_obj.gbl_siqs_sparse_kernel = src->qs_obj.gbl_siqs_sparse_kernel;
+    dest->qs_obj.gbl_siqs_mid = src->qs_obj.gbl_siqs_mid;
+    dest->qs_obj.gbl_siqs_large = src->qs_obj.gbl_siqs_large;
 
     if (!parameters_only)
     {
@@ -755,6 +772,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->HAS_BMI2 = src->HAS_BMI2;
     dest->HAS_AVX512F = src->HAS_AVX512F;
     dest->HAS_AVX512BW = src->HAS_AVX512BW;
+    dest->HAS_NEON = src->HAS_NEON;
     dest->VFLAG = src->VFLAG;
     dest->LATHREADS = src->LATHREADS;
 

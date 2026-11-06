@@ -1,0 +1,41 @@
+# siqs_tune_v2 prune list for c85, from input(s) [1]; best 0.859 (B=1,M=300,TF=-2,TFSm=+0,NB=3)
+# 'level' lines drop a whole level whose best point is > 8% slower than the best; 'point' lines drop points > 15% slower (or timed out / failed).  Delete lines to keep them.
+level B=0.7   # best 0.967
+level B=1.15   # best 0.953
+level B=1.3   # best 0.956
+point B=0.85,M=300,TF=+4,TFSm=+0,NB=3   # 0.989
+point B=0.85,M=225,TF=-4,TFSm=+0,NB=2   # 0.990
+point B=0.85,M=375,TF=+2,TFSm=+0,NB=2   # 0.995
+point B=0.85,M=300,TF=-2,TFSm=+0,NB=2   # 0.995
+point B=1,M=375,TF=+4,TFSm=+0,NB=1   # 0.997
+point B=0.85,M=300,TF=+2,TFSm=+0,NB=2   # 0.998
+point B=1,M=225,TF=-4,TFSm=+0,NB=2   # 0.999
+point B=0.85,M=375,TF=+2,TFSm=+0,NB=1   # 1.000
+point B=1,M=300,TF=+4,TFSm=+0,NB=3   # 1.001
+point B=0.85,M=300,TF=+4,TFSm=+0,NB=1   # 1.002
+point B=0.85,M=300,TF=-4,TFSm=+0,NB=1   # 1.005
+point B=0.85,M=300,TF=-4,TFSm=+0,NB=3   # 1.006
+point B=0.85,M=375,TF=-2,TFSm=+0,NB=3   # 1.006
+point B=1,M=225,TF=+0,TFSm=+0,NB=3   # 1.007
+point B=0.85,M=375,TF=-4,TFSm=+0,NB=3   # 1.010
+point B=1,M=300,TF=-4,TFSm=+0,NB=3   # 1.013
+point B=0.85,M=225,TF=+4,TFSm=+0,NB=2   # 1.016
+point B=0.85,M=375,TF=+4,TFSm=+0,NB=1   # 1.016
+point B=1,M=375,TF=+4,TFSm=+0,NB=3   # 1.018
+point B=0.85,M=300,TF=+2,TFSm=+0,NB=3   # 1.018
+point B=1,M=300,TF=+4,TFSm=+0,NB=2   # 1.019
+point B=0.85,M=300,TF=-2,TFSm=+0,NB=3   # 1.022
+point B=1,M=225,TF=+4,TFSm=+0,NB=1   # 1.022
+point B=0.85,M=375,TF=+0,TFSm=+0,NB=3   # 1.023
+point B=0.85,M=225,TF=+0,TFSm=+0,NB=3   # 1.024
+point B=1,M=300,TF=+4,TFSm=+0,NB=1   # 1.024
+point B=0.85,M=300,TF=+0,TFSm=+0,NB=3   # 1.025
+point B=1,M=225,TF=+4,TFSm=+0,NB=3   # 1.026
+point B=0.85,M=375,TF=+2,TFSm=+0,NB=3   # 1.026
+point B=0.85,M=225,TF=+0,TFSm=+0,NB=2   # 1.026
+point B=0.85,M=375,TF=+4,TFSm=+0,NB=2   # 1.029
+point B=0.85,M=300,TF=+4,TFSm=+0,NB=2   # 1.040
+point B=0.85,M=375,TF=+4,TFSm=+0,NB=3   # 1.048
+point B=0.85,M=225,TF=+4,TFSm=+0,NB=3   # 1.054
+point B=0.85,M=225,TF=-2,TFSm=+0,NB=3   # 1.058
+point B=0.85,M=225,TF=+2,TFSm=+0,NB=2   # 1.068

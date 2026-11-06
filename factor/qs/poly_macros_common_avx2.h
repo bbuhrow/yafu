@@ -144,6 +144,7 @@
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "rax", "rsi", "rbx", "rcx", "rdx",	\
 			"r8", "r9", "r10", "r11", "r12", "r15", "cc", "memory");
 
+#undef CLEAN_AVX2
 #define CLEAN_AVX2 \
 	ASM_ volatile ("vzeroupper   \n\t");
 

@@ -615,6 +615,10 @@ MP_FORCE_INLINE uint64_t _trail_full_zcnt(uint64_t n) {
    platform has no native intrinsic of that name -- otherwise we would shadow
    (and conflict with) the real one. */
 #if !MP_HAS_NATIVE_ADDCARRY
+  /* portable_carry.h (stopgap) may have defined these already. */
+  #undef _addcarry_u64
+  #undef _subborrow_u64
+  #undef _subborrow_u32
   #define _addcarry_u64  mp_addcarry_u64
   #define _subborrow_u64 mp_subborrow_u64
   #define _subborrow_u32 mp_subborrow_u32

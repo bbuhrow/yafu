@@ -1,0 +1,560 @@
+# Direct Interval Sieve Design (TRY_DIRECT_SIEVE)
+
+*First design pass 2026-10-20; revised the same day after review and a
+first (unfused) implementation. This file describes the design as built,
+plus the fused pass (section 6) that is being implemented next. Companion
+to `L2_SIEVE_DEBUG_NOTES.md` (component map, bug lessons, tooling).*
+
+## 1. Goal
+
+`#define TRY_DIRECT_SIEVE` (include/qs_impl.h, after TRY_LIST_SIEVE) sieves
+the primes larger than the sieve interval, fb indices **[large_B, B)**,
+directly into whole intervals, with no bucket sieve:
+
+- **any number of blocks**: interval = `num_blocks * 32768` =
+  `sconf->sieve_interval`.
+- **both sides' intervals in memory at once**: pos at
+  `dconf->sieve[0, interval)`, neg at `[interval, 2*interval)`. The
+  allocation is `2*num_blocks + 4` blocks with 2 guard blocks on each end.
+- **[med_B, large_B) keeps the TRY_SPARSE_SIEVE machinery**
+  (`large_sieveblock_32k_avx512bw` per block, `tdiv_large_32k_avx2` in
+  the scan), unchanged.
+- **only relation finalization is deferred**. Sieving and the scan stay
+  block by block.
+
+Header guards: TRY_DIRECT_SIEVE `#undef`s TRY_LIST_SIEVE (DIRECT wins, so
+the list code compiles out), and `#error`s unless TRY_L2_SIEVE +
+TRY_SPARSE_SIEVE + USE_AVX512F are defined, or if USE_SS_SEARCH /
+USE_BATCHPOLY / USE_XLBATCHPOLY are defined. At runtime it exits if
+scan_ptr is not `check_relations_siqs_16_avx512` (the only scan that defers
+finalization), or if an a-prime index is >= large_B (the direct sieve never
+consults set_aprime_roots).
+
+## 2. Key facts (verified against the code; don't re-derive)
+
+1. **Boundary.** `fb_blk8i` is computed against `sieve_interval`
+   (SIQS.c fb bounds), not 8*32768, so under TRY_L2_SIEVE
+   `large_B == fb_blk8i` for every NB. The sparse sieve, tdiv_large and
+   nextRoots' L2 sections all stop at fb_blk8i, so they already end at
+   large_B. **Under DIRECT the boundary rounds UP**: it is the first 16-aligned
+   index with prime > interval (stock rounds down via `i -= 16`). So every
+   prime in [large_B, B) is > interval, which means at most one hit per root
+   per side. The <= 15 primes > interval that land below the boundary are
+   handled correctly by the sparse sieve.
+2. **Roots.** `update_data.firstroots1/2[j]` (int, sized B) hold the
+   current poly's roots in [0, p) as an **unordered pair**. The pos hit is
+   r, the neg hit is p - r (r == 0 gives p > interval, so it is masked out
+   automatically). firstRoots_32k's third loop computes them, plus
+   rootupdates, for the first poly of each 'a'. Under DIRECT its
+   FILL_ONE_PRIME_P/N bucket scatters are compiled out. The middle bucket
+   loop [fb_blk8i, large_B) is empty.
+3. **Root updates.** nextB (new_poly.c) and nextRoots_32k_avx2_small both
+   read `nu[dconf->numB]` / `gray[dconf->numB]`, and neither changes numB
+   (the loop increment does). So code running before nextB can advance the
+   roots to the next poly with
+   `ptr = &rootupdates[(nu[numB]-1)*B + j]`: for sign > 0,
+   `r = r - u (+p if u > r)`; for sign < 0, `r = r + u (-p if >= p)`. The
+   knl medbucket/largebucket calls after nextRoots_32k_avx2_small are
+   skipped under DIRECT.
+4. **The med sieve only subtracts** (`s_init` is unused in
+   med_sieveblock_32k_avx512bw), and so does the sparse sieve. Sieve bytes
+   can therefore be pre-loaded with large-prime hits before the block loops,
+   and the minblock "blockinit - 4" init can be applied as a `-= 4` at any
+   time (uint8 arithmetic mod 256 is order-independent). **But it is not
+   confined to its block:** it dumps a-prime logs at `blk_sieve[65535]`
+   (see 6.3), which the contiguous layout has to protect.
+5. **The scan reads sieve bytes only through dconf->sieve**: the sparse
+   scan branch, the BW (use_dlp >= 2) branch and filter_SPV. process_poly
+   sets `dconf->sieve = blk_sieve` around each scan_ptr call and then
+   restores it, so tdiv_scan.c needed no offset changes.
+6. **Finalization.** `trial_divide_Q_siqs(report_num, parity, poly_id,
+   bnum, ...)` uses `Qvals/fb_offsets/smooth_num/reports[report_num]` plus
+   bnum and curr_poly, so it must run before nextB.
+
+## 3. Per-poly pipeline as built (unfused), SIQS.c process_poly
+
+```
+for (numB = 1; numB < maxB; numB++, tot_poly++)
+{
+    memset(sieve, blockinit, 2 * NB * 32768);         // both sides
+    if (minblock < NB) memset both sides' minblock to blockinit - 4;
+    dpool->num = 0;
+    direct_sieve_largeprimes_32k(sieve, ...);          // pass 1, both sides
+
+    for (i = 0; i < NB; i++)                           // pos side
+    {
+        blk_sieve = sieve + i*32768;                   // neg: sieve + (NB+i)*32768
+        set_aprime_roots(..., 1);
+        med_sieve_ptr(blk_sieve, ...);                 // no per-block memset
+        large_sieveblock_32k_avx512bw(blk_sieve, ...); // sparse [med_B, large_B)
+        // no lp_sieveblock_ptr
+        set_aprime_roots(..., 0);
+        dconf->sieve = blk_sieve; scan_ptr(i, side); dconf->sieve = sieve;
+    }
+    // neg side identical
+
+    direct_resieve_update_largeprimes_32k(...);        // pass 2
+    direct_finalize_survivors(...);
+    nextB; nextRoots_32k_avx2_small;                   // no knl bucket calls
+}
+```
+
+Inside check_relations_siqs_16_avx512, the per-report loop calls
+`direct_save_survivor(j, parity, blocknum, ...)` for each valid report
+instead of tdiv_LP_ptr + trial_divide_Q_siqs.
+
+## 4. Data structures
+
+### 4.1 Survivor pool (`direct_pool_t`, `dconf->dpool`)
+Holds only reports that survive filter_SPV / tdiv_med / resieve_med /
+tdiv_large, not all reports.
+- `pos[k] = side*interval + block*32768 + block_loc`. Survivors are appended
+  in scan order (pos side blocks 0..NB-1, then neg side), so pos[] is
+  sorted ascending.
+- `Q[k]` gets the report's Qval through `mpz_swap` (O(1); allocations
+  circulate between the scan arrays and the pool), along with
+  `smooth_num[k]` and `fb_offsets[k*MAX_SMOOTH_PRIMES ...]` (smooth_num+1
+  entries copied).
+- It starts at 1024 entries and doubles with xrealloc (new mpz's are
+  initialized).
+- `bitmap`: 2*interval bits (64 KB at NB=8), one bit per survivor position.
+  It starts zeroed and is kept zeroed: finalize clears the bits it set. So
+  there is no per-poly tag and no stale-flag aliasing.
+- The struct members `fb_offsets[MAX_SIEVE_REPORTS][...]` and the scan
+  arrays are unchanged.
+
+### 4.2 Resieve hit test (`direct_resieve_hit`)
+For a root hit at interval position pos of fb prime index j:
+1. Test the bitmap bit (the common case is a miss).
+2. On a set bit, binary-search pool->pos.
+3. Do a **guarded** division: only if `mpz_tdiv_ui(Q, p) == 0`, then divide
+   repeatedly and append j to fb_offsets (capped at MAX_SMOOTH_PRIMES - 1).
+   A Q of 0 is skipped.
+
+A wrong hit can only waste a tdiv_ui, never corrupt Q, so the Bug 2/4
+failure class cannot occur.
+
+### 4.3 Finalization (`direct_finalize_survivors`)
+For each survivor k: clear its bitmap bit, `mpz_swap` Q into `Qvals[0]`, copy
+smooth_num / fb_offsets / block_loc into slot 0, set valid_Qs[0] = 1, and
+call `trial_divide_Q_siqs(0, side, numB-1, block, ...)`. Then set num = 0.
+
+## 5. Invariants
+
+- Every sieve byte is final before its block is scanned: [large_B, B) is
+  sieved before the block loops (pass 1), and med + sparse are sieved per
+  block before the scan of that block.
+- Pass 1 and the resieve read the same root values (only the update step
+  changes them), so the resieve visits exactly the sieve's hit set.
+- All divisions in the direct resieve are guarded.
+- Finalization runs before nextB.
+
+Results of the unfused build (WSL gcc 11, i5-11600K, -threads 1, runs 3-6
+at a time in parallel, so the timings are noisy):
+
+| input | NB | sparse+buckets | list | direct (unfused) |
+|---|---|---|---|---|
+| 261-bit | 8 | 46.4 s | 134.3 s | 58.3 s |
+| 256-bit | 8 | 37.1 s | 104.0 s | 45.1 s |
+| 261-bit | 16 | 54.2 s | — | 61.6 s |
+| 261-bit | default (6) | 38.8 s | — | 48.5 s |
+
+All runs factored correctly with zero errors (NB 12 also checked). Relation
+yield per poly matches stock (261-bit NB=8: 62985 vs 62475 polys, 14093 vs
+14015 fulls), so the 15-25% gap is per-poly cost: two full passes over
+[large_B, B) per poly against the bucket path's one.
+
+## 6. Fused pass (implemented 2026-10-20)
+
+Observation: once both sides of poly k are scanned, the sieve bytes are
+dead, since finalization only reads the pool. So the interval can be
+re-initialized for poly k+1 right away, and one loop over [large_B, B) can
+do, per prime:
+
+1. **resieve** poly k's roots against the pool (as pass 2);
+2. **update** the roots to poly k+1 (as pass 2);
+3. **sieve** poly k+1's roots into the freshly memset intervals (as pass 1).
+
+New per-poly pipeline:
+
+```
+direct_primed = 0;                                   // per process_poly call (per 'a')
+for (numB = 1; numB < maxB; numB++, tot_poly++)
+{
+    if (!direct_primed)                              // first poly of this 'a'
+    {
+        memset(sieve, blockinit, 2 * NB * 32768);
+        direct_sieve_largeprimes_32k(sieve, ...);    // standalone pass 1
+    }
+    if (minblock < NB) both sides' minblock -= 4;    // fact 2.4: order-independent
+    dpool->num = 0;
+
+    ... pos / neg block loops unchanged ...
+
+    next = (numB + 1 < maxB);
+    if (next) memset(sieve, blockinit, 2 * NB * 32768);   // bytes are dead now
+    direct_resieve_update_largeprimes_32k(sconf, dconf, next ? sieve : NULL);
+    direct_primed = next;
+    direct_finalize_survivors(...);                  // pool only; sieve untouched
+    nextB; nextRoots_32k_avx2_small;
+}
+```
+
+`direct_resieve_update_largeprimes_32k(sconf, dconf, uint8_t* sieve)`:
+- `sieve != NULL`: resieve, then update, then sieve the new roots
+  (pos r, neg p - r, same masks and logp approximation as pass 1).
+- `sieve == NULL` (last poly of the 'a'): resieve only. Skip the update and
+  the sieve, since nothing consumes them: process_poly returns and the next
+  'a' starts with firstRoots.
+
+Notes:
+- minblock depends on poly k+1's b, which is only known after nextB, so it
+  is applied at the top of the next poly as `-= 4` over that block on both
+  sides (fact 2.4) instead of in the memset.
+- Nothing between the fused pass and poly k+1's block loops touches the
+  sieve buffer (finalize, nextB and nextRoots only touch the pool, poly and
+  roots; SS search is excluded).
+- The resieve for poly k reads the roots before the update overwrites them
+  in the same iteration, so the hit-set invariant (section 5) holds.
+- Per poly, [large_B, B) is walked once (plus one extra pass 1 per 'a'),
+  matching the bucket path's single root-update pass.
+
+### 6.1 Implementation notes
+- The minblock `-= 4` is an explicit AVX512BW loop (`_mm512_sub_epi8`).
+  gcc 11 at -O2 does not auto-vectorize; the scalar byte loop cost ~4%
+  of total time. So TRY_DIRECT_SIEVE now also requires USE_AVX512BW.
+- **Bitmap pre-filter by gather.** A perf profile of the fused build showed
+  `direct_resieve_hit` at ~10% of runtime: nearly every lane hits the
+  interval (~28 root hits per 16 primes), and each hit was a scalar call
+  that almost always missed the bitmap. The fused loop now gathers the
+  32-bit bitmap word for each lane's position
+  (`_mm512_mask_i32gather_epi32`, index pos>>5) and tests bit pos&31.
+  Neg-side positions are computed as `p - r + interval`, masked
+  `< 2*interval`. Only lanes with a set bit reach the scalar
+  binary-search + guarded division. This was the big win.
+
+### 6.2 Results
+Sequential single runs (one job at a time), WSL gcc 11, i5-11600K
+(Rocket Lake: 48 KB L1D, 512 KB L2/core), -threads 1. QS elapsed seconds:
+
+| input | NB | sparse+buckets | unfused | fused | fused + gather |
+|---|---|---|---|---|---|
+| 256-bit | 8 | 26.7 / 26.6 / 27.2 / 26.8 | 31.2 / 31.3 / 31.6 / 31.8 | 32.7 / 32.4 (scalar minblock), 31.9 / 31.7 | **27.4 / 27.4** |
+| 261-bit | 8 | 35.1 | — | — | 36.2 |
+| 261-bit | 12 | 40.0 | — | — | 43.3 |
+| 261-bit | 16 | 46.2 | — | — | 49.8 |
+
+- Fusing by itself bought ~nothing (unfused ~= fused): the second walk over
+  [large_B, B) was cheap. The cost was the per-hit scalar bitmap probe.
+- With the gather filter, direct is within ~1-3% of sparse+buckets at
+  NB=8 and ~8% behind at NB=12/16. Larger NB means a larger scatter target:
+  both sides are 2*NB*32 KB = 512 KB / 768 KB / 1 MB, against a 512 KB L2.
+  That fits the L2-residency hypothesis: the bucket path's writes are
+  sequential, and its per-block application stays in L1.
+- Correctness: all of 256-bit NB8, 261-bit NB 6/8/12/16 factor with the
+  correct P39s and zero errors. The poly count is identical to the unfused
+  build (261-bit NB8: 62985), so the fused pass's hit set matches.
+
+### 6.3 Block-edge bug (found at small NB, fixed)
+
+At NB=2/4, direct needed noticeably more polys than stock: 261-bit NB2
+partials/poly were −7% and DLP attempts −13%, with far more "outside
+range" residues. Diagnosis:
+- `DEBUG_MISSED_FB_PRIMES` showed no missing divisions.
+- `DEBUG_DIRECT_ROOTS` showed every `[large_B, B)` root was correct.
+- A report dump with a fixed seed (`DEBUG_DUMP_REPORTS`, `-seed 12345
+  -noopt`), diffed between builds on identical polys, found the junk
+  reports: almost all at **location 32767 of every block that has a
+  predecessor**, with bytes ~162-166 (a large bogus subtraction).
+
+Cause: for a-primes <= 8192, `set_aprime_roots` keeps the prime and marks
+the roots 0xffff. The unrolled small-prime med-sieve paths then subtract
+logp at `blk_sieve[65535]`. In stock's single-block window that byte is
+guard space. In the contiguous direct layout it is the **next block's last
+byte** (for the last neg block it is guard space). Fix (SIQS.c, both
+block loops): save `blk_sieve[65535]` before the block's med/sparse sieve
+and restore it afterwards.
+
+(The med sieve also dumps logs for a-primes > 8192 at `blk_sieve[0]`;
+that happens in both builds, inside the block, and is unchanged.)
+
+### 6.4 Results after the fix, and logp calibration
+
+Yield per poly after the fix (261-bit, `-noopt` so both builds use the same
+tf_small_cutoff; per poly):
+
+| build | NB | polys | partials | survivors | outside range | prp + DLP att |
+|---|---|---|---|---|---|---|
+| sparse | 2 | 203.5k | 1.133 | 10.14 | 6.24 | 3.02 |
+| direct | 2 | 210.6k | 1.036 | 9.47 | 6.24 | 2.34 |
+| direct, bias 1 | 2 | 186.9k | 1.466 | 12.48 | 6.52 | 5.07 |
+| sparse | 4 | 120.4k | 1.853 | 17.83 | 11.66 | 4.65 |
+| direct | 4 | 123.9k | 1.739 | 16.93 | 11.49 | 3.93 |
+| direct, bias 1 | 4 | 111.9k | 2.311 | 21.03 | 11.99 | 7.51 |
+
+- The junk is gone: "outside range" now matches stock.
+- The remaining gap is **sieve-credit calibration, not correctness**. On
+  identical polys, stock's bytes are on average ~1 lower (more credit),
+  because each bucket slice applies the logp of the slice's *last* prime to
+  every prime in the slice, while direct uses the 16-group's top logp.
+  Stock's extra near-threshold reports (bytes 254/255) are mostly DLP
+  candidates.
+- `DIRECT_LOGP_BIAS` (qs_impl.h, default 0) adds a constant to the direct
+  range's logp. With bias 1, direct overtakes stock in yield per poly by
+  25-30%. The yield is very sensitive to large-prime credit (equivalently,
+  to the report threshold), which is a lever for the parameter exploration.
+
+Wall time (sequential single runs, normal cutoff tuning on, QS seconds):
+
+| input | NB | sparse+buckets | direct | direct bias 1 |
+|---|---|---|---|---|
+| 261-bit | 2 | 32.8 | 33.8 | 33.4 |
+| 261-bit | 4 | 30.1 | 29.8 | 29.7 |
+| 261-bit | 8 | 34.6 | 34.3 | 34.4 |
+| 256-bit | 2 | 25.6 | 25.9 | 25.9 |
+| 256-bit | 4 | 23.5 | 23.3 | 23.6 |
+| 256-bit | 8 | 26.7 | 26.4 | 27.0 |
+
+- With the fix, direct is even with or slightly faster than stock at NB 4
+  and 8, and ~1-3% slower at NB2. Before the fix it was +3% at NB8 on the
+  261-bit input (36.2 s).
+- **NB=4 is the fastest setting for both builds** on these 77-79 digit
+  inputs: ~12% faster than NB=8 and ~8% faster than NB=2.
+- Bias 1's higher yield per poly is cancelled out in wall time by the extra
+  trial division (and by the adaptive tf_small_cutoff). Calibration should
+  be explored together with the thresholds, not on its own.
+
+Diagnostics left in the code (all off by default):
+- `DEBUG_MISSED_FB_PRIMES` (tdiv.c): counts fb primes left in finalized Qs,
+  by range. Both builds leave a few (~0.2-0.4% of reports). This predates
+  TRY_DIRECT_SIEVE.
+- `DEBUG_DIRECT_ROOTS` (SIQS.c): checks Q(r) == 0 mod p for every direct
+  root, each poly.
+- `DEBUG_DUMP_REPORTS` (tdiv_scan.c): dumps every report with its sieve
+  byte and survival flag for the first 20000 scan calls, keyed by call
+  index. Use with `-seed N -noopt` to diff builds on identical polys.
+
+### 6.5 Survivor filter: compares vs gathers
+
+Every prime in [large_B, B) is > interval, so a root hits survivor
+position s exactly when it **equals** s. No modular reduction or range
+mask is needed. With few survivors, the fused loop therefore finds survivor
+hits by broadcasting each pos-side survivor position and comparing it with
+vroot1/vroot2, and each neg-side survivor position (pool->pos, already
+offset by interval) with vnpos1/vnpos2. That costs about 2 compares per
+survivor per 16 primes, against 4 bitmap gathers per 16 primes regardless
+of S. The pool is sorted, so pos-side survivors are `pool->pos[0, nsp)`.
+
+The path is chosen per poly: compares when `pool->num <=
+DIRECT_CMP_MAX_SURVIVORS` (qs_impl.h, default 12; 0 = always gather),
+gathers otherwise. The two paths give bit-identical results (same
+relations, polys and DLP statistics with `-seed 777 -noopt`).
+
+Absolute perf samples of `direct_resieve_update_largeprimes_32k` (256-bit,
+`-seed 777 -noopt`, identical work per build):
+
+| NB | ~survivors/poly | gather only | compare only | threshold 12 |
+|---|---|---|---|---|
+| 2 | ~10 | 43.6k (49% of run) | 38.5k | 39.4k |
+| 4 | ~17 | 26.1k (33%) | 26.7k | **25.3k** |
+| 8 | ~40+ | 15.3k (18%) | 17.6k | (gathers) |
+
+At NB=4 the per-poly switch beats both fixed paths, because survivor
+counts vary from poly to poly.
+
+**Bucket prefilter (current default).** Before the compares/gathers, a
+register-resident prefilter drops lanes whose bucket holds no survivor:
+- `DIRECT_PREFILTER_BITS` is 1024 by default (two zmm, looked up with
+  `vpermt2d`); 512 (one zmm, `vpermd`) and 0 (off) are also available.
+- The bits cover both intervals: 2*interval positions in buckets of
+  2^pf_shift, with pf_shift the smallest shift such that
+  bits << pf_shift >= 2*interval.
+- The table is built once per poly from the pool.
+- Per root vector: srlv → table lookup → sllv/vptestmd, applied to the
+  in-range mask. Then a vector's gather is skipped entirely when no lane is
+  left, and the compare loops skip a side when its two masks are empty.
+- Most lanes fail the cheap tests. Many roots are out of range, since a
+  root lands in the interval with probability interval/p and p is up to
+  ~912k. And with ~10-40 survivors in 1024 buckets, few in-range lanes land
+  in an occupied bucket.
+
+Resieve-function perf samples (256-bit, `-seed 777 -noopt`; 2-3 rounds,
+runs disturbed by background load discarded):
+
+| NB | no prefilter (thr12) | pf512 | pf1024 + compares <=12 | pf1024, gathers only |
+|---|---|---|---|---|
+| 2 | 40.3k | 37.9k | 35.4-36.4k | 35.3-35.9k |
+| 4 | 25.2k | 23.7k | 22.5k | 22.3k |
+| 8 | 14.9k | 15.8k | 13.6k | 13.7k |
+
+With the 1024-bit prefilter the resieve drops ~12% at NB 2/4 and ~9% at
+NB=8, and compares no longer beat gathers even at ~10 survivors. So the
+defaults are `DIRECT_PREFILTER_BITS 1024`, `DIRECT_CMP_MAX_SURVIVORS 0`
+(gathers only); the compare path is kept selectable for other input sizes.
+All variants are bit-identical on a fixed seed. As you noted, S grows for smaller inputs and
+shrinks for larger ones, so the compare path should be used more on large
+inputs.
+
+**Observation for the small-NB work:** at NB=2 the fused loop is ~half
+of the whole run. Its cost per poly is fixed (it walks all of [large_B, B):
+root update + next-poly scatter), while the interval, and so the yield per
+poly, shrinks with NB. The bucket path has the same fixed per-poly
+root-update cost. This fixed per-poly overhead is what limits small NB.
+
+### 6.6 Option: bucket sieve for [med_B, large_B) (`DIRECT_MEDBUCKET`)
+
+With `DIRECT_MEDBUCKET 1` (qs_impl.h, now the default), the primes between med_B
+and large_B are handled by the stock bucket sieve instead of the sparse
+sieve.
+
+Mechanism:
+- **Boundaries** (SIQS.c fb bounds): `large_B` stays the first 16-aligned
+  index with prime > interval, and `fb_blk8i = med_B`. That empties every
+  sparse-range loop (firstRoots' and nextRoots' L2 sections,
+  `large_sieveblock_32k_avx512bw`, `tdiv_large_32k_avx2`). It also makes
+  firstRoots' middle bucket loop and `nextRoots_32k_knl_medbucket` (both
+  start at fb_blk8i under TRY_L2_SIEVE) cover `[med_B, large_B)`.
+  `_manyblocks` (NB > 16) always starts at med_B, which agrees.
+- **Per poly**: after `nextRoots_32k_avx2_small`, call medbucket (or
+  `_manyblocks`). Then record `num_slices = bi + 1` and the last slice's
+  logp (= logprime[large_B-1]); normally largebucket does that, and it is
+  not called.
+- **firstRoots**: its third loop does no `CHECK_NEW_SLICE` under
+  TRY_DIRECT_SIEVE (nothing in `[large_B, B)` goes to buckets, so the
+  slice bookkeeping must stop at the last bucketed prime). process_poly
+  records the last slice's logp after firstRoots, which firstRoots never
+  does.
+- **Per block**: `lp_sieveblock_ptr`. **Scan**: `tdiv_LP_ptr` for each
+  survivor before `direct_save_survivor`, while the block's buckets are
+  current.
+- **a-primes** must be `< med_B` in this mode (tdiv_LP divides without
+  checking); runtime check.
+
+Verified: the 261-bit input factors at NB 2/4/8/16/20 (NB=20 exercises
+`_manyblocks`), as does the 256-bit input at the default NB. The fb bounds
+show `L2 == med` (empty sparse range).
+
+Yield per poly (261-bit, `-noopt`): the same as the sparse version at NB=2
+(where `[med_B, large_B)` is tiny), +7% partials at NB=4 and +19% at
+NB=8. That is the bucket slice-end logp convention again (6.4), now applied
+to a range that grows with NB.
+
+Wall time (sequential, normal tuning, QS seconds):
+
+| input | NB | stock sparse+buckets | direct (sparse range) | direct + medbucket |
+|---|---|---|---|---|
+| 261-bit | 2 | 33.7 / 33.4 | 32.1 / 31.9 | **31.9 / 31.7** |
+| 261-bit | 4 | 31.0 / 31.3 | 29.2 / 29.3 | **28.4 / 27.9** |
+| 261-bit | 8 | 34.5 / 34.7 | 33.9 / 34.5 | **29.2 / 29.5** |
+| 256-bit | 2 | 25.5 | **24.1** | 24.4 |
+| 256-bit | 4 | 23.7 | 23.1 | **21.8** |
+| 256-bit | 8 | 27.0 | 26.6 | **23.2** |
+
+With the medbucket option, direct is 4-9% faster than stock at NB 2/4 and
+~14% faster at NB=8; NB=4 is still the best setting. At NB=8 two things
+probably contribute, and they haven't been separated:
+- the sparse sieve was ~26% of the NB=8 profile, and the buckets are
+  cheaper for these primes;
+- the higher yield per poly from the slice-end logp.
+
+Side note (stock sparse build, not DIRECT): `nextRoots_32k_knl_medbucket`
+starts at fb_blk8i under TRY_L2_SIEVE, but `_manyblocks` always starts at
+med_B. So with num_blocks > 16, the plain TRY_SPARSE build would cover
+`[med_B, fb_blk8i)` with both the sparse sieve and buckets. Untested.
+
+### 6.7 Possible next steps
+- Profile fused+gather again to split the fused loop's cost between the
+  root update, the next-poly scatter and the gathers.
+- Shrink the scatter target at larger NB: e.g. sieve the next poly's pos
+  and neg halves in two sub-passes (two 256 KB targets at NB=8), or cap the
+  direct range's NB dependence.
+- Compare on a CPU with a larger L2 (e.g. 1-2 MB/core) where 2*interval
+  fits.
+- Parameter exploration at small NB (2/4): report threshold / tf_closnuf,
+  tf_small_cutoff, DIRECT_LOGP_BIAS, and the large-prime multipliers (the
+  single large prime cutoff is currently 90 * pmax).
+
+### 6.8 Fused-pass profile and single-flush scatter (2026-10-29)
+
+**Setup.** perf on the i5-11600K, `-threads 1 -seed 777 -noopt`, current
+defaults (mid = sparse, kernel = cmem). Samples are sorted into phases by
+the inline chain from addr2line.
+
+**Fused pass share of the run:**
+
+| input | NB=2 | NB=4 | NB=8 |
+|---|---|---|---|
+| c77 | 27% | 17% | 7% |
+| c95 | 56% | 43% | — |
+
+**Split within the pass (C95 NB=2):**
+
+| phase | share of the pass |
+|---|---|
+| flush RMWs | 33% |
+| compress/store | 39% |
+| resieve masks/prefilter/gathers | 14% |
+| loads | 7% |
+| root update | 5% |
+
+**Conclusions:**
+- The root update is cheap, so subset-sum and multi-poly batching can save
+  little. Batching shares only the loads and the update, at most ~7% of a
+  C95 NB=2 run.
+- The flush RMWs cause 44% (NB=2) and 70% (NB=4) of all L2-miss loads: the
+  ~1.4 MB/poly fb stream evicts the interval. With single flush there are
+  ~1290 (NB=2) and ~3350 (NB=4) L2-miss loads per poly (perf stat counts;
+  sampled counts are throttled and read far too low). Avoiding them doesn't
+  pay: see the late-memset result below.
+
+**Single-flush scatter.** `TRY_SINGLE_FLUSH_SCATTER` (qs_impl.h, on by
+default):
+- The fused pass's CREG / CMEM kernels append every next-poly hit to
+  `pool->hits` and flush once after the walk. Pass 1 is unchanged.
+- AVX-512 now uses `pool->hits` instead of its stack buffer. The other ISAs
+  already filled that list for their hit-list resieve; they only skip the
+  in-loop flushes.
+
+**Results.** Relations are bit-identical with the define on and off for the
+avx512, avx2, sse41 and scalar kernels (c77 NB=2). Fixed-work C95 cycles
+(`-siqsR 110000`; `-siqsR 60000` for AVX2):
+
+| config | change in cycles |
+|---|---|
+| NB=2, AVX-512 | -2.6 / -3.0% |
+| NB=4, AVX-512 | -0.7% |
+| NB=2, AVX2 | -1.1% |
+
+**Late memset.** Moving the next interval's memset to just before the flush
+makes the interval resident for the flush. L2-miss loads per poly fall from
+~1290 to ~226 at NB=2 and from ~3350 to ~1319 at NB=4, but cycles rise 1.4%
+and 0.6%. The event counts loads only, so the memset's own store misses are
+not in those figures: the interval comes back from L3 once per poly either
+way. The memset stays before the pass.
+
+**Flush after the block sieves (prototype only, not in the tree).** Order per
+poly: memset + med + sparse for all blocks, the single flush, then all scans.
+With a per-block root snapshot in both the control and the reorder build, so
+their cache pollution matches, fixed-work C95 cycles (`-siqsR 110000`) change
+by -1.3 / -1.1% at NB=2 and -1.6 / -0.4% at NB=4, with identical relations.
+A real version would swap the snapshot for rewound roots or 32-bit divisibility
+tests in the scan (estimated, not measured, at about 2-3% of cycles). It must
+also protect the med sieve's sink stripe, the last `MED_SINK_BYTES` of the
+previous block, which is scribbled on once that block is no longer scanned
+first. Not pursued.
+
+## 7. Not done / caveats
+
+- USE_SS_SEARCH and batch polys are excluded at compile time. TLP
+  (use_dlp >= 2) is untested; the BW scan branch works through the
+  dconf->sieve repointing.
+- Since 2026-10-22 the strategies are chosen at run time and run at every
+  ISA level. The `DIRECT_MEDBUCKET`, `DIRECT_SCATTER_MODE` and
+  `DIRECT_SPARSE_COMPRESS` switches above became the `-siqsMid`,
+  `-siqsLarge`, `-siqsKernel`, `-siqsSparseKernel` and `-siqsLPisa`
+  options, with a defaults table and an NB cap. See
+  `plans/siqs_multi_isa/plan.md` section 0.
+- Pool and bitmap memory: ~MAX_SMOOTH_PRIMES*4 bytes per survivor (grows on
+  demand) + interval/4 bytes of bitmap. That is small next to the original
+  design's ~26 MB per thread.
+- Sieve memory: (2*NB + 4) * 32 KB per thread.

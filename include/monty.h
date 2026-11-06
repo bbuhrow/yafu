@@ -671,11 +671,9 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 // unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
 // int __builtin_subc (unsigned int a, unsigned int b, unsigned int carry_in, unsigned int *carry_out)
 #define rettype uint64_t
-#define _addcarry_u64(c_in, a, b, c_out)  __builtin_addcll(a, b, c_in, c_out)
-#define _subborrow_u64(c_in, a, b, c_out) __builtin_subcll(a, b, c_in, c_out)
-#define _subborrow_u32(c_in, a, b, c_out) __builtin_subc(a, b, c_in, c_out)
+#include "portable_carry.h"
 
-static __inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
+YAFU_PC_INLINE uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
 {
     __uint128_t prod = (__uint128_t)x * (__uint128_t)y;
     *hi = (uint64_t)(prod >> 64);
@@ -865,7 +863,7 @@ FORCE_INLINE static void mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
 static __m512d dbias;
 static __m512i vbias1;
 static __m512i vbias2;
-static __m512i vbias3;
+UNUSED_VAR static __m512i vbias3;
 
 #define mul52lo(b, c) \
 	_mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull))
@@ -1052,6 +1050,13 @@ void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0
 
 void init_monty104(void);
 
+#if defined(__GNUC__) && !defined(IFMA)
+// the non-IFMA paths below intentionally declare local copies of the
+// dbias/vbias constants used by the mul52 macros, shadowing the statics
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 __inline static void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulmsk,
 	__m512i a1, __m512i a0, __m512i b1, __m512i b0, __m512i n1, __m512i n0, __m512i vrho)
 {
@@ -1060,12 +1065,12 @@ __inline static void mask_mulredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulm
 	__m512i t0, t1, t2, t3, C1, C2;
 
 #ifndef IFMA
-	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
-	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
-	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
-	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
-	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	UNUSED_VAR __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	UNUSED_VAR __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	UNUSED_VAR __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	UNUSED_VAR __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	UNUSED_VAR __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	UNUSED_VAR __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
 	UNUSED_VAR int biascount = 0;
 	UNUSED_VAR __m512i i0, i1;
 #endif
@@ -1148,12 +1153,12 @@ __inline static void mulredc104_vec(__m512i* c1, __m512i* c0,
 	__m512i t0, t1, t2, t3, C1, C2;
 
 #ifndef IFMA
-	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
-	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
-	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
-	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
-	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	UNUSED_VAR __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	UNUSED_VAR __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	UNUSED_VAR __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	UNUSED_VAR __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	UNUSED_VAR __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	UNUSED_VAR __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
 	UNUSED_VAR int biascount = 0;
 	UNUSED_VAR __m512i i0, i1;
 #endif
@@ -1234,12 +1239,12 @@ __inline static void sqrredc104_vec(__m512i* c1, __m512i* c0,
 	__m512i t0, t1, t2, t3, C1, C2, sqr_lo, sqr_hi;
 
 #ifndef IFMA
-	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
-	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
-	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
-	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
-	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	UNUSED_VAR __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	UNUSED_VAR __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	UNUSED_VAR __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	UNUSED_VAR __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	UNUSED_VAR __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	UNUSED_VAR __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
 	UNUSED_VAR int biascount = 0;
 	UNUSED_VAR __m512i i0, i1;
 #endif
@@ -1313,12 +1318,12 @@ __inline static void mask_sqrredc104_vec(__m512i* c1, __m512i* c0, __mmask8 mulm
 	__m512i t0, t1, t2, C3, C1, C2, sqr_lo, sqr_hi;
 
 #ifndef IFMA
-	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
-	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
-	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
-	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
-	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	UNUSED_VAR __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	UNUSED_VAR __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	UNUSED_VAR __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	UNUSED_VAR __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	UNUSED_VAR __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	UNUSED_VAR __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
 	UNUSED_VAR int biascount = 0;
 	UNUSED_VAR __m512i i0, i1;
 #endif
@@ -1400,12 +1405,12 @@ __inline static void mask_sqrredc104_vec_pos(__m512i* c1, __m512i* c0, __mmask8 
 	__m512i t0, t1, t2, C3, C1, C2, sqr_lo, sqr_hi;
 
 #ifndef IFMA
-	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
-	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
-	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
-	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
-	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	UNUSED_VAR __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	UNUSED_VAR __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	UNUSED_VAR __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	UNUSED_VAR __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	UNUSED_VAR __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	UNUSED_VAR __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
 	UNUSED_VAR int biascount = 0;
 	UNUSED_VAR __m512i i0, i1;
 #endif
@@ -1484,12 +1489,12 @@ __inline static void mask_sqrredc104_exact_vec(__m512i* c1, __m512i* c0, __mmask
 	__m512i t0, t1, t2, C3, C1, C2, sqr_lo, sqr_hi;
 
 #ifndef IFMA
-	__m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
-	__m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
-	__m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-	__m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
-	__m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
-	__m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
+	UNUSED_VAR __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
+	UNUSED_VAR __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
+	UNUSED_VAR __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+	UNUSED_VAR __m512i vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);  // 31
+	UNUSED_VAR __m512i vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);  // 31
+	UNUSED_VAR __m512i vbias3 = _mm512_set1_epi64(0x4330000000000000ULL);  // 31
 	UNUSED_VAR int biascount = 0;
 	UNUSED_VAR __m512i i0, i1;
 #endif
@@ -1565,6 +1570,10 @@ __inline static void mask_sqrredc104_exact_vec(__m512i* c1, __m512i* c0, __mmask
 
 	return;
 }
+#if defined(__GNUC__) && !defined(IFMA)
+#pragma GCC diagnostic pop
+#endif
+
 __inline static void addmod104_x8(__m512i* c1, __m512i* c0, __m512i a1, __m512i a0,
 	__m512i b1, __m512i b0, __m512i n1, __m512i n0)
 {

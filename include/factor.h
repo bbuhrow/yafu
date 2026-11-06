@@ -34,6 +34,8 @@ code to the public domain.
 #define GSTR_MAXSIZE 1024
 #define NUM_ECM_LEVELS 12
 
+#include "siqs_strategy.h"
+
 //#define NO_ZLIB
 
 #if defined( _MSC_VER )
@@ -261,6 +263,7 @@ typedef struct
     // siqs parameters to override defaults
     uint32_t gbl_override_B;			//override the # of factor base primes
     uint32_t gbl_override_small_cutoff;			//override the tf_small_cutoff value
+    uint32_t gbl_override_spv_limit;	//override the SPV small-prime bound
     uint32_t gbl_override_tf;			//extra reduction of the TF bound by X bits
     uint32_t gbl_override_time;		//stop after this many seconds
     uint32_t gbl_override_rel;		//stop after collecting this many relations
@@ -280,8 +283,32 @@ typedef struct
     int gbl_force_TLP;
     int gbl_force_QLP;
 
+    // large-prime sieve strategy overrides (SIQS_STRAT_AUTO = 0 = choose
+    // automatically); see the SIQS_MID_* / SIQS_LARGE_* / SIQS_K_* values
+    uint32_t gbl_siqs_mid;          // [med_B, large_B): buckets or sparse sieve
+    uint32_t gbl_siqs_large;        // [large_B, B): buckets or direct sieve
+    uint32_t gbl_siqs_kernel;       // direct sieve scatter kernel
+    uint32_t gbl_siqs_sparse_kernel;// sparse sieve / tdiv_large kernel
+    uint32_t gbl_siqs_lp_isa;       // ISA of those kernels (SIQS_ISA_*)
+
+    // tuned parameter table written by siqstune(); when present, SIQS takes
+    // its parameters from it (interpolated by input size) for every option
+    // not set on the command line, else from the built-in table
+    char siqs_params_file[1024];    // "" = don't use one
+    int no_tuned_params;            // 1 = ignore siqs_params_file
+
+    // measurement taps for siqstune(): relation counts (fulls, partials) and
+    // elapsed time at the first status update after tune_warmup seconds, and
+    // when sieving stopped.  tune_warmup = 0 disables them.
+    double tune_warmup;
+    double tune_t_warm, tune_t_end;
+    uint32_t tune_full_warm, tune_partial_warm;
+    uint32_t tune_full_end, tune_partial_end;
+    uint32_t tune_needed;           // relations needed (B + extra) for this input
+
     int gbl_override_B_flag;
     int gbl_override_small_cutoff_flag;
+    int gbl_override_spv_limit_flag;
     int gbl_override_tf_flag;
     int gbl_override_time_flag;
     int gbl_override_rel_flag;
@@ -527,6 +554,7 @@ typedef struct
     int HAS_AVX512VL;
     int HAS_AVX512PF;
     int HAS_AVX512IFMA52;
+    int HAS_NEON;           // AArch64 NEON kernels enabled (cleared by -noneon)
     int L1CACHE;
     int L2CACHE;
     int L3CACHE;
@@ -593,5 +621,6 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 
 // find a crossover between QS and NFS
 void factor_tune(fact_obj_t* inobj);
+void siqs_param_tune(fact_obj_t* fobj);
 
 #endif //_FACTOR_H

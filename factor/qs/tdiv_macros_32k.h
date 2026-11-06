@@ -467,129 +467,129 @@
 	#define RESIEVE_8X_14BIT_MAX \
 		do { \
 			int p = (int)fbc->prime[i];										\
-			int r1 = (int)fbc->root1[i] + 32768 - block_loc;			\
-			int r2 = (int)fbc->root2[i] + 32768 - block_loc;			\
+			int r1 = (int)fbc->root1[i] + 32768 - (int)block_loc;			\
+			int r2 = (int)fbc->root2[i] + 32768 - (int)block_loc;			\
 			RESIEVE_1X_14BIT_MAX(0x2);										\
 			\
 			p = (int)fbc->prime[i+1];										\
-			r1 = (int)fbc->root1[i+1] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+1] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+1] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+1] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x8);										\
 			\
 			p = (int)fbc->prime[i+2];										\
-			r1 = (int)fbc->root1[i+2] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+2] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+2] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+2] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x20);									\
 			\
 			p = (int)fbc->prime[i+3];										\
-			r1 = (int)fbc->root1[i+3] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+3] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+3] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+3] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x80);									\
 			\
 			p = (int)fbc->prime[i+4];										\
-			r1 = (int)fbc->root1[i+4] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+4] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+4] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+4] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x200);									\
 			\
 			p = (int)fbc->prime[i+5];										\
-			r1 = (int)fbc->root1[i+5] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+5] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+5] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+5] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x800);									\
 			\
 			p = (int)fbc->prime[i+6];										\
-			r1 = (int)fbc->root1[i+6] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+6] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+6] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+6] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x2000);									\
 			\
 			p = (int)fbc->prime[i+7];										\
-			r1 = (int)fbc->root1[i+7] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+7] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+7] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_14BIT_MAX(0x8000);									\
 		} while (0); 
 
 	#define RESIEVE_8X_15BIT_MAX \
 		do { \
 			int p = (int)fbc->prime[i];										\
-			int r1 = (int)fbc->root1[i] + 32768 - block_loc;			\
-			int r2 = (int)fbc->root2[i] + 32768 - block_loc;			\
+			int r1 = (int)fbc->root1[i] + 32768 - (int)block_loc;			\
+			int r2 = (int)fbc->root2[i] + 32768 - (int)block_loc;			\
 			RESIEVE_1X_15BIT_MAX(0x2);										\
 			\
 			p = (int)fbc->prime[i+1];										\
-			r1 = (int)fbc->root1[i+1] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+1] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+1] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+1] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x8);										\
 			\
 			p = (int)fbc->prime[i+2];										\
-			r1 = (int)fbc->root1[i+2] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+2] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+2] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+2] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x20);									\
 			\
 			p = (int)fbc->prime[i+3];										\
-			r1 = (int)fbc->root1[i+3] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+3] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+3] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+3] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x80);									\
 			\
 			p = (int)fbc->prime[i+4];										\
-			r1 = (int)fbc->root1[i+4] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+4] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+4] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+4] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x200);									\
 			\
 			p = (int)fbc->prime[i+5];										\
-			r1 = (int)fbc->root1[i+5] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+5] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+5] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+5] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x800);									\
 			\
 			p = (int)fbc->prime[i+6];										\
-			r1 = (int)fbc->root1[i+6] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+6] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+6] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+6] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x2000);									\
 			\
 			p = (int)fbc->prime[i+7];										\
-			r1 = (int)fbc->root1[i+7] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+7] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+7] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_15BIT_MAX(0x8000);									\
 		} while (0); 
 
 	#define RESIEVE_8X_16BIT_MAX \
 		do { \
 			int p = (int)fbc->prime[i];										\
-			int r1 = (int)fbc->root1[i] + 32768 - block_loc;			\
-			int r2 = (int)fbc->root2[i] + 32768 - block_loc;			\
+			int r1 = (int)fbc->root1[i] + 32768 - (int)block_loc;			\
+			int r2 = (int)fbc->root2[i] + 32768 - (int)block_loc;			\
 			RESIEVE_1X_16BIT_MAX(0x2);										\
 			\
 			p = (int)fbc->prime[i+1];										\
-			r1 = (int)fbc->root1[i+1] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+1] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+1] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+1] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x8);										\
 			\
 			p = (int)fbc->prime[i+2];										\
-			r1 = (int)fbc->root1[i+2] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+2] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+2] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+2] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x20);									\
 			\
 			p = (int)fbc->prime[i+3];										\
-			r1 = (int)fbc->root1[i+3] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+3] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+3] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+3] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x80);									\
 			\
 			p = (int)fbc->prime[i+4];										\
-			r1 = (int)fbc->root1[i+4] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+4] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+4] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+4] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x200);									\
 			\
 			p = (int)fbc->prime[i+5];										\
-			r1 = (int)fbc->root1[i+5] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+5] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+5] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+5] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x800);									\
 			\
 			p = (int)fbc->prime[i+6];										\
-			r1 = (int)fbc->root1[i+6] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+6] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+6] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+6] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x2000);									\
 			\
 			p = (int)fbc->prime[i+7];										\
-			r1 = (int)fbc->root1[i+7] + 32768 - block_loc;				\
-			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
+			r1 = (int)fbc->root1[i+7] + 32768 - (int)block_loc;				\
+			r2 = (int)fbc->root2[i+7] + 32768 - (int)block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x8000);									\
 		} while (0); 
 
@@ -597,14 +597,14 @@
 
 
 #define INIT_CORRECTIONS \
-	corrections[0] = 32768 - block_loc; \
-	corrections[1] = 32768 - block_loc; \
-	corrections[2] = 32768 - block_loc; \
-	corrections[3] = 32768 - block_loc; \
-	corrections[4] = 32768 - block_loc; \
-	corrections[5] = 32768 - block_loc; \
-	corrections[6] = 32768 - block_loc; \
-	corrections[7] = 32768 - block_loc;
+	corrections[0] = (uint16_t)(32768 - block_loc); \
+	corrections[1] = (uint16_t)(32768 - block_loc); \
+	corrections[2] = (uint16_t)(32768 - block_loc); \
+	corrections[3] = (uint16_t)(32768 - block_loc); \
+	corrections[4] = (uint16_t)(32768 - block_loc); \
+	corrections[5] = (uint16_t)(32768 - block_loc); \
+	corrections[6] = (uint16_t)(32768 - block_loc); \
+	corrections[7] = (uint16_t)(32768 - block_loc);
 
 #define CHECK_8_RESULTS \
 	if (result & 0x2) {				  \

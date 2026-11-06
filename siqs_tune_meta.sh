@@ -1,0 +1,12 @@
+python3 siqs_tune.py tune --yafu ./yafu --fix Large=bucket --fix Kernel=cmem --trials 100 --digits 50 --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 1  
+python3 siqs_tune.py tune --yafu ./yafu --fix Large=bucket --fix Kernel=cmem --trials 100 --digits 55 --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 1  
+python3 siqs_tune.py tune --yafu ./yafu --fix Large=bucket --fix Kernel=cmem --trials 100 --digits 60 --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 1  
+python3 siqs_tune.py tune --yafu ./yafu --fix Large=bucket --fix Kernel=cmem --trials 100 --digits 65 --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 1  
+python3 siqs_tune.py tune --yafu ./yafu --trials 100 --digits 70 --seed-point "B=9808,M=190,NB=2,TF=72,TFSm=18,MFBD=1.85" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 4  
+python3 siqs_tune.py tune --yafu ./yafu --trials 100 --digits 75 --seed-point "B=13000,M=300,NB=3,TF=73,TFSm=18,MFBD=1.72" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 4  
+python3 siqs_tune.py tune --yafu ./yafu --trials 100 --digits 80 --seed-point "B=25000,M=300,NB=3,TF=78,TFSm=18,MFBD=1.73" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 4  
+python3 siqs_tune.py tune --yafu ./yafu --trials 50 --digits 85 --seed-point "B=33000,M=200,NB=4,TF=82,TFSm=18,MFBD=1.74" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 4 
+# python3 siqs_tune.py tune --yafu ./yafu --trials 40 --digits 90 --seed-point "B=41000,M=250,NB=5,TF=84,TFSm=18,MFBD=1.75" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 4  
+# python3 siqs_tune.py tune --yafu ./yafu --trials 100 --digits 95 --seed-point "B=47000,M=200,NB=5,TF=87,TFSm=18,MFBD=1.75" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 6  
+# python3 siqs_tune.py tune --yafu ./yafu --trials 100 --digits 100 --seed-point "B=53000,M=200,NB=6,TF=90,TFSm=18,MFBD=1.75" --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1 --threads 6
+python3 siqs_tune.py export --outdir /mnt/c/Users/bbuhr/projects/factoring/siqs_tune_night1

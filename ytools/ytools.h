@@ -280,6 +280,11 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
         char AVX512VL;
         char AVX512IFMA;
         char AVX512F;
+        // aarch64 features (Linux hwcaps)
+        char NEON;
+        char DOTPROD;
+        char SVE;
+        char SVE2;
 
 
     } info_t;
@@ -321,6 +326,8 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
     extern void ytools_get_cache_sizes(uint32_t* level1_size_out, uint32_t* level2_size_out);
     extern void ytools_get_computer_info(info_t* info, int do_print);
     extern void ytools_get_cache_sizes(uint32_t* level1_cache, uint32_t* level2_cache);
+    extern uint32_t ytools_get_l2_core_size(void);
+    extern int ytools_cpu_is_amd(void);
     extern int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extensions,
         char* BMI1, char* AVX, char* AVX2, char* BMI2, char* AVX512F, char* AVX512BW, char* AVX512ER,
         char* AVX512PF, char* AVX512CD, char* AVX512VL, char* AVX512IFMA, char* AVX512DQ, int do_print);

@@ -3,7 +3,7 @@
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
-		fb_offsets[++smooth_num] = i;	\
+		fb_offsets[++smooth_num] = (uint32_t)i;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
 #define DIVIDE_ONE_PRIME_2(j) \
@@ -17,7 +17,7 @@
 #define DIVIDE_RESIEVED_PRIME(j) \
 	while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
 	{						\
-		fb_offsets[++smooth_num] = i+j;	\
+		fb_offsets[++smooth_num] = (uint32_t)(i+j);	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[i+j]);		\
 	}
 #define DIVIDE_RESIEVED_PRIME_2(j) \
@@ -114,38 +114,38 @@
 
 
 #define INIT_CORRECTIONS_32 \
-	corrections[0] = 32768 - block_loc; \
-	corrections[1] = 32768 - block_loc; \
-	corrections[2] = 32768 - block_loc; \
-	corrections[3] = 32768 - block_loc; \
-	corrections[4] = 32768 - block_loc; \
-	corrections[5] = 32768 - block_loc; \
-	corrections[6] = 32768 - block_loc; \
-	corrections[7] = 32768 - block_loc; \
-	corrections[8] = 32768 - block_loc; \
-	corrections[9] = 32768 - block_loc; \
-	corrections[10] = 32768 - block_loc; \
-	corrections[11] = 32768 - block_loc; \
-	corrections[12] = 32768 - block_loc; \
-	corrections[13] = 32768 - block_loc; \
-	corrections[14] = 32768 - block_loc; \
-	corrections[15] = 32768 - block_loc; \
-    corrections[16] = 32768 - block_loc; \
-    corrections[17] = 32768 - block_loc; \
-    corrections[18] = 32768 - block_loc; \
-    corrections[19] = 32768 - block_loc; \
-    corrections[20] = 32768 - block_loc; \
-    corrections[21] = 32768 - block_loc; \
-    corrections[22] = 32768 - block_loc; \
-    corrections[23] = 32768 - block_loc; \
-    corrections[24] = 32768 - block_loc; \
-    corrections[25] = 32768 - block_loc; \
-    corrections[26] = 32768 - block_loc; \
-    corrections[27] = 32768 - block_loc; \
-    corrections[28] = 32768 - block_loc; \
-    corrections[29] = 32768 - block_loc; \
-    corrections[30] = 32768 - block_loc; \
-    corrections[31] = 32768 - block_loc;
+	corrections[0] = (uint16_t)(32768 - block_loc); \
+	corrections[1] = (uint16_t)(32768 - block_loc); \
+	corrections[2] = (uint16_t)(32768 - block_loc); \
+	corrections[3] = (uint16_t)(32768 - block_loc); \
+	corrections[4] = (uint16_t)(32768 - block_loc); \
+	corrections[5] = (uint16_t)(32768 - block_loc); \
+	corrections[6] = (uint16_t)(32768 - block_loc); \
+	corrections[7] = (uint16_t)(32768 - block_loc); \
+	corrections[8] = (uint16_t)(32768 - block_loc); \
+	corrections[9] = (uint16_t)(32768 - block_loc); \
+	corrections[10] = (uint16_t)(32768 - block_loc); \
+	corrections[11] = (uint16_t)(32768 - block_loc); \
+	corrections[12] = (uint16_t)(32768 - block_loc); \
+	corrections[13] = (uint16_t)(32768 - block_loc); \
+	corrections[14] = (uint16_t)(32768 - block_loc); \
+	corrections[15] = (uint16_t)(32768 - block_loc); \
+    corrections[16] = (uint16_t)(32768 - block_loc); \
+    corrections[17] = (uint16_t)(32768 - block_loc); \
+    corrections[18] = (uint16_t)(32768 - block_loc); \
+    corrections[19] = (uint16_t)(32768 - block_loc); \
+    corrections[20] = (uint16_t)(32768 - block_loc); \
+    corrections[21] = (uint16_t)(32768 - block_loc); \
+    corrections[22] = (uint16_t)(32768 - block_loc); \
+    corrections[23] = (uint16_t)(32768 - block_loc); \
+    corrections[24] = (uint16_t)(32768 - block_loc); \
+    corrections[25] = (uint16_t)(32768 - block_loc); \
+    corrections[26] = (uint16_t)(32768 - block_loc); \
+    corrections[27] = (uint16_t)(32768 - block_loc); \
+    corrections[28] = (uint16_t)(32768 - block_loc); \
+    corrections[29] = (uint16_t)(32768 - block_loc); \
+    corrections[30] = (uint16_t)(32768 - block_loc); \
+    corrections[31] = (uint16_t)(32768 - block_loc);
 
 #define STEP_COMPARE_COMBINE_AVX512 \
 	v512_y2 = _mm512_sub_epi16(v512_y2, v512_p); \
@@ -174,8 +174,8 @@
 
 #define GATHER_BIT_INDICES_AVX512 \
         while (msk32 > 0) { \
-            pos = _trail_zcnt(msk32); \
-            buffer[result++] = pos + i; \
+            pos = (uint32_t)_trail_zcnt(msk32); \
+            buffer[result++] = (uint16_t)(pos + (uint32_t)i); \
             msk32 = _reset_lsb(msk32); \
         }
 

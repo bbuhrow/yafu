@@ -57,6 +57,7 @@
  *     gpu_args[N].ptr_arg = t->gpu_xxx_array;
  *--------------------------------------------------------------------*/
 
+
 // posix feature-test macros to enable things in posix headers.
 // this one is for clock_gettime and others in time.h
 #define _POSIX_C_SOURCE 200809L
@@ -70,14 +71,8 @@
 #include "arith.h"
 #include <pthread.h>
 #include "gpu_cofactorization_cl.h"
-// lasieve's mpqs is optional (-DHAVE_LASIEVE_MPQS, and it must be linked in);
-// otherwise tinysiqs is used.  Same includes as factor/batch_factor.c.
-#ifdef HAVE_LASIEVE_MPQS
-#include "../factor/lasieve5_64/mpqs.h"
-#include "../factor/lasieve5_64/mpqs3.h"
-#include "../factor/lasieve5_64/if.h"
-#include "../factor/lasieve5_64/gmp-aux.h"
-#endif
+#include "gmp-aux.h"
+#include "kmpqs/kmpqs.h"
 #include "cofactorize.h"
 
 
@@ -261,13 +256,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
             //if (prp_uecm(cofactor) == 0)
             if ((bits2 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zc, 1) == 0))
             {
-#ifdef HAVE_LASIEVE_MPQS
-                int nf = mpqs_factor(zc, t->lpb_3lp, &flist);
+                int nf = kmpqs_factor(zc, t->lpb_3lp, &flist);
                 (*num_mpqs)++;
-#else
-                (*num_mpqs)++;
-                int nf = tinysiqs(t->params, zc, flist[0], flist[1], flist[2], t->lpb_3lp);
-#endif
                 if (nf == 2)
                 {
                     //gmp_printf("factored %Zd as %Zd * %Zd by tinysiqs\n", zc, flist[0], flist[1]);
@@ -375,13 +365,8 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
             //if (prp_uecm(cofactor) == 0)
             if ((bits1 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zf, 1) == 0))
             {
-#ifdef HAVE_LASIEVE_MPQS
-                int nf = mpqs_factor(zf, t->lpb_3lp, &flist);
+                int nf = kmpqs_factor(zf, t->lpb_3lp, &flist);
                 (*num_mpqs)++;
-#else
-                (*num_mpqs)++;
-                int nf = tinysiqs(t->params, zf, flist[0], flist[1], flist[2], t->lpb_3lp);
-#endif
 
                 if (nf == 2)
                 {

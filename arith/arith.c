@@ -515,8 +515,7 @@ void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
 // unsigned long long int __builtin_addcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
 // unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
 #define rettype uint64_t
-#define _addcarry_u64(c_in, a, b, c_out)  __builtin_addcll(a, b, c_in, c_out)
-#define _subborrow_u64(c_in, a, b, c_out) __builtin_subcll(a, b, c_in, c_out)
+#include "portable_carry.h"
 #endif
 
 void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)

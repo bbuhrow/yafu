@@ -51,8 +51,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options);
 
 int main(int argc, char *argv[])
 {
-	uint32_t insize = GSTR_MAXSIZE;
-	char *input_exp, *ptr, *indup, *input_line;
+	UNUSED_VAR char *input_exp, *ptr, *indup, *input_line;
     str_t input_str;
     
 	int slog,is_cmdline_run=0;
@@ -66,7 +65,7 @@ int main(int argc, char *argv[])
     //soe_staticdata_t* sdata;
     info_t comp_info;
     int run_type;
-    int i;
+    UNUSED_VAR int i;
 
 	//the input expression
 	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
@@ -85,10 +84,10 @@ int main(int argc, char *argv[])
     processOpts(argc, argv, options);
 
     // some things go into globals, but this is being phased out
-    obj.VFLAG = options->verbosity;
-    obj.THREADS = options->threads;
-    obj.CMD_LINE_REPEAT = options->repeat;
-    obj.VERBOSE_PROC_INFO = options->vproc;
+    obj.VFLAG = (int)options->verbosity;
+    obj.THREADS = (int)options->threads;
+    obj.CMD_LINE_REPEAT = (int)options->repeat;
+    obj.VERBOSE_PROC_INFO = (int)options->vproc;
 
     if (strlen(options->factorlog) == 0)
     {
@@ -113,7 +112,7 @@ int main(int argc, char *argv[])
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    ytools_get_computer_info(&comp_info, options->vproc);
+    ytools_get_computer_info(&comp_info, (int)options->vproc);
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -126,12 +125,19 @@ int main(int argc, char *argv[])
     fobj->HAS_AVX2 = comp_info.AVX2;
     fobj->HAS_AVX = comp_info.AVX;
     fobj->HAS_SSE41 = comp_info.bSSE41Extensions;
-    fobj->NUM_WITNESSES = options->num_prp_witnesses;
-    fobj->cache_size1 = fobj->L1CACHE = comp_info.L1cache;
-    fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
+    fobj->NUM_WITNESSES = (int)options->num_prp_witnesses;
+    fobj->L1CACHE = (int)comp_info.L1cache;
+    fobj->cache_size1 = comp_info.L1cache;
+    fobj->L2CACHE = (int)comp_info.L2cache;
+    fobj->cache_size2 = comp_info.L2cache;
     fobj->LOGFLAG = obj.LOGFLAG;
     fobj->THREADS = obj.THREADS;
     fobj->HAS_BMI2 = comp_info.BMI2;
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    fobj->HAS_NEON = comp_info.NEON = 1;
+#else
+    fobj->HAS_NEON = 0;
+#endif
 
 #if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
@@ -180,8 +186,8 @@ int main(int argc, char *argv[])
     {
         // a default function applied to text that has no other function.
         int len = (int)strlen(options->inputExpr) + 9;
-        options->inputExpr = (char*)xrealloc(options->inputExpr, len);
-        input_exp = (char*)xrealloc(input_exp, len);
+        options->inputExpr = (char*)xrealloc(options->inputExpr, (size_t)len);
+        input_exp = (char*)xrealloc(input_exp, (size_t)len);
         sprintf(input_exp, "siqs(%s)", options->inputExpr);
         strcpy(options->inputExpr, input_exp);
         strcpy(input_line, options->inputExpr);
@@ -256,7 +262,7 @@ int main(int argc, char *argv[])
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
 	print_splash(&comp_info, is_cmdline_run, logfile, obj.VFLAG, 
-        obj.NUM_WITNESSES);
+        (int)obj.NUM_WITNESSES);
 	
 	// start the calculator
 	// right now this just allocates room for user variables
@@ -629,6 +635,20 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 #ifdef IFMA
     if (comp_info->AVX512IFMA) logprint(logfile, "AVX512IFMA ");
 #endif
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+#ifdef __ARM_NEON
+    if (comp_info->NEON) logprint(logfile, "NEON ");
+#endif
+#ifdef __ARM_FEATURE_DOTPROD
+    if (comp_info->DOTPROD) logprint(logfile, "DOTPROD ");
+#endif
+#ifdef __ARM_FEATURE_SVE
+    if (comp_info->SVE) logprint(logfile, "SVE ");
+#endif
+#ifdef __ARM_FEATURE_SVE2
+    if (comp_info->SVE2) logprint(logfile, "SVE2 ");
+#endif
+#endif
     logprint(logfile, "\n");
 
     if (VFLAG > 0 || !is_cmdline_run)
@@ -654,6 +674,20 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 #endif
 #ifdef IFMA 
         if (comp_info->AVX512IFMA) printf("AVX512IFMA ");
+#endif
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+#ifdef __ARM_NEON
+        if (comp_info->NEON) printf("NEON ");
+#endif
+#ifdef __ARM_FEATURE_DOTPROD
+        if (comp_info->DOTPROD) printf("DOTPROD ");
+#endif
+#ifdef __ARM_FEATURE_SVE
+        if (comp_info->SVE) printf("SVE ");
+#endif
+#ifdef __ARM_FEATURE_SVE2
+        if (comp_info->SVE2) printf("SVE2 ");
+#endif
 #endif
         printf("\n");
     }
@@ -854,10 +888,9 @@ char * process_batchline(siqs_obj_t* yobj, char *input_exp, char *indup, int *co
 void options_to_factobj(fact_obj_t* fobj, options_t* options)
 {
     // set any parameters of fobj changed by user options
-    uint32_t seed1, seed2;
-    int i;
+    UNUSED_VAR int i;
 
-    fobj->num_threads = options->threads;
+    fobj->num_threads = (int)options->threads;
     strcpy(fobj->flogname, options->factorlog);
     strcpy(fobj->factor_json_name, options->jsonlog);
 
@@ -874,6 +907,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_B = options->siqsB;
     fobj->qs_obj.gbl_override_small_cutoff_flag = (options->siqsTFSm > 0);
     fobj->qs_obj.gbl_override_small_cutoff = options->siqsTFSm;
+    fobj->qs_obj.gbl_override_spv_limit_flag = (options->siqsSPV > 0);
+    fobj->qs_obj.gbl_override_spv_limit = options->siqsSPV;
     fobj->qs_obj.gbl_override_blocks_flag = (options->siqsNB > 0);
     fobj->qs_obj.gbl_override_blocks = options->siqsNB;
     fobj->qs_obj.gbl_override_lpmult_flag = (options->siqsM > 0);
@@ -885,7 +920,9 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_time_flag = (options->siqsT > 0);
     fobj->qs_obj.gbl_override_time = options->siqsT;
     fobj->qs_obj.inmem_cutoff = options->inmem_cutoff;
-    if ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0))
+    // MFBD/MFBT 0 = not given (SIQS chooses)
+    if ((options->siqsMFBD != 0.0) &&
+        ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0)))
     {
         if (options->siqsMFBD < 1.0)
             options->siqsMFBD = 1.0;
@@ -894,7 +931,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         printf("DLP Tdiv exponent should be between 1.0 and 2.0; setting MFBD = %1.2f\n",
             options->siqsMFBD);
     }
-    if ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0))
+    if ((options->siqsMFBT != 0.0) &&
+        ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0)))
     {
         if (options->siqsMFBT < 2.0)
             options->siqsMFBT = 2.0;
@@ -915,12 +953,12 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_3lp_bat = options->siqsNobat;
     fobj->qs_obj.gbl_btarget = options->siqsBT;
     fobj->qs_obj.flags = 0;
-    fobj->qs_obj.gbl_force_DLP = options->siqsForceDLP;
-    fobj->qs_obj.gbl_force_TLP = options->siqsForceTLP;
+    fobj->qs_obj.gbl_force_DLP = (int)options->siqsForceDLP;
+    fobj->qs_obj.gbl_force_TLP = (int)options->siqsForceTLP;
     fobj->qs_obj.qs_exponent = 0;
     fobj->qs_obj.qs_multiplier = 0;
     fobj->qs_obj.qs_tune_freq = 0;
-    fobj->qs_obj.no_small_cutoff_opt = options->no_opt;
+    fobj->qs_obj.no_small_cutoff_opt = (int)options->no_opt;
     strcpy(fobj->qs_obj.siqs_savefile, options->qssave);
 
     init_lehman();
@@ -931,11 +969,11 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->div_obj.fmtlimit = options->fermat_max;
 
     // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
-    fobj->factors->aprcl_prove_cutoff = options->aprcl_p;
+    fobj->factors->aprcl_prove_cutoff = (int)options->aprcl_p;
     // if a number is >= aprcl_display_cutoff, we will show the APRCL progress
-    fobj->factors->aprcl_display_cutoff = options->aprcl_d;
+    fobj->factors->aprcl_display_cutoff = (int)options->aprcl_d;
 
-    fobj->VFLAG = options->verbosity;
+    fobj->VFLAG = (int)options->verbosity;
     if (strlen(options->factorlog) == 0)
     {
         fobj->LOGFLAG = 0;

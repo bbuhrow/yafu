@@ -73,6 +73,11 @@ else
     EXE_EXT     :=
 endif
 
+DETECTED_ARCH := $(shell $(or $(CC),gcc) -dumpmachine 2>/dev/null)
+ifneq (,$(filter aarch64% arm64% arm%,$(DETECTED_ARCH)))
+    IS_ARM := 1
+endif
+
 MKDIR  := mkdir -p
 RM_RF  := rm -rf
 
@@ -138,7 +143,8 @@ endif
 GMP_INCDIR := $(abspath $(GMP_INCDIR))
 GMP_LIBDIR := $(abspath $(GMP_LIBDIR))
 
-GMP_INC   := -I$(GMP_INCDIR)
+# -isystem: keep warnings from inline code in gmp.h/ecm.h out of our builds
+GMP_INC   := -isystem $(GMP_INCDIR)
 GMP_LPATH := $(if $(GMP_LIBDIR),-L$(GMP_LIBDIR))
 
 
@@ -162,7 +168,7 @@ endif
  
 ifneq (,$(wildcard $(ECM_INCDIR)/ecm.h))
     HAVE_ECM_LIB := 1
-    ECM_INC      := -I$(ECM_INCDIR)
+    ECM_INC      := -isystem $(ECM_INCDIR)
     ECM_LPATH    := $(if $(ECM_LIBDIR),-L$(ECM_LIBDIR))
 else
     HAVE_ECM_LIB :=
@@ -421,6 +427,12 @@ ifeq ($(OS),Windows_NT)
     CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
 endif
 
+ifeq ($(IS_ARM),1)
+    # -m64 is x86-only.  Plain char is unsigned on ARM Linux, but SIQS
+    # (e.g. the gray-code sign arrays) and msieve assume signed char.
+    CFLAGS := $(filter-out -m64,$(CFLAGS)) -fsigned-char
+endif
+
 VBITS ?= 64
 CFLAGS += -DVBITS=$(VBITS)
 
@@ -440,6 +452,7 @@ CFLAGS += \
     -Ignfs/poly \
     -Ignfs/poly/stage1 \
     -Ifactor/avx-ecm \
+    -Ifactor/kmpqs \
     -Ifactor
 
 # External dependency includes
@@ -861,11 +874,6 @@ OBJ_EXT := .o
 # 12. MSIEVE / YAFU shared sources
 # -----------------------------------------------------------------------------
 MSIEVE_YAFU_SRCS = \
-    factor/qs/msieve/lanczos.c \
-    factor/qs/msieve/lanczos_matmul0.c \
-    factor/qs/msieve/lanczos_matmul1.c \
-    factor/qs/msieve/lanczos_matmul2.c \
-    factor/qs/msieve/lanczos_pre.c \
     factor/qs/msieve/sqrt.c \
     factor/qs/msieve/gf2.c
 
@@ -915,6 +923,9 @@ COMMON_SRCS = \
     ysieve/wrapper.c \
     top/aprcl/mpz_aprcl.c \
     factor/gpu_cofactorization.c \
+    factor/kmpqs/kmpqs.c \
+    factor/kmpqs/kmpqs1.c \
+    factor/kmpqs/kmpqs3.c \
 	common/vec_bitonic_sort.c
 
 COMMON_BATCH_GPU_SRCS = \
@@ -955,10 +966,18 @@ YAFU_SIQS_SRCS = \
     factor/qs/tdiv_small.c \
     factor/qs/tdiv_large.c \
     factor/qs/tdiv_scan.c \
+    factor/qs/direct_sieve.c \
+    factor/qs/direct_sieve_avx2.c \
+    factor/qs/direct_sieve_avx512.c \
+    factor/qs/direct_sieve_sse41.c \
+    factor/qs/direct_sieve_neon.c \
+    factor/qs/med_sieve_32k_neon.c \
+    factor/qs/update_poly_roots_32k_neon.c \
     factor/qs/large_sieve.c \
     factor/qs/new_poly.c \
     factor/qs/siqs_test.c \
     factor/qs/siqs_aux.c \
+    factor/qs/siqs_params.c \
     factor/qs/smallmpqs.c \
     factor/qs/SIQS.c \
     factor/qs/med_sieve_32k.c \
@@ -973,10 +992,10 @@ endif
 
 ifeq ($(USE_AVX2),1)
     YAFU_SIQS_SRCS += \
-        factor/qs/tdiv_med_32k_avx2.c \
         factor/qs/update_poly_roots_32k_avx2.c \
         factor/qs/med_sieve_32k_avx2.c \
-        factor/qs/tdiv_resieve_32k_avx2.c
+        factor/qs/tdiv_resieve_32k_avx2.c \
+        factor/qs/tdiv_med_32k_avx2.c
 endif
 
 ifeq ($(USE_AVX512),1)
@@ -1396,6 +1415,28 @@ test-full: _dep_status $(TEST_ARCHIVES)
 
 test-full-run: test-full
 	./$(TEST_FULL_BIN)
+
+
+# -----------------------------------------------------------------------------
+# 25c. kmpqs bench -- benchmark/validation driver for factor/kmpqs
+#
+#   make kmpqs-bench     builds kmpqs_bench (plain) and kmpqs_bench_stat
+#                        (with lasieve's counters, for tools/kmpqs_compare.sh)
+# -----------------------------------------------------------------------------
+.PHONY: kmpqs-bench
+
+# lasieve's code mixes integer widths freely; keep -Wconversion noise out
+KMPQS_WFLAGS := -Wno-conversion -Wno-sign-conversion -Wno-misleading-indentation \
+                -Wno-unused-variable -Wno-unused-but-set-variable -Wno-shadow
+factor/kmpqs/%.o: CFLAGS += $(KMPQS_WFLAGS)
+
+KMPQS_SRCS       := factor/kmpqs/kmpqs.c factor/kmpqs/kmpqs1.c factor/kmpqs/kmpqs3.c
+KMPQS_BENCH_DEPS := factor/kmpqs/kmpqs_bench.c top/aprcl/tinyprp.c arith/monty.c ytools/ytools.c
+
+kmpqs-bench: _dep_status
+	$(CC) $(CFLAGS) $(KMPQS_WFLAGS) $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) -o kmpqs_bench$(EXE_EXT) $(LIBS)
+	$(CC) $(CFLAGS) $(KMPQS_WFLAGS) -DMPQS_STAT -DMPQS3_STAT $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) \
+	    -o kmpqs_bench_stat$(EXE_EXT) $(LIBS)
 
 
 # -----------------------------------------------------------------------------

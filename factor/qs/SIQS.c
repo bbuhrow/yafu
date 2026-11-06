@@ -69,6 +69,14 @@ int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
 void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
     lp_bucket* , int , dynamic_conf_t* );
 void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
+#if defined(TRY_DIRECT_SIEVE)
+// large-prime strategy kernels, chosen in siqs_resolve_strategy
+void (*large_sieveblock_ptr)(uint8_t*, sieve_fb*, fb_list*, uint32_t, uint8_t);
+void (*tdiv_large_ptr)(uint8_t, uint32_t, uint32_t, static_conf_t*, dynamic_conf_t*);
+void (*direct_sieve_largeprimes_ptr)(uint8_t*, static_conf_t*, dynamic_conf_t*);
+void (*direct_resieve_update_ptr)(static_conf_t*, dynamic_conf_t*, uint8_t*);
+void (*nextRoots_lp_ptr)(static_conf_t*, dynamic_conf_t*);
+#endif
 
 typedef struct
 {
@@ -80,6 +88,17 @@ typedef struct
     double results[3];
     int averaged_polys;
     double rels_per_sec_avg;
+#ifdef TRY_SMALLP_OPT
+    // two-stage tuner (docs/siqs_spv_plan.md, Commit 3): stage 1 measures
+    // orig/+5/-5 (results[0..2]); stage 2 refines +/-2 around the coarse
+    // winner, reusing the coarse winner's measurement (results_ref[0..1]
+    // hold w+2 and w-2).
+    double results_ref[2];
+    int coarse_winner;
+    // per-poly rels/sec samples for the median-of-polys measurement
+    double rels_samples[16];
+    int num_samples;
+#endif
 #ifdef OPT_DEBUG
     FILE *optfile;
 #endif
@@ -139,6 +158,10 @@ void siqs_start(void *vptr)
     udata->averaged_polys = 0;
     udata->rels_per_sec_avg = 0.0;
     udata->updatecode = 0;
+#ifdef TRY_SMALLP_OPT
+    udata->num_samples = 0;
+    udata->coarse_winner = 0;
+#endif
 
     // get best parameters, multiplier, and factor base for the job
     // initialize and fill out the static part of the job data structure
@@ -146,6 +169,8 @@ void siqs_start(void *vptr)
 
     static_conf->t_mpsieve = 0.0;
     static_conf->t_lpsieve = 0.0;
+    static_conf->t_sparsesieve = 0.0;
+    static_conf->t_lpresieve = 0.0;
     static_conf->t_tdiv = 0.0;
     static_conf->t_polyupdate = 0.0;
 
@@ -174,7 +199,7 @@ void siqs_start(void *vptr)
     udata->num_found = static_conf->num_r;
     static_conf->total_poly_a = 0;
     udata->num_meas = 0;
-    udata->orig_value = static_conf->tf_small_cutoff;
+    udata->orig_value = (int)static_conf->tf_small_cutoff;
 
     return;
 }
@@ -205,6 +230,156 @@ void siqs_sync(void *vptr)
         udata->num_found = siqs_merge_data(t[tid].dconf, static_conf);        
         static_conf->num_found = udata->num_found;
 
+        fobj->qs_obj.no_small_cutoff_opt = 1;
+
+#ifdef TRY_SMALLP_OPT
+        if (fobj->qs_obj.no_small_cutoff_opt == 0)
+        {
+            // two-stage adaptive tuner (docs/siqs_spv_plan.md, Commit 3):
+            //   stage 1 (measurements 0-2): orig, +5, -5 (coarse, as before)
+            //   stage 2 (measurements 3-4): coarse-winner +2 and -2, reusing
+            //     the coarse winner's measurement
+            // each measurement is the median rels/sec over num_avg polys
+            // (robust against outlier polys), and the coarse winner's
+            // result carries the same 2%/5% superiority bias into the
+            // final decision.  the chosen value is printed at normal
+            // verbosity so repeat runs can pin it with -siqsTFSm.
+            int num_meas_max = 5;
+
+            if (udata->num_meas < num_meas_max)
+            {
+                if (udata->averaged_polys >= num_avg)
+                {
+                    double meas_result;
+                    int a, b;
+                    double tmpd;
+
+                    // median of the per-poly rels/sec samples
+                    for (a = 1; a < udata->num_samples; a++)
+                    {
+                        tmpd = udata->rels_samples[a];
+                        for (b = a - 1; (b >= 0) && (udata->rels_samples[b] > tmpd); b--)
+                            udata->rels_samples[b + 1] = udata->rels_samples[b];
+                        udata->rels_samples[b + 1] = tmpd;
+                    }
+                    if (udata->num_samples & 1)
+                        meas_result = udata->rels_samples[udata->num_samples / 2];
+                    else
+                        meas_result = 0.5 * (udata->rels_samples[udata->num_samples / 2 - 1] +
+                            udata->rels_samples[udata->num_samples / 2]);
+
+#ifdef OPT_DEBUG
+                    fprintf(udata->optfile, "%d,%d,%f,%d\n", udata->num_meas, 
+                        static_conf->total_poly_a,
+                        meas_result, 
+                        static_conf->tf_small_cutoff);
+                    printf("%d,%d,%f,%d\n", udata->num_meas,
+                        static_conf->total_poly_a,
+                        meas_result,
+                        static_conf->tf_small_cutoff);
+#endif
+
+                    udata->averaged_polys = 0;
+                    udata->num_samples = 0;
+
+                    if (udata->num_meas == 0)
+                    {
+                        udata->results[0] = meas_result;
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value + 5);
+                    }
+                    else if (udata->num_meas == 1)
+                    {
+                        udata->results[1] = meas_result;
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value - 5);
+                    }
+                    else if (udata->num_meas == 2)
+                    {
+                        // coarse decision: pick the winner of orig/+5/-5,
+                        // then begin refinement at winner + 2
+                        int w;
+                        double biased;
+
+                        udata->results[2] = meas_result;
+
+                        if (static_conf->use_dlp)
+                            biased = udata->results[0] * 1.05;
+                        else
+                            biased = udata->results[0] * 1.02;
+
+                        if ((biased > udata->results[1]) && (biased > udata->results[2]))
+                            w = 0;
+                        else if (udata->results[1] > udata->results[2])
+                            w = 1;
+                        else
+                            w = 2;
+
+                        udata->coarse_winner = w;
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value +
+                            ((w == 0) ? 2 : (w == 1) ? 7 : -3));
+                    }
+                    else if (udata->num_meas == 3)
+                    {
+                        int w = udata->coarse_winner;
+
+                        // measurement of coarse-winner + 2 done; next try -2
+                        udata->results_ref[0] = meas_result;
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value +
+                            ((w == 0) ? -2 : (w == 1) ? 3 : -7));
+                    }
+                    else
+                    {
+                        // final decision among coarse winner (w), w+2, w-2
+                        int w = udata->coarse_winner;
+                        int wcutoff = orig_value +
+                            ((w == 0) ? 0 : (w == 1) ? 5 : -5);
+                        double biased;
+                        int final_value;
+
+                        udata->results_ref[1] = meas_result;
+
+                        if (static_conf->use_dlp)
+                            biased = udata->results[w] * 1.05;
+                        else
+                            biased = udata->results[w] * 1.02;
+
+                        if ((biased > udata->results_ref[0]) &&
+                            (biased > udata->results_ref[1]))
+                            final_value = wcutoff;
+                        else if (udata->results_ref[0] > udata->results_ref[1])
+                            final_value = wcutoff + 2;
+                        else
+                            final_value = wcutoff - 2;
+
+                        static_conf->tf_small_cutoff = (uint32_t)final_value;
+
+                        if (fobj->VFLAG >= 0)
+                        {
+                            printf("SPV tuner: chose tf_small_cutoff = %d "
+                                "(coarse winner %d, orig %d)\n",
+                                final_value, wcutoff, orig_value);
+                        }
+
+#ifdef OPT_DEBUG
+                        fprintf(udata->optfile, "final value = %d\n", final_value);
+                        fprintf(udata->optfile, "\n\n");
+                        printf("final value = %d\n", final_value);
+                        printf("\n\n");
+                        fclose(udata->optfile);
+#endif
+                    }
+
+                    udata->num_meas++;
+                }
+                else
+                {
+                    udata->rels_per_sec_avg += t[tid].dconf->rels_per_sec;
+                    udata->rels_samples[udata->num_samples++] =
+                        t[tid].dconf->rels_per_sec;
+                    udata->averaged_polys++;
+                }
+            }
+        }
+#else
         if (fobj->qs_obj.no_small_cutoff_opt == 0)
         {
             int	poly_start_num = 0;
@@ -286,6 +461,7 @@ void siqs_sync(void *vptr)
                 }
             }
         }
+#endif
 
         // free sieving structure
         for (j = 0; j < t[tid].dconf->buffered_rels; j++)
@@ -331,32 +507,6 @@ void siqs_dispatch(void *vptr)
     int tid = tdata->tindex;    
     double avg_rels_per_acoeff;
     double in_flight_rels;
-
-    if (0) //static_conf->use_dlp == 2)
-    {
-        uint32_t total_rels = static_conf->num_full + static_conf->num_slp +
-            static_conf->dlp_useful + static_conf->tlp_useful;
-
-        if (total_rels > static_conf->check_total)
-        {
-            // this means we will be running a TLP filtering.  Force 
-            // concurrently running threads to perform batch filtering so that
-            // we run it with our full data set.
-            int i;
-            for (i = 0; i < fobj->THREADS; i++);
-            {
-                t[tid].dconf->batch_run_override = 1;
-            }
-
-            // wait a second 
-
-            // but this won't work because even if we can make them run batch
-            // factoring, the results only go into a buffer.  We need them
-            // in the results file for them to do any good and that would
-            // go against the spirit of the threadpool to force synchronous 
-            // dumps to the file.
-        }
-    }
 
     // check whether to continue or not, and update the screen
     udata->updatecode = update_check(static_conf);
@@ -467,8 +617,8 @@ void siqs_dispatch(void *vptr)
                 int first_free = -1;
                 uint8_t* rb_active;
 
-                rb_active = (uint8_t*)xmalloc(fobj->THREADS * sizeof(uint8_t));
-                memset(rb_active, 0, fobj->THREADS * sizeof(uint8_t));
+                rb_active = (uint8_t*)xmalloc((size_t)fobj->THREADS * sizeof(uint8_t));
+                memset(rb_active, 0, (size_t)fobj->THREADS * sizeof(uint8_t));
 
                 // tell this thread to process the batched relations
                 // and switch to another batch buffer for incoming batched
@@ -487,7 +637,7 @@ void siqs_dispatch(void *vptr)
                     {
                         printf("copying prime_product to batch buffer %d, mem use +%u bytes\n",
                             static_conf->batch_buffer_id,
-                            mpz_sizeinbase(static_conf->rb[0].prime_product, 2) / 8);
+                            (uint32_t)(mpz_sizeinbase(static_conf->rb[0].prime_product, 2) / 8));
                     }
                     mpz_set(static_conf->rb[static_conf->batch_buffer_id].prime_product,
                         static_conf->rb[0].prime_product);
@@ -596,7 +746,7 @@ void siqsexit(int sig)
 // and find more relations if something goes wrong during post-processing
 // and no factors are found.
 
-static double now_sec(void)
+static UNUSED_FUNC double now_sec(void)
 {
 #ifdef _MSC_VER
     return 0.0;
@@ -607,7 +757,111 @@ static double now_sec(void)
 #endif
 }
 
-void SIQS(fact_obj_t *fobj)
+static void SIQS_run(fact_obj_t* fobj);
+
+void SIQS(fact_obj_t* fobj)
+{
+    // take parameters from the tuned table (siqs_params.txt, written by
+    // siqstune()) for every option not set on the command line, exactly as if
+    // they had been given as -siqsB, -siqsNB, ... flags: that is how
+    // siqs_tune.py and siqstune() measured them.  The options are put back
+    // afterwards, so later jobs of other sizes start from the user's settings.
+    qs_obj_t* q = &fobj->qs_obj;
+    qs_obj_t saved;
+    siqs_param_row_t row;
+    int applied = 0;
+
+    if (!q->no_tuned_params && (q->siqs_params_file[0] != '\0') &&
+        siqs_lookup_tuned(q->siqs_params_file, (int)mpz_sizeinbase(q->gmp_n, 2), &row))
+    {
+        char buf[256];
+
+        // only scalar option fields are restored from this copy
+        memcpy(&saved, q, sizeof(qs_obj_t));
+
+        if ((row.has & SIQSP_B) && !q->gbl_override_B_flag)
+        {
+            q->gbl_override_B_flag = 1;
+            q->gbl_override_B = row.B;
+        }
+        if ((row.has & SIQSP_M) && !q->gbl_override_lpmult_flag && (q->gbl_override_lpb == 0))
+        {
+            q->gbl_override_lpmult_flag = 1;
+            q->gbl_override_lpmult = row.M;
+        }
+        if ((row.has & SIQSP_NB) && !q->gbl_override_blocks_flag)
+        {
+            q->gbl_override_blocks_flag = 1;
+            q->gbl_override_blocks = row.NB;
+        }
+        if ((row.has & SIQSP_TF) && !q->gbl_override_tf_flag)
+        {
+            q->gbl_override_tf_flag = 1;
+            q->gbl_override_tf = row.TF;
+        }
+        if ((row.has & SIQSP_TFSM) && !q->gbl_override_small_cutoff_flag)
+        {
+            q->gbl_override_small_cutoff_flag = 1;
+            q->gbl_override_small_cutoff = row.TFSm;
+        }
+        // MFBD/MFBT: 0 = not given on the command line
+        if ((row.has & SIQSP_MFBD) && (fabs(q->gbl_override_mfbd) < 1e-9))
+        {
+            q->gbl_override_mfbd = row.MFBD;
+        }
+        if ((row.has & SIQSP_MFBT) && (fabs(q->gbl_override_mfbt) < 1e-9))
+        {
+            q->gbl_override_mfbt = row.MFBT;
+        }
+        if ((row.has & SIQSP_SPV) && !q->gbl_override_spv_limit_flag)
+        {
+            q->gbl_override_spv_limit_flag = 1;
+            q->gbl_override_spv_limit = row.SPV;
+        }
+        if ((row.has & SIQSP_MID) && (q->gbl_siqs_mid == SIQS_STRAT_AUTO))
+            q->gbl_siqs_mid = row.mid;
+        if ((row.has & SIQSP_LARGE) && (q->gbl_siqs_large == SIQS_STRAT_AUTO))
+            q->gbl_siqs_large = row.large;
+        if ((row.has & SIQSP_KERNEL) && (q->gbl_siqs_kernel == SIQS_STRAT_AUTO))
+            q->gbl_siqs_kernel = row.kernel;
+
+        applied = 1;
+        if (fobj->VFLAG > 0)
+        {
+            siqs_format_params(&row, buf, 256);
+            printf("using tuned SIQS parameters from %s (c%d row): %s\n",
+                q->siqs_params_file, row.digits, buf);
+            printf("  (options given on the command line take precedence)\n");
+        }
+    }
+
+    SIQS_run(fobj);
+
+    if (applied)
+    {
+        q->gbl_override_B_flag = saved.gbl_override_B_flag;
+        q->gbl_override_B = saved.gbl_override_B;
+        q->gbl_override_lpmult_flag = saved.gbl_override_lpmult_flag;
+        q->gbl_override_lpmult = saved.gbl_override_lpmult;
+        q->gbl_override_blocks_flag = saved.gbl_override_blocks_flag;
+        q->gbl_override_blocks = saved.gbl_override_blocks;
+        q->gbl_override_tf_flag = saved.gbl_override_tf_flag;
+        q->gbl_override_tf = saved.gbl_override_tf;
+        q->gbl_override_small_cutoff_flag = saved.gbl_override_small_cutoff_flag;
+        q->gbl_override_small_cutoff = saved.gbl_override_small_cutoff;
+        q->no_small_cutoff_opt = saved.no_small_cutoff_opt;
+        q->gbl_override_mfbd = saved.gbl_override_mfbd;
+        q->gbl_override_mfbt = saved.gbl_override_mfbt;
+        q->gbl_override_spv_limit_flag = saved.gbl_override_spv_limit_flag;
+        q->gbl_override_spv_limit = saved.gbl_override_spv_limit;
+        q->gbl_siqs_mid = saved.gbl_siqs_mid;
+        q->gbl_siqs_large = saved.gbl_siqs_large;
+        q->gbl_siqs_kernel = saved.gbl_siqs_kernel;
+    }
+    return;
+}
+
+static void SIQS_run(fact_obj_t *fobj)
 {
 	// the input fobj->N and this 'n' are pointers to memory which holds
 	// the input number to this function.  a copy in different memory
@@ -633,9 +887,9 @@ void SIQS(fact_obj_t *fobj)
 	FILE *sieve_log;
 
 	// some locals	
-	int i, j, k;
-	clock_t start, stop;
+	int i, j;
 	double t_time;
+    struct timeval myTVstart;
 	struct timeval myTVend;
     int max_retries = 5;
 
@@ -665,8 +919,8 @@ void SIQS(fact_obj_t *fobj)
         siqs_primes_initialized = 1;
     }
 
-	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
-	fobj->digits = gmp_base10(fobj->qs_obj.gmp_n);
+	fobj->bits = (uint32_t)mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
+	fobj->digits = (uint32_t)gmp_base10(fobj->qs_obj.gmp_n);
 
 	// print the "starting" line before we check for special cases.
 	// other applications (e.g., aliqeit) check for the starting
@@ -718,7 +972,11 @@ void SIQS(fact_obj_t *fobj)
 		mpz_init(tmpz);
 		mpz_init(g);
 
-		fgets(tmpstr, GSTR_MAXSIZE, data);
+		if (fgets(tmpstr, GSTR_MAXSIZE, data) == NULL)
+		{
+			// read failure ignored, as before (result checked only to
+			// satisfy warn_unused_result)
+		}
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
@@ -751,7 +1009,13 @@ void SIQS(fact_obj_t *fobj)
 
 	// fill in the factorization object	
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
-	strncpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile, 80);
+	{
+		// copy at most 80 chars, always terminated
+		size_t sflen = strlen(fobj->qs_obj.siqs_savefile);
+		if (sflen > 80) sflen = 80;
+		memcpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile, sflen);
+		fobj->savefile_name[sflen] = '\0';
+	}
 
     // The above leaks a little memory:
     // == 148041 == 80 bytes in 1 blocks are definitely lost in loss record 2 of 2
@@ -769,7 +1033,7 @@ void SIQS(fact_obj_t *fobj)
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
 	static_conf->obj = fobj;
 
-	thread_data = (thread_sievedata_t *)malloc(fobj->THREADS * sizeof(thread_sievedata_t));
+	thread_data = (thread_sievedata_t *)malloc((size_t)fobj->THREADS * sizeof(thread_sievedata_t));
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		thread_data[i].dconf = (dynamic_conf_t *)malloc(sizeof(dynamic_conf_t));
@@ -796,100 +1060,6 @@ void SIQS(fact_obj_t *fobj)
 	// routines in an attempt to clean up this toplevel function.
 	siqs_start(tpool_data);
 
-#if 0
-    if (0)
-    {
-        // hack in a loop to examine the size characteristics for 
-        // the minimum offset for many different polynomials.
-        mpz_t Q;
-        mpz_init(Q);
-        dynamic_conf_t* dconf = thread_data[0].dconf;
-        int bins[24];
-        int more = 0;
-        gmp_printf("sqrtN = %Zd\n", static_conf->sqrt_n);
-        int threshold;
-
-        for (i = 0; i < 24; i++)
-            bins[i] = 0;
-
-
-        int num_small = 0;
-        dconf->tot_poly = 0;
-        for (i = 0; i < 100000; i++)
-        {
-            static_conf->total_poly_a++;
-            new_poly_a(static_conf, dconf, 0);
-
-            // update the gray code
-            get_gray_code(dconf->curr_poly);
-
-            // update roots, etc.
-            dconf->maxB = 1 << (dconf->curr_poly->s - 1);
-            dconf->numB = 1;
-            computeBl(static_conf, dconf, 1);
-
-            for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
-            {
-                mpz_sub(dconf->gmptmp1,
-                    static_conf->sqrt_n, dconf->curr_poly->mpz_poly_b);
-                mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
-                if (mpz_sgn(dconf->gmptmp1) < 0)
-                    mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
-
-                uint64_t minoffset = mpz_get_ui(dconf->gmptmp1);
-                int parity;
-
-                for (parity = 0; parity <= 1; parity++);
-                {
-                    mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1);
-                    mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, minoffset);
-
-                    if (parity)
-                        mpz_sub(Q, dconf->gmptmp1, dconf->gmptmp2);
-                    else
-                        mpz_add(Q, dconf->gmptmp1, dconf->gmptmp2);
-
-                    mpz_mul_ui(Q, Q, minoffset);
-                    mpz_add(Q, Q, dconf->curr_poly->mpz_poly_c);
-
-                    if (mpz_sgn(Q) < 0)
-                    {
-                        mpz_neg(Q, Q);
-                    }
-
-                    mpz_tdiv_q(dconf->gmptmp2, static_conf->sqrt_n, Q);
-                    if (mpz_sizeinbase(dconf->gmptmp2, 2) > 23)
-                    {
-                        printf("rare size %d bits!\n", mpz_sizeinbase(dconf->gmptmp2, 2));
-                        gmp_printf("sqrtN = %Zd\n", static_conf->sqrt_n);
-                        gmp_printf("Q     = %Zd\n", Q);
-                        more++;
-                    }
-                    else if (mpz_sizeinbase(dconf->gmptmp2, 2) >= 1)
-                    {
-                        bins[mpz_sizeinbase(dconf->gmptmp2, 2) - 1]++;
-                    }
-                }
-
-                nextB(dconf, static_conf, 1);
-            }
-        }
-
-        for (i = 0; i < 24; i++)
-        {
-            printf("found %d small Q's (%1.2f percent) with Q >= %d bits below sqrtN\n", bins[i],
-                (double)bins[i] / dconf->tot_poly * 100, i + 1);
-        }
-        if (more > 0)
-            printf("found %d small Q's (%1.2f percent) with Q >= %d bits below sqrtN\n", more,
-                (double)bins[i] / dconf->tot_poly * 100, i + 1);
-
-        mpz_clear(Q);
-        exit(1);
-    }
-#endif
-
-
 #ifdef GATHER_RESIDUE_STATS
     char fname[1024];
     
@@ -907,22 +1077,6 @@ void SIQS(fact_obj_t *fobj)
     }
 
 #endif
-
-
-
-#if 0
-
-    for (i = 0; i < 1000; i++)
-    {
-
-        new_poly_a(static_conf, thread_data[0].dconf, 1);
-
-    }
-
-
-
-#endif
-
 
     uint32_t factors_found = 0;
     int num_retries = 0;
@@ -1005,7 +1159,7 @@ void SIQS(fact_obj_t *fobj)
 
         fobj->qs_obj.qs_time = t_time;
 
-        start = clock();
+        gettimeofday(&myTVstart, NULL);
 
         // filtering will reload (if using a savefile) and possibly re-order
         // the a-polys.  If using a save file we clear our current list
@@ -1043,7 +1197,7 @@ void SIQS(fact_obj_t *fobj)
             else
             {
                 uint32_t old_needed = udata.num_needed;
-                udata.num_needed = udata.num_needed * 1.05;
+                udata.num_needed = (uint32_t)(udata.num_needed * 1.05);
                 static_conf->num_extra_relations += (udata.num_needed - old_needed);
                 printf("Problem with filtering (code %d), re-trying with new relation "
                     "target of %u\n", j, udata.num_needed);
@@ -1081,7 +1235,7 @@ void SIQS(fact_obj_t *fobj)
                     printf("rebuilding graph with %u buffered in-memory relations\n",
                         static_conf->buffered_rels);
                     rebuild_graph(static_conf, static_conf->in_mem_relations,
-                        static_conf->buffered_rels);
+                        (int)static_conf->buffered_rels);
                 }
 
                 num_retries++;
@@ -1089,10 +1243,9 @@ void SIQS(fact_obj_t *fobj)
             }
         }
 
-        stop = clock();
-        static_conf->t_time1 = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        gettimeofday(&myTVend, NULL);
+        static_conf->t_time1 = ytools_difftime(&myTVstart, &myTVend);
 
-        start = clock();
         //sqrt stage
         if (bitfield != NULL && num_cycles > 0)
         {
@@ -1105,11 +1258,10 @@ void SIQS(fact_obj_t *fobj)
                 &static_conf->factor_list);
         }
 
-        stop = clock();
-        static_conf->t_time2 = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        gettimeofday(&myTVstart, NULL);
+        static_conf->t_time2 = ytools_difftime(&myTVend, &myTVstart);
 
-        gettimeofday(&myTVend, NULL);
-        static_conf->t_time3 = ytools_difftime(&static_conf->totaltime_start, &myTVend);
+        static_conf->t_time3 = ytools_difftime(&static_conf->totaltime_start, &myTVstart);
 
         if (fobj->VFLAG > 0)
         {
@@ -1135,7 +1287,7 @@ void SIQS(fact_obj_t *fobj)
             else
             {
                 uint32_t old_needed = udata.num_needed;
-                udata.num_needed = udata.num_needed * 1.05;
+                udata.num_needed = (uint32_t)(udata.num_needed * 1.05);
                 static_conf->num_extra_relations += (udata.num_needed - old_needed);
                 printf("Failed to find factors, re-trying with new relation target of %u\n",
                     udata.num_needed);
@@ -1173,7 +1325,7 @@ void SIQS(fact_obj_t *fobj)
                     printf("rebuilding graph with %u buffered in-memory relations\n",
                         static_conf->buffered_rels);
                     rebuild_graph(static_conf, static_conf->in_mem_relations, 
-                        static_conf->buffered_rels);
+                        (int)static_conf->buffered_rels);
                 }
                 num_retries++;
             }
@@ -1625,10 +1777,15 @@ void* process_poly(void* vptr)
     uint32_t start_prime = sconf->sieve_small_fb_start;
     uint32_t num_blocks = sconf->num_blocks;
     uint8_t blockinit = sconf->blockinit;
-    int using_ss_search = 0;
+    UNUSED_VAR int using_ss_search = 0;
 
     // locals
     uint32_t i;
+#if defined(TRY_DIRECT_SIEVE)
+    // the intervals already hold the current poly's [large_B, B) hits
+    // (set by the fused pass; never true for the first poly of an 'a')
+    int direct_primed = 0;
+#endif
 
     // to get relations per second
     double t_time;
@@ -1636,11 +1793,13 @@ void* process_poly(void* vptr)
 
     double t_sieve_ss_buckets = 0.0;
     double t_update_buckets = 0.0;
-    double t_ss_search_total = 0.0;
+    UNUSED_VAR double t_ss_search_total = 0.0;
     struct timeval start1, stop1;
 
     dconf->t_mpsieve = 0.0;
     dconf->t_lpsieve = 0.0;
+    dconf->t_sparsesieve = 0.0;
+    dconf->t_lpresieve = 0.0;
     dconf->t_tdiv = 0.0;
     dconf->t_polyupdate = 0.0;
 
@@ -1679,6 +1838,33 @@ void* process_poly(void* vptr)
 #endif
 
     firstRoots_ptr(sconf, dconf);
+
+#if defined(TRY_DIRECT_SIEVE)
+    if (sconf->lp_direct)
+    {
+        // the direct sieve never consults set_aprime_roots: an a-prime in
+        // [large_B, B) would be sieved with garbage roots
+        // (with mid buckets, tdiv_LP's unchecked divisions make an a-prime
+        // in the bucket range [med_B, large_B) just as dangerous)
+        for (i = 0; i < (uint32_t)poly->s; i++)
+        {
+            if (poly->qlisort[i] >= (sconf->mid_bucket ? fb->med_B : fb->large_B))
+            {
+                printf("direct sieve: a-prime index %u is in the bucket/direct "
+                    "range (med_B %u, large_B %u); exiting\n",
+                    poly->qlisort[i], fb->med_B, fb->large_B);
+                exit(1);
+            }
+        }
+
+        // firstRoots filled the medbucket slices for [med_B, large_B) (its
+        // third loop does no slice bookkeeping for the direct sieve); the
+        // last slice's logp is never recorded there, so record it now.
+        if (sconf->mid_bucket && (dconf->buckets->list != NULL))
+            dconf->buckets->logp[dconf->buckets->num_slices - 1] =
+                (uint8_t)fb->list->logprime[fb->large_B - 1];
+    }
+#endif
 
 #if defined( USE_SS_SEARCH ) && defined( USE_POLY_BUCKET_SS )
 
@@ -2192,7 +2378,7 @@ void* process_poly(void* vptr)
 
         mpz_set(dconf->gmptmp3, dconf->gmptmp1);
         mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
-        minblock = mpz_get_ui(dconf->gmptmp1);
+        minblock = (uint32_t)mpz_get_ui(dconf->gmptmp1);
 
 #ifdef SS_POLY_BUCKET_SMALL_GROUPS
 
@@ -2240,9 +2426,82 @@ void* process_poly(void* vptr)
         }
 #endif
 
+#if defined(TRY_DIRECT_SIEVE)
+        if (sconf->lp_direct)
+        {
+#ifdef SIQS_PROFILE
+            double tstart = now_sec();
+#endif
+            // both whole intervals (pos then neg) must hold this poly's
+            // [large_B, B) hits before any block work.  Normally the previous
+            // poly's fused pass left them there; for the first poly of this
+            // 'a' run a standalone pass 1.  The med and sparse sieves only
+            // subtract, so the scan in the block loops below still sees
+            // complete sieve bytes.
+            if (!direct_primed)
+            {
+                memset(sieve, blockinit, 2 * num_blocks * 32768);
+                direct_sieve_largeprimes_ptr(sieve, sconf, dconf);
+            }
+
+#ifdef DEBUG_DIRECT_ROOTS
+            // temporary diagnostic: verify every [large_B, B) root satisfies
+            // Q(r) == 0 mod p for the current poly (pos-side form)
+            {
+                static uint64_t npoly = 0, nbad = 0, nprimed_bad = 0;
+                uint32_t j;
+                int bad = 0;
+                for (j = fb->large_B; j < fb->B; j++)
+                {
+                    uint64_t p = fb->list->prime[j];
+                    uint64_t am = mpz_fdiv_ui(poly->mpz_poly_a, p);
+                    uint64_t bm = mpz_fdiv_ui(poly->mpz_poly_b, p);
+                    uint64_t cm = mpz_fdiv_ui(poly->mpz_poly_c, p);
+                    int r;
+                    if (sconf->knmod8 != 1)
+                        bm = (2 * bm) % p;
+                    for (r = 0; r < 2; r++)
+                    {
+                        uint64_t x = (uint32_t)(r ? dconf->update_data.firstroots2[j] :
+                            dconf->update_data.firstroots1[j]);
+                        uint64_t q = ((am * x + bm) % p * x + cm) % p;
+                        if (q != 0) { nbad++; bad = 1; }
+                    }
+                }
+                npoly++;
+                if (bad && direct_primed) nprimed_bad++;
+                if ((npoly % 2000) == 0)
+                    printf("\ndirect-roots: %" PRIu64 " polys, %" PRIu64 " bad roots, "
+                        "%" PRIu64 " bad polys from fused pass\n", npoly, nbad, nprimed_bad);
+            }
+#endif
+
+            // minblock is initialized to blockinit - 4.  It depends on this
+            // poly's b, so it can't be folded into the fused pass's memset;
+            // the sieve is subtractive, so -= 4 now is equivalent.
+            //if (minblock < num_blocks)
+            //{
+            //    direct_block_sub4(sieve + minblock * 32768);
+            //    direct_block_sub4(sieve + (num_blocks + minblock) * 32768);
+            //}
+            dconf->dpool->num = 0;
+#ifdef SIQS_PROFILE
+            dconf->t_lpsieve += (now_sec() - tstart);
+#endif
+        }
+#endif
 
         for (i = 0; i < num_blocks; i++)
         {
+#if defined(TRY_DIRECT_SIEVE)
+            // the direct sieve keeps both whole intervals; otherwise one
+            // block window is reused
+            uint8_t* blk_sieve = sconf->lp_direct ? sieve + i * 32768 : sieve;
+#else
+            uint8_t* blk_sieve = sieve;
+#endif
+
+
 #if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
@@ -2252,35 +2511,98 @@ void* process_poly(void* vptr)
             }
 #endif
 
+#ifdef SIQS_PROFILE
             double tstart = now_sec();
+#endif
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
+#if defined(TRY_DIRECT_SIEVE)
+            // a-primes <= 8192 keep their prime with roots marked 0xffff, and
+            // the unrolled med-sieve paths dump logp at blk_sieve[65535].  In
+            // the stock single-block window that byte is guard space; in the
+            // contiguous direct layout it is the next block's last byte (or
+            // the guard region after the last block).  Save and restore it.
+            uint8_t direct_dummy_byte = blk_sieve[65535];
+#endif
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit - 4, 32768);
+
+#if defined(TRY_DIRECT_SIEVE)
+                if (!sconf->lp_direct)
+                    memset(blk_sieve, blockinit - 4, 32768);
+#else
+                memset(blk_sieve, blockinit - 4, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit - 4, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+                large_sieveblock_ptr(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#endif
             }
             else
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit, 32768);
+
+#if defined(TRY_DIRECT_SIEVE)
+                if (!sconf->lp_direct)
+                    memset(blk_sieve, blockinit, 32768);
+#else
+                memset(blk_sieve, blockinit, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_p, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+                large_sieveblock_ptr(blk_sieve, dconf->sieve_p, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#endif
             }
+#if defined(TRY_DIRECT_SIEVE)
+            blk_sieve[65535] = direct_dummy_byte;
+#endif
 
 #if 0 //defined( USE_SS_SEARCH )
             if (using_ss_search)
@@ -2305,23 +2627,42 @@ void* process_poly(void* vptr)
             }
 #endif
 
+#ifdef SIQS_PROFILE
+            tstart = now_sec();
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+            // with the direct sieve, [large_B, B) was sieved by pass 1 and
+            // the buckets only hold [med_B, large_B), and only with mid
+            // buckets
+            if ((!sconf->lp_direct) || sconf->mid_bucket)
+                lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 0, dconf);
+#else
+            lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 0, dconf);
+#endif
+
+#ifdef SIQS_PROFILE
             double tstop = now_sec();
-            dconf->t_mpsieve += (tstop - tstart);
-            tstart = tstop;
-
-            lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
-
-            tstop = now_sec();
             dconf->t_lpsieve += (tstop - tstart);
             tstart = tstop;
+#endif
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
+#if defined(TRY_DIRECT_SIEVE)
+            // the scan reads sieve bytes from dconf->sieve: point it at this block
+            dconf->sieve = blk_sieve;
             scan_ptr(i, 0, sconf, dconf);
+            dconf->sieve = sieve;
+#else
+            scan_ptr(i, 0, sconf, dconf);
+#endif
 
+#ifdef SIQS_PROFILE
             tstop = now_sec();
             dconf->t_tdiv += (tstop - tstart);
+#endif
             
         }
 
@@ -2342,9 +2683,18 @@ void* process_poly(void* vptr)
         }
 #endif
 
+#if defined(TRY_DIRECT_SIEVE)
+        // neg interval was initialized and direct-sieved with the pos side
+#endif
 
         for (i = 0; i < num_blocks; i++)
         {
+#if defined(TRY_DIRECT_SIEVE)
+            uint8_t* blk_sieve = sconf->lp_direct ? sieve + (num_blocks + i) * 32768 : sieve;
+#else
+            uint8_t* blk_sieve = sieve;
+#endif
+
 #if defined( USE_SS_SEARCH )
             if (using_ss_search)
             {
@@ -2353,55 +2703,169 @@ void* process_poly(void* vptr)
             }
 #endif
 
+#ifdef SIQS_PROFILE
             double tstart = now_sec();
+#endif
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
+#if defined(TRY_DIRECT_SIEVE)
+            // see the pos side: protect the byte the med sieve dumps a-prime
+            // logs into (the guard region after the last neg block)
+            uint8_t direct_dummy_byte = blk_sieve[65535];
+#endif
             if (i == minblock)
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit - 4, 32768);
+
+#if defined(TRY_DIRECT_SIEVE)
+                if (!sconf->lp_direct)
+                    memset(blk_sieve, blockinit - 4, 32768);
+#else
+                memset(blk_sieve, blockinit - 4, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit - 4, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+                large_sieveblock_ptr(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit - 4);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#endif
             }
             else
             {
 #if !defined( USE_SS_SEARCH )
-                memset(sieve, blockinit, 32768);
+
+#if defined(TRY_DIRECT_SIEVE)
+                if (!sconf->lp_direct)
+                    memset(blk_sieve, blockinit, 32768);
+#else
+                memset(blk_sieve, blockinit, 32768);
+#endif
+
 #else
                 if (!using_ss_search)
                 {
                     memset(sieve, blockinit, 32768);
                 }
 #endif
-                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
+
+                med_sieve_ptr(blk_sieve, fb_sieve_n, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                double tstop = now_sec();
+                dconf->t_mpsieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+
+                large_sieveblock_ptr(blk_sieve, dconf->sieve_n, fb, start_prime, blockinit);
+
+#ifdef SIQS_PROFILE
+                tstop = now_sec();
+                dconf->t_sparsesieve += (tstop - tstart);
+                tstart = tstop;
+#endif
+
+#endif
             }
+#if defined(TRY_DIRECT_SIEVE)
+            blk_sieve[65535] = direct_dummy_byte;
+#endif
 
+#ifdef SIQS_PROFILE
+            tstart = now_sec();
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+            // with the direct sieve, [large_B, B) was sieved by pass 1 and
+            // the buckets only hold [med_B, large_B), and only with mid
+            // buckets
+            if ((!sconf->lp_direct) || sconf->mid_bucket)
+                lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 1, dconf);
+#else
+            lp_sieveblock_ptr(blk_sieve, i, num_blocks, buckets, 1, dconf);
+#endif
+
+#ifdef SIQS_PROFILE
             double tstop = now_sec();
-            dconf->t_mpsieve += (tstop - tstart);
-            tstart = tstop;
-
-            lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 1, dconf);
-
-            tstop = now_sec();
             dconf->t_lpsieve += (tstop - tstart);
             tstart = tstop;
+#endif
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, dconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
+#if defined(TRY_DIRECT_SIEVE)
+            // the scan reads sieve bytes from dconf->sieve: point it at this block
+            dconf->sieve = blk_sieve;
             scan_ptr(i, 1, sconf, dconf);
+            dconf->sieve = sieve;
+#else
+            scan_ptr(i, 1, sconf, dconf);
+#endif
 
+#ifdef SIQS_PROFILE
             tstop = now_sec();
             dconf->t_tdiv += (tstop - tstart);
+#endif
         }
 
+#if defined(TRY_DIRECT_SIEVE)
+        if (sconf->lp_direct)
+        {
+#ifdef SIQS_PROFILE
+            double tstart = now_sec();
+#endif
+            // fused pass: both sides are scanned, so the sieve bytes are
+            // dead.  Re-initialize the intervals, then in one walk over
+            // [large_B, B): resieve this poly's roots into the survivors,
+            // advance firstroots to the next poly (uses this poly's gray
+            // code entry, so it must run before nextB), and sieve the next
+            // poly's roots.  On the last poly of this 'a' only resieve.
+            // Then finalize the survivors while curr_poly still describes
+            // this poly (finalize doesn't touch the sieve).
+            int next = ((dconf->numB + 1) < dconf->maxB);
+            if (next)
+                memset(sieve, blockinit, 2 * num_blocks * 32768);
+            direct_resieve_update_ptr(sconf, dconf, next ? sieve : NULL);
+
+#ifdef SIQS_PROFILE
+            dconf->t_polyupdate += (now_sec() - tstart);
+            tstart = now_sec();
+#endif
+
+            direct_primed = next;
+            direct_finalize_survivors(sconf, dconf);
+
+#ifdef SIQS_PROFILE
+            dconf->t_tdiv += (now_sec() - tstart);
+#endif
+
+
+        }
+#endif
 
         gettimeofday(&stop1, NULL);
         t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
@@ -2417,10 +2881,6 @@ void* process_poly(void* vptr)
             {
 				//if (tdata->tindex == 0)
 				{
-					uint32_t dlp = sconf->dlp_useful + dconf->dlp_useful;
-					uint32_t tlp = sconf->tlp_useful + dconf->tlp_useful;
-					uint32_t att = sconf->attempted_cosiqs + dconf->attempted_cosiqs;
-
 					// print some status
 					gettimeofday(&stop, NULL);
 					t_time = ytools_difftime(&start, &stop);
@@ -2430,16 +2890,16 @@ void* process_poly(void* vptr)
                         if (sconf->do_batch)
                         {
                             char suffix;
-                            float batched = dconf->rb.num_relations;
+                            float batched = (float)dconf->rb.num_relations;
 
                             if (batched > 10000000)
                             {
-                                batched /= 1000000.;
+                                batched /= 1000000.f;
                                 suffix = 'M';
                             }
                             else
                             {
-                                batched /= 1000.;
+                                batched /= 1000.f;
                                 suffix = 'k';
                             }
 
@@ -2458,8 +2918,8 @@ void* process_poly(void* vptr)
                                     sconf->num_full + dconf->num_full, sconf->num_slp + dconf->num_slp,
                                     sconf->dlp_useful + dconf->dlp_useful,
                                     sconf->tlp_useful + dconf->tlp_useful,
-                                    (float)batched, suffix, dconf->numB, dconf->maxB),
-                                    (double)(total_rels) / t_time;
+                                    (float)batched, suffix, dconf->numB, dconf->maxB,
+                                    (double)(total_rels) / t_time);
                                 
                             }
                             else if(sconf->num_lp == 4)
@@ -2514,7 +2974,7 @@ void* process_poly(void* vptr)
 					}
 					else
 					{
-						printf("tid %u: Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\r",
+						printf("tid %u: Bpoly %u of %u: buffered %u rels, checked %" PRIu64 " (%1.2f rels/sec)\r",
                             tdata->tindex, dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
 							(double)dconf->buffered_rels / t_time);
 					}
@@ -2587,7 +3047,9 @@ void* process_poly(void* vptr)
 
 #else
 
+#ifdef SIQS_PROFILE
         double tstart = now_sec();
+#endif
 
 #if defined(USE_AVX512F)
 
@@ -2595,7 +3057,7 @@ void* process_poly(void* vptr)
         //if (dconf->numB == 3)
         //    exit(1);
 
-        if (sconf->obj->HAS_AVX512F)
+        if (sconf->obj->HAS_AVX512F && !sconf->lp_portable_roots)
         {
             int bi;
             int cb;
@@ -2608,6 +3070,45 @@ void* process_poly(void* vptr)
 
             nextRoots_32k_avx2_small(sconf, dconf);
 
+#if defined(TRY_DIRECT_SIEVE)
+            if (sconf->lp_direct)
+            {
+                // the [large_B, B) roots were already advanced by the
+                // direct fused pass; no largebucket.  With mid buckets,
+                // bucket sieve [med_B, large_B) for the next poly; without
+                // the largebucket call that normally follows, the slice
+                // count and the last slice's logp are recorded here.
+                if (sconf->mid_bucket)
+                {
+                    if (num_blocks > 16)
+                        nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
+                            &ptr, &np_p, &np_n, &sl_p, &sl_n);
+                    else
+                        nextRoots_32k_knl_medbucket(sconf, dconf, &bi, &cb, &bv,
+                            &ptr, &np_p, &np_n, &sl_p, &sl_n);
+
+                    if (dconf->buckets->list != NULL)
+                    {
+                        dconf->buckets->num_slices = (uint32_t)(bi + 1);
+                        dconf->buckets->logp[bi] = (uint8_t)fb->list->logprime[fb->large_B - 1];
+                    }
+                }
+            }
+            else
+            {
+                // [med_B, fb_blk8i) buckets (empty with the sparse sieve),
+                // then [large_B, B) buckets
+                if (num_blocks > 16)
+                    nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
+                        &ptr, &np_p, &np_n, &sl_p, &sl_n);
+                else
+                    nextRoots_32k_knl_medbucket(sconf, dconf, &bi, &cb, &bv,
+                        &ptr, &np_p, &np_n, &sl_p, &sl_n);
+
+                nextRoots_32k_knl_largebucket(sconf, dconf, bi, cb, bv,
+                    ptr, np_p, np_n, sl_p, sl_n);
+            }
+#else
             if (num_blocks > 16)
                 nextRoots_32k_knl_medbucket_manyblocks(sconf, dconf, &bi, &cb, &bv,
                     &ptr, &np_p, &np_n, &sl_p, &sl_n);
@@ -2626,39 +3127,63 @@ void* process_poly(void* vptr)
 #endif
 
             //nextRoots_32k_knl_bucket(sconf, dconf);
+
+#endif
+
         }
         else
         {
+#if defined(TRY_DIRECT_SIEVE)
+            if (sconf->lp_portable_roots)
+            {
+                nextRoots_32k_generic_small(sconf, dconf);
+                nextRoots_lp_ptr(sconf, dconf);
+            }
+            else
+#endif
             nextRoots_ptr(sconf, dconf);
         }
 
 #else
         // and update the roots
+#if defined(TRY_DIRECT_SIEVE)
+        if (sconf->lp_portable_roots)
+        {
+            // small primes, then [med_B, B) per the large-prime strategy
+            // (without AVX-512, nextRoots_32k_avx2_small stops at med_B)
+#if defined(USE_AVX2)
+            if (sconf->obj->HAS_AVX2)
+                nextRoots_32k_avx2_small(sconf, dconf);
+            else
+#endif
+#if defined(__aarch64__) && defined(__ARM_NEON)
+            if (sconf->obj->HAS_NEON)
+                nextRoots_32k_neon_small(sconf, dconf);
+            else
+#endif
+                nextRoots_32k_generic_small(sconf, dconf);
+            nextRoots_lp_ptr(sconf, dconf);
+        }
+        else
+#endif
         nextRoots_ptr(sconf, dconf);
 #endif
 
 #endif
 
+#ifdef SIQS_PROFILE
         double tstop = now_sec();
         dconf->t_polyupdate += (tstop - tstart);
+#endif
 
         gettimeofday(&stop1, NULL);
         t_update_buckets += ytools_difftime(&start1, &stop1);
 
-        //if (sconf->obj->THREADS >= 32)
-        //{
-        //    // other threads may have got us past the threshold while we
-        //    // are still working on this 'A' poly... check if we can stop.
-        //    if ((sconf->num_found > sconf->num_needed) || (sconf->flag == 1))
-        //    {
-        //        break;
-        //    }
-        //}
     }
 
-    //exit(0);
-
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
 done:
+#endif
 
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
@@ -2689,12 +3214,12 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	uint32_t i;
 	siqs_r *rel;
 	char buf[1024];
-    uint32_t curr_poly_idx = dconf->curr_poly->index;
+    uint32_t curr_poly_idx = (uint32_t)dconf->curr_poly->index;
 
 	// save the current A value.
 	if (!sconf->in_mem)
 	{
-        curr_poly_idx = dconf->curr_poly->index;
+        curr_poly_idx = (uint32_t)dconf->curr_poly->index;
 		gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
 		savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 	}
@@ -2753,6 +3278,8 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 
     sconf->t_mpsieve += dconf->t_mpsieve;
     sconf->t_lpsieve += dconf->t_lpsieve;
+    sconf->t_sparsesieve += dconf->t_sparsesieve;
+    sconf->t_lpresieve += dconf->t_lpresieve;
     sconf->t_tdiv += dconf->t_tdiv;
     sconf->t_polyupdate += dconf->t_polyupdate;
 
@@ -2774,8 +3301,8 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
         uint32_t memuse = 0;
 
         dest_rb = &sconf->rb[sconf->batch_buffer_id - 1];
-        memuse += dest_rb->num_relations_alloc * sizeof(cofactor_t);
-        memuse += dest_rb->num_factors_alloc * sizeof(uint32_t);
+        memuse += (uint32_t)(dest_rb->num_relations_alloc * sizeof(cofactor_t));
+        memuse += (uint32_t)(dest_rb->num_factors_alloc * sizeof(uint32_t));
 
         // merge in the batched relations
         for (i = 0; i < rb->num_relations; i++)
@@ -2803,8 +3330,8 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
             printf("merged %d relations from thread %d into batch buffer %d\n",
                 rb->num_relations, dconf->tid, sconf->batch_buffer_id);
             
-            memuse = dest_rb->num_relations_alloc * sizeof(cofactor_t) + 
-                dest_rb->num_factors_alloc * sizeof(uint32_t) - memuse;
+            memuse = (uint32_t)(dest_rb->num_relations_alloc * sizeof(cofactor_t) + 
+                dest_rb->num_factors_alloc * sizeof(uint32_t) - memuse);
             
             if (memuse > 0)
             {
@@ -2886,6 +3413,91 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	return state;
 }
 
+// print the experimental sieve configuration compiled into this binary
+// (the TRY_* defines in qs_impl.h and their knobs) with the factor base
+// ranges each one covers, to stdout and/or the logfile.
+static void print_siqs_experiments(static_conf_t* sconf, int to_screen, FILE* logfile)
+{
+    fb_list* fb = sconf->factor_base;
+    char line[256];
+    int n = 0;
+
+#define EXP_LINE(...) \
+    do { \
+        snprintf(line, sizeof(line), __VA_ARGS__); \
+        if (to_screen) printf("%s", line); \
+        if (logfile != NULL) logprint(logfile, "%s", line); \
+        n++; \
+    } while (0)
+
+    // fb index range [lo, hi) with its primes, or "empty"
+#define EXP_RANGE(lo, hi) \
+    ((hi) > (lo) ? fb->list->prime[(lo)] : 0), \
+    ((hi) > (lo) ? fb->list->prime[(hi) - 1] : 0)
+
+    EXP_LINE("==== experimental sieve options ====\n");
+    EXP_LINE("per-core L2 = %u KB; both-side interval = %u KB\n",
+        ytools_get_l2_core_size() / 1024, 2 * sconf->num_blocks * 32);
+
+#if defined(TRY_DIRECT_SIEVE)
+    {
+        static const char* kname[] = { "auto", "bitloop", "sink", "creg", "cmem" };
+        static const char* iname[] = { "auto", "scalar", "avx2", "avx512", "sse41", "neon" };
+        EXP_LINE("strategy: mid = %s, large = %s, kernel = %s, sparse kernel = %s "
+            "(%s kernels%s)\n",
+            sconf->mid_bucket ? "bucket" : "sparse",
+            sconf->lp_direct ? "direct" : "bucket",
+            kname[sconf->lp_kernel], kname[sconf->sparse_kernel], iname[sconf->lp_isa],
+            sconf->lp_portable_roots ? ", portable root updates" : "");
+    }
+    if (sconf->lp_direct)
+    {
+        EXP_LINE("direct interval sieve, fb [%u, %u) primes %u..%u "
+            "(> interval %u)\n", fb->large_B, fb->B, EXP_RANGE(fb->large_B, fb->B),
+            sconf->sieve_interval);
+        EXP_LINE("  DIRECT_PREFILTER_BITS = %d, DIRECT_CMP_MAX_SURVIVORS = %d, "
+            "DIRECT_LOGP_BIAS = %d, DIRECT_CBUF_FLUSH = %d\n", DIRECT_PREFILTER_BITS,
+            DIRECT_CMP_MAX_SURVIVORS, DIRECT_LOGP_BIAS, DIRECT_CBUF_FLUSH);
+    }
+    else
+        EXP_LINE("large bucket sieve, fb [%u, %u) primes %u..%u\n",
+            fb->large_B, fb->B, EXP_RANGE(fb->large_B, fb->B));
+    if (sconf->mid_bucket)
+        EXP_LINE("mid bucket sieve, fb [%u, %u) primes %u..%u\n",
+            fb->med_B, fb->large_B, EXP_RANGE(fb->med_B, fb->large_B));
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+    if (fb->fb_blk8i > fb->med_B)
+        EXP_LINE("sparse sieve: per-block, fb [%u, %u) primes %u..%u\n",
+            fb->med_B, fb->fb_blk8i, EXP_RANGE(fb->med_B, fb->fb_blk8i));
+    else
+        EXP_LINE("sparse sieve: compiled in, range empty\n");
+#endif
+
+#if defined(TRY_COMPRESS_SORT_LARGEP)
+    EXP_LINE("TRY_COMPRESS_SORT_LARGEP\n");
+#endif
+
+#if defined(DEBUG_MISSED_FB_PRIMES)
+    EXP_LINE("DEBUG_MISSED_FB_PRIMES (slow)\n");
+#endif
+#if defined(DEBUG_DIRECT_ROOTS)
+    EXP_LINE("DEBUG_DIRECT_ROOTS (slow)\n");
+#endif
+#if defined(DEBUG_DUMP_REPORTS)
+    EXP_LINE("DEBUG_DUMP_REPORTS (writes reports_dump.txt)\n");
+#endif
+
+    if (n == 1)
+        EXP_LINE("none (stock sieve)\n");
+
+#undef EXP_RANGE
+#undef EXP_LINE
+
+    return;
+}
+
 void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
     //print some info to the screen and the log file
@@ -2906,6 +3518,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     else strcpy(inst_set, "SSE2");
 #elif defined (FORCE_GENERIC)
     strcpy(inst_set, "Generic C");
+#elif defined(__aarch64__)
+    if (sconf->obj->HAS_NEON) strcpy(inst_set, "NEON");
+    else strcpy(inst_set, "Generic C");
 #else
     strcpy(inst_set, "SSE2");
 #endif
@@ -2981,12 +3596,34 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
             printf("processing polynomials in batches of %d for %u XL primes\n",
                 dconf->poly_batchsize, sconf->factor_base->B - sconf->factor_base->x2_large_B);
 #endif
-            printf("large prime hashtables have %d bytes\n",
-                dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t));
+            printf("large prime hashtables have %u bytes\n",
+                (uint32_t)(dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t)));
         }
         printf("using %s enabled 32k sieve core\n", inst_set);
+
+        
+
+#if defined(TRY_DIRECT_SIEVE)
         printf("sieve interval: %d blocks of size %d\n",
             sconf->num_blocks, sconf->qs_blocksize);
+        printf("per-core L2 = %u KB; both-side interval = %u KB\n",
+            ytools_get_l2_core_size() / 1024, 2 * sconf->num_blocks * 32);
+#else
+        printf("sieve interval: %d blocks of size %d\n",
+            sconf->num_blocks, sconf->qs_blocksize);
+#endif
+
+        {
+            static const char* kname[] = { "auto", "bitloop", "sink", "creg", "cmem" };
+            static const char* iname[] = { "auto", "scalar", "avx2", "avx512", "sse41", "neon" };
+            printf("strategy: mid = %s, large = %s, kernel = %s, sparse kernel = %s "
+                "(%s kernels%s)\n",
+                sconf->mid_bucket ? "bucket" : "sparse",
+                sconf->lp_direct ? "direct" : "bucket",
+                kname[sconf->lp_kernel], kname[sconf->sparse_kernel], iname[sconf->lp_isa],
+                sconf->lp_portable_roots ? ", portable root updates" : "");
+        }
+
         printf("polynomial A has ~ %d factors\n",
             (int)mpz_sizeinbase(sconf->target_a, 2) / 11);
 
@@ -3032,10 +3669,15 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("using SPV correction of %d bits, starting at offset %d\n",
             sconf->tf_small_cutoff, sconf->sieve_small_fb_start);
 		printf("trial factoring cutoff at %d bits\n",sconf->tf_closnuf);
+        printf("built-in parameter table: %s\n", sconf->param_table_name);
 	}
 
 	if (sconf->obj->VFLAG >= 0)
 	{
+		// always show which experimental sieve paths this binary runs
+		//printf("\n");
+		//print_siqs_experiments(sconf, 1, NULL);
+
 		if (sconf->obj->THREADS == 1)
 		{
 			printf("\n==== sieving in progress (1 thread): %7u relations needed ====\n",
@@ -3146,6 +3788,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
 			sconf->tf_closnuf);
+		logprint(sconf->obj->logfile, "built-in parameter table: %s\n",
+			sconf->param_table_name);
+		print_siqs_experiments(sconf, 0, sconf->obj->logfile);
 		if (sconf->obj->THREADS == 1)
 			logprint(sconf->obj->logfile,"==== sieving started (1 thread) ====\n");
 		else
@@ -3158,8 +3803,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-    //allocate the dynamic structure which hold scratch space for 
-    //various things used during sieving.
+    // allocate the dynamic structure which hold scratch space for 
+    // various things used during sieving.
     uint32_t i, memsize;
 
     if (sconf->obj->VFLAG > 2)
@@ -3167,14 +3812,14 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("memory usage during sieving:\n");
     }
 
-    //workspace bigints
+    // workspace bigints
     mpz_init(dconf->gmptmp1);
     mpz_init(dconf->gmptmp2);
     mpz_init(dconf->gmptmp3);
 
-    //this stuff changes with every new poly
-    //allocate a polynomial structure which will hold the current
-    //set of polynomial coefficients (a,b,c) and other info
+    // this stuff changes with every new poly
+    // allocate a polynomial structure which will hold the current
+    // set of polynomial coefficients (a,b,c) and other info
     dconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
     mpz_init(dconf->curr_poly->mpz_poly_a);
     mpz_init(dconf->curr_poly->mpz_poly_b);
@@ -3190,7 +3835,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("\tcurr_poly structure: %d bytes\n", memsize);
     }
 
-    //initialize temporary storage of relations
+    // initialize temporary storage of relations
     dconf->relation_buf = (siqs_r *)malloc(32768 * sizeof(siqs_r));
     dconf->buffered_rel_alloc = 32768;
     dconf->buffered_rels = 0;
@@ -3201,10 +3846,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         printf("\trelation buffer: %d bytes\n", memsize);
     }
 
-    //allocate the sieving factor bases
+    // allocate the sieving factor bases
 
     dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
     dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
+
+    dconf->sieve_p = (sieve_fb*)malloc(sizeof(sieve_fb));
+    dconf->sieve_n = (sieve_fb*)malloc(sizeof(sieve_fb));
 
     dconf->comp_sieve_p->prime = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
@@ -3224,6 +3872,29 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->comp_sieve_n->logp = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
 
+    uint32_t sievefb_alloc = sconf->factor_base->fb_blk8i;
+    dconf->sieve_p->prime = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+    dconf->sieve_p->root1 = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+    dconf->sieve_p->root2 = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+    dconf->sieve_p->logp = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+
+    dconf->sieve_n->prime = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+    dconf->sieve_n->root1 = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+    dconf->sieve_n->root2 = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+    dconf->sieve_n->logp = (uint32_t*)xmalloc_align(
+        (size_t)(sievefb_alloc * sizeof(uint32_t)));
+
+#if defined(TRY_DIRECT_SIEVE)
+    dconf->dpool = direct_pool_alloc(sconf->num_blocks);
+#endif
+
     dconf->update_data.sm_firstroots1 = (uint16_t *)xmalloc_align(
         (size_t)(sconf->factor_base->med_B * sizeof(uint16_t)));
     dconf->update_data.sm_firstroots2 = (uint16_t *)xmalloc_align(
@@ -3240,6 +3911,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         (size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(int)));
     dconf->sm_rootupdates = (uint16_t *)xmalloc_align(
         (size_t)(MAX_A_FACTORS * sconf->factor_base->med_B * sizeof(uint16_t)));
+    dconf->fr_r1 = (uint32_t*)xmalloc_align(
+        (size_t)((sconf->factor_base->B + 16) * sizeof(uint32_t)));
+    dconf->fr_r2 = (uint32_t*)xmalloc_align(
+        (size_t)((sconf->factor_base->B + 16) * sizeof(uint32_t)));
 
 
     if (sconf->obj->VFLAG > 2)
@@ -3251,8 +3926,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     if (sconf->obj->VFLAG > 2)
     {
         memsize = sconf->factor_base->B * sizeof(int) * 2;
-        memsize += sconf->factor_base->B * sizeof(uint32_t);
-        memsize += sconf->factor_base->B * sizeof(uint8_t);
+        memsize += (uint32_t)(sconf->factor_base->B * sizeof(uint32_t));
+        memsize += (uint32_t)(sconf->factor_base->B * sizeof(uint8_t));
         printf("\tupdate data: %d bytes\n", memsize);
     }
 
@@ -3299,8 +3974,14 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     // allocate the sieve with a guard region.  this lets
     // us be a little more sloppy with vector-based sieving
     // and resieving.
+#if defined(TRY_DIRECT_SIEVE)
+    // both whole intervals (pos then neg) plus 2 guard blocks on each end
+    dconf->sieve = (uint8_t*)xmalloc_align(
+        (size_t)(sconf->qs_blocksize * (2 * sconf->num_blocks + 4) * sizeof(uint8_t)));
+#else
     dconf->sieve = (uint8_t*)xmalloc_align(
         (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
+#endif
     dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
 #endif
 
@@ -3328,14 +4009,33 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->comp_sieve_n->logp[i] = (uint8_t)lp;
         dconf->comp_sieve_n->prime[i] = (uint16_t)p;
 
+        dconf->sieve_p->logp[i] = lp;
+        dconf->sieve_p->prime[i] = p;
+        dconf->sieve_n->logp[i] = lp;
+        dconf->sieve_n->prime[i] = p;
+
         dconf->update_data.prime[i] = p;
-        dconf->update_data.logp[i] = lp;
+        dconf->update_data.logp[i] = (uint8_t)lp;
+    }
+
+    for (i = sconf->factor_base->med_B; i < sconf->factor_base->fb_blk8i; i++)
+    {
+        uint32_t p = sconf->factor_base->list->prime[i];
+        uint32_t lp = sconf->factor_base->list->logprime[i];
+
+        dconf->sieve_p->logp[i] = lp;
+        dconf->sieve_p->prime[i] = p;
+        dconf->sieve_n->logp[i] = lp;
+        dconf->sieve_n->prime[i] = p;
+
+        dconf->update_data.prime[i] = p;
+        dconf->update_data.logp[i] = (uint8_t)lp;
     }
 
     for (; i < sconf->factor_base->B; i++)
     {
         dconf->update_data.prime[i] = sconf->factor_base->list->prime[i];
-        dconf->update_data.logp[i] = sconf->factor_base->list->logprime[i];
+        dconf->update_data.logp[i] = (uint8_t)sconf->factor_base->list->logprime[i];
     }
 
     // check if we should use bucket sieving, and allocate structures if so
@@ -3509,22 +4209,22 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #endif
 
         // two entries per block (p and n sides), per slice, and per (batch) poly.
-        dconf->buckets->num = (uint32_t*)xmalloc_align(dconf->poly_batchsize *
+        dconf->buckets->num = (uint32_t*)xmalloc_align((uint32_t)dconf->poly_batchsize *
             2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32_t));
 
         // one entry per slice to record the starting prime and logp indices per slice.
         // experimental variation: use one entry per slice and per poly, so that we
         // can sort xlarge primes in a batch of polys and other primes one poly at a time.
         dconf->buckets->fb_bounds = (uint32_t*)malloc(
-            dconf->buckets->alloc_slices * dconf->poly_batchsize * sizeof(uint32_t));
+            dconf->buckets->alloc_slices * (uint32_t)dconf->poly_batchsize * sizeof(uint32_t));
         dconf->buckets->logp = (uint8_t*)calloc(
-            dconf->buckets->alloc_slices * dconf->poly_batchsize, sizeof(uint8_t));
+            dconf->buckets->alloc_slices * (uint32_t)dconf->poly_batchsize, sizeof(uint8_t));
 
         // the total number of buckets (size of buckets->num)
-        dconf->buckets->list_size = dconf->poly_batchsize * 2 *
+        dconf->buckets->list_size = (uint32_t)dconf->poly_batchsize * 2 *
             sconf->num_blocks * dconf->buckets->alloc_slices;
 
-        dconf->buckets->num_slices_batch = (uint32_t*)xmalloc(dconf->poly_batchsize * sizeof(uint32_t));
+        dconf->buckets->num_slices_batch = (uint32_t*)xmalloc((size_t)dconf->poly_batchsize * sizeof(uint32_t));
 
         // now allocate space for the bucket entries.  Each entry is a 32-bit integer
         // split into 16 bits for prime id and 16 bits for block location.
@@ -3538,8 +4238,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
                 sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
 
             printf("allocating %u total bytes for bucket sort\n",
-                dconf->buckets->list_size *
-                BUCKET_ALLOC * sizeof(uint32_t));
+                (uint32_t)(dconf->buckets->list_size *
+                BUCKET_ALLOC * sizeof(uint32_t)));
         }
 
 #ifdef TRY_COMPRESS_SORT_LARGEP
@@ -3573,9 +4273,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     if (sconf->obj->VFLAG > 2)
     {
         memsize = dconf->buckets->list_size * sizeof(uint32_t);
-        memsize += dconf->buckets->alloc_slices * sizeof(uint32_t);
-        memsize += dconf->buckets->alloc_slices * sizeof(uint8_t);
-        memsize += dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t);
+        memsize += (uint32_t)(dconf->buckets->alloc_slices * sizeof(uint32_t));
+        memsize += (uint32_t)(dconf->buckets->alloc_slices * sizeof(uint8_t));
+        memsize += (uint32_t)(dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t));
         printf("\tbucket data: %d bytes\n", memsize);
     }
 
@@ -3677,7 +4377,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->do_batch = 0;
     if (sconf->do_batch)
     {       
-        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint64_t pmax = (uint64_t)((float)sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv);
             // (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv;
         // sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         dconf->do_batch = 1;
@@ -3704,12 +4404,362 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->total_surviving_reports = 0;
     dconf->total_blocks = 0;
 
+    dconf->t_mpsieve = 0.0;
+    dconf->t_lpsieve = 0.0;
+    dconf->t_sparsesieve = 0.0;
+    dconf->t_lpresieve = 0.0;
+    dconf->t_tdiv = 0.0;
+    dconf->t_polyupdate = 0.0;
+
     dconf->num_scatter_opp = 0;
     dconf->num_scatter = 0;
 
     dconf->lcg_state = hash64(lcg_rand_64(&sconf->obj->lcg_state));
 
 	return 0;
+}
+
+// the default scatter kernel for a kernel ISA: compressstoreu (cmem) on
+// Intel AVX-512; register compress (creg) elsewhere, including AMD, where the
+// memory form of vpcompressd is reported to be slow (not measured here).
+static uint32_t siqs_isa_default_kernel(uint32_t isa)
+{
+    return ((isa == SIQS_ISA_AVX512) && !ytools_cpu_is_amd()) ?
+        SIQS_K_CMEM : SIQS_K_CREG;
+}
+
+// the large-prime kernel ISA, [large_B, B) strategy and kernel (options,
+// else the best available / DIRECT_DEFAULT_*).  These depend on nothing
+// get_params produces and key its parameter tables, so they're chosen before
+// it; siqs_resolve_strategy then checks them and picks the rest.
+static void siqs_choose_table_keys(static_conf_t* sconf)
+{
+    fact_obj_t* obj = sconf->obj;
+    uint32_t kernel = obj->qs_obj.gbl_siqs_kernel;
+    uint32_t isa;
+
+#if defined(TRY_DIRECT_SIEVE)
+    {
+        uint32_t large = obj->qs_obj.gbl_siqs_large;
+
+        if (large == SIQS_STRAT_AUTO)
+        {
+#if defined(DIRECT_DEFAULT_LARGE)
+            large = DIRECT_DEFAULT_LARGE;
+#else
+            large = SIQS_LARGE_DIRECT;
+#endif
+        }
+        sconf->lp_direct = (large == SIQS_LARGE_DIRECT);
+    }
+#else
+    sconf->lp_direct = 0;
+#endif
+
+    // kernel ISA: the requested one if this build and CPU have it, else
+    // the best available
+    {
+        int have[6] = { 0, 1, 0, 0, 0, 0 };     // indexed by SIQS_ISA_*
+        uint32_t best = SIQS_ISA_SCALAR;
+#if defined(USE_SSE41)
+        have[SIQS_ISA_SSE41] = obj->HAS_SSE41;
+        if (have[SIQS_ISA_SSE41]) best = SIQS_ISA_SSE41;
+#endif
+#if defined(SIQS_HAVE_NEON_KERNELS)
+#if defined(SIQS_NEON_EMU)
+        have[SIQS_ISA_NEON] = 1;
+#else
+        have[SIQS_ISA_NEON] = obj->HAS_NEON;
+        if (have[SIQS_ISA_NEON]) best = SIQS_ISA_NEON;
+#endif
+#endif
+#if defined(USE_AVX2)
+        have[SIQS_ISA_AVX2] = obj->HAS_AVX2;
+        if (have[SIQS_ISA_AVX2]) best = SIQS_ISA_AVX2;
+#endif
+#if defined(USE_AVX512BW)
+        have[SIQS_ISA_AVX512] = obj->HAS_AVX512BW;
+        if (have[SIQS_ISA_AVX512]) best = SIQS_ISA_AVX512;
+#endif
+        isa = obj->qs_obj.gbl_siqs_lp_isa;
+        if ((isa == SIQS_STRAT_AUTO) || (isa > SIQS_ISA_NEON) || !have[isa])
+            isa = best;
+    }
+
+    if (kernel == SIQS_STRAT_AUTO)
+    {
+#if defined(DIRECT_DEFAULT_KERNEL)
+        kernel = DIRECT_DEFAULT_KERNEL;
+#else
+        kernel = siqs_isa_default_kernel(isa);
+#endif
+    }
+
+    sconf->lp_isa = (int)isa;
+    sconf->lp_kernel = (int)kernel;
+}
+
+#if defined(TRY_DIRECT_SIEVE)
+// first 16-aligned fb index from med_B whose prime exceeds the sieve interval,
+// rounded down by one 16-group unless round_up (the direct sieve needs every
+// prime in [large_B, B) > interval; buckets historically round down)
+static uint32_t siqs_lp_boundary(static_conf_t* sconf, int round_up)
+{
+    fb_list* fb = sconf->factor_base;
+    uint32_t i;
+
+    for (i = fb->med_B; i < fb->B; i++)
+    {
+        if ((fb->list->prime[i] > sconf->sieve_interval) && ((i % 16) == 0))
+            return round_up ? i : i - 16;
+    }
+    return fb->B;
+}
+
+// choose the large-prime strategy (options, else DIRECT_DEFAULT_*), check
+// it against what this input/CPU supports, set fb_blk8i / large_B to match
+// and pick the kernels.  Must run after scan_ptr is chosen.
+static void siqs_resolve_strategy(static_conf_t* sconf)
+{
+    fact_obj_t* obj = sconf->obj;
+    fb_list* fb = sconf->factor_base;
+    uint32_t mid = obj->qs_obj.gbl_siqs_mid;
+    uint32_t kernel = (uint32_t)sconf->lp_kernel;     // siqs_choose_table_keys
+    uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
+    uint32_t boundary;
+    uint32_t isa = (uint32_t)sconf->lp_isa;           // siqs_choose_table_keys
+
+    // defaults table (measured on an i5-11600K, see
+    // plans/siqs_multi_isa/plan.md section 6 and direct_sieve.md):
+    //  - [large_B, B): the direct sieve; large buckets were slower at every
+    //    ISA and NB measured.
+    //  - [med_B, large_B): the sparse sieve with 4/8/16-lane kernels while
+    //    both intervals fit in the per-core L2 (it fell 3-4% behind buckets
+    //    at NB 12/16 with a 512 KB L2); buckets with scalar kernels (sparse
+    //    -10% there).  SSE4.1 used buckets until its 4-lane compress stopped
+    //    calling libgcc's popcount; sparse is now ~5% ahead (C85).  NEON
+    //    (Neoverse-N1, C73): sparse 42.0 s vs buckets 43.7 s.
+    //  - kernel: siqs_isa_default_kernel (chosen in siqs_choose_table_keys)
+    {
+        int wide = (isa == SIQS_ISA_AVX512) || (isa == SIQS_ISA_AVX2) ||
+            (isa == SIQS_ISA_SSE41) || (isa == SIQS_ISA_NEON);
+        uint32_t span = 2 * sconf->num_blocks * 32768;
+        uint32_t dmid = (wide && (span <= ytools_get_l2_core_size())) ?
+            SIQS_MID_SPARSE : SIQS_MID_BUCKET;
+        uint32_t dskern = siqs_isa_default_kernel(isa);
+#if defined(DIRECT_DEFAULT_MID)
+        dmid = DIRECT_DEFAULT_MID;
+#endif
+#if defined(DIRECT_DEFAULT_SPARSE_KERNEL)
+        dskern = DIRECT_DEFAULT_SPARSE_KERNEL;
+#endif
+        if (mid == SIQS_STRAT_AUTO) mid = dmid;
+        if (skernel == SIQS_STRAT_AUTO) skernel = dskern;
+    }
+
+    if (skernel == SIQS_K_SINK)
+    {
+        if (obj->VFLAG > 0)
+            printf("the sparse sieve has no sink kernel; using cmem\n");
+        skernel = SIQS_K_CMEM;
+    }
+
+    // sconf->lp_direct, lp_isa, lp_kernel: siqs_choose_table_keys
+    sconf->mid_bucket = (mid == SIQS_MID_BUCKET);
+    sconf->sparse_kernel = (int)skernel;
+    nextRoots_lp_ptr = &nextRoots_32k_lp_portable;
+
+    // per-poly root updates for [med_B, B): the AVX-512 path
+    // (nextRoots_32k_avx2_small + knl medbucket/largebucket) handles every
+    // strategy; elsewhere the stock nextRoots_ptr handles bucket+bucket, and
+    // the portable version everything else.  Scalar kernels in the AVX-512
+    // build also use the portable version, to exercise it.
+#if defined(USE_AVX512F)
+    if (obj->HAS_AVX512F)
+        sconf->lp_portable_roots = (isa != SIQS_ISA_AVX512);
+    else
+#endif
+        sconf->lp_portable_roots = (sconf->lp_direct || !sconf->mid_bucket);
+
+    // [med_B, fb_blk8i) sparse sieve, [fb_blk8i, large_B) mid buckets,
+    // [large_B, B) direct or large buckets.  fb_blk8i = med_B empties every
+    // sparse-range loop (firstRoots' and nextRoots' L2 sections,
+    // large_sieveblock, tdiv_large) and makes firstRoots' middle bucket
+    // loop and nextRoots_32k_knl_medbucket cover [med_B, large_B).
+    boundary = siqs_lp_boundary(sconf, sconf->lp_direct);
+    if (boundary < fb->med_B)
+        boundary = fb->med_B;
+    fb->large_B = boundary;
+    fb->fb_blk8i = sconf->mid_bucket ? fb->med_B : boundary;
+
+    if (isa == SIQS_ISA_SCALAR)
+    {
+        // scalar kernels: creg / cmem both mean the branch-free append
+        large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ?
+            &large_sieveblock_scalar_bitloop : &large_sieveblock_scalar_append;
+        tdiv_large_ptr = &tdiv_large_scalar;
+        switch (kernel)
+        {
+        case SIQS_K_BITLOOP:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_scalar_bitloop;
+            direct_resieve_update_ptr = &direct_resieve_update_scalar_bitloop;
+            break;
+        case SIQS_K_SINK:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_scalar_sink;
+            direct_resieve_update_ptr = &direct_resieve_update_scalar_sink;
+            break;
+        default:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_scalar_append;
+            direct_resieve_update_ptr = &direct_resieve_update_scalar_append;
+            break;
+        }
+        return;
+    }
+
+#if defined(USE_AVX2)
+    if (isa == SIQS_ISA_AVX2)
+    {
+        // AVX2 kernels: no compress-to-memory, cmem means creg
+        direct_avx2_init();
+        nextRoots_lp_ptr = &nextRoots_32k_lp_avx2;
+        if (skernel == SIQS_K_CMEM) { skernel = SIQS_K_CREG; sconf->sparse_kernel = (int)skernel; }
+        if (kernel == SIQS_K_CMEM) { kernel = SIQS_K_CREG; sconf->lp_kernel = (int)kernel; }
+        large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ?
+            &large_sieveblock_avx2_bitloop : &large_sieveblock_avx2_creg;
+        tdiv_large_ptr = (skernel == SIQS_K_BITLOOP) ?
+            &tdiv_large_avx2_bitloop : &tdiv_large_avx2_creg;
+        switch (kernel)
+        {
+        case SIQS_K_BITLOOP:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx2_bitloop;
+            direct_resieve_update_ptr = &direct_resieve_update_avx2_bitloop;
+            break;
+        case SIQS_K_SINK:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx2_sink;
+            direct_resieve_update_ptr = &direct_resieve_update_avx2_sink;
+            break;
+        default:
+            direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx2_creg;
+            direct_resieve_update_ptr = &direct_resieve_update_avx2_creg;
+            break;
+        }
+        return;
+    }
+#endif
+
+    // 4-lane kernels: no compress-to-memory, cmem means creg
+#define SIQS_SELECT_V4(sfx) \
+    { \
+        direct_v4_init_##sfx(); \
+        nextRoots_lp_ptr = &nextRoots_32k_lp_##sfx; \
+        if (skernel == SIQS_K_CMEM) { skernel = SIQS_K_CREG; sconf->sparse_kernel = (int)skernel; } \
+        if (kernel == SIQS_K_CMEM) { kernel = SIQS_K_CREG; sconf->lp_kernel = (int)kernel; } \
+        large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ? \
+            &large_sieveblock_bitloop_##sfx : &large_sieveblock_creg_##sfx; \
+        tdiv_large_ptr = (skernel == SIQS_K_BITLOOP) ? \
+            &tdiv_large_bitloop_##sfx : &tdiv_large_creg_##sfx; \
+        direct_sieve_largeprimes_ptr = (kernel == SIQS_K_BITLOOP) ? \
+            &direct_sieve_largeprimes_bitloop_##sfx : (kernel == SIQS_K_SINK) ? \
+            &direct_sieve_largeprimes_sink_##sfx : &direct_sieve_largeprimes_creg_##sfx; \
+        direct_resieve_update_ptr = (kernel == SIQS_K_BITLOOP) ? \
+            &direct_resieve_update_bitloop_##sfx : (kernel == SIQS_K_SINK) ? \
+            &direct_resieve_update_sink_##sfx : &direct_resieve_update_creg_##sfx; \
+        return; \
+    }
+#if defined(USE_SSE41)
+    if (isa == SIQS_ISA_SSE41)
+        SIQS_SELECT_V4(sse41)
+#endif
+#if defined(SIQS_HAVE_NEON_KERNELS)
+    if (isa == SIQS_ISA_NEON)
+        SIQS_SELECT_V4(neon)
+#endif
+#undef SIQS_SELECT_V4
+
+#if defined(USE_AVX512BW)
+    switch (skernel)
+    {
+    case SIQS_K_BITLOOP:
+        large_sieveblock_ptr = &large_sieveblock_avx512_bitloop;
+        tdiv_large_ptr = &tdiv_large_avx512_bitloop;
+        break;
+    case SIQS_K_CREG:
+        large_sieveblock_ptr = &large_sieveblock_avx512_creg;
+        tdiv_large_ptr = &tdiv_large_avx512_creg;
+        break;
+    default:
+        large_sieveblock_ptr = &large_sieveblock_avx512_cmem;
+        tdiv_large_ptr = &tdiv_large_avx512_cmem;
+        break;
+    }
+
+    switch (kernel)
+    {
+    case SIQS_K_BITLOOP:
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_bitloop;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_bitloop;
+        break;
+    case SIQS_K_SINK:
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_sink;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_sink;
+        break;
+    case SIQS_K_CREG:
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_creg;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_creg;
+        break;
+    default:
+        direct_sieve_largeprimes_ptr = &direct_sieve_largeprimes_avx512_cmem;
+        direct_resieve_update_ptr = &direct_resieve_update_avx512_cmem;
+        break;
+    }
+#endif
+}
+#endif
+
+// print the factor base bounds (-v -v)
+static void print_fb_bounds(static_conf_t* sconf)
+{
+	if (sconf->obj->VFLAG > 1)
+	{
+#ifdef TRY_SMALLP_OPT
+		printf("SPV small_limit = %u\n", sconf->small_limit);
+#endif
+		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tL2: %u\n\tlarge: %u\n"
+            "\tlarge_x2: %u\n\tall: %u\n",
+			sconf->factor_base->small_B,
+			sconf->sieve_small_fb_start,
+			sconf->factor_base->fb_10bit_B,
+			sconf->factor_base->fb_11bit_B,
+			sconf->factor_base->fb_12bit_B,
+			sconf->factor_base->fb_13bit_B,
+			sconf->factor_base->fb_32k_div3,
+			sconf->factor_base->fb_14bit_B,
+			sconf->factor_base->fb_15bit_B,
+			sconf->factor_base->med_B,
+            sconf->factor_base->fb_blk8i,
+			sconf->factor_base->large_B,
+            sconf->factor_base->x2_large_B,
+			sconf->factor_base->B);
+
+		printf("start primes\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tL2: %u\n\tlarge: %u\n"
+            "\tlarge_x2: %u\n\tall: %u\n",
+			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_10bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_11bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_12bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_32k_div3-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
+            sconf->factor_base->list->prime[sconf->factor_base->fb_blk8i - 1],
+			sconf->factor_base->list->prime[sconf->factor_base->large_B-1],
+            sconf->factor_base->list->prime[sconf->factor_base->x2_large_B - 1],
+            sconf->pmax);
+	}
+
 }
 
 int siqs_static_init(static_conf_t* sconf, int is_tiny)
@@ -3728,7 +4778,11 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     uint32_t dlp_cutoff;
     uint32_t tlp_cutoff;
     int VFLAG = sconf->obj->VFLAG;
-    int THREADS = sconf->obj->THREADS;
+    UNUSED_VAR int THREADS = sconf->obj->THREADS;
+#ifdef TRY_SMALLP_OPT
+    // sized tinylist allocation, derived from the SPV limit below
+    uint32_t tiny_alloc = 0;
+#endif
 
     // this pretty much has to stay "8".  the reason is that many of the specialized routines
     // have picky requirements about how large or small the primes can be for them
@@ -3756,7 +4810,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
     // can raise this if we also raise TFSm and lower TF bounds
     // and get about the same speed... 
+#ifdef TRY_SMALLP_OPT
+    // SPV bound: primes below this are not sieved and are divided out
+    // per-candidate in filter_SPV (tdiv_small.c).  Override with -siqsSPV.
+    // If raising this, co-tune tf_small_cutoff (-siqsTFSm) and the TF
+    // bound (-siqsTF); see docs/siqs_spv_plan.md.
     sconf->small_limit = 256;
+    if (obj->qs_obj.gbl_override_spv_limit_flag)
+    {
+        sconf->small_limit = obj->qs_obj.gbl_override_spv_limit;
+    }
+#else
+    sconf->small_limit = 256;
+#endif
     sconf->use_dlp = 0;
 
     // function pointer to the sieve array scanner
@@ -3781,7 +4847,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     testRoots_ptr = &testfirstRoots_32k;
 
     // tdiv core functions
-    tdiv_med_ptr = &tdiv_medprimes_32k;
+    tdiv_med_ptr = &tdiv_medprimes_32k_new;
     tdiv_LP_ptr = &tdiv_LP_sse2;
     resieve_med_ptr = &resieve_medprimes_32k;
 
@@ -3803,20 +4869,28 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         if (obj->HAS_AVX512BW)
         {
             resieve_med_ptr = &resieve_medprimes_32k_avx512bw;
+#ifdef MED_SIEVE_SPLIT
+            med_sieve_ptr = &med_sieveblock_32k_avx512bw_split;
+#else
             med_sieve_ptr = &med_sieveblock_32k_avx512bw;
+#endif
             lp_sieveblock_ptr = &lp_sieveblock_avx512bw;
             if (sconf->obj->VFLAG > 1)
             {
                 printf("assigning resieve_medprimes_32k_avx512bw ptr\n");
                 printf("assigning lp_sieveblock_avx512bw ptr\n");
+#ifdef MED_SIEVE_SPLIT
+                printf("assigning med_sieveblock_32k_avx512bw_split ptr\n");
+#else
                 printf("assigning med_sieveblock_32k_avx512bw ptr\n");
+#endif
             }
         }
         else
         {
             resieve_med_ptr = &resieve_medprimes_32k_avx2;
             lp_sieveblock_ptr = &lp_sieveblock_avx512f;
-            med_sieve_ptr = &med_sieveblock_32k_avx2;
+            med_sieve_ptr = &MED_SIEVE_AVX2_FN;
             if (sconf->obj->VFLAG > 1)
             {
                 printf("assigning resieve_medprimes_32k_avx2 ptr\n");
@@ -3828,7 +4902,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #else
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         lp_sieveblock_ptr = &lp_sieveblock_avx512f;
-        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        med_sieve_ptr = &MED_SIEVE_AVX2_FN;
         if (sconf->obj->VFLAG > 1)
         {
             printf("assigning resieve_medprimes_32k_avx2 ptr\n");
@@ -3851,7 +4925,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
         tdiv_LP_ptr = &tdiv_LP_avx2;
-        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        med_sieve_ptr = &MED_SIEVE_AVX2_FN;
 
 #if defined(_MSC_VER)
         // the avx2 code path for nextroots involves lots of inline 
@@ -3918,7 +4992,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
         tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
         tdiv_LP_ptr = &tdiv_LP_avx2;
-        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        med_sieve_ptr = &MED_SIEVE_AVX2_FN;
 
 #if defined(_MSC_VER)
         // the avx2 code path for nextroots involves lots of inline 
@@ -3990,7 +5064,99 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
 
 #endif
-		
+
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    if (sconf->obj->HAS_NEON)
+    {
+        // YAFU_NEON_MED picks the variant at run time, for benchmarking
+        static const struct {
+            const char* key;
+            void (*fn)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
+            const char* name;
+        } medv_tab[] = {
+            { "ranges", &med_sieveblock_32k_neon, "med_sieveblock_32k_neon" },
+            { "split", &med_sieveblock_32k_neon_split, "med_sieveblock_32k_neon_split" },
+            { "splitsink", &med_sieveblock_32k_neon_splitsink, "med_sieveblock_32k_neon_splitsink" },
+            { "hybrid", &med_sieveblock_32k_neon_hybrid, "med_sieveblock_32k_neon_hybrid" },
+            { "hybridsink", &med_sieveblock_32k_neon_hybridsink, "med_sieveblock_32k_neon_hybridsink" },
+            { "portable", &med_sieveblock_32k, "med_sieveblock_32k" } };
+        const char* medv = getenv("YAFU_NEON_MED");
+        const char* medname = MED_SIEVE_NEON_NAME;
+        int t;
+
+        med_sieve_ptr = &MED_SIEVE_NEON_FN;
+        for (t = 0; (medv != NULL) && (t < (int)(sizeof(medv_tab) / sizeof(medv_tab[0]))); t++)
+        {
+            if (strcmp(medv, medv_tab[t].key) == 0)
+            {
+                med_sieve_ptr = medv_tab[t].fn;
+                medname = medv_tab[t].name;
+            }
+        }
+        if (sconf->obj->VFLAG > 1)
+            printf("assigning %s ptr\n", medname);
+
+        tdiv_med_ptr = &tdiv_medprimes_32k_neon;
+        if (sconf->obj->VFLAG > 1)
+            printf("assigning tdiv_medprimes_32k_neon ptr\n");
+    }
+#endif
+
+    {
+        // YAFU_TDIV_MED=new|old|avx2|portable overrides the tdiv_med kernel
+        // at run time, for benchmarking: new = Lemire test
+        // (tdiv_medprimes_32k_new, or _neon), old = 16-bit Barrett test
+        // (tdiv_medprimes_32k_old, or _old_neon).  NEON variants are used
+        // unless -noneon.
+        const char* tdv = getenv("YAFU_TDIV_MED");
+        const char* tdname = NULL;
+
+        if (tdv != NULL)
+        {
+            if (strcmp(tdv, "new") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k_new;
+                tdname = "tdiv_medprimes_32k_new";
+#if defined(__aarch64__) && defined(__ARM_NEON)
+                if (sconf->obj->HAS_NEON)
+                {
+                    tdiv_med_ptr = &tdiv_medprimes_32k_neon;
+                    tdname = "tdiv_medprimes_32k_neon";
+                }
+#endif
+            }
+            else if (strcmp(tdv, "old") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k_old;
+                tdname = "tdiv_medprimes_32k_old";
+#if defined(__aarch64__) && defined(__ARM_NEON)
+                if (sconf->obj->HAS_NEON)
+                {
+                    tdiv_med_ptr = &tdiv_medprimes_32k_old_neon;
+                    tdname = "tdiv_medprimes_32k_old_neon";
+                }
+#endif
+            }
+#if defined(USE_AVX2)
+            else if (strcmp(tdv, "avx2") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+                tdname = "tdiv_medprimes_32k_avx2";
+            }
+#endif
+            else if (strcmp(tdv, "portable") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k;
+                tdname = "tdiv_medprimes_32k";
+            }
+
+            if (tdname == NULL)
+                printf("warning: unknown YAFU_TDIV_MED=%s, keeping the default tdiv_med\n", tdv);
+            else if (sconf->obj->VFLAG > 0)
+                printf("YAFU_TDIV_MED: using %s\n", tdname);
+        }
+    }
+
 #if defined( __amd64__ ) && defined(USE_AVX512F) && !defined(TRY_COMPRESS_SORT_LARGEP)
     // amd eypc (zen4) was slower when using the avx512 variants of these
     lp_sieveblock_ptr = &lp_sieveblock;
@@ -4035,6 +5201,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		printf("\tinitial cycle table: %d bytes\n",memsize);
 	}
 
+	// get_params' tables are keyed on the large-prime ISA/strategy/kernel
+	siqs_choose_table_keys(sconf);
+
 	while (1)
 	{
 		//look up some parameters - tuned for 64k L1 cache
@@ -4059,6 +5228,33 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             (size_t)(sconf->factor_base->B * sizeof(uint64_t)));
 
 
+#ifdef TRY_SMALLP_OPT
+		// size the tinylist from the SPV limit: it holds one entry per
+		// factor-base prime < small_limit.  the old fixed allocation of
+		// 512 silently overflowed for limits above ~3600 (pi(4096) = 564).
+		tiny_alloc = 0;
+		for (i = 0; i < obj->num_p; i++)
+		{
+			if (obj->primes[i] >= sconf->small_limit)
+				break;
+			tiny_alloc++;
+		}
+		// one extra slot for the dummy index-0 entry, plus slack
+		tiny_alloc += 8;
+
+		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->small_inv = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->correction = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->invmod = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+		sconf->factor_base->tinylist->thresh = (uint32_t *)xmalloc_align(
+			(size_t)(tiny_alloc * sizeof(uint32_t)));
+#else
 		sconf->factor_base->tinylist->prime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->small_inv = (uint32_t *)xmalloc_align(
@@ -4067,8 +5263,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			(size_t)(512 * sizeof(uint32_t)));
 		sconf->factor_base->tinylist->logprime = (uint32_t *)xmalloc_align(
 			(size_t)(512 * sizeof(uint32_t)));
+#endif
 
 #ifdef USE_8X_MOD_ASM
+        // only used up to 13-ish bits, but we allocate and compute for all fb primes.
 		sconf->factor_base->list->small_inv = (uint16_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint16_t)));
 		sconf->factor_base->list->correction = (uint16_t *)xmalloc_align(
@@ -4079,6 +5277,18 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		sconf->factor_base->list->correction = (uint32_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 #endif
+#ifdef SIQS_SINV16_SEPARATE
+		sconf->factor_base->list->small_inv16 = (uint16_t *)xmalloc_align(
+			(size_t)(sconf->factor_base->B * sizeof(uint16_t)));
+		sconf->factor_base->list->correction16 = (uint16_t *)xmalloc_align(
+			(size_t)(sconf->factor_base->B * sizeof(uint16_t)));
+#endif
+
+        // Lemire divisibility test
+        sconf->factor_base->list->minv32 = (uint32_t*)xmalloc_align(
+            (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
+        sconf->factor_base->list->thresh32 = (uint32_t*)xmalloc_align(
+            (size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 		
 		sconf->factor_base->list->logprime = (uint32_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32_t)));
@@ -4090,22 +5300,22 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			printf("\tfactor base: %d bytes\n",memsize);
 		}
 
-		//find multiplier
+		// find multiplier
 		sconf->multiplier = (uint32_t)choose_multiplier_siqs(sconf->factor_base->B, sconf->n);
 		mpz_mul_ui(sconf->n, sconf->n, sconf->multiplier);
-        sconf->knmod8 = mpz_tdiv_ui(sconf->n, 8);
+        sconf->knmod8 = (uint32_t)mpz_tdiv_ui(sconf->n, 8);
         //printf("knmod8 = %u\n", sconf->knmod8);
 
-		//sconf holds n*mul, so update its digit count and number of bits
-		sconf->digits_n = gmp_base10(sconf->n);
-		sconf->bits = mpz_sizeinbase(sconf->n, 2);
+		// sconf holds n*mul, so update its digit count and number of bits
+		sconf->digits_n = (uint32_t)gmp_base10(sconf->n);
+		sconf->bits = (uint32_t)mpz_sizeinbase(sconf->n, 2);
 
-		//find sqrt_n
+		// find sqrt_n
 		mpz_sqrt(sconf->sqrt_n, sconf->n);
 
-		//construct the factor base - divide out any primes which 
-		//factor n other than mul
-		//and go back to get_params if any are found
+		// construct the factor base - divide out any primes which 
+		// factor n other than mul
+		// and go back to get_params if any are found
 		if ((i = make_fb_siqs(sconf)) == 0)
 			break;
 		else
@@ -4113,21 +5323,27 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			mpz_t tmpz;
 			mpz_init(tmpz);
 
-			//i is already divided out of n.  record the factor we found
+			// i is already divided out of n.  record the factor we found
 			uint64_2gmp(i, tmpz);
 			add_to_factor_list(sconf->obj->factors, tmpz, sconf->obj->VFLAG, 
                 sconf->obj->NUM_WITNESSES, 0);
 			mpz_clear(tmpz);
 
-			//and remove the multiplier we may have added, so that
-			//we can try again to build a factor base.
+			// and remove the multiplier we may have added, so that
+			// we can try again to build a factor base.
 			mpz_tdiv_q_ui(sconf->n, sconf->n, sconf->multiplier);
             align_free(sconf->modsqrt_array);
 			align_free(sconf->factor_base->list->prime);
             align_free(sconf->factor_base->list->binv);
 			align_free(sconf->factor_base->list->small_inv);
 			align_free(sconf->factor_base->list->correction);
+#ifdef SIQS_SINV16_SEPARATE
+			align_free(sconf->factor_base->list->small_inv16);
+			align_free(sconf->factor_base->list->correction16);
+#endif
 			align_free(sconf->factor_base->list->logprime);
+            align_free(sconf->factor_base->list->minv32);
+            align_free(sconf->factor_base->list->thresh32);
 			align_free(sconf->factor_base->list);	
 		}
 	}
@@ -4181,24 +5397,104 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	if (sconf->num_blocks < 1)
 		sconf->num_blocks = 1;
 
-	//and adjust for really small jobs
+#if defined(TRY_DIRECT_SIEVE)
+    // with the direct + sparse sieves and 8/16-lane kernels, smaller
+    // intervals are faster than yafu's NB table (made for buckets): cap NB
+    // so that both intervals fit in half the per-core L2 (NB 4 on 512 KB).
+    // Measured on an i5-11600K: c77 / c79 / c85 were 4-20% faster at NB 4
+    // than at the table's NB 6-11, with AVX-512 or AVX2 kernels.  Not
+    // applied with -siqsNB, with both ranges forced to buckets, or when
+    // the kernels would be 4-lane / scalar (those prefer the table's NB).
+    {
+        fact_obj_t* o = sconf->obj;
+        int wide = 0;
+        uint32_t req = o->qs_obj.gbl_siqs_lp_isa;
+#if defined(USE_AVX2)
+        if (o->HAS_AVX2) wide = 1;
+#endif
+#if defined(USE_AVX512BW)
+        if (o->HAS_AVX512BW) wide = 1;
+#endif
+        if ((req != SIQS_STRAT_AUTO) && (req != SIQS_ISA_AVX2) && (req != SIQS_ISA_AVX512))
+            wide = 0;
+        if (wide && !o->qs_obj.gbl_override_blocks_flag &&
+            !((o->qs_obj.gbl_siqs_mid == SIQS_MID_BUCKET) &&
+              (o->qs_obj.gbl_siqs_large == SIQS_LARGE_BUCKET)))
+        {
+            uint32_t cap = ytools_get_l2_core_size() / (4 * 32768);
+            if (cap < 2) cap = 2;
+            if (sconf->num_blocks > cap)
+                sconf->num_blocks = cap;
+        }
+    }
+#endif
+
+	// and adjust for really small jobs
 	if (sconf->bits <= 140)
 		sconf->num_blocks = 1;
 
-	//set the sieve interval.  this many blocks on each side of 0
+	// set the sieve interval.  this many blocks on each side of 0
 	sconf->sieve_interval = sconf->qs_blocksize * sconf->num_blocks;
 
-	//compute sieving limits
+	// compute sieving limits
 	sconf->factor_base->small_B = MIN(
 		sconf->factor_base->B,1024); //((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
 
-	//test the contribution of the small primes to the sieve.  
+	// test the contribution of the small primes to the sieve.  
 	for (i = 2; i < sconf->factor_base->B; i++)
 	{
 		if (sconf->factor_base->list->prime[i] > sconf->small_limit)
 			break;
 	}
+#ifdef TRY_SMALLP_OPT
+	// With a raised SPV limit, sieve_small_fb_start can land unaligned and
+	// close to (or past) the 10-bit boundary: the fb only holds primes with
+	// a root of n mod p, so index ~87 is prime ~1024 and the stock
+	// realignment loop in tdiv_medprimes_32k_avx2 (which scalar-tests until
+	// i is a multiple of 16) can no longer complete before bound10, leaving
+	// i unaligned for the SIMD groups (which require 16-byte = 8-element
+	// alignment of the compressed fb arrays).  In that case round the SPV
+	// boundary down to a 16-aligned index: the primes in between become
+	// sieved primes, and small_limit is adjusted so the unsieved range
+	// [2, start) is exactly the primes below it (all of which have tinylist
+	// entries, since make_fb_siqs filled them for the original, larger
+	// limit).  At the default limit the condition never triggers, so
+	// behavior is unchanged.
+	if ((i & 15) != 0)
+	{
+		uint32_t j10;
+		uint32_t b10;
+
+		for (j10 = i; j10 < sconf->factor_base->B; j10++)
+		{
+			if ((sconf->factor_base->list->prime[j10] > 1024) &&
+				(j10 % 8 == 0))
+				break;
+		}
+		b10 = (j10 & 15) ? (j10 - 8) : j10;
+		if (b10 < i)
+			b10 = i;
+
+		// would the 16-alignment loop complete before bound10?
+		if ((i + ((16 - (i & 15)) & 15)) > b10)
+		{
+			while ((i & 15) != 0)
+				i--;
+			sconf->small_limit = sconf->factor_base->list->prime[i - 1] + 1;
+		}
+	}
+#endif
 	sconf->sieve_small_fb_start = i;
+#ifdef TRY_SMALLP_OPT
+	// the tinylist is sized from the SPV limit (one entry per prime below
+	// it); verify the sieve start index fits in the allocation
+	if (sconf->sieve_small_fb_start >= tiny_alloc)
+	{
+		printf("error: sieve_small_fb_start %u exceeds tinylist allocation %u\n",
+			sconf->sieve_small_fb_start, tiny_alloc);
+		exit(1);
+	}
+#endif
 
     // ======================================================================
     // set thresholds at various bit levels.  Note: many places in the code
@@ -4214,7 +5510,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 1024)  &&
-			(i % nump == 0)) break;
+			(i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_10bit_B = i;
 
@@ -4226,7 +5522,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 2048)  &&
-			(i % nump == 0)) break;
+			(i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_11bit_B = i;
 
@@ -4237,7 +5533,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
         if ((sconf->factor_base->list->prime[i] > 4096) &&
-            (i % nump == 0)) break;
+            (i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_12bit_B = i;
 
@@ -4248,7 +5544,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
         if ((sconf->factor_base->list->prime[i] > 8192) &&
-            (i % nump == 0)) break;
+            (i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_13bit_B = i;
 
@@ -4263,7 +5559,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 10922)  &&
-			(i % nump == 0)) break;
+			(i % (uint32_t)nump == 0)) break;
 	}
 	// put the upper bound just before prime exceeds blocksize/3, required by SSE2 sieving
 	sconf->factor_base->fb_32k_div3 = i;
@@ -4275,7 +5571,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-            (i % nump == 0)) break;
+            (i % (uint32_t)nump == 0)) break;
 	}	
 	// put the upper bound just before prime exceeds 14 bits, required by SSE2 sieving
 	sconf->factor_base->fb_14bit_B = i;
@@ -4300,18 +5596,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		// this region of primes aligned on a 16 byte boundary and thus be able to use
 		// movdqa
 		// don't let med_B grow larger than ~1.5 * the blocksize
-#if defined(USE_AVX512F) && !defined(_MSC_VER)
         if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.5 * (double)sconf->qs_blocksize)) &&
             ((i % 16) == 0))
             break;
-#else
-        // bucket sieve not as efficient without compressstoreu, so 
-        // do a little more work in medsieve before switching.
-        if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.75 * (double)sconf->qs_blocksize)) &&
-            ((i % 16) == 0))
-            break;
-#endif
-		
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
@@ -4324,6 +5611,32 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//or, of course, the entire factor base (loop condition)
 	}
 	sconf->factor_base->med_B = i;
+
+#if defined(TRY_DIRECT_SIEVE)
+    for (; i < sconf->factor_base->B; i++)
+    {
+        // find the point at which factor base primes exceed 8x block
+        // this controls the point at which we switch from medsieve to 
+        // direct interval sieving (L2 sieving)
+        // wait until the index is a multiple of 16 so that we can enter
+        // this region of primes aligned on a 16 byte boundary and thus be able to use
+        // movdqa
+        // don't let med_B grow larger than ~1.5 * the blocksize
+        if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
+            ((i % 16) == 0))
+        {
+            // with TRY_DIRECT_SIEVE compiled in this is provisional (rounded
+            // up); siqs_resolve_strategy sets the final fb_blk8i / large_B
+            // once the strategy is known.
+            break;
+        }
+
+        //or, of course, the entire factor base (loop condition)
+    }
+    sconf->factor_base->fb_blk8i = i;
+#else
+    sconf->factor_base->fb_blk8i = i;
+#endif
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -4338,7 +5651,14 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 			break;
 		}
 	}
+#if defined(TRY_DIRECT_SIEVE)
+    // fb_blk8i is computed against sieve_interval, so large_B == fb_blk8i
+    // for any num_blocks.  TRY_DIRECT_SIEVE relies on this: the sparse
+    // sieve covers [med_B, fb_blk8i), the direct sieve [large_B, B).
+    sconf->factor_base->large_B = sconf->factor_base->fb_blk8i;
+#else
 	sconf->factor_base->large_B = i;
+#endif
 
     // when p > sieve_interval we use a special bucket sieve tailored for primes that
     // will at most hit the interval once.  The AVX512 version of that method uses 
@@ -4424,42 +5744,6 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         sconf->factor_base->large_B = sconf->factor_base->med_B;
 
     
-	if (VFLAG > 1)
-	{
-		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n"
-            "\tlarge_x2: %u\n\tall: %u\n",
-			sconf->factor_base->small_B,
-			sconf->sieve_small_fb_start,
-			sconf->factor_base->fb_10bit_B,
-			sconf->factor_base->fb_11bit_B,
-			sconf->factor_base->fb_12bit_B,
-			sconf->factor_base->fb_13bit_B,
-			sconf->factor_base->fb_32k_div3,
-			sconf->factor_base->fb_14bit_B,
-			sconf->factor_base->fb_15bit_B,
-			sconf->factor_base->med_B,
-			sconf->factor_base->large_B,
-            sconf->factor_base->x2_large_B,
-			sconf->factor_base->B);
-
-		printf("start primes\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n"
-            "\tlarge_x2: %u\n\tall: %u\n",
-			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_10bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_11bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_12bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_32k_div3-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->large_B-1],
-            sconf->factor_base->list->prime[sconf->factor_base->x2_large_B - 1],
-            sconf->pmax);
-	}
-
     //printf("large mult is %u, pmax is %u\n", sconf->large_mult, sconf->pmax);
     //printf("large prime max is %u, gbl_override_lpb is %u\n", 
     //    sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
@@ -4633,6 +5917,21 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		sconf->scan_unrolling = 128;
 	}
 
+#if defined(__aarch64__) && defined(__ARM_NEON)
+    // one NEON scanner covers every size and LP variation
+    if (sconf->obj->HAS_NEON)
+    {
+        scan_ptr = &check_relations_siqs_neon;
+        if (sconf->obj->VFLAG > 1)
+            printf("assigning check_relations_siqs_neon ptr\n");
+    }
+#endif
+
+#if defined(TRY_DIRECT_SIEVE)
+    siqs_resolve_strategy(sconf);
+#endif
+    print_fb_bounds(sconf);
+
     sconf->do_batch = 1;
     if (sconf->obj->qs_obj.gbl_override_3lp_bat)
     {
@@ -4648,10 +5947,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         struct timeval locstart, locstop;
 
         // create a relation batch for each thread.
-        sconf->rb = (relation_batch_t *)xmalloc(obj->THREADS * sizeof(relation_batch_t));
+        sconf->rb = (relation_batch_t *)xmalloc((size_t)obj->THREADS * sizeof(relation_batch_t));
         sconf->num_alloc_rb = obj->THREADS;
         sconf->num_active_rb = 0;
-        memuse += obj->THREADS * sizeof(relation_batch_t);
+        memuse += (uint32_t)((size_t)obj->THREADS * sizeof(relation_batch_t));
 
 #if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 
@@ -4682,7 +5981,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // command line option.
         
         //uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
-        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint64_t pmax = (uint64_t)((float)sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv);
         sconf->rb[0].num_uecm[0] = 0;
         sconf->rb[0].num_uecm[1] = 0;
         sconf->rb[0].num_uecm[2] = 0;
@@ -4699,9 +5998,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
         relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, pmax,
             sconf->large_prime_max, sconf->large_prime_max, NULL, 1, 0);
-        memuse += sconf->rb[0].num_relations_alloc * sizeof(cofactor_t);
-        memuse += sconf->rb[0].num_factors_alloc * sizeof(uint32_t);
-        memuse += mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8;
+        memuse += (uint32_t)(sconf->rb[0].num_relations_alloc * sizeof(cofactor_t));
+        memuse += (uint32_t)(sconf->rb[0].num_factors_alloc * sizeof(uint32_t));
+        memuse += (uint32_t)(mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8);
 
         gettimeofday(&locstop, NULL);
         if (obj->VFLAG > 0)
@@ -4717,8 +6016,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             // allocate space for each thread to buffer relations.
             relation_batch_init(stdout, &sconf->rb[i], sconf->pmax, pmax,
                 sconf->large_prime_max, sconf->large_prime_max, NULL, 0, 0);
-            memuse += sconf->rb[i].num_relations_alloc * sizeof(cofactor_t);
-            memuse += sconf->rb[i].num_factors_alloc * sizeof(uint32_t);
+            memuse += (uint32_t)(sconf->rb[i].num_relations_alloc * sizeof(cofactor_t));
+            memuse += (uint32_t)(sconf->rb[i].num_factors_alloc * sizeof(uint32_t));
 
             // the prime product in each dynamic thread is unused.  when
             // a batch GCD is executed it will refer to the main relation_batch
@@ -4765,8 +6064,14 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	sconf->tlp_exp = 2.7;
     sconf->qlp_exp = 3.4;
 
+    // the built-in table's values (get_params)
+    if (sconf->param_mfbd > 0)
+        sconf->dlp_exp = sconf->param_mfbd;
+    if (sconf->param_mfbt > 0)
+        sconf->tlp_exp = sconf->param_mfbt;
+
 	// check for user overrides
-	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt) > 1e-9)     // - 2.8 
+    if (fabs(sconf->obj->qs_obj.gbl_override_mfbt) > 1e-9)     // - 2.8 
 	{
 		sconf->tlp_exp = sconf->obj->qs_obj.gbl_override_mfbt;
 	}
@@ -4826,7 +6131,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	// sieve locations greater than this are worthy of trial dividing
 	closnuf = (uint8_t)(double)((sconf->bits - 1)/2);
 	closnuf += (uint8_t)(log((double)sconf->sieve_interval/2)/log(2.0));
-	closnuf -= (uint8_t)(sconf->fudge_factor * log(sconf->large_prime_max) / log(2.0));
+	closnuf -= (uint8_t)(sconf->fudge_factor * log((double)sconf->large_prime_max) / log(2.0));
 
 	// contribution of all small primes we're skipping to a block's
 	// worth of sieving... compute the average per sieve location
@@ -4848,6 +6153,13 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	// this appears to work fairly well... paper mentioned doing it this
 	// way... find out and reference here.
 	sconf->tf_small_cutoff = (uint8_t)(avg + 2.5*sd);
+#ifdef TRY_SMALLP_OPT
+	if (VFLAG > 1)
+	{
+		printf("SPV formula tf_small_cutoff = %u (avg = %1.2f)\n",
+			sconf->tf_small_cutoff, avg);
+	}
+#endif
 
 	// it pays to trial divide a little more for big jobs...
 	// "optimized" is used rather loosely here, but these corrections
@@ -4870,6 +6182,15 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #ifdef USE_AVX512F
         closnuf -= 2;
 #endif
+#ifdef TRY_SMALLP_OPT
+        // experiment (Commit 4, measured): subtracting tf_small_cutoff from
+        // closnuf in the DLP branch (as the non-DLP path does) was measured
+        // at ~2x total time on an c80 DLP job (tdiv 32s -> 106s): the much
+        // lower report threshold floods trial division.  Stock DLP behavior
+        // (no subtraction) is retained; raised limits are best paired with
+        // the formula tf_small_cutoff as-is.  Uncomment to re-measure.
+        // closnuf -= sconf->tf_small_cutoff;
+#endif
     }
     else if ((sconf->use_dlp >= 2) || 
         sconf->obj->qs_obj.gbl_force_TLP || 
@@ -4880,6 +6201,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     else
     {
         closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
+    }
+
+    // the built-in table's values (get_params), applied as -siqsTF and
+    // -siqsTFSm would be: TF replaces the bound computed above, and TFSm the
+    // formula cutoff after the bound used it.  Unlike -siqsTFSm, a table TFSm
+    // still gets the adaptive tuning in siqs_sync (it's the starting point).
+    if (sconf->param_tf > 0)
+    {
+        closnuf = sconf->param_tf;
+    }
+    if (sconf->param_tfsm > 0)
+    {
+        sconf->tf_small_cutoff = sconf->param_tfsm;
     }
 
     if (sconf->obj->qs_obj.gbl_override_tf_flag)
@@ -4900,7 +6234,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         closnuf = 127;
 #endif
 
-    sconf->blockinit = closnuf;
+    sconf->blockinit = (uint8_t)closnuf;
     sconf->tf_closnuf = closnuf;
 
     if (sconf->digits_n < sconf->obj->qs_obj.inmem_cutoff)
@@ -5002,6 +6336,19 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     return 0;
 }
 
+// siqstune() tap: fulls and partials found so far, counted the same way as
+// the "N rels found: F full + C from P partial" status line
+static void siqs_tune_snapshot(static_conf_t* sconf, double t_time,
+    double* t, uint32_t* full, uint32_t* partial)
+{
+    *t = t_time;
+    *full = sconf->num_relations;
+    if (sconf->use_dlp < 2)
+        *partial = sconf->num_cycles;
+    else
+        *partial = sconf->num_slp + sconf->dlp_useful + sconf->tlp_useful;
+}
+
 int update_check(static_conf_t *sconf)
 {
 	// check to see if we should combine partial relations
@@ -5025,7 +6372,12 @@ int update_check(static_conf_t *sconf)
     if ((sconf->digits_n >= 90) || (sconf->obj->THREADS >= 32))
         update_time = 0;
 
-	mpz_init(tmp1);
+    // siqstune() measurements need the warmup snapshot and the time limit
+    // checked promptly, not at the normal 5 second status interval
+    if ((sconf->obj->qs_obj.tune_warmup > 0) && (update_time > 0.1))
+        update_time = 0.1;
+
+    mpz_init(tmp1);
 
 	gettimeofday(&update_stop, NULL);
     t_update = ytools_difftime(&sconf->update_start, &update_stop);
@@ -5059,7 +6411,7 @@ int update_check(static_conf_t *sconf)
 
                 printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
                     sconf->t_time1, sconf->t_time2, sconf->t_time3);
-                printf("trial division touched %d sieve locations out of ", sconf->num);
+                printf("trial division touched %" PRIu64 " sieve locations out of ", sconf->num);
                 gmp_printf("%Zd\n", tmp1);
                 fflush(stdout);
                 fflush(stderr);
@@ -5072,6 +6424,15 @@ int update_check(static_conf_t *sconf)
 
         // if we are only running a specified amount of time
         t_time = ytools_difftime(&sconf->totaltime_start, &update_stop);
+
+        if ((sconf->obj->qs_obj.tune_warmup > 0) &&
+            (sconf->obj->qs_obj.tune_t_warm == 0) &&
+            (t_time >= sconf->obj->qs_obj.tune_warmup))
+        {
+            siqs_tune_snapshot(sconf, t_time, &sconf->obj->qs_obj.tune_t_warm,
+                &sconf->obj->qs_obj.tune_full_warm, &sconf->obj->qs_obj.tune_partial_warm);
+        }
+
 		if (sconf->obj->qs_obj.gbl_override_time_flag &&
 			(t_time > sconf->obj->qs_obj.gbl_override_time))
 		{
@@ -5084,7 +6445,7 @@ int update_check(static_conf_t *sconf)
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
-            printf("trial division touched %d sieve locations out of ", sconf->num);
+            printf("trial division touched %" PRIu64 " sieve locations out of ", sconf->num);
             gmp_printf("%Zd\n", tmp1);
 			fflush(stdout);
 			fflush(stderr);
@@ -5109,7 +6470,7 @@ int update_check(static_conf_t *sconf)
 		// update screen
 		if (sconf->obj->VFLAG >= 0)
 		{
-            uint32_t total_rels = sconf->num_full + sconf->num_slp +
+            UNUSED_VAR uint32_t total_rels = sconf->num_full + sconf->num_slp +
                 sconf->dlp_useful + sconf->tlp_useful;
             uint32_t rels_left;
 
@@ -5138,16 +6499,16 @@ int update_check(static_conf_t *sconf)
                 if (sconf->do_batch)
                 {
                     char suffix;
-                    float batched = sconf->attempted_cosiqs;
+                    float batched = (float)sconf->attempted_cosiqs;
 
                     if (batched > 10000000)
                     {
-                        batched /= 1000000.;
+                        batched /= 1000000.f;
                         suffix = 'M';
                     }
                     else
                     {
-                        batched /= 1000.;
+                        batched /= 1000.f;
                         suffix = 'k';
                     }
 
@@ -5196,7 +6557,7 @@ int update_check(static_conf_t *sconf)
                 // as a percentage of the total number of relations needed.
                 // from the info we are printing here and the total elasped time
                 // so far, we can compute an ETA.
-                float fractFullNeeded = 165.0 * pow(sconf->digits_n, -1.4);
+                float fractFullNeeded = (float)(165.0 * pow(sconf->digits_n, -1.4));
                 float fractFullHave = (float)sconf->num_relations / (float)sconf->factor_base->B;
                 float percentDone = fractFullHave / fractFullNeeded;
                 int eta = MAX(0, (int)(t_time / percentDone - t_time));
@@ -5223,7 +6584,7 @@ int update_check(static_conf_t *sconf)
         // test cycle formation.
 		if (sconf->use_dlp >= 2)
 		{
-	        uint32_t total_rels = sconf->num_full + sconf->num_slp +
+	        UNUSED_VAR uint32_t total_rels = sconf->num_full + sconf->num_slp +
 				sconf->dlp_useful + sconf->tlp_useful + sconf->qlp_useful;
 
             // use the number of full relations found as a gauge for
@@ -5245,11 +6606,9 @@ int update_check(static_conf_t *sconf)
 				qs_cycle_t *table = sconf->cycle_table;
 				uint32_t num_relations;
 				uint32_t i = 0, passes;
-				uint32_t curr_a_idx, curr_poly_idx, curr_rel;
-				uint32_t curr_expected, curr_saved, curr_cycle;
+				uint32_t curr_rel;
 				uint32_t all_relations;
 				uint32_t total_poly_a = 0;
-				uint32_t poly_saved;
 				uint32_t *plist0;
 				uint32_t *plist1;
 				uint32_t *plist2;
@@ -5326,7 +6685,7 @@ int update_check(static_conf_t *sconf)
                             start = strchr(buf, 'L');
                             if (start != NULL) {
                                 uint32_t primes[MAXLP];
-                                int numlp = yafu_read_Nlp(start, primes);
+                                yafu_read_Nlp(start, primes);
                                 if (i == curr_rel) {
                                     curr_rel = 3 * curr_rel / 2;
                                     relation_list = (siqs_r*)xrealloc(
@@ -5383,7 +6742,7 @@ int update_check(static_conf_t *sconf)
 
 				newrels = num_relations - sconf->last_numcycles;
 				sconf->last_numcycles = num_relations;
-				rebuild_graph3(sconf, relation_list, num_relations);
+				rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 				hashtable = sconf->cycle_hashtable;
 				table = sconf->cycle_table;
@@ -5427,7 +6786,7 @@ int update_check(static_conf_t *sconf)
 						logprint(obj->logfile, "building reduced graph\n");
 					}
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 					//printf("cycle table size = %u, edges = %u, vertices = %u, components = %u\n",
 					//	sconf->cycle_table_size, sconf->num_cycles, 
@@ -5469,7 +6828,7 @@ int update_check(static_conf_t *sconf)
 
 						printf("rebuilding full graph\n");
 
-						rebuild_graph3(sconf, relation_list, num_relations);
+						rebuild_graph3(sconf, relation_list, (int)num_relations);
 						sconf->num_r = 0;
 						sconf->num_relations = 0;
 						sconf->num_cycles = num_relations;
@@ -5514,12 +6873,11 @@ int update_check(static_conf_t *sconf)
 						sconf->last_numfull = sconf->num_relations;
 						sconf->last_numpartial = sconf->num_r - sconf->num_relations;
 
-                        int have_cycle_growth_estimate = 0;
+                        UNUSED_VAR int have_cycle_growth_estimate = 0;
                         if (sconf->last_cycrate > 0)
                         {
                             uint32_t current_rels = sconf->num_r;
                             uint32_t needed_rels = (fb->B - sconf->num_r);
-                            uint32_t batch_rels;
                             uint32_t raw_rels = 0;
                             double fr = fullrate;
                             double cr = cycrate;
@@ -5546,9 +6904,9 @@ int update_check(static_conf_t *sconf)
                             while (current_rels < fb->B)
                             {
                                 uint32_t new_fulls = ci;
-                                uint32_t new_raws = ci / fr;
+                                uint32_t new_raws = (uint32_t)(ci / fr);
                                 double new_cycle_rate = cr + ri;
-                                uint32_t new_cycles = new_cycle_rate * new_raws;
+                                uint32_t new_cycles = (uint32_t)(new_cycle_rate * new_raws);
                                 current_rels += (new_cycles + new_fulls);
                                 cr = new_cycle_rate;
                                 raw_rels += new_raws;
@@ -5588,7 +6946,7 @@ int update_check(static_conf_t *sconf)
                         // when to filter.  At the end of a TLP run with typical parameters we
                         // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
                         // and every 1% thereafter.
-                        double percent_complete = 
+                        UNUSED_VAR double percent_complete = 
                             ((double)sconf->last_numfull + (double)sconf->last_numpartial) / 
                             (double)sconf->factor_base->B;
 
@@ -5677,7 +7035,7 @@ int update_check(static_conf_t *sconf)
 
 							printf("rebuilding full graph\n");
 
-							rebuild_graph3(sconf, relation_list, num_relations);
+							rebuild_graph3(sconf, relation_list, (int)num_relations);
 						}
 					}
 				}
@@ -5696,7 +7054,7 @@ int update_check(static_conf_t *sconf)
 
 					printf("rebuilding full graph\n");
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 					sconf->num_r = 0;
 					sconf->num_relations = 0;
 					sconf->num_cycles = num_relations;
@@ -5780,6 +7138,13 @@ int update_final(static_conf_t *sconf)
     gettimeofday(&myTVend, NULL);
     t_time = ytools_difftime(&sconf->totaltime_start, &myTVend);
 
+    if (sconf->obj->qs_obj.tune_warmup > 0)
+    {
+        siqs_tune_snapshot(sconf, t_time, &sconf->obj->qs_obj.tune_t_end,
+            &sconf->obj->qs_obj.tune_full_end, &sconf->obj->qs_obj.tune_partial_end);
+        sconf->obj->qs_obj.tune_needed = sconf->factor_base->B + sconf->num_extra_relations;
+    }
+
 	if (sconf->obj->VFLAG >= 0)
 	{
         struct timeval update_stop;
@@ -5826,8 +7191,8 @@ int update_final(static_conf_t *sconf)
 
             if (sconf->use_dlp)
             {
-                printf("dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
-                    sconf->failed_squfof, sconf->attempted_squfof,
+                printf("dlp-ecm: %u slp, %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
+                    sconf->num_slp, sconf->failed_squfof, sconf->attempted_squfof,
                     sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
             }
 
@@ -5856,11 +7221,15 @@ int update_final(static_conf_t *sconf)
                 sconf->total_surviving_reports, sconf->total_blocks,
                 (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
             printf("Elapsed time: %1.4f sec\n", t_time);
+
+#ifdef SIQS_PROFILE
             printf("\tMed sieve time: %1.4f sec\n", sconf->t_mpsieve);
+            printf("\tSparse sieve time: %1.4f sec\n", sconf->t_sparsesieve);
             printf("\tLarge sieve time: %1.4f sec\n", sconf->t_lpsieve);
+            printf("\tLarge resieve time: %1.4f sec\n", sconf->t_lpresieve);
             printf("\tTdiv time: %1.4f sec\n", sconf->t_tdiv);
             printf("\tPoly update time: %1.4f sec\n", sconf->t_polyupdate);
-
+#endif
 
             //printf("scatter/gather processing: %lu of %lu opportunities\n",
             //    sconf->num_scatter, sconf->num_scatter_opp);
@@ -6036,8 +7405,25 @@ int free_sieve(dynamic_conf_t* dconf)
 	free(dconf->comp_sieve_p);
 	free(dconf->comp_sieve_n);
 
+#if defined(TRY_DIRECT_SIEVE)
+	direct_pool_free(dconf->dpool);
+#endif
+
+    align_free(dconf->sieve_p->prime);
+    align_free(dconf->sieve_p->root1);
+    align_free(dconf->sieve_p->root2);
+    align_free(dconf->sieve_p->logp);
+    align_free(dconf->sieve_n->prime);
+    align_free(dconf->sieve_n->root1);
+    align_free(dconf->sieve_n->root2);
+    align_free(dconf->sieve_n->logp);
+    free(dconf->sieve_p);
+    free(dconf->sieve_n);
+
 	align_free(dconf->rootupdates);
 	align_free(dconf->sm_rootupdates);
+	align_free(dconf->fr_r1);
+	align_free(dconf->fr_r2);
 
 	align_free(dconf->update_data.sm_firstroots1);
 	align_free(dconf->update_data.sm_firstroots2);
@@ -6167,11 +7553,23 @@ int free_siqs(static_conf_t *sconf)
     align_free(sconf->factor_base->list->binv);
 	align_free(sconf->factor_base->list->small_inv);
 	align_free(sconf->factor_base->list->correction);
+#ifdef SIQS_SINV16_SEPARATE
+	align_free(sconf->factor_base->list->small_inv16);
+	align_free(sconf->factor_base->list->correction16);
+#endif
 	align_free(sconf->factor_base->list->logprime);
+    align_free(sconf->factor_base->list->minv32);
+    align_free(sconf->factor_base->list->thresh32);
+
 	align_free(sconf->factor_base->tinylist->prime);
 	align_free(sconf->factor_base->tinylist->small_inv);
 	align_free(sconf->factor_base->tinylist->correction);
 	align_free(sconf->factor_base->tinylist->logprime);
+    
+#ifdef TRY_SMALLP_OPT
+	align_free(sconf->factor_base->tinylist->invmod);
+	align_free(sconf->factor_base->tinylist->thresh);
+#endif
 	align_free(sconf->factor_base->list);
 	align_free(sconf->factor_base->tinylist);
 	free(sconf->factor_base);
@@ -6238,14 +7636,14 @@ int free_siqs(static_conf_t *sconf)
 #define NUM_TEST_PRIMES 300
 #define NUM_MULTIPLIERS (sizeof(mult_list)/sizeof(uint8_t))
 
-static const uint8_t mult_list_orig[] =
+UNUSED_VAR static const uint8_t mult_list_orig[] =
 { 1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19,
  21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38,
  39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59,
  61, 62, 65, 66, 67, 69, 70, 71, 73 };
 
 // more options.  Thanks Till for pointing out that my original list was too small!
-static const uint8_t mult_list_many_even[] = {
+UNUSED_VAR static const uint8_t mult_list_many_even[] = {
 1  ,   2  ,   3  ,   5  ,   6  ,   7  ,   9  ,  10  ,  11  ,  13  ,  14  ,
 15 ,   17 ,   19 ,   21 ,   22 ,   23 ,   25 ,   26 ,   29 ,   30 ,   31 ,
 33 ,   34 ,   35 ,   37 ,   38 ,   39 ,   41 ,   42 ,   43 ,   45 ,   46 ,

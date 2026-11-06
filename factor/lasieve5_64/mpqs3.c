@@ -232,8 +232,10 @@ void mpqs3_convert(u32_t *rop, double op_dbl, u64_t op_64)
   rop[1]=(u32_t)(op_64>>32);
   d=op_dbl-(double)op_64;
   d*=DBL_CONVERT;
-  if (d<0.) d+=4294967296.;
-  rop[2]=(u32_t)(d+0.5);
+  /* round before wrapping: otherwise a slightly negative d (rounding error
+     in op_dbl once op > 2^53, i.e. N above ~104 bits) gives a high word
+     of 0xffffffff instead of 0 and a corrupt relation */
+  rop[2]=(u32_t)(int64_t)floor(d+0.5);
 }
 
 ushort mpqs3_dbl64mod16(double op_dbl, u64_t op_64, ushort p)
