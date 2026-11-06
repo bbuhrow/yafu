@@ -24,6 +24,32 @@ code to the public domain.
 #include "ytools.h"
 #include "gmp_xface.h"
 
+#ifdef SIQS_SINV16_SEPARATE
+// the USE_8X_MOD_ASM 16-bit Barrett table entry for fb index j, into the
+// NEON build's small_inv16/correction16: same shift steps (at j % 8 == 0
+// past p > 1024 and p > 4096) and rounding as the x86 tables
+static void siqs_set_sinv16(fb_element_siqs* list, uint32_t j, uint32_t prime,
+	uint32_t* shift)
+{
+	uint16_t inv;
+
+	if ((*shift == 24) && (prime > 1024) && (j % 8 == 0))
+		*shift = 26;
+	if ((*shift == 26) && (prime > 4096) && (j % 8 == 0))
+		*shift = 28;
+
+	inv = (uint16_t)(((uint32_t)1 << *shift) / prime);
+	if (floor((double)(1 << *shift) / (double)prime + 0.5) == (double)inv)
+		list->correction16[j] = 1;
+	else
+	{
+		list->correction16[j] = 0;
+		inv++;
+	}
+	list->small_inv16[j] = inv;
+}
+#endif
+
 uint32_t make_fb_siqs(static_conf_t *sconf)
 {
 	// finds the factor base primes, and computes the solutions to the congruence x^2 = N mod p
@@ -41,6 +67,9 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	uint64_t f;
 #ifdef USE_8X_MOD_ASM
 	uint32_t shift = 24;
+#endif
+#ifdef SIQS_SINV16_SEPARATE
+	uint32_t shift16 = 24;
 #endif
     soe_staticdata_t* sdata = soe_init(0, 1, 32768);
 
@@ -194,6 +223,9 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
+#ifdef SIQS_SINV16_SEPARATE
+				siqs_set_sinv16(fb->list, j, prime, &shift16);
+#endif
 #endif
 
 				uint32_t inv = prime;                 // 3 bits correct
@@ -299,6 +331,9 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
+#ifdef SIQS_SINV16_SEPARATE
+				siqs_set_sinv16(fb->list, j, prime, &shift16);
+#endif
 #endif
 
 				uint32_t inv = prime;                 // 3 bits correct

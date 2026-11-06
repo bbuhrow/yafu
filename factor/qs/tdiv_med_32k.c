@@ -27,6 +27,7 @@ code to the public domain.
 
 #if defined(__aarch64__) && defined(__ARM_NEON)
 #include <arm_neon.h>
+#include "neon_util.h"
 #elif defined( USE_AVX2 ) || defined( USE_AVX512F ) || defined( USE_SSE41 ) || defined( D_HAS_SSE2 )
 #include <immintrin.h>
 #endif
@@ -937,6 +938,259 @@ void tdiv_medprimes_32k_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     }
 
     return;
+}
+
+#endif
+
+
+// ----------------------------------------------------------------------
+// tdiv_medprimes_32k_old: the 16-bit Barrett test of the old SSE2/AVX2
+// asm (MOD_CMP_8X_vec / MOD_CMP_16X_vec) in intrinsics, for comparison
+// with tdiv_medprimes_32k_new's 32-bit Lemire test.  For each prime the
+// number of steps from block_loc past the block end is
+//     q + 1,  q = ((LOC_BASE - block_loc + correction) * small_inv) >> shift
+// in 16-bit lanes (mulhi, then shift - 16 more), and block_loc is on the
+// progression iff  (q + 1) * p + block_loc - 32768  (mod 2^16)  is root1
+// or root2.  The tables (SIQS_SINV16 / SIQS_CORR16, qs_impl.h) change
+// shift at multiples of 8, so a report is done in three regions of fixed
+// shift; within one, the widest vector that fits goes first (32, 16, 8
+// lanes as the ISA allows), then scalar.  Hits are buffered and divided
+// in ascending prime order, as in the other tdiv_med kernels.
+// ----------------------------------------------------------------------
+
+#include "tdiv_med_old.h"
+
+
+#if !defined(__aarch64__) || !defined(SIQS_HAVE_SINV16)
+
+void tdiv_medprimes_32k_old(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    uint32_t report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr = sconf->factor_base->list;
+    uint32_t block_loc, r;
+    uint32_t start = sconf->sieve_small_fb_start;
+    uint32_t end = sconf->factor_base->fb_13bit_B;
+    uint16_t buf[TDIV_OLD_MAXHITS];
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+#ifdef SIQS_HAVE_SINV16
+    const uint16_t* sinv = SIQS_SINV16(fullfb_ptr);
+    const uint16_t* corr = SIQS_CORR16(fullfb_ptr);
+    uint32_t b[2];
+
+    tdm_old_bounds(fbc->prime, start, end, b);
+#endif
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        uint32_t nb = 0;
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+#ifdef SIQS_HAVE_SINV16
+        nb = tdm_old_range(fbc, sinv, corr, start, b[0], block_loc, 8, buf, nb);
+        nb = tdm_old_range(fbc, sinv, corr, b[0], b[1], block_loc, 10, buf, nb);
+        nb = tdm_old_range(fbc, sinv, corr, b[1], end, block_loc, 12, buf, nb);
+#else
+        // no 16-bit tables (FORCE_GENERIC, or ARM without NEON): the
+        // portable FOGSHIFT form.  Note these tables are not exact for the
+        // larger primes < 2^13 (a few thousand (p, block_loc) misses over
+        // all of them, even with the 32767 base).
+        {
+            uint32_t i;
+            for (i = start; i < end; i++)
+            {
+                uint32_t t = TDIV_OLD_LOC_BASE - block_loc + fullfb_ptr->correction[i];
+                uint32_t y = (uint32_t)(((uint64_t)t * fullfb_ptr->small_inv[i]) >> FOGSHIFT);
+                y = block_loc + (y + 1) * fbc->prime[i] - 32768;
+                if ((y == fbc->root1[i]) || (y == fbc->root2[i]))
+                    buf[nb++] = (uint16_t)i;
+            }
+        }
+#endif
+
+        for (r = 0; r < nb; r++)
+        {
+            DIVIDE_RESIEVED_PRIME_2((buf[r]));
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+
+    return;
+}
+
+#endif
+
+#if defined(__aarch64__) && defined(__ARM_NEON) && defined(SIQS_HAVE_SINV16)
+
+// NEON tdiv_medprimes_32k_old: the same 16-bit test, 16 primes per step
+// (two uint16x8 vectors), then 8, then scalar.  NEON lacks pmulhuw
+// (neon_mulhi_u16) and a byte movemask: the lane masks are narrowed to 8
+// bytes and only turned into a bit mask when some lane hit.
+// tdiv_medprimes_32k_old is this function on aarch64 builds, so the
+// YAFU_TDIV_MED=old selection works with or without -noneon.
+
+SIQS_FORCEINLINE uint32_t tdm_old_mask8(uint16x8_t y, const uint16_t* r1,
+    const uint16_t* r2, uint8x8_t vlanebit)
+{
+    uint16x8_t h = vorrq_u16(vceqq_u16(y, vld1q_u16(r1)), vceqq_u16(y, vld1q_u16(r2)));
+    uint8x8_t h8 = vmovn_u16(h);
+
+    if (vget_lane_u64(vreinterpret_u64_u8(h8), 0) == 0)
+        return 0;
+    return vaddv_u8(vand_u8(h8, vlanebit));
+}
+
+SIQS_FORCEINLINE uint16x8_t tdm_old_y8(const uint16_t* p, const uint16_t* sinv,
+    const uint16_t* corr, uint16x8_t vt, uint16x8_t vbl, int16x8_t vsh)
+{
+    uint16x8_t t = vaddq_u16(vt, vld1q_u16(corr));
+    // (t * sinv) >> 16, then >> xtra (vshlq by -xtra)
+    uint16x8_t q = vshlq_u16(neon_mulhi_u16(t, vld1q_u16(sinv)), vsh);
+    return vaddq_u16(vmulq_u16(vaddq_u16(q, vdupq_n_u16(1)), vld1q_u16(p)), vbl);
+}
+
+SIQS_FORCEINLINE uint32_t tdm_old_range_neon(const sieve_fb_compressed* fbc,
+    const uint16_t* sinv, const uint16_t* corr, uint32_t i, uint32_t end,
+    uint32_t block_loc, const int xtra, uint16_t* buf, uint32_t nb, uint8x8_t vlanebit)
+{
+    uint16x8_t vt = vdupq_n_u16((uint16_t)(TDIV_OLD_LOC_BASE - block_loc));
+    uint16x8_t vbl = vdupq_n_u16((uint16_t)(block_loc - 32768));
+    int16x8_t vsh = vdupq_n_s16((int16_t)(-xtra));
+
+    for (; i + 16 <= end; i += 16)
+    {
+        uint16x8_t y0 = tdm_old_y8(fbc->prime + i, sinv + i, corr + i, vt, vbl, vsh);
+        uint16x8_t y1 = tdm_old_y8(fbc->prime + i + 8, sinv + i + 8, corr + i + 8, vt, vbl, vsh);
+        uint32_t m = tdm_old_mask8(y0, fbc->root1 + i, fbc->root2 + i, vlanebit) |
+            (tdm_old_mask8(y1, fbc->root1 + i + 8, fbc->root2 + i + 8, vlanebit) << 8);
+
+        while (m)
+        {
+            buf[nb++] = (uint16_t)(i + (uint32_t)__builtin_ctz(m));
+            m &= m - 1;
+        }
+    }
+
+    for (; i + 8 <= end; i += 8)
+    {
+        uint16x8_t y0 = tdm_old_y8(fbc->prime + i, sinv + i, corr + i, vt, vbl, vsh);
+        uint32_t m = tdm_old_mask8(y0, fbc->root1 + i, fbc->root2 + i, vlanebit);
+
+        while (m)
+        {
+            buf[nb++] = (uint16_t)(i + (uint32_t)__builtin_ctz(m));
+            m &= m - 1;
+        }
+    }
+
+    for (; i < end; i++)
+        TDM_OLD_SCALAR(i, xtra);
+
+    return nb;
+}
+
+// the scalar 16-bit version, for -noneon A/B against tdiv_medprimes_32k_old_neon
+SIQS_FORCEINLINE uint32_t tdm_old_range_scalar(const sieve_fb_compressed* fbc,
+    const uint16_t* sinv, const uint16_t* corr, uint32_t i, uint32_t end,
+    uint32_t block_loc, const int xtra, uint16_t* buf, uint32_t nb)
+{
+    for (; i < end; i++)
+        TDM_OLD_SCALAR(i, xtra);
+    return nb;
+}
+
+SIQS_FORCEINLINE void tdm_old_body_neon(uint8_t parity, static_conf_t* sconf,
+    dynamic_conf_t* dconf, const int use_neon)
+{
+    uint32_t report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr = sconf->factor_base->list;
+    uint32_t block_loc, r;
+    uint32_t start = sconf->sieve_small_fb_start;
+    uint32_t end = sconf->factor_base->fb_13bit_B;
+    uint16_t buf[TDIV_OLD_MAXHITS];
+    const uint16_t* sinv = SIQS_SINV16(fullfb_ptr);
+    const uint16_t* corr = SIQS_CORR16(fullfb_ptr);
+    static const uint8_t lanebit[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
+    const uint8x8_t vlanebit = vld1_u8(lanebit);
+    uint32_t b[2];
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+    tdm_old_bounds(fbc->prime, start, end, b);
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        uint32_t nb = 0;
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        if (use_neon)
+        {
+            nb = tdm_old_range_neon(fbc, sinv, corr, start, b[0], block_loc, 8, buf, nb, vlanebit);
+            nb = tdm_old_range_neon(fbc, sinv, corr, b[0], b[1], block_loc, 10, buf, nb, vlanebit);
+            nb = tdm_old_range_neon(fbc, sinv, corr, b[1], end, block_loc, 12, buf, nb, vlanebit);
+        }
+        else
+        {
+            nb = tdm_old_range_scalar(fbc, sinv, corr, start, b[0], block_loc, 8, buf, nb);
+            nb = tdm_old_range_scalar(fbc, sinv, corr, b[0], b[1], block_loc, 10, buf, nb);
+            nb = tdm_old_range_scalar(fbc, sinv, corr, b[1], end, block_loc, 12, buf, nb);
+        }
+
+        for (r = 0; r < nb; r++)
+        {
+            DIVIDE_RESIEVED_PRIME_2((buf[r]));
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+}
+
+void tdiv_medprimes_32k_old_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdm_old_body_neon(parity, sconf, dconf, 1);
+}
+
+// aarch64 portable version (the 16-bit tables exist only in NEON builds)
+void tdiv_medprimes_32k_old(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    tdm_old_body_neon(parity, sconf, dconf, 0);
 }
 
 #endif

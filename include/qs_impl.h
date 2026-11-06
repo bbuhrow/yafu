@@ -492,6 +492,13 @@ typedef struct
     uint32_t* correction;
     uint32_t* small_inv;
 #endif
+#if !defined(USE_8X_MOD_ASM) && defined(__aarch64__) && defined(__ARM_NEON)
+    // the 16-bit tables of USE_8X_MOD_ASM builds, for the NEON
+    // tdiv_medprimes_32k_old_neon (small_inv/correction keep the FOGSHIFT
+    // form here for the portable code)
+    uint16_t* correction16;
+    uint16_t* small_inv16;
+#endif
     uint32_t* inv32;
     uint32_t* corr32;
     uint32_t* shift32;
@@ -501,6 +508,22 @@ typedef struct
     uint32_t* logprime;
     uint64_t* binv;
 } fb_element_siqs;
+
+// 16-bit Barrett tables for tdiv_medprimes_32k_old(_neon): per fb prime,
+// small_inv = 2^shift / p (rounded per make_fb_siqs) and a 0/1 correction,
+// where shift is 24, 26 or 28 and steps up only at indices j % 8 == 0 (the
+// first such j with p > 1024, resp. p > 4096).  x86 builds keep them in
+// small_inv/correction; NEON builds in the extra small_inv16/correction16.
+#if defined(USE_8X_MOD_ASM)
+#define SIQS_HAVE_SINV16
+#define SIQS_SINV16(fb) ((fb)->small_inv)
+#define SIQS_CORR16(fb) ((fb)->correction)
+#elif defined(__aarch64__) && defined(__ARM_NEON)
+#define SIQS_HAVE_SINV16
+#define SIQS_SINV16_SEPARATE
+#define SIQS_SINV16(fb) ((fb)->small_inv16)
+#define SIQS_CORR16(fb) ((fb)->correction16)
+#endif
 
 // we trade a few bit operations per prime 
 // to be able to load both the fb_index and the sieve location in a single 
@@ -1272,8 +1295,14 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+// the 16-bit Barrett ("old", the former MOD_CMP_8X asm) tdiv_med test,
+// for comparison with _new; selected by YAFU_TDIV_MED=old (see SIQS.c)
+void tdiv_medprimes_32k_old(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
 #if defined(__aarch64__) && defined(__ARM_NEON)
 void tdiv_medprimes_32k_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_medprimes_32k_old_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 #endif
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,

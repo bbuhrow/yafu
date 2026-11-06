@@ -5121,6 +5121,61 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     }
 #endif
 
+    {
+        // YAFU_TDIV_MED=new|old|avx2|portable overrides the tdiv_med kernel
+        // at run time, for benchmarking: new = Lemire test
+        // (tdiv_medprimes_32k_new, or _neon), old = 16-bit Barrett test
+        // (tdiv_medprimes_32k_old, or _old_neon).  NEON variants are used
+        // unless -noneon.
+        const char* tdv = getenv("YAFU_TDIV_MED");
+        const char* tdname = NULL;
+
+        if (tdv != NULL)
+        {
+            if (strcmp(tdv, "new") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k_new;
+                tdname = "tdiv_medprimes_32k_new";
+#if defined(__aarch64__) && defined(__ARM_NEON)
+                if (sconf->obj->HAS_NEON)
+                {
+                    tdiv_med_ptr = &tdiv_medprimes_32k_neon;
+                    tdname = "tdiv_medprimes_32k_neon";
+                }
+#endif
+            }
+            else if (strcmp(tdv, "old") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k_old;
+                tdname = "tdiv_medprimes_32k_old";
+#if defined(__aarch64__) && defined(__ARM_NEON)
+                if (sconf->obj->HAS_NEON)
+                {
+                    tdiv_med_ptr = &tdiv_medprimes_32k_old_neon;
+                    tdname = "tdiv_medprimes_32k_old_neon";
+                }
+#endif
+            }
+#if defined(USE_AVX2)
+            else if (strcmp(tdv, "avx2") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+                tdname = "tdiv_medprimes_32k_avx2";
+            }
+#endif
+            else if (strcmp(tdv, "portable") == 0)
+            {
+                tdiv_med_ptr = &tdiv_medprimes_32k;
+                tdname = "tdiv_medprimes_32k";
+            }
+
+            if (tdname == NULL)
+                printf("warning: unknown YAFU_TDIV_MED=%s, keeping the default tdiv_med\n", tdv);
+            else if (sconf->obj->VFLAG > 0)
+                printf("YAFU_TDIV_MED: using %s\n", tdname);
+        }
+    }
+
 #if defined( __amd64__ ) && defined(USE_AVX512F) && !defined(TRY_COMPRESS_SORT_LARGEP)
     // amd eypc (zen4) was slower when using the avx512 variants of these
     lp_sieveblock_ptr = &lp_sieveblock;
@@ -5241,6 +5296,12 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		sconf->factor_base->list->correction = (uint32_t *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32_t)));
 #endif
+#ifdef SIQS_SINV16_SEPARATE
+		sconf->factor_base->list->small_inv16 = (uint16_t *)xmalloc_align(
+			(size_t)(sconf->factor_base->B * sizeof(uint16_t)));
+		sconf->factor_base->list->correction16 = (uint16_t *)xmalloc_align(
+			(size_t)(sconf->factor_base->B * sizeof(uint16_t)));
+#endif
 
         // Lemire divisibility test
         sconf->factor_base->list->minv32 = (uint32_t*)xmalloc_align(
@@ -5295,6 +5356,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             align_free(sconf->factor_base->list->binv);
 			align_free(sconf->factor_base->list->small_inv);
 			align_free(sconf->factor_base->list->correction);
+#ifdef SIQS_SINV16_SEPARATE
+			align_free(sconf->factor_base->list->small_inv16);
+			align_free(sconf->factor_base->list->correction16);
+#endif
 			align_free(sconf->factor_base->list->logprime);
             align_free(sconf->factor_base->list->minv32);
             align_free(sconf->factor_base->list->thresh32);
@@ -7510,6 +7575,10 @@ int free_siqs(static_conf_t *sconf)
     align_free(sconf->factor_base->list->binv);
 	align_free(sconf->factor_base->list->small_inv);
 	align_free(sconf->factor_base->list->correction);
+#ifdef SIQS_SINV16_SEPARATE
+	align_free(sconf->factor_base->list->small_inv16);
+	align_free(sconf->factor_base->list->correction16);
+#endif
 	align_free(sconf->factor_base->list->logprime);
     align_free(sconf->factor_base->list->minv32);
     align_free(sconf->factor_base->list->thresh32);
