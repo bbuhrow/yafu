@@ -161,6 +161,44 @@ static const siqs_builtin_row_t siqs_table_direct[] = {
     {410,	496628, 175,    22, 0,  0,  1.9,  0},
 };
 
+// lp direct sieve: new tuning for NEON kernels
+static const siqs_builtin_row_t siqs_table_direct_neon[] = {
+    {50,	30,	    30,	    1,  0,  0,  0,    0},
+    {60,	36,	    40,	    1,  0,  0,  0,    0},
+    {70,	50,	    40,	    1,  0,  0,  0,    0},
+    {80,	80,	    40,	    1,  0,  0,  0,    0},
+    {90,	120,	40,	    1,  0,  0,  0,    0},
+    {100,	175,	50,	    1,  0,  0,  0,    0},
+    {110,	275,	50,	    1,  0,  0,  0,    0},
+    {120,	375,	50,	    1,  0,  0,  0,    0},
+    {140,	828,	50,	    1,  0,  0,  0,    0},
+    {148,	1028,	60,	    1,  0,  0,  0,    0},
+    {165,	1472,	300,    1,  55, 0,  0,    0},    // 50 digits
+    {181,	3136,	300,    1,  62, 0,  0,    0},    // 55 digits
+    {198,	5872,	300,    1,  69, 0, 0,    0},     // 60 digits
+    {215,	6512,	300,	1,  73, 0, 1.62, 0},     // 65 digits
+    {232,	8000,	300,    1,  71, 0, 1.62, 0},     // 70 digits
+    {248,	14944,	300,	2,  76, 0, 1.72, 0},     // 75 digits
+    // above here, based on trends
+    {265,	19842,	300,	2,  80, 0, 1.76, 0},     // 80 digits
+    {281,	26746,	300,	3,  85, 0, 1.74, 0},     // 85 digits
+    // above here, same as direct / generic (based on avx2 fits)
+    {298,	35232,	350,	3,  89, 0, 1.74, 0},     // 90 digits
+    {310,	56071,	350,	3,  94, 0, 1.74, 0},
+    {320,	71745,	350,	4,  97, 0, 1.78, 0},     // 95 digits
+    {330,	87500,  350,    4, 102, 0, 1.8, 0},      // 100 digits
+    // above 100 digits: guesses
+    {340,	102120, 350,    5, 105, 0,  1.8, 0},
+    {350,	166320, 150,    14, 0,  0,  1.85, 0},     // 105 digits
+    {360,   199584, 150,    14, 0,  0,  1.85, 0},
+    {370,	239500, 150,    16, 0,  0,  1.9,  0},     // 110 digits
+    {380,	287400, 175,    16, 0,  0,  1.9,  0},
+    {390,	344881, 175,    18, 0,  0,  1.9,  0},
+    {400,	413857, 175,    20, 0,  0,  1.9,  0},     // 120 digits
+    {410,	496628, 175,    22, 0,  0,  1.9,  0},
+};
+
+
 // lp direct sieve with AVX512 kernels (mid = sparse, kernel = cmem when
 // measured).  Placeholder: c60-c80 are siqs_tune_v2.py pass-1 fitted optima
 // (one input per size, i5-11600K, 1 thread, MFBD fixed at 1.72, 2026-10-25),
@@ -219,6 +257,8 @@ static const siqs_builtin_row_t siqs_table_direct_avx512[] = {
 static const siqs_builtin_table_t siqs_param_tables[] = {
     SIQS_TABLE("direct-avx512", SIQS_ISA_AVX512, SIQS_LARGE_DIRECT, SIQS_STRAT_AUTO,
         siqs_table_direct_avx512),
+    SIQS_TABLE("direct-neon", SIQS_ISA_NEON, SIQS_LARGE_DIRECT, SIQS_STRAT_AUTO,
+        siqs_table_direct_neon),
     SIQS_TABLE("direct", SIQS_STRAT_AUTO, SIQS_LARGE_DIRECT, SIQS_STRAT_AUTO,
         siqs_table_direct),
     SIQS_TABLE("bucket-avx512", SIQS_ISA_AVX512, SIQS_LARGE_BUCKET, SIQS_STRAT_AUTO,

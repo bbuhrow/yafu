@@ -20,7 +20,7 @@ NEON + dotprod, no SVE).*
 | P5 | tdiv_LP (bucket tdiv) | not started |
 | P6 | firstRoots pre-pass, lp_sieveblock | only if the profile says so |
 | P7 | Lanczos `v_t` ops | last |
-| P8 | tuning: params table, 64k blocks | after the kernels |
+| P8 | tuning: params table, 64k blocks | `direct-neon` table (siqs_tune_v2 fits on the N1) registered for `SIQS_ISA_NEON` + direct; 64k blocks parked |
 
 What already works on ARM (as of `f26dee4`): the whole build, SIQS with
 correct factors, the 4-lane direct-sieve large-prime kernels
