@@ -769,7 +769,8 @@ void siqs_format_builtin_row(siqs_param_row_t* r, char* buf, int len)
 int siqs_lookup_tuned(const char* fname, int bits, siqs_param_row_t* out)
 {
     siqs_param_row_t* rows;
-    siqs_param_row_t* near;
+	// MINGW has a "#define near" in minwindef.h; conflicts with variable "near"
+    siqs_param_row_t* _near;
     int n = siqs_read_param_table(fname, &rows);
     int i, j, lo, hi;
 
@@ -799,16 +800,16 @@ int siqs_lookup_tuned(const char* fname, int bits, siqs_param_row_t* out)
 
     for (lo = 0; (lo < n - 1) && (rows[lo + 1].bits <= bits); lo++);
     hi = ((lo < n - 1) && (bits > rows[lo].bits)) ? lo + 1 : lo;
-    near = ((hi != lo) && (rows[hi].bits - bits < bits - rows[lo].bits)) ?
+	_near = ((hi != lo) && (rows[hi].bits - bits < bits - rows[lo].bits)) ?
         &rows[hi] : &rows[lo];
 
-    if ((near->rank == 0) || ((near->has & SIQSP_PARAMS) == 0))
+    if ((_near->rank == 0) || ((_near->has & SIQSP_PARAMS) == 0))
     {
         free(rows);
         return 0;
     }
 
-    *out = *near;
+    *out = *_near;
     if ((hi != lo) && (rows[lo].rank != 0) && (rows[hi].rank != 0))
     {
         double f = (double)(bits - rows[lo].bits) / (double)(rows[hi].bits - rows[lo].bits);
