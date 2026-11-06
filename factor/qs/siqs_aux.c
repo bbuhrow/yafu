@@ -60,9 +60,9 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	//locals
 	int i;
 	uint32_t b,j,r,k;
-	uint32_t prime, root1, root2;
+	UNUSED_VAR uint32_t prime, root1, root2;
 	uint8_t logp;
-    uint32_t urange = sconf->factor_base->B * sconf->multiplier * 1.1; // 10000000;
+    uint32_t urange = (uint32_t)(sconf->factor_base->B * sconf->multiplier * 1.1); // 10000000;
 	uint32_t lrange = 0;
 	uint64_t f;
 #ifdef USE_8X_MOD_ASM
@@ -114,7 +114,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 		}
 
 		prime = (uint32_t)siqs_primes[i];
-		r = mpz_tdiv_ui(n, prime);
+		r = (uint32_t)mpz_tdiv_ui(n, prime);
 		if (r == 0)
 		{
 			if (mul % prime != 0)
@@ -131,7 +131,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 			// of two.  just divide its logprime in half.
 			// we also can't find the root using shanks-tonelli, but it will be very small
 			// because the multiplier is very small, so just use brute force.
-			b = mpz_tdiv_ui(n, prime);
+			b = (uint32_t)mpz_tdiv_ui(n, prime);
 			k = 0;
 			while (1)
 			{
@@ -243,7 +243,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 			continue;
 		}
 
-		b = jacobi_1((uint64_t)r, (uint64_t)prime);
+		b = (uint32_t)jacobi_1((uint64_t)r, (uint64_t)prime);
 		if (b == 1)
 		{
 			// this prime works
@@ -387,7 +387,7 @@ void set_aprime_roots(static_conf_t *sconf, dynamic_conf_t* dconf,
 
     if (action == 1)
     {
-		for (i = 0; i < s - dconf->num_alp; i++)
+		for (i = 0; i < (uint32_t)s - dconf->num_alp; i++)
 		{
 			if ((fullfb->list->prime[qli[i]] > 8192))
 			{
@@ -404,10 +404,10 @@ void set_aprime_roots(static_conf_t *sconf, dynamic_conf_t* dconf,
     }
     else
     {
-		for (i = 0; i < s - dconf->num_alp; i++)
+		for (i = 0; i < (uint32_t)s - dconf->num_alp; i++)
 		{
 			fb->root1[qli[i]] = 0xffff;
-			fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
+			fb->prime[qli[i]] = (uint16_t)(fullfb->list->prime[qli[i]]);
 			fb->root2[qli[i]] = 0xffff;
 		}
     }
@@ -428,7 +428,7 @@ void get_gray_code(siqs_poly *poly)
 			v++, j >>= 1;
 		tmp = i + (1 << v) - 1;
 		tmp = (tmp >> v);
-		poly->nu[i] = v;
+		poly->nu[i] = (char)v;
 		if (tmp & 1)
 			poly->gray[i] = -1;
 		else
@@ -475,7 +475,7 @@ uint32_t yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 	for (i=0; i<list->num_factors; i++)
 	{
 		mp_t2gmp(&list->final_factors[i]->factor, tmpz);
-		bitsleft -= mpz_sizeinbase(tmpz, 2);
+		bitsleft -= (uint32_t)mpz_sizeinbase(tmpz, 2);
 	}
 
 	mpz_clear(tmpz);
@@ -546,14 +546,14 @@ static void siqsp_set(siqs_param_row_t* r, int col, const char* s)
     case SIQSC_BITS: r->bits = atoi(s); break;
     case SIQSC_RANK: r->rank = atoi(s); break;
     case SIQSC_RATIO: r->ratio = strtod(s, NULL); break;
-    case SIQSC_B: r->B = strtoul(s, NULL, 10); r->has |= SIQSP_B; break;
-    case SIQSC_M: r->M = strtoul(s, NULL, 10); r->has |= SIQSP_M; break;
-    case SIQSC_NB: r->NB = strtoul(s, NULL, 10); r->has |= SIQSP_NB; break;
-    case SIQSC_TF: r->TF = strtoul(s, NULL, 10); r->has |= SIQSP_TF; break;
-    case SIQSC_TFSM: r->TFSm = strtoul(s, NULL, 10); r->has |= SIQSP_TFSM; break;
+    case SIQSC_B: r->B = (uint32_t)strtoul(s, NULL, 10); r->has |= SIQSP_B; break;
+    case SIQSC_M: r->M = (uint32_t)strtoul(s, NULL, 10); r->has |= SIQSP_M; break;
+    case SIQSC_NB: r->NB = (uint32_t)strtoul(s, NULL, 10); r->has |= SIQSP_NB; break;
+    case SIQSC_TF: r->TF = (uint32_t)strtoul(s, NULL, 10); r->has |= SIQSP_TF; break;
+    case SIQSC_TFSM: r->TFSm = (uint32_t)strtoul(s, NULL, 10); r->has |= SIQSP_TFSM; break;
     case SIQSC_MFBD: r->MFBD = strtod(s, NULL); r->has |= SIQSP_MFBD; break;
     case SIQSC_MFBT: r->MFBT = strtod(s, NULL); r->has |= SIQSP_MFBT; break;
-    case SIQSC_SPV: r->SPV = strtoul(s, NULL, 10); r->has |= SIQSP_SPV; break;
+    case SIQSC_SPV: r->SPV = (uint32_t)strtoul(s, NULL, 10); r->has |= SIQSP_SPV; break;
     case SIQSC_MID:
         if (siqsp_strat_value(col, s, &r->mid)) r->has |= SIQSP_MID;
         break;
@@ -596,7 +596,7 @@ int siqs_read_param_table(const char* fname, siqs_param_row_t** rows)
     for (i = 0; i < ncols; i++)
         colmap[i] = i;
 
-    *rows = (siqs_param_row_t*)malloc(alloc * sizeof(siqs_param_row_t));
+    *rows = (siqs_param_row_t*)malloc((size_t)alloc * sizeof(siqs_param_row_t));
     while (fgets(line, sizeof(line), fid) != NULL)
     {
         char* tok[64];
@@ -638,7 +638,7 @@ int siqs_read_param_table(const char* fname, siqs_param_row_t** rows)
         if (nrows == alloc)
         {
             alloc *= 2;
-            *rows = (siqs_param_row_t*)realloc(*rows, alloc * sizeof(siqs_param_row_t));
+            *rows = (siqs_param_row_t*)realloc(*rows, (size_t)alloc * sizeof(siqs_param_row_t));
         }
 
         siqs_param_row_t* r = &(*rows)[nrows];
@@ -724,7 +724,7 @@ void siqs_format_params(siqs_param_row_t* r, char* buf, int len)
 
     buf[0] = '\0';
 #define SIQSP_APPEND(...) \
-    if (n < len) n += snprintf(buf + n, len - n, __VA_ARGS__)
+    if (n < len) n += snprintf(buf + n, (size_t)(len - n), __VA_ARGS__)
     if (r->has & SIQSP_B) SIQSP_APPEND("B=%u ", r->B);
     if (r->has & SIQSP_M) SIQSP_APPEND("M=%u ", r->M);
     if (r->has & SIQSP_NB) SIQSP_APPEND("NB=%u ", r->NB);
@@ -738,14 +738,14 @@ void siqs_format_params(siqs_param_row_t* r, char* buf, int len)
     if (r->has & SIQSP_KERNEL) SIQSP_APPEND("Kernel=%s ", siqsp_strat_name(SIQSC_KERNEL, r->kernel));
 #undef SIQSP_APPEND
     if (n == 0)
-        snprintf(buf, len, "(yafu defaults)");
+        snprintf(buf, (size_t)len, "(yafu defaults)");
     else if (n <= len)
         buf[n - 1] = '\0';
 }
 
 void siqs_format_builtin_row(siqs_param_row_t* r, char* buf, int len)
 {
-    snprintf(buf, len, "{%d, %u, %u, %u, %u, %u, %.2f, %.2f}, // c%d, rank %d%s%s%s%s",
+    snprintf(buf, (size_t)len, "{%d, %u, %u, %u, %u, %u, %.2f, %.2f}, // c%d, rank %d%s%s%s%s",
         r->bits,
         (r->has & SIQSP_B) ? r->B : 0,
         (r->has & SIQSP_M) ? r->M : 0,

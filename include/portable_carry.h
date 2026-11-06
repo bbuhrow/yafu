@@ -19,18 +19,26 @@ file.
 #ifndef YAFU_PORTABLE_CARRY_H
 #define YAFU_PORTABLE_CARRY_H
 
+/* Like gcc's own x86 intrinsic headers: always inlined and never emitted
+   out of line.  Plain 'static inline' would trigger "static but used in
+   inline function which is not static" warnings in monty.h's (non-static)
+   __inline mulredc/sqrredc/submod functions. */
+#define YAFU_PC_INLINE extern __inline __attribute__((__gnu_inline__, __always_inline__))
+
+
 #ifndef MP_PLATFORM_H
 
 #include <stdint.h>
 
-static inline uint8_t yafu_addcarry_u64(uint8_t c_in, uint64_t a, uint64_t b, uint64_t* out)
+
+YAFU_PC_INLINE uint8_t yafu_addcarry_u64(uint8_t c_in, uint64_t a, uint64_t b, uint64_t* out)
 {
     __uint128_t s = (__uint128_t)a + b + c_in;
     *out = (uint64_t)s;
     return (uint8_t)(s >> 64);
 }
 
-static inline uint8_t yafu_subborrow_u64(uint8_t b_in, uint64_t a, uint64_t b, uint64_t* out)
+YAFU_PC_INLINE uint8_t yafu_subborrow_u64(uint8_t b_in, uint64_t a, uint64_t b, uint64_t* out)
 {
     uint64_t d = a - b;
     uint8_t br = (a < b);
@@ -39,7 +47,7 @@ static inline uint8_t yafu_subborrow_u64(uint8_t b_in, uint64_t a, uint64_t b, u
     return br;
 }
 
-static inline uint8_t yafu_subborrow_u32(uint8_t b_in, uint32_t a, uint32_t b, uint32_t* out)
+YAFU_PC_INLINE uint8_t yafu_subborrow_u32(uint8_t b_in, uint32_t a, uint32_t b, uint32_t* out)
 {
     uint32_t d = a - b;
     uint8_t br = (a < b);

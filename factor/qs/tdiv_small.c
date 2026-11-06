@@ -86,17 +86,17 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 {
 	// we have flagged this sieve offset as likely to produce a relation
 	// nothing left to do now but check and see.
-	int i;
-	uint32_t bound, tmp, prime, root1, root2;
+	UNUSED_VAR int i;
+	UNUSED_VAR uint32_t bound, tmp, prime, root1, root2;
 	int smooth_num;
 	sieve_fb_compressed *fbc;
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
 	uint8_t logp;
     uint8_t bits;
     //uint8_t sm_bits;
-    uint32_t tmp1, tmp2, tmp3, tmp4, offset, report_num;
+    UNUSED_VAR uint32_t tmp1, tmp2, tmp3, tmp4, offset, report_num;
     // the minimum value of the poly (near its root)
-    uint32_t minoffset = mpz_get_ui(dconf->gmptmp3);
+    UNUSED_VAR uint32_t minoffset = (uint32_t)mpz_get_ui(dconf->gmptmp3);
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -126,7 +126,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
-		uint64_t q64;
+		UNUSED_VAR uint64_t q64;
 
 #if defined(SIQS_SKIP_BLOCK_LOC0)
 		// set_aprime_roots gives a-primes > 8192 prime = root = 0, so every
@@ -208,7 +208,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		// primes, then abort the trial division early because it is likely to fail to
 		// produce even a partial relation.
 		bits = sieve[dconf->reports[report_num]];
-		bits = (255 - bits) + sconf->tf_closnuf + 1;
+		bits = (uint8_t)((255 - bits) + sconf->tf_closnuf + 1);
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
@@ -284,9 +284,9 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 
 				while (hits > 0)
 				{
-					uint32_t fbi = vi + _trail_zcnt(hits);
+					uint32_t fbi = vi + (uint32_t)_trail_zcnt(hits);
 					prime = fbc->prime[fbi];
-					logp = fbc->logp[fbi];
+					logp = (uint8_t)fbc->logp[fbi];
 #ifdef SPV_ASSERT_BOTH
 					if (vhit_n < 64) vhit_idx[vhit_n++] = fbi;
 #endif
@@ -336,24 +336,24 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		{
 			tmp1 = offset + fullfb_ptr->correction[i];
 			q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
-			tmp1 = q64 >> 32; 
+			tmp1 = (uint32_t)(q64 >> 32); 
 			// at this point tmp1 is offset / prime
 			tmp1 = offset - tmp1 * fullfb_ptr->prime[i];
 			// now tmp1 is offset % prime
 
 			tmp2 = offset + fullfb_ptr->correction[i+1];
 			q64 = (uint64_t)tmp2 * (uint64_t)fullfb_ptr->small_inv[i+1];
-			tmp2 = q64 >> 32; 
+			tmp2 = (uint32_t)(q64 >> 32); 
 			tmp2 = offset - tmp2 * fullfb_ptr->prime[i+1];
 
 			tmp3 = offset + fullfb_ptr->correction[i+2];
 			q64 = (uint64_t)tmp3 * (uint64_t)fullfb_ptr->small_inv[i+2];
-			tmp3 = q64 >> 32;
+			tmp3 = (uint32_t)(q64 >> 32);
 			tmp3 = offset - tmp3 * fullfb_ptr->prime[i+2];
 
 			tmp4 = offset + fullfb_ptr->correction[i+3];
 			q64 = (uint64_t)tmp4 * (uint64_t)fullfb_ptr->small_inv[i+3];
-			tmp4 = q64 >> 32; 
+			tmp4 = (uint32_t)(q64 >> 32); 
 			tmp4 = offset - tmp4 * fullfb_ptr->prime[i+3];
 			
 			root1 = fbc->root1[i];
@@ -362,7 +362,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp1 == root1 || tmp1 == root2)
 			{
 				prime = fbc->prime[i];
-				logp = fbc->logp[i];
+				logp = (uint8_t)fbc->logp[i];
                 DIVIDE_ONE_PRIME(i);
 			}
 
@@ -372,7 +372,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp2 == root1 || tmp2 == root2)
 			{
 				prime = fbc->prime[i+1];
-				logp = fbc->logp[i+1];
+				logp = (uint8_t)fbc->logp[i+1];
                 DIVIDE_ONE_PRIME(i+1);
 			}
 
@@ -382,7 +382,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp3 == root1 || tmp3 == root2)
 			{
 				prime = fbc->prime[i+2];
-				logp = fbc->logp[i+2];
+				logp = (uint8_t)fbc->logp[i+2];
                 DIVIDE_ONE_PRIME(i+2);
 			}
 
@@ -392,7 +392,7 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 			if (tmp4 == root1 || tmp4 == root2)
 			{
 				prime = fbc->prime[i+3];
-				logp = fbc->logp[i+3];
+				logp = (uint8_t)fbc->logp[i+3];
                 DIVIDE_ONE_PRIME(i+3);
 			}
 
@@ -402,17 +402,16 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		// finish up the rest of the small primes
 		while ((uint32_t)i < sconf->sieve_small_fb_start)
 		{
-			uint64_t q64;
 
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
+			logp = (uint8_t)fbc->logp[i];
 			
 			// this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];
 			q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
-			tmp = q64 >>  32; 
+			tmp = (uint32_t)(q64 >>  32); 
 			tmp = offset - tmp * prime;
 
 			// if offset % prime == either root, it's on the progression.  also

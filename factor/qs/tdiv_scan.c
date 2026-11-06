@@ -634,7 +634,6 @@ int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
     //unrolled x128; for large inputs
     uint32_t i, j, it = sconf->qs_blocksize >> 3;
     uint32_t thisloc;
-    uint32_t num_reports = 0;
     uint64_t *sieveblock;
 
     dconf->num_reports = 0;
@@ -911,7 +910,6 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
     //unrolled x128; for large inputs
     uint32_t i, j, it = sconf->qs_blocksize >> 3;
     uint32_t thisloc;
-    uint32_t num_reports = 0;
     uint64_t* sieveblock;
 
     dconf->num_reports = 0;
@@ -1094,7 +1092,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
         if (sconf->obj->HAS_AVX512BW)
         {
             uint32_t cutoff = sconf->tf_closnuf;
-            __m512i vmask = _mm512_set1_epi32((cutoff << 24) + (cutoff << 16) + (cutoff << 8) + cutoff);
+            __m512i vmask = _mm512_set1_epi32((int)((cutoff << 24) + (cutoff << 16) + (cutoff << 8) + cutoff));
 
             dconf->num_reports = 0;
             sieveblock = (uint64_t*)dconf->sieve;
@@ -1114,7 +1112,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
                 while (r_msk > 0)
                 {
                     idx = _trail_zcnt64(r_msk);
-                    dconf->reports[dconf->num_reports++] = thisloc + idx;
+                    dconf->reports[dconf->num_reports++] = thisloc + (uint32_t)idx;
                     r_msk = _blsr_u64(r_msk);
                 }
 
@@ -1135,7 +1133,7 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     }
     else
     {
-        __m512i vmask = _mm512_set1_epi32(0x80808080);
+        __m512i vmask = _mm512_set1_epi32((int)0x80808080);
 
         dconf->num_reports = 0;
 
@@ -1161,16 +1159,16 @@ int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
 
                 // each lit bit identifies 4 possible bytes meeting our criteria
                 // for a possible relation.
-                a_msk = sieveblock32[(thisloc >> 2) + idx] & 0x80808080;
+                a_msk = sieveblock32[(thisloc >> 2) + (uint32_t)idx] & 0x80808080;
 
                 do
                 {
                     k = _trail_zcnt(a_msk) >> 3;
-	                dconf->reports[dconf->num_reports++] = thisloc + k + idx * 4;
+	                dconf->reports[dconf->num_reports++] = thisloc + (uint32_t)(k + idx * 4);
                     a_msk = _blsr_u32(a_msk);
                 } while (a_msk > 0);
 
-                r_msk = _blsr_u32(r_msk);
+                r_msk = (__mmask16)_blsr_u32(r_msk);
             }
 
         }

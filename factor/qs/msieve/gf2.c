@@ -282,8 +282,8 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 	
 	// printf("building matrix with %u columns\n", ncols);
 
-    buf = (uint32_t*)xmalloc(QS_MAX_COL_WEIGHT * sizeof(uint32_t));
-    accum = (uint32_t*)xmalloc(QS_MAX_COL_WEIGHT * sizeof(uint32_t));
+    buf = (uint32_t*)xmalloc((size_t)QS_MAX_COL_WEIGHT * sizeof(uint32_t));
+    accum = (uint32_t*)xmalloc((size_t)QS_MAX_COL_WEIGHT * sizeof(uint32_t));
 	for (i = 0; i < ncols; i++) {
 		
 		uint32_t weight;
@@ -305,8 +305,8 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
                 QS_MAX_COL_WEIGHT *= 2;
 				printf("weight = %u: allocated new max weight vectors of size %u\n", 
 					(weight + r->num_factors), QS_MAX_COL_WEIGHT); fflush(stdout);
-                buf = (uint32_t*)xrealloc(buf, QS_MAX_COL_WEIGHT * sizeof(uint32_t));
-                accum = (uint32_t*)xrealloc(accum, QS_MAX_COL_WEIGHT * sizeof(uint32_t));
+                buf = (uint32_t*)xrealloc(buf, (size_t)QS_MAX_COL_WEIGHT * sizeof(uint32_t));
+                accum = (uint32_t*)xrealloc(accum, (size_t)QS_MAX_COL_WEIGHT * sizeof(uint32_t));
 			}
 
 			weight = qs_merge_relations(accum, buf, weight,

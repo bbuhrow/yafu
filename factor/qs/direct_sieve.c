@@ -292,7 +292,7 @@ void direct_save_survivor(uint32_t report_num, uint8_t parity, uint32_t bnum,
     pool->smooth_num[k] = smooth_num;
     if (smooth_num >= 0)
         memcpy(&pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
-            dconf->fb_offsets[report_num], (smooth_num + 1) * sizeof(uint32_t));
+            dconf->fb_offsets[report_num], (size_t)(smooth_num + 1) * sizeof(uint32_t));
     pool->bitmap[pos >> 6] |= (1ULL << (pos & 63));
 
     // all fb primes below large_B are divided out by now: count the
@@ -493,7 +493,7 @@ SIQS_FORCEINLINE void direct_resieve_group(direct_pool_t* pool, uint32_t j,
         uint32_t _q = (_r + (off)) & _m; \
         uint64_t _w = bitmap[_q >> 6] & (uint64_t)(int64_t)(int32_t)_m; \
         if ((_w >> (_q & 63)) & 1) \
-            direct_resieve_hit(pool, _q, j + (k), p[k]); } while (0)
+            direct_resieve_hit(pool, _q, j + (uint32_t)(k), p[k]); } while (0)
 
     for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(r1[k], 0, k);
     for (k = 0; k < 16; k++) DIRECT_SCALAR_HIT(r2[k], 0, k);
@@ -650,7 +650,7 @@ void direct_finalize_survivors(static_conf_t* sconf, dynamic_conf_t* dconf)
         dconf->smooth_num[0] = smooth_num;
         if (smooth_num >= 0)
             memcpy(dconf->fb_offsets[0], &pool->fb_offsets[(size_t)k * MAX_SMOOTH_PRIMES],
-                (smooth_num + 1) * sizeof(uint32_t));
+                (size_t)(smooth_num + 1) * sizeof(uint32_t));
         dconf->reports[0] = loc & 32767;
         dconf->valid_Qs[0] = 1;
 
@@ -743,10 +743,10 @@ SIQS_FORCEINLINE void direct_scatter16_scalar(uint8_t* sieve, uint32_t interval,
     {
         // misses go to a rotating stripe in the second tail guard block
         uint32_t s = 2 * interval + 32768 + *sink;
-        for (k = 0; k < 16; k++) { uint32_t r = r1[k]; sieve[(r < interval) ? r : s + k] -= logp; }
-        for (k = 0; k < 16; k++) { uint32_t r = r2[k]; sieve[(r < interval) ? r : s + 16 + k] -= logp; }
-        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r1[k]; sieve[(r < interval) ? interval + r : s + 32 + k] -= logp; }
-        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r2[k]; sieve[(r < interval) ? interval + r : s + 48 + k] -= logp; }
+        for (k = 0; k < 16; k++) { uint32_t r = r1[k]; sieve[(r < interval) ? r : s + (uint32_t)k] -= logp; }
+        for (k = 0; k < 16; k++) { uint32_t r = r2[k]; sieve[(r < interval) ? r : s + 16 + (uint32_t)k] -= logp; }
+        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r1[k]; sieve[(r < interval) ? interval + r : s + 32 + (uint32_t)k] -= logp; }
+        for (k = 0; k < 16; k++) { uint32_t r = p[k] - r2[k]; sieve[(r < interval) ? interval + r : s + 48 + (uint32_t)k] -= logp; }
         *sink += 64;
         if (*sink >= DIRECT_SINK_BYTES)
             *sink = 0;
@@ -838,7 +838,7 @@ SIQS_FORCEINLINE void direct_resieve_update_scalar_body(static_conf_t* sconf,
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + large_B];
     int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const int hitlist = ((kmode == SIQS_K_CREG) || (kmode == SIQS_K_CMEM));
@@ -985,20 +985,20 @@ SIQS_FORCEINLINE void large_sieveblock_scalar_body(uint8_t* sieve, sieve_fb* fb,
     for (i = full_fb->med_B; (i + 16) <= bound; i += 16)
     {
         // approximate the next 16 logp's as equal to the largest
-        logp = fb->logp[i + 15];
+        logp = (uint8_t)fb->logp[i + 15];
 
         if (kmode == SIQS_K_BITLOOP)
         {
             for (k = 0; k < 16; k++)
             {
-                root1 = fb->root1[i + k];
-                root2 = fb->root2[i + k];
-                if (root1 < 32768) { sieve[root1] -= logp; root1 += fb->prime[i + k]; }
-                if (root2 < 32768) { sieve[root2] -= logp; root2 += fb->prime[i + k]; }
+                root1 = fb->root1[i + (uint32_t)k];
+                root2 = fb->root2[i + (uint32_t)k];
+                if (root1 < 32768) { sieve[root1] -= logp; root1 += fb->prime[i + (uint32_t)k]; }
+                if (root2 < 32768) { sieve[root2] -= logp; root2 += fb->prime[i + (uint32_t)k]; }
                 root1 -= 32768;
                 root2 -= 32768;
-                fb->root1[i + k] = (root1 < root2) ? root1 : root2;
-                fb->root2[i + k] = (root1 < root2) ? root2 : root1;
+                fb->root1[i + (uint32_t)k] = (root1 < root2) ? root1 : root2;
+                fb->root2[i + (uint32_t)k] = (root1 < root2) ? root2 : root1;
             }
         }
         else
@@ -1006,9 +1006,9 @@ SIQS_FORCEINLINE void large_sieveblock_scalar_body(uint8_t* sieve, sieve_fb* fb,
             uint32_t tag = (uint32_t)logp << 24;
             for (k = 0; k < 16; k++)
             {
-                prime = fb->prime[i + k];
-                root1 = fb->root1[i + k];
-                root2 = fb->root2[i + k];
+                prime = fb->prime[i + (uint32_t)k];
+                root1 = fb->root1[i + (uint32_t)k];
+                root2 = fb->root2[i + (uint32_t)k];
                 cbuf[nc] = root1 | tag;
                 nc += (root1 < 32768);
                 cbuf[nc] = root2 | tag;
@@ -1017,8 +1017,8 @@ SIQS_FORCEINLINE void large_sieveblock_scalar_body(uint8_t* sieve, sieve_fb* fb,
                 root2 += (root2 < 32768) ? prime : 0;
                 root1 -= 32768;
                 root2 -= 32768;
-                fb->root1[i + k] = (root1 < root2) ? root1 : root2;
-                fb->root2[i + k] = (root1 < root2) ? root2 : root1;
+                fb->root1[i + (uint32_t)k] = (root1 < root2) ? root1 : root2;
+                fb->root2[i + (uint32_t)k] = (root1 < root2) ? root2 : root1;
             }
             if (nc >= DIRECT_CBUF_FLUSH)
             {
@@ -1036,7 +1036,7 @@ SIQS_FORCEINLINE void large_sieveblock_scalar_body(uint8_t* sieve, sieve_fb* fb,
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         while (root2 < (uint32_t)(32768))
         {
@@ -1099,10 +1099,10 @@ void tdiv_large_scalar(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         {
             for (k = 0; k < 16; k++)
             {
-                tmp = block_loc + fbc->prime[i + k] - 32768;
-                if ((tmp == fbc->root1[i + k]) || (tmp == fbc->root2[i + k]))
+                tmp = block_loc + fbc->prime[i + (uint32_t)k] - 32768;
+                if ((tmp == fbc->root1[i + (uint32_t)k]) || (tmp == fbc->root2[i + (uint32_t)k]))
                 {
-                    uint32_t j = i + k;
+                    uint32_t j = i + (uint32_t)k;
                     DIVIDE_RESIEVED_PRIME_2(j);
                 }
             }
@@ -1153,15 +1153,15 @@ void nextRoots_32k_lp_sparse_scalar(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t sparse_B = fb->fb_blk8i;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + med_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + med_B];
     uint32_t j, root1, root2, prime;
 
     for (j = med_B; j < sparse_B; j++, ptr++)
     {
         uint32_t u = *ptr;
         prime = update_data.prime[j];
-        root1 = update_data.firstroots1[j];
-        root2 = update_data.firstroots2[j];
+        root1 = (uint32_t)update_data.firstroots1[j];
+        root2 = (uint32_t)update_data.firstroots2[j];
 
         if (sign > 0)
         {
@@ -1177,8 +1177,8 @@ void nextRoots_32k_lp_sparse_scalar(static_conf_t* sconf, dynamic_conf_t* dconf)
         }
 
         if (root2 < root1) { uint32_t t = root1; root1 = root2; root2 = t; }
-        update_data.firstroots1[j] = root1;
-        update_data.firstroots2[j] = root2;
+        update_data.firstroots1[j] = (int)root1;
+        update_data.firstroots2[j] = (int)root2;
         dconf->sieve_p->root1[j] = root1;
         dconf->sieve_p->root2[j] = root2;
         dconf->sieve_n->root1[j] = prime - root2;
@@ -1199,9 +1199,9 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t stop = sconf->lp_direct ? large_B : bound;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + sparse_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + sparse_B];
     uint32_t j, root1, root2, prime, nroot1, nroot2, interval;
-    int numblocks = sconf->num_blocks;
+    int numblocks = (int)sconf->num_blocks;
     uint32_t* bptr;
     int bnum, room, k;
     int bound_index = 0;
@@ -1212,7 +1212,7 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t* slicebound_ptr;
     uint8_t logp = 0;
 
-    interval = numblocks << 15;
+    interval = (uint32_t)(numblocks << 15);
 
     if ((lp_bucket_p->alloc_slices == 0) || (sparse_B >= stop))
     {
@@ -1232,7 +1232,7 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
     lp_bucket_p->num_slices = 0;
     slicelogp_ptr = lp_bucket_p->logp;
     slicebound_ptr = lp_bucket_p->fb_bounds;
-    check_bound = sparse_B + BUCKET_ALLOC / 2;
+    check_bound = (int)(sparse_B + BUCKET_ALLOC / 2);
 
     logp = update_data.logp[sparse_B - 1];
     for (j = sparse_B; j < stop; j++, ptr++)
@@ -1242,8 +1242,8 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
         CHECK_NEW_SLICE(j);
 
         prime = update_data.prime[j];
-        root1 = update_data.firstroots1[j];
-        root2 = update_data.firstroots2[j];
+        root1 = (uint32_t)update_data.firstroots1[j];
+        root2 = (uint32_t)update_data.firstroots2[j];
 
         if (sign > 0)
         {
@@ -1258,8 +1258,8 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
             if (root2 >= prime) root2 -= prime;
         }
 
-        update_data.firstroots1[j] = root1;
-        update_data.firstroots2[j] = root2;
+        update_data.firstroots1[j] = (int)root1;
+        update_data.firstroots2[j] = (int)root2;
         nroot1 = prime - root1;
         nroot2 = prime - root2;
 
@@ -1278,9 +1278,9 @@ void nextRoots_32k_lp_buckets(static_conf_t* sconf, dynamic_conf_t* dconf)
         }
     }
 
-    lp_bucket_p->num_slices = bound_index + 1;
-    lp_bucket_p->logp[bound_index] = sconf->lp_direct ?
-        fb->list->logprime[large_B - 1] : logp;
+    lp_bucket_p->num_slices = (uint32_t)(bound_index + 1);
+    lp_bucket_p->logp[bound_index] = (uint8_t)(sconf->lp_direct ?
+        fb->list->logprime[large_B - 1] : logp);
 
     return;
 }

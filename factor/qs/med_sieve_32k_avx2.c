@@ -247,7 +247,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -266,10 +266,10 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     __m256i vblock = _mm256_set1_epi16(32767);
     vblock = _mm256_add_epi16(vblock, _mm256_set1_epi16(1));
 #else
-    __m256i vblock = _mm256_set1_epi16(BLOCKSIZE);
+    __m256i vblock = _mm256_set1_epi16((short)BLOCKSIZE);
 #endif
     //__m256i vinterval = _mm256_set1_epi16(4 * BLOCKSIZE);
-    __m256i vprime, vroot1, vroot2, vtmp1, vtmp2;
+    __m256i vprime, vroot1, vroot2, vtmp2;
     __m256i valid_mask_1, valid_mask_2, initial_mask;
     ALIGNED_MEM uint16_t r_id1[16];
     ALIGNED_MEM uint16_t r_id2[16];
@@ -283,7 +283,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         vprime = _mm256_load_si256((__m256i*)(fb->prime + i));
         vroot1 = _mm256_load_si256((__m256i*)(fb->root1 + i));
         vroot2 = _mm256_load_si256((__m256i*)(fb->root2 + i));
-        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+        logp = (uint8_t)fb->logp[i]; // approximate the next 32 logp's as equal to this one.
 
 #ifdef TEST_SIEVE
         int j;
@@ -420,7 +420,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 
         // as roots start to exceed the block size, selectively 
         // dump in logs
-        while ((msk_2 = _mm256_movemask_epi8(valid_mask_2)) > 0)
+        while ((msk_2 = (uint32_t)_mm256_movemask_epi8(valid_mask_2)) > 0)
         {
             _mm256_store_si256((__m256i*)r_id1, vroot1);
             _mm256_store_si256((__m256i*)r_id2, vroot2);
@@ -480,7 +480,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
             _mm256_cmpeq_epi16(vroot1, vblock));
         valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_1);
-        msk_2 = _mm256_movemask_epi8(valid_mask_2);
+        msk_2 = (uint32_t)_mm256_movemask_epi8(valid_mask_2);
 
         msk_2 &= 0xaaaaaaaa;
         while (msk_2 > 0) {
@@ -554,12 +554,12 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 
     for (; i < bound; i++)
     {
-        uint8_t* s2;
+        UNUSED_VAR uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -577,7 +577,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         if ((prime > 32768) && ((i & 15) == 0))
             break;
@@ -662,7 +662,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
     __m256i vblock = _mm256_set1_epi16(32767);
     vblock = _mm256_add_epi16(vblock, _mm256_set1_epi16(1));
 #else
-    __m256i vblock = _mm256_set1_epi16(BLOCKSIZE);
+    __m256i vblock = _mm256_set1_epi16((short)BLOCKSIZE);
 #endif
     __m256i vsink_bias = _mm256_set1_epi16(MED2_SINK_BYTES);
     __m256i vsink1 = _mm256_loadu_si256((const __m256i*)med2_sink_lanes);
@@ -688,7 +688,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -709,7 +709,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         vprime = _mm256_load_si256((__m256i*)(fb->prime + i));
         vroot1 = _mm256_load_si256((__m256i*)(fb->root1 + i));
         vroot2 = _mm256_load_si256((__m256i*)(fb->root2 + i));
-        logp = fb->logp[i]; // approximate the next 16 logp's as equal to this one.
+        logp = (uint8_t)fb->logp[i]; // approximate the next 16 logp's as equal to this one.
 
         // we don't sieve primes that are part of the poly (see
         // med_sieveblock_32k_avx2): zero their primes, park their roots at
@@ -760,7 +760,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
 
         // as roots start to exceed the block size, selectively
         // dump in logs
-        while ((msk_2 = _mm256_movemask_epi8(valid_mask_2)) > 0)
+        while ((msk_2 = (uint32_t)_mm256_movemask_epi8(valid_mask_2)) > 0)
         {
             _mm256_store_si256((__m256i*)r_id1, vroot1);
             _mm256_store_si256((__m256i*)r_id2, vroot2);
@@ -793,7 +793,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
             _mm256_cmpeq_epi16(vroot1, vblock));
         valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_1);
-        msk_2 = _mm256_movemask_epi8(valid_mask_2);
+        msk_2 = (uint32_t)_mm256_movemask_epi8(valid_mask_2);
 
         msk_2 &= 0xaaaaaaaa;
         while (msk_2 > 0) {
@@ -821,7 +821,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         if (prime == 0)
             continue;
@@ -864,7 +864,7 @@ void med_sieveblock_32k_avx2_split(uint8_t* sieve, sieve_fb_compressed* fb, fb_l
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         if (prime == 0)
             continue;
@@ -940,7 +940,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     __m512i vblock = _mm512_set1_epi16(32767);
     vblock = _mm512_add_epi16(vblock, _mm512_set1_epi16(1));
 #else
-    __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
+    __m512i vblock = _mm512_set1_epi16((short)BLOCKSIZE);
 #endif
     __m512i vzero = _mm512_setzero_epi32();
 
@@ -976,7 +976,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -994,13 +994,13 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     {
         __m512i vprime, vroot1, vroot2;
         __mmask32 valid_mask_1, valid_mask_2, initial_mask;
-        uint32_t msk_2;
-        int pos;
+        UNUSED_VAR uint32_t msk_2;
+        UNUSED_VAR int pos;
 
         vprime = _mm512_load_si512(fb->prime + i);
         vroot1 = _mm512_load_si512(fb->root1 + i);
         vroot2 = _mm512_load_si512(fb->root2 + i);
-        logp = fb->logp[i+16]; // approximate the next 32 logp's as equal to the midpoint
+        logp = (uint8_t)fb->logp[i+16]; // approximate the next 32 logp's as equal to the midpoint
 
         // we don't sieve primes that are part of the poly
         valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
@@ -1159,12 +1159,12 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
     for (; i < bound; i++)
     {
-        uint8_t* s2;
+        UNUSED_VAR uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -1182,8 +1182,8 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     __m512i vr2;
     __mmask32 result2;
     __mmask32 result1;
-    uint32_t res2;
-    uint32_t res1;
+    UNUSED_VAR uint32_t res2;
+    UNUSED_VAR uint32_t res1;
 
     //printf("start: %d, stop: %d\n", i, full_fb->fb_15bit_B - 32);
 
@@ -1191,13 +1191,13 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
     {
         __m512i vprime, vroot1, vroot2;
         __mmask32 valid_mask_1, valid_mask_2, initial_mask;
-        uint32_t msk_2;
-        int pos;
+        UNUSED_VAR uint32_t msk_2;
+        UNUSED_VAR int pos;
 
         vprime = _mm512_load_si512(fb->prime + i);
         vroot1 = _mm512_load_si512(fb->root1 + i);
         vroot2 = _mm512_load_si512(fb->root2 + i);
-        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+        logp = (uint8_t)fb->logp[i]; // approximate the next 32 logp's as equal to this one.
 
         // we don't sieve primes that are part of the poly
         valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
@@ -1313,7 +1313,7 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         if (prime == 0)
             continue;
@@ -1400,7 +1400,7 @@ void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, 
     __m512i vblock = _mm512_set1_epi16(32767);
     vblock = _mm512_add_epi16(vblock, _mm512_set1_epi16(1));
 #else
-    __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
+    __m512i vblock = _mm512_set1_epi16((short)BLOCKSIZE);
 #endif
     __m512i vzero = _mm512_setzero_epi32();
     __m512i vffff = _mm512_set1_epi16((short)0xffff);
@@ -1436,7 +1436,7 @@ void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, 
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -1461,7 +1461,7 @@ void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, 
         vprime = _mm512_load_si512(fb->prime + i);
         vroot1 = _mm512_load_si512(fb->root1 + i);
         vroot2 = _mm512_load_si512(fb->root2 + i);
-        logp = fb->logp[i + 16]; // approximate the next 32 logp's as equal to the midpoint
+        logp = (uint8_t)fb->logp[i + 16]; // approximate the next 32 logp's as equal to the midpoint
 
         // we don't sieve primes that are part of the poly (prime 0, or roots
         // marked 0xffff for a-primes <= 8192) or lanes below start_prime
@@ -1473,8 +1473,8 @@ void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, 
             0xffffffff;
         valid_mask_1 = initial_mask = valid_mask_2 = keep_mask &
             _mm512_cmpgt_epu16_mask(vprime, vzero) & _mm512_cmpneq_epu16_mask(vroot1, vffff);
-        vroot1 = _mm512_mask_set1_epi16(vroot1, ~initial_mask, 0xffff);
-        vroot2 = _mm512_mask_set1_epi16(vroot2, ~initial_mask, 0xffff);
+        vroot1 = _mm512_mask_set1_epi16(vroot1, ~initial_mask, (short)0xffff);
+        vroot2 = _mm512_mask_set1_epi16(vroot2, ~initial_mask, (short)0xffff);
 
         // until things start to drop off the end of the interval,
         // simply dump in all logs.
@@ -1550,7 +1550,7 @@ void med_sieveblock_32k_avx512bw_split(uint8_t* sieve, sieve_fb_compressed* fb, 
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         if (prime == 0)
             continue;

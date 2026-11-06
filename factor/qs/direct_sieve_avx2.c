@@ -77,7 +77,7 @@ SIQS_FORCEINLINE void direct_scatter16_avx2(uint8_t* sieve, uint32_t interval,
     const int kmode, uint32_t* hits, uint32_t* nc, uint32_t* flushed, uint32_t* sink,
     const int single)
 {
-    __m256i vint = _mm256_set1_epi32(interval);
+    __m256i vint = _mm256_set1_epi32((int)interval);
     __m256i vp0 = _mm256_loadu_si256((const __m256i*)p);
     __m256i vp1 = _mm256_loadu_si256((const __m256i*)(p + 8));
     __m256i a0 = _mm256_loadu_si256((const __m256i*)r1);
@@ -127,7 +127,7 @@ SIQS_FORCEINLINE void direct_scatter16_avx2(uint8_t* sieve, uint32_t interval,
         // misses go to a rotating stripe in the second tail guard block
         ALIGNED_MEM uint32_t idx[64];
         __m256i v8 = _mm256_set1_epi32(8);
-        __m256i vs = _mm256_add_epi32(_mm256_set1_epi32(2 * interval + 32768 + *sink),
+        __m256i vs = _mm256_add_epi32(_mm256_set1_epi32((int)(2 * interval + 32768 + *sink)),
             _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
         int k;
 
@@ -304,7 +304,7 @@ static void direct_resieve_hits_avx2(static_conf_t* sconf, dynamic_conf_t* dconf
     vpf1 = _mm256_load_si256((const __m256i*)(pf_words + 8));
     vpf2 = _mm256_load_si256((const __m256i*)(pf_words + 16));
     vpf3 = _mm256_load_si256((const __m256i*)(pf_words + 24));
-    vshift = _mm256_set1_epi32(pf_shift);
+    vshift = _mm256_set1_epi32((int)pf_shift);
 
     // the loads may run past n into the reserved slack; those lanes are
     // masked off
@@ -366,7 +366,7 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + large_B];
     int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const int* bitmap32 = (const int*)pool->bitmap;
@@ -379,7 +379,7 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
     ALIGNED_MEM uint32_t pf_words[16];
     ALIGNED_MEM uint32_t pos16[16];
     uint32_t nc = 0, flushed = 0, sink = 0;
-    __m256i vint = _mm256_set1_epi32(interval);
+    __m256i vint = _mm256_set1_epi32((int)interval);
     __m256i vone = _mm256_set1_epi32(1);
     __m256i vpf_lo = _mm256_setzero_si256(), vpf_hi = vpf_lo, vshift = vpf_lo;
 
@@ -407,7 +407,7 @@ SIQS_FORCEINLINE void direct_resieve_update_avx2_body(static_conf_t* sconf,
         }
         vpf_lo = _mm256_load_si256((const __m256i*)pf_words);
         vpf_hi = _mm256_load_si256((const __m256i*)(pf_words + 8));
-        vshift = _mm256_set1_epi32(pf_shift);
+        vshift = _mm256_set1_epi32((int)pf_shift);
     }
 
     if (resieve && hitlist)
@@ -590,7 +590,7 @@ SIQS_FORCEINLINE void large_sieveblock_avx2_body(uint8_t* sieve, sieve_fb* fb,
     {
         int h;
         // approximate the next 16 logp's as equal to the largest
-        logp = fb->logp[i + 15];
+        logp = (uint8_t)fb->logp[i + 15];
 
         for (h = 0; h < 16; h += 8)
         {
@@ -644,7 +644,7 @@ SIQS_FORCEINLINE void large_sieveblock_avx2_body(uint8_t* sieve, sieve_fb* fb,
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         while (root2 < (uint32_t)(32768))
         {
@@ -702,7 +702,7 @@ SIQS_FORCEINLINE void tdiv_large_avx2_body(uint8_t parity, uint32_t poly_id, uin
         fb_offsets = &dconf->fb_offsets[report_num][0];
         smooth_num = dconf->smooth_num[report_num];
         block_loc = dconf->reports[report_num];
-        vbl = _mm256_set1_epi32(block_loc - 32768);
+        vbl = _mm256_set1_epi32((int)(block_loc - 32768));
 
         for (i = sconf->factor_base->med_B; (i + 16) <= bound; i += 16)
         {
@@ -731,7 +731,7 @@ SIQS_FORCEINLINE void tdiv_large_avx2_body(uint8_t parity, uint32_t poly_id, uin
             }
             else
             {
-                __m256i vidx = _mm256_add_epi32(_mm256_set1_epi32(i),
+                __m256i vidx = _mm256_add_epi32(_mm256_set1_epi32((int)i),
                     _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
                 nm = direct_cstore8(mbuf, nm, m[0], vidx);
                 nm = direct_cstore8(mbuf, nm, m[1], _mm256_add_epi32(vidx, _mm256_set1_epi32(8)));
@@ -795,7 +795,7 @@ void nextRoots_32k_lp_sparse_avx2(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t sparse_B = fb->fb_blk8i;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + med_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + med_B];
     uint32_t* fr1 = (uint32_t*)update_data.firstroots1;
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     uint32_t j, root1, root2, prime;

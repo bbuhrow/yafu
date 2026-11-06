@@ -162,7 +162,6 @@ void applyArg(char* arg, int argNum, options_t* options)
 // ========================================================================
 void applyOpt(char* opt, char* arg, options_t* options)
 {
-    int i;
     char** ptr = NULL;
 
     if (strcmp(opt, OptionArray[0]) == 0)
@@ -177,37 +176,37 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // siqsB
         enforce_numeric(arg, opt);
-        options->siqsB = strtoul(arg, ptr, 10);
+        options->siqsB = (uint32_t)strtoul(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[2]) == 0)
     {
         // siqsTF
         enforce_numeric(arg, opt);
-        options->siqsTF = strtoul(arg, ptr, 10);
+        options->siqsTF = (uint32_t)strtoul(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[3]) == 0)
     {
         // siqsR
         enforce_numeric(arg, opt);
-        options->siqsR = strtoul(arg, ptr, 10);
+        options->siqsR = (uint32_t)strtoul(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[4]) == 0)
     {
         // siqsT
         enforce_numeric(arg, opt);
-        options->siqsT = strtoul(arg, ptr, 10);
+        options->siqsT = (uint32_t)strtoul(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[5]) == 0)
     {
         // siqsNB
         enforce_numeric(arg, opt);
-        options->siqsNB = strtoul(arg, ptr, 10);
+        options->siqsNB = (uint32_t)strtoul(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[6]) == 0)
     {
         // siqsM
         enforce_numeric(arg, opt);
-        options->siqsM = strtoul(arg, ptr, 10);
+        options->siqsM = (uint32_t)strtoul(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[7]) == 0)
     {
@@ -243,7 +242,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // options->rand_seed = strtoull(arg, ptr, 10);
         printf("attempting to parse user rng seed from %s\n", arg);
         sscanf(arg, "%"PRIu64"", &options->rand_seed);
-        printf("read: % "PRIu64"\n", options->rand_seed);
+        printf("read: %" PRIu64 "\n", options->rand_seed);
     }
     else if (strcmp(opt, OptionArray[10]) == 0)
     {
@@ -261,7 +260,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[11]) == 0)
     {
         enforce_numeric(arg, opt);
-        options->threads = strtoul(arg, NULL, 10);
+        options->threads = (uint32_t)strtoul(arg, NULL, 10);
     }
     else if (strcmp(opt, OptionArray[12]) == 0)
     {
@@ -269,7 +268,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[13]) == 0)
     {
-        options->verbosity = -1;
+        options->verbosity = (uint32_t)-1;
     }
         else if (strcmp(opt, OptionArray[14]) == 0)
     {
@@ -286,13 +285,13 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[17]) == 0)
     {
         //argument "nprp"
-        options->num_prp_witnesses = strtoul(arg, NULL, 10);
+        options->num_prp_witnesses = (uint32_t)strtoul(arg, NULL, 10);
     }
     else if (strcmp(opt, OptionArray[18]) == 0)
     {
         // argument "aprcl_p", setting the threshold below which numbers
         // are proved prime using APR-CL
-        options->aprcl_p = strtoul(arg, NULL, 10);
+        options->aprcl_p = (uint32_t)strtoul(arg, NULL, 10);
         if (options->aprcl_p > 6021)
         {
             printf("APR-CL primality proving is possible only for numbers less"
@@ -304,17 +303,17 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "aprcl_d", setting the threshold above which numbers
         // that are proved prime using APR-CL have additional verbosity enabled
-        options->aprcl_d = strtoul(arg, NULL, 10);
+        options->aprcl_d = (uint32_t)strtoul(arg, NULL, 10);
     }
     else if (strcmp(opt, OptionArray[20]) == 0)			// NOTE: we skip -e because it is handled 
     {													// specially by process_flags
         //argument "repeat"
-        options->repeat = strtoul(arg, NULL, 10);
+        options->repeat = (uint32_t)strtoul(arg, NULL, 10);
     }
     else if (strcmp(opt, OptionArray[21]) == 0)
     {
         //argument "siqsTFSm"
-        options->siqsTFSm = atoi(arg);
+        options->siqsTFSm = (uint32_t)atoi(arg);
     }
     else if (strcmp(opt, OptionArray[22]) == 0)
     {
@@ -376,7 +375,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "siqsSPV"
         // the SPV small-prime bound: primes below this are not sieved
-        options->siqsSPV = strtoul(arg, NULL, 10);
+        options->siqsSPV = (uint32_t)strtoul(arg, NULL, 10);
     }
     else
     {
@@ -553,7 +552,8 @@ int processOpts(int argc, char** argv, options_t* options)
                 if (strncmp(options->LongOptionAliases[j], &argv[i][2], MAXOPTIONLEN) == 0)
                 {
                     valid = 1;
-                    strncpy(optbuf, options->OptionArray[j], MAXOPTIONLEN);
+                    strncpy(optbuf, options->OptionArray[j], MAXOPTIONLEN - 1);
+                    optbuf[MAXOPTIONLEN - 1] = '\0';
                     break;
                 }
             }
@@ -565,7 +565,8 @@ int processOpts(int argc, char** argv, options_t* options)
                 if (strncmp(options->OptionArray[j], &argv[i][1], MAXOPTIONLEN) == 0)
                 {
                     valid = 1;
-                    strncpy(optbuf, &argv[i][1], MAXOPTIONLEN);
+                    strncpy(optbuf, &argv[i][1], MAXOPTIONLEN - 1);
+                    optbuf[MAXOPTIONLEN - 1] = '\0';
                     break;
                 }
             }
@@ -587,7 +588,8 @@ int processOpts(int argc, char** argv, options_t* options)
                 printUsage(options);
                 exit(0);
             }
-            strncpy(argbuf, argv[i], MAXARGLEN);
+            strncpy(argbuf, argv[i], MAXARGLEN - 1);
+            argbuf[MAXARGLEN - 1] = '\0';
 
             //now apply -option argument
             applyOpt(optbuf, argbuf, options);
@@ -606,7 +608,8 @@ int processOpts(int argc, char** argv, options_t* options)
             {
                 i++;
                 // an option was supplied, pass it on
-                strncpy(argbuf, argv[i], MAXARGLEN);
+                strncpy(argbuf, argv[i], MAXARGLEN - 1);
+                argbuf[MAXARGLEN - 1] = '\0';
 
                 //now apply -option argument
                 applyOpt(optbuf, argbuf, options);
@@ -732,7 +735,7 @@ void readINI(const char* filename, options_t* options)
         //if last character of line is newline, remove it
         do
         {
-            len = strlen(str);
+            len = (int)strlen(str);
             if (str[len - 1] == 10)
                 str[len - 1] = '\0';
             else if (str[len - 1] == 13)

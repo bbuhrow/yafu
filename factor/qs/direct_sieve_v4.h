@@ -229,7 +229,7 @@ SIQS_FORCEINLINE void V4_FN(direct_resieve_update_body)(static_conf_t* sconf,
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + large_B];
     int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     const uint64_t* bitmap = pool->bitmap;
@@ -411,7 +411,7 @@ SIQS_FORCEINLINE void V4_FN(large_sieveblock_body)(uint8_t* sieve, sieve_fb* fb,
         v4t vtag;
 
         // approximate the next 16 logp's as equal to the largest
-        logp = fb->logp[i + 15];
+        logp = (uint8_t)fb->logp[i + 15];
         vtag = V4_SET1((uint32_t)logp << 24);
 
         for (h = 0; h < 16; h += 4)
@@ -465,7 +465,7 @@ SIQS_FORCEINLINE void V4_FN(large_sieveblock_body)(uint8_t* sieve, sieve_fb* fb,
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         while (root2 < (uint32_t)(32768))
         {
@@ -615,7 +615,7 @@ void V4_FN(nextRoots_32k_lp)(static_conf_t* sconf, dynamic_conf_t* dconf)
     uint32_t sparse_B = fb->fb_blk8i;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + med_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + med_B];
     uint32_t* fr1 = (uint32_t*)update_data.firstroots1;
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     uint32_t j, root1, root2, prime;

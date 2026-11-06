@@ -60,9 +60,9 @@ typedef struct
 		for (k=0;k<numblocks;k++)							\
 		{													\
 			if (*(numptr_p + k) > room)						\
-				room = *(numptr_p + k);						\
+				room = (int)(*(numptr_p + k));						\
 			if (*(numptr_n + k) > room)						\
-				room = *(numptr_n + k);						\
+				room = (int)(*(numptr_n + k));						\
 		}													\
 		room = BUCKET_ALLOC - room;							\
         /* if it is filled close to the allocation, start recording in a new set of buckets */ \
@@ -101,8 +101,8 @@ typedef struct
 		room = 0;											\
 		for (k = 0; k < numblocks; k++) { \
             for (p = 0; p < dconf->poly_batchsize; p++) { \
-                if (numptr_p[k + p * poly_offset] > room) { \
-                    room = numptr_p[k + p * poly_offset]; \
+                if (numptr_p[(uint32_t)k + (uint32_t)p * poly_offset] > room) { \
+                    room = (int)numptr_p[(uint32_t)k + (uint32_t)p * poly_offset]; \
                                                                 } } } \
 		room = BUCKET_ALLOC - room;							\
 		if (room < 32)										\
@@ -189,7 +189,7 @@ typedef struct
 				__m128i ptrs;	\
 				__m128i tmp1;	\
 				__m128i tmp2;	\
-				ptrs = _mm_load_si128((__m128i *)(&rootupdates[(v-1) * bound + j])); \
+				ptrs = _mm_load_si128((__m128i *)(&rootupdates[(uint32_t)(v-1) * bound + j])); \
 				root1s = _mm_load_si128((__m128i *)(update_data.firstroots1 + j)); \
 				root1s = _mm_sub_epi32(root1s, ptrs); 	 					/* root1 -= ptr */ \
 				root2s = _mm_load_si128((__m128i *)(update_data.firstroots2 + j)); \
@@ -215,7 +215,7 @@ typedef struct
 				__m128i ptrs;	\
 				__m128i tmp1;	\
 				__m128i tmp2;	\
-				ptrs = _mm_load_si128((__m128i *)(&rootupdates[(v-1) * bound + j])); \
+				ptrs = _mm_load_si128((__m128i *)(&rootupdates[(uint32_t)(v-1) * bound + j])); \
 				root1s = _mm_load_si128((__m128i *)(update_data.firstroots1 + j)); \
 				root1s = _mm_add_epi32(root1s, ptrs); 	 					/* root1 += ptr */ \
 				root2s = _mm_load_si128((__m128i *)(update_data.firstroots2 + j)); \
@@ -456,7 +456,7 @@ typedef struct
 			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
 			"movdqa %%xmm2, (%%rdx) \n\t"			/* save new root2 values */ \
 			: \
-			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "a"(&rootupdates[(uint32_t)(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 	#define COMPUTE_4_NROOTS(j)								\
@@ -478,7 +478,7 @@ typedef struct
 			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
 			"movdqa %%xmm2, (%%rdx) \n\t"			/* save new root2 values */ \
 			: \
-			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "a"(&rootupdates[(uint32_t)(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 
@@ -503,7 +503,7 @@ typedef struct
 			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
 			"movdqa %%xmm2, (%%edx) \n\t"			/* save new root2 values */ \
 			: \
-			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "a"(&rootupdates[(uint32_t)(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 	#define COMPUTE_4_NROOTS(j)								\
@@ -525,7 +525,7 @@ typedef struct
 			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
 			"movdqa %%xmm2, (%%edx) \n\t"			/* save new root2 values */ \
 			: \
-			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "a"(&rootupdates[(uint32_t)(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 #else
@@ -799,14 +799,14 @@ typedef struct
 #else
 
 	#define COMPUTE_NEXT_ROOTS_P		\
-		root1 = (int)root1 - *ptr;		\
-		root2 = (int)root2 - *ptr;		\
+		root1 = (uint32_t)((int)root1 - *ptr);		\
+		root2 = (uint32_t)((int)root2 - *ptr);		\
 		root1 += ((root1 >> 31) * prime);			\
 		root2 += ((root2 >> 31) * prime);	
 
 	#define COMPUTE_NEXT_ROOTS_N		\
-		root1 = (int)root1 + *ptr;		\
-		root2 = (int)root2 + *ptr;		\
+		root1 = (uint32_t)((int)root1 + *ptr);		\
+		root2 = (uint32_t)((int)root2 + *ptr);		\
 		root1 -= ((root1 >= prime) * prime);	\
 		root2 -= ((root2 >= prime) * prime);	
 
@@ -830,14 +830,14 @@ typedef struct
         }
 
 #define COMPUTE_NEXT_ROOTS_BATCH_P(i) \
-        root1 = (int)root1 - rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
-        root2 = (int)root2 - rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
+        root1 = (uint32_t)((int)root1 - rootupdates[(uint32_t)(nu[numB + i] - 1) * bound + j + (uint32_t)k]); \
+        root2 = (uint32_t)((int)root2 - rootupdates[(uint32_t)(nu[numB + i] - 1) * bound + j + (uint32_t)k]); \
         root1 += ((root1 >> 31) * prime); \
         root2 += ((root2 >> 31) * prime);
 
 #define COMPUTE_NEXT_ROOTS_BATCH_N(i) \
-        root1 = (int)root1 + rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
-        root2 = (int)root2 + rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
+        root1 = (uint32_t)((int)root1 + rootupdates[(uint32_t)(nu[numB + i] - 1) * bound + j + (uint32_t)k]); \
+        root2 = (uint32_t)((int)root2 + rootupdates[(uint32_t)(nu[numB + i] - 1) * bound + j + (uint32_t)k]); \
         root1 -= ((root1 >= prime) * prime); \
         root2 -= ((root2 >= prime) * prime); \
 

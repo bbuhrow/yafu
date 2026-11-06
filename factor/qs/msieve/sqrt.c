@@ -70,7 +70,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	siqs_r *relation;
 	uint32_t factor_found = 0;
 	int bits, bits_before;
-    int knmod8 = mpz_tdiv_ui(n, 8);
+    int knmod8 = (int)mpz_tdiv_ui(n, 8);
 
 	mpz_init(factor);
 	mpz_init(x);
@@ -85,7 +85,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	fb_counts = (uint32_t *)malloc(fb_size * sizeof(uint32_t));
 	mpz_set_ui(tmpn, multiplier);
 
-	bits = mpz_sizeinbase(n, 2);
+	bits = (int)mpz_sizeinbase(n, 2);
 
 	/* For each dependency */
 	for (mask = 1; mask; mask <<= 1) {
@@ -209,7 +209,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 		for (i = MIN_FB_OFFSET; i < fb_size; i++) {
 			uint32_t mask2 = 0x80000000;
 			uint32_t exponent = fb_counts[i] / 2;
-			uint32_t prime = factor_base->prime[i];
+			uint32_t fbprime = factor_base->prime[i];
 
 			
 			if (fb_counts[i] &0x1)
@@ -219,8 +219,8 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			if (exponent == 0)
 				continue;
 
-			mpz_set_ui(tmp, prime); 
-			mpz_set_ui(factor, prime);
+			mpz_set_ui(tmp, fbprime); 
+			mpz_set_ui(factor, fbprime);
 
 			while (!(exponent & mask2))
 				mask2 >>= 1;
@@ -251,7 +251,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			   before saving tmp, and don't save at all
 			   if tmp contains *only* multiplier factors */
 			if (multiplier > 1) {
-				uint32_t ignore_me = spGCD(multiplier,
+				uint32_t ignore_me = (uint32_t)spGCD(multiplier,
 						mpz_tdiv_ui(tmp, multiplier));
 				if (ignore_me > 1) {
 					mpz_tdiv_q_ui(tmp, tmp, ignore_me);
@@ -273,7 +273,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 
 			//add the factor to our global list
             bits_before = bits;
-			bits = yafu_factor_list_add(obj, factor_list, tmp);
+			bits = (int)yafu_factor_list_add(obj, factor_list, tmp);
 			factor_found++;
 
 			//check if only the multiplier remains
@@ -294,7 +294,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				//add it to our global factor list
 				//gmp_printf("remaining cofactor %Zd is prime\n", tmp2);
                 mpz_mul(tmpn, tmpn, tmp2);
-                bits = yafu_factor_list_add(obj, factor_list, tmp2);
+                bits = (int)yafu_factor_list_add(obj, factor_list, tmp2);
 
 				//then bail
 				break;
@@ -302,7 +302,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 
 			//divide out the multiplier from the remaining number
 			if (multiplier > 1) {
-				uint32_t ignore_me = spGCD(multiplier,
+				uint32_t ignore_me = (uint32_t)spGCD(multiplier,
                     mpz_tdiv_ui(tmp2, multiplier));
 				if (ignore_me > 1) {
                     mpz_tdiv_q_ui(tmp2, tmp2, ignore_me);
@@ -314,7 +314,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 						//gmp_printf("remaining cofactor %Zd is prime after"
                         //    " removing multiplier\n", tmp2);
                         mpz_mul(tmpn, tmpn, tmp2);
-                        bits = yafu_factor_list_add(obj, factor_list, tmp2);
+                        bits = (int)yafu_factor_list_add(obj, factor_list, tmp2);
 
 						//then bail
 						break;

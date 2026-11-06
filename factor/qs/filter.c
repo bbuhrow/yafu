@@ -129,7 +129,7 @@ uint32_t process_poly_a(static_conf_t *sconf)
 	}
 
 	// initialize a list of b-polys associated with the current a-poly.
-	sconf->curr_b = (mpz_t*)malloc(maxB * sizeof(mpz_t));
+	sconf->curr_b = (mpz_t*)malloc((size_t)maxB * sizeof(mpz_t));
 
 	// reallocate the size of the array
 	//sconf->curr_b = (mpz_t *)realloc(sconf->curr_b, maxB * sizeof(mpz_t));
@@ -139,7 +139,7 @@ uint32_t process_poly_a(static_conf_t *sconf)
     {
         mpz_init(sconf->curr_b[j]);
     }
-	sconf->bpoly_alloc = maxB;
+	sconf->bpoly_alloc = (uint32_t)maxB;
 
 	//generate all the b polys
 	//printf("generating %d b polys\n", maxB);
@@ -173,12 +173,12 @@ uint32_t process_poly_a(static_conf_t *sconf)
 	mpz_clear(dconf->gmptmp2);
 	free(dconf);
 
-	return maxB;
+	return (uint32_t)maxB;
 }
 
 int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 {
-	int j,k;
+	int k;
 	uint64_t r;
 
 	mpz_set(tmp, poly->mpz_poly_a);
@@ -204,7 +204,7 @@ int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 	{
 		if (NUM_ALP == 1)
 		{
-			poly->qlisort[poly->s] = mpz_get_ui(tmp);
+			poly->qlisort[poly->s] = (int)mpz_get_ui(tmp);
 			poly->s++;
 			mpz_tdiv_q_ui(tmp, tmp, mpz_get_ui(tmp));
 		}
@@ -232,7 +232,7 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 	for ( ; numB < maxB; numB++)
 	{
 		mpz_set(sconf->curr_b[numB - 1], dconf->curr_poly->mpz_poly_b);
-		dconf->numB = numB;
+		dconf->numB = (uint32_t)numB;
 		nextB(dconf, sconf, 0);
 	}
 
@@ -243,7 +243,8 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     static_conf_t *sconf, fact_obj_t *obj, 
     siqs_r *r_out, siqs_r *rel)
 {
-    int i, j, k, err_code = 0;
+    int i, j, k;
+    UNUSED_VAR int err_code = 0;
     mpz_t Q;
     mpz_init(Q);
 
@@ -291,7 +292,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
         uint32_t prime = sconf->factor_base->list->prime[i];
         while (mpz_tdiv_ui(Q, prime) == 0)
         {
-            r_out->fb_offsets[k++] = i;
+            r_out->fb_offsets[k++] = (uint32_t)i;
             mpz_tdiv_q_ui(Q, Q, prime);
         }
     }
@@ -312,13 +313,13 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
         }
         else if (rel->fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
             // add in the one factor that will always be there because a | Q.
-            r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            r_out->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
             prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
 
             // then test and add more if we can
             while (mpz_tdiv_ui(Q, prime) == 0)
             {
-                r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                r_out->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
                 mpz_tdiv_q_ui(Q, Q, prime);
             }
             j++;
@@ -330,12 +331,12 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
 			while (rel->fb_offsets[i] == sconf->curr_poly->qlisort[j])
 				i++;
             //r_out->fb_offsets[k] = rel->fb_offsets[i++];
-            r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            r_out->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
             prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
             //k += 2;
             while (mpz_tdiv_ui(Q, prime) == 0)
             {
-                r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                r_out->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
                 mpz_tdiv_q_ui(Q, Q, prime);
             }
             j++;
@@ -349,13 +350,13 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
 
     while (j < sconf->curr_poly->s)
     {
-        r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+        r_out->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
         uint32_t prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
 
         // then test and add more if we can
         while (mpz_tdiv_ui(Q, prime) == 0)
         {
-            r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            r_out->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
             mpz_tdiv_q_ui(Q, Q, prime);
         }
         j++;
@@ -367,14 +368,14 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     r_out->large_prime[2] = rel->large_prime[2];
 	r_out->large_prime[3] = rel->large_prime[3];
     r_out->parity = rel->parity;
-    r_out->num_factors = k;
+    r_out->num_factors = (uint32_t)k;
     r_out->poly_idx = rel->poly_idx;
     mpz_clear(Q);
 
     if (sconf->use_dlp >= 2)
     {
         if (!check_relation(sconf->curr_a,
-            sconf->curr_b[r_out->poly_idx], r_out, fb, n, obj->VFLAG, sconf->knmod8))
+            sconf->curr_b[r_out->poly_idx], r_out, fb, n, obj->VFLAG, (int)sconf->knmod8))
         {
             yafu_add_to_cyclesN(sconf, 0, r_out->large_prime);
         }
@@ -387,7 +388,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     else
     {
         if (!check_relation(sconf->curr_a,
-            sconf->curr_b[rel->poly_idx], r_out, fb, n, obj->VFLAG, sconf->knmod8))
+            sconf->curr_b[rel->poly_idx], r_out, fb, n, obj->VFLAG, (int)sconf->knmod8))
         {
             if (r_out->large_prime[0] != r_out->large_prime[1]) {
                 yafu_add_to_cycles(sconf, obj->flags, 
@@ -423,10 +424,10 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	//printf("processing rel: %s", substr);
 
     //read the offset
-    this_offset = strtoul(substr, &nextstr, 16);	//convert
+    this_offset = (uint32_t)strtoul(substr, &nextstr, 16);	//convert
     substr = nextstr;
 
-    this_id = strtoul(substr, &nextstr, 16);
+    this_id = (uint32_t)strtoul(substr, &nextstr, 16);
     substr = nextstr;
 
     if (this_offset & 0x80000000)
@@ -442,7 +443,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     j = 0;
     do
     {
-        this_val = strtoul(substr, &nextstr, 16);
+        this_val = (uint32_t)strtoul(substr, &nextstr, 16);
         if (this_val == (uint32_t)(-1))
         {
             printf("error parsing relation: strtoul returned error code\n");
@@ -452,20 +453,20 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
         fb_offsets[j] = this_val;
         j++;
     } while (substr[1] != 'L');
-    this_num_factors = j;
+    this_num_factors = (uint32_t)j;
 
     substr += 2;
-    this_val = strtoul(substr, &nextstr, 16);
+    this_val = (uint32_t)strtoul(substr, &nextstr, 16);
     substr = nextstr;
     lp[0] = this_val;
 
-    this_val = strtoul(substr, &nextstr, 16);
+    this_val = (uint32_t)strtoul(substr, &nextstr, 16);
     substr = nextstr;
     lp[1] = this_val;
 
     if (sconf->num_lp + NUM_ALP >= 3)
     {
-        this_val = strtoul(substr, &nextstr, 16);
+        this_val = (uint32_t)strtoul(substr, &nextstr, 16);
         substr = nextstr;
         lp[2] = this_val;
     }
@@ -476,7 +477,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 
 	if (sconf->num_lp + NUM_ALP >= 4)
 	{
-		this_val = strtoul(substr, &nextstr, 16);
+		this_val = (uint32_t)strtoul(substr, &nextstr, 16);
 		substr = nextstr;
 		lp[3] = this_val;
 	}
@@ -537,7 +538,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
         uint32_t prime = sconf->factor_base->list->prime[i];
         while (mpz_tdiv_ui(Q, prime) == 0)
         {
-            rel->fb_offsets[k++] = i;
+            rel->fb_offsets[k++] = (uint32_t)i;
             mpz_tdiv_q_ui(Q, Q, prime);
         }
     }
@@ -563,25 +564,25 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
         }
         else if (fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
             // add in the one factor that will always be there because a | Q
-            rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            rel->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
             prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
 
             // then test and add more if we can
             while (mpz_tdiv_ui(Q, prime) == 0)
             {
-                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                rel->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
                 mpz_tdiv_q_ui(Q, Q, prime);
             }
             j++;
         }
         else {
             rel->fb_offsets[k] = fb_offsets[i++];
-            rel->fb_offsets[k + 1] = sconf->curr_poly->qlisort[j];
+            rel->fb_offsets[k + 1] = (uint32_t)sconf->curr_poly->qlisort[j];
             prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
             k += 2;
             while (mpz_tdiv_ui(Q, prime) == 0)
             {
-                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                rel->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
                 mpz_tdiv_q_ui(Q, Q, prime);
             }
             j++;
@@ -593,13 +594,13 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 
     while (j < sconf->curr_poly->s - NUM_ALP)
     {
-        rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+        rel->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
         uint32_t prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
 
         // then test and add more if we can
         while (mpz_tdiv_ui(Q, prime) == 0)
         {
-            rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            rel->fb_offsets[k++] = (uint32_t)sconf->curr_poly->qlisort[j];
             mpz_tdiv_q_ui(Q, Q, prime);
         }
         j++;
@@ -607,7 +608,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 
 	//printf("adding relation to cycle table\n"); fflush(stdout);
 
-    this_num_factors = k;
+    this_num_factors = (uint32_t)k;
     mpz_clear(Q);
 
 	rel->sieve_offset = this_offset;
@@ -622,7 +623,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	if (sconf->num_lp + NUM_ALP >= 3)
 	{
 		if (!check_relation(sconf->curr_a,
-			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, sconf->knmod8))
+			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, (int)sconf->knmod8))
 		{
 			yafu_add_to_cyclesN(sconf, 0, lp);
 		}
@@ -637,7 +638,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	else
 	{
 		if (!check_relation(sconf->curr_a,
-			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, sconf->knmod8))
+			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, (int)sconf->knmod8))
 		{
 			if (lp[0] != lp[1]) {
 				yafu_add_to_cycles(sconf, obj->flags, lp[0], lp[1]);
@@ -660,20 +661,23 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 
 int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-	int i,j;
+	int num_apoly;
 	char *str, *substr;
 	FILE *data;
-	uint32_t lp[MAXLP], pmax = sconf->large_prime_max / sconf->large_mult;
+	uint32_t lp[MAXLP];
     fact_obj_t*fobj = sconf->obj;
 
 	str = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	data = fopen(sconf->obj->qs_obj.siqs_savefile,"r");
-	i=0;
-	j=0;
+	num_apoly=0;
 	
 	if (data != NULL)
 	{	
-		fgets(str,1024,data);
+		if (fgets(str,1024,data) == NULL)
+		{
+			// read failure ignored, as before (result checked only to
+			// satisfy warn_unused_result)
+		}
 		substr = str + 2;
 		mpz_set_str(dconf->gmptmp1, substr, 0);
 		// check against the input to SIQS, i.e., does not have a 
@@ -695,11 +699,9 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				qs_cycle_t *table = sconf->cycle_table;
 				uint32_t num_relations;
 				uint32_t i = 0, passes;
-				uint32_t curr_a_idx, curr_poly_idx, curr_rel;
-				uint32_t curr_expected, curr_saved, curr_cycle;
+				uint32_t curr_rel;
 				uint32_t all_relations;
 				uint32_t total_poly_a = 0;
-				uint32_t poly_saved;
 				uint32_t *plist0;
 				uint32_t *plist1;
 				uint32_t *plist2;
@@ -719,7 +721,10 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				while (!feof(data)) {
 					char *start;
 
-					fgets(str, 1024, data);
+					if (fgets(str, 1024, data) == NULL)
+					{
+						// read failure ignored, as before
+					}
 					substr = str + 2;
 
 					switch (str[0]) {
@@ -731,7 +736,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 						start = strchr(str, 'L');
 						if (start != NULL) {
 							uint32_t primes[MAXLP];
-							int numlp = yafu_read_Nlp(start, primes);
+							yafu_read_Nlp(start, primes);
 							if (i == curr_rel) {
 								curr_rel = 3 * curr_rel / 2;
 								relation_list = (siqs_r *)xrealloc(
@@ -773,7 +778,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				printf("read %u relations\n", i);
 				printf("building graph\n");
 
-				rebuild_graph3(sconf, relation_list, num_relations);
+				rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 				hashtable = sconf->cycle_hashtable;
 				table = sconf->cycle_table;
@@ -799,7 +804,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 					printf("building reduced graph\n");
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 					//printf("cycle table size = %u, edges = %u, vertices = %u, components = %u\n",
 					//	sconf->cycle_table_size, sconf->num_cycles,
@@ -823,19 +828,19 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
                     {
                         if (percent_complete < 0.2)
                         {
-                            sconf->check_inc = 0.025 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.025 * sconf->factor_base->B);
                         }
                         else if (percent_complete < 0.33)
                         {
-                            sconf->check_inc = 0.015 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.015 * sconf->factor_base->B);
                         }
                         else if (percent_complete < 0.5)
                         {
-                            sconf->check_inc = 0.01 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.01 * sconf->factor_base->B);
                         }
                         else
                         {
-                            sconf->check_inc = 0.005 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.005 * sconf->factor_base->B);
                         }
                     }
 
@@ -843,19 +848,19 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
                     {
                         if (percent_complete < 0.2)
                         {
-                            sconf->check_inc = 0.02 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.02 * sconf->factor_base->B);
                         }
                         else if (percent_complete < 0.33)
                         {
-                            sconf->check_inc = 0.01 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.01 * sconf->factor_base->B);
                         }
                         else if (percent_complete < 0.5)
                         {
-                            sconf->check_inc = 0.005 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.005 * sconf->factor_base->B);
                         }
                         else
                         {
-                            sconf->check_inc = 0.0025 * sconf->factor_base->B;
+                            sconf->check_inc = (uint32_t)(0.0025 * sconf->factor_base->B);
                         }
                     }
 
@@ -887,7 +892,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 					printf("rebuilding full graph\n");
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 				}
 				else
 				{
@@ -904,7 +909,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 					printf("rebuilding full graph\n");
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 					sconf->num_cycles = num_relations;
 				}
 
@@ -922,7 +927,10 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					//read a line
 					if (feof(data))
 						break;
-					fgets(str, 1024, data);
+					if (fgets(str, 1024, data) == NULL)
+					{
+						// read failure ignored, as before
+					}
 					substr = str + 2;
 
 					if (str[0] == 'R')
@@ -943,7 +951,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					}
 					else if (str[0] == 'A')
 					{
-						i++;
+						num_apoly++;
 					}
 				}
 
@@ -1085,7 +1093,7 @@ static uint32_t add_to_hashtable(qs_cycle_t *table, uint32_t *hashtable,
 			num_new_entries++;
 			default_table_entry++;
 
-			offset = entry - table;
+			offset = (uint32_t)(entry - table);
 			entry->data = offset;
 			(*components)++;
 			(*vertices)++;
@@ -1328,16 +1336,14 @@ qs_la_col_t * find_cycles(fact_obj_t*obj, uint32_t *hashtable, qs_cycle_t *table
 			   cycle this generates */
 
 			if (entry1->data == 0) {
-				entry1->data = entry2 - table;
+				entry1->data = (uint32_t)(entry2 - table);
 				entry1->count = start;
 			}
 			else if (entry2->data == 0) {
-				entry2->data = entry1 - table;
+				entry2->data = (uint32_t)(entry1 - table);
 				entry2->count = start;
 			}
 			else {
-				int j;
-
 				qs_la_col_t *c = cycle_list + curr_cycle;
 				c->cycle.list = NULL;
 				qs_enumerate_cycle(obj, c, table, entry1,
@@ -1478,7 +1484,7 @@ static uint32_t add_to_hashtable3(qs_cycle_t* table, uint32_t* hashtable,
 			num_new_entries++;
 			default_table_entry++;
 
-			offset = entry - table;
+			offset = (uint32_t)(entry - table);
 			entry->data = offset;
 			(*components)++;
 			(*vertices)++;
@@ -1681,7 +1687,7 @@ static uint32_t add_to_hashtableN(qs_cycle_t* table, uint32_t* hashtable,
 			num_new_entries++;
 			default_table_entry++;
 
-			offset = entry - table;
+			offset = (uint32_t)(entry - table);
 			entry->data = offset;
 			(*components)++;
 			(*vertices)++;
@@ -2025,7 +2031,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 {
 	// assume that we've kept a backup of all relation data, so feel free to modify it.
 	qs_la_col_t *cycle_list;
-	uint32_t i, j, k, start, curr_cycle;
+	uint32_t i, j, k, curr_cycle;
 	siqs_r *rtmp;
 	uint32_t *lp;
 	uint32_t *pbr_hashtable;
@@ -2590,15 +2596,17 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	qs_la_col_t *cycle_list;
 	siqs_r *relation_list;
 
-	uint32_t i, passes, start;
-	uint32_t curr_a_idx, curr_poly_idx, curr_rel; 
-	uint32_t curr_expected, curr_saved, curr_cycle; 
+	uint32_t i, passes;
+	uint32_t curr_a_idx, curr_rel; 
+	UNUSED_VAR uint32_t curr_poly_idx;
+	uint32_t curr_expected, curr_saved; 
 	uint32_t total_poly_a;
-	uint32_t poly_saved;
+	UNUSED_VAR uint32_t poly_saved;
 	uint32_t cycle_bins[NUM_CYCLE_BINS+1] = {0};
 	char buf[LINE_BUF_SIZE];
 	char *subbuf;
-	int first, last_poly;
+	UNUSED_VAR int first;
+	int last_poly;
 	uint32_t this_rel = 0;
     uint32_t progress;
 	// the initial list of b-polys should be empty.
@@ -2656,7 +2664,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 					if (sconf->num_lp + NUM_ALP >= 3)
 					{ 
 						uint32_t primes[MAXLP];
-						int numlp = yafu_read_Nlp(start, primes);
+						yafu_read_Nlp(start, primes);
 
 						relation_list[i].poly_idx = i;
 						relation_list[i].large_prime[0] = primes[0];
@@ -2728,13 +2736,13 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	// re-filtering
     if (sconf->charcount == 42)
     {
-        rebuild_graph(sconf, relation_list, num_relations);
+        rebuild_graph(sconf, relation_list, (int)num_relations);
     }
 
 	if (sconf->num_lp + NUM_ALP >= 3)
 	{
 		// tlp variation may not have built graph as it progressed... do it now.
-		rebuild_graph3(sconf, relation_list, num_relations);
+		rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 		num_relations = qs_purge_singletonsN(fobj, relation_list, num_relations,
 			sconf->num_lp + NUM_ALP, table, hashtable);
@@ -2873,7 +2881,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
                 //gmp_printf("New poly_a = %Zx, index %u of %u\n", 
                 //    sconf->poly_a_list[rel->apoly_idx],
                 //    rel->apoly_idx, sconf->total_poly_a);
-                last_poly = rel->apoly_idx;
+                last_poly = (int)rel->apoly_idx;
 				this_rel--;
 				mpz_set(sconf->curr_a, sconf->poly_a_list[rel->apoly_idx]);
                 curr_a_idx = rel->apoly_idx;
@@ -2981,7 +2989,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			{
                 r = relation_list + curr_saved;
 
-                char c = ' ';
+                UNUSED_VAR char c = ' ';
                 
                 if (rel->parity)
                     c = '-';
@@ -3065,7 +3073,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		sconf->cycle_table_size = 1;
 		memset(sconf->cycle_table, 0, sconf->cycle_table_alloc * sizeof(qs_cycle_t));
 
-		rebuild_graph3(sconf, relation_list, num_relations);
+		rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 		cycle_list = find_cycles3(fobj, sconf, relation_list,
 			num_relations, &num_cycles, &passes);
@@ -3080,7 +3088,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		sconf->components = 0;
 		sconf->cycle_table_size = 1;
 
-		rebuild_graph(sconf, relation_list, num_relations);
+		rebuild_graph(sconf, relation_list, (int)num_relations);
 
 		/* compute the number of cycles to expect. Note that
 		   this number includes cycles from both full and partial
@@ -3354,7 +3362,7 @@ void yafu_read_large_primes(char *buf, uint32_t *prime1, uint32_t *prime2) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf)) {
-		p1 = strtoul(buf, &next_field, 16);
+		p1 = (uint32_t)strtoul(buf, &next_field, 16);
 		buf = next_field;
 	}
 	else {
@@ -3364,7 +3372,7 @@ void yafu_read_large_primes(char *buf, uint32_t *prime1, uint32_t *prime2) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf))
-		p2 = strtoul(buf, &next_field, 16);
+		p2 = (uint32_t)strtoul(buf, &next_field, 16);
 	
 	if (p1 < p2) {
 		*prime1 = p1;
@@ -3395,7 +3403,7 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf)) {
-		p1 = strtoul(buf, &next_field, 16);
+		p1 = (uint32_t)strtoul(buf, &next_field, 16);
 		buf = next_field;
 	}
 	else {
@@ -3406,7 +3414,7 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf)) {
-		p2 = strtoul(buf, &next_field, 16);
+		p2 = (uint32_t)strtoul(buf, &next_field, 16);
 		buf = next_field;
 	}
 	else {
@@ -3417,7 +3425,7 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf))
-		p3 = strtoul(buf, &next_field, 16);
+		p3 = (uint32_t)strtoul(buf, &next_field, 16);
 
 	primes[0] = p1;
 	primes[1] = p2;
@@ -3429,7 +3437,6 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 int yafu_read_Nlp(char* buf, uint32_t* primes) {
 
 	char* next_field;
-	char* origbuf = buf;
 	uint32_t p[MAXLP];
 	int i;
 	int numlp = 0;
@@ -3458,7 +3465,7 @@ int yafu_read_Nlp(char* buf, uint32_t* primes) {
 		if (*buf == '\0')
 			break;
 		else if (isxdigit(*buf)) {
-			p[numlp] = strtoul(buf, &next_field, 16);
+			p[numlp] = (uint32_t)strtoul(buf, &next_field, 16);
 			buf = next_field;
 			numlp++;
 			//printf("p[%d] = %u, buf is now: %s\n", )
@@ -3861,5 +3868,5 @@ int yafu_sort_cycles(const void *x, const void *y) {
 	/* Callback for sorting a list of cycles by the
 	   number of relations each contains */
 
-	return xx->cycle.num_relations - yy->cycle.num_relations;
+	return (int)(xx->cycle.num_relations - yy->cycle.num_relations);
 }

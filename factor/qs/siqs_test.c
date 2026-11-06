@@ -35,13 +35,13 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 	mpz_init(Q);
 	mpz_init(RHS);
 
-	offset = r->sieve_offset;
+	offset = (int)r->sieve_offset;
 	lp[0] = r->large_prime[0];
 	lp[1] = r->large_prime[1];
 	lp[2] = r->large_prime[2];
 	lp[3] = r->large_prime[3];
-	parity = r->parity;
-	num_factors = r->num_factors;
+	parity = (int)r->parity;
+	num_factors = (int)r->num_factors;
 
 	mpz_set_ui(RHS, lp[0]);
 	mpz_mul_ui(RHS, RHS, lp[1]);
@@ -60,13 +60,13 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG,
 	if (knmod8 == 1)
 	{
 		// Q(x) = (2ax + b)^2 - N, where x is the sieve index
-		mpz_mul_ui(Q, a, offset);
+		mpz_mul_ui(Q, a, (unsigned long)offset);
 		mpz_mul_2exp(Q, Q, 1);
 	}
 	else
 	{
 		//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-		mpz_mul_ui(Q, a, offset);
+		mpz_mul_ui(Q, a, (unsigned long)offset);
 	}
 
 	if (parity)
@@ -264,7 +264,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 
 			// todo: need to define alternate routines if this isn't defined...
 			params = init_tinysiqs();
-			i = tinysiqs(params, fobj->qs_obj.gmp_n, f1, f2, f3, 0);
+			i = (int)tinysiqs(params, fobj->qs_obj.gmp_n, f1, f2, f3, 0);
 			params = free_tinysiqs(params);
 
 			for (j = 0; j < i; j++)
@@ -515,17 +515,17 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 	for (i = 0; i < s; i++)
 	{
 		if (i == (s - 1))
-			p = qli[i]; 
+			p = (int)qli[i]; 
 		else
-			p = fb->list->prime[qli[i]];
+			p = (int)(fb->list->prime[qli[i]]);
 
 		mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
 		mpz_mul(t1, t2, t2); //zSqr(&t2,&t1);
-		if (mpz_tdiv_ui(t1, p) % mpz_tdiv_ui(n, p) != 0)
+		if (mpz_tdiv_ui(t1, (unsigned long)p) % mpz_tdiv_ui(n, (unsigned long)p) != 0)
 		{
-			char* s = mpz_get_str(NULL, 10, Bl[i]);
-			printf("%s^2 mod %u != N mod %u\n", s, p, p);
-			free(s);
+			char* str = mpz_get_str(NULL, 10, Bl[i]);
+			printf("%s^2 mod %u != N mod %u\n", str, p, p);
+			free(str);
 		}
 
 		for (j = 0; j < s; j++)
@@ -536,16 +536,16 @@ int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s)
 			
 
 			if (j == (s - 1))
-				q = qli[j];
+				q = (int)qli[j];
 			else
-				q = fb->list->prime[qli[j]];
+				q = (int)(fb->list->prime[qli[j]]);
 
 			mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
-			if (mpz_tdiv_ui(t2, q) != 0)
+			if (mpz_tdiv_ui(t2, (unsigned long)q) != 0)
 			{
-				char* s = mpz_get_str(NULL, 10, Bl[i]);
-				printf("%s mod %u != 0\n", s, q);
-				free(s);
+				char* str = mpz_get_str(NULL, 10, Bl[i]);
+				printf("%s mod %u != 0\n", str, q);
+				free(str);
 			}
 		}
 	}
@@ -683,7 +683,7 @@ void siqsbench(fact_obj_t* fobj, info_t* comp_info, uint32_t digit_limit)
 	// Guards use the same USE_* / IFMA macros as the rest of the build so
 	// the string reflects what was actually compiled in.
 	simd_str[0] = '\0';
-	int simd_is_avx512 = 0;
+	UNUSED_VAR int simd_is_avx512 = 0;
 #ifdef IFMA
 	if (comp_info->AVX512IFMA) { strcat(simd_str, "AVX512IFMA"); simd_is_avx512 = 1; }
 	else
@@ -860,7 +860,7 @@ void siqsbench_old(fact_obj_t* fobj)
 	//run through the list of benchmark siqs factorizations
 
 	char list[10][200];
-	enum cpu_type cpu;
+	UNUSED_VAR enum cpu_type cpu;
 	FILE* log;
 	int i;
 
@@ -959,7 +959,7 @@ void get_dummy_params(int bits, uint32_t* B, uint32_t* M, uint32_t* NB)
 			{
 				scale = (double)(param_table[i + 1][0] - bits) /
 					(double)(param_table[i + 1][0] - param_table[i][0]);
-				*B = param_table[i + 1][1] -
+				*B = (uint32_t)param_table[i + 1][1] -
 					(uint32_t)(scale * (double)(param_table[i + 1][1] - param_table[i][1]));
 
 				*M = (uint32_t)((param_table[i + 1][2] + param_table[i][2]) / 2.0 + 0.5);
@@ -977,7 +977,7 @@ void get_dummy_params(int bits, uint32_t* B, uint32_t* M, uint32_t* NB)
 			(double)(param_table[21][0] - param_table[20][0]);
 		*B = (uint32_t)(((double)bits - param_table[21][0]) *
 			scale + param_table[21][1]);
-		*M = param_table[21][2];	//reuse last one
+		*M = (uint32_t)param_table[21][2];	//reuse last one
 
 		scale = (double)(param_table[21][3] - param_table[20][3]) /
 			(double)(param_table[21][0] - param_table[20][0]);
@@ -1064,16 +1064,16 @@ int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
 
 		int v;
 		int tmp;
-		int sign;
+		UNUSED_VAR int sign;
 		int j;
 
 		// next poly enumeration
 		v = 1;
-		j = Bnum;
+		j = (int)Bnum;
 
 		while ((j & 1) == 0)
 			v++, j >>= 1;
-		tmp = Bnum + (1 << v) - 1;
+		tmp = (int)(Bnum + (1 << v) - 1);
 		tmp = (tmp >> v);
 		if (tmp & 1)
 			sign = -1;
@@ -1116,14 +1116,14 @@ int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
 		// this one is close enough, compute 
 		// Q(x) = (2ax + b)^2 - N, where x is the sieve index
 		// Q(x)/4a = (ax + b)x + c;	
-		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, loc);
+		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, (unsigned long)loc);
 
 		if (parity)
 			mpz_sub(Q, dconf->gmptmp1, polyb);
 		else
 			mpz_add(Q, dconf->gmptmp1, polyb);
 
-		mpz_mul_ui(Q, Q, loc);
+		mpz_mul_ui(Q, Q, (unsigned long)loc);
 		mpz_add(Q, Q, polyc);
 
 		if (mpz_sgn(Q) < 0)
@@ -1137,14 +1137,14 @@ int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
 		// Q(x) = (ax + b)^2 - N, where x is the sieve index
 		// Q(x)/a = (ax + 2b)x + c;	
 		mpz_mul_2exp(dconf->gmptmp2, polyb, 1);
-		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, loc);
+		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, (unsigned long)loc);
 
 		if (parity)
 			mpz_sub(Q, dconf->gmptmp1, dconf->gmptmp2);
 		else
 			mpz_add(Q, dconf->gmptmp1, dconf->gmptmp2);
 
-		mpz_mul_ui(Q, Q, loc);
+		mpz_mul_ui(Q, Q, (unsigned long)loc);
 		mpz_add(Q, Q, polyc);
 
 		if (mpz_sgn(Q) < 0)
@@ -1154,14 +1154,14 @@ int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
 	}
 
 	// finally make sure prime divides this Q.
-	if (mpz_tdiv_ui(Q, prime) == 0)
+	if (mpz_tdiv_ui(Q, (unsigned long)prime) == 0)
 	{
 		//gmp_printf("pass: prime %d divides Q = %Zd at x = %d\n", prime, Q, loc);
 		result = 1;
 	}
 	else
 	{
-		for (i = sconf->factor_base->x2_large_B; i < sconf->factor_base->B; i++)
+		for (i = (int)sconf->factor_base->x2_large_B; i < sconf->factor_base->B; i++)
 		{
 			if (prime == sconf->factor_base->list->prime[i])
 				break;
@@ -1169,20 +1169,20 @@ int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
 
 		int pidx = i;
 
-		int root1 = sconf->modsqrt_array[pidx];
+		int root1 = (int)sconf->modsqrt_array[pidx];
 		int root2 = prime - root1;
-		int amodp = mpz_tdiv_ui(dconf->curr_poly->mpz_poly_a, prime);
-		int bmodp = mpz_tdiv_ui(polyb, prime);
+		int amodp = (int)mpz_tdiv_ui(dconf->curr_poly->mpz_poly_a, (unsigned long)prime);
+		int bmodp = (int)mpz_tdiv_ui(polyb, (unsigned long)prime);
 		int inv;
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		if (sconf->knmod8 == 1)
 		{
-			inv = modinv_1(2 * amodp, prime);
+			inv = (int)modinv_1(2 * (uint32_t)amodp, (uint32_t)prime);
 		}
 		else
 		{
-			inv = modinv_1(amodp, prime);
+			inv = (int)modinv_1((uint32_t)amodp, (uint32_t)prime);
 		}
 
 		root1 = (int)root1 - bmodp;
@@ -1190,24 +1190,24 @@ int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
 		if (root1 < 0) root1 += prime;
 		if (root2 < 0) root2 += prime;
 
-		root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
-		root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
+		root1 = (int)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+		root2 = (int)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
 
 		gmp_printf("fail: prime %d does not divide Q = %Zd at x = %d\n", prime, Q, loc);
 		gmp_printf("knmod8 = %d\nA = %Zd\nB = %Zd\nC = %Zd\nN = %Zd\n",
 			sconf->knmod8, dconf->curr_poly->mpz_poly_a, polyb, polyc, n);
 		printf("t = %d,%d; prime = %d\namodp = %d\nbmodp = %d\nainvp = %d\n",
-			sconf->modsqrt_array[pidx], prime - sconf->modsqrt_array[pidx],
+			sconf->modsqrt_array[pidx], (uint32_t)prime - sconf->modsqrt_array[pidx],
 			sconf->factor_base->list->prime[pidx], amodp, bmodp, inv);
 		printf("first roots = %d,%d (%d,%d)\n", dconf->update_data.firstroots1[pidx],
 			dconf->update_data.firstroots2[pidx], root1, root2);
 		gmp_printf("b1 = %Zd\nb2 = %Zd\n", polyb1, polyb2);
 
-		root1 = sconf->modsqrt_array[pidx];
+		root1 = (int)sconf->modsqrt_array[pidx];
 		root2 = prime - root1;
 
-		int bmodp1 = mpz_tdiv_ui(polyb1, prime);
-		int bmodp2 = mpz_tdiv_ui(polyb2, prime);
+		int bmodp1 = (int)mpz_tdiv_ui(polyb1, (unsigned long)prime);
+		int bmodp2 = (int)mpz_tdiv_ui(polyb2, (unsigned long)prime);
 
 		int r1 = (int)root1 - bmodp1;
 		int r2 = (int)root2 - bmodp1;

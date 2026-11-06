@@ -3,7 +3,7 @@
 #define FILL_ONE_PRIME_P(i)					\
 	if (root1 < interval)					\
 	{										\
-		bnum = root1 >> 15;			\
+		bnum = (int)(root1 >> 15);			\
 		bptr = sliceptr_p +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_p[bnum];					\
@@ -12,7 +12,7 @@
 	}										\
 	if (root2 < interval)					\
 	{										\
-		bnum = root2 >> 15;			\
+		bnum = (int)(root2 >> 15);			\
 		bptr = sliceptr_p +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_p[bnum];					\
@@ -23,7 +23,7 @@
 #define FILL_ONE_PRIME_N(i)						\
 	if (root1 < interval)						\
 	{											\
-		bnum = root1 >> 15;			\
+		bnum = (int)(root1 >> 15);			\
 		bptr = sliceptr_n +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_n[bnum];					\
@@ -32,7 +32,7 @@
 	}										\
 	if (root2 < interval)					\
 	{										\
-		bnum = root2 >> 15;			\
+		bnum = (int)(root2 >> 15);			\
 		bptr = sliceptr_n +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_n[bnum];					\
@@ -41,7 +41,7 @@
 	}			
 
 #define FILL_ONE_PRIME_LOOP_P(i)				\
-	bnum = root1 >> 15;					\
+	bnum = (int)(root1 >> 15);					\
 	while (bnum < numblocks)					\
 	{											\
 		bptr = sliceptr_p +						\
@@ -50,9 +50,9 @@
 		*bptr = (((i) - bound_val) << 16 | (root1 & 32767)); \
 		numptr_p[bnum]++;					\
 		root1 += prime;							\
-		bnum = root1 >> 15;				\
+		bnum = (int)(root1 >> 15);				\
 	}											\
-	bnum = root2 >> 15;					\
+	bnum = (int)(root2 >> 15);					\
 	while (bnum < numblocks)					\
 	{											\
 		bptr = sliceptr_p +						\
@@ -61,11 +61,11 @@
 		*bptr = (((i) - bound_val) << 16 | (root2 & 32767)); \
 		numptr_p[bnum]++;					\
 		root2 += prime;							\
-		bnum = root2 >> 15;				\
+		bnum = (int)(root2 >> 15);				\
 	} 
 
 #define FILL_ONE_PRIME_LOOP_N(i)				\
-	bnum = nroot1 >> 15;					\
+	bnum = (int)(nroot1 >> 15);					\
 	while (bnum < numblocks)					\
 	{											\
 		bptr = sliceptr_n +						\
@@ -74,9 +74,9 @@
 		*bptr = (((i) - bound_val) << 16 | (nroot1 & 32767)); \
 		numptr_n[bnum]++;					\
 		nroot1 += prime;							\
-		bnum = nroot1 >> 15;				\
+		bnum = (int)(nroot1 >> 15);				\
 	}											\
-	bnum = nroot2 >> 15;					\
+	bnum = (int)(nroot2 >> 15);					\
 	while (bnum < numblocks)					\
 	{											\
 		bptr = sliceptr_n +						\
@@ -85,59 +85,59 @@
 		*bptr = (((i) - bound_val) << 16 | (nroot2 & 32767)); \
 		numptr_n[bnum]++;					\
 		nroot2 += prime;							\
-		bnum = nroot2 >> 15;				\
+		bnum = (int)(nroot2 >> 15);				\
 	} 
 
 #define FILL_ONE_PRIME_LOOP_P_BATCH(p, j)				\
-    bnum = root1 >> 15; \
+    bnum = (int)(root1 >> 15); \
         while (bnum < numblocks) { \
         bptr = sliceptr_p + (bnum << BUCKET_BITS) + \
             p * poly_offset * BUCKET_ALLOC + numptr_p[bnum + p * poly_offset]; \
         *bptr = ((j - bound_val) << 16 | (root1 & 32767)); \
         numptr_p[bnum + p * poly_offset]++; \
         root1 += prime; \
-        bnum = root1 >> 15; \
+        bnum = (int)(root1 >> 15); \
             } \
-    bnum = root2 >> 15; \
+    bnum = (int)(root2 >> 15); \
         while (bnum < numblocks) { \
         bptr = sliceptr_p + (bnum << BUCKET_BITS) + \
             p * poly_offset * BUCKET_ALLOC + numptr_p[bnum + p * poly_offset]; \
         *bptr = ((j - bound_val) << 16 | (root2 & 32767)); \
         numptr_p[bnum + p * poly_offset]++; \
         root2 += prime; \
-        bnum = root2 >> 15; \
+        bnum = (int)(root2 >> 15); \
             }
 
 #define FILL_ONE_PRIME_LOOP_N_BATCH(p, j)				\
-    bnum = root1 >> 15; \
+    bnum = (int)(root1 >> 15); \
     while (bnum < numblocks) { \
         bptr = sliceptr_n + (bnum << BUCKET_BITS) + \
             p * poly_offset * BUCKET_ALLOC + numptr_n[bnum + p * poly_offset]; \
         *bptr = ((j - bound_val) << 16 | (root1 & 32767)); \
         numptr_n[bnum + p * poly_offset]++; \
         root1 += prime; \
-        bnum = root1 >> 15; \
+        bnum = (int)(root1 >> 15); \
     } \
-    bnum = root2 >> 15; \
+    bnum = (int)(root2 >> 15); \
     while (bnum < numblocks) { \
         bptr = sliceptr_n + (bnum << BUCKET_BITS) + \
             p * poly_offset * BUCKET_ALLOC + numptr_n[bnum + p * poly_offset]; \
         *bptr = ((j - bound_val) << 16 | (root2 & 32767)); \
         numptr_n[bnum + p * poly_offset]++; \
         root2 += prime; \
-        bnum = root2 >> 15; \
+        bnum = (int)(root2 >> 15); \
     }
 
 #define FILL_ONE_PRIME_P_BATCH(p, j)				\
     if (root1 < interval) { \
-        bnum = root1 >> 15; \
+        bnum = (int)(root1 >> 15); \
         bptr = sliceptr_p + (bnum << BUCKET_BITS) + \
             p * poly_offset * BUCKET_ALLOC + numptr_p[bnum + p * poly_offset]; \
         *bptr = ((j - bound_val) << 16 | (root1 & 32767)); \
         numptr_p[bnum + p * poly_offset]++; \
         } \
     if (root2 < interval) { \
-        bnum = root2 >> 15; \
+        bnum = (int)(root2 >> 15); \
         bptr = sliceptr_p + (bnum << BUCKET_BITS) + \
             p * poly_offset * BUCKET_ALLOC + numptr_p[bnum + p * poly_offset]; \
         *bptr = ((j - bound_val) << 16 | (root2 & 32767)); \

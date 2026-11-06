@@ -42,7 +42,7 @@ SIQS_FORCEINLINE uint32_t direct_cstore16(uint32_t* buf, uint32_t n, __mmask16 m
         _mm512_storeu_si512((__m512i*)(buf + n), _mm512_maskz_compress_epi32(m, v));
     else
         _mm512_mask_compressstoreu_epi32(buf + n, m, v);
-    return n + _mm_popcnt_u32(m);
+    return n + (uint32_t)_mm_popcnt_u32(m);
 }
 
 // append the in-range lanes of 16 primes' 4 root vectors to buf[n...] as
@@ -52,7 +52,7 @@ SIQS_FORCEINLINE uint32_t direct_compress16(uint32_t* buf, uint32_t n, uint32_t 
     __m512i vroot1, __m512i vroot2, __m512i vnroot1, __m512i vnroot2, uint8_t logp,
     const int kmode)
 {
-    __m512i vint = _mm512_set1_epi32(interval);
+    __m512i vint = _mm512_set1_epi32((int)interval);
     __m512i vtag = _mm512_set1_epi32((uint32_t)logp << 24);
     __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
     __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
@@ -83,8 +83,8 @@ SIQS_FORCEINLINE void direct_sink_scatter16(uint8_t* sieve, uint32_t interval,
     ALIGNED_MEM uint32_t idx[64];
     const __m512i vlane = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7,
         8, 9, 10, 11, 12, 13, 14, 15);
-    __m512i vint = _mm512_set1_epi32(interval);
-    __m512i vs = _mm512_add_epi32(_mm512_set1_epi32(2 * interval + 32768 + *sink), vlane);
+    __m512i vint = _mm512_set1_epi32((int)interval);
+    __m512i vs = _mm512_add_epi32(_mm512_set1_epi32((int)(2 * interval + 32768 + *sink)), vlane);
     __m512i v16 = _mm512_set1_epi32(16);
     __mmask16 m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
     __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
@@ -196,7 +196,7 @@ SIQS_FORCEINLINE void direct_scatter16(uint8_t* sieve, uint32_t interval,
         ALIGNED_MEM uint32_t n_1[16];
         ALIGNED_MEM uint32_t n_2[16];
         uint8_t* sieven = sieve + interval;
-        __m512i vint = _mm512_set1_epi32(interval);
+        __m512i vint = _mm512_set1_epi32((int)interval);
         uint32_t m1 = _mm512_cmplt_epu32_mask(vroot1, vint);
         uint32_t m2 = _mm512_cmplt_epu32_mask(vroot2, vint);
         uint32_t m3 = _mm512_cmplt_epu32_mask(vnroot1, vint);
@@ -342,7 +342,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
     uint32_t* fr2 = (uint32_t*)update_data.firstroots2;
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
-    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(v - 1) * bound + large_B];
+    uint32_t* ptr = (uint32_t*)&dconf->rootupdates[(uint32_t)(v - 1) * bound + large_B];
     int resieve = (pool->active > 0);
     uint8_t* sieven = (sieve == NULL) ? NULL : sieve + interval;
     uint32_t j;
@@ -354,8 +354,8 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
     ALIGNED_MEM uint32_t n_2[16];
     ALIGNED_MEM uint32_t p_16[16];
 
-    __m512i vint = _mm512_set1_epi32(interval);
-    __m512i vint2 = _mm512_set1_epi32(2 * interval);
+    __m512i vint = _mm512_set1_epi32((int)interval);
+    __m512i vint2 = _mm512_set1_epi32((int)(2 * interval));
     __m512i vzero = _mm512_setzero_si512();
     __m512i vone = _mm512_set1_epi32(1);
     __m512i v31 = _mm512_set1_epi32(31);
@@ -410,7 +410,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
         }
         vpf_lo = _mm512_load_si512(pf_words);
         vpf_hi = _mm512_load_si512(pf_words + 16);
-        vpf_shift = _mm512_set1_epi32(pf_shift);
+        vpf_shift = _mm512_set1_epi32((int)pf_shift);
     }
 #endif
 
@@ -480,7 +480,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
                 {
                     for (k = 0; k < nsp; k++)
                     {
-                        __m512i vs = _mm512_set1_epi32(pool->pos[k]);
+                        __m512i vs = _mm512_set1_epi32((int)pool->pos[k]);
                         c1 |= _mm512_mask_cmpeq_epu32_mask(m1, vroot1, vs);
                         c2 |= _mm512_mask_cmpeq_epu32_mask(m2, vroot2, vs);
                     }
@@ -489,7 +489,7 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
                 {
                     for (k = nsp; k < pool->num; k++)
                     {
-                        __m512i vs = _mm512_set1_epi32(pool->pos[k]);
+                        __m512i vs = _mm512_set1_epi32((int)pool->pos[k]);
                         c3 |= _mm512_mask_cmpeq_epu32_mask(m3, vnpos1, vs);
                         c4 |= _mm512_mask_cmpeq_epu32_mask(m4, vnpos2, vs);
                     }
@@ -524,23 +524,23 @@ SIQS_FORCEINLINE void direct_resieve_update_body(static_conf_t* sconf, dynamic_c
 
                 while (m1 > 0) {
                     pos = _trail_zcnt(m1);
-                    direct_resieve_hit(pool, r_1[pos], j + pos, p_16[pos]);
-                    m1 = _reset_lsb(m1);
+                    direct_resieve_hit(pool, r_1[pos], j + (uint32_t)pos, p_16[pos]);
+                    m1 = (__mmask16)_reset_lsb(m1);
                 }
                 while (m2 > 0) {
                     pos = _trail_zcnt(m2);
-                    direct_resieve_hit(pool, r_2[pos], j + pos, p_16[pos]);
-                    m2 = _reset_lsb(m2);
+                    direct_resieve_hit(pool, r_2[pos], j + (uint32_t)pos, p_16[pos]);
+                    m2 = (__mmask16)_reset_lsb(m2);
                 }
                 while (m3 > 0) {
                     pos = _trail_zcnt(m3);
-                    direct_resieve_hit(pool, n_1[pos], j + pos, p_16[pos]);
-                    m3 = _reset_lsb(m3);
+                    direct_resieve_hit(pool, n_1[pos], j + (uint32_t)pos, p_16[pos]);
+                    m3 = (__mmask16)_reset_lsb(m3);
                 }
                 while (m4 > 0) {
                     pos = _trail_zcnt(m4);
-                    direct_resieve_hit(pool, n_2[pos], j + pos, p_16[pos]);
-                    m4 = _reset_lsb(m4);
+                    direct_resieve_hit(pool, n_2[pos], j + (uint32_t)pos, p_16[pos]);
+                    m4 = (__mmask16)_reset_lsb(m4);
                 }
             }
 
@@ -701,7 +701,7 @@ SIQS_FORCEINLINE void large_sieveblock_body(uint8_t* sieve, sieve_fb* fb, fb_lis
             vroot1 = _mm512_load_si512(fb->root1 + i);
             vroot2 = _mm512_load_si512(fb->root2 + i);
             // approximate the next 16 logp's as equal to the largest
-            logp = fb->logp[i + 15];
+            logp = (uint8_t)fb->logp[i + 15];
 
             // roots will be increasingly less likely to land in a block
             // as their stride increases, but we should get several to
@@ -711,8 +711,8 @@ SIQS_FORCEINLINE void large_sieveblock_body(uint8_t* sieve, sieve_fb* fb, fb_lis
 
             while (msk_2 > 0) {
                 pos = _trail_zcnt(msk_2);
-                sieve[fb->root1[i + pos]] -= logp;
-                sieve[fb->root2[i + pos]] -= logp;
+                sieve[fb->root1[i + (uint32_t)pos]] -= logp;
+                sieve[fb->root2[i + (uint32_t)pos]] -= logp;
                 msk_2 = _reset_lsb(msk_2);
             }
 
@@ -728,7 +728,7 @@ SIQS_FORCEINLINE void large_sieveblock_body(uint8_t* sieve, sieve_fb* fb, fb_lis
 
             while (msk_2 > 0) {
                 pos = _trail_zcnt(msk_2);
-                sieve[fb->root1[i + pos]] -= logp;
+                sieve[fb->root1[i + (uint32_t)pos]] -= logp;
                 msk_2 = _reset_lsb(msk_2);
             }
 
@@ -756,7 +756,7 @@ SIQS_FORCEINLINE void large_sieveblock_body(uint8_t* sieve, sieve_fb* fb, fb_lis
             __mmask16 m2 = _mm512_cmplt_epu32_mask(vroot2, vblock);
 
             // approximate the next 16 logp's as equal to the largest
-            vtag = _mm512_set1_epi32((uint32_t)fb->logp[i + 15] << 24);
+            vtag = _mm512_set1_epi32((int)((uint32_t)fb->logp[i + 15] << 24));
             nc = direct_cstore16(cbuf, nc, m1, _mm512_or_epi32(vroot1, vtag), kmode);
             nc = direct_cstore16(cbuf, nc, m2, _mm512_or_epi32(vroot2, vtag), kmode);
 
@@ -789,7 +789,7 @@ SIQS_FORCEINLINE void large_sieveblock_body(uint8_t* sieve, sieve_fb* fb, fb_lis
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
-        logp = fb->logp[i];
+        logp = (uint8_t)fb->logp[i];
 
         while (root2 < (uint32_t)(32768))
         {
@@ -874,7 +874,7 @@ SIQS_FORCEINLINE void tdiv_large_body(uint8_t parity, uint32_t poly_id, uint32_t
         smooth_num = dconf->smooth_num[report_num];
         block_loc = dconf->reports[report_num];
 
-        __m512i vblockloc = _mm512_set1_epi32(block_loc - 32768);
+        __m512i vblockloc = _mm512_set1_epi32((int)(block_loc - 32768));
 
         if (kmode == SIQS_K_BITLOOP)
         {
@@ -895,14 +895,14 @@ SIQS_FORCEINLINE void tdiv_large_body(uint8_t parity, uint32_t poly_id, uint32_t
 
                 while (msk_2 > 0) {
                     pos = _trail_zcnt(msk_2);
-                    DIVIDE_RESIEVED_PRIME(pos);
+                    DIVIDE_RESIEVED_PRIME((uint32_t)pos);
                     msk_2 = _reset_lsb(msk_2);
                 }
             }
         }
         else
         {
-            __m512i vidx = _mm512_add_epi32(_mm512_set1_epi32(sconf->factor_base->med_B),
+            __m512i vidx = _mm512_add_epi32(_mm512_set1_epi32((int)sconf->factor_base->med_B),
                 _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15));
             __m512i v16 = _mm512_set1_epi32(16);
             // fb indices of the matching primes, in ascending order;

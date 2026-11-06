@@ -140,7 +140,8 @@ endif
 GMP_INCDIR := $(abspath $(GMP_INCDIR))
 GMP_LIBDIR := $(abspath $(GMP_LIBDIR))
 
-GMP_INC   := -I$(GMP_INCDIR)
+# -isystem: keep warnings from inline code in gmp.h/ecm.h out of our builds
+GMP_INC   := -isystem $(GMP_INCDIR)
 GMP_LPATH := $(if $(GMP_LIBDIR),-L$(GMP_LIBDIR))
 
 
@@ -164,7 +165,7 @@ endif
  
 ifneq (,$(wildcard $(ECM_INCDIR)/ecm.h))
     HAVE_ECM_LIB := 1
-    ECM_INC      := -I$(ECM_INCDIR)
+    ECM_INC      := -isystem $(ECM_INCDIR)
     ECM_LPATH    := $(if $(ECM_LIBDIR),-L$(ECM_LIBDIR))
 else
     HAVE_ECM_LIB :=

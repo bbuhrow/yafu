@@ -113,11 +113,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 		*s = 3;
 		while (1)
 		{
-			int k3 = lo, hi3 = hi;
+			int k3 = (int)lo, hi3 = (int)hi;
 
 			// pick two unique factors randomly
-			qli[0] = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
-			qli[1] = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+			qli[0] = (int)(lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX));
+			qli[1] = (int)(lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX));
 			if (qli[0] == qli[1])
 				continue;
 
@@ -136,12 +136,12 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 				else
 					hi3 = mid;
 			}
-			id = k3;
+			id = (uint32_t)k3;
 
 			if ((id == (uint32_t)qli[0]) || (id == (uint32_t)qli[1]))
 				continue;
 
-			qli[2] = id;
+			qli[2] = (int)id;
 			mpz_mul_ui(poly_a, poly_a, fb->list->prime[id]);
 
 			// a must be no more than twice the target
@@ -166,7 +166,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 
 		id = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
 		mpz_set_ui(poly_a, fb->list->prime[id]);
-		qli[0] = id;
+		qli[0] = (int)id;
 
 		j=1;
 		while (mpz_cmp(poly_a,target_a) < 0)
@@ -188,7 +188,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 				continue;
 
 			mpz_mul_ui(poly_a, poly_a, fb->list->prime[id]); 
-			qli[j++] = id;
+			qli[j++] = (int)id;
 		}
 
 		*s = j;
@@ -270,10 +270,10 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 			printf("afactor %d = %u\n",*s,potential_a_factor);
 #endif
 			afact[*s]=potential_a_factor;
-			qli[*s] = randindex;
+			qli[*s] = (int)randindex;
 			*s = *s + 1;
 			// compute how close we are to target_a
-			j = mpz_sizeinbase(target_a, 2) - mpz_sizeinbase(poly_a, 2);
+			j = (int)(mpz_sizeinbase(target_a, 2) - mpz_sizeinbase(poly_a, 2));
 			if (j < too_close)
 			{
 				// too close, we want the last factor to be between 15 and 10 bits
@@ -299,7 +299,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 		mpz_tdiv_q(tmp2, tmp, poly_a);
 
 		mindiff = 0xffffffff;
-		a1 = mpz_get_ui(tmp2);
+		a1 = (uint32_t)mpz_get_ui(tmp2);
 		if (a1 < min_ratio)
 		{
 #ifdef POLYA_DEBUG
@@ -311,9 +311,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
 		randindex = 0;
 		for (i=0;i<fb->small_B;i++)
 		{
-            if ((uint32_t)abs(a1 - fb->list->prime[i]) < mindiff)
+            if ((uint32_t)abs((int)(a1 - fb->list->prime[i])) < mindiff)
             {
-                mindiff = abs(a1 - fb->list->prime[i]);
+                mindiff = (uint32_t)abs((int)(a1 - fb->list->prime[i]));
                 randindex = i;
             }
 		}
@@ -354,7 +354,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf, int gen_and_test_on
         printf("checking for duplicate and size requirements...\n");
 #endif
 		afact[*s] = fb->list->prime[randindex];
-		qli[*s] = randindex;
+		qli[*s] = (int)randindex;
 		*s = *s + 1;
 
 		// check if 'close enough'
@@ -462,14 +462,14 @@ done:
 
 		mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
 		mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
-		poly->index = sconf->total_poly_a;
+		poly->index = (int)sconf->total_poly_a;
 		sconf->total_poly_a++;
 
 		// sort the indices of factors of 'a'
-		qsort(poly->qlisort, poly->s, sizeof(int), &qcomp_int);
+		qsort(poly->qlisort, (size_t)poly->s, sizeof(int), &qcomp_int);
 
 		// fill the remaining indices with foxes
-		memset(&poly->qlisort[poly->s], 255, (MAX_A_FACTORS - poly->s) * sizeof(int));
+		memset(&poly->qlisort[poly->s], 255, (size_t)(MAX_A_FACTORS - poly->s) * sizeof(int));
 	}
 
     if (VFLAG > 2)
@@ -531,11 +531,11 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 	mpz_t tmp, tmp2, tmp3;
 	mpz_ptr poly_a = poly->mpz_poly_a;
 	int j, * qli = poly->qlisort, * s = &poly->s;
-	uint32_t i, randindex = 0, mindiff, a1, poly_low_found = 0, target_bits;
+	uint32_t i, randindex = 0, mindiff, poly_low_found = 0, target_bits;
 	uint32_t potential_a_factor = 0, found_a_factor;
 	uint32_t afact[20];
 	double target_mul = 0.92; // 2;	// note: smaller values harder to achieve
-	int too_close, min_ratio, close_range;
+	UNUSED_VAR int too_close, min_ratio, close_range;
 	FILE* sieve_log = sconf->obj->logfile;
 	uint32_t upper_polypool_index, lower_polypool_index;
 	int VFLAG = sconf->obj->VFLAG;
@@ -566,7 +566,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 
 		// the difference with this version is we want the last element to be
 		// drawn from primes > FB_max
-		too_close = spBits(sconf->pmax);
+		too_close = (int)spBits(sconf->pmax);
 		close_range = 5;
 		min_ratio = 1000;
 	}
@@ -610,10 +610,10 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 			printf("afactor %d = %u\n", *s, potential_a_factor);
 #endif
 			afact[*s] = potential_a_factor;
-			qli[*s] = randindex;
+			qli[*s] = (int)randindex;
 			*s = *s + 1;
 			// compute how close we are to target_a
-			j = mpz_sizeinbase(target_a, 2) - mpz_sizeinbase(poly_a, 2);
+			j = (int)(mpz_sizeinbase(target_a, 2) - mpz_sizeinbase(poly_a, 2));
 			if (j < too_close)
 			{
 #ifdef POLYA_DEBUG
@@ -644,8 +644,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 		mpz_tdiv_q(tmp2, target_a, poly_a);
 
 		mindiff = 0xffffffff;
-		uint32_t startdiff = 1000;
-		int diff = mpz_sizeinbase(tmp2, 2) - spBits(sconf->pmax);
+		int diff = (int)(mpz_sizeinbase(tmp2, 2) - spBits(sconf->pmax));
 		// we want this factor to be as close as possible to but larger than pmax.  
 		// if it is too large now, adjust factors we currently have to be larger
 		// so that our target size for the last factor is smaller.
@@ -699,7 +698,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 			k++;
 
 			mpz_tdiv_q(tmp2, target_a, poly_a);
-			diff = mpz_sizeinbase(tmp2, 2) - spBits(sconf->pmax);
+			diff = (int)(mpz_sizeinbase(tmp2, 2) - spBits(sconf->pmax));
 		}
 
 		if (diff > 1)
@@ -731,12 +730,12 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 			// test minimum difference to target
 			mpz_mul(tmp, poly_a, tmp2);
 			mpz_sub(tmp, target_a, tmp);
-			diff = mpz_get_ui(tmp);
+			diff = (int)mpz_get_ui(tmp);
 
 			if (diff < mindiff)
 			{
-				mindiff = diff;
-				randindex = mpz_get_ui(tmp2);
+				mindiff = (uint32_t)diff;
+				randindex = (uint32_t)mpz_get_ui(tmp2);
 			}
 
 			if (diff > 1000) break;
@@ -756,7 +755,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 		printf("checking for duplicate and size requirements...\n");
 #endif
 		afact[*s] = randindex;
-		qli[*s] = randindex;
+		qli[*s] = (int)randindex;
 		*s = *s + 1;
 
 		// check if 'close enough'
@@ -817,7 +816,6 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 #endif
 	}
 
-done:
 
 
 	if (gen_and_test_only == 1)
@@ -867,14 +865,14 @@ done:
 
 		mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
 		mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
-		poly->index = sconf->total_poly_a;
+		poly->index = (int)sconf->total_poly_a;
 		sconf->total_poly_a++;
 
 		// sort the indices of factors of 'a'
-		qsort(poly->qlisort, poly->s, sizeof(int), &qcomp_int);
+		qsort(poly->qlisort, (size_t)poly->s, sizeof(int), &qcomp_int);
 
 		// fill the remaining indices with foxes
-		memset(&poly->qlisort[poly->s], 255, (MAX_A_FACTORS - poly->s) * sizeof(int));
+		memset(&poly->qlisort[poly->s], 255, (size_t)(MAX_A_FACTORS - poly->s) * sizeof(int));
 	}
 
 	if (VFLAG > 2)
@@ -892,7 +890,7 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 	// notation of polynomials, here and elsewhere, generally follows
 	// contini's notation
 
-	uint32_t root1, root2, prime, gamma;
+	UNUSED_VAR uint32_t root1, root2, prime, gamma;
 	uint32_t amodql;	//(a/ql)^-1 mod ql = inv(a/ql mod ql) mod ql
 	siqs_poly *poly = dconf->curr_poly;
 	uint32_t *modsqrt = sconf->modsqrt_array;
@@ -908,9 +906,9 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 		if ((i == (s - 1)) && (NUM_ALP == 1) && (dconf->num_alp == 1))
 		{
 			uint64_t tmp64;
-			prime = qli[i];
+			prime = (uint32_t)qli[i];
 			ShanksTonelli_1(mpz_tdiv_ui(sconf->n, prime), prime, &tmp64);
-			root1 = tmp64;
+			root1 = (uint32_t)tmp64;
 			if (prime < sconf->pmax)
 			{
 				printf("error: last qli entry is not the special ALP\n");

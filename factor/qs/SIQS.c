@@ -199,7 +199,7 @@ void siqs_start(void *vptr)
     udata->num_found = static_conf->num_r;
     static_conf->total_poly_a = 0;
     udata->num_meas = 0;
-    udata->orig_value = static_conf->tf_small_cutoff;
+    udata->orig_value = (int)static_conf->tf_small_cutoff;
 
     return;
 }
@@ -285,12 +285,12 @@ void siqs_sync(void *vptr)
                     if (udata->num_meas == 0)
                     {
                         udata->results[0] = meas_result;
-                        static_conf->tf_small_cutoff = orig_value + 5;
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value + 5);
                     }
                     else if (udata->num_meas == 1)
                     {
                         udata->results[1] = meas_result;
-                        static_conf->tf_small_cutoff = orig_value - 5;
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value - 5);
                     }
                     else if (udata->num_meas == 2)
                     {
@@ -314,8 +314,8 @@ void siqs_sync(void *vptr)
                             w = 2;
 
                         udata->coarse_winner = w;
-                        static_conf->tf_small_cutoff = orig_value +
-                            ((w == 0) ? 2 : (w == 1) ? 7 : -3);
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value +
+                            ((w == 0) ? 2 : (w == 1) ? 7 : -3));
                     }
                     else if (udata->num_meas == 3)
                     {
@@ -323,8 +323,8 @@ void siqs_sync(void *vptr)
 
                         // measurement of coarse-winner + 2 done; next try -2
                         udata->results_ref[0] = meas_result;
-                        static_conf->tf_small_cutoff = orig_value +
-                            ((w == 0) ? -2 : (w == 1) ? 3 : -7);
+                        static_conf->tf_small_cutoff = (uint32_t)(orig_value +
+                            ((w == 0) ? -2 : (w == 1) ? 3 : -7));
                     }
                     else
                     {
@@ -350,7 +350,7 @@ void siqs_sync(void *vptr)
                         else
                             final_value = wcutoff - 2;
 
-                        static_conf->tf_small_cutoff = final_value;
+                        static_conf->tf_small_cutoff = (uint32_t)final_value;
 
                         if (fobj->VFLAG >= 0)
                         {
@@ -508,32 +508,6 @@ void siqs_dispatch(void *vptr)
     double avg_rels_per_acoeff;
     double in_flight_rels;
 
-    if (0) //static_conf->use_dlp == 2)
-    {
-        uint32_t total_rels = static_conf->num_full + static_conf->num_slp +
-            static_conf->dlp_useful + static_conf->tlp_useful;
-
-        if (total_rels > static_conf->check_total)
-        {
-            // this means we will be running a TLP filtering.  Force 
-            // concurrently running threads to perform batch filtering so that
-            // we run it with our full data set.
-            int i;
-            for (i = 0; i < fobj->THREADS; i++);
-            {
-                t[tid].dconf->batch_run_override = 1;
-            }
-
-            // wait a second 
-
-            // but this won't work because even if we can make them run batch
-            // factoring, the results only go into a buffer.  We need them
-            // in the results file for them to do any good and that would
-            // go against the spirit of the threadpool to force synchronous 
-            // dumps to the file.
-        }
-    }
-
     // check whether to continue or not, and update the screen
     udata->updatecode = update_check(static_conf);
 
@@ -643,8 +617,8 @@ void siqs_dispatch(void *vptr)
                 int first_free = -1;
                 uint8_t* rb_active;
 
-                rb_active = (uint8_t*)xmalloc(fobj->THREADS * sizeof(uint8_t));
-                memset(rb_active, 0, fobj->THREADS * sizeof(uint8_t));
+                rb_active = (uint8_t*)xmalloc((size_t)fobj->THREADS * sizeof(uint8_t));
+                memset(rb_active, 0, (size_t)fobj->THREADS * sizeof(uint8_t));
 
                 // tell this thread to process the batched relations
                 // and switch to another batch buffer for incoming batched
@@ -663,7 +637,7 @@ void siqs_dispatch(void *vptr)
                     {
                         printf("copying prime_product to batch buffer %d, mem use +%u bytes\n",
                             static_conf->batch_buffer_id,
-                            mpz_sizeinbase(static_conf->rb[0].prime_product, 2) / 8);
+                            (uint32_t)(mpz_sizeinbase(static_conf->rb[0].prime_product, 2) / 8));
                     }
                     mpz_set(static_conf->rb[static_conf->batch_buffer_id].prime_product,
                         static_conf->rb[0].prime_product);
@@ -772,7 +746,7 @@ void siqsexit(int sig)
 // and find more relations if something goes wrong during post-processing
 // and no factors are found.
 
-static double now_sec(void)
+static UNUSED_FUNC double now_sec(void)
 {
 #ifdef _MSC_VER
     return 0.0;
@@ -798,7 +772,7 @@ void SIQS(fact_obj_t* fobj)
     int applied = 0;
 
     if (!q->no_tuned_params && (q->siqs_params_file[0] != '\0') &&
-        siqs_lookup_tuned(q->siqs_params_file, mpz_sizeinbase(q->gmp_n, 2), &row))
+        siqs_lookup_tuned(q->siqs_params_file, (int)mpz_sizeinbase(q->gmp_n, 2), &row))
     {
         char buf[256];
 
@@ -913,8 +887,7 @@ static void SIQS_run(fact_obj_t *fobj)
 	FILE *sieve_log;
 
 	// some locals	
-	int i, j, k;
-	clock_t start, stop;
+	int i, j;
 	double t_time;
     struct timeval myTVstart;
 	struct timeval myTVend;
@@ -946,8 +919,8 @@ static void SIQS_run(fact_obj_t *fobj)
         siqs_primes_initialized = 1;
     }
 
-	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
-	fobj->digits = gmp_base10(fobj->qs_obj.gmp_n);
+	fobj->bits = (uint32_t)mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
+	fobj->digits = (uint32_t)gmp_base10(fobj->qs_obj.gmp_n);
 
 	// print the "starting" line before we check for special cases.
 	// other applications (e.g., aliqeit) check for the starting
@@ -999,7 +972,11 @@ static void SIQS_run(fact_obj_t *fobj)
 		mpz_init(tmpz);
 		mpz_init(g);
 
-		fgets(tmpstr, GSTR_MAXSIZE, data);
+		if (fgets(tmpstr, GSTR_MAXSIZE, data) == NULL)
+		{
+			// read failure ignored, as before (result checked only to
+			// satisfy warn_unused_result)
+		}
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
@@ -1032,7 +1009,13 @@ static void SIQS_run(fact_obj_t *fobj)
 
 	// fill in the factorization object	
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
-	strncpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile, 80);
+	{
+		// copy at most 80 chars, always terminated
+		size_t sflen = strlen(fobj->qs_obj.siqs_savefile);
+		if (sflen > 80) sflen = 80;
+		memcpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile, sflen);
+		fobj->savefile_name[sflen] = '\0';
+	}
 
     // The above leaks a little memory:
     // == 148041 == 80 bytes in 1 blocks are definitely lost in loss record 2 of 2
@@ -1050,7 +1033,7 @@ static void SIQS_run(fact_obj_t *fobj)
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
 	static_conf->obj = fobj;
 
-	thread_data = (thread_sievedata_t *)malloc(fobj->THREADS * sizeof(thread_sievedata_t));
+	thread_data = (thread_sievedata_t *)malloc((size_t)fobj->THREADS * sizeof(thread_sievedata_t));
 	for (i = 0; i < fobj->THREADS; i++)
 	{
 		thread_data[i].dconf = (dynamic_conf_t *)malloc(sizeof(dynamic_conf_t));
@@ -1214,7 +1197,7 @@ static void SIQS_run(fact_obj_t *fobj)
             else
             {
                 uint32_t old_needed = udata.num_needed;
-                udata.num_needed = udata.num_needed * 1.05;
+                udata.num_needed = (uint32_t)(udata.num_needed * 1.05);
                 static_conf->num_extra_relations += (udata.num_needed - old_needed);
                 printf("Problem with filtering (code %d), re-trying with new relation "
                     "target of %u\n", j, udata.num_needed);
@@ -1252,7 +1235,7 @@ static void SIQS_run(fact_obj_t *fobj)
                     printf("rebuilding graph with %u buffered in-memory relations\n",
                         static_conf->buffered_rels);
                     rebuild_graph(static_conf, static_conf->in_mem_relations,
-                        static_conf->buffered_rels);
+                        (int)static_conf->buffered_rels);
                 }
 
                 num_retries++;
@@ -1304,7 +1287,7 @@ static void SIQS_run(fact_obj_t *fobj)
             else
             {
                 uint32_t old_needed = udata.num_needed;
-                udata.num_needed = udata.num_needed * 1.05;
+                udata.num_needed = (uint32_t)(udata.num_needed * 1.05);
                 static_conf->num_extra_relations += (udata.num_needed - old_needed);
                 printf("Failed to find factors, re-trying with new relation target of %u\n",
                     udata.num_needed);
@@ -1342,7 +1325,7 @@ static void SIQS_run(fact_obj_t *fobj)
                     printf("rebuilding graph with %u buffered in-memory relations\n",
                         static_conf->buffered_rels);
                     rebuild_graph(static_conf, static_conf->in_mem_relations, 
-                        static_conf->buffered_rels);
+                        (int)static_conf->buffered_rels);
                 }
                 num_retries++;
             }
@@ -1794,7 +1777,7 @@ void* process_poly(void* vptr)
     uint32_t start_prime = sconf->sieve_small_fb_start;
     uint32_t num_blocks = sconf->num_blocks;
     uint8_t blockinit = sconf->blockinit;
-    int using_ss_search = 0;
+    UNUSED_VAR int using_ss_search = 0;
 
     // locals
     uint32_t i;
@@ -1810,7 +1793,7 @@ void* process_poly(void* vptr)
 
     double t_sieve_ss_buckets = 0.0;
     double t_update_buckets = 0.0;
-    double t_ss_search_total = 0.0;
+    UNUSED_VAR double t_ss_search_total = 0.0;
     struct timeval start1, stop1;
 
     dconf->t_mpsieve = 0.0;
@@ -1879,7 +1862,7 @@ void* process_poly(void* vptr)
         // last slice's logp is never recorded there, so record it now.
         if (sconf->mid_bucket && (dconf->buckets->list != NULL))
             dconf->buckets->logp[dconf->buckets->num_slices - 1] =
-                fb->list->logprime[fb->large_B - 1];
+                (uint8_t)fb->list->logprime[fb->large_B - 1];
     }
 #endif
 
@@ -2395,7 +2378,7 @@ void* process_poly(void* vptr)
 
         mpz_set(dconf->gmptmp3, dconf->gmptmp1);
         mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
-        minblock = mpz_get_ui(dconf->gmptmp1);
+        minblock = (uint32_t)mpz_get_ui(dconf->gmptmp1);
 
 #ifdef SS_POLY_BUCKET_SMALL_GROUPS
 
@@ -2898,10 +2881,6 @@ void* process_poly(void* vptr)
             {
 				//if (tdata->tindex == 0)
 				{
-					uint32_t dlp = sconf->dlp_useful + dconf->dlp_useful;
-					uint32_t tlp = sconf->tlp_useful + dconf->tlp_useful;
-					uint32_t att = sconf->attempted_cosiqs + dconf->attempted_cosiqs;
-
 					// print some status
 					gettimeofday(&stop, NULL);
 					t_time = ytools_difftime(&start, &stop);
@@ -2911,16 +2890,16 @@ void* process_poly(void* vptr)
                         if (sconf->do_batch)
                         {
                             char suffix;
-                            float batched = dconf->rb.num_relations;
+                            float batched = (float)dconf->rb.num_relations;
 
                             if (batched > 10000000)
                             {
-                                batched /= 1000000.;
+                                batched /= 1000000.f;
                                 suffix = 'M';
                             }
                             else
                             {
-                                batched /= 1000.;
+                                batched /= 1000.f;
                                 suffix = 'k';
                             }
 
@@ -2939,8 +2918,8 @@ void* process_poly(void* vptr)
                                     sconf->num_full + dconf->num_full, sconf->num_slp + dconf->num_slp,
                                     sconf->dlp_useful + dconf->dlp_useful,
                                     sconf->tlp_useful + dconf->tlp_useful,
-                                    (float)batched, suffix, dconf->numB, dconf->maxB),
-                                    (double)(total_rels) / t_time;
+                                    (float)batched, suffix, dconf->numB, dconf->maxB,
+                                    (double)(total_rels) / t_time);
                                 
                             }
                             else if(sconf->num_lp == 4)
@@ -2995,7 +2974,7 @@ void* process_poly(void* vptr)
 					}
 					else
 					{
-						printf("tid %u: Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\r",
+						printf("tid %u: Bpoly %u of %u: buffered %u rels, checked %" PRIu64 " (%1.2f rels/sec)\r",
                             tdata->tindex, dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
 							(double)dconf->buffered_rels / t_time);
 					}
@@ -3110,8 +3089,8 @@ void* process_poly(void* vptr)
 
                     if (dconf->buckets->list != NULL)
                     {
-                        dconf->buckets->num_slices = bi + 1;
-                        dconf->buckets->logp[bi] = fb->list->logprime[fb->large_B - 1];
+                        dconf->buckets->num_slices = (uint32_t)(bi + 1);
+                        dconf->buckets->logp[bi] = (uint8_t)fb->list->logprime[fb->large_B - 1];
                     }
                 }
             }
@@ -3202,7 +3181,9 @@ void* process_poly(void* vptr)
 
     }
 
+#if defined( USE_SS_SEARCH ) && defined( USE_DIRECT_SIEVE_SS )
 done:
+#endif
 
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
@@ -3233,12 +3214,12 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	uint32_t i;
 	siqs_r *rel;
 	char buf[1024];
-    uint32_t curr_poly_idx = dconf->curr_poly->index;
+    uint32_t curr_poly_idx = (uint32_t)dconf->curr_poly->index;
 
 	// save the current A value.
 	if (!sconf->in_mem)
 	{
-        curr_poly_idx = dconf->curr_poly->index;
+        curr_poly_idx = (uint32_t)dconf->curr_poly->index;
 		gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
 		savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 	}
@@ -3320,8 +3301,8 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
         uint32_t memuse = 0;
 
         dest_rb = &sconf->rb[sconf->batch_buffer_id - 1];
-        memuse += dest_rb->num_relations_alloc * sizeof(cofactor_t);
-        memuse += dest_rb->num_factors_alloc * sizeof(uint32_t);
+        memuse += (uint32_t)(dest_rb->num_relations_alloc * sizeof(cofactor_t));
+        memuse += (uint32_t)(dest_rb->num_factors_alloc * sizeof(uint32_t));
 
         // merge in the batched relations
         for (i = 0; i < rb->num_relations; i++)
@@ -3349,8 +3330,8 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
             printf("merged %d relations from thread %d into batch buffer %d\n",
                 rb->num_relations, dconf->tid, sconf->batch_buffer_id);
             
-            memuse = dest_rb->num_relations_alloc * sizeof(cofactor_t) + 
-                dest_rb->num_factors_alloc * sizeof(uint32_t) - memuse;
+            memuse = (uint32_t)(dest_rb->num_relations_alloc * sizeof(cofactor_t) + 
+                dest_rb->num_factors_alloc * sizeof(uint32_t) - memuse);
             
             if (memuse > 0)
             {
@@ -3615,8 +3596,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
             printf("processing polynomials in batches of %d for %u XL primes\n",
                 dconf->poly_batchsize, sconf->factor_base->B - sconf->factor_base->x2_large_B);
 #endif
-            printf("large prime hashtables have %d bytes\n",
-                dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t));
+            printf("large prime hashtables have %u bytes\n",
+                (uint32_t)(dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t)));
         }
         printf("using %s enabled 32k sieve core\n", inst_set);
 
@@ -3945,8 +3926,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     if (sconf->obj->VFLAG > 2)
     {
         memsize = sconf->factor_base->B * sizeof(int) * 2;
-        memsize += sconf->factor_base->B * sizeof(uint32_t);
-        memsize += sconf->factor_base->B * sizeof(uint8_t);
+        memsize += (uint32_t)(sconf->factor_base->B * sizeof(uint32_t));
+        memsize += (uint32_t)(sconf->factor_base->B * sizeof(uint8_t));
         printf("\tupdate data: %d bytes\n", memsize);
     }
 
@@ -4034,7 +4015,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->sieve_n->prime[i] = p;
 
         dconf->update_data.prime[i] = p;
-        dconf->update_data.logp[i] = lp;
+        dconf->update_data.logp[i] = (uint8_t)lp;
     }
 
     for (i = sconf->factor_base->med_B; i < sconf->factor_base->fb_blk8i; i++)
@@ -4048,13 +4029,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->sieve_n->prime[i] = p;
 
         dconf->update_data.prime[i] = p;
-        dconf->update_data.logp[i] = lp;
+        dconf->update_data.logp[i] = (uint8_t)lp;
     }
 
     for (; i < sconf->factor_base->B; i++)
     {
         dconf->update_data.prime[i] = sconf->factor_base->list->prime[i];
-        dconf->update_data.logp[i] = sconf->factor_base->list->logprime[i];
+        dconf->update_data.logp[i] = (uint8_t)sconf->factor_base->list->logprime[i];
     }
 
     // check if we should use bucket sieving, and allocate structures if so
@@ -4228,22 +4209,22 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #endif
 
         // two entries per block (p and n sides), per slice, and per (batch) poly.
-        dconf->buckets->num = (uint32_t*)xmalloc_align(dconf->poly_batchsize *
+        dconf->buckets->num = (uint32_t*)xmalloc_align((uint32_t)dconf->poly_batchsize *
             2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32_t));
 
         // one entry per slice to record the starting prime and logp indices per slice.
         // experimental variation: use one entry per slice and per poly, so that we
         // can sort xlarge primes in a batch of polys and other primes one poly at a time.
         dconf->buckets->fb_bounds = (uint32_t*)malloc(
-            dconf->buckets->alloc_slices * dconf->poly_batchsize * sizeof(uint32_t));
+            dconf->buckets->alloc_slices * (uint32_t)dconf->poly_batchsize * sizeof(uint32_t));
         dconf->buckets->logp = (uint8_t*)calloc(
-            dconf->buckets->alloc_slices * dconf->poly_batchsize, sizeof(uint8_t));
+            dconf->buckets->alloc_slices * (uint32_t)dconf->poly_batchsize, sizeof(uint8_t));
 
         // the total number of buckets (size of buckets->num)
-        dconf->buckets->list_size = dconf->poly_batchsize * 2 *
+        dconf->buckets->list_size = (uint32_t)dconf->poly_batchsize * 2 *
             sconf->num_blocks * dconf->buckets->alloc_slices;
 
-        dconf->buckets->num_slices_batch = (uint32_t*)xmalloc(dconf->poly_batchsize * sizeof(uint32_t));
+        dconf->buckets->num_slices_batch = (uint32_t*)xmalloc((size_t)dconf->poly_batchsize * sizeof(uint32_t));
 
         // now allocate space for the bucket entries.  Each entry is a 32-bit integer
         // split into 16 bits for prime id and 16 bits for block location.
@@ -4257,8 +4238,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
                 sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
 
             printf("allocating %u total bytes for bucket sort\n",
-                dconf->buckets->list_size *
-                BUCKET_ALLOC * sizeof(uint32_t));
+                (uint32_t)(dconf->buckets->list_size *
+                BUCKET_ALLOC * sizeof(uint32_t)));
         }
 
 #ifdef TRY_COMPRESS_SORT_LARGEP
@@ -4292,9 +4273,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     if (sconf->obj->VFLAG > 2)
     {
         memsize = dconf->buckets->list_size * sizeof(uint32_t);
-        memsize += dconf->buckets->alloc_slices * sizeof(uint32_t);
-        memsize += dconf->buckets->alloc_slices * sizeof(uint8_t);
-        memsize += dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t);
+        memsize += (uint32_t)(dconf->buckets->alloc_slices * sizeof(uint32_t));
+        memsize += (uint32_t)(dconf->buckets->alloc_slices * sizeof(uint8_t));
+        memsize += (uint32_t)(dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t));
         printf("\tbucket data: %d bytes\n", memsize);
     }
 
@@ -4396,7 +4377,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->do_batch = 0;
     if (sconf->do_batch)
     {       
-        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint64_t pmax = (uint64_t)((float)sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv);
             // (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv;
         // sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
         dconf->do_batch = 1;
@@ -4514,8 +4495,8 @@ static void siqs_choose_table_keys(static_conf_t* sconf)
 #endif
     }
 
-    sconf->lp_isa = isa;
-    sconf->lp_kernel = kernel;
+    sconf->lp_isa = (int)isa;
+    sconf->lp_kernel = (int)kernel;
 }
 
 #if defined(TRY_DIRECT_SIEVE)
@@ -4543,10 +4524,10 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     fact_obj_t* obj = sconf->obj;
     fb_list* fb = sconf->factor_base;
     uint32_t mid = obj->qs_obj.gbl_siqs_mid;
-    uint32_t kernel = sconf->lp_kernel;     // siqs_choose_table_keys
+    uint32_t kernel = (uint32_t)sconf->lp_kernel;     // siqs_choose_table_keys
     uint32_t skernel = obj->qs_obj.gbl_siqs_sparse_kernel;
     uint32_t boundary;
-    uint32_t isa = sconf->lp_isa;           // siqs_choose_table_keys
+    uint32_t isa = (uint32_t)sconf->lp_isa;           // siqs_choose_table_keys
 
     // defaults table (measured on an i5-11600K, see
     // plans/siqs_multi_isa/plan.md section 6 and direct_sieve.md):
@@ -4585,7 +4566,7 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
 
     // sconf->lp_direct, lp_isa, lp_kernel: siqs_choose_table_keys
     sconf->mid_bucket = (mid == SIQS_MID_BUCKET);
-    sconf->sparse_kernel = skernel;
+    sconf->sparse_kernel = (int)skernel;
     nextRoots_lp_ptr = &nextRoots_32k_lp_portable;
 
     // per-poly root updates for [med_B, B): the AVX-512 path
@@ -4641,8 +4622,8 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
         // AVX2 kernels: no compress-to-memory, cmem means creg
         direct_avx2_init();
         nextRoots_lp_ptr = &nextRoots_32k_lp_avx2;
-        if (skernel == SIQS_K_CMEM) sconf->sparse_kernel = skernel = SIQS_K_CREG;
-        if (kernel == SIQS_K_CMEM) sconf->lp_kernel = kernel = SIQS_K_CREG;
+        if (skernel == SIQS_K_CMEM) { skernel = SIQS_K_CREG; sconf->sparse_kernel = (int)skernel; }
+        if (kernel == SIQS_K_CMEM) { kernel = SIQS_K_CREG; sconf->lp_kernel = (int)kernel; }
         large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ?
             &large_sieveblock_avx2_bitloop : &large_sieveblock_avx2_creg;
         tdiv_large_ptr = (skernel == SIQS_K_BITLOOP) ?
@@ -4671,8 +4652,8 @@ static void siqs_resolve_strategy(static_conf_t* sconf)
     { \
         direct_v4_init_##sfx(); \
         nextRoots_lp_ptr = &nextRoots_32k_lp_##sfx; \
-        if (skernel == SIQS_K_CMEM) sconf->sparse_kernel = skernel = SIQS_K_CREG; \
-        if (kernel == SIQS_K_CMEM) sconf->lp_kernel = kernel = SIQS_K_CREG; \
+        if (skernel == SIQS_K_CMEM) { skernel = SIQS_K_CREG; sconf->sparse_kernel = (int)skernel; } \
+        if (kernel == SIQS_K_CMEM) { kernel = SIQS_K_CREG; sconf->lp_kernel = (int)kernel; } \
         large_sieveblock_ptr = (skernel == SIQS_K_BITLOOP) ? \
             &large_sieveblock_bitloop_##sfx : &large_sieveblock_creg_##sfx; \
         tdiv_large_ptr = (skernel == SIQS_K_BITLOOP) ? \
@@ -4797,7 +4778,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     uint32_t dlp_cutoff;
     uint32_t tlp_cutoff;
     int VFLAG = sconf->obj->VFLAG;
-    int THREADS = sconf->obj->THREADS;
+    UNUSED_VAR int THREADS = sconf->obj->THREADS;
 #ifdef TRY_SMALLP_OPT
     // sized tinylist allocation, derived from the SPV limit below
     uint32_t tiny_alloc = 0;
@@ -5322,12 +5303,12 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		// find multiplier
 		sconf->multiplier = (uint32_t)choose_multiplier_siqs(sconf->factor_base->B, sconf->n);
 		mpz_mul_ui(sconf->n, sconf->n, sconf->multiplier);
-        sconf->knmod8 = mpz_tdiv_ui(sconf->n, 8);
+        sconf->knmod8 = (uint32_t)mpz_tdiv_ui(sconf->n, 8);
         //printf("knmod8 = %u\n", sconf->knmod8);
 
 		// sconf holds n*mul, so update its digit count and number of bits
-		sconf->digits_n = gmp_base10(sconf->n);
-		sconf->bits = mpz_sizeinbase(sconf->n, 2);
+		sconf->digits_n = (uint32_t)gmp_base10(sconf->n);
+		sconf->bits = (uint32_t)mpz_sizeinbase(sconf->n, 2);
 
 		// find sqrt_n
 		mpz_sqrt(sconf->sqrt_n, sconf->n);
@@ -5529,7 +5510,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 1024)  &&
-			(i % nump == 0)) break;
+			(i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_10bit_B = i;
 
@@ -5541,7 +5522,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 2048)  &&
-			(i % nump == 0)) break;
+			(i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_11bit_B = i;
 
@@ -5552,7 +5533,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
         if ((sconf->factor_base->list->prime[i] > 4096) &&
-            (i % nump == 0)) break;
+            (i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_12bit_B = i;
 
@@ -5563,7 +5544,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
         if ((sconf->factor_base->list->prime[i] > 8192) &&
-            (i % nump == 0)) break;
+            (i % (uint32_t)nump == 0)) break;
 	}
 	sconf->factor_base->fb_13bit_B = i;
 
@@ -5578,7 +5559,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 10922)  &&
-			(i % nump == 0)) break;
+			(i % (uint32_t)nump == 0)) break;
 	}
 	// put the upper bound just before prime exceeds blocksize/3, required by SSE2 sieving
 	sconf->factor_base->fb_32k_div3 = i;
@@ -5590,7 +5571,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-            (i % nump == 0)) break;
+            (i % (uint32_t)nump == 0)) break;
 	}	
 	// put the upper bound just before prime exceeds 14 bits, required by SSE2 sieving
 	sconf->factor_base->fb_14bit_B = i;
@@ -5966,10 +5947,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         struct timeval locstart, locstop;
 
         // create a relation batch for each thread.
-        sconf->rb = (relation_batch_t *)xmalloc(obj->THREADS * sizeof(relation_batch_t));
+        sconf->rb = (relation_batch_t *)xmalloc((size_t)obj->THREADS * sizeof(relation_batch_t));
         sconf->num_alloc_rb = obj->THREADS;
         sconf->num_active_rb = 0;
-        memuse += obj->THREADS * sizeof(relation_batch_t);
+        memuse += (uint32_t)((size_t)obj->THREADS * sizeof(relation_batch_t));
 
 #if defined(HAVE_CUDA_BATCH_FACTOR) || defined(HAVE_OCL_BATCH_FACTOR)
 
@@ -6000,7 +5981,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         // command line option.
         
         //uint32_t pmax = (sconf->large_prime_max - sconf->pmax) / sconf->obj->qs_obj.gbl_override_bdiv; 
-        uint64_t pmax = sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv;
+        uint64_t pmax = (uint64_t)((float)sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv);
         sconf->rb[0].num_uecm[0] = 0;
         sconf->rb[0].num_uecm[1] = 0;
         sconf->rb[0].num_uecm[2] = 0;
@@ -6017,9 +5998,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 
         relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, pmax,
             sconf->large_prime_max, sconf->large_prime_max, NULL, 1, 0);
-        memuse += sconf->rb[0].num_relations_alloc * sizeof(cofactor_t);
-        memuse += sconf->rb[0].num_factors_alloc * sizeof(uint32_t);
-        memuse += mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8;
+        memuse += (uint32_t)(sconf->rb[0].num_relations_alloc * sizeof(cofactor_t));
+        memuse += (uint32_t)(sconf->rb[0].num_factors_alloc * sizeof(uint32_t));
+        memuse += (uint32_t)(mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8);
 
         gettimeofday(&locstop, NULL);
         if (obj->VFLAG > 0)
@@ -6035,8 +6016,8 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
             // allocate space for each thread to buffer relations.
             relation_batch_init(stdout, &sconf->rb[i], sconf->pmax, pmax,
                 sconf->large_prime_max, sconf->large_prime_max, NULL, 0, 0);
-            memuse += sconf->rb[i].num_relations_alloc * sizeof(cofactor_t);
-            memuse += sconf->rb[i].num_factors_alloc * sizeof(uint32_t);
+            memuse += (uint32_t)(sconf->rb[i].num_relations_alloc * sizeof(cofactor_t));
+            memuse += (uint32_t)(sconf->rb[i].num_factors_alloc * sizeof(uint32_t));
 
             // the prime product in each dynamic thread is unused.  when
             // a batch GCD is executed it will refer to the main relation_batch
@@ -6090,7 +6071,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         sconf->tlp_exp = sconf->param_mfbt;
 
 	// check for user overrides
-	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt) > 1e-9)     // - 2.8 
+    if (fabs(sconf->obj->qs_obj.gbl_override_mfbt) > 1e-9)     // - 2.8 
 	{
 		sconf->tlp_exp = sconf->obj->qs_obj.gbl_override_mfbt;
 	}
@@ -6150,7 +6131,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	// sieve locations greater than this are worthy of trial dividing
 	closnuf = (uint8_t)(double)((sconf->bits - 1)/2);
 	closnuf += (uint8_t)(log((double)sconf->sieve_interval/2)/log(2.0));
-	closnuf -= (uint8_t)(sconf->fudge_factor * log(sconf->large_prime_max) / log(2.0));
+	closnuf -= (uint8_t)(sconf->fudge_factor * log((double)sconf->large_prime_max) / log(2.0));
 
 	// contribution of all small primes we're skipping to a block's
 	// worth of sieving... compute the average per sieve location
@@ -6253,7 +6234,7 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         closnuf = 127;
 #endif
 
-    sconf->blockinit = closnuf;
+    sconf->blockinit = (uint8_t)closnuf;
     sconf->tf_closnuf = closnuf;
 
     if (sconf->digits_n < sconf->obj->qs_obj.inmem_cutoff)
@@ -6396,7 +6377,7 @@ int update_check(static_conf_t *sconf)
     if ((sconf->obj->qs_obj.tune_warmup > 0) && (update_time > 0.1))
         update_time = 0.1;
 
-	mpz_init(tmp1);
+    mpz_init(tmp1);
 
 	gettimeofday(&update_stop, NULL);
     t_update = ytools_difftime(&sconf->update_start, &update_stop);
@@ -6430,7 +6411,7 @@ int update_check(static_conf_t *sconf)
 
                 printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
                     sconf->t_time1, sconf->t_time2, sconf->t_time3);
-                printf("trial division touched %d sieve locations out of ", sconf->num);
+                printf("trial division touched %" PRIu64 " sieve locations out of ", sconf->num);
                 gmp_printf("%Zd\n", tmp1);
                 fflush(stdout);
                 fflush(stderr);
@@ -6464,7 +6445,7 @@ int update_check(static_conf_t *sconf)
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
-            printf("trial division touched %d sieve locations out of ", sconf->num);
+            printf("trial division touched %" PRIu64 " sieve locations out of ", sconf->num);
             gmp_printf("%Zd\n", tmp1);
 			fflush(stdout);
 			fflush(stderr);
@@ -6489,7 +6470,7 @@ int update_check(static_conf_t *sconf)
 		// update screen
 		if (sconf->obj->VFLAG >= 0)
 		{
-            uint32_t total_rels = sconf->num_full + sconf->num_slp +
+            UNUSED_VAR uint32_t total_rels = sconf->num_full + sconf->num_slp +
                 sconf->dlp_useful + sconf->tlp_useful;
             uint32_t rels_left;
 
@@ -6518,16 +6499,16 @@ int update_check(static_conf_t *sconf)
                 if (sconf->do_batch)
                 {
                     char suffix;
-                    float batched = sconf->attempted_cosiqs;
+                    float batched = (float)sconf->attempted_cosiqs;
 
                     if (batched > 10000000)
                     {
-                        batched /= 1000000.;
+                        batched /= 1000000.f;
                         suffix = 'M';
                     }
                     else
                     {
-                        batched /= 1000.;
+                        batched /= 1000.f;
                         suffix = 'k';
                     }
 
@@ -6576,7 +6557,7 @@ int update_check(static_conf_t *sconf)
                 // as a percentage of the total number of relations needed.
                 // from the info we are printing here and the total elasped time
                 // so far, we can compute an ETA.
-                float fractFullNeeded = 165.0 * pow(sconf->digits_n, -1.4);
+                float fractFullNeeded = (float)(165.0 * pow(sconf->digits_n, -1.4));
                 float fractFullHave = (float)sconf->num_relations / (float)sconf->factor_base->B;
                 float percentDone = fractFullHave / fractFullNeeded;
                 int eta = MAX(0, (int)(t_time / percentDone - t_time));
@@ -6603,7 +6584,7 @@ int update_check(static_conf_t *sconf)
         // test cycle formation.
 		if (sconf->use_dlp >= 2)
 		{
-	        uint32_t total_rels = sconf->num_full + sconf->num_slp +
+	        UNUSED_VAR uint32_t total_rels = sconf->num_full + sconf->num_slp +
 				sconf->dlp_useful + sconf->tlp_useful + sconf->qlp_useful;
 
             // use the number of full relations found as a gauge for
@@ -6625,11 +6606,9 @@ int update_check(static_conf_t *sconf)
 				qs_cycle_t *table = sconf->cycle_table;
 				uint32_t num_relations;
 				uint32_t i = 0, passes;
-				uint32_t curr_a_idx, curr_poly_idx, curr_rel;
-				uint32_t curr_expected, curr_saved, curr_cycle;
+				uint32_t curr_rel;
 				uint32_t all_relations;
 				uint32_t total_poly_a = 0;
-				uint32_t poly_saved;
 				uint32_t *plist0;
 				uint32_t *plist1;
 				uint32_t *plist2;
@@ -6706,7 +6685,7 @@ int update_check(static_conf_t *sconf)
                             start = strchr(buf, 'L');
                             if (start != NULL) {
                                 uint32_t primes[MAXLP];
-                                int numlp = yafu_read_Nlp(start, primes);
+                                yafu_read_Nlp(start, primes);
                                 if (i == curr_rel) {
                                     curr_rel = 3 * curr_rel / 2;
                                     relation_list = (siqs_r*)xrealloc(
@@ -6763,7 +6742,7 @@ int update_check(static_conf_t *sconf)
 
 				newrels = num_relations - sconf->last_numcycles;
 				sconf->last_numcycles = num_relations;
-				rebuild_graph3(sconf, relation_list, num_relations);
+				rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 				hashtable = sconf->cycle_hashtable;
 				table = sconf->cycle_table;
@@ -6807,7 +6786,7 @@ int update_check(static_conf_t *sconf)
 						logprint(obj->logfile, "building reduced graph\n");
 					}
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 
 					//printf("cycle table size = %u, edges = %u, vertices = %u, components = %u\n",
 					//	sconf->cycle_table_size, sconf->num_cycles, 
@@ -6849,7 +6828,7 @@ int update_check(static_conf_t *sconf)
 
 						printf("rebuilding full graph\n");
 
-						rebuild_graph3(sconf, relation_list, num_relations);
+						rebuild_graph3(sconf, relation_list, (int)num_relations);
 						sconf->num_r = 0;
 						sconf->num_relations = 0;
 						sconf->num_cycles = num_relations;
@@ -6894,12 +6873,11 @@ int update_check(static_conf_t *sconf)
 						sconf->last_numfull = sconf->num_relations;
 						sconf->last_numpartial = sconf->num_r - sconf->num_relations;
 
-                        int have_cycle_growth_estimate = 0;
+                        UNUSED_VAR int have_cycle_growth_estimate = 0;
                         if (sconf->last_cycrate > 0)
                         {
                             uint32_t current_rels = sconf->num_r;
                             uint32_t needed_rels = (fb->B - sconf->num_r);
-                            uint32_t batch_rels;
                             uint32_t raw_rels = 0;
                             double fr = fullrate;
                             double cr = cycrate;
@@ -6926,9 +6904,9 @@ int update_check(static_conf_t *sconf)
                             while (current_rels < fb->B)
                             {
                                 uint32_t new_fulls = ci;
-                                uint32_t new_raws = ci / fr;
+                                uint32_t new_raws = (uint32_t)(ci / fr);
                                 double new_cycle_rate = cr + ri;
-                                uint32_t new_cycles = new_cycle_rate * new_raws;
+                                uint32_t new_cycles = (uint32_t)(new_cycle_rate * new_raws);
                                 current_rels += (new_cycles + new_fulls);
                                 cr = new_cycle_rate;
                                 raw_rels += new_raws;
@@ -6968,7 +6946,7 @@ int update_check(static_conf_t *sconf)
                         // when to filter.  At the end of a TLP run with typical parameters we
                         // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
                         // and every 1% thereafter.
-                        double percent_complete = 
+                        UNUSED_VAR double percent_complete = 
                             ((double)sconf->last_numfull + (double)sconf->last_numpartial) / 
                             (double)sconf->factor_base->B;
 
@@ -7057,7 +7035,7 @@ int update_check(static_conf_t *sconf)
 
 							printf("rebuilding full graph\n");
 
-							rebuild_graph3(sconf, relation_list, num_relations);
+							rebuild_graph3(sconf, relation_list, (int)num_relations);
 						}
 					}
 				}
@@ -7076,7 +7054,7 @@ int update_check(static_conf_t *sconf)
 
 					printf("rebuilding full graph\n");
 
-					rebuild_graph3(sconf, relation_list, num_relations);
+					rebuild_graph3(sconf, relation_list, (int)num_relations);
 					sconf->num_r = 0;
 					sconf->num_relations = 0;
 					sconf->num_cycles = num_relations;
@@ -7658,14 +7636,14 @@ int free_siqs(static_conf_t *sconf)
 #define NUM_TEST_PRIMES 300
 #define NUM_MULTIPLIERS (sizeof(mult_list)/sizeof(uint8_t))
 
-static const uint8_t mult_list_orig[] =
+UNUSED_VAR static const uint8_t mult_list_orig[] =
 { 1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19,
  21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38,
  39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59,
  61, 62, 65, 66, 67, 69, 70, 71, 73 };
 
 // more options.  Thanks Till for pointing out that my original list was too small!
-static const uint8_t mult_list_many_even[] = {
+UNUSED_VAR static const uint8_t mult_list_many_even[] = {
 1  ,   2  ,   3  ,   5  ,   6  ,   7  ,   9  ,  10  ,  11  ,  13  ,  14  ,
 15 ,   17 ,   19 ,   21 ,   22 ,   23 ,   25 ,   26 ,   29 ,   30 ,   31 ,
 33 ,   34 ,   35 ,   37 ,   38 ,   39 ,   41 ,   42 ,   43 ,   45 ,   46 ,

@@ -78,9 +78,9 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32_t block_loc;
-    uint16_t buffer[32];
-    uint32_t tmp3 = 0;
-    int r;
+    UNUSED_VAR uint16_t buffer[32];
+    UNUSED_VAR uint32_t tmp3 = 0;
+    UNUSED_VAR int r;
 
 #ifdef USE_8X_MOD_ASM
     uint16_t *bl_sizes = dconf->bl_sizes;
@@ -143,7 +143,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         smooth_num = dconf->smooth_num[report_num];
         block_loc = dconf->reports[report_num];
 
-        i = sconf->sieve_small_fb_start;
+        i = (int)sconf->sieve_small_fb_start;
 
         // 8x trial division
         bound = sconf->factor_base->fb_10bit_B;
@@ -187,14 +187,14 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         bl_sizes[6] = 32768;
         bl_sizes[7] = 32768;
 
-        bl_locs[0] = block_loc;
-        bl_locs[1] = block_loc;
-        bl_locs[2] = block_loc;
-        bl_locs[3] = block_loc;
-        bl_locs[4] = block_loc;
-        bl_locs[5] = block_loc;
-        bl_locs[6] = block_loc;
-        bl_locs[7] = block_loc;
+        bl_locs[0] = (uint16_t)block_loc;
+        bl_locs[1] = (uint16_t)block_loc;
+        bl_locs[2] = (uint16_t)block_loc;
+        bl_locs[3] = (uint16_t)block_loc;
+        bl_locs[4] = (uint16_t)block_loc;
+        bl_locs[5] = (uint16_t)block_loc;
+        bl_locs[6] = (uint16_t)block_loc;
+        bl_locs[7] = (uint16_t)block_loc;
 
         tmp3 = 0;
 
@@ -449,7 +449,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
             tmp1 = tmp1 + fullfb_ptr->correction[i];
             q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
-            tmp1 = q64 >> FOGSHIFT;
+            tmp1 = (uint32_t)(q64 >> FOGSHIFT);
             tmp1 = tmp1 + 1;
             tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
 
@@ -605,7 +605,7 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                 int lane = _trail_zcnt(mask);
                 mask &= mask - 1;
 
-                DIVIDE_RESIEVED_PRIME_2(i + lane);
+                DIVIDE_RESIEVED_PRIME_2(i + (uint32_t)lane);
             }
         }
 
@@ -678,12 +678,12 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
             __m256i h1 = _mm256_cmpeq_epi32(_mm256_min_epu32(x1, vthresh), x1);
             __m256i h2 = _mm256_cmpeq_epi32(_mm256_min_epu32(x2, vthresh), x2);
-            unsigned mask = _mm256_movemask_ps(_mm256_castsi256_ps(_mm256_or_si256(h1, h2)));
+            unsigned mask = (unsigned int)(_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_or_si256(h1, h2))));
 
             while (mask) {
                 int lane = _trail_zcnt(mask);
                 mask &= mask - 1;
-                DIVIDE_RESIEVED_PRIME_2(i + lane);
+                DIVIDE_RESIEVED_PRIME_2(i + (uint32_t)lane);
             }
         }
 
@@ -759,12 +759,12 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             // x divisible by p  <=>  x * minv (mod 2^32) <= thresh (unsigned)
             __m128i h1 = tdm_cmple_epu32(x1, vthresh);
             __m128i h2 = tdm_cmple_epu32(x2, vthresh);
-            unsigned mask = _mm_movemask_ps(_mm_castsi128_ps(_mm_or_si128(h1, h2)));
+            unsigned mask = (unsigned int)(_mm_movemask_ps(_mm_castsi128_ps(_mm_or_si128(h1, h2))));
 
             while (mask) {
                 int lane = _trail_zcnt(mask);
                 mask &= mask - 1;
-                DIVIDE_RESIEVED_PRIME_2(i + lane);
+                DIVIDE_RESIEVED_PRIME_2(i + (uint32_t)lane);
             }
         }
 
