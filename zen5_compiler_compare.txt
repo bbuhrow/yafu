@@ -216,3 +216,56 @@ Configured with: ../src/configure -v --with-pkgversion='Debian 14.2.0-19' --with
 Thread model: posix
 Supported LTO compression algorithms: zlib zstd
 gcc version 14.2.0 (Debian 14.2.0-19) 
+
+
+The GCC build isn’t sieving slower. It’s getting about 4× fewer relations per polynomial, and the evidence says trial division is failing to divide out factor-base primes, so cofactors come out too big. I haven’t reproduced this: the local WSL is GCC 11.4 on an AVX-512 Rocket Lake, and you’ve already checked that build.
+
+What the stats show (normalized per poly)
+	AOCC	GCC 14
+polys/sec	13.4k	10.3k (about 30% slower, see below)
+reports per poly	18.77	18.63
+surviving reports per poly	5.255	5.257
+tdiv touches per poly	15.7	15.75
+
+Everything before trial division matches, so the sieve, thresholds and SPV filter behave the same in both builds. After trial division the classification of survivors in tdiv.c splits apart:
+
+share of survivors	AOCC	GCC
+full	0.25%	0.11%
+slp	4.4%	0.9%
+DLP range, PRP	43.3%	9.5%
+DLP range, attempted	9.4%	7.4%
+outside range	42.6%	82.2%
+DLP attempts that work	98% (309922/316557)	35% (340804/977138)
+
+The last row is the key one:
+
+When tdiv is complete, a composite cofactor in (pmax², lpmax2) splits into two primes both above pmax, so about 98% of attempts succeed, which matches AOCC.
+In GCC, uecm still always returns a divisor (“0 failures”), but 65% of the splits leave one factor above large_prime_max. That’s what you get when the cofactor still contains an undivided factor-base prime: Q = p·X, with X too large.
+Everything else moves the same way. Single large primes (slp) collapse 5×, PRPs collapse 4.6×, and “outside range” doubles: cofactors that should be 27–48 bits are carrying an extra prime. Fulls hold up best because siqs_lp_fb_lookup rescues a cofactor that is just one factor-base prime. That probably explains why GCC’s total full count (15033) is even higher.
+
+The 30% per-poly slowdown fits with all the extra uecm work on bad cofactors, plus the VM noise you noted. The 4× is almost entirely lost yield.
+
+What I ruled out by reading the code
+Sieve, scatter and the direct-sieve resieve: compiler-neutral intrinsics, and the sieve stats match anyway.
+Compiler-specific #ifs: none on the Linux path; they’re all MSVC/Intel/MinGW guards.
+tdiv_resieve.c asm: has proper "memory"/xmm clobbers.
+SPV vector test constants (invmod/thresh in siqs_aux.c): straightforward.
+spPRP2 or uecm being broken: either would show up as failures rather than as cofactors outside the range.
+
+So this is most likely GCC 14 exploiting undefined behaviour somewhere in the tdiv chain, or a codegen issue from -march=native on znver5. GCC 11 is fine. I couldn’t pin the exact line by reading alone.
+
+Confounds in the comparison
+
+The two runs aren’t compiler-only. They used different CPUs (9475F vs GCP 9B45), different yafu.ini files (AOCC was in-memory, GCC wasn’t), and different VBITS. Diff the two ini files. Better still, apt install clang on the same GCP VM and run Debian clang against GCC 14 on one machine.
+
+How to pin it down on the Zen 5 VM
+Find which prime range is missed. Build the GCC binary with CFLAGS+=-DDEBUG_MISSED_FB_PRIMES; you already have this diagnostic in factor/qs/tdiv.c:254. It bins leftover factor-base primes into small/med [2,med_B), sparse [med_B,large_B) and direct [large_B,B). Run the AOCC or clang build the same way as a baseline, since the direct early exit legitimately leaves Q equal to one factor-base prime.
+Bisect by object file. GCC and clang objects link together fine. Build everything with GCC, then swap in clang-built tdiv*.o, direct_sieve*.o, SIQS.o and siqs_aux.o a few at a time until the yield recovers.
+Bisect by flag on the culprit file:
+-O1
+-fno-strict-aliasing. One candidate: bitmap32 in direct_sieve_avx512.c:364 treats the uint64_t survivor bitmap as int.
+-ffp-contract=off
+USE_AVX512=1 without USE_NATIVE, which switches from -march=native/znver5 to -march=skylake-avx512.
+Toggle the heuristic gate. Set DIRECT_ABANDON_NOLARGE to 0 in include/qs_impl.h:169. It’s the one place where a heuristic stops the direct resieve from dividing survivors, so any miscompile that affects its sieve-byte estimate would show up exactly like this.
+
+Step 1 plus the object swap should narrow it to one file and one range within a couple of short C85 runs.

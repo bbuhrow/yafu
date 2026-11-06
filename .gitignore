@@ -10,6 +10,7 @@
 *.no
 *.qo
 .deps/
+msiqs/
 
 # Logs / Checkpoints / data files
 *.log
@@ -21,6 +22,7 @@ nfs.*
 *.obj
 *.tlog
 *.last_spq*
+semiprimes*.dat
 
 # visual studio build
 build.vc22/.vs/*

@@ -5114,6 +5114,10 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         }
         if (sconf->obj->VFLAG > 1)
             printf("assigning %s ptr\n", medname);
+
+        tdiv_med_ptr = &tdiv_medprimes_32k_neon;
+        if (sconf->obj->VFLAG > 1)
+            printf("assigning tdiv_medprimes_32k_neon ptr\n");
     }
 #endif
 

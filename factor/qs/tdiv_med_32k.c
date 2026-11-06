@@ -25,8 +25,14 @@ code to the public domain.
 #include "tdiv_macros_32k.h"
 
 
-#if defined( USE_AVX2 ) || defined( USE_AVX512F ) || defined( USE_SSE41 ) || !defined( FORCE_GENERIC )
+#if defined(__aarch64__) && defined(__ARM_NEON)
+#include <arm_neon.h>
+#elif defined( USE_AVX2 ) || defined( USE_AVX512F ) || defined( USE_SSE41 ) || defined( D_HAS_SSE2 )
 #include <immintrin.h>
+#endif
+
+#if !defined(__aarch64__) && (defined(USE_SSE41) || defined(D_HAS_SSE2))
+#include "tdiv_med_sse.h"
 #endif
 
 //#define SIQSDEBUG 1
@@ -704,7 +710,7 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         dconf->smooth_num[report_num] = smooth_num;
 
-#elif defined(USE_SSE41) || !(FORCE_GENERIC)
+#elif defined(USE_SSE41) || defined(D_HAS_SSE2)
 
         uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
 
@@ -736,9 +742,9 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         for (; i + 4 < sconf->factor_base->fb_13bit_B; i += 4)
         {
             // 4 x uint16 = 64 bits, zero-extended to 4 x uint32
-            __m128i vp = _mm_cvtepu16_epi32(_mm_loadu_si128((const __m128i*) & fbc->prime[i]));
-            __m128i vr1 = _mm_cvtepu16_epi32(_mm_loadu_si128((const __m128i*) & fbc->root1[i]));
-            __m128i vr2 = _mm_cvtepu16_epi32(_mm_loadu_si128((const __m128i*) & fbc->root2[i]));
+            __m128i vp = tdm_load4_u16(&fbc->prime[i]);
+            __m128i vr1 = tdm_load4_u16(&fbc->root1[i]);
+            __m128i vr2 = tdm_load4_u16(&fbc->root2[i]);
             __m128i vminv = _mm_loadu_si128((const __m128i*) & fullfb_ptr->minv32[i]);
             __m128i vthresh = _mm_loadu_si128((const __m128i*) & fullfb_ptr->thresh32[i]);
 
@@ -746,12 +752,12 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             __m128i voff = _mm_add_epi32(vbase,
                 _mm_add_epi32(_mm_slli_epi32(vp, 15), vp));
 
-            __m128i x1 = _mm_mullo_epi32(_mm_sub_epi32(voff, vr1), vminv);
-            __m128i x2 = _mm_mullo_epi32(_mm_sub_epi32(voff, vr2), vminv);
+            __m128i x1 = tdm_mullo_epi32(_mm_sub_epi32(voff, vr1), vminv);
+            __m128i x2 = tdm_mullo_epi32(_mm_sub_epi32(voff, vr2), vminv);
 
-            // unsigned x <= thresh  <=>  min_epu32(x, thresh) == x
-            __m128i h1 = _mm_cmpeq_epi32(_mm_min_epu32(x1, vthresh), x1);
-            __m128i h2 = _mm_cmpeq_epi32(_mm_min_epu32(x2, vthresh), x2);
+            // x divisible by p  <=>  x * minv (mod 2^32) <= thresh (unsigned)
+            __m128i h1 = tdm_cmple_epu32(x1, vthresh);
+            __m128i h2 = tdm_cmple_epu32(x2, vthresh);
             unsigned mask = _mm_movemask_ps(_mm_castsi128_ps(_mm_or_si128(h1, h2)));
 
             while (mask) {
@@ -787,6 +793,8 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
 #else
 
+        uint32_t base = block_loc - 32768;   // wraps mod 2^32; the offset below keeps t >= 0
+
         for (; i < sconf->factor_base->fb_13bit_B; i++)
         {
             prime = fbc->prime[i];
@@ -817,3 +825,118 @@ void tdiv_medprimes_32k_new(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
     return;
 }
+
+
+#if defined(__aarch64__) && defined(__ARM_NEON)
+
+// AArch64 NEON version of tdiv_medprimes_32k_new: the same Lemire test,
+// x divisible by p  <=>  x * minv (mod 2^32) <= thresh, on 8 primes per
+// iteration (two uint32x4 halves, so the two vmulq chains overlap).  NEON
+// has unsigned compares and no alignment rules, so no head loop is needed.
+// Primes are visited in ascending order, as in the x86 kernels, so
+// fb_offsets come out identical.  Selected under HAS_NEON (-noneon reverts
+// to tdiv_medprimes_32k_new's portable loop).
+void tdiv_medprimes_32k_neon(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    uint32_t i;
+    uint32_t prime, root1, root2, report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    fb_element_siqs* fullfb_ptr = sconf->factor_base->list;
+    uint32_t block_loc;
+    uint32_t bound = sconf->factor_base->fb_13bit_B;
+    static const uint8_t lanebit[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
+    const uint8x8_t vlanebit = vld1_u8(lanebit);
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        // wraps mod 2^32; off = base + 32769*p keeps t >= 0 (see _new)
+        uint32_t base = block_loc - 32768;
+        uint32x4_t vbase = vdupq_n_u32(base);
+
+        i = sconf->sieve_small_fb_start;
+
+        for (; i + 8 <= bound; i += 8)
+        {
+            uint16x8_t p16 = vld1q_u16(&fbc->prime[i]);
+            uint16x8_t r1_16 = vld1q_u16(&fbc->root1[i]);
+            uint16x8_t r2_16 = vld1q_u16(&fbc->root2[i]);
+
+            uint32x4_t plo = vmovl_u16(vget_low_u16(p16));
+            uint32x4_t phi = vmovl_high_u16(p16);
+
+            // voff = block_loc - 32768 + 32769*p   (32769*p = (p << 15) + p)
+            uint32x4_t offlo = vaddq_u32(vbase, vsliq_n_u32(plo, plo, 15));
+            uint32x4_t offhi = vaddq_u32(vbase, vsliq_n_u32(phi, phi, 15));
+
+            uint32x4_t minvlo = vld1q_u32(&fullfb_ptr->minv32[i]);
+            uint32x4_t minvhi = vld1q_u32(&fullfb_ptr->minv32[i + 4]);
+            uint32x4_t thrlo = vld1q_u32(&fullfb_ptr->thresh32[i]);
+            uint32x4_t thrhi = vld1q_u32(&fullfb_ptr->thresh32[i + 4]);
+
+            uint32x4_t x1lo = vmulq_u32(vsubq_u32(offlo, vmovl_u16(vget_low_u16(r1_16))), minvlo);
+            uint32x4_t x1hi = vmulq_u32(vsubq_u32(offhi, vmovl_high_u16(r1_16)), minvhi);
+            uint32x4_t x2lo = vmulq_u32(vsubq_u32(offlo, vmovl_u16(vget_low_u16(r2_16))), minvlo);
+            uint32x4_t x2hi = vmulq_u32(vsubq_u32(offhi, vmovl_high_u16(r2_16)), minvhi);
+
+            uint32x4_t hlo = vorrq_u32(vcleq_u32(x1lo, thrlo), vcleq_u32(x2lo, thrlo));
+            uint32x4_t hhi = vorrq_u32(vcleq_u32(x1hi, thrhi), vcleq_u32(x2hi, thrhi));
+
+            // narrow the 8 lane masks to 8 bytes (0x00 / 0xff); hits are
+            // rare, so test the 64-bit word before building a lane mask
+            uint8x8_t h8 = vmovn_u16(vcombine_u16(vmovn_u32(hlo), vmovn_u32(hhi)));
+            if (vget_lane_u64(vreinterpret_u64_u8(h8), 0) == 0)
+                continue;
+
+            uint32_t mask = vaddv_u8(vand_u8(h8, vlanebit));
+            while (mask)
+            {
+                uint32_t lane = (uint32_t)__builtin_ctz(mask);
+                mask &= mask - 1;
+                DIVIDE_RESIEVED_PRIME_2(i + lane);
+            }
+        }
+
+        // scalar tail loop for the remaining < 8 primes
+        for (; i < bound; i++)
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            uint32_t minv = fullfb_ptr->minv32[i];
+            uint32_t thresh = fullfb_ptr->thresh32[i];
+            uint32_t off = base + ((uint32_t)prime << 15) + prime;
+
+            if ((uint32_t)((off - root1) * minv) <= thresh ||
+                (uint32_t)((off - root2) * minv) <= thresh)
+            {
+                DIVIDE_RESIEVED_PRIME_2(i);
+            }
+        }
+
+        dconf->smooth_num[report_num] = smooth_num;
+    }
+
+    return;
+}
+
+#endif

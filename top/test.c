@@ -279,11 +279,11 @@ void test_dlp_composites(void)
 	f64b = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 	uint64_t* outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 
-    //goto tinyqs_marker;
+    goto tinyqs_marker;
     //goto spfermat_marker;
     //goto tinyecm_104_list_marker;
 	//goto tinyecm_128_marker;
-	goto microecm_marker;
+	//goto microecm_marker;
 	//goto uecm_52_list_marker;
 	//goto brent_marker;
 	//goto mpqs_marker;
@@ -542,29 +542,32 @@ brent_marker:
 tinyqs_marker:
 
     i = 0;
+	strcpy(filenames[i++], "semiprimes_32bit.dat");
+	strcpy(filenames[i++], "semiprimes_40bit.dat");
+	strcpy(filenames[i++], "semiprimes_46bit.dat");
 	strcpy(filenames[i++], "semiprimes_50bit.dat");
-	//strcpy(filenames[i++], "semiprimes_52bit.dat");
-	//strcpy(filenames[i++], "semiprimes_54bit.dat");
-    //strcpy(filenames[i++], "semiprimes_56bit.dat");
-	//strcpy(filenames[i++], "semiprimes_58bit.dat");
+	strcpy(filenames[i++], "semiprimes_52bit.dat");
+	strcpy(filenames[i++], "semiprimes_54bit.dat");
+    strcpy(filenames[i++], "semiprimes_56bit.dat");
+	strcpy(filenames[i++], "semiprimes_58bit.dat");
     strcpy(filenames[i++], "semiprimes_60bit.dat");
-    //strcpy(filenames[i++], "semiprimes_64bit.dat");
-    strcpy(filenames[i++], "semiprimes_70bit.dat");
-    strcpy(filenames[i++], "semiprimes_80bit.dat");
-    strcpy(filenames[i++], "semiprimes_90bit.dat");
-    strcpy(filenames[i++], "semiprimes_100bit.dat");
-    strcpy(filenames[i++], "semiprimes_110bit.dat");
-	strcpy(filenames[i++], "semiprimes_120bit.dat");
+    strcpy(filenames[i++], "semiprimes_64bit.dat");
+    //strcpy(filenames[i++], "semiprimes_70bit.dat");
+    //strcpy(filenames[i++], "semiprimes_80bit.dat");
+    //strcpy(filenames[i++], "semiprimes_90bit.dat");
+    //strcpy(filenames[i++], "semiprimes_100bit.dat");
+    //strcpy(filenames[i++], "semiprimes_110bit.dat");
+	//strcpy(filenames[i++], "semiprimes_120bit.dat");
     //strcpy(filenames[i++], "pseudoprimes_125bit.dat");
     num_files = i;
-    num = 10000;
+    num = 100000;
 
     // tinyqs test
     {
         mpz_t gmp_comp;
         mpz_init(gmp_comp);
 
-        for (nf = 0; nf < num_files; nf++)
+        for (nf = 0; nf < 0; nf++)
         {
             uint64_t known1, known2;
             char buf[1024];
@@ -576,7 +579,7 @@ tinyqs_marker:
 				continue;
 			}
 
-			num = 1000;
+			//num = 1000;
 			totBits = 0;
 			minBits = 99999;
 			maxBits = 0;
@@ -630,7 +633,7 @@ tinyqs_marker:
 				continue;
 			}
 
-			num = 10000;
+			//num = 10000;
 			totBits = 0;
 			minBits = 99999;
 			maxBits = 0;

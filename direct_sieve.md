@@ -502,9 +502,10 @@ the inline chain from addr2line.
   little. Batching shares only the loads and the update, at most ~7% of a
   C95 NB=2 run.
 - The flush RMWs cause 44% (NB=2) and 70% (NB=4) of all L2-miss loads: the
-  ~1.4 MB/poly fb stream evicts the interval. But there are only a few
-  hundred L2 misses per poly. The flush runs at ~2 cycles per hit, bound by
-  L1 misses into the 128-256 KB interval.
+  ~1.4 MB/poly fb stream evicts the interval. With single flush there are
+  ~1290 (NB=2) and ~3350 (NB=4) L2-miss loads per poly (perf stat counts;
+  sampled counts are throttled and read far too low). Avoiding them doesn't
+  pay: see the late-memset result below.
 
 **Single-flush scatter.** `TRY_SINGLE_FLUSH_SCATTER` (qs_impl.h, on by
 default):
@@ -524,8 +525,23 @@ avx512, avx2, sse41 and scalar kernels (c77 NB=2). Fixed-work C95 cycles
 | NB=4, AVX-512 | -0.7% |
 | NB=2, AVX2 | -1.1% |
 
-Moving the next interval's memset to just before the flush was slightly
-worse, so the memset stays before the pass.
+**Late memset.** Moving the next interval's memset to just before the flush
+makes the interval resident for the flush. L2-miss loads per poly fall from
+~1290 to ~226 at NB=2 and from ~3350 to ~1319 at NB=4, but cycles rise 1.4%
+and 0.6%. The event counts loads only, so the memset's own store misses are
+not in those figures: the interval comes back from L3 once per poly either
+way. The memset stays before the pass.
+
+**Flush after the block sieves (prototype only, not in the tree).** Order per
+poly: memset + med + sparse for all blocks, the single flush, then all scans.
+With a per-block root snapshot in both the control and the reorder build, so
+their cache pollution matches, fixed-work C95 cycles (`-siqsR 110000`) change
+by -1.3 / -1.1% at NB=2 and -1.6 / -0.4% at NB=4, with identical relations.
+A real version would swap the snapshot for rewound roots or 32-bit divisibility
+tests in the scan (estimated, not measured, at about 2-3% of cycles). It must
+also protect the med sieve's sink stripe, the last `MED_SINK_BYTES` of the
+previous block, which is scribbled on once that block is no longer scanned
+first. Not pursued.
 
 ## 7. Not done / caveats
 

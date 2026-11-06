@@ -433,6 +433,26 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		//if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
         //    abs(offset - minoffset) > 2000)
 
+#ifdef TRY_THRESH_PROFILE
+        if (sconf->lp_direct && (sconf->tprof_alpha > 0.0) && sconf->tprof_exact)
+        {
+            // the sieve byte carries this offset's chunk credit (bits is
+            // that much high); require the offset's own credit instead
+            double side = (double)(sconf->num_blocks << 15);
+            double x0 = mpz_get_d(dconf->gmptmp3);
+            uint32_t lo = offset & ~(sconf->tprof_chunk - 1);
+            int cd = tprof_credit(sconf->tprof_alpha, sconf->tprof_max, x0,
+                side, (double)lo, (double)(lo + sconf->tprof_chunk));
+            int pd = tprof_credit(sconf->tprof_alpha, sconf->tprof_max, x0,
+                side, (double)offset, (double)offset);
+
+            if (((int)bits - cd) < ((int)sconf->tf_closnuf + (int)dconf->tf_small_cutoff - pd))
+                dconf->valid_Qs[report_num] = 0;
+            else
+                dconf->valid_Qs[report_num] = 1;
+        }
+        else
+#endif
         if (bits < (sconf->tf_closnuf + dconf->tf_small_cutoff))
 			dconf->valid_Qs[report_num] = 0;
 		else
