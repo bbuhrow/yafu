@@ -118,7 +118,10 @@ udup(ulong s, uint rho, ulong n,
     P->Z = montmul64(tt2, tt3, n, rho);             // Z=w*(V-U)
 }
 
-static inline void
+/* uecm_stage1 calls uprac ~100 times in straight-line code.  AMD's compiler
+ * inlines every call by default, which turned this one kernel into ~280k
+ * lines of IR and a compile time of tens of minutes.  Keep it a real call. */
+__attribute__((noinline)) static void
 uprac(uint rho, ulong n, uecm_pt *P, ulong c, double v, ulong s)
 {
     // require postive odd c
@@ -562,7 +565,7 @@ static inline void threeswap96(uint *a, uint *b, uint *c)
     t=a[2]; a[2]=b[2]; b[2]=c[2]; c[2]=t;
 }
 
-static inline void
+__attribute__((noinline)) static void
 uprac96(uint rho, uint *n, uecm96_pt *P, ulong c, double v, uint *s)
 {
     ulong d, e, r;

@@ -46,9 +46,28 @@ either expressed or implied, of the FreeBSD Project.
 #define base_t uint64_t
 #define base_digits 2
 
-#ifdef USE_AVX512F
+/* Always: the portable mulmod128 (used when USE_MULX is off) needs
+   _addcarry_u64.  Including the header enables no instructions. */
 #include <immintrin.h>
-#endif
+
+/* The intrinsics take unsigned long long *, but uint64_t is unsigned long
+   on LP64 Linux, and gcc 14 rejects the mismatched pointer.  Go through a
+   local of the right type; the generated code is the same. */
+static inline uint8_t tecm_addcarry_u64(uint8_t c, uint64_t a, uint64_t b, uint64_t* s)
+{
+    unsigned long long r;
+    c = _addcarry_u64(c, a, b, &r);
+    *s = r;
+    return c;
+}
+
+static inline uint8_t tecm_subborrow_u64(uint8_t c, uint64_t a, uint64_t b, uint64_t* s)
+{
+    unsigned long long r;
+    c = _subborrow_u64(c, a, b, &r);
+    *s = r;
+    return c;
+}
 
 // aligned memory allocation
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
@@ -289,7 +308,13 @@ typedef struct
 } monty128_t;
 
 #define GCC_ASM64X
+/* The mulx inline asm needs BMI2 (Haswell / Excavator and later).  Use it
+   only when the compiler is targeting BMI2; otherwise a baseline x86-64
+   build dies with an illegal instruction on older CPUs as soon as a
+   cofactor above 64 bits reaches tinyecm. */
+#ifdef __BMI2__
 #define USE_MULX
+#endif
 
 void to_monty128(monty128_t* mdata, uint64_t* x);
 void monty128_init(monty128_t* mdata, uint64_t* n);
@@ -561,15 +586,15 @@ void mulmod128(uint64_t* u, uint64_t* v, uint64_t* w, monty128_t* mdata)
 
     //j = 0;
     //z = (z + x0 * y0 + u * m0) / b;
-    c1 = _addcarry_u64(0, _umul128(U, mdata->n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
-    t[2] = _addcarry_u64(c1, t[1], c2, &t[1]);                              // c1 applies to t2
+    c1 = tecm_addcarry_u64(0, _umul128(U, mdata->n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+    t[2] = tecm_addcarry_u64(c1, t[1], c2, &t[1]);                              // c1 applies to t2
 
     //j = 1;
     //z = (z + x0 * y1 + u * m1) / b;
-    c1 = _addcarry_u64(0, _umul128(u[0], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
-    c4 = _addcarry_u64(0, _umul128(U, mdata->n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
-    c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
-    c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+    c1 = tecm_addcarry_u64(0, _umul128(u[0], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+    c4 = tecm_addcarry_u64(0, _umul128(U, mdata->n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+    c1 = tecm_addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+    c4 = tecm_addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
     t[0] = t[1];                                                            // divide by b
     t[1] = t[2];
     t[2] = c1 + c4;
@@ -578,8 +603,8 @@ void mulmod128(uint64_t* u, uint64_t* v, uint64_t* w, monty128_t* mdata)
 
     //i = 0;
     //u = (z + x1 * y0) * nhat mod b;
-    c1 = _addcarry_u64(0, _umul128(u[1], v[0], &c2), t[0], &t[0]);          // c1,c2 apply to t1
-    c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+    c1 = tecm_addcarry_u64(0, _umul128(u[1], v[0], &c2), t[0], &t[0]);          // c1,c2 apply to t1
+    c1 = tecm_addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
     t[2] += c1;
     U = t[0] * mdata->rho;
 
@@ -587,16 +612,16 @@ void mulmod128(uint64_t* u, uint64_t* v, uint64_t* w, monty128_t* mdata)
 
     //j = 0;
     //z = (z + x1 * y0 + u * m0) / b;
-    c1 = _addcarry_u64(0, _umul128(U, mdata->n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
-    c1 = _addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
+    c1 = tecm_addcarry_u64(0, _umul128(U, mdata->n[0], &c2), t[0], &t[0]);      // c1,c2 apply to t1
+    c1 = tecm_addcarry_u64(c1, t[1], c2, &t[1]);                                // c1 applies to t2
     t[2] += c1;
 
     //j = 1;
     //z = (z + x1 * y1 + u * m1) / b;
-    c1 = _addcarry_u64(0, _umul128(u[1], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
-    c4 = _addcarry_u64(0, _umul128(U, mdata->n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
-    c1 = _addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
-    c4 = _addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
+    c1 = tecm_addcarry_u64(0, _umul128(u[1], v[1], &c2), t[1], &t[1]);          // c1,c2 apply to t1
+    c4 = tecm_addcarry_u64(0, _umul128(U, mdata->n[1], &c3), t[1], &t[1]);      // c1,c2 apply to t1
+    c1 = tecm_addcarry_u64(c1, t[2], c2, &t[2]);                                // c1 applies to t2
+    c4 = tecm_addcarry_u64(c4, t[2], c3, &t[2]);                                // c4 applies to t2
 
     //printf("t = %" PRIx64 ",%" PRIx64 ",%" PRIx64 "\n", t[2], t[1], t[0]);
 
@@ -679,12 +704,12 @@ void addmod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
 
     uint8_t c;
     uint64_t t[2];
-    c = _addcarry_u64(0, a[0], b[0], &t[0]);
-    c = _addcarry_u64(c, a[1], b[1], &t[1]);
+    c = tecm_addcarry_u64(0, a[0], b[0], &t[0]);
+    c = tecm_addcarry_u64(c, a[1], b[1], &t[1]);
     if (c || (t[1] > n[1]) || ((t[1] == n[1]) && (t[0] > n[0])))
     {
-        c = _subborrow_u64(0, t[0], n[0], &w[0]);
-        c = _subborrow_u64(c, t[1], n[1], &w[1]);
+        c = tecm_subborrow_u64(0, t[0], n[0], &w[0]);
+        c = tecm_subborrow_u64(c, t[1], n[1], &w[1]);
     }
     else
     {
@@ -722,12 +747,12 @@ void submod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
 
     uint8_t c;
     uint64_t t[2];
-    c = _subborrow_u64(0, a[0], b[0], &t[0]);
-    c = _subborrow_u64(c, a[1], b[1], &t[1]);
+    c = tecm_subborrow_u64(0, a[0], b[0], &t[0]);
+    c = tecm_subborrow_u64(c, a[1], b[1], &t[1]);
     if (c)
     {
-        c = _addcarry_u64(0, t[0], n[0], &w[0]);
-        c = _addcarry_u64(c, t[1], n[1], &w[1]);
+        c = tecm_addcarry_u64(0, t[0], n[0], &w[0]);
+        c = tecm_addcarry_u64(c, t[1], n[1], &w[1]);
     }
     else
     {

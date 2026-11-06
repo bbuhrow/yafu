@@ -11,7 +11,15 @@
 #include "ocl_xface.h"
 #include <stdint.h>
 
-#if defined(HAVE_OCL_BATCH_FACTOR)
+#if defined(HAVE_OCL_BATCH_FACTOR) || defined(HAVE_OCL_POLY)
+
+/* Not in the headers shipped with OpenCL < 3.0 SDKs (e.g. ROCm's 2.2 headers). */
+#ifdef CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_MULTIPLE
+#define OCL_DEVICE_PREFERRED_WG_MULTIPLE CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_MULTIPLE
+#else
+#define OCL_DEVICE_PREFERRED_WG_MULTIPLE 0x1067
+#endif
+#define OCL_DEVICE_WAVEFRONT_WIDTH_AMD 0x4043
 
 /* -----------------------------------------------------------------------
  * Error string table
@@ -171,8 +179,17 @@ gpu_init(gpu_config_t *config)
 
             info->can_overlap = 1;   /* all OpenCL queues can overlap */
 
-            clGetDeviceInfo(dev, CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
-                            sizeof(wg_mult), &wg_mult, NULL);
+            /* Informational only.  The standard query is OpenCL 3.0; on
+             * 2.x devices it fails, so try the AMD wavefront query. */
+            if (clGetDeviceInfo(dev, OCL_DEVICE_PREFERRED_WG_MULTIPLE,
+                                sizeof(wg_mult), &wg_mult, NULL) != CL_SUCCESS)
+            {
+                cl_uint wf = 0;
+                wg_mult = 0;
+                if (clGetDeviceInfo(dev, OCL_DEVICE_WAVEFRONT_WIDTH_AMD,
+                                    sizeof(wf), &wf, NULL) == CL_SUCCESS)
+                    wg_mult = wf;
+            }
             info->warp_size = (int32_t)wg_mult;
 
             clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_ITEM_SIZES,
@@ -301,4 +318,4 @@ gpu_launch_set(gpu_launch_t *launch, gpu_arg_t *args)
     }
 }
 
-#endif /* HAVE_CUDA_BATCH_FACTOR */
+#endif /* HAVE_OCL_BATCH_FACTOR || HAVE_OCL_POLY */

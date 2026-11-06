@@ -128,4 +128,4 @@ int do_gpu_cofactorization(device_thread_ctx_t *t, relation_batch_t* rb, uint64_
                            int b1_2lp_ovr, int b2_2lp_ovr,
                            int curves_3lp_ovr, int curves_2lp_ovr);
 
-#endif /* HAVE_CUDA_BATCH_FACTOR */
+#endif /* HAVE_OCL_BATCH_FACTOR */

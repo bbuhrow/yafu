@@ -45,12 +45,20 @@
 # --- Standalone fallbacks (overridden when called from parent Makefile) ------
 CC         ?= gcc
 GMP_INCDIR ?= /usr/include
+ARCH       ?= native
+TUNE       ?=
+
+ARCH_FLAGS := -march=$(ARCH) $(if $(TUNE),-mtune=$(TUNE))
 
 ifndef DETECTED_OS
     ifeq ($(OS),Windows_NT)
         DETECTED_OS := Windows
     else
         DETECTED_OS := $(shell uname -s)
+        # an MSYS2 MinGW shell (MINGW64, UCRT64, ...) doesn't always export OS
+        ifneq ($(filter MINGW%,$(DETECTED_OS)),)
+            DETECTED_OS := Windows
+        endif
     endif
 endif
 
@@ -63,15 +71,15 @@ endif
 # lasieve's 64-bit ulong assumption in siever-config.h.
 #
 ifeq ($(DETECTED_OS),Windows)
-    CFLAGS = -m64 -g -Ofast -march=native -I. -I$(GMP_INCDIR) \
+    CFLAGS = -m64 -Ofast $(ARCH_FLAGS) -I. -I$(GMP_INCDIR) \
              -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
 else
-    CFLAGS = -m64 -g -Ofast -march=native -I. -I$(GMP_INCDIR) -fcommon
+    CFLAGS = -m64 -Ofast $(ARCH_FLAGS) -I. -I$(GMP_INCDIR) -fcommon
 endif
 
 ifeq ($(DEBUG),1)
-    CFLAGS := $(filter-out -Ofast -march=native,$(CFLAGS))
-    CFLAGS += -O0
+    CFLAGS := $(filter-out -Ofast $(ARCH_FLAGS),$(CFLAGS))
+    CFLAGS += -O0 -g
 endif
 
 
