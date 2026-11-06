@@ -58,6 +58,10 @@ void factor_tune(fact_obj_t *inobj)
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
 	uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		63709, 143984, 242825, 589192, 1178529, 1716902, 2457335, 3511771 }; // 2397232, 3293925
+	uint32_t siqs_actualrels_direct_avx512[NUM_SIQS_PTS] = { 27532, 44122,
+		87583, 137216, 288934, 459212, 678979, 1133328, 1859293, 2675540 }; // 2397232, 3293925
+	uint32_t siqs_actualrels_direct[NUM_SIQS_PTS] = { 33129, 59729,
+		72805, 130026, 211588, 281348, 651696, 1263068, 1923778, 2675540 }; // 2397232, 3293925
     uint32_t siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
         15, 13, 16, 20, 18, 19, 20, 21 }; // 20, 20
 	uint32_t siqs_testrels[NUM_SIQS_PTS] = { 10000, 10000, 10000 , 10000 , 10000,
@@ -183,8 +187,13 @@ void factor_tune(fact_obj_t *inobj)
 		gettimeofday(&stop, NULL);
 		t_time = ytools_difftime(&start, &stop);
 
+#if defined( USE_AVX512F ) //&& defined()
+		siqs_extraptime[i] = t_time * siqs_actualrels_direct_avx512[i] / fobj->qs_obj.gbl_override_rel;
+#else
 		// the number of relations actually gathered is stored in gbl_override_rel
-		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
+		siqs_extraptime[i] = t_time * siqs_actualrels_direct[i] / fobj->qs_obj.gbl_override_rel;
+		//siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
+#endif
 
 		// add a guess at the linalg + sqrt time: something reasonable seems to be about
 		// 2% of the total sieve time
