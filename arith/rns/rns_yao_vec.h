@@ -15,8 +15,8 @@
 
 #define NCH RNSY_NCH
 #define MAXS 10
-#define INL static inline __attribute__((always_inline))
-#define UNROLL _Pragma("GCC unroll 32")
+#define INL RNS_INLINE
+#define UNROLL RNS_UNROLL(32)
 
 #define LO52(acc, a, b) _mm512_madd52lo_epu64((acc), (a), (b))
 #define HI52(acc, a, b) _mm512_madd52hi_epu64((acc), (a), (b))
@@ -86,7 +86,7 @@ INL void vfold_top_x(__m512i *x, __m512i top, __m512i top1, __m512i d,
     if (TWO)
         x[1] = LO52(x[1], top1, d);
     x[0] = _mm512_and_si512(x[0], M52);
-    if (__builtin_expect(_mm512_cmpge_epu64_mask(x[1], BC(1ULL << 52)) == 0, 1))
+    if (RNS_LIKELY(_mm512_cmpge_epu64_mask(x[1], BC(1ULL << 52)) == 0))
         return;
 
     // rare: the carry ripples on, possibly out of the top digit

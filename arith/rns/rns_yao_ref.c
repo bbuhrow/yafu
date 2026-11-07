@@ -58,8 +58,8 @@ static void fold(rnsy_fixed_t *fx, mpz_t X, uint64_t d, mpz_t tmp)
 {
     while (mpz_cmp(X, fx->two_w) >= 0)
     {
-        mpz_tdiv_q_2exp(tmp, X, fx->w);
-        mpz_tdiv_r_2exp(X, X, fx->w);
+        mpz_tdiv_q_2exp(tmp, X, (mp_bitcnt_t)fx->w);
+        mpz_tdiv_r_2exp(X, X, (mp_bitcnt_t)fx->w);
         mpz_addmul_ui(X, tmp, d);
     }
 }
@@ -77,7 +77,7 @@ static void cmul_acc(rnsy_fixed_t *fx, mpz_t out, mpz_t a, mpz_t *tab, mpz_t tmp
     int k;
     for (k = 0; k < fx->s; k++)
     {
-        mpz_tdiv_q_2exp(tmp, a, RNS_WBITS * k);
+        mpz_tdiv_q_2exp(tmp, a, (mp_bitcnt_t)(RNS_WBITS * k));
         mpz_addmul_ui(out, tab[k], mpz_get_ui(tmp) & RNS_MASK52);
     }
 }
@@ -88,7 +88,7 @@ static void rotations(rnsy_fixed_t *fx, mpz_t *tab, mpz_t f, mpz_t m)
     int k;
     for (k = 0; k < fx->s; k++)
     {
-        mpz_mul_2exp(tab[k], f, RNS_WBITS * k);
+        mpz_mul_2exp(tab[k], f, (mp_bitcnt_t)(RNS_WBITS * k));
         mpz_mod(tab[k], tab[k], m);
     }
 }
@@ -130,7 +130,7 @@ static int fit_constants(uint64_t out[MAXN][MAXN], int *z, mpz_t full[MAXN][MAXN
         {
             mpz_t v;
             mpz_init(v);
-            mpz_tdiv_q_2exp(v, full[a][b], z[b]);
+            mpz_tdiv_q_2exp(v, full[a][b], (mp_bitcnt_t)z[b]);
             if (mpz_sizeinbase(v, 2) > 52)
                 ok = 0;
             else
@@ -177,7 +177,7 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
     fx->w = 52 * s;
     fx->nwords = 2 * n * s + 1;
     fx->rword = 2 * n * s;
-    mpz_setbit(fx->two_w, fx->w);
+    mpz_setbit(fx->two_w, (mp_bitcnt_t)fx->w);
 
     // FCFS: 2^w - d, d odd ascending, pairwise coprime
     for (cnt = 0, d = 1; cnt < 2 * n; d += 2)
@@ -212,13 +212,13 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
     for (i = 0; i < 2 * n; i++)
         mpz_clear(pool[i]);
 
-    mpz_set_ui(bound, (unsigned long)RNS_HEADROOM * fx->k);
+    mpz_set_ui(bound, (unsigned long)(RNS_HEADROOM * fx->k));
     mpz_mul(bound, bound, bound);
-    mpz_mul_2exp(bound, bound, maxbits);
+    mpz_mul_2exp(bound, bound, (mp_bitcnt_t)maxbits);
     if (mpz_cmp(fx->MB, bound) < 0)
         die("M_B bound check failed");
-    mpz_set_ui(bound, 2UL * fx->k);
-    mpz_mul_2exp(bound, bound, maxbits);
+    mpz_set_ui(bound, (unsigned long)(2 * fx->k));
+    mpz_mul_2exp(bound, bound, (mp_bitcnt_t)maxbits);
     if (mpz_cmp(fx->MC, bound) < 0)
         die("M_C bound check failed");
 
@@ -288,7 +288,7 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
 
         // K_i = ceil(2^(w + vC + ceil(log2 n)) / b_i) * b_i > sum_j xi'_j |C_j|~
         mpz_set_ui(t, 0);
-        mpz_setbit(t, fx->w + fx->vC + (int)ceil(log2((double)n)));
+        mpz_setbit(t, (mp_bitcnt_t)(fx->w + fx->vC + (int)ceil(log2((double)n))));
         mpz_cdiv_q(fx->K_b[i], t, fx->b[i]);
         mpz_mul(fx->K_b[i], fx->K_b[i], fx->b[i]);
     }
@@ -474,21 +474,22 @@ static void build_bconst(rnsy_ctx_t *ctx)
 {
     rnsy_fixed_t *fx = ctx->fx;
     int n = fx->n, s = fx->s, i, k, a;
-    size_t words = (size_t)n * (s + 1) * 16 + (size_t)n * s * NCH +
-        3 * (size_t)n * s * s + (size_t)n * (s + 2) + 2 * (size_t)n * (s + 1);
+    const size_t zn = (size_t)n, zs = (size_t)s;
+    size_t words = zn * (zs + 1) * 16 + zn * zs * NCH +
+        3 * zn * zs * zs + zn * (zs + 2) + 2 * zn * (zs + 1);
     uint64_t *p;
     mpz_t t;
 
     mpz_init(t);
     p = ctx->bblock = rns_aligned_alloc(words);
-    ctx->balpha = p; p += (size_t)n * (s + 1) * 16;     // keeps 64-byte alignment
-    ctx->bscratch = p; p += (size_t)n * s * NCH;
-    ctx->bF1 = p; p += (size_t)n * s * s;
-    ctx->bG1 = p; p += (size_t)n * s * s;
-    ctx->bG2 = p; p += (size_t)n * s * s;
-    ctx->bK = p; p += (size_t)n * (s + 2);
-    ctx->bEb = p; p += (size_t)n * (s + 1);
-    ctx->bEc = p; p += (size_t)n * (s + 1);
+    ctx->balpha = p; p += zn * (zs + 1) * 16;     // keeps 64-byte alignment
+    ctx->bscratch = p; p += zn * zs * NCH;
+    ctx->bF1 = p; p += zn * zs * zs;
+    ctx->bG1 = p; p += zn * zs * zs;
+    ctx->bG2 = p; p += zn * zs * zs;
+    ctx->bK = p; p += zn * (zs + 2);
+    ctx->bEb = p; p += zn * (zs + 1);
+    ctx->bEc = p; p += zn * (zs + 1);
 
     for (i = 0; i < n; i++)
     {
@@ -509,7 +510,7 @@ static void build_bconst(rnsy_ctx_t *ctx)
         // alpha' <= n + 1 < 16: table of alpha * |-M_C|_{b_i}, s+1 digits
         for (a = 0; a < 16; a++)
         {
-            mpz_mul_ui(t, fx->negMC_b[i], (a <= n + 1) ? a : 0);
+            mpz_mul_ui(t, fx->negMC_b[i], (unsigned long)((a <= n + 1) ? a : 0));
             digits_mpz(ctx->balpha + (i * (s + 1)) * 16 + a, s + 1, 16, t);
         }
     }
@@ -584,7 +585,7 @@ rnsy_ctx_t *rnsy_ctx_init(rnsy_fixed_t *fx, mpz_t N)
     mpz_invert(ctx->MBinvmodN, fx->MB, N);
 
     ctx->subconst = rnsy_alloc(ctx);
-    mpz_mul_ui(t, N, (unsigned long)RNS_SUBMULT * fx->k);
+    mpz_mul_ui(t, N, (unsigned long)(RNS_SUBMULT * fx->k));
     rnsy_from_int(ctx, ctx->subconst, t);
     ctx->one = rnsy_alloc(ctx);
     mpz_set_ui(t, 1);
@@ -744,7 +745,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y)
         mpz_set_ui(q, 0);
         for (i = 0; i < n; i++)
             mpz_addmul_ui(q, xi[i], fx->Bt[i][j]);
-        mpz_mul_2exp(q, q, fx->zB[j]);
+        mpz_mul_2exp(q, q, (mp_bitcnt_t)fx->zB[j]);
         fold(fx, q, fx->dc[j], tmp);
 
         get_ch(fx, a, x, 1, j);
@@ -776,7 +777,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y)
         mpz_set_ui(b, 0);
         for (j = 0; j < n; j++)
             mpz_addmul_ui(b, xr[j], fx->Ct[j][i]);
-        mpz_mul_2exp(b, b, fx->zC[i]);
+        mpz_mul_2exp(b, b, (mp_bitcnt_t)fx->zC[i]);
         if (fx->cneg)
             mpz_sub(q, fx->K_b[i], b);
         else

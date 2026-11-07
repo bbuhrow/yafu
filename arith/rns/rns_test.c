@@ -132,7 +132,7 @@ static int test_size(int bits, int iters, gmp_randstate_t rs)
     return fails;
 }
 
-#if defined(__AVX512F__) && defined(__AVX512IFMA__)
+#ifdef RNS_HAVE_AVX512IFMA
 #define HAVE_VEC 1
 
 // compare all 8 lanes of v against scalar residue vectors s[lane]
@@ -262,8 +262,12 @@ static int test_vec(int bits, int iters, gmp_randstate_t rs)
 static double now_sec(void)
 {
     struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec * 1e-9;
+#endif
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 }
 
 // ns per squaring per number: scalar ref, vector (per lane), GMP mul+mod

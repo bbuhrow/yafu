@@ -8,11 +8,11 @@
  */
 
 #include "rns.h"
-#include <immintrin.h>
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__AVX512F__) && defined(__AVX512IFMA__)
+#ifdef RNS_HAVE_AVX512IFMA
+#include <immintrin.h>
 
 #define VL RNS_VL
 
@@ -258,7 +258,7 @@ void rns_vpowm_avx512(rns_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
     int bit = (int)mpz_sizeinbase(e, 2) - 1;
     int k = rns_winsize(bit);
     int ntab = 1 << (k - 1);
-    uint64_t **g = (uint64_t **)malloc(ntab * sizeof(uint64_t *));
+    uint64_t **g = (uint64_t **)calloc((size_t)ntab, sizeof(uint64_t *));
     uint64_t *b2 = rns_valloc(ctx);
     size_t bytes = (size_t)ctx->fx->nch * VL * sizeof(uint64_t);
     int i, j, lane;
@@ -276,7 +276,7 @@ void rns_vpowm_avx512(rns_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
 
     while (bit >= 0)
     {
-        if (mpz_tstbit(e, bit) == 0)
+        if (mpz_tstbit(e, (mp_bitcnt_t)bit) == 0)
         {
             rns_vsqrmod_avx512(ctx, d, d);
             bit--;
@@ -287,10 +287,10 @@ void rns_vpowm_avx512(rns_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
             int a = bit - k + 1, thisk, bstr = 1;
             if (a < 0)
                 a = 0;
-            a = (int)mpz_scan1(e, a);
+            a = (int)mpz_scan1(e, (mp_bitcnt_t)a);
             thisk = bit - a + 1;
             for (j = 1; j < thisk; j++)
-                bstr = (bstr << 1) | mpz_tstbit(e, bit - j);
+                bstr = (bstr << 1) | mpz_tstbit(e, (mp_bitcnt_t)(bit - j));
             for (j = 0; j < thisk; j++)
                 rns_vsqrmod_avx512(ctx, d, d);
             rns_vmulmod_avx512(ctx, d, d, g[bstr >> 1]);

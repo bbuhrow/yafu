@@ -9,7 +9,36 @@
 #include <string.h>
 #include <math.h>
 
+// 64x64 -> 128-bit products: unsigned __int128 where available, else the
+// MSVC x64 intrinsics.
+#if defined(__SIZEOF_INT128__)
 typedef unsigned __int128 u128;
+static inline void mul64(uint64_t x, uint64_t y, uint64_t *lo, uint64_t *hi)
+{
+    u128 p = (u128)x * y;
+    *lo = (uint64_t)p;
+    *hi = (uint64_t)(p >> 64);
+}
+// x*y mod m, for x, y < m
+static inline uint64_t mulmod64(uint64_t x, uint64_t y, uint64_t m)
+{
+    return (uint64_t)(((u128)x * y) % m);
+}
+#elif defined(_MSC_VER) && defined(_M_X64)
+#include <intrin.h>
+static inline void mul64(uint64_t x, uint64_t y, uint64_t *lo, uint64_t *hi)
+{
+    *lo = _umul128(x, y, hi);
+}
+static inline uint64_t mulmod64(uint64_t x, uint64_t y, uint64_t m)
+{
+    uint64_t hi, lo = _umul128(x, y, &hi), r;
+    _udiv128(hi, lo, m, &r);    // hi < m since x, y < m
+    return r;
+}
+#else
+#error "rns_ref.c needs unsigned __int128 or the MSVC x64 intrinsics"
+#endif
 
 static void *rns_xmalloc(size_t sz)
 {
@@ -59,9 +88,10 @@ static inline uint64_t red116(uint64_t lo, uint64_t hi, uint64_t d)
     uint64_t bv = hi + (lo >> 52);
     uint64_t b0 = bv & RNS_MASK52;
     uint64_t b1 = bv >> 52;                 // < 2^12
-    u128 p = (u128)b0 * d;
-    uint64_t pl = (uint64_t)p & RNS_MASK52;
-    uint64_t ph = (uint64_t)(p >> 52);      // < d
+    uint64_t plo, phi;
+    mul64(b0, d, &plo, &phi);
+    uint64_t pl = plo & RNS_MASK52;
+    uint64_t ph = (phi << 12) | (plo >> 52);    // < d
     // 2^52 == d, 2^104 == d^2 (mod m)
     uint64_t s = a + pl + (b1 * d + ph) * d;    // < 3*2^52
     s = (s & RNS_MASK52) + (s >> 52) * d;       // < 2^52 + 3d
@@ -71,8 +101,9 @@ static inline uint64_t red116(uint64_t lo, uint64_t hi, uint64_t d)
 
 static inline uint64_t mulred(uint64_t x, uint64_t y, uint64_t d)
 {
-    u128 p = (u128)x * y;
-    return red116((uint64_t)p & RNS_MASK52, (uint64_t)(p >> 52), d);
+    uint64_t plo, phi;
+    mul64(x, y, &plo, &phi);
+    return red116(plo & RNS_MASK52, (phi << 12) | (plo >> 52), d);
 }
 
 // fold a value < 2^62 to < 2^52 (mod 2^52 - d)
@@ -85,9 +116,10 @@ static inline uint64_t redsmall(uint64_t t, uint64_t d)
 
 // lazy accumulator of 52x52 products as lo/hi 52-bit halves (madd52lo/hi)
 #define ACC_MADD(lo, hi, x, y) do {                     \
-        u128 _p = (u128)(x) * (y);                      \
-        (lo) += (uint64_t)_p & RNS_MASK52;              \
-        (hi) += (uint64_t)(_p >> 52);                   \
+        uint64_t _pl, _ph;                              \
+        mul64((x), (y), &_pl, &_ph);                    \
+        (lo) += _pl & RNS_MASK52;                       \
+        (hi) += (_ph << 12) | (_pl >> 52);              \
     } while (0)
 
 // ---------------------------------------------------------------------------
@@ -97,7 +129,7 @@ static inline uint64_t redsmall(uint64_t t, uint64_t d)
 // FCFS moduli 2^52 - d, d odd ascending, pairwise coprime
 static int select_moduli(uint64_t *dpool, int count)
 {
-    uint64_t *m = (uint64_t *)rns_xmalloc(count * sizeof(uint64_t));
+    uint64_t *m = (uint64_t *)rns_xmalloc((size_t)(count) * sizeof(uint64_t));
     int n = 0;
     uint64_t d;
 
@@ -161,17 +193,17 @@ rns_fixed_t *rns_fixed_init(int maxbits)
     fx->k = nB + 2;
 
     npool = nB + nC;
-    dpool = (uint64_t *)rns_xmalloc(npool * sizeof(uint64_t));
+    dpool = (uint64_t *)rns_xmalloc((size_t)(npool) * sizeof(uint64_t));
     if (select_moduli(dpool, npool) < npool)
     {
         fprintf(stderr, "rns: not enough moduli 2^52-d with d < 2^20\n");
         exit(1);
     }
 
-    fx->b = (uint64_t *)rns_xmalloc(nB * sizeof(uint64_t));
-    fx->db = (uint64_t *)rns_xmalloc(nB * sizeof(uint64_t));
-    fx->c = (uint64_t *)rns_xmalloc(nC * sizeof(uint64_t));
-    fx->dc = (uint64_t *)rns_xmalloc(nC * sizeof(uint64_t));
+    fx->b = (uint64_t *)rns_xmalloc((size_t)(nB) * sizeof(uint64_t));
+    fx->db = (uint64_t *)rns_xmalloc((size_t)(nB) * sizeof(uint64_t));
+    fx->c = (uint64_t *)rns_xmalloc((size_t)(nC) * sizeof(uint64_t));
+    fx->dc = (uint64_t *)rns_xmalloc((size_t)(nC) * sizeof(uint64_t));
 
     // interleave the pool between B and C, the remainder to the larger base
     {
@@ -201,29 +233,29 @@ rns_fixed_t *rns_fixed_init(int maxbits)
         mpz_mul_ui(fx->MC, fx->MC, fx->c[j]);
 
     // verify the bounds exactly
-    mpz_set_ui(bound, (unsigned long)RNS_HEADROOM * fx->k);
+    mpz_set_ui(bound, (unsigned long)(RNS_HEADROOM * fx->k));
     mpz_mul(bound, bound, bound);
-    mpz_mul_2exp(bound, bound, maxbits);
+    mpz_mul_2exp(bound, bound, (mp_bitcnt_t)maxbits);
     if (mpz_cmp(fx->MB, bound) < 0)
     {
         fprintf(stderr, "rns: M_B bound check failed\n");
         exit(1);
     }
-    mpz_set_ui(bound, (unsigned long)2 * fx->k);
-    mpz_mul_2exp(bound, bound, maxbits);
+    mpz_set_ui(bound, (unsigned long)(2 * fx->k));
+    mpz_mul_2exp(bound, bound, (mp_bitcnt_t)maxbits);
     if (mpz_cmp(fx->MC, bound) < 0)
     {
         fprintf(stderr, "rns: M_C bound check failed\n");
         exit(1);
     }
 
-    fx->Bi = (mpz_t *)rns_xmalloc(nB * sizeof(mpz_t));
-    fx->Biinv_b = (uint64_t *)rns_xmalloc(nB * sizeof(uint64_t));
-    fx->Cjinv_c = (uint64_t *)rns_xmalloc(nC * sizeof(uint64_t));
-    fx->BtoC = (uint64_t *)rns_xmalloc((nC + 1) * nB * sizeof(uint64_t));
-    fx->CtoB = (uint64_t *)rns_xmalloc((nB + 1) * nC * sizeof(uint64_t));
-    fx->negMC_b = (uint64_t *)rns_xmalloc(nB * sizeof(uint64_t));
-    fx->CjMBinv_c = (uint64_t *)rns_xmalloc(nC * sizeof(uint64_t));
+    fx->Bi = (mpz_t *)rns_xmalloc((size_t)(nB) * sizeof(mpz_t));
+    fx->Biinv_b = (uint64_t *)rns_xmalloc((size_t)(nB) * sizeof(uint64_t));
+    fx->Cjinv_c = (uint64_t *)rns_xmalloc((size_t)(nC) * sizeof(uint64_t));
+    fx->BtoC = (uint64_t *)rns_xmalloc((size_t)((nC + 1) * nB) * sizeof(uint64_t));
+    fx->CtoB = (uint64_t *)rns_xmalloc((size_t)((nB + 1) * nC) * sizeof(uint64_t));
+    fx->negMC_b = (uint64_t *)rns_xmalloc((size_t)(nB) * sizeof(uint64_t));
+    fx->CjMBinv_c = (uint64_t *)rns_xmalloc((size_t)(nC) * sizeof(uint64_t));
 
     for (i = 0; i < nB; i++)
     {
@@ -297,7 +329,7 @@ void rns_fixed_free(rns_fixed_t *fx)
 
 uint64_t *rns_alloc(rns_ctx_t *ctx)
 {
-    return (uint64_t *)rns_xmalloc(ctx->fx->nch * sizeof(uint64_t));
+    return (uint64_t *)rns_xmalloc((size_t)(ctx->fx->nch) * sizeof(uint64_t));
 }
 
 uint64_t *rns_aligned_alloc(size_t words)
@@ -375,8 +407,8 @@ rns_ctx_t *rns_ctx_init(rns_fixed_t *fx, mpz_t N)
     ctx = (rns_ctx_t *)rns_xmalloc(sizeof(rns_ctx_t));
     ctx->fx = fx;
     mpz_init_set(ctx->N, N);
-    ctx->f1_b = (uint64_t *)rns_xmalloc(nB * sizeof(uint64_t));
-    ctx->g2_c = (uint64_t *)rns_xmalloc(nC * sizeof(uint64_t));
+    ctx->f1_b = (uint64_t *)rns_xmalloc((size_t)(nB) * sizeof(uint64_t));
+    ctx->g2_c = (uint64_t *)rns_xmalloc((size_t)(nC) * sizeof(uint64_t));
 
     for (i = 0; i < nB; i++)
     {
@@ -407,11 +439,11 @@ rns_ctx_t *rns_ctx_init(rns_fixed_t *fx, mpz_t N)
     // Gandino reorganization: fold |N M_B^{-1} C_j^{-1}|_{c_j} into the
     // first extension matrix, so the extension sum and the T term share one
     // lazy accumulator.  Row nC is the redundant channel (mod 2^52).
-    ctx->BtoCN = (uint64_t *)rns_xmalloc((nC + 1) * nB * sizeof(uint64_t));
+    ctx->BtoCN = (uint64_t *)rns_xmalloc((size_t)((nC + 1) * nB) * sizeof(uint64_t));
     for (j = 0; j < nC; j++)
         for (i = 0; i < nB; i++)
-            ctx->BtoCN[j * nB + i] = (uint64_t)(((u128)fx->BtoC[j * nB + i] *
-                ctx->g2_c[j]) % fx->c[j]);
+            ctx->BtoCN[j * nB + i] = mulmod64(fx->BtoC[j * nB + i],
+                ctx->g2_c[j], fx->c[j]);
     for (i = 0; i < nB; i++)
         ctx->BtoCN[nC * nB + i] = (fx->BtoC[nC * nB + i] * ctx->NMBinv_r) & RNS_MASK52;
 
@@ -421,7 +453,7 @@ rns_ctx_t *rns_ctx_init(rns_fixed_t *fx, mpz_t N)
     mpz_invert(ctx->MBinvmodN, fx->MB, N);
 
     ctx->subconst = rns_alloc(ctx);
-    mpz_mul_ui(t, N, (unsigned long)RNS_SUBMULT * fx->k);
+    mpz_mul_ui(t, N, (unsigned long)(RNS_SUBMULT * fx->k));
     rns_from_int(ctx, ctx->subconst, t);
 
     ctx->one = rns_alloc(ctx);

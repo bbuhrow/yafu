@@ -11,11 +11,11 @@
  */
 
 #include "rns_yao.h"
-#include <immintrin.h>
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__AVX512F__) && defined(__AVX512IFMA__)
+#ifdef RNS_HAVE_AVX512IFMA
+#include <immintrin.h>
 
 #include "rns_yao_vec.h"
 
@@ -268,7 +268,7 @@ void rnsy_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
     int bit = (int)mpz_sizeinbase(e, 2) - 1;
     int k = winsize(bit), ntab = 1 << (k - 1), i, j;
     size_t bytes = (size_t)ctx->fx->nwords * sizeof(uint64_t);
-    uint64_t **g = (uint64_t **)malloc(ntab * sizeof(uint64_t *));
+    uint64_t **g = (uint64_t **)calloc((size_t)ntab, sizeof(uint64_t *));
     uint64_t *b2 = rnsy_alloc(ctx);
 
     for (i = 0; i < ntab; i++)
@@ -281,7 +281,7 @@ void rnsy_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
     memcpy(d, ctx->one, bytes);
     while (bit >= 0)
     {
-        if (mpz_tstbit(e, bit) == 0)
+        if (mpz_tstbit(e, (mp_bitcnt_t)bit) == 0)
         {
             sqr(ctx, d, d, d);
             bit--;
@@ -291,10 +291,10 @@ void rnsy_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
             int a = bit - k + 1, thisk, bstr = 1;
             if (a < 0)
                 a = 0;
-            a = (int)mpz_scan1(e, a);
+            a = (int)mpz_scan1(e, (mp_bitcnt_t)a);
             thisk = bit - a + 1;
             for (j = 1; j < thisk; j++)
-                bstr = (bstr << 1) | mpz_tstbit(e, bit - j);
+                bstr = (bstr << 1) | mpz_tstbit(e, (mp_bitcnt_t)(bit - j));
             for (j = 0; j < thisk; j++)
                 sqr(ctx, d, d, d);
             mul(ctx, d, d, g[bstr >> 1]);

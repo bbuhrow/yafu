@@ -126,6 +126,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rnsy_addmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rnsy_submod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 
+#ifdef RNS_HAVE_AVX512IFMA
 // One-number kernels (rns_yao_avx512.c): n = 8, z may alias x or y,
 // specialized for s = 1..10.
 void rnsy_vmulmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
@@ -152,5 +153,6 @@ void rnsyb_vaddmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y
 void rnsyb_vsubmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 // all 8 lanes share the exponent e
 void rnsyb_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e);
+#endif
 
 #endif

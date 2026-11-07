@@ -14,11 +14,11 @@
  */
 
 #include "rns_yao.h"
-#include <immintrin.h>
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__AVX512F__) && defined(__AVX512IFMA__)
+#ifdef RNS_HAVE_AVX512IFMA
+#include <immintrin.h>
 
 #include "rns_yao_vec.h"
 
@@ -74,7 +74,7 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
     const int n = fx->n;
     const size_t chw = (size_t)S * NCH;                 // words per channel
     uint64_t *xi = ctx->bscratch;
-    uint64_t *xc = x + n * chw, *yc = y + n * chw, *zc = z + n * chw;
+    uint64_t *xc = x + (size_t)n * chw, *yc = y + (size_t)n * chw, *zc = z + (size_t)n * chw;
     __m512i a[MAXS], b[MAXS], t[MAXS], q[MAXS], acc[2 * MAXS + 2];
     __m512i ur, sr, alpha;
     int i, j, k;
@@ -87,20 +87,20 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
     for (i = 0; i < n; i++)
     {
         __m512i d = BC(fx->db[i]);
-        vload(a, x + i * chw, S);
+        vload(a, x + (size_t)i * chw, S);
         if (SQR)
             vsqr(acc, a, S);
         else
         {
-            vload(b, y + i * chw, S);
+            vload(b, y + (size_t)i * chw, S);
             vzero(acc, 2 * S + 1);
             vmul_acc(acc, a, b, S);
         }
         vfold_prod(t, acc, d, S);
         vzero(acc, S + 2);
-        bcmul_acc(acc, t, ctx->bF1 + (size_t)i * S * S, S);
+        bcmul_acc(acc, t, ctx->bF1 + (size_t)(i * S * S), S);
         vfold_cprod(t, acc, d, S);
-        vstore(xi + i * chw, t, S);
+        vstore(xi + (size_t)i * chw, t, S);
         ur = LO52(ur, t[0], BC(ctx->BrN[i]));
     }
     ur = _mm512_and_si512(ur, M52);
@@ -119,28 +119,28 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
             UNROLL
             for (k = 0; k < S; k++)
             {
-                __m512i v = LD(xi + i * chw + k * NCH);
+                __m512i v = LD(xi + (size_t)i * chw + k * NCH);
                 acc[k] = LO52(acc[k], v, kc);
                 acc[k + 1] = HI52(acc[k + 1], v, kc);
             }
         }
         bext_finish(q, acc, fx->zB[j], d, S);
 
-        vload(a, xc + j * chw, S);
+        vload(a, xc + (size_t)j * chw, S);
         if (SQR)
             vsqr(acc, a, S);
         else
         {
-            vload(b, yc + j * chw, S);
+            vload(b, yc + (size_t)j * chw, S);
             vzero(acc, 2 * S + 1);
             vmul_acc(acc, a, b, S);
         }
         vfold_prod(t, acc, d, S);
         vzero(acc, S + 2);
-        bcmul_acc(acc, t, ctx->bG1 + (size_t)j * S * S, S);
-        bcmul_acc(acc, q, ctx->bG2 + (size_t)j * S * S, S);
+        bcmul_acc(acc, t, ctx->bG1 + (size_t)(j * S * S), S);
+        bcmul_acc(acc, q, ctx->bG2 + (size_t)(j * S * S), S);
         vfold_cprod(t, acc, d, S);
-        vstore(zc + j * chw, t, S);
+        vstore(zc + (size_t)j * chw, t, S);
         sr = LO52(sr, t[0], BC(fx->Cr[j]));
     }
 
@@ -151,8 +151,8 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
     // minus sign (n even) taken as K_i - sum
     for (i = 0; i < n; i++)
     {
-        const uint64_t *K = ctx->bK + (size_t)i * (S + 2);
-        const uint64_t *tab = ctx->balpha + (size_t)i * (S + 1) * 16;
+        const uint64_t *K = ctx->bK + (size_t)(i * (S + 2));
+        const uint64_t *tab = ctx->balpha + (size_t)(i * (S + 1) * 16);
         __m512i borrow = ZERO;
 
         vzero(acc, S + 1);
@@ -162,7 +162,7 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
             UNROLL
             for (k = 0; k < S; k++)
             {
-                __m512i v = LD(zc + j * chw + k * NCH);
+                __m512i v = LD(zc + (size_t)j * chw + k * NCH);
                 acc[k] = LO52(acc[k], v, kc);
                 acc[k + 1] = HI52(acc[k + 1], v, kc);
             }
@@ -190,7 +190,7 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
         for (k = 0; k < S; k++)
             t[k] = acc[k];
         vfold_top_x(t, acc[S], acc[S + 1], BC(fx->db[i]), S, 1);
-        vstore(z + i * chw, t, S);
+        vstore(z + (size_t)i * chw, t, S);
     }
 
     ST(z + fx->rword * NCH, ur);
@@ -208,10 +208,10 @@ INL void baddsub_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
     {
         for (ch = 0; ch < n; ch++)
         {
-            size_t off = (base * n + ch) * chw;
+            size_t off = (size_t)(base * n + ch) * chw;
             __m512i v[MAXS + 1], c = ZERO;
             __m512i d = BC(base ? fx->dc[ch] : fx->db[ch]);
-            const uint64_t *E = (base ? ctx->bEc : ctx->bEb) + (size_t)ch * (S + 1);
+            const uint64_t *E = (base ? ctx->bEc : ctx->bEb) + (size_t)(ch * (S + 1));
 
             if (SUB)
             {
@@ -319,7 +319,7 @@ void rnsyb_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
     int bit = (int)mpz_sizeinbase(e, 2) - 1;
     int k = winsize(bit), ntab = 1 << (k - 1), i, j, lane;
     size_t bytes = (size_t)ctx->fx->nwords * NCH * sizeof(uint64_t);
-    uint64_t **g = (uint64_t **)malloc(ntab * sizeof(uint64_t *));
+    uint64_t **g = (uint64_t **)calloc((size_t)ntab, sizeof(uint64_t *));
     uint64_t *b2 = rnsyb_alloc(ctx);
 
     for (i = 0; i < ntab; i++)
@@ -333,7 +333,7 @@ void rnsyb_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
         rnsyb_vset_lane(ctx, d, lane, ctx->one);
     while (bit >= 0)
     {
-        if (mpz_tstbit(e, bit) == 0)
+        if (mpz_tstbit(e, (mp_bitcnt_t)bit) == 0)
         {
             sqr(ctx, d, d, d);
             bit--;
@@ -343,10 +343,10 @@ void rnsyb_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e)
             int a = bit - k + 1, thisk, bstr = 1;
             if (a < 0)
                 a = 0;
-            a = (int)mpz_scan1(e, a);
+            a = (int)mpz_scan1(e, (mp_bitcnt_t)a);
             thisk = bit - a + 1;
             for (j = 1; j < thisk; j++)
-                bstr = (bstr << 1) | mpz_tstbit(e, bit - j);
+                bstr = (bstr << 1) | mpz_tstbit(e, (mp_bitcnt_t)(bit - j));
             for (j = 0; j < thisk; j++)
                 sqr(ctx, d, d, d);
             mul(ctx, d, d, g[bstr >> 1]);

@@ -31,6 +31,31 @@
 #include <stdio.h>
 #include <gmp.h>
 
+// The AVX-512 IFMA kernels are compiled when the compiler targets IFMA
+// (gcc/clang -march=..., which defines __AVX512IFMA__) or when yafu's build
+// says so (USE_AVX512F + IFMA, as with MSVC, which has no IFMA macro).
+// Otherwise only the scalar references and the setup code are built.
+#if (defined(__AVX512F__) && defined(__AVX512IFMA__)) || \
+    (defined(USE_AVX512F) && defined(IFMA))
+#define RNS_HAVE_AVX512IFMA 1
+#endif
+
+// compiler shims for the kernels
+#if defined(_MSC_VER) && !defined(__clang__)
+#define RNS_INLINE static __forceinline
+#define RNS_UNROLL(n)
+#define RNS_LIKELY(x) (x)
+#else
+#define RNS_INLINE static inline __attribute__((always_inline))
+#define RNS_PRAGMA_(x) _Pragma(#x)
+#if defined(__clang__)
+#define RNS_UNROLL(n) RNS_PRAGMA_(unroll n)
+#else
+#define RNS_UNROLL(n) RNS_PRAGMA_(GCC unroll n)
+#endif
+#define RNS_LIKELY(x) __builtin_expect(!!(x), 1)
+#endif
+
 #define RNS_WBITS       52
 #define RNS_MASK52      0xfffffffffffffULL
 #define RNS_HEADROOM    8       // max mulmod input = HEADROOM * k * N
@@ -119,6 +144,7 @@ void rns_vfree(uint64_t *v);
 void rns_vset_lane(rns_ctx_t *ctx, uint64_t *v, int lane, uint64_t *x);
 void rns_vget_lane(rns_ctx_t *ctx, uint64_t *x, uint64_t *v, int lane);
 
+#ifdef RNS_HAVE_AVX512IFMA
 // AVX-512 IFMA kernels (rns_avx512.c); results are bit-identical to the
 // scalar reference, lane by lane.  z may alias x or y.
 void rns_vmulmod_avx512(rns_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
@@ -129,5 +155,6 @@ void rns_vsubmod_avx512(rns_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 // d = b^e in Montgomery form, all lanes share the exponent e (> 0).
 // Sliding window, the same window rule as AVX-ECM's vecslidingmodexp.
 void rns_vpowm_avx512(rns_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e);
+#endif
 
 #endif

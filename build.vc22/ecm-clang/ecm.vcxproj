@@ -161,6 +161,11 @@
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52_common.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52_special.c" />
     <ClCompile Include="..\..\arith\vecmont\vecarith52_tmpl.c" />
+    <ClCompile Include="..\..\arith\rns\rns_ref.c" />
+    <ClCompile Include="..\..\arith\rns\rns_avx512.c" />
+    <ClCompile Include="..\..\arith\rns\rns_yao_ref.c" />
+    <ClCompile Include="..\..\arith\rns\rns_yao_avx512.c" />
+    <ClCompile Include="..\..\arith\rns\rns_yaob_avx512.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vec_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
@@ -169,6 +174,9 @@
   <ItemGroup>
     <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h" />
     <ClInclude Include="..\..\arith\vecmont\vecmont.h" />
+    <ClInclude Include="..\..\arith\rns\rns.h" />
+    <ClInclude Include="..\..\arith\rns\rns_yao.h" />
+    <ClInclude Include="..\..\arith\rns\rns_yao_vec.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />

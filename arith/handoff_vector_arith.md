@@ -241,6 +241,43 @@ a consumer.
 
 ### 4.5 Integrate the template and RNS into yafu's Makefile (user item 5)
 
+**Done (2026-11-07), except removing the old cores (last step, §5).**
+* The five RNS sources are in `ECM_SRCS` and in both VS ecm projects
+  (+ filters, headers listed). The references/setup always build; the
+  kernels compile to empty objects without IFMA.
+* One guard, `RNS_HAVE_AVX512IFMA` in `rns.h`: compiler IFMA macros **or**
+  yafu's `USE_AVX512F` + `IFMA` (MSVC has no IFMA macro). The vector
+  prototypes in `rns.h` / `rns_yao.h` and the vector parts of `rns_test` /
+  `rns_yao_test` use it too. `<immintrin.h>` is included only inside it.
+* Portability shims in `rns.h`: `RNS_INLINE`, `RNS_UNROLL(n)`,
+  `RNS_LIKELY`. `rns_ref.c` uses `mul64` / `mulmod64` helpers: `__int128`
+  where `__SIZEOF_INT128__` is defined, else `_umul128` / `_udiv128`.
+  `rns_test.c` uses `timespec_get` on Windows. Allocation still uses the
+  library's own `rns_aligned_alloc` (kept standalone, no yafu deps).
+* yafu builds with `-Wconversion`; the RNS files are now warning-free
+  under it (casts only, no behavior change).
+* **Gotcha:** the local `config.mk` sets `USE_AVX512IFMA := 1`, so a
+  plain `make USE_AVX2=1` is still an IFMA build. Pass
+  `USE_AVX512IFMA=` (empty) to build lower ISA levels.
+* Verified: WSL `make yafu` for generic / AVX2 / AVX-512F / IFMA / native
+  (rc 0; only the two pre-existing `VEC_MAXDIGIT` / `VECLEN_I` macro
+  warnings, now in `vecmont.h`). MSVC v143 compiles the ecm project for
+  `avx512` and `avx512ifma` (IFMA kernels 330-450 KB objects, stubs
+  otherwise); ClangCL `avx512` compiles. `rns_test` and `rns_yao_test`
+  (both column-fold modes) built with `cl` against MPIR pass natively on
+  Windows, vector kernels included. The ecm project's library step fails
+  only on its hard-coded `libecm.lib` path (pre-existing, unrelated).
+  ClangCL `avx512ifma` fails in the old `vecarith52.c` too: ClangCL never
+  gets `-mavx512ifma` (`build_config.props` says IFMA is not in the
+  Windows matrix). WSL tests: `rns_test`, `rns_yao_test` (both modes),
+  `rns_bench`, `ae_bench -t` pass; `ae_bench -a` fails only at 1-2 spare
+  bits. ECM p15 (64 curves, B1=3000) is found with the native IFMA build,
+  the AVX-512F (old cores) build and the AVX2 (GMP-ECM) build; repeated
+  runs on the native build found it in 46/48 runs (misses are the normal
+  per-run chance at this B1).
+
+Original notes follow.
+
 * Template: already in `ECM_SRCS` (Makefile around line 950), now as
   `arith/vecmont/vecarith52_tmpl.c` (§4.4 done).
 * RNS: currently only built by `arith/rns/Makefile`. Add `rns_ref.c`,
