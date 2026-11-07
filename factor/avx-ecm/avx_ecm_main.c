@@ -430,26 +430,21 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // NBLOCKS 3 MERSENNEMOD is slower than NBLOCKS 2 REDC ratio 0.66 (barely slower)
     
     // compute NBLOCKS if using the actual size of the input (non-Mersenne)
-    if (DIGITBITS == 52)
-    {
-        maxbits = 208;
-        while (maxbits <= mpz_sizeinbase(N, 2))
-        {
-            maxbits += 208;
-        }
-    }
-    else
-    {
-        maxbits = 128;
-        while (maxbits <= mpz_sizeinbase(N, 2))
-        {
-            maxbits += 128;
-        }
-    }
-
-    
-    nwords = maxbits / DIGITBITS;
+    // exact word count when the constant-S template cores are available,
+    // else a multiple of 4 words; >= 3 spare bits either way.
+    nwords = avxecm_redc_nwords((uint32_t)mpz_sizeinbase(N, 2));
+    maxbits = nwords * DIGITBITS;
+    // only the blocked (BFIPS/fixed/karatsuba) cores use nblocks; they
+    // are never selected when nwords is not a multiple of BLOCKWORDS.
     nblocks = nwords / BLOCKWORDS;
+
+    // Mersenne mod keeps the old (multiple-of-4 word) sizing; MAXBITS in
+    // that case stays as before too.
+    uint32_t mers_maxbits = 208;
+    while (mers_maxbits <= mpz_sizeinbase(N, 2))
+    {
+        mers_maxbits += 208;
+    }
     //printf("input has %d bits, %d words, %d blocks, mersenne size is %d\n", 
     //    mpz_sizeinbase(N, 2), nwords, nblocks, size_n);
 
@@ -504,6 +499,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
     else if ((isMersenne != 0) && (forceNoMersenne == 0))
     {
+        maxbits = mers_maxbits;
         nwords = mmaxbits / DIGITBITS;
         nblocks = nwords / BLOCKWORDS;
     }

@@ -231,7 +231,8 @@ are checked by gcd). Fix: size with at least 3 spare bits.
   End-to-end yafu A/B: see §8.
 * Follow-up 1 (correctness, small): size NWORDS with >= 3 spare bits in
   `avx_ecm_main.c` and the three sizing copies in `avxppm1.c`.
-* Follow-up 2 (speed, larger): word-granular NWORDS
+  (Covered by `avxecm_redc_nwords`, see §9.)
+* Follow-up 2 (speed, larger; **done in §9**): word-granular NWORDS
   (`ceil((nbits+3)/52)`) instead of multiples of 4. This is 1.2-2.5x on
   top of the template at most sizes. It needs an audit of the
   NBLOCKS/BLOCKWORDS assumptions in the stage-2, Mersenne and P-1 paths.
@@ -272,3 +273,84 @@ gains, because add/sub, copies and ladder overhead are unchanged. At
 1040 bits the old fixed1040 mul was already at 94 % (stage 2 is
 mul-heavy), so there is little left there. A 520-bit N still runs in 12
 words; word-granular sizing (follow-up 2) would give it 10.
+
+## 9. Word-granular NWORDS (branch `avxecm-exact-nwords`)
+
+**Change.** `avxecm_redc_nwords(nbits)` (`avx_ecm.h`) now sizes every
+non-Mersenne (REDC) modulus:
+
+* template cores on (`AVXECM_TMPL_KERNELS`) and 52·w <= 16400:
+  w = ceil((nbits + 3) / 52), at least 2 words;
+* otherwise (no IFMA, `-DAVXECM_NO_TMPL_KERNELS`, karatsuba above 16400
+  bits, or `-DAVXECM_BLOCK_NWORDS` for A/B tests): the smallest multiple of
+  4 words with >= 3 spare bits.
+
+So both paths keep the 3 spare bits from §6. MAXBITS is always 52·NWORDS
+for REDC (R = 2^MAXBITS). Mersenne sizing (`mmaxbits`) is unchanged. In
+the yafu ECM driver it is unreachable anyway: `forceNoMersenne = 1` is
+hard-coded in `vecECM`.
+
+**Audit (what needs multiples of 4).** Only the blocked mul/sqr cores use
+NBLOCKS/BLOCKWORDS: `vecmulmod52`/`vecsqrmod52` (BFIPS), the fixed
+416-1040 cores, karatsuba and the Mersenne cores. With exact sizing,
+`assign_mul_ptrs` always overrides mul/sqr with the template whenever
+NWORDS is not a multiple of 4. Everything else in the ECM path loops over
+`mdata->NWORDS` or `WORDS_ALLOC`, so it is NWORDS-generic:
+`vecaddmod52`, `vecsubmod52`, `vec_simul_addsub52` (= add + sub),
+`vecmul52_1`, conversions, stage 1 and stage 2. In stage 2, `NBLOCKS` at
+avxecm.c:2361/3317 is declared and never used. `vec_simul_addsub52_fixed1040`
+is still selected only at 416/624/832/1040 bits, as before.
+
+**P-1/P+1 (`avxppm1.c`).** The three sizing sites use the helper, and the
+three REDC pointer blocks get the same template override. Fixed on the
+way: `visMersenne[k]` was uninitialized for non-Mersenne inputs.
+`vecPPM1_1N` set MAXBITS from the Mersenne-size loop even when REDC was
+used; it now uses 52·NWORDS. It compiles cleanly (-Wall), but it is **not
+runtime-tested**: `avxppm1.c` is not in yafu's Makefile, yafu's `pp1()`
+always takes the GMP-ECM branch, and the `demo/` driver has no build.
+
+**Correctness.**
+* `ae_bench -t`: passed for the default word list and for
+  S = 2, 3, 17, 19, 21, 23, 25-27, 29, 31, 33-35, 37-39, 41.
+  `ae_bench -a`: all 42 rows with >= 3 spare bits at S = 6, 7, 9-11,
+  13-15, 17, 21 show 0 wrong.
+* yafu p15·q, 64 curves at B1=3000: found at 43 of 45 (size, N) pairs
+  from 300 to 2100 bits. That includes NWORDS = 6, 7, 9, 10, 11, 13, 14,
+  15, 17, 18, 19, 21, 22, 23, 25, 26, 27, 29, 31, 33, 35, 37, 38, 39 and
+  41, and the boundary pair 517/518 bits (10/11 words). Both misses
+  (1250, 2090 bits) were found with 256 curves.
+* Fixed sigma, new vs multiple-of-4 build: a given p15 is found by the
+  same sigma and lane at every size from 300 to 2090 bits, in both
+  builds. Example: p = 483125423061563, sigma 100056/100088/100104, lanes
+  1/6/3. **Exception, pre-existing:** at 1250-1251 bits some curves miss.
+  The unmodified 4f8e339 binary (28 words) shows this too, with
+  different curves missing than at 25 words. Neighbors (1240-1249,
+  1252-1260 bits) are fine in all three builds. Not investigated
+  (follow-up).
+
+**Timing** (B1=200000, B2=100·B1, 8 curves, 1 thread, `taskset -c 3`, min
+of 3, seconds). "before" is the same source with `-DAVXECM_BLOCK_NWORDS`,
+i.e. template cores with multiple-of-4 sizing, which is identical to
+4f8e339 at these sizes:
+
+| N bits | NWORDS | stage 1 before → after | speedup | stage 2 before → after | speedup |
+|---:|---:|---:|---:|---:|---:|
+| 400 | 8 → 8 | 0.205 → 0.206 | 1.00x | 0.181 → 0.179 | 1.01x |
+| 500 | 12 → 10 | 0.401 → 0.293 | **1.37x** | 0.281 → 0.223 | **1.26x** |
+| 520 | 12 → 11 | 0.400 → 0.344 | 1.16x | 0.283 → 0.257 | 1.10x |
+| 700 | 16 → 14 | 0.662 → 0.522 | **1.27x** | 0.416 → 0.349 | **1.19x** |
+| 1000 | 20 → 20 | 0.999 → 0.998 | 1.00x | 0.577 → 0.581 | 0.99x |
+| 1100 | 24 → 22 | 1.398 → 1.191 | **1.17x** | 0.764 → 0.665 | **1.15x** |
+| 1500 | 32 → 29 | 2.451 → 2.041 | **1.20x** | 1.205 → 1.044 | **1.15x** |
+| 2048 | 40 → 40 | 3.730 → 3.754 | 0.99x | 1.758 → 1.742 | 1.01x |
+
+The sizes with the same word count (400, 1000, 2048) are controls and come
+out flat. Combined with §8, a 500-bit N now runs stage 1 about 1.9x faster
+than the pre-template code (12-word fixed624 core). The gain is below
+the (S'/S)^2 kernel ratio because add/sub, copies and ladder overhead
+scale roughly linearly in S.
+
+**Follow-ups.**
+* The 1250-1251-bit curve misses above (present before this change).
+* The `0.7` Mersenne-vs-REDC ratio threshold was tuned for padded REDC.
+  If `forceNoMersenne` is ever re-enabled, it should be re-measured.

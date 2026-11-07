@@ -1052,6 +1052,29 @@ int vecmulmod52_tmpl_get(int S,
     void (**mul)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *),
     void (**sqr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *));
 #endif
+
+// Max bits handled by the non-karatsuba REDC cores (see assign_mul_ptrs).
+#define AVXECM_KARATSUBA_BITS 16400
+// Spare bits required between nbits and 52*NWORDS: vecaddmod52 /
+// vecsubmod52 on AMM outputs are wrong for some lanes with only 1-2
+// spare bits (arith/avxecm_ifma_analysis.md, section 6).
+#define AVXECM_SPARE_BITS 3
+
+// Number of 52-bit words for a non-Mersenne (Montgomery/AMM) modulus of
+// nbits bits.  With the constant-S template kernels any word count >= 2
+// works, so use the exact ceil((nbits+3)/52).  Otherwise (the BFIPS and
+// fixed cores, karatsuba above 16400 bits) round up to a multiple of
+// BLOCKWORDS, as those cores loop over 4-word blocks.  Set
+// AVXECM_BLOCK_NWORDS to force multiple-of-4 sizing (for A/B tests).
+static inline uint32_t avxecm_redc_nwords(uint32_t nbits)
+{
+    uint32_t w = (nbits + AVXECM_SPARE_BITS + DIGITBITS - 1) / DIGITBITS;
+#if defined(AVXECM_TMPL_KERNELS) && !defined(AVXECM_BLOCK_NWORDS)
+    if (w * DIGITBITS <= AVXECM_KARATSUBA_BITS)
+        return (w < 2) ? 2 : w;
+#endif
+    return (w + BLOCKWORDS - 1) / BLOCKWORDS * BLOCKWORDS;
+}
 void vecsqrmod52_mul(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);

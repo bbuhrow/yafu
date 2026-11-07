@@ -755,6 +755,7 @@ void vecPP1(fact_obj_t* fobj)
 
         // check for Mersenne inputs
         vsize[k] = mpz_sizeinbase(N[k], 2);
+        visMersenne[k] = 0;
 
         if (vsize[k] > maxinbits)
             maxinbits = vsize[k];
@@ -825,24 +826,9 @@ void vecPP1(fact_obj_t* fobj)
         
 
         // compute NBLOCKS if using the actual size of the input (non-Mersenne)
-        if (DIGITBITS == 52)
-        {
-            maxbits = 208;
-            while (maxbits <= mpz_sizeinbase(N[k], 2))
-            {
-                maxbits += 208;
-            }
-        }
-        else
-        {
-            maxbits = 128;
-            while (maxbits <= mpz_sizeinbase(N[k], 2))
-            {
-                maxbits += 128;
-            }
-        }
-
-        vnwords[k] = maxbits / DIGITBITS;
+        // exact word count with the constant-S template cores, else a
+        // multiple of 4 words; >= 3 spare bits either way.
+        vnwords[k] = avxecm_redc_nwords((uint32_t)mpz_sizeinbase(N[k], 2));
 
         nwords = MAX(nwords, vnwords[k]);
         nblocks = nwords / BLOCKWORDS;
@@ -871,7 +857,11 @@ void vecPP1(fact_obj_t* fobj)
             gmp_printf("%Zd\n", N[k]);
         }
 
-        if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
+        if (visMersenne[k] == 0)
+        {
+            // not a Mersenne form: REDC with the size computed above
+        }
+        else if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
         {
             if (verbose > 1)
             {
@@ -1028,6 +1018,12 @@ void vecPP1(fact_obj_t* fobj)
         {
             vecmulmod_ptr = &vecmulmod52;
             vecsqrmod_ptr = &vecsqrmod52;
+#ifdef AVXECM_TMPL_KERNELS
+            // constant-S template cores: any NWORDS (required when
+            // NWORDS is not a multiple of 4, see avxecm_redc_nwords)
+            if (montyconst->MAXBITS <= AVXECM_KARATSUBA_BITS)
+                vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr);
+#endif
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
             vecaddsubmod_ptr = &vec_simul_addsub52;
@@ -1456,6 +1452,7 @@ void vecPM1(fact_obj_t* fobj)
 
         // check for Mersenne inputs
         vsize[k] = mpz_sizeinbase(N[k], 2);
+        visMersenne[k] = 0;
 
         if (vsize[k] > maxinbits)
             maxinbits = vsize[k];
@@ -1526,24 +1523,9 @@ void vecPM1(fact_obj_t* fobj)
 
 
         // compute NBLOCKS if using the actual size of the input (non-Mersenne)
-        if (DIGITBITS == 52)
-        {
-            maxbits = 208;
-            while (maxbits <= mpz_sizeinbase(N[k], 2))
-            {
-                maxbits += 208;
-            }
-        }
-        else
-        {
-            maxbits = 128;
-            while (maxbits <= mpz_sizeinbase(N[k], 2))
-            {
-                maxbits += 128;
-            }
-        }
-
-        vnwords[k] = maxbits / DIGITBITS;
+        // exact word count with the constant-S template cores, else a
+        // multiple of 4 words; >= 3 spare bits either way.
+        vnwords[k] = avxecm_redc_nwords((uint32_t)mpz_sizeinbase(N[k], 2));
 
         nwords = MAX(nwords, vnwords[k]);
         nblocks = nwords / BLOCKWORDS;
@@ -1572,7 +1554,11 @@ void vecPM1(fact_obj_t* fobj)
             gmp_printf("%Zd\n", N[k]);
         }
 
-        if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
+        if (visMersenne[k] == 0)
+        {
+            // not a Mersenne form: REDC with the size computed above
+        }
+        else if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
         {
             if (verbose > 1)
             {
@@ -1742,6 +1728,12 @@ void vecPM1(fact_obj_t* fobj)
         {
             vecmulmod_ptr = &vecmulmod52;
             vecsqrmod_ptr = &vecsqrmod52;
+#ifdef AVXECM_TMPL_KERNELS
+            // constant-S template cores: any NWORDS (required when
+            // NWORDS is not a multiple of 4, see avxecm_redc_nwords)
+            if (montyconst->MAXBITS <= AVXECM_KARATSUBA_BITS)
+                vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr);
+#endif
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
             vecaddsubmod_ptr = &vec_simul_addsub52;
@@ -2210,24 +2202,9 @@ void vecPPM1_1N(fact_obj_t *fobj)
     // NBLOCKS 3 MERSENNEMOD is slower than NBLOCKS 2 REDC ratio 0.66 (barely slower)
 
     // compute NBLOCKS if using the actual size of the input (non-Mersenne)
-    if (DIGITBITS == 52)
-    {
-        maxbits = 208;
-        while (maxbits <= mpz_sizeinbase(N, 2))
-        {
-            maxbits += 208;
-        }
-    }
-    else
-    {
-        maxbits = 128;
-        while (maxbits <= mpz_sizeinbase(N, 2))
-        {
-            maxbits += 128;
-        }
-    }
-
-    nwords = maxbits / DIGITBITS;
+    // exact word count with the constant-S template cores, else a
+    // multiple of 4 words; >= 3 spare bits either way.
+    nwords = avxecm_redc_nwords((uint32_t)mpz_sizeinbase(N, 2));
     nblocks = nwords / BLOCKWORDS;
 
     // and compute NBLOCKS if using Mersenne mod
@@ -2253,7 +2230,12 @@ void vecPPM1_1N(fact_obj_t *fobj)
         gmp_printf("commencing parallel P+/-1 on %Zd\n", N);
     }
 
-    if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
+    if (isMersenne == 0)
+    {
+        // REDC: MAXBITS must be 52 * NWORDS (R = 2^MAXBITS)
+        maxbits = nwords * DIGITBITS;
+    }
+    else if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
     {
         if (verbose > 1)
         {
@@ -2261,6 +2243,7 @@ void vecPPM1_1N(fact_obj_t *fobj)
                 size_n);
         }
         forceNoMersenne = 1;
+        maxbits = nwords * DIGITBITS;
     }
     else
     {
@@ -2382,6 +2365,12 @@ void vecPPM1_1N(fact_obj_t *fobj)
         {
             vecmulmod_ptr = &vecmulmod52;
             vecsqrmod_ptr = &vecsqrmod52;
+#ifdef AVXECM_TMPL_KERNELS
+            // constant-S template cores: any NWORDS (required when
+            // NWORDS is not a multiple of 4, see avxecm_redc_nwords)
+            if (montyconst->MAXBITS <= AVXECM_KARATSUBA_BITS)
+                vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr);
+#endif
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
             vecaddsubmod_ptr = &vec_simul_addsub52;
