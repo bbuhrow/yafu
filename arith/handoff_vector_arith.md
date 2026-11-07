@@ -1,7 +1,16 @@
 # Handoff: vector modular arithmetic (AVX-ECM template cores + RNS)
 
-Status as of 2026-11-07, branch `wip_arith` (pushed, HEAD 863bd36, based
-on master 0a712aa). Read this first, then the documents it points to.
+Status as of 2026-11-07, branch `wip_arith` (pushed, based on master
+0a712aa). Read this first, then the documents it points to.
+
+> **Two standing rules from the user:**
+> 1. **Don't remove the old AVX-ECM cores from the builds until all of the
+>    new work is confirmed working**, i.e. as the last step just before the
+>    merge into master (§5).
+> 2. **Never merge `wip_arith` into master automatically.** When the
+>    merge is ready, stop and ask the user to review first. That means:
+>    test results, benchmark results and the diff summary. Merge only on
+>    their explicit go-ahead, and the same goes for pushing master.
 
 ## 1. Where things stand
 
@@ -130,7 +139,8 @@ A/B tests.
     multiplies, e.g. (X+Z)(X-Z) and the ladder's differential add.
     Raising `RNS_HEADROOM` or `RNS_SUBMULT` costs a few channel bits.
 * Old cores: remove them from the builds but keep the sources (§5); this
-  requires splitting `vecarith52.c` first.
+  requires splitting `vecarith52.c` first. **Do the removal last**, just
+  before the merge, after everything else is confirmed working.
 * Crossover: about 1500 bits on Rocket Lake (Yao8 ties AE-tmpl at 1536).
   Measure it inside ECM, not only powm: add/sub/copies cost linearly and
   are cheaper in radix 2^52. Make it a tunable.
@@ -223,8 +233,8 @@ a consumer.
 * RNS: currently only built by `arith/rns/Makefile`. Add `rns_ref.c`,
   `rns_avx512.c` (the small regime: keep it in, per §5), `rns_yao_ref.c`,
   `rns_yao_avx512.c`, `rns_yaob_avx512.c` to the yafu build.
-* The old cores come out of `ECM_SRCS` and the VS projects after the
-  `vecarith52.c` split and the ordering constraint in §5.
+* The old cores come out of `ECM_SRCS` and the VS projects only as the
+  final pre-merge step (§5). Until then they stay in the build.
   - The kernels are guarded by `__AVX512F__ && __AVX512IFMA__` (compiler
     macros from `-march`), not by yafu's `USE_AVX512IFMA` / `IFMA`. Make
     those consistent: check both, or switch to yafu's defines.
@@ -306,10 +316,14 @@ AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
     still compiling it. `assign_mul_ptrs` then needs a template-only path
     (remove the fixed/BFIPS selection, keep a clear error if
     `vecmulmod52_tmpl_get` fails).
-  - **Ordering constraint:** non-IFMA AVX-512 builds use the old cores
-    today, because the template is IFMA-only. Remove the old cores from the
-    builds only after the template has its FP-emulation path (§4.2), or
-    keep `vecarith52_oldcores.c` in the build for `!IFMA` only.
+  - **Timing (user decision):** keep the old cores in the builds until all
+    new work is confirmed working. Their removal is the last change before
+    the merge into master. The `vecarith52.c` split itself can happen
+    earlier, as long as both halves stay in the build. Non-IFMA AVX-512 builds
+    use the old cores today, because the template is IFMA-only, so the
+    template's FP-emulation path (§4.2) must be done and confirmed before
+    the removal. Otherwise keep `vecarith52_oldcores.c` in the build for
+    `!IFMA` only.
   - `vecarith.c` (`DIGITBITS == 32`, 16 lanes) is a separate path; decide
     alongside the AVX2 work.
 * **AVX2 digit size:** 32-bit, or possibly 28-bit digits so lane
@@ -322,4 +336,13 @@ AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
     moduli fit `vpmuludq` too; see the FCFS/Yao constant analysis in
     `rns_design.md`, which must be redone for small words).
 * **Merge `wip_arith` to master** once AVX-ECM is confirmed working with
-  the new kernels (§4.6) and shows a speedup.
+  the new kernels (§4.6) and shows a speedup. **Never merge
+  automatically.** Pre-merge sequence:
+  1. Every item is confirmed working: the §4.6 test matrix passes on IFMA
+     and non-IFMA builds.
+  2. Remove the old cores from the builds (Makefile, VS projects).
+  3. Rebuild and rerun the full test matrix and benchmarks.
+  4. **Stop and ask the user to review**: a test summary, the benchmark
+     table vs master, `git log master..wip_arith` and `git diff --stat
+     master..wip_arith`.
+  5. Merge (and push master) only on the user's explicit go-ahead.
