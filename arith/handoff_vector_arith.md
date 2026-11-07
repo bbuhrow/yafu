@@ -303,6 +303,20 @@ IFMA (Skylake-X, Cascade Lake), using the FP-emulated 52-bit products.
 
 ### 4.3 AVX2 versions of the template and RNS kernels (user item 3)
 
+**Experiment done (2026-11-07): `arith/avx2_experiments.md`,
+`arith/avx2mont/`.** Three 4-lane AVX2 Montgomery kernels with the
+template's algorithm, all bit-exact vs a GMP AMM model at 100-5000 bits:
+FP52 (52-bit digits, two FMAs per product, MXCSR round-toward-zero per
+call), D28 (`vpmuludq`, 56-bit products summed whole), D32 (`vpmuludq`,
+64-bit products with split high halves). Powm per number vs `mpz_powm`
+(Rocket Lake running AVX2 code): **FP52 1.6-2.0x faster at 256-4096 bits**,
+D28 ~1.0-1.3x (parity above 1 kbit), D32 0.83-1.03x. FP52 is the AVX2
+format; 28/32-bit digits lose on product count. Full unrolling only pays
+up to S = 12 on AVX2 (16 registers). Not measured on an AVX2-only CPU; RNS
+on AVX2 and an AVX2 AVX-ECM are not started (next steps in the doc).
+
+Original notes follow.
+
 Goal: measure whether 4-lane AVX2 versions beat `mpz_powm`, and by how
 much. Today AVX-ECM exists only for AVX-512 (`#ifdef USE_AVX512F` in
 `avx_ecm.h` and `factor_common.c`).
