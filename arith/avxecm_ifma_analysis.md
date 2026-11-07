@@ -351,6 +351,16 @@ the (S'/S)^2 kernel ratio because add/sub, copies and ladder overhead
 scale roughly linearly in S.
 
 **Follow-ups.**
-* The 1250-1251-bit curve misses above (present before this change).
+* ~~The 1250-1251-bit curve misses above~~ **Fixed.** `insert_mpz_to_vec`
+  did not clear a lane's high words. In the stage-2 batch inversion (and
+  when building curves into reused vectors), a value one word shorter
+  than the previous one kept a stale top word, which corrupted that
+  lane. The probability is about 2^(52(S-1))/N per lane per inversion,
+  so it depends on nbits mod 52 (1249-1251 bits have only 1-3 bits in
+  the top word), not on NWORDS. It was present in all earlier builds. An
+  exact Python reference (Suyama curves mod p; B1 prime powers; D=2310
+  baby/giant stage 2 over all primes in (B1, B2]) agrees lane for lane
+  with yafu after the fix, for 40 sigma batches at 1000, 1249, 1250, 1251
+  and 1252 bits. Before the fix, every size except 1000 lost 2-5 batches.
 * The `0.7` Mersenne-vs-REDC ratio threshold was tuned for padded REDC.
   If `forceNoMersenne` is ever re-enabled, it should be re-measured.

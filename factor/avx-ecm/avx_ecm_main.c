@@ -288,6 +288,14 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
     }
 
+    // clear this lane's remaining words: callers reuse vectors (stage-2
+    // batch inversion, curve building), and a shorter value must not keep
+    // stale high words from the previous one.
+    for (; i < (int)vec_dest->WORDS_ALLOC; i++)
+    {
+        vec_dest->data[lane + i * VECLEN] = 0;
+    }
+
     vec_dest->size = vec_dest->WORDS_ALLOC; // MAX(vec_dest->size, i);
     mpz_clear(src_cp);
     return;
