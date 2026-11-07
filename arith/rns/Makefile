@@ -15,8 +15,10 @@ OBJS = rns_ref.o rns_avx512.o
 YOBJS = rns_yao_ref.o rns_yao_avx512.o rns_yaob_avx512.o
 
 AE_DIR = ../../factor/avx-ecm
-AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special vecarith52_tmpl
-AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS)))
+VM_DIR = ../vecmont
+AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
+VM_SRCS = vecarith52_tmpl
+AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS) $(VM_SRCS)))
 AE_FLAGS = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DUSE_AVX512IFMA -DIFMA \
 	-I../../include -I../../ytools -I$(AE_DIR)
 
@@ -37,6 +39,9 @@ rns_bench.o: rns_bench.c rns.h rns_yao.h
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -Wno-comment -c -o $@ $<
 
 ae_%.o: $(AE_DIR)/%.c
+	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -w -c -o $@ $<
+
+ae_%.o: $(VM_DIR)/%.c $(VM_DIR)/vecmont.h
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -w -c -o $@ $<
 
 %.o: %.c rns.h rns_yao.h rns_yao_vec.h

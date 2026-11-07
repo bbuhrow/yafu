@@ -18,7 +18,8 @@ Status as of 2026-11-07, branch `wip_arith` (pushed, based on master
 
 | path | what |
 |---|---|
-| `factor/avx-ecm/vecarith52_tmpl.c` | Constant-S template IFMA Montgomery mul/sqr for AVX-ECM (8 numbers per vector, radix 2^52, R = 2^(52*S)). S = 2..32 fully unrolled (`vecmulmod52_s##S`), any larger S through the loop form `vecmulmod52_sN`. `vecmulmod52_tmpl_get(S, &mul, &sqr)`. Bit-identical to the old cores; 93-100% of the IFMA floor. IFMA only (`#if defined(USE_AVX512F) && defined(IFMA)`). |
+| `arith/vecmont/vecarith52_tmpl.c` | Constant-S template IFMA Montgomery mul/sqr for AVX-ECM (8 numbers per vector, radix 2^52, R = 2^(52*S)). S = 2..32 fully unrolled (`vecmulmod52_s##S`), any larger S through the loop form `vecmulmod52_sN`. `vecmulmod52_tmpl_get(S, &mul, &sqr)`. Bit-identical to the old cores; 93-100% of the IFMA floor. IFMA only (`#if defined(USE_AVX512F) && defined(IFMA)`). |
+| `arith/vecmont/vecmont.h` | Owns the digit-size macros (`DIGITBITS`, `base_t`, `VECLEN`), `vec_bignum_t`, `vec_monty_t`, the `vecmont_mul_fn` / `vecmont_sqr_fn` types and the `vecmulmod52_tmpl_get` prototype. `avx_ecm.h` includes it by relative path (`../../arith/vecmont/vecmont.h`), so no include-path changes were needed anywhere. |
 | `factor/avx-ecm/avx_ecm.h` | `AVXECM_TMPL_KERNELS` (on by default for IFMA builds; `-DAVXECM_NO_TMPL_KERNELS` to A/B). `avxecm_redc_nwords(nbits)`: exact `ceil((nbits+3)/52)` words with the template, otherwise rounded up to a multiple of 4; always >= 3 spare bits (`AVXECM_SPARE_BITS`). Also the FP-emulation macros used when `IFMA` is undefined (§3.2). |
 | `factor/avx-ecm/avx_ecm_main.c`, `avxppm1.c` | `assign_mul_ptrs` and the three P±1 sizing sites use the template cores and `avxecm_redc_nwords`. `insert_mpz_to_vec` now clears a lane's high words (fixed a real stage-2 miss bug). |
 | `factor/avx-ecm/bench/` | `ae_bench`: a bit-exact AMM model vs GMP, worst cases, chains, powm, the add/sub range test (`-a`), a negative self-test (`-neg`), and benchmarks (`-b -p`). |
@@ -208,6 +209,18 @@ much. Today AVX-ECM exists only for AVX-512 (`#ifdef USE_AVX512F` in
 
 ### 4.4 Move the template arithmetic into arith/ (user item 4)
 
+**Done (2026-11-07).** `vecarith52_tmpl.c` moved to `arith/vecmont/`
+(`git mv`, function names unchanged); the types moved to
+`arith/vecmont/vecmont.h`, which `avx_ecm.h` includes; the template no
+longer includes `avx_ecm.h` or ytools (own `AE_UNUSED` shim). Updated:
+top-level Makefile `ECM_SRCS`, `factor/avx-ecm/bench/Makefile`,
+`arith/rns/Makefile` (`VM_DIR`), and both VS ecm projects (+ filters;
+MSVC still not compiled). Verified: yafu (USE_NATIVE, IFMA) builds,
+`ae_bench -t`/`-a` pass, `-neg` fails as it should, `rns_test 50`,
+`rns_yao_test 16` and `rns_bench` pass with unchanged timings, yafu ECM
+finds a p15 at 400/1036/1600/2048 bits (64 curves, B1=3000) with the
+template core selected. Original notes follow.
+
 Goal: `arith/` holds the vector arithmetic (template + RNS); AVX-ECM is
 a consumer.
 
@@ -228,8 +241,8 @@ a consumer.
 
 ### 4.5 Integrate the template and RNS into yafu's Makefile (user item 5)
 
-* Template: already in `ECM_SRCS` (Makefile around line 950). After
-  §4.4, update its path.
+* Template: already in `ECM_SRCS` (Makefile around line 950), now as
+  `arith/vecmont/vecarith52_tmpl.c` (§4.4 done).
 * RNS: currently only built by `arith/rns/Makefile`. Add `rns_ref.c`,
   `rns_avx512.c` (the small regime: keep it in, per §5), `rns_yao_ref.c`,
   `rns_yao_avx512.c`, `rns_yaob_avx512.c` to the yafu build.

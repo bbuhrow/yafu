@@ -11,6 +11,7 @@ CPPFLAGS += -I$(GMP_PREFIX)/include
 LDLIBS = $(GMP_PREFIX)/lib/libgmp.a -lm
 
 AE_DIR = ..
+VM_DIR = ../../../arith/vecmont
 AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
 AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS)))
 AE_FLAGS = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DUSE_AVX512IFMA -DIFMA \
@@ -25,7 +26,7 @@ ae_bench: ae_bench.o ae_tmpl.o $(AE_OBJS)
 ae_bench.o: ae_bench.c
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -w -c -o $@ $<
 
-ae_tmpl.o: $(AE_DIR)/vecarith52_tmpl.c
+ae_tmpl.o: $(VM_DIR)/vecarith52_tmpl.c $(VM_DIR)/vecmont.h
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(TMPL_FLAGS) $(ARCH) $(CFLAGS) -Wall -Wno-comment -c -o $@ $<
 
 ae_%.o: $(AE_DIR)/%.c

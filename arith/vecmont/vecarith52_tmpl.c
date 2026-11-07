@@ -48,7 +48,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * s (scratch, >= S words) must not alias a, b or c.
  */
 
-#include "avx_ecm.h"
+#include "vecmont.h"
 
 #if defined(USE_AVX512F) && defined(IFMA)
 #include <immintrin.h>
@@ -72,11 +72,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if defined(_MSC_VER) && !defined(__clang__)
 #define AE_INLINE static __forceinline
 #define AE_NOINLINE __declspec(noinline)
+#define AE_UNUSED __pragma(warning(suppress: 4100 4101))
 #define AE_UNLIKELY(x) (x)
 #define AE_UNROLL_ALL
 #else
 #define AE_INLINE static inline __attribute__((always_inline))
 #define AE_NOINLINE __attribute__((noinline))
+#define AE_UNUSED __attribute__((unused))
 #define AE_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #if defined(__clang__)
 #define AE_UNROLL_ALL _Pragma("unroll")
@@ -247,7 +249,7 @@ AE_INLINE void ae_montmul_t(uint64_t *C, const uint64_t *A, const uint64_t *B,
     const __m512i mask = _mm512_set1_epi64(0xfffffffffffffULL);
     const __m512i vrho = _mm512_load_si512((const void *)rho);
     const __m512i n0 = AE_LD(N, 0);
-    UNUSED_VAR const __m512i one = _mm512_set1_epi64(1);
+    AE_UNUSED const __m512i one = _mm512_set1_epi64(1);
     __m512i Mr[(AE_TMPL_MREG_MAX > 0) ? AE_TMPL_MREG_MAX : 1];
     __m512i carry = zero, hiprev = zero, mprev = zero, hk, acc;
     __mmask8 tm;
@@ -365,13 +367,8 @@ void vecsqrmod52_sN(vec_bignum_t *a, vec_bignum_t *c,
     c->size = S;
 }
 
-typedef void (*ae_mul_fn)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *,
-    vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
-typedef void (*ae_sqr_fn)(vec_bignum_t *, vec_bignum_t *,
-    vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
-
 #define AE_P(S) { vecmulmod52_s##S, vecsqrmod52_s##S }
-static const struct { ae_mul_fn mul; ae_sqr_fn sqr; } ae_tmpl_tab[33] = {
+static const struct { vecmont_mul_fn mul; vecmont_sqr_fn sqr; } ae_tmpl_tab[33] = {
     { 0, 0 }, { 0, 0 }, AE_P(2), AE_P(3), AE_P(4), AE_P(5), AE_P(6), AE_P(7),
     AE_P(8), AE_P(9), AE_P(10), AE_P(11), AE_P(12), AE_P(13), AE_P(14),
     AE_P(15), AE_P(16), AE_P(17), AE_P(18), AE_P(19), AE_P(20), AE_P(21),
@@ -380,7 +377,7 @@ static const struct { ae_mul_fn mul; ae_sqr_fn sqr; } ae_tmpl_tab[33] = {
 };
 
 // pick the mul/sqr pair for NWORDS = S; returns 0 if S is unsupported
-int vecmulmod52_tmpl_get(int S, ae_mul_fn *mul, ae_sqr_fn *sqr)
+int vecmulmod52_tmpl_get(int S, vecmont_mul_fn *mul, vecmont_sqr_fn *sqr)
 {
     if (S < 2)
         return 0;

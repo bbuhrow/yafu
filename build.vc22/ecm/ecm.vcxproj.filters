@@ -54,12 +54,15 @@
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52_common.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\avx-ecm\vecarith52_tmpl.c">
+    <ClCompile Include="..\..\arith\vecmont\vecarith52_tmpl.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\arith\vecmont\vecmont.h">
       <Filter>Source Files\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\yafu_ecm.h">

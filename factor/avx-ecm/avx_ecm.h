@@ -41,82 +41,11 @@ either expressed or implied, of the FreeBSD Project.
 #define MAX_WINSIZE 10
 #define BLOCKWORDS 4
 #define strto_uint64_t strtoull
-#define DIGITBITS 52
+// Digit size, vec_bignum_t and vec_monty_t live in arith/vecmont/vecmont.h
+// (shared with the template cores and the RNS benchmark).
+#include "../../arith/vecmont/vecmont.h"
 
-#ifndef DIGITBITS
-#define DIGITBITS 52
-#endif
-
-#if DIGITBITS==52
-
-#define base_t uint64_t
-#define base_signed_t int64_t
-
-#define VEC_HALFBITS 26
-#define VEC_HALFMASK 0x3ffffff
-#define VEC_MAXDIGIT 0xfffffffffffffULL
-#define VEC_HIBITMASK 0x8000000000000ULL
-#define VECLEN 8
-
-#elif DIGITBITS==32
-
-#define base_t uint32_t
-#define base_signed_t int32_t
-
-#define VEC_HALFBITS 16
-#define VEC_HALFMASK 0xffff
-#define VEC_MAXDIGIT 0xffffffff
-#define VEC_HIBITMASK 0x80000000
-#define VECLEN 16
-
-#else
-#error "DIGITBITS must be either 52 or 32"
-#endif
-
-// Signed-int aliases for VECLEN and BLOCKWORDS.
-// Use these in pointer arithmetic expressions that mix int loop variables
-// with VECLEN/BLOCKWORDS to avoid -Wsign-conversion warnings.
-// e.g.:  a->data + (i * BLOCKWORDS_I + j) * VECLEN_I
-// instead of: a->data + (i * BLOCKWORDS + j) * VECLEN
-#define VECLEN_I     ((int)VECLEN)
 #define BLOCKWORDS_I ((int)BLOCKWORDS)
-
-typedef struct
-{
-    base_t *data;
-    int size;
-    uint32_t signmask;
-    uint32_t WORDS_ALLOC;
-} vec_bignum_t;
-
-// a vector math library for montgomery arithmetic using AVX-512
-typedef struct
-{
-    mpz_t nhat;
-    mpz_t rhat;
-    mpz_t gmp_t1;
-    mpz_t gmp_t2;
-    vec_bignum_t *r;
-    vec_bignum_t *n;
-    vec_bignum_t *vnhat;
-    vec_bignum_t *vrhat;
-    vec_bignum_t *rmask;
-    vec_bignum_t *one;
-    vec_bignum_t *mtmp1;
-    vec_bignum_t *mtmp2;
-    vec_bignum_t *mtmp3;
-    vec_bignum_t *mtmp4;
-    vec_bignum_t **g;             // storage for windowed method precomputation
-    base_t *vrho;
-    base_t rho;
-    int nbits;
-    int isMersenne;
-    uint32_t MAXBITS;
-    uint32_t NWORDS;
-    uint32_t NBLOCKS;
-    int *vnbits;
-    int use_vnbits;
-} vec_monty_t;
 
 #ifdef USE_AVX512F
 
@@ -1041,16 +970,13 @@ void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 
 #ifdef IFMA
-// Constant-S template mul/sqr cores (vecarith52_tmpl.c), any NWORDS >= 2,
+// Constant-S template mul/sqr cores (arith/vecmont/vecarith52_tmpl.c), any NWORDS >= 2,
 // bit-identical to the cores above.  Build with -DAVXECM_NO_TMPL_KERNELS
 // (e.g. make USER_CFLAGS=-DAVXECM_NO_TMPL_KERNELS) to A/B against them.
 #ifndef AVXECM_NO_TMPL_KERNELS
 #define AVXECM_TMPL_KERNELS
 #endif
-// sets *mul / *sqr for NWORDS = S; returns 0 if S is unsupported
-int vecmulmod52_tmpl_get(int S,
-    void (**mul)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *),
-    void (**sqr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *));
+// vecmulmod52_tmpl_get() is declared in arith/vecmont/vecmont.h.
 #endif
 
 // Max bits handled by the non-karatsuba REDC cores (see assign_mul_ptrs).
