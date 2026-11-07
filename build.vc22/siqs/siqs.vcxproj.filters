@@ -111,6 +111,24 @@
     <ClCompile Include="..\..\factor\qs\smallmpqs.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\qs\direct_sieve.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\direct_sieve_avx2.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\direct_sieve_avx512.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\direct_sieve_sse41.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\direct_sieve_neon.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_neon.c">
+      <Filter>Source Files\sieve</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h">

@@ -18,7 +18,7 @@
     <ClCompile Include="..\..\ytools\threadpool.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\ytools\util.c">
+    <ClCompile Include="..\..\ytools\ytools.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -150,6 +150,7 @@
     <ClCompile Include="..\..\factor\qs\large_sieve.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_neon.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
     <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
