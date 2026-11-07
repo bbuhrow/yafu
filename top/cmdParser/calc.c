@@ -63,7 +63,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 83
+#define NUM_FUNC 84
 
 // symbols in calc
 #define EOE 1
@@ -168,7 +168,7 @@ static char function_names[NUM_FUNC][11] = {
     "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
-    "divisors", "expansion", "siqstune"};
+    "divisors", "expansion", "siqstune", "ecmtune"};
 
 // Declared arity per function.  This table is what the argument-collection
 // loop in calc() uses to place actual arguments:  with arity na and k
@@ -194,7 +194,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 2,
-    1, 0, 0};
+    1, 0, 0, 0};
 
 
 // =====================================================================
@@ -4251,6 +4251,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         new_factorization(fobj, operands[0]);
 
         siqs_param_tune(fobj);
+        break;
+
+    case 83:
+        // ecmtune, no arguments: AVX-ECM radix-2^52 / RNS crossover for this
+        // machine, written to yafu.ini as avxecm_rns_bits
+        if (check_args(funcnum, nargs)) break;
+
+        ecm_rns_tune(fobj);
+        mpz_set_ui(operands[0], 1);
         break;
 
 	default:

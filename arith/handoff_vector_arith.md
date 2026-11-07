@@ -109,6 +109,69 @@ The order below is a suggestion: 4.4 and 4.5 are mechanical and make 4.1,
 
 ### 4.1 Replace the old AVX-ECM arithmetic with the template + RNS (user item 1)
 
+**RNS part done (2026-11-07).** The template part (removing the old
+fixed/BFIPS selection) is the pre-merge removal step (§5) and is not done.
+* `factor/avx-ecm/avxecm_rns.c`: the RNS backend. `vec_monty_t.rns`
+  (opaque) holds the shared `rnsy_fixed_t`, a per-thread `rnsy_ctx_t`, a
+  single-number buffer and a batch temporary. The five `vec*mod_ptr`
+  wrappers call the `rnsyb_*` batch kernels (lane = curve);
+  `avxecm_rns_addsub` handles outputs aliasing inputs.
+* Values cross between mpz and vectors only through backend-neutral
+  helpers: `vec_lane_get` / `vec_lane_set` (lane as integer),
+  `vec_set_raw_ui` (raw 1 for leaving Montgomery form), `vec_monty_mulR`
+  (x*R mod N, R = 2^(52 NWORDS) or M_B), `vec_set_monty_one`. In
+  `avxecm.c` they replace curve setup (`vec_build_one_curve`, the build
+  work fcn), both stage-2 batch inversions, the gcd/save extracts and the
+  raw-1 vectors (the dead `vececm_old` is untouched). In radix mode they
+  do exactly what the old code did. `mdata->n` stays radix 2^52 (it is only
+  read back as N).
+* Selection (`vec_ecm_main`): non-Mersenne, `size_n >= avx_rns_bits > 0`,
+  kernels built, and `avxecm_rns_fixed` succeeds (`rnsyb_choose_n` +
+  `rnsy_fixed_init_n` + a ctx test; N sharing a factor with the composite
+  moduli falls back to radix). Vectors are allocated with
+  `max(NWORDS, n*s)` words so `vecCopy` / `vecClear` cover the layout.
+  `assign_mul_ptrs` takes the RNS pointers first; `thread_init` attaches a
+  ctx per thread; detach before `vec_monty_free` (owner last).
+* Bounds audit: every add/sub feeds a mul or one more add/sub of mul
+  outputs; worst is `CROSS_PRODUCT`, (tt3 + Pbprod) - Paprod < 4kN into a
+  mul (limit 8kN); subtrahends are mul outputs (< kN < 2kN).
+* Option `avxecm_rns_bits` (cmdOptions index 140, `ecm_obj.avx_rns_bits`;
+  0 = never). Default `AVXECM_RNS_BITS_DEFAULT` in `include/factor.h`:
+  1200 (IFMA) / 1500 (AVX-512F only). `yafu.ini` and the command line
+  override it.
+* `ecmtune()` (calc function 83, `ecm_rns_tune` in `factor/tune.c`; also
+  run by `tune()`): one 8-curve batch, 1 thread, B1 = 20000, fixed sigma,
+  radix vs forced RNS at 768..4096 bits (inputs: 256-bit primes times one
+  of 257-512 bits, so no small factor), crossover where RNS/radix drops
+  below 1 for good (linear interpolation), written to `yafu.ini`.
+  Rocket Lake results (s per batch, RNS/radix):
+
+| bits | IFMA radix | IFMA RNS | ratio | no-IFMA radix | no-IFMA RNS | ratio |
+|---:|---:|---:|---:|---:|---:|---:|
+| 768 | 0.116 | 0.150 | 1.30 | 0.193 | 0.267 | 1.39 |
+| 1024 | 0.182 | 0.196 | 1.08 | 0.333 | 0.346 | 1.04 |
+| 1280 | 0.273 | 0.257 | 0.94 | 0.423 | 0.462 | 1.09 |
+| 1536 | 0.370 | 0.330 | 0.89 | 0.600 | 0.587 | 0.98 |
+| 2048 | 0.619 | 0.468 | 0.76 | 0.976 | 0.817 | 0.84 |
+| 3072 | 1.301 | 0.811 | 0.62 | 2.115 | 1.448 | 0.69 |
+| 4096 | 2.241 | 1.201 | 0.54 | 3.479 | 2.301 | 0.66 |
+
+  Crossover: 1169 bits with IFMA, 1489 bits without (lower than the powm
+  benchmark's ~1500 / ~2000: in ECM the larger RNS vectors cost less than
+  the powm comparison suggested).
+* Verified: with a fixed starting sigma, radix and RNS report identical
+  finds (lane, stage, sigma) for 64-curve runs at 520, 1036, 1600, 2048,
+  3000, 4000 bits x 3 sigmas (IFMA) and 1036, 2048 (non-IFMA); p15 found
+  with RNS at 520-4500 bits (RNS still works at 4500: 2 x 11 channels),
+  with 4 threads, and in the non-IFMA build (no `vpmadd52` in it). MSVC
+  v143 (avx512ifma) and ClangCL (avx512) compile `avxecm_rns.c`.
+  `ae_bench -t`, `rns_test`, `rns_yao_test`, `rns_bench` still pass.
+* Not done: P-1/P+1 (`avxppm1.c`) still radix only (unreachable from yafu,
+  see §4.2); an RNS `vecmulmod_1` / PARAM1 path (PARAM1 is off);
+  timings at large B1 (only the tune's B1 = 20000 batches were timed).
+
+Original notes follow.
+
 Goal: AVX-ECM uses only the template cores below the crossover and an RNS
 backend above it. The old fixed/BFIPS cores are deleted or kept only for
 A/B tests.

@@ -174,6 +174,7 @@ void init_factobj(fact_obj_t* fobj)
 #endif
     fobj->ecm_obj.prefer_gmpecm_stg2 = 0;
     fobj->ecm_obj.prefer_avxecm_stg2 = 0;
+    fobj->ecm_obj.avx_rns_bits = AVXECM_RNS_BITS_DEFAULT;
 
     // initialize stuff for squfof
     fobj->squfof_obj.num_factors = 0;

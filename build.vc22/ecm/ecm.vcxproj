@@ -158,6 +158,7 @@
     <ClCompile Include="..\..\factor\avx-ecm\vecarith.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52_common.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avxecm_rns.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52_special.c" />
     <ClCompile Include="..\..\arith\vecmont\vecarith52_tmpl.c" />
     <ClCompile Include="..\..\arith\rns\rns_ref.c" />

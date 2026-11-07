@@ -323,6 +323,16 @@ estimating siqs() and nfs() factorizations.  Function coefficients together with
 is automatically added to yafu.ini.  Estimation parameters are used to determine the optimal
 siqs/nfs crossover point.  
 
+[ecmtune]
+usage: ecmtune()
+
+description:
+measures where AVX-ECM's RNS arithmetic becomes faster than its radix-2^52
+Montgomery arithmetic on this machine (AVX-512 builds).  Times one 8-curve batch
+(1 thread, B1 = 20000) with each backend for inputs of 768 to 4096 bits, prints the
+table, and writes the crossover to yafu.ini as avxecm_rns_bits (0 if RNS is never
+faster).  Takes about a minute.  tune() runs it as well.
+
 [siqstune]
 usage: siqstune()
 
@@ -611,6 +621,10 @@ command line flags affecting ecm:
 -B1ecm	<num>   B1 bound in the ECM method
 -B2ecm	<num>   B2 bound in the ECM method
 -ecm_path <path>	full path to ecm binary
+-avxecm_rns_bits <num>	AVX-ECM (AVX-512 builds) uses RNS arithmetic instead of
+			radix-2^52 Montgomery for inputs of at least <num> bits (0 = never).
+			Default: built in (1200 bits with IFMA, 1500 without); ecmtune()
+			measures this machine's crossover and writes it to yafu.ini.
 
 
 [pp1]

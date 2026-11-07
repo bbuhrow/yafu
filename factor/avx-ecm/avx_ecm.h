@@ -1068,6 +1068,40 @@ void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, 
 void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src);
 void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane);
 
+// Arithmetic backends (avxecm_rns.c): radix 2^52 (mdata->rns == NULL) or
+// RNS (arith/rns batch kernels).  Code outside the vec*mod_ptr API moves
+// values between mpz and vectors only through these:
+//   vec_lane_get / vec_lane_set   a lane's value as an integer (a Montgomery
+//                                 residue stays one; set reduces mod N)
+//   vec_set_raw_ui                every lane = x, not in Montgomery form (a
+//                                 product with it leaves Montgomery form)
+//   vec_monty_mulR                x = x * R mod n (into Montgomery form)
+//   vec_set_monty_one             every lane = Montgomery 1
+void vec_lane_get(vec_monty_t *mdata, mpz_t dest, vec_bignum_t *v, int lane);
+void vec_lane_set(vec_monty_t *mdata, vec_bignum_t *v, mpz_t src, int lane);
+void vec_set_raw_ui(vec_monty_t *mdata, vec_bignum_t *v, uint64_t x);
+void vec_monty_mulR(vec_monty_t *mdata, mpz_t x, mpz_t n);
+void vec_set_monty_one(vec_monty_t *mdata, vec_bignum_t *v, mpz_t n);
+
+// RNS backend.  avxecm_rns_fixed: the size-class tables for N (NULL if RNS
+// is unavailable for it); *words = n*s, the vector size the layout needs.
+// attach: per-mdata (= per-thread) context; returns 0 on failure.
+int avxecm_rns_available(void);
+void *avxecm_rns_fixed(mpz_t N, uint32_t *words);
+void avxecm_rns_fixed_info(void *fx, int *n, int *s);
+int avxecm_rns_attach(vec_monty_t *mdata, void *fx, int own_fx, mpz_t N);
+void avxecm_rns_detach(vec_monty_t *mdata);
+void *avxecm_rns_get_fixed(vec_monty_t *mdata);
+void avxecm_rns_free_fixed(void *fx);
+void avxecm_rns_mul(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,
+    vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+void avxecm_rns_sqr(vec_bignum_t *a, vec_bignum_t *c,
+    vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+void avxecm_rns_add(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void avxecm_rns_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void avxecm_rns_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum,
+    vec_bignum_t *diff, vec_monty_t *mdata);
+
 // declare function pointers to the type of reduction needed
 extern void(*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
 extern void(*vecsqrmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);

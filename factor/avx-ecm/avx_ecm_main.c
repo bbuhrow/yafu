@@ -54,6 +54,23 @@ void test_vecarith(int numbits, int iterations, int validate);
 
 void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
 {
+    if (montyconst->rns != NULL)
+    {
+        // RNS backend (avxecm_rns.c): arith/rns batch kernels
+        int rn, rs;
+        avxecm_rns_fixed_info(avxecm_rns_get_fixed(montyconst), &rn, &rs);
+        vecmulmod_ptr = &avxecm_rns_mul;
+        vecsqrmod_ptr = &avxecm_rns_sqr;
+        vecaddmod_ptr = &avxecm_rns_add;
+        vecsubmod_ptr = &avxecm_rns_sub;
+        vecaddsubmod_ptr = &avxecm_rns_addsub;
+        if (verbose > 1)
+        {
+            printf("Using RNS mul/sqr core (2 x %d channels of %d words)\n", rn, rs);
+        }
+        return;
+    }
+
     if (DIGITBITS == 52)
     {
         if (montyconst->isMersenne > 1)
@@ -524,6 +541,28 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         size_n = mpz_sizeinbase(N, 2);
     }
 
+    // RNS backend for large enough non-Mersenne inputs (avx_rns_bits,
+    // option avxecm_rns_bits; 0 = never).  The vectors must hold the RNS
+    // layout: n*s words.
+    void *rnsfx = NULL;
+    if ((isMersenne == 0) && (fobj->ecm_obj.avx_rns_bits > 0) &&
+        (size_n >= fobj->ecm_obj.avx_rns_bits) && avxecm_rns_available())
+    {
+        uint32_t rnswords = 0;
+        rnsfx = avxecm_rns_fixed(N, &rnswords);
+        if (rnsfx != NULL)
+        {
+            if (rnswords > nwords)
+                nwords = rnswords;
+            maxbits = nwords * DIGITBITS;
+            nblocks = nwords / BLOCKWORDS;
+        }
+        else if (verbose > 1)
+        {
+            printf("RNS arithmetic unavailable for this input, using radix 2^52\n");
+        }
+    }
+
     // now that we know NWORDS, can allocate the monty structure.
     montyconst = vec_monty_alloc(nwords);
     tdata = (thread_data_t*)malloc(threads * sizeof(thread_data_t));
@@ -585,6 +624,18 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
         mpz_tdiv_r(r, r, N);
         broadcast_mpz_to_vec(montyconst->one, r);
+
+        if ((rnsfx != NULL) && avxecm_rns_attach(montyconst, rnsfx, 1, N))
+        {
+            // values are RNS residues from here on (mdata->n stays radix
+            // 2^52: it is only read back as an integer)
+            vec_set_monty_one(montyconst, montyconst->one, N);
+        }
+        else if (rnsfx != NULL)
+        {
+            printf("RNS setup failed\n");
+            exit(1);
+        }
     }
 
     
@@ -1049,6 +1100,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
        
         vec_ecm_work_free(tdata[i].work);
         vec_ecm_pt_free(tdata[i].P);
+        avxecm_rns_detach(tdata[i].mdata);
         vec_monty_free(tdata[i].mdata);
         free(tdata[i].mdata);
         free(tdata[i].work);
@@ -1088,6 +1140,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // clean up local/global data
     mpz_clear(g);
     mpz_clear(r);
+    avxecm_rns_detach(montyconst);      // after the threads: owns the fixed tables
     vec_monty_free(montyconst);
 	free(montyconst);
     free(tdata);
@@ -1240,6 +1293,20 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
     tdata->mdata->use_vnbits = 0;             // all lanes use the same N.
     tdata->mdata->isMersenne = mdata->isMersenne;
     memcpy(tdata->mdata->vrho, mdata->vrho, VECLEN * sizeof(base_t));
+
+    if (mdata->rns != NULL)
+    {
+        // RNS: shared fixed tables, a context (and scratch) per thread
+        mpz_t N;
+        mpz_init(N);
+        extract_bignum_from_vec_to_mpz(N, mdata->n, 0, (int)mdata->NWORDS);
+        if (!avxecm_rns_attach(tdata->mdata, avxecm_rns_get_fixed(mdata), 0, N))
+        {
+            printf("RNS thread setup failed\n");
+            exit(1);
+        }
+        mpz_clear(N);
+    }
 
     return;
 }

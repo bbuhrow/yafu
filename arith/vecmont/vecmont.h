@@ -114,6 +114,8 @@ typedef struct
     int use_vnbits;
     base_t *fpwork;     // 3 * NWORDS vectors of double operands for the
                         // non-IFMA template cores (per mdata = per thread)
+    void *rns;          // AVX-ECM RNS backend state (factor/avx-ecm/avxecm_rns.c);
+                        // NULL: values are radix-2^52 Montgomery residues
 } vec_monty_t;
 
 typedef void (*vecmont_mul_fn)(vec_bignum_t *a, vec_bignum_t *b,

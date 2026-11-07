@@ -133,6 +133,12 @@ extern void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     uint64_t B2, int threads, int* numfactors, int verbose,
     int save_b1, uint32_t* curves_run);
 extern void vecPP1(fact_obj_t* fobj);
+// 1 if the AVX-ECM RNS backend is built in (factor/avx-ecm/avxecm_rns.c)
+extern int avxecm_rns_available(void);
+// RNS size-class tables for N (NULL if RNS cannot handle it); free with
+// avxecm_rns_free_fixed.  *words = vector words the RNS layout needs.
+extern void *avxecm_rns_fixed(mpz_t N, uint32_t *words);
+extern void avxecm_rns_free_fixed(void *fx);
 extern void vecPM1(fact_obj_t* fobj);
 
 /* ============================ interface to utilities and table data ============================ */

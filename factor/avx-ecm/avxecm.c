@@ -334,18 +334,18 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
         int j;
 #ifdef PARAM1
         build_one_curve_param1(&tdata[tid], X, Z, X2, Z2, A, 0); // 65953669); // 36875098);
-        insert_mpz_to_vec(tdata[tid].P->X, X, i);
-        insert_mpz_to_vec(tdata[tid].P->Z, Z, i);
-        insert_mpz_to_vec(tdata[tid].work->pt2.X, X2, i);
-        insert_mpz_to_vec(tdata[tid].work->pt2.Z, Z2, i);
-        insert_mpz_to_vec(tdata[tid].work->s, A, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].P->X, X, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].P->Z, Z, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].work->pt2.X, X2, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].work->pt2.Z, Z2, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].work->s, A, i);
 #else
         // 8689346476060549ULL
         vec_build_one_curve(&tdata[tid], X, Z, A, tdata[tid].sigma[i]); // 6710676431370252287 + i);
 
-        insert_mpz_to_vec(tdata[tid].P->X, X, i);
-        insert_mpz_to_vec(tdata[tid].P->Z, Z, i);
-        insert_mpz_to_vec(tdata[tid].work->s, A, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].P->X, X, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].P->Z, Z, i);
+        vec_lane_set(tdata[tid].mdata, tdata[tid].work->s, A, i);
 #endif
         tdata[tid].sigma[i] = tdata[tid].work->sigma;
     }
@@ -2398,11 +2398,7 @@ void vececm(thread_data_t* tdata)
         extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->vnhat, 0, NWORDS);
     }
 
-    for (i = 0; i < VECLEN; i++)
-    {
-        one->data[i] = 1;
-    }
-    one->size = 1;
+    vec_set_raw_ui(tdata[0].mdata, one, 1);    // raw 1: a product with it leaves Montgomery form
 
 
     rangemin = 0;
@@ -2633,7 +2629,7 @@ void vececm(thread_data_t* tdata)
 
                     for (i = 0; i < VECLEN; i++)
                     {
-                        extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
+                        vec_lane_get(tdata[j].mdata, gmpt, tdata[j].P->Z, i);
 
                         if (mpz_cmp_ui(gmpt, 0) == 0)
                         {
@@ -2698,8 +2694,8 @@ void vececm(thread_data_t* tdata)
                                 tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
                             gmp_fprintf(intsave, "N=0x%Zx; ", gmpn);
 
-                            extract_bignum_from_vec_to_mpz(tmp1, tdata[j].work->tt4, i, NWORDS);
-                            extract_bignum_from_vec_to_mpz(tmp2, tdata[j].work->tt3, i, NWORDS);
+                            vec_lane_get(tdata[j].mdata, tmp1, tdata[j].work->tt4, i);
+                            vec_lane_get(tdata[j].mdata, tmp2, tdata[j].work->tt3, i);
 
                             mpz_invert(tmp2, tmp2, gmpn);
                             mpz_mul(gmpt, tmp2, tmp1);
@@ -2747,7 +2743,7 @@ void vececm(thread_data_t* tdata)
                 //uint32_t msk = vec_gte52(tdata[j].work->tt3, tdata[j].work->n);
                 //vec_bignum52_mask_sub(tdata[j].work->tt3, tdata[j].work->n, tdata[j].work->tt2, msk);
                 //extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt2, i, NWORDS);
-                extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
+                vec_lane_get(tdata[j].mdata, gmpt, tdata[j].P->Z, i);
 
                 if (mpz_cmp_ui(gmpt, 0) == 0)
                 {
@@ -2819,8 +2815,8 @@ void vececm(thread_data_t* tdata)
                         tdata[j].sigma[i], STAGE1_MAX);
                     gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
-                    extract_bignum_from_vec_to_mpz(tmp1, tdata[j].work->tt4, i, NWORDS);
-                    extract_bignum_from_vec_to_mpz(tmp2, tdata[j].work->tt3, i, NWORDS);
+                    vec_lane_get(tdata[j].mdata, tmp1, tdata[j].work->tt4, i);
+                    vec_lane_get(tdata[j].mdata, tmp2, tdata[j].work->tt3, i);
 
                     mpz_invert(tmp2, tmp2, gmpn);
                     mpz_mul(gmpt, tmp2, tmp1);
@@ -2958,7 +2954,7 @@ void vececm(thread_data_t* tdata)
             {
                 for (i = 0; i < VECLEN; i++)
                 {
-                    extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->stg2acc, i, NWORDS);
+                    vec_lane_get(tdata[j].mdata, gmpt, tdata[j].work->stg2acc, i);
                     result = vec_check_factor(gmpt, gmpn, tmp_factor);
 
                     if (mpz_cmp_ui(gmpt, 0) == 0)
@@ -3198,12 +3194,9 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
             mpz_add(A, A, n);
         }
 
-        mpz_mul_2exp(X, X, DIGITBITS * mdata->NWORDS);
-        mpz_tdiv_r(X, X, n);
-        mpz_mul_2exp(Z, Z, DIGITBITS * mdata->NWORDS);
-        mpz_tdiv_r(Z, Z, n);
-        mpz_mul_2exp(A, A, DIGITBITS * mdata->NWORDS);
-        mpz_tdiv_r(A, A, n);
+        vec_monty_mulR(mdata, X, n);
+        vec_monty_mulR(mdata, Z, n);
+        vec_monty_mulR(mdata, A, n);
 
         //gmp_printf("X/Z = %Zx\n", X);
         //gmp_printf("Z = %Zx\n", Z);
@@ -3212,7 +3205,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         //printf("(A+2)*B/4\n");
 
         mpz_set_ui(t1, 2);
-        mpz_mul_2exp(t1, t1, DIGITBITS * mdata->NWORDS);
+        vec_monty_mulR(mdata, t1, n);
         mpz_add(A, A, t1);
         mpz_tdiv_r(A, A, n);
 
@@ -3268,12 +3261,9 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         if (!mdata->isMersenne)
         {
             // into Monty rep
-            mpz_mul_2exp(X, X, DIGITBITS * mdata->NWORDS);
-            mpz_tdiv_r(X, X, n);
-            mpz_mul_2exp(Z, Z, DIGITBITS * mdata->NWORDS);
-            mpz_tdiv_r(Z, Z, n);
-            mpz_mul_2exp(A, A, DIGITBITS * mdata->NWORDS);
-            mpz_tdiv_r(A, A, n);
+            vec_monty_mulR(mdata, X, n);
+            vec_monty_mulR(mdata, Z, n);
+            vec_monty_mulR(mdata, A, n);
         }
         else
         {
@@ -3837,12 +3827,7 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
     // now we have to take An out of monty rep so we can invert it.
     if (mdata->isMersenne == 0)
     {
-        vecClear(work->tt1);
-        for (j = 0; j < VECLEN; j++)
-        {
-            work->tt1->data[j] = 1;
-        }
-        work->tt1->size = 1;
+        vec_set_raw_ui(mdata, work->tt1, 1);
         vecmulmod_ptr(A[num - 1], work->tt1, B[num - 1], work->n, work->tt4, mdata);
     }
     else
@@ -3854,7 +3839,7 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
     for (j = 0; j < VECLEN; j++)
     {
         // extract this vec position so we can use mpz_invert.
-        extract_bignum_from_vec_to_mpz(gmptmp, B[num - 1], j, NWORDS);
+        vec_lane_get(mdata, gmptmp, B[num - 1], j);
 
         // invert it
         inverr = mpz_invert(gmptmp2, gmptmp, gmpn);
@@ -3866,22 +3851,18 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
             //gmp_printf("tried to invert %Zd mod %Zd in stage2init Pb\n", gmptmp, gmpn);
             mpz_gcd(gmptmp, gmptmp, gmpn);
             //gmp_printf("the GCD is %Zd\n", gmptmp);
-            int k;
-            for (k = 0; k < NWORDS; k++)
-                work->stg2acc->data[k * VECLEN + j] = 0;
-            insert_mpz_to_vec(work->stg2acc, gmptmp, j);
+            vec_lane_set(mdata, work->stg2acc, gmptmp, j);
             foundDuringInv = 1;
         }
 
         if (mdata->isMersenne == 0)
         {
             // now put it back into Monty rep.
-            mpz_mul_2exp(gmptmp2, gmptmp2, MAXBITS);
-            mpz_tdiv_r(gmptmp2, gmptmp2, gmpn);
+            vec_monty_mulR(mdata, gmptmp2, gmpn);
         }
 
         // and stuff it back in the vector.
-        insert_mpz_to_vec(B[num - 1], gmptmp2, j);
+        vec_lane_set(mdata, B[num - 1], gmptmp2, j);
     }
 
     //if (doneIfFoundDuringInv && foundDuringInv)
@@ -3974,12 +3955,7 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
     // now we have to take An out of monty rep so we can invert it.
     if (mdata->isMersenne == 0)
     {
-        vecClear(work->tt1);
-        for (j = 0; j < VECLEN; j++)
-        {
-            work->tt1->data[j] = 1;
-        }
-        work->tt1->size = 1;
+        vec_set_raw_ui(mdata, work->tt1, 1);
         vecmulmod_ptr(A[num - 1], work->tt1, B[num - 1], work->n, work->tt4, mdata);
     }
     else
@@ -3991,7 +3967,7 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
     for (j = 0; j < VECLEN; j++)
     {
         // extract this vec position so we can use mpz_invert.
-        extract_bignum_from_vec_to_mpz(gmptmp, B[num - 1], j, NWORDS);
+        vec_lane_get(mdata, gmptmp, B[num - 1], j);
 
         // invert it
         inverr = mpz_invert(gmptmp2, gmptmp, gmpn);
@@ -4003,22 +3979,18 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
             //gmp_printf("tried to invert %Zd mod %Zd in stage2init Pb\n", gmptmp, gmpn);
             mpz_gcd(gmptmp, gmptmp, gmpn);
             //gmp_printf("the GCD is %Zd\n", gmptmp);
-            int k;
-            for (k = 0; k < NWORDS; k++)
-                work->stg2acc->data[k * VECLEN + j] = 0;
-            insert_mpz_to_vec(work->stg2acc, gmptmp, j);
+            vec_lane_set(mdata, work->stg2acc, gmptmp, j);
             foundDuringInv = 1;
         }
 
         if (mdata->isMersenne == 0)
         {
             // now put it back into Monty rep.
-            mpz_mul_2exp(gmptmp2, gmptmp2, MAXBITS);
-            mpz_tdiv_r(gmptmp2, gmptmp2, gmpn);
+            vec_monty_mulR(mdata, gmptmp2, gmpn);
         }
 
         // and stuff it back in the vector.
-        insert_mpz_to_vec(B[num - 1], gmptmp2, j);
+        vec_lane_set(mdata, B[num - 1], gmptmp2, j);
     }
 
     //if (doneIfFoundDuringInv && foundDuringInv)

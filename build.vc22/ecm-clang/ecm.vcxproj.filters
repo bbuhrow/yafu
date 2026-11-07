@@ -54,6 +54,9 @@
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52_common.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\avx-ecm\avxecm_rns.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\arith\vecmont\vecarith52_tmpl.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>

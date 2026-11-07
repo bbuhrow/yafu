@@ -955,6 +955,7 @@ ECM_SRCS = \
     factor/avx-ecm/vecarith52.c \
     factor/avx-ecm/vecarith52_special.c \
     factor/avx-ecm/vecarith52_common.c \
+    factor/avx-ecm/avxecm_rns.c \
     arith/vecmont/vecarith52_tmpl.c \
     arith/rns/rns_ref.c \
     arith/rns/rns_avx512.c \
