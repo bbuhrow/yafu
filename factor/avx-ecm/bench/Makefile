@@ -12,7 +12,7 @@ LDLIBS = $(GMP_PREFIX)/lib/libgmp.a -lm
 
 AE_DIR = ..
 VM_DIR = ../../../arith/vecmont
-AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
+AE_SRCS = vec_common vecarith52 vecarith52_oldcores vecarith52_common vecarith52_special vecarith52_avx2
 AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS)))
 # make NOIFMA=1: AVX-512F only (FP-emulated products), e.g. for Skylake-X;
 # runs on IFMA machines too

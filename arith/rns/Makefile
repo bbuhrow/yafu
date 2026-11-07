@@ -30,7 +30,7 @@ YOBJS = rns_yao_ref.o rns_yao_avx512.o rns_yaob_avx512.o rns_yaob_avx2.o
 
 AE_DIR = ../../factor/avx-ecm
 VM_DIR = ../vecmont
-AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
+AE_SRCS = vec_common vecarith52 vecarith52_oldcores vecarith52_common vecarith52_special
 VM_SRCS = vecarith52_tmpl
 AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS) $(VM_SRCS)))
 AE_FLAGS = $(AE_ISA) -I../../include -I../../ytools -I$(AE_DIR)

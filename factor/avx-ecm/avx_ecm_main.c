@@ -148,52 +148,17 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
         }
         else
         {
-            if (maxbits == 416)
+#if defined(USE_AVX512F) && !defined(AVXECM_TMPL_KERNELS)
+#error "AVX-ECM needs the constant-S template cores (the old fixed / BFIPS cores are no longer built)"
+#endif
+            // constant-S template cores (arith/vecmont/vecarith52_tmpl.c) up to
+            // AVXECM_KARATSUBA_BITS, karatsuba REDC above (inputs too large for
+            // the RNS backend).  The old fixed416..1040 / BFIPS cores are in
+            // vecarith52_oldcores.c, outside the builds.
+            if (maxbits > AVXECM_KARATSUBA_BITS)
             {
-                vecmulmod_ptr = &vecmulmod52_fixed416_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed416_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 416-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits == 624)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed624_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed624_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 624-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits == 832)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed832_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed832_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 832-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits == 1040)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed1040_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed1040_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 1040-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits > 16400)
-            {
-                // faster starting around 16000 bits on Xeon 6254
                 vecmulmod_ptr = &veckmul_redc;
                 vecsqrmod_ptr = &vecksqr_redc;
-                vecaddsubmod_ptr = &vec_simul_addsub52;
                 if (verbose > 1)
                 {
                     printf("Using karatsuba mul/sqr core\n");
@@ -201,27 +166,23 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
             }
             else
             {
-                vecmulmod_ptr = &vecmulmod52;
-                vecsqrmod_ptr = &vecsqrmod52;
-                vecaddsubmod_ptr = &vec_simul_addsub52;
-                if (verbose > 1)
-                {
-                    printf("Using BFIPS base-52 mul/sqr core\n");
-                }
-            }
 #ifdef AVXECM_TMPL_KERNELS
-            // constant-S template cores (vecarith52_tmpl.c): bit-identical
-            // results, 1.1-1.6x faster than the cores above
-            if ((maxbits <= 16400) && vecmulmod52_tmpl_get(maxbits / DIGITBITS,
-                &vecmulmod_ptr, &vecsqrmod_ptr))
-            {
+                if (!vecmulmod52_tmpl_get(maxbits / DIGITBITS, &vecmulmod_ptr, &vecsqrmod_ptr))
+                {
+                    printf("no mul/sqr core for %d words\n", maxbits / DIGITBITS);
+                    exit(1);
+                }
                 if (verbose > 1)
                 {
                     printf("Using constant-S template mul/sqr core (%d words)\n",
                         maxbits / DIGITBITS);
                 }
-            }
+#else
+                printf("AVX-ECM needs an AVX-512 or AVX2 build\n");
+                exit(1);
 #endif
+            }
+            vecaddsubmod_ptr = &vec_simul_addsub52;
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
         }

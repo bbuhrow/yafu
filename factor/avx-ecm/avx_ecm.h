@@ -958,6 +958,8 @@ void vecFree(vec_bignum_t *);
 void vecmulmod52_fixed624_cios(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_1(vec_bignum_t *a, base_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecredc52_base(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+// the old fixed / BFIPS cores (vecarith52_oldcores.c): not in the yafu builds,
+// declared for the A/B harnesses (ae_bench, rns_bench, big_bench)
 void vecmulmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
@@ -971,8 +973,9 @@ void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t
 
 #if defined(USE_AVX512F) || defined(USE_AVX2)
 // Constant-S template mul/sqr cores (arith/vecmont/vecarith52_tmpl.c), any NWORDS >= 2,
-// IFMA or FP-emulated (no IFMA), bit-identical to the cores above.  Build with -DAVXECM_NO_TMPL_KERNELS
-// (e.g. make USER_CFLAGS=-DAVXECM_NO_TMPL_KERNELS) to A/B against them.
+// IFMA or FP-emulated (no IFMA), bit-identical to the old cores above.  The yafu builds
+// require them (the old cores are no longer built; AVXECM_NO_TMPL_KERNELS stops with
+// #error in avx_ecm_main.c).  A/B against the old cores with factor/avx-ecm/bench.
 #ifndef AVXECM_NO_TMPL_KERNELS
 #define AVXECM_TMPL_KERNELS
 #endif

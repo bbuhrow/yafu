@@ -629,6 +629,12 @@ static void time_kernel(ae_t *ae, gmp_randstate_t rs, tm_t *tm)
 
 static void make_N(mpz_t N, int bits, gmp_randstate_t rs);
 
+// AVX2 builds: the AVX-512 add/sub are stubs there; test the AVX2 ones
+#ifndef USE_AVX512F
+#define vecaddmod52 vecaddmod52_avx2
+#define vecsubmod52 vecsubmod52_avx2
+#endif
+
 // vecaddmod52 / vecsubmod52 on AMM-product outputs (as ECM feeds them):
 // count lanes where the result is not == a+-b mod N, or not < R
 static void test_addsub(int S, gmp_randstate_t rs)

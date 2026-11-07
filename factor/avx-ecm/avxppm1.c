@@ -1016,11 +1016,11 @@ void vecPP1(fact_obj_t* fobj)
         }
         else
         {
-            vecmulmod_ptr = &vecmulmod52;
-            vecsqrmod_ptr = &vecsqrmod52;
+            // template cores up to AVXECM_KARATSUBA_BITS, karatsuba above
+            // (the old fixed / BFIPS cores are no longer built)
+            vecmulmod_ptr = &veckmul_redc;
+            vecsqrmod_ptr = &vecksqr_redc;
 #ifdef AVXECM_TMPL_KERNELS
-            // constant-S template cores: any NWORDS (required when
-            // NWORDS is not a multiple of 4, see avxecm_redc_nwords)
             if (montyconst->MAXBITS <= AVXECM_KARATSUBA_BITS)
                 vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr);
 #endif
@@ -1726,11 +1726,11 @@ void vecPM1(fact_obj_t* fobj)
         }
         else
         {
-            vecmulmod_ptr = &vecmulmod52;
-            vecsqrmod_ptr = &vecsqrmod52;
+            // template cores up to AVXECM_KARATSUBA_BITS, karatsuba above
+            // (the old fixed / BFIPS cores are no longer built)
+            vecmulmod_ptr = &veckmul_redc;
+            vecsqrmod_ptr = &vecksqr_redc;
 #ifdef AVXECM_TMPL_KERNELS
-            // constant-S template cores: any NWORDS (required when
-            // NWORDS is not a multiple of 4, see avxecm_redc_nwords)
             if (montyconst->MAXBITS <= AVXECM_KARATSUBA_BITS)
                 vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr);
 #endif
@@ -2363,11 +2363,11 @@ void vecPPM1_1N(fact_obj_t *fobj)
         }
         else
         {
-            vecmulmod_ptr = &vecmulmod52;
-            vecsqrmod_ptr = &vecsqrmod52;
+            // template cores up to AVXECM_KARATSUBA_BITS, karatsuba above
+            // (the old fixed / BFIPS cores are no longer built)
+            vecmulmod_ptr = &veckmul_redc;
+            vecsqrmod_ptr = &vecksqr_redc;
 #ifdef AVXECM_TMPL_KERNELS
-            // constant-S template cores: any NWORDS (required when
-            // NWORDS is not a multiple of 4, see avxecm_redc_nwords)
             if (montyconst->MAXBITS <= AVXECM_KARATSUBA_BITS)
                 vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr);
 #endif
