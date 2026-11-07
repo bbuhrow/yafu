@@ -135,24 +135,49 @@ void rnsy_vaddmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y)
 void rnsy_vsubmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 // d = b^e in Montgomery form (sliding window, as rns_vpowm_avx512)
 void rnsy_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e);
-// 1 if the vector kernels were built bit-exact with the reference
-// (RNSY_COLUMN_FOLD = 0), else 0: results are then valid representations
-// (congruent, consistent across channels, same bounds) but other values
-int rnsy_vec_exact(void);
 
-// Batch kernels (rns_yaob_avx512.c): 8 numbers mod the same N per call,
-// any n, s = 1..10; z may alias x or y.  Lane l of a batch vector holds
-// number l; rnsyb_vset_lane / vget_lane convert from / to the
-// single-number representation.
+#endif
+
+// Batch kernels (rns_yaob_kern.h): 8 numbers mod the same N per call, any
+// n, s = 1..10; z may alias x or y.  Lane l of a batch vector holds number
+// l; rnsyb_vset_lane / vget_lane convert from / to the single-number
+// representation.  Built as rnsyb_*_avx512 (AVX-512) or rnsyb_*_avx2
+// (AVX2 + FMA, two 4-lane halves); rnsyb_vmulmod etc. name whichever this
+// build has (RNSYB_HAVE_VEC).
 uint64_t *rnsyb_alloc(rnsy_ctx_t *ctx);         // (2*n*s + 1) * 8 words
 void rnsyb_vset_lane(rnsy_ctx_t *ctx, uint64_t *v, int lane, uint64_t *x);
 void rnsyb_vget_lane(rnsy_ctx_t *ctx, uint64_t *x, uint64_t *v, int lane);
+#ifdef RNS_HAVE_AVX512
 void rnsyb_vmulmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rnsyb_vsqrmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x);
 void rnsyb_vaddmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rnsyb_vsubmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 // all 8 lanes share the exponent e
 void rnsyb_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e);
+#define RNSYB_HAVE_VEC 1
+#define rnsyb_vmulmod rnsyb_vmulmod_avx512
+#define rnsyb_vsqrmod rnsyb_vsqrmod_avx512
+#define rnsyb_vaddmod rnsyb_vaddmod_avx512
+#define rnsyb_vsubmod rnsyb_vsubmod_avx512
+#define rnsyb_vpowm rnsyb_vpowm_avx512
+#elif defined(RNS_HAVE_AVX2)
+void rnsyb_vmulmod_avx2(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
+void rnsyb_vsqrmod_avx2(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x);
+void rnsyb_vaddmod_avx2(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
+void rnsyb_vsubmod_avx2(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
+void rnsyb_vpowm_avx2(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e);
+#define RNSYB_HAVE_VEC 1
+#define rnsyb_vmulmod rnsyb_vmulmod_avx2
+#define rnsyb_vsqrmod rnsyb_vsqrmod_avx2
+#define rnsyb_vaddmod rnsyb_vaddmod_avx2
+#define rnsyb_vsubmod rnsyb_vsubmod_avx2
+#define rnsyb_vpowm rnsyb_vpowm_avx2
+#endif
+#ifdef RNSYB_HAVE_VEC
+// 1 if the vector kernels were built bit-exact with the reference
+// (RNSY_COLUMN_FOLD = 0), else 0: results are then valid representations
+// (congruent, consistent across channels, same bounds) but other values
+int rnsy_vec_exact(void);
 #endif
 
 #endif

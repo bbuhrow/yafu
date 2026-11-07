@@ -76,6 +76,18 @@ static double calibrate_cycle_ns(long iters)
                 "vpmadd52luq %%zmm1, %%zmm2, %%zmm17\n\t"
                 ::: "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
                 "xmm16", "xmm17");
+#elif !defined(USE_AVX512F)
+            // AVX2 build: calibrate on 256-bit FMA throughput
+            __asm__ volatile(
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm10\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm11\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm12\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm13\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm14\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm15\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm8\n\t"
+                "vfmadd231pd %%ymm1, %%ymm2, %%ymm9\n\t"
+                ::: "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15");
 #else
             // no IFMA: calibrate on 512-bit FMA throughput instead
             __asm__ volatile(
@@ -141,6 +153,11 @@ static void vec_extract(mpz_t dest, vec_bignum_t *v, int lane, int words)
 static int pick_old(ae_t *ae)
 {
     int maxbits = ae->words * DIGITBITS;
+#ifndef USE_AVX512F
+    // AVX2 build: the old cores are AVX-512 only (stubs here)
+    (void)maxbits;
+    return 0;
+#endif
     if (maxbits == 416)
     {
         ae->mul = &vecmulmod52_fixed416_bfips;

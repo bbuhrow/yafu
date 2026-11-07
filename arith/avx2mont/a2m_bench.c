@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <xmmintrin.h>
 
 static const char *vname[A2M_NVARIANT] = { "FP52", "D28", "D32" };
 static const int vdbits[A2M_NVARIANT] = { 52, 28, 32 };
@@ -437,6 +438,11 @@ int main(int argc, char **argv)
     }
     gmp_randinit_default(rs);
     gmp_randseed_ui(rs, seed);
+#ifdef A2M_CALLER_RZ
+    // experiment: RZ for the whole run instead of per kernel call
+    _mm_setcsr((_mm_getcsr() & ~0x6000u) | 0x6000u);
+    printf("MXCSR: round toward zero for the whole run (A2M_CALLER_RZ)\n");
+#endif
     printf("seed %lu\n", seed);
 
     if (do_t)

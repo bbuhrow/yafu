@@ -127,7 +127,7 @@ static int test_size(int bits, int iters, gmp_randstate_t rs)
     return fails;
 }
 
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
 #define HAVE_VEC 1
 
 // v is a valid representation: digits < 2^52, every channel encodes the same
@@ -222,6 +222,8 @@ static int vcmp(rnsy_ctx_t *ctx, uint64_t *v, uint64_t *r, int bm, const char *w
     }
 }
 
+#ifdef RNS_HAVE_AVX512
+// one-number kernel (AVX-512 only)
 static int test_vec(int bits, int iters, gmp_randstate_t rs)
 {
     rnsy_fixed_t *fx = rnsy_fixed_init(bits);
@@ -333,6 +335,7 @@ static int test_vec(int bits, int iters, gmp_randstate_t rs)
     return fails;
 }
 #endif
+#endif
 
 #ifdef HAVE_VEC
 // batch kernel: 8 numbers per call, n channels per base.  Each lane is
@@ -384,19 +387,19 @@ static int test_batch(int bits, int n, int iters, gmp_randstate_t rs)
             rnsyb_vset_lane(ctx, vy, l, ly[l]);
         }
 
-        rnsyb_vmulmod_avx512(ctx, vz, vx, vy);
+        rnsyb_vmulmod(ctx, vz, vx, vy);
         for (l = 0; l < RNSY_NCH; l++) rnsy_mulmod_ref(ctx, rz[l], lx[l], ly[l]);
         BCHECK(vz, rz, fx->k, "batch mul");
 
-        rnsyb_vsqrmod_avx512(ctx, vw, vz);
+        rnsyb_vsqrmod(ctx, vw, vz);
         for (l = 0; l < RNSY_NCH; l++) rnsy_mulmod_ref(ctx, rw[l], rz[l], rz[l]);
         BCHECK(vw, rw, fx->k, "batch sqr");
 
-        rnsyb_vaddmod_avx512(ctx, vx, vz, vw);
+        rnsyb_vaddmod(ctx, vx, vz, vw);
         for (l = 0; l < RNSY_NCH; l++) rnsy_addmod_ref(ctx, lx[l], rz[l], rw[l]);
         BCHECK(vx, lx, 2 * fx->k, "batch add");
 
-        rnsyb_vsubmod_avx512(ctx, vy, vz, vw);
+        rnsyb_vsubmod(ctx, vy, vz, vw);
         for (l = 0; l < RNSY_NCH; l++) rnsy_submod_ref(ctx, ly[l], rz[l], rw[l]);
         BCHECK(vy, ly, 3 * fx->k, "batch sub");
 
@@ -408,8 +411,8 @@ static int test_batch(int bits, int n, int iters, gmp_randstate_t rs)
             rnsy_mulmod_ref(ctx, rz[l], lx[l], ly[l]);
             rnsy_mulmod_ref(ctx, rw[l], ly[l], ly[l]);
         }
-        rnsyb_vmulmod_avx512(ctx, vx, vx, vy);
-        rnsyb_vsqrmod_avx512(ctx, vy, vy);
+        rnsyb_vmulmod(ctx, vx, vx, vy);
+        rnsyb_vsqrmod(ctx, vy, vy);
         BCHECK(vx, rz, fx->k, "batch mul in place");
         BCHECK(vy, rw, fx->k, "batch sqr in place");
     }
@@ -424,7 +427,7 @@ static int test_batch(int bits, int n, int iters, gmp_randstate_t rs)
         rnsyb_vset_lane(ctx, vx, l, lx[0]);
         rnsy_mulmod_ref(ctx, rz[l], lx[0], lx[0]);
     }
-    rnsyb_vsqrmod_avx512(ctx, vz, vx);
+    rnsyb_vsqrmod(ctx, vz, vx);
     BCHECK(vz, rz, fx->k, "batch worst-case");
 
     // powm against mpz_powm, a different base per lane, shared exponent
@@ -436,7 +439,7 @@ static int test_batch(int bits, int n, int iters, gmp_randstate_t rs)
         rnsy_to_monty(ctx, lx[l], a);
         rnsyb_vset_lane(ctx, vx, l, lx[l]);
     }
-    rnsyb_vpowm_avx512(ctx, vz, vx, e);
+    rnsyb_vpowm(ctx, vz, vx, e);
     for (l = 0; l < RNSY_NCH; l++)
     {
         rnsy_from_monty(ctx, a, lx[l]);
@@ -476,8 +479,10 @@ int main(int argc, char **argv)
     for (s = 0; s < (int)(sizeof(sizes) / sizeof(sizes[0])); s++)
         fails += test_size(sizes[s], iters, rs);
 #ifdef HAVE_VEC
+#ifdef RNS_HAVE_AVX512
     for (s = 0; s < (int)(sizeof(sizes) / sizeof(sizes[0])); s++)
         fails += test_vec(sizes[s], iters, rs);
+#endif
     {
         // batch kernel: the cost-model n, plus a spread of n (some with
         // shifted constants), each also exercising the general-n reference

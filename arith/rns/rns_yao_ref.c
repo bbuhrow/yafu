@@ -475,7 +475,7 @@ static void build_bconst(rnsy_ctx_t *ctx)
     rnsy_fixed_t *fx = ctx->fx;
     int n = fx->n, s = fx->s, i, k, a;
     const size_t zn = (size_t)n, zs = (size_t)s;
-#if defined(RNS_HAVE_AVX512) && !defined(RNS_HAVE_IFMA)
+#ifdef RNS_BATCH_FP
     const size_t nscr = 2;      // FP kernel: double copies of xi and zc
 #else
     const size_t nscr = 1;
@@ -519,7 +519,7 @@ static void build_bconst(rnsy_ctx_t *ctx)
             digits_mpz(ctx->balpha + (i * (s + 1)) * 16 + a, s + 1, 16, t);
         }
     }
-#if defined(RNS_HAVE_AVX512) && !defined(RNS_HAVE_IFMA)
+#ifdef RNS_BATCH_FP
     // the FP batch kernel broadcasts bF1 / bG1 / bG2 digits as doubles:
     // store them as the bits of their (exact) double values
     {

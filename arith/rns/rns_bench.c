@@ -209,6 +209,13 @@ static void avxecm_powm(avxecm_t *ae, vec_bignum_t *d, vec_bignum_t *b, mpz_t e)
 // ---------------------------------------------------------------------------
 
 enum { E_AEOLD, E_AETMPL, E_SMALL, E_YAO1, E_YAO8, E_GMP, NENG };
+// AVX2 builds: the old AVX-ECM cores, the small-regime RNS kernel and the
+// one-number Yao kernel are AVX-512 only (shown as n/a)
+#ifdef RNS_HAVE_AVX512
+static const int have_eng[NENG] = { 1, 1, 1, 1, 1, 1 };
+#else
+static const int have_eng[NENG] = { 0, 1, 0, 0, 1, 1 };
+#endif
 static const char *ename[NENG] = { "AE-old", "AE-tmpl", "RNS-sm", "Yao1", "Yao8", "GMP" };
 
 typedef struct
@@ -323,6 +330,8 @@ static int run_size(int bits, gmp_randstate_t rs, result_t *res)
     for (k = 0; k < 2; k++)
     {
         vec_monty_t *md = ae[k].mdata;
+        if (!have_eng[k])
+            continue;
         vecCopyn(ax[k], ad[k], ae[k].words);
         TIME_NS(res->sqr[k], reps, ae[k].sqr(ad[k], ad[k], ae[k].n, ae[k].s, md));
         TIME_NS(res->mul[k], reps, ae[k].mul(ad[k], ax[k], ad[k], ae[k].n, ae[k].s, md));
@@ -330,6 +339,7 @@ static int run_size(int bits, gmp_randstate_t rs, result_t *res)
         res->mul[k] /= VECLEN;
     }
     memcpy(vd, vx, (size_t)fx->nch * VECLEN * sizeof(uint64_t));
+#ifdef RNS_HAVE_AVX512
     TIME_NS(res->sqr[E_SMALL], reps, rns_vsqrmod_avx512(ctx, vd, vd));
     TIME_NS(res->mul[E_SMALL], reps, rns_vmulmod_avx512(ctx, vd, vd, vx));
     res->sqr[E_SMALL] /= VECLEN;
@@ -337,9 +347,10 @@ static int run_size(int bits, gmp_randstate_t rs, result_t *res)
     memcpy(yd, yx, (size_t)yfx->nwords * sizeof(uint64_t));
     TIME_NS(res->sqr[E_YAO1], reps, rnsy_vsqrmod_avx512(yctx, yd, yd));
     TIME_NS(res->mul[E_YAO1], reps, rnsy_vmulmod_avx512(yctx, yd, yd, yx));
+#endif
     memcpy(bd, bx, (size_t)bfx->nwords * VECLEN * sizeof(uint64_t));
-    TIME_NS(res->sqr[E_YAO8], reps, rnsyb_vsqrmod_avx512(bctx, bd, bd));
-    TIME_NS(res->mul[E_YAO8], reps, rnsyb_vmulmod_avx512(bctx, bd, bd, bx));
+    TIME_NS(res->sqr[E_YAO8], reps, rnsyb_vsqrmod(bctx, bd, bd));
+    TIME_NS(res->mul[E_YAO8], reps, rnsyb_vmulmod(bctx, bd, bd, bx));
     res->sqr[E_YAO8] /= VECLEN;
     res->mul[E_YAO8] /= VECLEN;
     {
@@ -358,13 +369,17 @@ static int run_size(int bits, gmp_randstate_t rs, result_t *res)
     mpz_setbit(e, bits - 1);
     for (k = 0; k < 2; k++)
     {
+        if (!have_eng[k])
+            continue;
         TIME_US(res->powm[k], avxecm_powm(&ae[k], ad[k], ax[k], e));
         res->powm[k] /= VECLEN;
     }
+#ifdef RNS_HAVE_AVX512
     TIME_US(res->powm[E_SMALL], rns_vpowm_avx512(ctx, vd, vx, e));
     res->powm[E_SMALL] /= VECLEN;
     TIME_US(res->powm[E_YAO1], rnsy_vpowm_avx512(yctx, yd, yx, e));
-    TIME_US(res->powm[E_YAO8], rnsyb_vpowm_avx512(bctx, bd, bx, e));
+#endif
+    TIME_US(res->powm[E_YAO8], rnsyb_vpowm(bctx, bd, bx, e));
     res->powm[E_YAO8] /= VECLEN;
     TIME_US(res->powm[E_GMP], for (l = 0; l < VECLEN; l++) mpz_powm(r[l], a[l], e, N));
     res->powm[E_GMP] /= VECLEN;
@@ -374,20 +389,26 @@ static int run_size(int bits, gmp_randstate_t rs, result_t *res)
     {
         for (k = 0; k < 2; k++)
         {
+            if (!have_eng[k])
+                continue;
             vec_extract(t, ad[k], l, ae[k].words);
             mpz_mul(t, t, ae[k].Rinv);
             mpz_mod(t, t, N);
             fails += check_lane(t, r[l], ename[k], bits, l);
         }
+#ifdef RNS_HAVE_AVX512
         rns_vget_lane(ctx, tmp, vd, l);
         rns_from_monty(ctx, t, tmp);
         fails += check_lane(t, r[l], ename[E_SMALL], bits, l);
+#endif
         rnsyb_vget_lane(bctx, bt, bd, l);
         rnsy_from_monty(bctx, t, bt);
         fails += check_lane(t, r[l], ename[E_YAO8], bits, l);
     }
+#ifdef RNS_HAVE_AVX512
     rnsy_from_monty(yctx, t, yd);
     fails += check_lane(t, r[0], ename[E_YAO1], bits, 0);
+#endif
 
     printf("  %5d bits done\n", bits);
     fflush(stdout);
@@ -419,8 +440,8 @@ static int run_size(int bits, gmp_randstate_t rs, result_t *res)
 static int best_vec(const double *v)
 {
     int k, best = 0;
-    for (k = 1; k < E_GMP; k++)
-        if (v[k] < v[best])
+    for (k = 0; k < E_GMP; k++)
+        if (have_eng[k] && (!have_eng[best] || v[k] < v[best]))
             best = k;
     return best;
 }
@@ -457,7 +478,10 @@ int main(int argc, char **argv)
     {
         printf("%5d |", res[s].bits);
         for (k = 0; k < NENG; k++)
-            printf(" %7.1f %7.1f |", res[s].sqr[k], res[s].mul[k]);
+            if (have_eng[k])
+                printf(" %7.1f %7.1f |", res[s].sqr[k], res[s].mul[k]);
+            else
+                printf("     n/a     n/a |");
         printf(" %s\n", ename[best_vec(res[s].sqr)]);
     }
 
@@ -471,9 +495,12 @@ int main(int argc, char **argv)
         int b = best_vec(res[s].powm);
         printf("%5d |", res[s].bits);
         for (k = 0; k < NENG; k++)
-            printf(" %9.1f", res[s].powm[k]);
+            if (have_eng[k])
+                printf(" %9.1f", res[s].powm[k]);
+            else
+                printf("       n/a");
         printf(" | %7.2fx %9.2fx %8.2fx  %s\n",
-            res[s].powm[E_AEOLD] / res[s].powm[E_AETMPL],
+            have_eng[E_AEOLD] ? res[s].powm[E_AEOLD] / res[s].powm[E_AETMPL] : 0.0,
             res[s].powm[E_AETMPL] / res[s].powm[E_YAO8],
             res[s].powm[E_GMP] / res[s].powm[b], ename[b]);
     }

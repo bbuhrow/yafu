@@ -44,6 +44,19 @@
 #define RNS_HAVE_IFMA 1
 #elif (defined(__AVX512F__) && defined(__AVX512DQ__)) || defined(USE_AVX512F)
 #define RNS_HAVE_AVX512 1
+#elif (defined(__AVX2__) && defined(__FMA__)) || defined(USE_AVX2)
+// AVX2 + FMA without AVX-512: the batch kernel only (rnsyb_*_avx2), 4-lane
+// halves of the same 8-lane layout, FP-emulated products (MXCSR set to
+// round toward zero for each call).  Decided from yafu's USE_AVX2 too, so
+// every file agrees on the table format (RNS_BATCH_FP) even when only the
+// kernel file is compiled with -mfma.
+#define RNS_HAVE_AVX2 1
+#endif
+
+// the batch kernel's FP products keep some tables and scratch as doubles
+// (rns_yao_ref.c builds them to match the kernels compiled alongside it)
+#if (defined(RNS_HAVE_AVX512) && !defined(RNS_HAVE_IFMA)) || defined(RNS_HAVE_AVX2)
+#define RNS_BATCH_FP 1
 #endif
 
 // compiler shims for the kernels

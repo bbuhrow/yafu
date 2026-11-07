@@ -9,7 +9,8 @@
  * Both exact under RZ.  Every other FP operation here is exact, so the
  * rounding mode only matters for the first FMA.  Build with
  * -frounding-math so the compiler keeps the FP ops between the MXCSR
- * writes.  uint64 -> double (< 2^52): bits(x | BIAS_LO) - 2^52 (no
+ * writes.  -DA2M_CALLER_RZ: the caller sets RZ once (experiment).
+ * uint64 -> double (< 2^52): bits(x | BIAS_LO) - 2^52 (no
  * vcvtuqq2pd in AVX2).
  */
 
@@ -176,10 +177,14 @@ A2M_INLINE void montmul_t(a2m_ctx_t *ctx, uint64_t *C, const uint64_t *A,
     const uint64_t *Ao, *Bo, *No;
     __m256d rhod, n0, mprev = _mm256_setzero_pd();
     __m256i carry = zero, hiprev = zero, hk, acc;
+#ifndef A2M_CALLER_RZ
     unsigned int csr = _mm_getcsr();
+#endif
     int j, k, np, tm;
 
+#ifndef A2M_CALLER_RZ
     _mm_setcsr((csr & ~0x6000u) | 0x6000u);     // round toward zero
+#endif
 
     rhod = cvt52(_mm256_loadu_si256((const __m256i *)ctx->rho), d52);
     for (j = 0; j < S; j++)
@@ -241,7 +246,9 @@ A2M_INLINE void montmul_t(a2m_ctx_t *ctx, uint64_t *C, const uint64_t *A,
     }
 #undef COLUMN_BODY
 
+#ifndef A2M_CALLER_RZ
     _mm_setcsr(csr);
+#endif
     tm = _mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpgt_epi64(carry, zero)));
     if (tm)
         final_sub(C, N, tm, S);

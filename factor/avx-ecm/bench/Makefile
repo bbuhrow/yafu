@@ -16,7 +16,11 @@ AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
 AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS)))
 # make NOIFMA=1: AVX-512F only (FP-emulated products), e.g. for Skylake-X;
 # runs on IFMA machines too
-ifeq ($(NOIFMA),1)
+# make AVX2=1: AVX2 + FMA only (no AVX-512 instructions): template only
+ifeq ($(AVX2),1)
+AE_ISA = -DUSE_AVX2 -DUSE_SSE41 -DUSE_BMI2
+ARCH = -mavx2 -mfma -mbmi2 -mtune=native
+else ifeq ($(NOIFMA),1)
 AE_ISA = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX
 ARCH = -march=skylake-avx512
 else
@@ -34,7 +38,7 @@ ae_bench.o: ae_bench.c
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -w -c -o $@ $<
 
 ae_tmpl.o: $(VM_DIR)/vecarith52_tmpl.c $(VM_DIR)/vecmont.h
-	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(TMPL_FLAGS) $(ARCH) $(CFLAGS) -Wall -Wno-comment -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(TMPL_FLAGS) $(ARCH) $(CFLAGS) -frounding-math -Wall -Wno-comment -c -o $@ $<
 
 ae_%.o: $(AE_DIR)/%.c
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -w -c -o $@ $<

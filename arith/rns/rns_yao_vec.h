@@ -11,17 +11,17 @@
 #define RNS_YAO_VEC_H
 
 #include "rns_yao.h"
-#include "rns_vec52.h"     // LO52 / HI52: IFMA or FP-emulated
+#include "rns_vec52.h"     // vector layer (RNS_VW), LO52 / HI52
 
 #define NCH RNSY_NCH
 #define MAXS 10
 #define INL RNS_INLINE
 #define UNROLL RNS_UNROLL(32)
 
-#define BC(p)           _mm512_set1_epi64((long long)(p))
-#define LD(p)           _mm512_load_si512((const void *)(p))
-#define ST(p, v)        _mm512_store_si512((void *)(p), (v))
-#define ZERO            _mm512_setzero_si512()
+#define BC(p)           V_BC(p)
+#define LD(p)           V_LD(p)
+#define ST(p, v)        V_ST((p), (v))
+#define ZERO            V_ZERO
 #define M52             BC(RNS_MASK52)
 
 // RNSY_COLUMN_FOLD = 1: fold variable products (x*y in B and C) at column
@@ -40,16 +40,16 @@ extern long rnsy_slow_count;
 #endif
 
 // carry-normalize n columns in place; returns the carry out
-INL __m512i vnorm(__m512i *a, int n)
+INL rns_vi vnorm(rns_vi *a, int n)
 {
-    __m512i c = ZERO;
+    rns_vi c = ZERO;
     int t;
     UNROLL
     for (t = 0; t < n; t++)
     {
-        __m512i v = _mm512_add_epi64(a[t], c);
-        a[t] = _mm512_and_si512(v, M52);
-        c = _mm512_srli_epi64(v, 52);
+        rns_vi v = V_ADD(a[t], c);
+        a[t] = V_AND(v, M52);
+        c = V_SRLI(v, 52);
     }
     return c;
 }
@@ -59,15 +59,15 @@ INL __m512i vnorm(__m512i *a, int n)
 // so its high half is tiny and fold 1 carries past digit 1 only when digit 1
 // is within a few units of 2^52: the fast path checks that and stops, since
 // the value is then already < 2^w (exactly where the reference stops too).
-INL void vfold_top_x(__m512i *x, __m512i top, __m512i top1, __m512i d,
+INL void vfold_top_x(rns_vi *x, rns_vi top, rns_vi top1, rns_vi d,
     const int S, const int TWO)
 {
-    __m512i c;
+    rns_vi c;
 
     if (S == 1)
     {
         x[0] = LO52(x[0], top, d);
-        c = _mm512_add_epi64(vnorm(x, 1), HI52(ZERO, top, d));
+        c = V_ADD(vnorm(x, 1), HI52(ZERO, top, d));
         if (TWO)
             c = LO52(c, top1, d);           // + top1*d*2^52; c stays < 2^21
         x[0] = LO52(x[0], c, d);
@@ -80,11 +80,11 @@ INL void vfold_top_x(__m512i *x, __m512i top, __m512i top1, __m512i d,
     // fold 1: + top*d into digits 0 and 1 (+ top1*d*2^52 into digit 1 when
     // the top spans two digits; top1*d is tiny, its high half is 0)
     x[0] = LO52(x[0], top, d);
-    x[1] = _mm512_add_epi64(HI52(x[1], top, d), _mm512_srli_epi64(x[0], 52));
+    x[1] = V_ADD(HI52(x[1], top, d), V_SRLI(x[0], 52));
     if (TWO)
         x[1] = LO52(x[1], top1, d);
-    x[0] = _mm512_and_si512(x[0], M52);
-    if (RNS_LIKELY(_mm512_cmpge_epu64_mask(x[1], BC(1ULL << 52)) == 0))
+    x[0] = V_AND(x[0], M52);
+    if (RNS_LIKELY(!V_ANY_GE52(x[1])))
         return;
 
     // rare: the carry ripples on, possibly out of the top digit
@@ -100,13 +100,13 @@ INL void vfold_top_x(__m512i *x, __m512i top, __m512i top1, __m512i d,
     vnorm(x, S);
 }
 
-INL void vfold_top(__m512i *x, __m512i top, __m512i d, const int S)
+INL void vfold_top(rns_vi *x, rns_vi top, rns_vi d, const int S)
 {
     vfold_top_x(x, top, ZERO, d, S, 0);
 }
 
 // acc[0..S+1] += sum_i a_i * tab_i, tab_i = f * 2^(52i) mod m (S digits each)
-INL void vcmul_acc(__m512i *acc, const __m512i *a, const uint64_t *tab, const int S)
+INL void vcmul_acc(rns_vi *acc, const rns_vi *a, const uint64_t *tab, const int S)
 {
     int i, k;
     UNROLL
@@ -115,7 +115,7 @@ INL void vcmul_acc(__m512i *acc, const __m512i *a, const uint64_t *tab, const in
         UNROLL
         for (k = 0; k < S; k++)
         {
-            __m512i f = LD(tab + (i * S + k) * NCH);
+            rns_vi f = LD(tab + (i * S + k) * NCH);
             acc[k] = LO52(acc[k], a[i], f);
             acc[k + 1] = HI52(acc[k + 1], a[i], f);
         }
@@ -123,7 +123,7 @@ INL void vcmul_acc(__m512i *acc, const __m512i *a, const uint64_t *tab, const in
 }
 
 // columns acc[0..S] of a constant product (S >= 2) -> x < 2^w
-INL void vfold_cprod(__m512i *x, __m512i *acc, __m512i d, const int S)
+INL void vfold_cprod(rns_vi *x, rns_vi *acc, rns_vi d, const int S)
 {
     int t;
     acc[S + 1] = vnorm(acc, S + 1);         // value < 2S * 2^52 * 2^w
@@ -134,10 +134,10 @@ INL void vfold_cprod(__m512i *x, __m512i *acc, __m512i d, const int S)
 }
 
 // columns acc[0..2S-1] (a sum of up to two S x S products) -> x < 2^w
-INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
+INL void vfold_prod(rns_vi *x, rns_vi *acc, rns_vi d, const int S)
 {
-    __m512i y[MAXS + 2];
-    __m512i top;
+    rns_vi y[MAXS + 2];
+    rns_vi top;
     int t;
 
 #if RNSY_COLUMN_FOLD
@@ -150,28 +150,28 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
     for (t = 0; t < S; t++)
         y[t] = acc[t];
     y[S] = ZERO;
-#ifdef RNS_HAVE_IFMA
+#if !RNS_VEC_FP
     UNROLL
     for (t = 0; t < S; t++)
     {
-        __m512i c = acc[S + t];
-        __m512i lo = _mm512_and_si512(c, M52);
+        rns_vi c = acc[S + t];
+        rns_vi lo = V_AND(c, M52);
         y[t] = LO52(y[t], lo, d);
         y[t + 1] = HI52(y[t + 1], lo, d);
-        y[t + 1] = LO52(y[t + 1], _mm512_srli_epi64(c, 52), d);
+        y[t + 1] = LO52(y[t + 1], V_SRLI(c, 52), d);
     }
 #else
     {
         // FP: one lo/hi pair per column (biases removed below); (c >> 52)*d
         // < 2^32 * 2^32 is exact with a 32x32 -> 64 integer multiply
-        const __m512d dd = rns_cvt52(d);
+        const rns_vd dd = rns_cvt52(d);
         UNROLL
         for (t = 0; t < S; t++)
         {
-            __m512i c = acc[S + t];
+            rns_vi c = acc[S + t];
             RNS_FP_MAC(y[t], y[t + 1], rns_cvt52(c), dd);
-            y[t + 1] = _mm512_add_epi64(y[t + 1],
-                _mm512_mul_epu32(_mm512_srli_epi64(c, 52), d));
+            y[t + 1] = V_ADD(y[t + 1],
+                V_MULU32(V_SRLI(c, 52), d));
         }
         UNROLL
         for (t = 0; t <= S; t++)
@@ -186,7 +186,7 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
         y[t] = acc[t];
     y[S] = ZERO;
     // fold 1: + (acc[S..2S]) * d
-#ifdef RNS_HAVE_IFMA
+#if !RNS_VEC_FP
     UNROLL
     for (t = 0; t <= S; t++)
     {
@@ -196,7 +196,7 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
     }
 #else
     {
-        const __m512d dd = rns_cvt52(d);
+        const rns_vd dd = rns_cvt52(d);
         UNROLL
         for (t = 0; t < S; t++)
             RNS_FP_MAC(y[t], y[t + 1], rns_cvt52(acc[S + t]), dd);
@@ -204,7 +204,7 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
         for (t = 0; t <= S; t++)
             y[t] = rns_fp_unbias(y[t], t < S, t > 0);
         // acc[2S] <= 1: its product with d is exact in 64 bits
-        y[S] = _mm512_add_epi64(y[S], _mm512_mul_epu32(acc[2 * S], d));
+        y[S] = V_ADD(y[S], V_MULU32(acc[2 * S], d));
     }
 #endif
     vnorm(y, S + 1);                        // value < 2^(w+52): no carry out
@@ -216,7 +216,7 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
     vfold_top(x, top, d, S);
 }
 
-#ifndef RNS_HAVE_IFMA
+#if RNS_VEC_FP
 // FP products: column c of an S x S product gets L(c) lo and L(c-1) hi
 // halves, L(c) = number of i + j == c
 INL int rns_ncol(int c, const int S)
@@ -227,9 +227,9 @@ INL int rns_ncol(int c, const int S)
 }
 
 // acc[0..2S-1] += a * b, schoolbook column sums
-INL void vmul_acc(__m512i *acc, const __m512i *a, const __m512i *b, const int S)
+INL void vmul_acc(rns_vi *acc, const rns_vi *a, const rns_vi *b, const int S)
 {
-    __m512d ad[MAXS], bd[MAXS];
+    rns_vd ad[MAXS], bd[MAXS];
     int i, j;
     UNROLL
     for (i = 0; i < S; i++)
@@ -250,9 +250,9 @@ INL void vmul_acc(__m512i *acc, const __m512i *a, const __m512i *b, const int S)
 }
 
 // acc[0..2S-1] = a^2: off-diagonal products once, doubled, plus diagonal
-INL void vsqr(__m512i *acc, const __m512i *a, const int S)
+INL void vsqr(rns_vi *acc, const rns_vi *a, const int S)
 {
-    __m512d ad[MAXS];
+    rns_vd ad[MAXS];
     int i, j;
     UNROLL
     for (i = 0; i <= 2 * S; i++)
@@ -278,7 +278,7 @@ INL void vsqr(__m512i *acc, const __m512i *a, const int S)
             if (i - 1 - k > k && i - 1 - k < S) nhi++;
         }
         acc[i] = rns_fp_unbias(acc[i], nlo, nhi);
-        acc[i] = _mm512_add_epi64(acc[i], acc[i]);
+        acc[i] = V_ADD(acc[i], acc[i]);
     }
     UNROLL
     for (i = 0; i < S; i++)
@@ -289,7 +289,7 @@ INL void vsqr(__m512i *acc, const __m512i *a, const int S)
 }
 #else
 // acc[0..2S-1] += a * b, schoolbook column sums
-INL void vmul_acc(__m512i *acc, const __m512i *a, const __m512i *b, const int S)
+INL void vmul_acc(rns_vi *acc, const rns_vi *a, const rns_vi *b, const int S)
 {
     int i, j;
     UNROLL
@@ -305,7 +305,7 @@ INL void vmul_acc(__m512i *acc, const __m512i *a, const __m512i *b, const int S)
 }
 
 // acc[0..2S-1] = a^2: off-diagonal products once, doubled, plus diagonal
-INL void vsqr(__m512i *acc, const __m512i *a, const int S)
+INL void vsqr(rns_vi *acc, const rns_vi *a, const int S)
 {
     int i, j;
     UNROLL
@@ -323,7 +323,7 @@ INL void vsqr(__m512i *acc, const __m512i *a, const int S)
     }
     UNROLL
     for (i = 1; i < 2 * S; i++)
-        acc[i] = _mm512_add_epi64(acc[i], acc[i]);
+        acc[i] = V_ADD(acc[i], acc[i]);
     UNROLL
     for (i = 0; i < S; i++)
     {
@@ -333,7 +333,7 @@ INL void vsqr(__m512i *acc, const __m512i *a, const int S)
 }
 #endif
 
-INL void vload(__m512i *v, const uint64_t *p, int n)
+INL void vload(rns_vi *v, const uint64_t *p, int n)
 {
     int t;
     UNROLL
@@ -341,7 +341,7 @@ INL void vload(__m512i *v, const uint64_t *p, int n)
         v[t] = LD(p + t * NCH);
 }
 
-INL void vstore(uint64_t *p, const __m512i *v, int n)
+INL void vstore(uint64_t *p, const rns_vi *v, int n)
 {
     int t;
     UNROLL
@@ -349,7 +349,7 @@ INL void vstore(uint64_t *p, const __m512i *v, int n)
         ST(p + t * NCH, v[t]);
 }
 
-INL void vzero(__m512i *v, int n)
+INL void vzero(rns_vi *v, int n)
 {
     int t;
     UNROLL

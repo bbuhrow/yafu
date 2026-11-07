@@ -123,9 +123,9 @@ typedef void (*vecmont_mul_fn)(vec_bignum_t *a, vec_bignum_t *b,
 typedef void (*vecmont_sqr_fn)(vec_bignum_t *a, vec_bignum_t *c,
     vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 
-#if defined(USE_AVX512F)
+#if defined(USE_AVX512F) || defined(USE_AVX2)
 // Constant-S template mul/sqr cores (vecarith52_tmpl.c), any NWORDS >= 2,
-// IFMA or (without IFMA) FP-emulated products, bit-identical results:
+// IFMA, FP-emulated (AVX-512F without IFMA) or AVX2 + FMA, bit-identical:
 // c = a*b/R mod N in almost-Montgomery form (c < R).  Inputs < R with
 // normalized 52-bit words; c may alias a or b; s (>= S words) must not
 // alias a, b or c.  N needs >= 3 spare bits below R if the outputs feed
