@@ -94,8 +94,8 @@ compiled** with the template.
 
 ## 4. Future work
 
-The order below is a suggestion: 4 and 5 are mechanical and make 1, 2, 3
-and 6 easier.
+The order below is a suggestion: 4.4 and 4.5 are mechanical and make 4.1,
+4.2, 4.3 and 4.6 easier. 4.7 is a benchmarking task that can run any time.
 
 ### 4.1 Replace the old AVX-ECM arithmetic with the template + RNS (user item 1)
 
@@ -129,6 +129,8 @@ A/B tests.
   - The headroom rules in §3: audit every add/sub chain between
     multiplies, e.g. (X+Z)(X-Z) and the ladder's differential add.
     Raising `RNS_HEADROOM` or `RNS_SUBMULT` costs a few channel bits.
+* Old cores: remove them from the builds but keep the sources (§5); this
+  requires splitting `vecarith52.c` first.
 * Crossover: about 1500 bits on Rocket Lake (Yao8 ties AE-tmpl at 1536).
   Measure it inside ECM, not only powm: add/sub/copies cost linearly and
   are cheaper in radix 2^52. Make it a tunable.
@@ -174,6 +176,8 @@ Goal: measure whether 4-lane AVX2 versions beat `mpz_powm`, and by how
 much. Today AVX-ECM exists only for AVX-512 (`#ifdef USE_AVX512F` in
 `avx_ecm.h` and `factor_common.c`).
 
+* User direction: 32-bit digits, or 28-bit digits so lane accumulation has
+  headroom. Experiment with both (§5).
 * AVX2 has no 52-bit multiply and no 64x64 -> 128 vector multiply. Options:
   - The FP trick at 256 bits: `_mm256_fmadd_pd` with no embedded rounding
     control. Rounding mode must then come from MXCSR (set round-toward-zero
@@ -217,8 +221,10 @@ a consumer.
 * Template: already in `ECM_SRCS` (Makefile around line 950). After
   §4.4, update its path.
 * RNS: currently only built by `arith/rns/Makefile`. Add `rns_ref.c`,
-  `rns_avx512.c` (optional; dominated), `rns_yao_ref.c`,
+  `rns_avx512.c` (the small regime: keep it in, per §5), `rns_yao_ref.c`,
   `rns_yao_avx512.c`, `rns_yaob_avx512.c` to the yafu build.
+* The old cores come out of `ECM_SRCS` and the VS projects after the
+  `vecarith52.c` split and the ordering constraint in §5.
   - The kernels are guarded by `__AVX512F__ && __AVX512IFMA__` (compiler
     macros from `-march`), not by yafu's `USE_AVX512IFMA` / `IFMA`. Make
     those consistent: check both, or switch to yafu's defines.
@@ -258,12 +264,62 @@ A test matrix to run after each of §4.1-4.5:
 * Done when: all of the above pass on IFMA and non-IFMA AVX-512 builds,
   with factor-finding rates statistically unchanged.
 
-## 5. Open questions for the user
+### 4.7 Above 16400 bits (decided: benchmark three options)
 
-* Above 16400 bits: keep karatsuba `veckmul_redc`, or let RNS (Yao8, or
-  later FFT channels) take over?
-* Whether the old fixed/BFIPS cores and the RNS small-regime kernel should
-  be deleted or kept for A/B tests.
-* AVX2 scope: AVX-ECM as a whole, or arithmetic/powm only first?
-* Should `wip_arith` be merged to master before or after the RNS
-  integration in §4.1?
+AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
+(`veckmul_redc` / `vecksqr_redc` in `vecarith52_special.c`, built on
+`kmuln` / `ksqrn` / `tmuln`). Benchmark these, at 16k-64k bits:
+1. The existing karatsuba REDC (`veckmul_redc`, `vecksqr_redc`).
+2. The Yao kernels as they are. `RNSY_MAXS` = 10 words per channel and
+   the n <= ~11 constant limit cap the Yao setup near 4.1k bits today
+   (`rnsy_fixed_init_n` returns NULL above that). Raise `RNSY_MAXS`, or
+   accept larger s through a non-unrolled loop form like the template's `sN`.
+3. Yao extended with karatsuba channel products. Channel products are
+   5 per channel pair, so subquadratic channel multiplication pays once s
+   is large; the extensions stay O(n^2 s).
+   - The cost model in `rns_design.md` §2 becomes n * K(s) + 4 n^2 s, which
+     pushes the optimum toward fewer, wider channels.
+   - Squaring is especially cheap with karatsuba.
+   - FFT/NTT channels are the eventual step beyond this.
+* Also include the template `sN` loop form (no karatsuba) for reference,
+  and `mpz_powm`. `rns_bench` can be extended: sizes above 4096, engines
+  for karatsuba and Yao-large.
+
+## 5. Decisions (user, 2026-11-07)
+
+* **Above 16400 bits:** benchmark the karatsuba REDC, the Yao kernels, and
+  Yao extended with karatsuba channel products (§4.7).
+* **Old cores: don't delete them, but take them out of the builds** (Makefile
+  and the MSVC / clang-cl projects). **Keep the RNS small-regime kernel and
+  add it to the build files** for further experiments.
+  - Complication: `vecarith52.c` mixes the old mul/sqr cores
+    (`vecmulmod52_fixed*_bfips`, `vecsqrmod52_fixed*_bfips`, `vecmulmod52`,
+    `vecsqrmod52`, the `_ifma` variants) with routines that must stay:
+    `vecaddmod52`, `vecsubmod52`, `vecsignedaddmod52`,
+    `vec_simul_addsub52`, `vecmul52_1` (multiply by a small constant),
+    `vecsqrmod52_mul`, the Mersenne routines and `vecmodexp52`.
+  - `vecarith52_special.c` holds the Mersenne and karatsuba routines,
+    which stay in the build (§4.7).
+  - So split `vecarith52.c`: the kept routines go to a new file that stays
+    in `ECM_SRCS`, the old cores move to e.g. `vecarith52_oldcores.c`
+    outside the builds, with the A/B harnesses (`ae_bench`, `rns_bench`)
+    still compiling it. `assign_mul_ptrs` then needs a template-only path
+    (remove the fixed/BFIPS selection, keep a clear error if
+    `vecmulmod52_tmpl_get` fails).
+  - **Ordering constraint:** non-IFMA AVX-512 builds use the old cores
+    today, because the template is IFMA-only. Remove the old cores from the
+    builds only after the template has its FP-emulation path (§4.2), or
+    keep `vecarith52_oldcores.c` in the build for `!IFMA` only.
+  - `vecarith.c` (`DIGITBITS == 32`, 16 lanes) is a separate path; decide
+    alongside the AVX2 work.
+* **AVX2 digit size:** 32-bit, or possibly 28-bit digits so lane
+  accumulation has headroom. This needs experiments (§4.3).
+  - With 32x32 -> 64 `vpmuludq` products, 28-bit digits give 56-bit
+    products and 8 bits of in-lane headroom: about 256 accumulated terms
+    before a carry pass.
+  - 32-bit digits need a split or carry handling on every accumulation.
+  - The same choice applies to the RNS channel size on AVX2 (28-31-bit
+    moduli fit `vpmuludq` too; see the FCFS/Yao constant analysis in
+    `rns_design.md`, which must be redone for small words).
+* **Merge `wip_arith` to master** once AVX-ECM is confirmed working with
+  the new kernels (§4.6) and shows a speedup.
