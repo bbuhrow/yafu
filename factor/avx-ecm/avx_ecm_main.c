@@ -459,10 +459,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
     else
     {
-        maxbits = 128;
-        while (maxbits <= size_n)
+        mmaxbits = 128;
+        while (mmaxbits <= size_n)
         {
-            maxbits += 128;
+            mmaxbits += 128;
         }
     }
 
@@ -1252,9 +1252,7 @@ void test_vecarith(int numbits, int iterations, int validate)
     vec_bignum_t* vec_one;
     vec_bignum_t* vec_am;
 
-    numwords = 0;
-    while (numwords * DIGITBITS <= numbits)
-        numwords += 4;
+    numwords = (int)avxecm_redc_nwords((uint32_t)numbits);
 
     printf("commencing test with %d bits (%d words)\n", numbits, numwords);
     mdata = vec_monty_alloc(numwords);
