@@ -1,10 +1,13 @@
 /*
- * Benchmark: vector RNS (rns_avx512.c) vs AVX-ECM vecarith52 vs GMP.
+ * Benchmark: AVX-ECM vecarith52 (old fixed/BFIPS cores and the constant-S
+ * template cores), the RNS kernels (small regime, Yao one-number, Yao
+ * batch) and GMP.
  *   rns_bench [seed]
- * Both vector engines process 8 numbers modulo the same N; times are
- * reported per number.  Modexp uses the same sliding-window rule for both
- * vector engines (AVX-ECM's vecslidingmodexp), with one full-size exponent
- * shared by all lanes, and is checked against mpz_powm in every lane.
+ * Every vector engine processes 8 numbers modulo the same N; times are
+ * reported per number.  Modexp uses one sliding-window rule for all vector
+ * engines (AVX-ECM's vecslidingmodexp), with one full-size exponent shared
+ * by all lanes, and every engine's result is checked against mpz_powm in
+ * every lane.
  */
 
 #include "rns.h"
@@ -27,12 +30,6 @@ void *xmalloc_align(size_t len)
     return p;
 }
 
-// pointers vec_common.c declares; set by pick_avxecm (as assign_mul_ptrs)
-extern void (*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *,
-    vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
-extern void (*vecsqrmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *,
-    vec_bignum_t *, vec_monty_t *);
-
 static double now_sec(void)
 {
     struct timespec ts;
@@ -44,13 +41,20 @@ static double now_sec(void)
 // AVX-ECM glue (mirrors test_vecarith / assign_mul_ptrs in avx_ecm_main.c)
 // ---------------------------------------------------------------------------
 
+typedef void (*ae_mul_t)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *,
+    vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+typedef void (*ae_sqr_t)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *,
+    vec_bignum_t *, vec_monty_t *);
+
 typedef struct
 {
     int words;
     vec_monty_t *mdata;
     vec_bignum_t *n, *s;
     mpz_t R, Rinv;
-    const char *core;
+    ae_mul_t mul;
+    ae_sqr_t sqr;
+    char core[16];
 } avxecm_t;
 
 static void vec_insert(vec_bignum_t *v, mpz_t src, int lane)
@@ -78,55 +82,53 @@ static void vec_extract(mpz_t dest, vec_bignum_t *v, int lane, int words)
     }
 }
 
-static void pick_avxecm(avxecm_t *ae)
+// tmpl = 0: the old cores (fixed416/624/832/1040 BFIPS, else BFIPS), with
+// NWORDS a multiple of 4.  tmpl = 1: the constant-S template cores with
+// the exact word count.  Both keep >= AVXECM_SPARE_BITS spare bits.
+static void avxecm_init(avxecm_t *ae, mpz_t N, int tmpl)
 {
-    int maxbits = ae->words * DIGITBITS;
-    if (maxbits == 416)
+    vec_monty_t *md;
+    int nbits = (int)mpz_sizeinbase(N, 2), j;
+    int words = (nbits + AVXECM_SPARE_BITS + DIGITBITS - 1) / DIGITBITS;
+
+    if (!tmpl)
+        words = (words + BLOCKWORDS - 1) / BLOCKWORDS * BLOCKWORDS;
+    else if (words < 2)
+        words = 2;
+    ae->words = words;
+
+    if (tmpl)
     {
-        vecmulmod_ptr = &vecmulmod52_fixed416_bfips;
-        vecsqrmod_ptr = &vecsqrmod52_fixed416_bfips;
-        ae->core = "fixed416";
-    }
-    else if (maxbits == 624)
-    {
-        vecmulmod_ptr = &vecmulmod52_fixed624_bfips;
-        vecsqrmod_ptr = &vecsqrmod52_fixed624_bfips;
-        ae->core = "fixed624";
-    }
-    else if (maxbits == 832)
-    {
-        vecmulmod_ptr = &vecmulmod52_fixed832_bfips;
-        vecsqrmod_ptr = &vecsqrmod52_fixed832_bfips;
-        ae->core = "fixed832";
-    }
-    else if (maxbits == 1040)
-    {
-        vecmulmod_ptr = &vecmulmod52_fixed1040_bfips;
-        vecsqrmod_ptr = &vecsqrmod52_fixed1040_bfips;
-        ae->core = "fixed1040";
+        if (!vecmulmod52_tmpl_get(words, &ae->mul, &ae->sqr))
+        {
+            fprintf(stderr, "no template core for %d words\n", words);
+            exit(1);
+        }
+        snprintf(ae->core, sizeof(ae->core), "tmpl%s", words > 32 ? "-sN" : "");
     }
     else
     {
-        vecmulmod_ptr = &vecmulmod52;
-        vecsqrmod_ptr = &vecsqrmod52;
-        ae->core = "bfips";
+        switch (words * DIGITBITS)
+        {
+        case 416: ae->mul = vecmulmod52_fixed416_bfips; ae->sqr = vecsqrmod52_fixed416_bfips;
+            strcpy(ae->core, "fixed416"); break;
+        case 624: ae->mul = vecmulmod52_fixed624_bfips; ae->sqr = vecsqrmod52_fixed624_bfips;
+            strcpy(ae->core, "fixed624"); break;
+        case 832: ae->mul = vecmulmod52_fixed832_bfips; ae->sqr = vecsqrmod52_fixed832_bfips;
+            strcpy(ae->core, "fixed832"); break;
+        case 1040: ae->mul = vecmulmod52_fixed1040_bfips; ae->sqr = vecsqrmod52_fixed1040_bfips;
+            strcpy(ae->core, "fixed1040"); break;
+        default: ae->mul = vecmulmod52; ae->sqr = vecsqrmod52;
+            strcpy(ae->core, "bfips"); break;
+        }
     }
-}
 
-static void avxecm_init(avxecm_t *ae, mpz_t N)
-{
-    vec_monty_t *md;
-    int words = 0, j;
-
-    while (words * DIGITBITS <= (int)mpz_sizeinbase(N, 2))
-        words += 4;
-    ae->words = words;
     md = ae->mdata = vec_monty_alloc(words);
-    md->NBLOCKS = words / BLOCKWORDS;
+    md->NBLOCKS = (words + BLOCKWORDS - 1) / BLOCKWORDS;
     md->MAXBITS = words * DIGITBITS;
     md->NWORDS = words;
     md->isMersenne = 0;
-    md->nbits = mpz_sizeinbase(N, 2);
+    md->nbits = nbits;
     md->use_vnbits = 0;
 
     mpz_init(ae->R);
@@ -151,7 +153,6 @@ static void avxecm_init(avxecm_t *ae, mpz_t N)
     for (j = 0; j < VECLEN; j++)
         vec_insert(md->one, md->rhat, j);
     mpz_invert(ae->Rinv, ae->R, N);
-    pick_avxecm(ae);
 }
 
 static void avxecm_free(avxecm_t *ae)
@@ -174,16 +175,16 @@ static void avxecm_powm(avxecm_t *ae, vec_bignum_t *d, vec_bignum_t *b, mpz_t e)
     int i, j;
 
     vecCopyn(b, g[1], md->NWORDS);
-    vecsqrmod_ptr(b, g[2], ae->n, ae->s, md);
+    ae->sqr(b, g[2], ae->n, ae->s, md);
     for (i = 1; i < (1 << (k - 1)); i++)
-        vecmulmod_ptr(g[2 * i - 1], g[2], g[2 * i + 1], ae->n, ae->s, md);
+        ae->mul(g[2 * i - 1], g[2], g[2 * i + 1], ae->n, ae->s, md);
 
     vecCopyn(md->one, d, md->NWORDS);
     while (bit >= 0)
     {
         if (mpz_tstbit(e, bit) == 0)
         {
-            vecsqrmod_ptr(d, d, ae->n, ae->s, md);
+            ae->sqr(d, d, ae->n, ae->s, md);
             bit--;
         }
         else
@@ -196,47 +197,67 @@ static void avxecm_powm(avxecm_t *ae, vec_bignum_t *d, vec_bignum_t *b, mpz_t e)
             for (j = 1; j < thisk; j++)
                 bstr = (bstr << 1) | mpz_tstbit(e, bit - j);
             for (j = 0; j < thisk; j++)
-                vecsqrmod_ptr(d, d, ae->n, ae->s, md);
-            vecmulmod_ptr(d, g[bstr], d, ae->n, ae->s, md);
+                ae->sqr(d, d, ae->n, ae->s, md);
+            ae->mul(d, g[bstr], d, ae->n, ae->s, md);
             bit -= thisk;
         }
     }
 }
 
 // ---------------------------------------------------------------------------
+// engines and timing
+// ---------------------------------------------------------------------------
 
-static rns_ctx_t *rns_setup(rns_fixed_t *fx, mpz_t N)
+enum { E_AEOLD, E_AETMPL, E_SMALL, E_YAO1, E_YAO8, E_GMP, NENG };
+static const char *ename[NENG] = { "AE-old", "AE-tmpl", "RNS-sm", "Yao1", "Yao8", "GMP" };
+
+typedef struct
 {
-    return rns_ctx_init(fx, N);
+    int bits;
+    double sqr[NENG], mul[NENG], powm[NENG];   // ns, ns, us per number
+    char aeold[16], aetmpl[16];
+    int wold, wtmpl, smallnB, smallnC, yao1s, yao8n, yao8s;
+} result_t;
+
+// ns per call of op over reps iterations, after a 0.2 s warm-up
+#define TIME_NS(out, reps, op) do {                                     \
+        double _t0 = now_sec();                                         \
+        int _i;                                                         \
+        while (now_sec() - _t0 < 0.2) { op; }                           \
+        _t0 = now_sec();                                                \
+        for (_i = 0; _i < (reps); _i++) { op; }                         \
+        (out) = (now_sec() - _t0) / (reps) * 1e9;                       \
+    } while (0)
+
+// us per call, repeated for at least 0.5 s
+#define TIME_US(out, op) do {                                           \
+        double _t0 = now_sec(), _el;                                    \
+        int _r;                                                         \
+        for (_r = 0; (_el = now_sec() - _t0) < 0.5 || _r < 2; _r++) { op; } \
+        (out) = _el / _r * 1e6;                                         \
+    } while (0)
+
+static int check_lane(mpz_t got, mpz_t expect, const char *eng, int bits, int lane)
+{
+    if (mpz_cmp(got, expect) == 0)
+        return 0;
+    printf("FAIL %s powm %d bits lane %d\n", eng, bits, lane);
+    return 1;
 }
 
-static void random_N(mpz_t N, int bits, gmp_randstate_t rs, rns_fixed_t *fx,
-    rns_ctx_t **ctx)
-{
-    do
-    {
-        mpz_urandomb(N, rs, bits);
-        mpz_setbit(N, bits - 1);
-        mpz_setbit(N, 0);
-        *ctx = rns_setup(fx, N);
-    } while (*ctx == NULL);
-}
-
-static int run_size(int bits, gmp_randstate_t rs)
+static int run_size(int bits, gmp_randstate_t rs, result_t *res)
 {
     rns_fixed_t *fx = rns_fixed_init(bits);
-    rns_ctx_t *ctx;
-    avxecm_t ae;
-    mpz_t N, e, t, a[VECLEN], r[VECLEN];
-    uint64_t *vx, *vd, *tmp;
-    vec_bignum_t *ax, *ad;
-    double t0, el, sq_rns, sq_ae, mul_rns, mul_ae, pw_rns, pw_ae, pw_gmp;
-    double sq_y, mul_y, pw_y, sq_b, mul_b, pw_b;
     rnsy_fixed_t *yfx = rnsy_fixed_init(bits);
     rnsy_fixed_t *bfx = rnsy_fixed_init_n(bits, rnsyb_choose_n(bits));
+    rns_ctx_t *ctx;
     rnsy_ctx_t *yctx, *bctx;
-    uint64_t *yx, *yd, *bx, *bd, *bt;
-    int i, l, reps, fails = 0;
+    avxecm_t ae[2];
+    mpz_t N, e, t, a[VECLEN], r[VECLEN];
+    uint64_t *vx, *vd, *tmp, *yx, *yd, *bx, *bd, *bt;
+    vec_bignum_t *ax[2], *ad[2];
+    const int reps = 20000;
+    int l, k, fails = 0;
 
     mpz_init(N); mpz_init(e); mpz_init(t);
     for (l = 0; l < VECLEN; l++)
@@ -244,9 +265,14 @@ static int run_size(int bits, gmp_randstate_t rs)
         mpz_init(a[l]);
         mpz_init(r[l]);
     }
+    // N must be coprime to every RNS setup's moduli
     for (;;)
     {
-        random_N(N, bits, rs, fx, &ctx);
+        mpz_urandomb(N, rs, bits);
+        mpz_setbit(N, bits - 1);
+        mpz_setbit(N, 0);
+        if ((ctx = rns_ctx_init(fx, N)) == NULL)
+            continue;
         if ((yctx = rnsy_ctx_init(yfx, N)) != NULL)
         {
             if ((bctx = rnsy_ctx_init(bfx, N)) != NULL)
@@ -255,18 +281,16 @@ static int run_size(int bits, gmp_randstate_t rs)
         }
         rns_ctx_free(ctx);
     }
-    avxecm_init(&ae, N);
-    yx = rnsy_alloc(yctx);
-    yd = rnsy_alloc(yctx);
-    bx = rnsyb_alloc(bctx);
-    bd = rnsyb_alloc(bctx);
-    bt = rnsy_alloc(bctx);
+    for (k = 0; k < 2; k++)
+    {
+        avxecm_init(&ae[k], N, k);
+        ax[k] = vecInit(ae[k].words);
+        ad[k] = vecInit(ae[k].words);
+    }
 
-    vx = rns_valloc(ctx);
-    vd = rns_valloc(ctx);
-    tmp = rns_alloc(ctx);
-    ax = vecInit(ae.words);
-    ad = vecInit(ae.words);
+    vx = rns_valloc(ctx); vd = rns_valloc(ctx); tmp = rns_alloc(ctx);
+    yx = rnsy_alloc(yctx); yd = rnsy_alloc(yctx);
+    bx = rnsyb_alloc(bctx); bd = rnsyb_alloc(bctx); bt = rnsy_alloc(bctx);
 
     for (l = 0; l < VECLEN; l++)
     {
@@ -275,187 +299,186 @@ static int run_size(int bits, gmp_randstate_t rs)
         rns_vset_lane(ctx, vx, l, tmp);
         rnsy_to_monty(bctx, bt, a[l]);
         rnsyb_vset_lane(bctx, bx, l, bt);
-        mpz_mul_2exp(t, a[l], ae.words * DIGITBITS);
-        mpz_mod(t, t, N);
-        vec_insert(ax, t, l);
+        for (k = 0; k < 2; k++)
+        {
+            mpz_mul_2exp(t, a[l], ae[k].words * DIGITBITS);
+            mpz_mod(t, t, N);
+            vec_insert(ax[k], t, l);
+        }
     }
-
-    // sqrmod / mulmod throughput, ns per number.  Warm up first so the
-    // first timed loop doesn't run while the core is still clocking up.
-    reps = 20000;
-    memcpy(vd, vx, (size_t)fx->nch * VECLEN * sizeof(uint64_t));
-    t0 = now_sec();
-    while (now_sec() - t0 < 0.2)
-        rns_vsqrmod_avx512(ctx, vd, vd);
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        rns_vsqrmod_avx512(ctx, vd, vd);
-    sq_rns = (now_sec() - t0) / reps / VECLEN * 1e9;
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        rns_vmulmod_avx512(ctx, vd, vd, vx);
-    mul_rns = (now_sec() - t0) / reps / VECLEN * 1e9;
-
-    // Yao: one number per call
     rnsy_to_monty(yctx, yx, a[0]);
+
+    res->bits = bits;
+    strcpy(res->aeold, ae[0].core);
+    strcpy(res->aetmpl, ae[1].core);
+    res->wold = ae[0].words;
+    res->wtmpl = ae[1].words;
+    res->smallnB = fx->nB;
+    res->smallnC = fx->nC;
+    res->yao1s = yfx->s;
+    res->yao8n = bfx->n;
+    res->yao8s = bfx->s;
+
+    // sqrmod / mulmod, ns per number
+    for (k = 0; k < 2; k++)
+    {
+        vec_monty_t *md = ae[k].mdata;
+        vecCopyn(ax[k], ad[k], ae[k].words);
+        TIME_NS(res->sqr[k], reps, ae[k].sqr(ad[k], ad[k], ae[k].n, ae[k].s, md));
+        TIME_NS(res->mul[k], reps, ae[k].mul(ad[k], ax[k], ad[k], ae[k].n, ae[k].s, md));
+        res->sqr[k] /= VECLEN;
+        res->mul[k] /= VECLEN;
+    }
+    memcpy(vd, vx, (size_t)fx->nch * VECLEN * sizeof(uint64_t));
+    TIME_NS(res->sqr[E_SMALL], reps, rns_vsqrmod_avx512(ctx, vd, vd));
+    TIME_NS(res->mul[E_SMALL], reps, rns_vmulmod_avx512(ctx, vd, vd, vx));
+    res->sqr[E_SMALL] /= VECLEN;
+    res->mul[E_SMALL] /= VECLEN;
     memcpy(yd, yx, (size_t)yfx->nwords * sizeof(uint64_t));
-    t0 = now_sec();
-    while (now_sec() - t0 < 0.2)
-    {
-        rnsy_vsqrmod_avx512(yctx, yd, yd);
-        rnsy_vmulmod_avx512(yctx, yd, yd, yx);
-    }
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        rnsy_vsqrmod_avx512(yctx, yd, yd);
-    sq_y = (now_sec() - t0) / reps * 1e9;
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        rnsy_vmulmod_avx512(yctx, yd, yd, yx);
-    mul_y = (now_sec() - t0) / reps * 1e9;
-
-    // Yao batch: 8 numbers per call
+    TIME_NS(res->sqr[E_YAO1], reps, rnsy_vsqrmod_avx512(yctx, yd, yd));
+    TIME_NS(res->mul[E_YAO1], reps, rnsy_vmulmod_avx512(yctx, yd, yd, yx));
     memcpy(bd, bx, (size_t)bfx->nwords * VECLEN * sizeof(uint64_t));
-    t0 = now_sec();
-    while (now_sec() - t0 < 0.2)
+    TIME_NS(res->sqr[E_YAO8], reps, rnsyb_vsqrmod_avx512(bctx, bd, bd));
+    TIME_NS(res->mul[E_YAO8], reps, rnsyb_vmulmod_avx512(bctx, bd, bd, bx));
+    res->sqr[E_YAO8] /= VECLEN;
+    res->mul[E_YAO8] /= VECLEN;
     {
-        rnsyb_vsqrmod_avx512(bctx, bd, bd);
-        rnsyb_vmulmod_avx512(bctx, bd, bd, bx);
+        // GMP: mul + tdiv_r and sqr + tdiv_r, for reference
+        mpz_t q, x;
+        mpz_init(q);
+        mpz_init_set(x, a[0]);
+        TIME_NS(res->sqr[E_GMP], reps, (mpz_mul(q, x, x), mpz_tdiv_r(x, q, N)));
+        TIME_NS(res->mul[E_GMP], reps, (mpz_mul(q, x, a[1]), mpz_tdiv_r(x, q, N)));
+        mpz_clear(q);
+        mpz_clear(x);
     }
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        rnsyb_vsqrmod_avx512(bctx, bd, bd);
-    sq_b = (now_sec() - t0) / reps / VECLEN * 1e9;
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        rnsyb_vmulmod_avx512(bctx, bd, bd, bx);
-    mul_b = (now_sec() - t0) / reps / VECLEN * 1e9;
 
-    vecCopyn(ax, ad, ae.words);
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        vecsqrmod_ptr(ad, ad, ae.n, ae.s, ae.mdata);
-    sq_ae = (now_sec() - t0) / reps / VECLEN * 1e9;
-    t0 = now_sec();
-    for (i = 0; i < reps; i++)
-        vecmulmod_ptr(ad, ax, ad, ae.n, ae.s, ae.mdata);
-    mul_ae = (now_sec() - t0) / reps / VECLEN * 1e9;
-
-    // modexp with a full-size exponent shared by all lanes
+    // modexp with a full-size exponent shared by all lanes, us per number
     mpz_urandomb(e, rs, bits);
     mpz_setbit(e, bits - 1);
+    for (k = 0; k < 2; k++)
+    {
+        TIME_US(res->powm[k], avxecm_powm(&ae[k], ad[k], ax[k], e));
+        res->powm[k] /= VECLEN;
+    }
+    TIME_US(res->powm[E_SMALL], rns_vpowm_avx512(ctx, vd, vx, e));
+    res->powm[E_SMALL] /= VECLEN;
+    TIME_US(res->powm[E_YAO1], rnsy_vpowm_avx512(yctx, yd, yx, e));
+    TIME_US(res->powm[E_YAO8], rnsyb_vpowm_avx512(bctx, bd, bx, e));
+    res->powm[E_YAO8] /= VECLEN;
+    TIME_US(res->powm[E_GMP], for (l = 0; l < VECLEN; l++) mpz_powm(r[l], a[l], e, N));
+    res->powm[E_GMP] /= VECLEN;
 
-    t0 = now_sec();
-    for (reps = 0; (el = now_sec() - t0) < 0.5 || reps < 2; reps++)
-        rns_vpowm_avx512(ctx, vd, vx, e);
-    pw_rns = el / reps / VECLEN * 1e6;
-
-    // Yao powm: 8 numbers, one call each, to match the per-number accounting
-    t0 = now_sec();
-    for (reps = 0; (el = now_sec() - t0) < 0.5 || reps < 2; reps++)
-        for (l = 0; l < VECLEN; l++)
-            rnsy_vpowm_avx512(yctx, yd, yx, e);
-    pw_y = el / reps / VECLEN * 1e6;
-
-    t0 = now_sec();
-    for (reps = 0; (el = now_sec() - t0) < 0.5 || reps < 2; reps++)
-        rnsyb_vpowm_avx512(bctx, bd, bx, e);
-    pw_b = el / reps / VECLEN * 1e6;
-
-    t0 = now_sec();
-    for (reps = 0; (el = now_sec() - t0) < 0.5 || reps < 2; reps++)
-        avxecm_powm(&ae, ad, ax, e);
-    pw_ae = el / reps / VECLEN * 1e6;
-
-    t0 = now_sec();
-    for (reps = 0; (el = now_sec() - t0) < 0.5 || reps < 2; reps++)
-        for (l = 0; l < VECLEN; l++)
-            mpz_powm(r[l], a[l], e, N);
-    pw_gmp = el / reps / VECLEN * 1e6;
-
-    // check every lane of both engines against mpz_powm
+    // every engine, every lane, against mpz_powm
     for (l = 0; l < VECLEN; l++)
     {
+        for (k = 0; k < 2; k++)
+        {
+            vec_extract(t, ad[k], l, ae[k].words);
+            mpz_mul(t, t, ae[k].Rinv);
+            mpz_mod(t, t, N);
+            fails += check_lane(t, r[l], ename[k], bits, l);
+        }
         rns_vget_lane(ctx, tmp, vd, l);
         rns_from_monty(ctx, t, tmp);
-        if (mpz_cmp(t, r[l]) != 0)
-        {
-            printf("FAIL rns powm %d bits lane %d\n", bits, l);
-            fails++;
-        }
-        vec_extract(t, ad, l, ae.words);
-        mpz_mul(t, t, ae.Rinv);
-        mpz_mod(t, t, N);
-        if (mpz_cmp(t, r[l]) != 0)
-        {
-            printf("FAIL avx-ecm powm %d bits lane %d\n", bits, l);
-            fails++;
-        }
-    }
-
-    // Yao powm (lane 0's base) and every batch lane against mpz_powm
-    rnsy_from_monty(yctx, t, yd);
-    if (mpz_cmp(t, r[0]) != 0)
-    {
-        printf("FAIL yao powm %d bits\n", bits);
-        fails++;
-    }
-    for (l = 0; l < VECLEN; l++)
-    {
+        fails += check_lane(t, r[l], ename[E_SMALL], bits, l);
         rnsyb_vget_lane(bctx, bt, bd, l);
         rnsy_from_monty(bctx, t, bt);
-        if (mpz_cmp(t, r[l]) != 0)
-        {
-            printf("FAIL yao batch powm %d bits lane %d\n", bits, l);
-            fails++;
-        }
+        fails += check_lane(t, r[l], ename[E_YAO8], bits, l);
     }
+    rnsy_from_monty(yctx, t, yd);
+    fails += check_lane(t, r[0], ename[E_YAO1], bits, 0);
 
-    printf("%5d | %3d+%-3d %2d %2d/%-2d %4d %-9s | %6.1f %6.1f %6.1f %6.1f | %6.1f %6.1f %6.1f %6.1f |"
-        " %7.1f %7.1f %7.1f %7.1f %8.1f | %5.2f %5.2f %5.2f\n",
-        bits, fx->nB, fx->nC, yfx->s, bfx->n, bfx->s, ae.words, ae.core,
-        sq_rns, sq_y, sq_b, sq_ae, mul_rns, mul_y, mul_b, mul_ae,
-        pw_rns, pw_y, pw_b, pw_ae, pw_gmp, pw_ae / pw_y, pw_ae / pw_b, pw_gmp / pw_b);
+    printf("  %5d bits done\n", bits);
     fflush(stdout);
-    rns_vfree(yx); rns_vfree(yd);
-    rns_vfree(bx); rns_vfree(bd); rns_vfree(bt);
-    rnsy_ctx_free(yctx);
-    rnsy_ctx_free(bctx);
-    rnsy_fixed_free(yfx);
-    rnsy_fixed_free(bfx);
 
     for (l = 0; l < VECLEN; l++)
     {
         mpz_clear(a[l]);
         mpz_clear(r[l]);
     }
+    for (k = 0; k < 2; k++)
+    {
+        vecFree(ax[k]);
+        vecFree(ad[k]);
+        avxecm_free(&ae[k]);
+    }
     rns_vfree(vx); rns_vfree(vd); free(tmp);
-    vecFree(ax); vecFree(ad);
-    avxecm_free(&ae);
+    rns_vfree(yx); rns_vfree(yd);
+    rns_vfree(bx); rns_vfree(bd); rns_vfree(bt);
     rns_ctx_free(ctx);
+    rnsy_ctx_free(yctx);
+    rnsy_ctx_free(bctx);
     rns_fixed_free(fx);
+    rnsy_fixed_free(yfx);
+    rnsy_fixed_free(bfx);
     mpz_clear(N); mpz_clear(e); mpz_clear(t);
     return fails;
 }
 
+static int best_vec(const double *v)
+{
+    int k, best = 0;
+    for (k = 1; k < E_GMP; k++)
+        if (v[k] < v[best])
+            best = k;
+    return best;
+}
+
 int main(int argc, char **argv)
 {
-    int sizes[] = { 256, 400, 512, 600, 800, 1000, 1024, 1536, 2048, 3072, 4096 };
+    int sizes[] = { 256, 384, 512, 640, 768, 1024, 1280, 1536, 1792, 2048,
+        2560, 3072, 3584, 4096 };
+    const int ns = (int)(sizeof(sizes) / sizeof(sizes[0]));
     unsigned long seed = (argc > 1) ? strtoul(argv[1], NULL, 10) : (unsigned long)time(NULL);
+    result_t res[sizeof(sizes) / sizeof(sizes[0])];
     gmp_randstate_t rs;
-    int s, fails = 0;
+    int s, k, fails = 0;
 
     gmp_randinit_default(rs);
     gmp_randseed_ui(rs, seed);
-    printf("seed %lu; times per number (vector times / 8)\n", seed);
-    printf("Yao1 = one number per call (n = 8); Yao8 = batch, 8 numbers per call (n/s from the cost model)\n");
-    printf("      | small Yao1 Yao8  AE             |  sqrmod ns                  |  mulmod ns                  |"
-        "  powm us                                 | AE/Y1 AE/Y8 GMP/Y8\n");
-    printf(" bits | nB+nC  s   n/s  words core      |  small   Yao1   Yao8 AVXECM |  small   Yao1   Yao8 AVXECM |"
-        "   small    Yao1    Yao8  AVXECM      GMP |\n");
-    for (s = 0; s < (int)(sizeof(sizes) / sizeof(sizes[0])); s++)
-        fails += run_size(sizes[s], rs);
-    printf("%s: %d failures\n", fails ? "FAILED" : "PASSED", fails);
+    printf("seed %lu\n", seed);
+    for (s = 0; s < ns; s++)
+        fails += run_size(sizes[s], rs, &res[s]);
+
+    printf("\nConfigurations (words per number for AVX-ECM; RNS channel layout):\n");
+    printf(" bits | AE-old        | AE-tmpl      | RNS-sm nB+nC | Yao1 s | Yao8 n/s\n");
+    for (s = 0; s < ns; s++)
+        printf("%5d | %-9s %3d | %-8s %3d | %5d+%-5d  | %4d   | %3d/%-2d\n", res[s].bits,
+            res[s].aeold, res[s].wold, res[s].aetmpl, res[s].wtmpl,
+            res[s].smallnB, res[s].smallnC, res[s].yao1s, res[s].yao8n, res[s].yao8s);
+
+    printf("\nsqrmod / mulmod, ns per number (GMP: mpz_mul + mpz_tdiv_r)\n");
+    printf(" bits |");
+    for (k = 0; k < NENG; k++)
+        printf(" %15s |", ename[k]);
+    printf(" fastest sqr\n");
+    for (s = 0; s < ns; s++)
+    {
+        printf("%5d |", res[s].bits);
+        for (k = 0; k < NENG; k++)
+            printf(" %7.1f %7.1f |", res[s].sqr[k], res[s].mul[k]);
+        printf(" %s\n", ename[best_vec(res[s].sqr)]);
+    }
+
+    printf("\npowm (full-size exponent), us per number; ratios are speedups\n");
+    printf(" bits |");
+    for (k = 0; k < NENG; k++)
+        printf(" %9s", ename[k]);
+    printf(" | tmpl/old  Yao8/tmpl  best/GMP  fastest\n");
+    for (s = 0; s < ns; s++)
+    {
+        int b = best_vec(res[s].powm);
+        printf("%5d |", res[s].bits);
+        for (k = 0; k < NENG; k++)
+            printf(" %9.1f", res[s].powm[k]);
+        printf(" | %7.2fx %9.2fx %8.2fx  %s\n",
+            res[s].powm[E_AEOLD] / res[s].powm[E_AETMPL],
+            res[s].powm[E_AETMPL] / res[s].powm[E_YAO8],
+            res[s].powm[E_GMP] / res[s].powm[b], ename[b]);
+    }
+
+    printf("\n%s: %d failures\n", fails ? "FAILED" : "PASSED", fails);
     gmp_randclear(rs);
     return fails != 0;
 }

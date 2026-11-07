@@ -325,6 +325,53 @@ Notes from the Yao paper (article-2394.pdf):
   holds up to about n = 8 (v ~ 49). Target: a fast `x*y mod N` / `x^2 mod N`
 engine for ECM, P-1, P+1 on N from roughly 1k bits up to very large sizes.
 
+## 0d. Standings after the AVX-ECM template cores (2026-11-07)
+
+AVX-ECM gained constant-S template IFMA cores (`factor/avx-ecm/vecarith52_tmpl.c`)
+and word-granular NWORDS sizing with >= 3 spare bits (commits 4f8e339..8eb6840).
+rns_bench now times both AVX-ECM core families, as separate engines:
+* AE-old: fixed416/624/832/1040 or BFIPS, NWORDS a multiple of 4.
+* AE-tmpl: the template cores, exact NWORDS; above 32 words the generic sN core.
+
+Rocket Lake i5-11600K, gcc 11 -O3, seed 2026. powm with a full-size exponent,
+us per number (8 numbers mod the same N per vector). Every engine was checked
+against mpz_powm in every lane.
+
+| bits | AE-old | AE-tmpl | RNS-small | Yao1 | Yao8 (n/s) | mpz_powm | tmpl/old | Yao8/tmpl | best/GMP |
+|-----:|-------:|--------:|----------:|-----:|-----------:|---------:|------:|------:|-----:|
+|  256 |    3.4 | **0.9** |   4.6 |   18.6 |   5.2 (2/3)  |     7.3 | 3.63x | 0.18x | 7.8x |
+|  384 |    5.0 | **3.1** |   9.8 |   28.2 |   8.4 (2/4)  |    21.0 | 1.62x | 0.37x | 6.8x |
+|  512 |   12.3 | **5.9** |  18.1 |   40.2 |  16.6 (3/4)  |    45.4 | 2.07x | 0.36x | 7.6x |
+|  640 |   25.2 | **12.0** |  30.9 |   50.1 |  24.5 (5/3)  |    80.8 | 2.09x | 0.49x | 6.7x |
+|  768 |   30.1 | **18.9** |  47.0 |   59.7 |  31.2 (3/5)  |   126.7 | 1.59x | 0.61x | 6.7x |
+| 1024 |   57.5 | **43.8** |  90.4 |   97.8 |  55.0 (5/4)  |   264.9 | 1.31x | 0.80x | 6.0x |
+| 1280 |  140.8 | **87.4** | 162.4 |  144.5 |  91.3 (5/5)  |   541.8 | 1.61x | 0.96x | 6.2x |
+| 1536 |  209.4 |   149.6 | 265.3 |  173.6 | **147.4** (6/5) |   854.2 | 1.40x | 1.02x | 5.8x |
+| 1792 |  292.9 |   244.5 | 404.9 |  260.9 | **207.8** (7/5) |  1389.1 | 1.20x | 1.18x | 6.7x |
+| 2048 |  405.2 |   344.0 | 569.8 |  306.4 | **285.4** (8/5) |  2005.0 | 1.18x | 1.21x | 7.0x |
+| 2560 |  812.0 |   653.4 | 1075.2 |  560.2 | **486.5** (10/5) | 3591.3 | 1.24x | 1.34x | 7.4x |
+| 3072 | 1248.1 |  1112.2 | 1758.3 |  808.6 | **734.8** (10/6) | 5767.5 | 1.12x | 1.51x | 7.8x |
+| 3584 | 2038.2 |  1704.4 | 2714.2 | 1130.5 | **1044.9** (10/7) | 9019.0 | 1.20x | 1.63x | 8.6x |
+| 4096 | 2853.7 |  2527.7 | 3929.8 | 1500.8 | **1417.6** (10/8) | 12637.4 | 1.13x | 1.78x | 8.9x |
+
+Squaring, ns per number (AE-old / AE-tmpl / Yao8): 256: 10.4 / 2.7 / 11.8;
+512: 19.5 / 8.9 / 24.6; 1024: 48.0 / 39.7 / 46.5; 1536: 113.4 / 77.4 / 78.0;
+2048: 168.0 / 136.1 / 111.7; 4096: 603.7 / 525.4 / 290.5.
+
+Reading:
+* The template cores beat the old cores everywhere (1.1-3.6x). The largest
+  gains are at small sizes, where exact word counts avoid the 4-word padding
+  (256 bits: 5 words instead of 8). Above 32 words (1792+ bits) the generic
+  sN core gives 1.1-1.25x.
+* Crossover: AE-tmpl is fastest through ~1280 bits, ties Yao8 at ~1536, and
+  Yao8 leads above that (1.21x at 2048, 1.78x at 4096). The faster AVX-ECM
+  moved the crossover up from ~1k bits.
+* RNS-small is now dominated at every size: by AE-tmpl below ~1.5k bits,
+  and by both Yao kernels above ~1.3k.
+* Yao1 (one number per call) is within 5-10% of Yao8 from ~2k bits and
+  beats AE-tmpl from 1536 bits, so it is the one-curve choice at large sizes.
+* The best vector engine is 5.8-8.9x faster than mpz_powm at every size.
+
 ## 1. Overview (as proposed)
 
 1. Purpose: a modmul/modsqr backend for ECM / P-1 / P+1 stage 1 and stage 2.

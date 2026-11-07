@@ -1,7 +1,8 @@
 # Standalone build of the RNS modmul library, tests and benchmark.
 #   make GMP_PREFIX=/path/to/gmp [ARCH=-march=icelake-client]
 # The AVX-512 kernels are built when ARCH enables avx512f + avx512ifma.
-# "make bench" also builds AVX-ECM's vecarith52 (IFMA) for comparison.
+# "make bench" also builds AVX-ECM's vecarith52 cores (old fixed/BFIPS and the
+# constant-S template cores, IFMA) for comparison.
 
 GMP_PREFIX ?= ../../../gmp-install/6.2.1
 CC ?= gcc
@@ -14,7 +15,7 @@ OBJS = rns_ref.o rns_avx512.o
 YOBJS = rns_yao_ref.o rns_yao_avx512.o rns_yaob_avx512.o
 
 AE_DIR = ../../factor/avx-ecm
-AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
+AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special vecarith52_tmpl
 AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS)))
 AE_FLAGS = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DUSE_AVX512IFMA -DIFMA \
 	-I../../include -I../../ytools -I$(AE_DIR)
