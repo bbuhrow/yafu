@@ -1,5 +1,5 @@
 /*
- * Shared AVX-512 IFMA helpers for the Yao-regime kernels (rns_yao_avx512.c,
+ * Shared AVX-512 helpers for the Yao-regime kernels (rns_yao_avx512.c,
  * rns_yaob_avx512.c): carry normalization, the pseudo-Mersenne folds and
  * fully unrolled channel products.  Each vector holds one 52-bit digit of
  * 8 independent channel values (8 channels of one number, or one channel
@@ -11,15 +11,13 @@
 #define RNS_YAO_VEC_H
 
 #include "rns_yao.h"
-#include <immintrin.h>
+#include "rns_vec52.h"     // LO52 / HI52: IFMA or FP-emulated
 
 #define NCH RNSY_NCH
 #define MAXS 10
 #define INL RNS_INLINE
 #define UNROLL RNS_UNROLL(32)
 
-#define LO52(acc, a, b) _mm512_madd52lo_epu64((acc), (a), (b))
-#define HI52(acc, a, b) _mm512_madd52hi_epu64((acc), (a), (b))
 #define BC(p)           _mm512_set1_epi64((long long)(p))
 #define LD(p)           _mm512_load_si512((const void *)(p))
 #define ST(p, v)        _mm512_store_si512((void *)(p), (v))
@@ -152,6 +150,7 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
     for (t = 0; t < S; t++)
         y[t] = acc[t];
     y[S] = ZERO;
+#ifdef RNS_HAVE_IFMA
     UNROLL
     for (t = 0; t < S; t++)
     {
@@ -161,6 +160,24 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
         y[t + 1] = HI52(y[t + 1], lo, d);
         y[t + 1] = LO52(y[t + 1], _mm512_srli_epi64(c, 52), d);
     }
+#else
+    {
+        // FP: one lo/hi pair per column (biases removed below); (c >> 52)*d
+        // < 2^32 * 2^32 is exact with a 32x32 -> 64 integer multiply
+        const __m512d dd = rns_cvt52(d);
+        UNROLL
+        for (t = 0; t < S; t++)
+        {
+            __m512i c = acc[S + t];
+            RNS_FP_MAC(y[t], y[t + 1], rns_cvt52(c), dd);
+            y[t + 1] = _mm512_add_epi64(y[t + 1],
+                _mm512_mul_epu32(_mm512_srli_epi64(c, 52), d));
+        }
+        UNROLL
+        for (t = 0; t <= S; t++)
+            y[t] = rns_fp_unbias(y[t], t < S, t > 0);
+    }
+#endif
     vnorm(y, S + 1);
 #else
     acc[2 * S] = vnorm(acc, 2 * S);         // carry out <= 1
@@ -169,6 +186,7 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
         y[t] = acc[t];
     y[S] = ZERO;
     // fold 1: + (acc[S..2S]) * d
+#ifdef RNS_HAVE_IFMA
     UNROLL
     for (t = 0; t <= S; t++)
     {
@@ -176,6 +194,19 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
         if (t < S)
             y[t + 1] = HI52(y[t + 1], acc[S + t], d);
     }
+#else
+    {
+        const __m512d dd = rns_cvt52(d);
+        UNROLL
+        for (t = 0; t < S; t++)
+            RNS_FP_MAC(y[t], y[t + 1], rns_cvt52(acc[S + t]), dd);
+        UNROLL
+        for (t = 0; t <= S; t++)
+            y[t] = rns_fp_unbias(y[t], t < S, t > 0);
+        // acc[2S] <= 1: its product with d is exact in 64 bits
+        y[S] = _mm512_add_epi64(y[S], _mm512_mul_epu32(acc[2 * S], d));
+    }
+#endif
     vnorm(y, S + 1);                        // value < 2^(w+52): no carry out
 #endif
     top = y[S];
@@ -185,6 +216,78 @@ INL void vfold_prod(__m512i *x, __m512i *acc, __m512i d, const int S)
     vfold_top(x, top, d, S);
 }
 
+#ifndef RNS_HAVE_IFMA
+// FP products: column c of an S x S product gets L(c) lo and L(c-1) hi
+// halves, L(c) = number of i + j == c
+INL int rns_ncol(int c, const int S)
+{
+    if (c < 0 || c > 2 * S - 2)
+        return 0;
+    return (c < S) ? c + 1 : 2 * S - 1 - c;
+}
+
+// acc[0..2S-1] += a * b, schoolbook column sums
+INL void vmul_acc(__m512i *acc, const __m512i *a, const __m512i *b, const int S)
+{
+    __m512d ad[MAXS], bd[MAXS];
+    int i, j;
+    UNROLL
+    for (i = 0; i < S; i++)
+    {
+        ad[i] = rns_cvt52(a[i]);
+        bd[i] = rns_cvt52(b[i]);
+    }
+    UNROLL
+    for (i = 0; i < S; i++)
+    {
+        UNROLL
+        for (j = 0; j < S; j++)
+            RNS_FP_MAC(acc[i + j], acc[i + j + 1], ad[i], bd[j]);
+    }
+    UNROLL
+    for (i = 0; i < 2 * S; i++)
+        acc[i] = rns_fp_unbias(acc[i], rns_ncol(i, S), rns_ncol(i - 1, S));
+}
+
+// acc[0..2S-1] = a^2: off-diagonal products once, doubled, plus diagonal
+INL void vsqr(__m512i *acc, const __m512i *a, const int S)
+{
+    __m512d ad[MAXS];
+    int i, j;
+    UNROLL
+    for (i = 0; i <= 2 * S; i++)
+        acc[i] = ZERO;
+    UNROLL
+    for (i = 0; i < S; i++)
+        ad[i] = rns_cvt52(a[i]);
+    UNROLL
+    for (i = 0; i < S; i++)
+    {
+        UNROLL
+        for (j = i + 1; j < S; j++)
+            RNS_FP_MAC(acc[i + j], acc[i + j + 1], ad[i], ad[j]);
+    }
+    // off-diagonal counts: lo halves at c = i + j (i < j), hi at c + 1
+    UNROLL
+    for (i = 1; i < 2 * S; i++)
+    {
+        int nlo = 0, nhi = 0, k;
+        for (k = 0; k < S; k++)
+        {
+            if (i - k > k && i - k < S) nlo++;
+            if (i - 1 - k > k && i - 1 - k < S) nhi++;
+        }
+        acc[i] = rns_fp_unbias(acc[i], nlo, nhi);
+        acc[i] = _mm512_add_epi64(acc[i], acc[i]);
+    }
+    UNROLL
+    for (i = 0; i < S; i++)
+        RNS_FP_MAC(acc[2 * i], acc[2 * i + 1], ad[i], ad[i]);
+    UNROLL
+    for (i = 0; i < 2 * S; i++)
+        acc[i] = rns_fp_unbias(acc[i], !(i & 1), i & 1);   // lo at 2i, hi at 2i+1
+}
+#else
 // acc[0..2S-1] += a * b, schoolbook column sums
 INL void vmul_acc(__m512i *acc, const __m512i *a, const __m512i *b, const int S)
 {
@@ -228,6 +331,7 @@ INL void vsqr(__m512i *acc, const __m512i *a, const int S)
         acc[2 * i + 1] = HI52(acc[2 * i + 1], a[i], a[i]);
     }
 }
+#endif
 
 INL void vload(__m512i *v, const uint64_t *p, int n)
 {

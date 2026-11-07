@@ -132,7 +132,7 @@ static int test_size(int bits, int iters, gmp_randstate_t rs)
     return fails;
 }
 
-#ifdef RNS_HAVE_AVX512IFMA
+#ifdef RNS_HAVE_AVX512
 #define HAVE_VEC 1
 
 // compare all 8 lanes of v against scalar residue vectors s[lane]

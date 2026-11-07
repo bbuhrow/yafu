@@ -31,13 +31,19 @@
 #include <stdio.h>
 #include <gmp.h>
 
-// The AVX-512 IFMA kernels are compiled when the compiler targets IFMA
-// (gcc/clang -march=..., which defines __AVX512IFMA__) or when yafu's build
-// says so (USE_AVX512F + IFMA, as with MSVC, which has no IFMA macro).
-// Otherwise only the scalar references and the setup code are built.
+// The AVX-512 vector kernels (*_avx512) are compiled for any AVX-512F
+// target: the compiler's own macros (gcc/clang -march=...) or yafu's build
+// defines (USE_AVX512F [+ IFMA]; MSVC has no IFMA macro).  With IFMA
+// (RNS_HAVE_IFMA) the 52-bit products are madd52lo/hi; without it they are
+// emulated exactly with FP64 FMAs (needs AVX512DQ for the conversions, which
+// every AVX-512 CPU with AVX512BW has).  Otherwise only the scalar
+// references and the setup code are built.
 #if (defined(__AVX512F__) && defined(__AVX512IFMA__)) || \
     (defined(USE_AVX512F) && defined(IFMA))
-#define RNS_HAVE_AVX512IFMA 1
+#define RNS_HAVE_AVX512 1
+#define RNS_HAVE_IFMA 1
+#elif (defined(__AVX512F__) && defined(__AVX512DQ__)) || defined(USE_AVX512F)
+#define RNS_HAVE_AVX512 1
 #endif
 
 // compiler shims for the kernels
@@ -144,8 +150,8 @@ void rns_vfree(uint64_t *v);
 void rns_vset_lane(rns_ctx_t *ctx, uint64_t *v, int lane, uint64_t *x);
 void rns_vget_lane(rns_ctx_t *ctx, uint64_t *x, uint64_t *v, int lane);
 
-#ifdef RNS_HAVE_AVX512IFMA
-// AVX-512 IFMA kernels (rns_avx512.c); results are bit-identical to the
+#ifdef RNS_HAVE_AVX512
+// AVX-512 kernels (rns_avx512.c; IFMA or FP-emulated); results are bit-identical to the
 // scalar reference, lane by lane.  z may alias x or y.
 void rns_vmulmod_avx512(rns_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rns_vsqrmod_avx512(rns_ctx_t *ctx, uint64_t *z, uint64_t *x);

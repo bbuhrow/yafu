@@ -475,7 +475,12 @@ static void build_bconst(rnsy_ctx_t *ctx)
     rnsy_fixed_t *fx = ctx->fx;
     int n = fx->n, s = fx->s, i, k, a;
     const size_t zn = (size_t)n, zs = (size_t)s;
-    size_t words = zn * (zs + 1) * 16 + zn * zs * NCH +
+#if defined(RNS_HAVE_AVX512) && !defined(RNS_HAVE_IFMA)
+    const size_t nscr = 2;      // FP kernel: double copies of xi and zc
+#else
+    const size_t nscr = 1;
+#endif
+    size_t words = zn * (zs + 1) * 16 + nscr * zn * zs * NCH +
         3 * zn * zs * zs + zn * (zs + 2) + 2 * zn * (zs + 1);
     uint64_t *p;
     mpz_t t;
@@ -483,7 +488,7 @@ static void build_bconst(rnsy_ctx_t *ctx)
     mpz_init(t);
     p = ctx->bblock = rns_aligned_alloc(words);
     ctx->balpha = p; p += zn * (zs + 1) * 16;     // keeps 64-byte alignment
-    ctx->bscratch = p; p += zn * zs * NCH;
+    ctx->bscratch = p; p += nscr * zn * zs * NCH;
     ctx->bF1 = p; p += zn * zs * zs;
     ctx->bG1 = p; p += zn * zs * zs;
     ctx->bG2 = p; p += zn * zs * zs;
@@ -514,6 +519,20 @@ static void build_bconst(rnsy_ctx_t *ctx)
             digits_mpz(ctx->balpha + (i * (s + 1)) * 16 + a, s + 1, 16, t);
         }
     }
+#if defined(RNS_HAVE_AVX512) && !defined(RNS_HAVE_IFMA)
+    // the FP batch kernel broadcasts bF1 / bG1 / bG2 digits as doubles:
+    // store them as the bits of their (exact) double values
+    {
+        size_t w, nw = zn * zs * zs;
+        for (w = 0; w < nw; w++)
+        {
+            double f1 = (double)ctx->bF1[w], g1 = (double)ctx->bG1[w], g2 = (double)ctx->bG2[w];
+            memcpy(ctx->bF1 + w, &f1, sizeof(double));
+            memcpy(ctx->bG1 + w, &g1, sizeof(double));
+            memcpy(ctx->bG2 + w, &g2, sizeof(double));
+        }
+    }
+#endif
     mpz_clear(t);
 }
 

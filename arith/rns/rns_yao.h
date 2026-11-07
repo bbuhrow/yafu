@@ -126,7 +126,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rnsy_addmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 void rnsy_submod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);
 
-#ifdef RNS_HAVE_AVX512IFMA
+#ifdef RNS_HAVE_AVX512
 // One-number kernels (rns_yao_avx512.c): n = 8, z may alias x or y,
 // specialized for s = 1..10.
 void rnsy_vmulmod_avx512(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y);

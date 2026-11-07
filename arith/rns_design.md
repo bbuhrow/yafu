@@ -372,6 +372,43 @@ Reading:
   beats AE-tmpl from 1536 bits, so it is the one-curve choice at large sizes.
 * The best vector engine is 5.8-8.9x faster than mpz_powm at every size.
 
+## 0e. Without IFMA: FP-emulated products (2026-11-07)
+
+AVX-512F builds without IFMA (`make NOIFMA=1` here; yafu `USE_AVX512=1
+USE_AVX512IFMA=`) build every kernel with FP64-emulated 52-bit products
+(`rns_vec52.h`; the template has its own copy, `vecarith52_tmpl.c`).
+
+* `LO52` / `HI52` become exact drop-in emulations (inputs masked to 52 bits
+  like IFMA). The batch kernel's hot loops use a faster form: operands
+  converted once (`xi` and a copy of `zc` kept as doubles in `bscratch`,
+  which doubles in size; `bF1` / `bG1` / `bG2` stored as doubles), raw
+  biased bit patterns summed, biases removed once per accumulator. Same
+  in `vmul_acc`, `vsqr` and `vfold_prod`, where `(c >> 52) * d` is one
+  `vpmuludq` (d < 2^32). The one-number Yao and small-regime kernels use
+  the drop-ins only.
+* Table and scratch formats depend on the build: `rns_yao_ref.c` and the
+  kernels must be compiled with the same ISA flags (they are, in every
+  Makefile and VS project).
+* Rocket Lake running the non-IFMA code (512-bit FMA on p0 only, so this
+  is a pessimistic stand-in for 2-FMA Skylake-X / Cascade Lake servers),
+  powm µs per number:
+
+| bits | AE-old | AE-tmpl | Yao1 | Yao8 | mpz_powm | fastest |
+|---:|---:|---:|---:|---:|---:|---|
+| 256 | 6.7 | **2.2** | 40.6 | 7.9 | 7.6 | AE-tmpl |
+| 512 | 23.0 | **10.6** | 68.1 | 30.2 | 47.7 | AE-tmpl |
+| 1024 | 135.2 | **84.1** | 167.9 | 103.7 | 264.2 | AE-tmpl |
+| 1536 | 383.1 | **239.1** | 329.7 | 260.3 | 836.6 | AE-tmpl |
+| 2048 | 754.6 | 566.5 | 581.3 | **496.2** | 2003.4 | Yao8 |
+| 3072 | 2346.3 | 1772.3 | 1925.4 | **1350.5** | 5866.9 | Yao8 |
+| 4096 | 5296.8 | 4127.4 | 3815.7 | **2824.0** | 12879.2 | Yao8 |
+
+  The template/Yao8 crossover moves up from ~1500 bits (IFMA) to
+  ~1800-2000 bits. Relative to IFMA: template 1.6x slower, Yao8 2.0x
+  slower at 4096 bits (the drop-in-only Yao8 was 3043 µs there). The FP
+  product is 3 FP uops on p0 vs 2 IFMA uops; the rest is fold/normalize
+  integer work.
+
 ## 1. Overview (as proposed)
 
 1. Purpose: a modmul/modsqr backend for ECM / P-1 / P+1 stage 1 and stage 2.

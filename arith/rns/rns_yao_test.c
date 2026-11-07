@@ -127,7 +127,7 @@ static int test_size(int bits, int iters, gmp_randstate_t rs)
     return fails;
 }
 
-#ifdef RNS_HAVE_AVX512IFMA
+#ifdef RNS_HAVE_AVX512
 #define HAVE_VEC 1
 
 // v is a valid representation: digits < 2^52, every channel encodes the same

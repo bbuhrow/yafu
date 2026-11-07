@@ -17,13 +17,65 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef RNS_HAVE_AVX512IFMA
+#ifdef RNS_HAVE_AVX512
 #include <immintrin.h>
 
 #include "rns_yao_vec.h"
 
 // acc[0..S+1] += sum_i a_i * tab_i, tab_i = f * 2^(52i) mod m, scalar digits
 // tab[i*S + k] broadcast to all lanes
+#ifndef RNS_HAVE_IFMA
+INL void bcmul_acc(__m512i *acc, const __m512i *a, const uint64_t *tab, const int S)
+{
+    const double *dtab = (const double *)tab;   // FP builds store doubles
+    __m512d ad[MAXS];
+    int i, k;
+    UNROLL
+    for (i = 0; i < S; i++)
+        ad[i] = rns_cvt52(a[i]);
+    UNROLL
+    for (i = 0; i < S; i++)
+    {
+        UNROLL
+        for (k = 0; k < S; k++)
+            RNS_FP_MAC(acc[k], acc[k + 1], ad[i], _mm512_set1_pd(dtab[i * S + k]));
+    }
+    // S lo halves into acc[0..S-1], S hi halves into acc[1..S]
+    UNROLL
+    for (k = 0; k <= S; k++)
+        acc[k] = rns_fp_unbias(acc[k], (k < S) ? S : 0, (k > 0) ? S : 0);
+}
+
+// store lo52 of n digits as doubles (FP extension operands)
+INL void vstore_d(uint64_t *p, const __m512i *v, int n)
+{
+    int t;
+    UNROLL
+    for (t = 0; t < n; t++)
+        _mm512_store_pd((double *)(p + t * NCH), rns_cvt52(v[t]));
+}
+
+// acc[0..S] += sum_i x_i * c_i over n channels of S digits (an extension
+// row); FP operands are the double copies, c_i broadcast as doubles
+INL void bext_acc(__m512i *acc, const uint64_t *xd, size_t chw,
+    const uint64_t *c, size_t cstride, int n, const int S)
+{
+    int i, k;
+    for (i = 0; i < n; i++)
+    {
+        __m512d kc = rns_bcd52(c[(size_t)i * cstride]);
+        UNROLL
+        for (k = 0; k < S; k++)
+        {
+            __m512d v = _mm512_load_pd((const double *)(xd + (size_t)i * chw + k * NCH));
+            RNS_FP_MAC(acc[k], acc[k + 1], v, kc);
+        }
+    }
+    UNROLL
+    for (k = 0; k <= S; k++)
+        acc[k] = rns_fp_unbias(acc[k], (k < S) ? n : 0, (k > 0) ? n : 0);
+}
+#else
 INL void bcmul_acc(__m512i *acc, const __m512i *a, const uint64_t *tab, const int S)
 {
     int i, k;
@@ -39,6 +91,25 @@ INL void bcmul_acc(__m512i *acc, const __m512i *a, const uint64_t *tab, const in
         }
     }
 }
+
+INL void bext_acc(__m512i *acc, const uint64_t *x, size_t chw,
+    const uint64_t *c, size_t cstride, int n, const int S)
+{
+    int i, k;
+    for (i = 0; i < n; i++)
+    {
+        __m512i kc = BC(c[(size_t)i * cstride]);
+        UNROLL
+        for (k = 0; k < S; k++)
+        {
+            __m512i v = LD(x + (size_t)i * chw + k * NCH);
+            acc[k] = LO52(acc[k], v, kc);
+            acc[k + 1] = HI52(acc[k + 1], v, kc);
+        }
+    }
+}
+#define vstore_d vstore
+#endif
 
 // nd normalized digits shifted left by z bits (0 < z < 52); the caller
 // guarantees nothing is shifted out of the top digit
@@ -75,6 +146,12 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
     const size_t chw = (size_t)S * NCH;                 // words per channel
     uint64_t *xi = ctx->bscratch;
     uint64_t *xc = x + (size_t)n * chw, *yc = y + (size_t)n * chw, *zc = z + (size_t)n * chw;
+    // xi is in bscratch (FP: as doubles)
+#ifndef RNS_HAVE_IFMA
+    uint64_t *zcd = ctx->bscratch + (size_t)n * chw;    // zc as doubles
+#else
+    uint64_t *zcd = zc;
+#endif
     __m512i a[MAXS], b[MAXS], t[MAXS], q[MAXS], acc[2 * MAXS + 2];
     __m512i ur, sr, alpha;
     int i, j, k;
@@ -100,7 +177,7 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
         vzero(acc, S + 2);
         bcmul_acc(acc, t, ctx->bF1 + (size_t)(i * S * S), S);
         vfold_cprod(t, acc, d, S);
-        vstore(xi + (size_t)i * chw, t, S);
+        vstore_d(xi + (size_t)i * chw, t, S);
         ur = LO52(ur, t[0], BC(ctx->BrN[i]));
     }
     ur = _mm512_and_si512(ur, M52);
@@ -113,17 +190,7 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
         __m512i d = BC(fx->dc[j]);
 
         vzero(acc, S + 1);
-        for (i = 0; i < n; i++)
-        {
-            __m512i kc = BC(fx->Bt[i][j]);
-            UNROLL
-            for (k = 0; k < S; k++)
-            {
-                __m512i v = LD(xi + (size_t)i * chw + k * NCH);
-                acc[k] = LO52(acc[k], v, kc);
-                acc[k + 1] = HI52(acc[k + 1], v, kc);
-            }
-        }
+        bext_acc(acc, xi, chw, &fx->Bt[0][j], RNSY_MAXN, n, S);
         bext_finish(q, acc, fx->zB[j], d, S);
 
         vload(a, xc + (size_t)j * chw, S);
@@ -141,6 +208,9 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
         bcmul_acc(acc, q, ctx->bG2 + (size_t)(j * S * S), S);
         vfold_cprod(t, acc, d, S);
         vstore(zc + (size_t)j * chw, t, S);
+#ifndef RNS_HAVE_IFMA
+        vstore_d(zcd + (size_t)j * chw, t, S);
+#endif
         sr = LO52(sr, t[0], BC(fx->Cr[j]));
     }
 
@@ -156,17 +226,7 @@ INL void bmulmod_s(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y,
         __m512i borrow = ZERO;
 
         vzero(acc, S + 1);
-        for (j = 0; j < n; j++)
-        {
-            __m512i kc = BC(fx->Ct[j][i]);
-            UNROLL
-            for (k = 0; k < S; k++)
-            {
-                __m512i v = LD(zc + (size_t)j * chw + k * NCH);
-                acc[k] = LO52(acc[k], v, kc);
-                acc[k + 1] = HI52(acc[k + 1], v, kc);
-            }
-        }
+        bext_acc(acc, zcd, chw, &fx->Ct[0][i], RNSY_MAXN, n, S);
         acc[S + 1] = vnorm(acc, S + 1);
         if (fx->zC[i])
             vshl(acc, S + 2, fx->zC[i]);

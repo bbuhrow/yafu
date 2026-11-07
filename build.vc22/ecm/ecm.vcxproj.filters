@@ -89,6 +89,9 @@
     <ClInclude Include="..\..\arith\rns\rns_yao_vec.h">
       <Filter>Source Files\avx-ecm</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\arith\rns\rns_vec52.h">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\yafu_ecm.h">
       <Filter>Header Files</Filter>
     </ClInclude>

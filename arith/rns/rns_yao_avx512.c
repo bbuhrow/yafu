@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef RNS_HAVE_AVX512IFMA
+#ifdef RNS_HAVE_AVX512
 #include <immintrin.h>
 
 #include "rns_yao_vec.h"

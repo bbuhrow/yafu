@@ -1,5 +1,6 @@
 /*
- * RNS Montgomery modular multiplication, AVX-512 IFMA kernels.
+ * RNS Montgomery modular multiplication, AVX-512 kernels (IFMA, or
+ * FP-emulated 52-bit products without it: rns_vec52.h).
  *
  * Eight independent numbers modulo the same N per vector (channel-major
  * layout, see rns.h), so every table entry is a broadcast and each
@@ -11,13 +12,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef RNS_HAVE_AVX512IFMA
-#include <immintrin.h>
+#ifdef RNS_HAVE_AVX512
+#include "rns_vec52.h"
 
 #define VL RNS_VL
 
-#define LO52(acc, a, b) _mm512_madd52lo_epu64((acc), (a), (b))
-#define HI52(acc, a, b) _mm512_madd52hi_epu64((acc), (a), (b))
 #define BC(p)           _mm512_set1_epi64((long long)(p))
 #define LD(p)           _mm512_load_si512((const void *)(p))
 #define ST(p, v)        _mm512_store_si512((void *)(p), (v))

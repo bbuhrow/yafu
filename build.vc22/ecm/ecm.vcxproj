@@ -176,6 +176,7 @@
     <ClInclude Include="..\..\arith\rns\rns.h" />
     <ClInclude Include="..\..\arith\rns\rns_yao.h" />
     <ClInclude Include="..\..\arith\rns\rns_yao_vec.h" />
+    <ClInclude Include="..\..\arith\rns\rns_vec52.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />

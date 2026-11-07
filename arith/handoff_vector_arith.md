@@ -153,7 +153,7 @@ A/B tests.
 
 ### 4.2 AVX-512F without IFMA (FP emulation) (user item 2)
 
-**Template part done (2026-11-07); the RNS kernels are not ported yet.**
+**Done (2026-11-07): template and RNS kernels; see the end of this list.**
 * `vecarith52_tmpl.c` builds for every `USE_AVX512F` build. Without
   `IFMA` (`AE_FP`) a product is `t = fma_rz(x, y, 2^104)` (hi, biased) and
   `fma_rz(x, y, 2^104 + 2^52 - t)` (lo, biased): 2 FMA + 1 sub + 2 integer
@@ -195,11 +195,18 @@ A/B tests.
   GMP-ECM (`if (1)` before the `vecPP1` branch) and `vecPM1` is only called
   from the AVX-ECM demo (`factor/avx-ecm/demo`, VS project only). Its three
   sizing sites compile with the template but were not run.
-* Remaining for 4.2: port the RNS kernels (`rns_avx512.c`, `rns_yao_vec.h`,
-  `rns_yao_avx512.c`, `rns_yaob_avx512.c`). They use `LO52`/`HI52` both
-  paired and as lo-only folds with small or unnormalized operands (IFMA
-  ignores bits above 52, the FP path must mask), and their constant
-  tables could be stored as doubles at setup.
+* **RNS kernels: done too** (`rns_design.md` §0e). `RNS_HAVE_AVX512` (any
+  AVX-512F target) now guards the kernels, `RNS_HAVE_IFMA` selects the
+  native products; `rns_vec52.h` holds `LO52`/`HI52` (IFMA or exact FP
+  emulation) and the fast FP accumulate helpers. `arith/rns/Makefile`
+  takes `NOIFMA=1`. Verified non-IFMA: `rns_test`, `rns_yao_test` in both
+  column-fold modes, `rns_bench`, on WSL and as MSVC builds on Windows;
+  no `vpmadd52` in the non-IFMA yafu binary; IFMA results and timings
+  unchanged. Non-IFMA yafu (template + FP RNS compiled in) builds clean
+  and finds p15s at 700 / 1250 / 2048 bits.
+* **Not tested on real non-IFMA hardware** (Skylake-X / Cascade Lake):
+  all non-IFMA runs were the non-IFMA code on Rocket Lake. Port balance
+  differs there (2 FMA units on server parts), so timings will differ.
 
 Original notes follow.
 
