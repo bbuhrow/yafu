@@ -187,7 +187,7 @@ much. Today AVX-ECM exists only for AVX-512 (`#ifdef USE_AVX512F` in
 `avx_ecm.h` and `factor_common.c`).
 
 * User direction: 32-bit digits, or 28-bit digits so lane accumulation has
-  headroom. Experiment with both (§5).
+  headroom. Experiment with both (§5), and with the FP FMA-based approach below.
 * AVX2 has no 52-bit multiply and no 64x64 -> 128 vector multiply. Options:
   - The FP trick at 256 bits: `_mm256_fmadd_pd` with no embedded rounding
     control. Rounding mode must then come from MXCSR (set round-toward-zero
@@ -327,7 +327,7 @@ AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
   - `vecarith.c` (`DIGITBITS == 32`, 16 lanes) is a separate path; decide
     alongside the AVX2 work.
 * **AVX2 digit size:** 32-bit, or possibly 28-bit digits so lane
-  accumulation has headroom. This needs experiments (§4.3).
+  accumulation has headroom. This needs experiments (§4.3).  Also FP FMA.
   - With 32x32 -> 64 `vpmuludq` products, 28-bit digits give 56-bit
     products and 8 bits of in-lane headroom: about 256 accumulated terms
     before a carry pass.
