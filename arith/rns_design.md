@@ -409,6 +409,64 @@ USE_AVX512IFMA=`) build every kernel with FP64-emulated 52-bit products
   product is 3 FP uops on p0 vs 2 IFMA uops; the rest is fold/normalize
   integer work.
 
+## 0f. Above 16400 bits: large-s Yao vs karatsuba REDC (handoff 4.7, 2026-11-07)
+
+Decision being tested: above `AVXECM_KARATSUBA_BITS` = 16400, AVX-ECM uses
+the karatsuba REDC (`veckmul_redc` / `vecksqr_redc`). Candidates: that,
+the Yao kernels extended to large s, Yao with karatsuba channel products,
+the template loop form, and mpz.
+
+What limits Yao: the extension constants must fit 52 bits (after the
+trailing-zero shift), and that holds only up to n = 11 channels per base
+here; `RNSY_MAXS` = 10 capped s. The constants depend only on n, so large
+sizes need large s, not more channels. Changes:
+* `RNSY_MAXS` 128 (capacity ~66k bits at n = 10), `RNSY_MAXS_UNROLL` 10:
+  the unrolled kernel stays for s <= 10, `rnsyb_choose_n` prefers it.
+* Large-s batch kernel (`rns_yaob_kern.h`, `bmulmod_big`): loop forms with
+  column-wise register accumulation (every output column summed in
+  registers and stored once), scratch in `ctx->bbig`, and always the exact
+  product fold (the column-fold shortcut needs column sums < 2^58, false
+  from s ~ 30). Works in IFMA, AVX-512F-FP and AVX2 builds.
+* Karatsuba (`kprod`): recursive on normalized digits (subproducts are
+  normalized, so the middle term is a plain nonnegative difference), down
+  to `rnsyb_kara_min` words. Applied to all five products per channel: the
+  two variable products and the three per-N constant products, which use
+  f1 / g1 / g2 as plain digit vectors (`ctx->bkconst`) instead of the
+  rotated tables, followed by the exact fold. Results stay congruent and
+  within the same bounds but are not the reference's digits, so the
+  karatsuba path is checked by congruence (`rns_yao_test N seed big`).
+
+`big_bench` (Rocket Lake, IFMA), us per number, sqr / mul; every engine
+checked against GMP in every lane:
+
+| bits | Yao n/s | AE-kara | AE-tmplN | Yao8 school | Yao8-k24 | GMP | k24 vs AE-kara |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 16384 | 11/29 | 9.8 / 10.6 | 8.7 / 13.0 | 3.7 / 4.2 | 3.9 / 4.2 | 30.2 / 33.6 | 2.5x |
+| 24576 | 11/43 | 23.8 / 25.0 | 22.0 / 31.7 | 8.0 / 9.0 | 7.8 / 8.9 | 57.2 / 65.3 | 3.1x |
+| 32768 | 11/58 | 30.6 / 33.8 | 44.5 / 56.8 | 13.6 / 15.7 | 12.0 / 13.5 | 87.1 / 96.4 | 2.6x |
+| 49152 | 11/86 | 73.8 / 77.3 | 94.2 / 128.5 | 28.7 / 33.5 | 22.4 / 25.7 | 156.1 / 171.1 | 3.3x |
+| 65536 | 10/127 | 91.4 / 101.8 | 169.5 / 225.3 | 59.0 / 69.0 | 38.7 / 43.8 | 245.7 / 269.6 | 2.4x |
+
+* Large-s Yao beats the karatsuba REDC 1.5-3.2x with schoolbook channels
+  alone; with karatsuba channels (`rnsyb_kara_min` 24: split while s >= 48)
+  2.4-3.3x. Karatsuba pays from s ~ 58 (10-15%) and gives 1.5-1.6x at
+  s = 127; k16 / k32 are up to 10% worse at some sizes; k8 loses.
+* Karatsuba only on the two variable products gained ~10% at 64k: three of
+  the five products per channel are constant products, so they must go
+  through karatsuba too.
+* The template loop form is about even with the karatsuba REDC at 16-24k
+  bits and falls behind above (no subquadratic step).
+* yafu ECM, 64 curves, B1 = 3000, 4 threads, fixed sigma: radix and RNS
+  report identical finds at 10000 bits (template 193 words vs RNS 2 x 10
+  x 20) and 20000 bits (karatsuba REDC vs RNS 2 x 10 x 39); RNS is 1.75x
+  (7 s -> 4 s) and 1.9x (29 s -> 15 s) faster end to end.
+* With these changes AVX-ECM's RNS backend covers the crossover .. ~66k
+  bits (it used to stop near 4.5-8k); above that the radix cores (the
+  karatsuba REDC on AVX-512) remain. Not measured: non-IFMA / AVX2 timings
+  of the large-s kernel (correctness tested), and RNS above 66k (more
+  channels need multi-word extension constants; FFT/NTT channels are the
+  step after that).
+
 ## 1. Overview (as proposed)
 
 1. Purpose: a modmul/modsqr backend for ECM / P-1 / P+1 stage 1 and stage 2.

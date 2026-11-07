@@ -133,6 +133,8 @@ static int test_size(int bits, int iters, gmp_randstate_t rs)
 // v is a valid representation: digits < 2^52, every channel encodes the same
 // integer X (C channels pre-scaled by C_j^{-1}, r = X mod 2^52), X < bm*N
 static int quiet = 0;
+// large-s karatsuba runs: results are valid but not the reference's digits
+static int force_congruence = 0;
 
 static int vvalid(rnsy_ctx_t *ctx, uint64_t *v, int bm, const char *what,
     int bits, int iter)
@@ -192,7 +194,7 @@ static int vcmp(rnsy_ctx_t *ctx, uint64_t *v, uint64_t *r, int bm, const char *w
     int bits, int iter)
 {
     int k;
-    if (rnsy_vec_exact())
+    if (rnsy_vec_exact() && !force_congruence)
     {
         for (k = 0; k < ctx->fx->nwords; k++)
         {
@@ -281,7 +283,7 @@ static int test_vec(int bits, int iters, gmp_randstate_t rs)
     }
 
     // the validity check must reject corrupted representations
-    if (!rnsy_vec_exact())
+    if (!rnsy_vec_exact() || force_congruence)
     {
         quiet = 1;
         memcpy(rz, z, bytes);
@@ -476,6 +478,31 @@ int main(int argc, char **argv)
     gmp_randinit_default(rs);
     gmp_randseed_ui(rs, seed);
     printf("seed %lu, %d iterations per size\n", seed, iters);
+#ifdef HAVE_VEC
+    if (argc > 3 && strcmp(argv[3], "big") == 0)
+    {
+        // large s (loop-form batch kernel): schoolbook and karatsuba
+        // channel products, against the reference lane by lane
+        int big[] = { 5000, 9000, 16384, 32768, 65536 };
+        int km[] = { 0, 8 };
+        int bi, ki;
+        for (ki = 0; ki < 2; ki++)
+        {
+            rnsyb_kara_min = km[ki];
+            force_congruence = (km[ki] > 0);
+            for (bi = 0; bi < (int)(sizeof(big) / sizeof(big[0])); bi++)
+            {
+                int nc = rnsyb_choose_n(big[bi]);
+                printf("%5d bits, karatsuba min %d: n = %d\n", big[bi], km[ki], nc);
+                fails += test_batch(big[bi], nc, iters, rs);
+            }
+        }
+        rnsyb_kara_min = 0;
+        printf("%s: %d failures\n", fails ? "FAILED" : "PASSED", fails);
+        gmp_randclear(rs);
+        return fails != 0;
+    }
+#endif
     for (s = 0; s < (int)(sizeof(sizes) / sizeof(sizes[0])); s++)
         fails += test_size(sizes[s], iters, rs);
 #ifdef HAVE_VEC

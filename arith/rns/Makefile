@@ -48,6 +48,13 @@ rns_yao_test: rns_yao_test.o $(YOBJS) $(OBJS)
 rns_bench: rns_bench.o $(YOBJS) $(OBJS) $(AE_OBJS)
 	$(CC) $(ARCH) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
+# above 16400 bits (handoff 4.7): karatsuba REDC vs template vs large-s Yao (AVX-512)
+big_bench: big_bench.o $(YOBJS) $(OBJS) $(AE_OBJS)
+	$(CC) $(ARCH) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+big_bench.o: big_bench.c rns.h rns_yao.h
+	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -Wno-comment -c -o $@ $<
+
 rns_bench.o: rns_bench.c rns.h rns_yao.h rns_vec52.h
 	$(CC) $(CPPFLAGS) $(AE_FLAGS) $(ARCH) $(CFLAGS) -Wno-comment -c -o $@ $<
 
@@ -67,6 +74,6 @@ rns_yaob_avx2.o: rns_yaob_avx2.c $(HDRS)
 	$(CC) $(CPPFLAGS) $(ARCH) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.o rns_test rns_bench rns_yao_test
+	rm -f *.o rns_test rns_bench rns_yao_test big_bench
 
 .PHONY: all bench clean

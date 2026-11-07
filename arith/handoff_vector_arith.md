@@ -469,6 +469,17 @@ A test matrix to run after each of §4.1-4.5:
 
 ### 4.7 Above 16400 bits (decided: benchmark three options)
 
+**Done (2026-11-07): `rns_design.md` §0f, `arith/rns/big_bench.c`.** Large-s
+Yao (s up to 128, loop forms, exact fold) with karatsuba on all five
+channel products (`rnsyb_kara_min` 24) is 2.4-3.3x faster than the
+karatsuba REDC at 16k-64k bits (and 6-8x faster than GMP); the template
+loop form loses above 24k. Yao's channel count stays <= 11 (constants must
+fit 52 bits), so large sizes grow s. AVX-ECM's RNS backend now covers the
+crossover .. ~66k bits; ECM finds match radix at 10k / 20k bits, 1.75-1.9x
+faster end to end. The karatsuba REDC remains above ~66k bits.
+
+Original notes follow.
+
 AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
 (`veckmul_redc` / `vecksqr_redc` in `vecarith52_special.c`, built on
 `kmuln` / `ksqrn` / `tmuln`). Benchmark these, at 16k-64k bits:

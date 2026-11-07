@@ -333,16 +333,24 @@ static double batch_cost(int n, int s, int shifted)
     return n * (5.0 * s * s + 4.0 * s + 14.0) + 4.0 * n * n * s;
 }
 
+// measured with big_bench (Rocket Lake, IFMA): karatsuba while s >= 48
+// (one level from s ~ 58, two at s = 127) was best or tied at 16k..64k
+// bits; 16 and 32 lose up to 10% at some sizes
+int rnsyb_kara_min = 24;
+
 int rnsyb_choose_n(int maxbits)
 {
-    int n, best = 0;
+    int n, best = 0, pass;
     double bestc = 1e30;
+    // pass 0: s <= RNSY_MAXS_UNROLL (the unrolled kernel); pass 1, only if
+    // nothing fits: larger s (loop forms)
+    for (pass = 0; pass < 2 && best == 0; pass++)
     for (n = 2; n <= MAXN; n++)
     {
         rnsy_fixed_t *fx;
         int s = capacity_s(maxbits, n);
         double c;
-        if (s > RNSY_MAXS)
+        if (s > (pass ? RNSY_MAXS : RNSY_MAXS_UNROLL))
             continue;
         c = batch_cost(n, s, 0);
         if (c >= bestc)
@@ -407,7 +415,7 @@ static void build_vconst(rnsy_ctx_t *ctx)
     uint64_t *p;
     mpz_t t;
 
-    if (fx->n != NCH || fx->shifted || !fx->cneg)
+    if (fx->n != NCH || fx->shifted || !fx->cneg || fx->s > RNSY_MAXS_UNROLL)
     {
         ctx->vblock = NULL;
         return;
@@ -495,6 +503,25 @@ static void build_bconst(rnsy_ctx_t *ctx)
     ctx->bK = p; p += zn * (zs + 2);
     ctx->bEb = p; p += zn * (zs + 1);
     ctx->bEc = p; p += zn * (zs + 1);
+    ctx->bbig = (s > RNSY_MAXS_UNROLL) ? rns_aligned_alloc(RNSYB_BIG_VECS(s) * NCH) : NULL;
+    ctx->bkconst = NULL;
+    if (s > RNSY_MAXS_UNROLL)
+    {
+        // f1_i, g1_j, g2_j as s digits, each broadcast to the 8 lanes
+        mpz_t *cst[3];
+        int c, l;
+        cst[0] = ctx->f1_b; cst[1] = fx->g1_c; cst[2] = ctx->g2_c;
+        ctx->bkconst = rns_aligned_alloc(3 * zn * zs * RNSYB_KVEC);
+        for (c = 0; c < 3; c++)
+            for (i = 0; i < n; i++)
+            {
+                uint64_t dg[RNSY_MAXS];
+                digits_mpz(dg, s, 1, cst[c][i]);
+                for (k = 0; k < s; k++)
+                    for (l = 0; l < RNSYB_KVEC; l++)
+                        ctx->bkconst[(((size_t)c * zn + (size_t)i) * zs + (size_t)k) * RNSYB_KVEC + (size_t)l] = dg[k];
+            }
+    }
 
     for (i = 0; i < n; i++)
     {
@@ -636,6 +663,10 @@ void rnsy_ctx_free(rnsy_ctx_t *ctx)
     if (ctx->vblock)
         rns_vfree(ctx->vblock);
     rns_vfree(ctx->bblock);
+    if (ctx->bbig)
+        rns_vfree(ctx->bbig);
+    if (ctx->bkconst)
+        rns_vfree(ctx->bkconst);
     free(ctx);
 }
 

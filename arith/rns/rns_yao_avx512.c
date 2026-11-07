@@ -21,6 +21,8 @@
 
 int rnsy_vec_exact(void)
 {
+    // (the large-s batch kernel with karatsuba, s >= 2 * rnsyb_kara_min,
+    // is not exact: its constant products fold differently)
     return !RNSY_COLUMN_FOLD;
 }
 

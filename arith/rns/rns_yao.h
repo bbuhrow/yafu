@@ -36,7 +36,17 @@
 
 #define RNSY_NCH 8          // SIMD lanes (and n for the one-number kernel)
 #define RNSY_MAXN 16        // max channels per base
-#define RNSY_MAXS 10        // max words per channel (vector kernels)
+#define RNSY_MAXS 128       // max words per channel
+#define RNSY_MAXS_UNROLL 10 // batch kernel: fully unrolled for s <= this,
+                            // loop forms (and karatsuba) above
+// vectors of large-s batch scratch (ctx->bbig) for s words per channel
+#define RNSYB_BIG_VECS(s) (32 * (size_t)(s) + 256)
+// words per vector of the batch kernel this build has (bkconst layout)
+#ifdef RNS_HAVE_AVX2
+#define RNSYB_KVEC 4
+#else
+#define RNSYB_KVEC 8
+#endif
 
 typedef struct
 {
@@ -101,6 +111,10 @@ typedef struct
     uint64_t *bEb, *bEc;                // [ch][digit], s+1 digits
     uint64_t *balpha;                   // [i][digit][16]: alpha * |-M_C|_{b_i}, alpha < 16
     uint64_t *bscratch;                 // n*s vectors
+    uint64_t *bbig;                     // large-s scratch (s > RNSY_MAXS_UNROLL), else NULL
+    uint64_t *bkconst;                  // large s: f1, g1, g2 digits as broadcast
+                                        // vectors [3][n][s] (karatsuba constant products),
+                                        // RNSYB_KVEC words per vector
 } rnsy_ctx_t;
 
 // fixed setup for n channels per base; NULL if the extension constants
@@ -145,6 +159,9 @@ void rnsy_vpowm_avx512(rnsy_ctx_t *ctx, uint64_t *d, uint64_t *b, mpz_t e);
 // (AVX2 + FMA, two 4-lane halves); rnsyb_vmulmod etc. name whichever this
 // build has (RNSYB_HAVE_VEC).
 uint64_t *rnsyb_alloc(rnsy_ctx_t *ctx);         // (2*n*s + 1) * 8 words
+// large-s batch kernel: channel products by karatsuba down to this many
+// words per operand, schoolbook below (0 = schoolbook always)
+extern int rnsyb_kara_min;
 void rnsyb_vset_lane(rnsy_ctx_t *ctx, uint64_t *v, int lane, uint64_t *x);
 void rnsyb_vget_lane(rnsy_ctx_t *ctx, uint64_t *x, uint64_t *v, int lane);
 #ifdef RNS_HAVE_AVX512
