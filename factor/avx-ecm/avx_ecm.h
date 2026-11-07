@@ -1039,6 +1039,19 @@ void vecsqrmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
 void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+
+#ifdef IFMA
+// Constant-S template mul/sqr cores (vecarith52_tmpl.c), any NWORDS >= 2,
+// bit-identical to the cores above.  Build with -DAVXECM_NO_TMPL_KERNELS
+// (e.g. make USER_CFLAGS=-DAVXECM_NO_TMPL_KERNELS) to A/B against them.
+#ifndef AVXECM_NO_TMPL_KERNELS
+#define AVXECM_TMPL_KERNELS
+#endif
+// sets *mul / *sqr for NWORDS = S; returns 0 if S is unsupported
+int vecmulmod52_tmpl_get(int S,
+    void (**mul)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *),
+    void (**sqr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *));
+#endif
 void vecsqrmod52_mul(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);

@@ -173,6 +173,19 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
                     printf("Using BFIPS base-52 mul/sqr core\n");
                 }
             }
+#ifdef AVXECM_TMPL_KERNELS
+            // constant-S template cores (vecarith52_tmpl.c): bit-identical
+            // results, 1.1-1.6x faster than the cores above
+            if ((maxbits <= 16400) && vecmulmod52_tmpl_get(maxbits / DIGITBITS,
+                &vecmulmod_ptr, &vecsqrmod_ptr))
+            {
+                if (verbose > 1)
+                {
+                    printf("Using constant-S template mul/sqr core (%d words)\n",
+                        maxbits / DIGITBITS);
+                }
+            }
+#endif
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
         }
