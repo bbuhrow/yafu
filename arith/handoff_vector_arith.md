@@ -153,6 +153,56 @@ A/B tests.
 
 ### 4.2 AVX-512F without IFMA (FP emulation) (user item 2)
 
+**Template part done (2026-11-07); the RNS kernels are not ported yet.**
+* `vecarith52_tmpl.c` builds for every `USE_AVX512F` build. Without
+  `IFMA` (`AE_FP`) a product is `t = fma_rz(x, y, 2^104)` (hi, biased) and
+  `fma_rz(x, y, 2^104 + 2^52 - t)` (lo, biased): 2 FMA + 1 sub + 2 integer
+  adds. Raw bit patterns are summed and the biases removed once per column
+  (`np * bias`, mod 2^64). A, B, N are converted to double once per call into
+  `mdata->fpwork` (new `vec_monty_t` field, 3 * words vectors, allocated in
+  `vec_monty_alloc`), m_k is stored as double in `s`. m_k itself comes out
+  of the FP lo sequence as an exact double (no convert on the critical path).
+  `AE_TMPL_NO_CARRY_TRICK` is IFMA-only.
+* `avx_ecm.h` defines `AVXECM_TMPL_KERNELS` for all AVX-512F builds, so
+  non-IFMA yafu now uses the template and exact word sizing. The kept
+  routines (add/sub, `vecmul52_1`, `vec_simul_addsub52`) have no IFMA
+  branches, so the exact-NWORDS audit of §9 carries over.
+* `ae_bench`: `make NOIFMA=1` builds the non-IFMA bench (FMA-calibrated
+  cycle; runs on IFMA machines too).
+* Verified (Rocket Lake running the non-IFMA code): `ae_bench -t` bit-exact
+  for all 75 template cases S = 2..80 (unrolled and `sN`), `-neg` fails as
+  intended, `-a` fails only at 1-2 spare bits; IFMA `ae_bench -t` and the
+  `rns_bench` AE-tmpl timings unchanged. MSVC v143 and ClangCL compile it
+  for `avx512` (not run: `ae_bench` is gcc-only).
+* Kernel speed vs the old non-IFMA cores, powm per number: 1.5x at 416
+  bits, 1.6x at 1040, 1.4x at 1664 and 1872, 1.3x at 4160.
+* yafu ECM, non-IFMA build (`make USE_AVX512=1 USE_AVX512IFMA=`), template
+  vs `-DAVXECM_NO_TMPL_KERNELS`, B1=200000, 8 curves, `taskset -c 3`, min
+  of 2, seconds:
+
+| bits | words old/new | stage 1 old -> new | | stage 2 old -> new | |
+|---:|---:|---:|---:|---:|---:|
+| 400 | 8 / 8 | 0.474 -> 0.320 | 1.48x | 0.286 -> 0.218 | 1.31x |
+| 520 | 12 / 11 | 0.948 -> 0.570 | 1.66x | 0.501 -> 0.350 | 1.43x |
+| 700 | 16 / 14 | 1.604 -> 0.919 | 1.75x | 0.804 -> 0.520 | 1.55x |
+| 1036 | 20 / 20 | 2.412 -> 1.881 | 1.28x | 1.088 -> 0.946 | 1.15x |
+| 1600 | 32 / 31 | 5.164 -> 3.585 | 1.44x | 2.280 -> 1.659 | 1.37x |
+| 2048 | 40 / 40 | 7.710 -> 5.839 | 1.32x | 3.302 -> 2.585 | 1.28x |
+
+* ECM factor finding, non-IFMA template build: p15 found (64 curves,
+  B1=3000) at 400, 520, 700, 1036, 1100, 1250, 1600, 2048, 3000 bits.
+* P-1/P+1 (`avxppm1.c`) is **not reachable from yafu**: `pp1.c` runs
+  GMP-ECM (`if (1)` before the `vecPP1` branch) and `vecPM1` is only called
+  from the AVX-ECM demo (`factor/avx-ecm/demo`, VS project only). Its three
+  sizing sites compile with the template but were not run.
+* Remaining for 4.2: port the RNS kernels (`rns_avx512.c`, `rns_yao_vec.h`,
+  `rns_yao_avx512.c`, `rns_yaob_avx512.c`). They use `LO52`/`HI52` both
+  paired and as lo-only folds with small or unnormalized operands (IFMA
+  ignores bits above 52, the FP path must mask), and their constant
+  tables could be stored as doubles at setup.
+
+Original notes follow.
+
 Goal: everything still builds and works on AVX-512F machines without
 IFMA (Skylake-X, Cascade Lake), using the FP-emulated 52-bit products.
 

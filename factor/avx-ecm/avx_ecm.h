@@ -969,9 +969,9 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
 void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 
-#ifdef IFMA
+#ifdef USE_AVX512F
 // Constant-S template mul/sqr cores (arith/vecmont/vecarith52_tmpl.c), any NWORDS >= 2,
-// bit-identical to the cores above.  Build with -DAVXECM_NO_TMPL_KERNELS
+// IFMA or FP-emulated (no IFMA), bit-identical to the cores above.  Build with -DAVXECM_NO_TMPL_KERNELS
 // (e.g. make USER_CFLAGS=-DAVXECM_NO_TMPL_KERNELS) to A/B against them.
 #ifndef AVXECM_NO_TMPL_KERNELS
 #define AVXECM_TMPL_KERNELS

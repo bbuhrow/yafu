@@ -64,6 +64,7 @@ static double calibrate_cycle_ns(long iters)
         t0 = now_sec();
         for (i = 0; i < iters; i++)
         {
+#ifdef IFMA
             __asm__ volatile(
                 "vpmadd52luq %%zmm1, %%zmm2, %%zmm10\n\t"
                 "vpmadd52luq %%zmm1, %%zmm2, %%zmm11\n\t"
@@ -75,6 +76,20 @@ static double calibrate_cycle_ns(long iters)
                 "vpmadd52luq %%zmm1, %%zmm2, %%zmm17\n\t"
                 ::: "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
                 "xmm16", "xmm17");
+#else
+            // no IFMA: calibrate on 512-bit FMA throughput instead
+            __asm__ volatile(
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm10\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm11\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm12\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm13\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm14\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm15\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm16\n\t"
+                "vfmadd231pd %%zmm1, %%zmm2, %%zmm17\n\t"
+                ::: "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
+                "xmm16", "xmm17");
+#endif
         }
         t0 = (now_sec() - t0) / (iters * 8.0) * 1e9;
         if (t0 < best)
@@ -718,7 +733,11 @@ int main(int argc, char **argv)
     gmp_randinit_default(rs);
     gmp_randseed_ui(rs, seed);
     cyc = calibrate_cycle_ns(20000000);
+    #ifdef IFMA
     printf("seed %lu; IFMA-calibrated cycle %.4f ns (%.2f GHz)\n", seed, cyc, 1.0 / cyc);
+#else
+    printf("seed %lu; no IFMA: FMA-calibrated cycle %.4f ns (%.2f GHz); template = FP-emulated\n", seed, cyc, 1.0 / cyc);
+#endif
 
     if (do_addsub)
     {

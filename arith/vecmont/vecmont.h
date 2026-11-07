@@ -112,6 +112,8 @@ typedef struct
     uint32_t NBLOCKS;
     int *vnbits;
     int use_vnbits;
+    base_t *fpwork;     // 3 * NWORDS vectors of double operands for the
+                        // non-IFMA template cores (per mdata = per thread)
 } vec_monty_t;
 
 typedef void (*vecmont_mul_fn)(vec_bignum_t *a, vec_bignum_t *b,
@@ -119,8 +121,9 @@ typedef void (*vecmont_mul_fn)(vec_bignum_t *a, vec_bignum_t *b,
 typedef void (*vecmont_sqr_fn)(vec_bignum_t *a, vec_bignum_t *c,
     vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 
-#if defined(USE_AVX512F) && defined(IFMA)
-// Constant-S template mul/sqr cores (vecarith52_tmpl.c), any NWORDS >= 2:
+#if defined(USE_AVX512F)
+// Constant-S template mul/sqr cores (vecarith52_tmpl.c), any NWORDS >= 2,
+// IFMA or (without IFMA) FP-emulated products, bit-identical results:
 // c = a*b/R mod N in almost-Montgomery form (c < R).  Inputs < R with
 // normalized 52-bit words; c may alias a or b; s (>= S words) must not
 // alias a, b or c.  N needs >= 3 spare bits below R if the outputs feed

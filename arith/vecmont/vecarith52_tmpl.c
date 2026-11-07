@@ -46,12 +46,32 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Inputs: a, b < R with normalized 52-bit words.  c may alias a or b.
  * s (scratch, >= S words) must not alias a, b or c.
+ *
+ * Without IFMA (AVX-512F only: Skylake-X, Cascade Lake) the same template
+ * runs on FP-emulated 52x52 products (AE_FP).  Operands are converted to
+ * double once per call (A, B, N into mdata->fpwork, m_k into s as doubles),
+ * and one product x*y < 2^104 yields both halves:
+ *   t  = fma_rz(x, y, 2^104)          bits(t)  = BIAS_HI + floor(x*y / 2^52)
+ *   t' = fma(x, y, 2^104 + 2^52 - t)  bits(t') = BIAS_LO + (x*y mod 2^52)
+ * Both are exact.  The raw bit patterns are accumulated with integer adds
+ * and the biases are removed once per column (count * bias, mod 2^64), so a
+ * product costs 2 FMA + 1 FP sub + 2 integer adds.  Results are identical
+ * to the IFMA version.
  */
 
 #include "vecmont.h"
 
-#if defined(USE_AVX512F) && defined(IFMA)
+#if defined(USE_AVX512F)
 #include <immintrin.h>
+
+#ifdef IFMA
+#define AE_FP 0
+#else
+#define AE_FP 1
+#ifdef AE_TMPL_NO_CARRY_TRICK
+#error "AE_TMPL_NO_CARRY_TRICK is IFMA-only"
+#endif
+#endif
 
 // Fully unroll the column loop for S <= this; above it the column loop is
 // kept and only the inner dot-product loops are unrolled.
@@ -88,8 +108,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 #define AE_LD(p, i) _mm512_load_si512((const void *)((p) + (size_t)(i) * 8))
 #define AE_ST(p, i, v) _mm512_store_si512((void *)((p) + (size_t)(i) * 8), (v))
+#if !AE_FP
+// operands: 52-bit integers
+typedef __m512i ae_v;
+#define AE_LDV(p, i) AE_LD(p, i)
 #define AE_LO(acc, x, y) _mm512_madd52lo_epu64((acc), (x), (y))
 #define AE_HI(acc, x, y) _mm512_madd52hi_epu64((acc), (x), (y))
+// lo and hi halves of x*y added to l and h
+#define AE_MAC(l, h, x, y) do { (l) = AE_LO((l), (x), (y)); (h) = AE_HI((h), (x), (y)); } while (0)
+#else
+// operands: the same values as doubles (exact, < 2^52), stored as raw bits
+typedef __m512d ae_v;
+#define AE_LDV(p, i) _mm512_castsi512_pd(AE_LD(p, i))
+#define AE_RZ (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)
+#define AE_BIAS_HI 0x4670000000000000ULL    // bits of 2^104
+#define AE_BIAS_LO 0x4330000000000000ULL    // bits of 2^52
+// needs ae_v dhi = 2^104, dlo = 2^104 + 2^52 in scope; adds biased bits
+#define AE_MAC(l, h, x, y) do {                                             \
+        __m512d _t = _mm512_fmadd_round_pd((x), (y), dhi, AE_RZ);           \
+        (h) = _mm512_add_epi64((h), _mm512_castpd_si512(_t));               \
+        _t = _mm512_fmadd_round_pd((x), (y), _mm512_sub_pd(dlo, _t), AE_RZ); \
+        (l) = _mm512_add_epi64((l), _mm512_castpd_si512(_t));               \
+    } while (0)
+#endif
 
 #ifdef AE_TMPL_COUNT_SLOW
 uint64_t ae_tmpl_slow_count = 0;
@@ -117,19 +158,24 @@ static AE_NOINLINE void ae_tmpl_final_sub(uint64_t *C,
  * (lo sums + previous hi sums + carry); *hk receives this column's hi sums.
  * mprev is m_(k-1) in a register (avoids a store-forward on the critical
  * path); M holds m_0..m_(k-2) (or Mr does, when register-resident).
+ * *np receives the number of products summed (FP: for the bias removal).
  */
 AE_INLINE __m512i ae_col(const uint64_t *A, const uint64_t *B,
-    const uint64_t *N, const uint64_t *M, const __m512i *Mr, __m512i mprev,
-    __m512i hiprev, __m512i carry, __m512i *hk, const int k, const int S,
-    const int SQR, const int MREG, const int FULL)
+    const uint64_t *N, const uint64_t *M, const ae_v *Mr, ae_v mprev,
+    __m512i hiprev, __m512i carry, __m512i *hk, int *np, const int k,
+    const int S, const int SQR, const int MREG, const int FULL)
 {
     const __m512i zero = _mm512_setzero_si512();
+#if AE_FP
+    const __m512d dhi = _mm512_castsi512_pd(_mm512_set1_epi64((long long)AE_BIAS_HI));
+    const __m512d dlo = _mm512_castsi512_pd(_mm512_set1_epi64((long long)(AE_BIAS_HI + 1)));
+#endif
     __m512i la0 = zero, ha0 = zero, la1 = zero, ha1 = zero;
     __m512i lm0 = zero, hm0 = zero, lm1 = zero, hm1 = zero;
     const int ilo = (k - (S - 1) > 0) ? k - (S - 1) : 0;
     const int ihi = (k < S - 1) ? k : S - 1;
     const int mhi = (k - 1 < S - 1) ? k - 1 : S - 1;    // last m index
-    int i;
+    int i, n = 0;
 
     if (!SQR)
     {
@@ -138,55 +184,59 @@ AE_INLINE __m512i ae_col(const uint64_t *A, const uint64_t *B,
             AE_UNROLL_ALL
             for (i = ilo; i <= ihi; i++)
             {
-                __m512i x = AE_LD(A, i), y = AE_LD(B, k - i);
-                if ((i - ilo) & 1) { la1 = AE_LO(la1, x, y); ha1 = AE_HI(ha1, x, y); }
-                else { la0 = AE_LO(la0, x, y); ha0 = AE_HI(ha0, x, y); }
+                ae_v x = AE_LDV(A, i), y = AE_LDV(B, k - i);
+                if ((i - ilo) & 1) AE_MAC(la1, ha1, x, y);
+                else AE_MAC(la0, ha0, x, y);
             }
         }
         else
         {
             for (i = ilo; i + 1 <= ihi; i += 2)
             {
-                __m512i x0 = AE_LD(A, i), y0 = AE_LD(B, k - i);
-                __m512i x1 = AE_LD(A, i + 1), y1 = AE_LD(B, k - i - 1);
-                la0 = AE_LO(la0, x0, y0); ha0 = AE_HI(ha0, x0, y0);
-                la1 = AE_LO(la1, x1, y1); ha1 = AE_HI(ha1, x1, y1);
+                ae_v x0 = AE_LDV(A, i), y0 = AE_LDV(B, k - i);
+                ae_v x1 = AE_LDV(A, i + 1), y1 = AE_LDV(B, k - i - 1);
+                AE_MAC(la0, ha0, x0, y0);
+                AE_MAC(la1, ha1, x1, y1);
             }
             if (i <= ihi)
             {
-                __m512i x = AE_LD(A, i), y = AE_LD(B, k - i);
-                la0 = AE_LO(la0, x, y); ha0 = AE_HI(ha0, x, y);
+                ae_v x = AE_LDV(A, i), y = AE_LDV(B, k - i);
+                AE_MAC(la0, ha0, x, y);
             }
         }
+        n = ihi - ilo + 1;
     }
     else
     {
         // off-diagonal products i < k - i, doubled, plus the diagonal
+        int nd;
         if (FULL)
         {
             AE_UNROLL_ALL
             for (i = ilo; 2 * i < k; i++)
             {
-                __m512i x = AE_LD(A, i), y = AE_LD(A, k - i);
-                if ((i - ilo) & 1) { la1 = AE_LO(la1, x, y); ha1 = AE_HI(ha1, x, y); }
-                else { la0 = AE_LO(la0, x, y); ha0 = AE_HI(ha0, x, y); }
+                ae_v x = AE_LDV(A, i), y = AE_LDV(A, k - i);
+                if ((i - ilo) & 1) AE_MAC(la1, ha1, x, y);
+                else AE_MAC(la0, ha0, x, y);
             }
         }
         else
         {
             for (i = ilo; 2 * (i + 1) < k; i += 2)
             {
-                __m512i x0 = AE_LD(A, i), y0 = AE_LD(A, k - i);
-                __m512i x1 = AE_LD(A, i + 1), y1 = AE_LD(A, k - i - 1);
-                la0 = AE_LO(la0, x0, y0); ha0 = AE_HI(ha0, x0, y0);
-                la1 = AE_LO(la1, x1, y1); ha1 = AE_HI(ha1, x1, y1);
+                ae_v x0 = AE_LDV(A, i), y0 = AE_LDV(A, k - i);
+                ae_v x1 = AE_LDV(A, i + 1), y1 = AE_LDV(A, k - i - 1);
+                AE_MAC(la0, ha0, x0, y0);
+                AE_MAC(la1, ha1, x1, y1);
             }
             if (2 * i < k)
             {
-                __m512i x = AE_LD(A, i), y = AE_LD(A, k - i);
-                la0 = AE_LO(la0, x, y); ha0 = AE_HI(ha0, x, y);
+                ae_v x = AE_LDV(A, i), y = AE_LDV(A, k - i);
+                AE_MAC(la0, ha0, x, y);
             }
         }
+        nd = (k + 1) / 2 - ilo;                 // i = ilo .. ceil(k/2) - 1
+        n = (nd > 0) ? 2 * nd : 0;
         la0 = _mm512_add_epi64(la0, la1);
         ha0 = _mm512_add_epi64(ha0, ha1);
         la0 = _mm512_add_epi64(la0, la0);
@@ -194,9 +244,9 @@ AE_INLINE __m512i ae_col(const uint64_t *A, const uint64_t *B,
         la1 = ha1 = zero;
         if (((k & 1) == 0) && (k / 2 <= S - 1))
         {
-            __m512i x = AE_LD(A, k / 2);
-            la1 = AE_LO(la1, x, x);
-            ha1 = AE_HI(ha1, x, x);
+            ae_v x = AE_LDV(A, k / 2);
+            AE_MAC(la1, ha1, x, x);
+            n++;
         }
     }
 
@@ -207,10 +257,10 @@ AE_INLINE __m512i ae_col(const uint64_t *A, const uint64_t *B,
         AE_UNROLL_ALL
         for (i = ilo; i <= mhi; i++)
         {
-            __m512i x = (i == k - 1) ? mprev : (MREG ? Mr[i] : AE_LD(M, i));
-            __m512i y = AE_LD(N, k - i);
-            if ((i - ilo) & 1) { lm1 = AE_LO(lm1, x, y); hm1 = AE_HI(hm1, x, y); }
-            else { lm0 = AE_LO(lm0, x, y); hm0 = AE_HI(hm0, x, y); }
+            ae_v x = (i == k - 1) ? mprev : (MREG ? Mr[i] : AE_LDV(M, i));
+            ae_v y = AE_LDV(N, k - i);
+            if ((i - ilo) & 1) AE_MAC(lm1, hm1, x, y);
+            else AE_MAC(lm0, hm0, x, y);
         }
     }
     else
@@ -218,22 +268,25 @@ AE_INLINE __m512i ae_col(const uint64_t *A, const uint64_t *B,
         int iend = (mhi == k - 1) ? mhi - 1 : mhi;      // loop over stored m
         for (i = ilo; i + 1 <= iend; i += 2)
         {
-            __m512i x0 = AE_LD(M, i), y0 = AE_LD(N, k - i);
-            __m512i x1 = AE_LD(M, i + 1), y1 = AE_LD(N, k - i - 1);
-            lm0 = AE_LO(lm0, x0, y0); hm0 = AE_HI(hm0, x0, y0);
-            lm1 = AE_LO(lm1, x1, y1); hm1 = AE_HI(hm1, x1, y1);
+            ae_v x0 = AE_LDV(M, i), y0 = AE_LDV(N, k - i);
+            ae_v x1 = AE_LDV(M, i + 1), y1 = AE_LDV(N, k - i - 1);
+            AE_MAC(lm0, hm0, x0, y0);
+            AE_MAC(lm1, hm1, x1, y1);
         }
         if (i <= iend)
         {
-            __m512i x = AE_LD(M, i), y = AE_LD(N, k - i);
-            lm0 = AE_LO(lm0, x, y); hm0 = AE_HI(hm0, x, y);
+            ae_v x = AE_LDV(M, i), y = AE_LDV(N, k - i);
+            AE_MAC(lm0, hm0, x, y);
         }
         if (mhi == k - 1 && mhi >= ilo)
         {
-            __m512i y = AE_LD(N, 1);
-            lm1 = AE_LO(lm1, mprev, y); hm1 = AE_HI(hm1, mprev, y);
+            ae_v y = AE_LDV(N, 1);
+            AE_MAC(lm1, hm1, mprev, y);
         }
     }
+    if (mhi >= ilo)
+        n += mhi - ilo + 1;
+    *np = n;
 
     *hk = _mm512_add_epi64(_mm512_add_epi64(ha0, ha1), _mm512_add_epi64(hm0, hm1));
     return _mm512_add_epi64(
@@ -242,28 +295,82 @@ AE_INLINE __m512i ae_col(const uint64_t *A, const uint64_t *B,
 }
 
 AE_INLINE void ae_montmul_t(uint64_t *C, const uint64_t *A, const uint64_t *B,
-    const uint64_t *N, const uint64_t *rho, uint64_t *M,
+    const uint64_t *N, const uint64_t *rho, uint64_t *M, uint64_t *W,
     const int S, const int SQR, const int FULL, const int MREG)
 {
     const __m512i zero = _mm512_setzero_si512();
     const __m512i mask = _mm512_set1_epi64(0xfffffffffffffULL);
+    AE_UNUSED const __m512i one = _mm512_set1_epi64(1);
+    ae_v Mr[(AE_TMPL_MREG_MAX > 0) ? AE_TMPL_MREG_MAX : 1];
+    __m512i carry = zero, hiprev = zero, hk, acc;
+    const uint64_t *Ao = A, *Bo = B, *No = N;   // product operands
+    __mmask8 tm;
+    int k, np;
+#if !AE_FP
     const __m512i vrho = _mm512_load_si512((const void *)rho);
     const __m512i n0 = AE_LD(N, 0);
-    AE_UNUSED const __m512i one = _mm512_set1_epi64(1);
-    __m512i Mr[(AE_TMPL_MREG_MAX > 0) ? AE_TMPL_MREG_MAX : 1];
-    __m512i carry = zero, hiprev = zero, mprev = zero, hk, acc;
-    __mmask8 tm;
-    int k;
+    __m512i mprev = zero;
+    (void)W;
+#else
+    const __m512d dhi = _mm512_castsi512_pd(_mm512_set1_epi64((long long)AE_BIAS_HI));
+    const __m512d dlo = _mm512_castsi512_pd(_mm512_set1_epi64((long long)(AE_BIAS_HI + 1)));
+    const __m512d d52 = _mm512_castsi512_pd(_mm512_set1_epi64((long long)AE_BIAS_LO));
+    const __m512d rhod = _mm512_cvtepu64_pd(_mm512_load_si512((const void *)rho));
+    __m512d mprev = _mm512_setzero_pd(), n0;
+    int j;
 
-#define AE_COLUMN_BODY                                                      \
-    acc = ae_col(A, B, N, M, Mr, mprev, hiprev, carry, &hk, k, S, SQR,      \
-        MREG, FULL);                                                        \
-    if (k < S)                                                              \
-    {                                                                       \
+    // convert the operands to double once (W: 3S vectors; B shares A's
+    // slot when squaring).  A may alias C, so this must happen first.
+    for (j = 0; j < S; j++)
+    {
+        AE_ST(W, j, _mm512_castpd_si512(_mm512_cvtepu64_pd(AE_LD(A, j))));
+        AE_ST(W + (size_t)2 * (size_t)S * 8, j, _mm512_castpd_si512(_mm512_cvtepu64_pd(AE_LD(N, j))));
+    }
+    if (!SQR)
+    {
+        for (j = 0; j < S; j++)
+            AE_ST(W + (size_t)S * 8, j, _mm512_castpd_si512(_mm512_cvtepu64_pd(AE_LD(B, j))));
+    }
+    Ao = W;
+    Bo = SQR ? W : W + (size_t)S * 8;
+    No = W + (size_t)2 * (size_t)S * 8;
+    n0 = AE_LDV(No, 0);
+#endif
+
+#if !AE_FP
+    // m_k = acc * rho mod 2^52 (IFMA uses the low 52 bits of acc)
+#define AE_MK_STEP                                                          \
         __m512i mk = AE_LO(zero, acc, vrho);                                \
         if (MREG) Mr[k] = mk; else AE_ST(M, k, mk);                         \
         hk = AE_HI(hk, mk, n0);                                             \
-        mprev = mk;                                                         \
+        mprev = mk;
+#define AE_FIX_BIAS
+#else
+#define AE_MK_STEP                                                          \
+        __m512d a52 = _mm512_cvtepu64_pd(_mm512_and_si512(acc, mask));      \
+        __m512d mt = _mm512_fmadd_round_pd(a52, rhod, dhi, AE_RZ);          \
+        mt = _mm512_fmadd_round_pd(a52, rhod, _mm512_sub_pd(dlo, mt), AE_RZ); \
+        __m512d mk = _mm512_sub_pd(mt, d52);        /* exact, < 2^52 */      \
+        if (MREG) Mr[k] = mk; else AE_ST(M, k, _mm512_castpd_si512(mk));    \
+        hk = _mm512_add_epi64(hk, _mm512_castpd_si512(                      \
+            _mm512_fmadd_round_pd(mk, n0, dhi, AE_RZ)));                    \
+        hk = _mm512_sub_epi64(hk, _mm512_set1_epi64((long long)AE_BIAS_HI)); \
+        mprev = mk;
+    // remove the biases of the np products summed in this column
+#define AE_FIX_BIAS                                                         \
+    acc = _mm512_sub_epi64(acc,                                             \
+        _mm512_set1_epi64((long long)((unsigned long long)(unsigned)np * AE_BIAS_LO)));         \
+    hk = _mm512_sub_epi64(hk,                                               \
+        _mm512_set1_epi64((long long)((unsigned long long)(unsigned)np * AE_BIAS_HI)));
+#endif
+
+#define AE_COLUMN_BODY                                                      \
+    acc = ae_col(Ao, Bo, No, M, Mr, mprev, hiprev, carry, &hk, &np, k, S,   \
+        SQR, MREG, FULL);                                                   \
+    AE_FIX_BIAS                                                             \
+    if (k < S)                                                              \
+    {                                                                       \
+        AE_MK_STEP                                                          \
         AE_LOW_CARRY                                                        \
     }                                                                       \
     else                                                                    \
@@ -306,6 +413,8 @@ AE_INLINE void ae_montmul_t(uint64_t *C, const uint64_t *A, const uint64_t *B,
     }
 #undef AE_COLUMN_BODY
 #undef AE_LOW_CARRY
+#undef AE_MK_STEP
+#undef AE_FIX_BIAS
 
     // carry out of column 2S-1 is the bit at R: result >= R, subtract N
     tm = _mm512_test_epi64_mask(carry, carry);
@@ -325,7 +434,7 @@ void vecmulmod52_s##S(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,    \
 {                                                                           \
     c->signmask = a->signmask ^ b->signmask;                                \
     ae_montmul_t(c->data, a->data, b->data, n->data, mdata->vrho, s->data,  \
-        S, 0, AE_FULL(S), AE_MREG(S));                                      \
+        mdata->fpwork, S, 0, AE_FULL(S), AE_MREG(S));                       \
     c->size = S;                                                            \
 }                                                                           \
 void vecsqrmod52_s##S(vec_bignum_t *a, vec_bignum_t *c,                     \
@@ -333,7 +442,7 @@ void vecsqrmod52_s##S(vec_bignum_t *a, vec_bignum_t *c,                     \
 {                                                                           \
     c->signmask = 0;                                                        \
     ae_montmul_t(c->data, a->data, a->data, n->data, mdata->vrho, s->data,  \
-        S, 1, AE_FULL(S), AE_MREG(S));                                      \
+        mdata->fpwork, S, 1, AE_FULL(S), AE_MREG(S));                       \
     c->size = S;                                                            \
 }
 
@@ -353,7 +462,7 @@ void vecmulmod52_sN(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,
     int S = (int)mdata->NWORDS;
     c->signmask = a->signmask ^ b->signmask;
     ae_montmul_t(c->data, a->data, b->data, n->data, mdata->vrho, s->data,
-        S, 0, 0, 0);
+        mdata->fpwork, S, 0, 0, 0);
     c->size = S;
 }
 
@@ -363,7 +472,7 @@ void vecsqrmod52_sN(vec_bignum_t *a, vec_bignum_t *c,
     int S = (int)mdata->NWORDS;
     c->signmask = 0;
     ae_montmul_t(c->data, a->data, a->data, n->data, mdata->vrho, s->data,
-        S, 1, 0, 0);
+        mdata->fpwork, S, 1, 0, 0);
     c->size = S;
 }
 

@@ -14,8 +14,15 @@ AE_DIR = ..
 VM_DIR = ../../../arith/vecmont
 AE_SRCS = vec_common vecarith52 vecarith52_common vecarith52_special
 AE_OBJS = $(addprefix ae_,$(addsuffix .o,$(AE_SRCS)))
-AE_FLAGS = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DUSE_AVX512IFMA -DIFMA \
-	-I../../../include -I../../../ytools -I$(AE_DIR)
+# make NOIFMA=1: AVX-512F only (FP-emulated products), e.g. for Skylake-X;
+# runs on IFMA machines too
+ifeq ($(NOIFMA),1)
+AE_ISA = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX
+ARCH = -march=skylake-avx512
+else
+AE_ISA = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DUSE_AVX512IFMA -DIFMA
+endif
+AE_FLAGS = $(AE_ISA) -I../../../include -I../../../ytools -I$(AE_DIR)
 TMPL_FLAGS ?=
 
 all: ae_bench
