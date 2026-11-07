@@ -621,9 +621,10 @@ command line flags affecting ecm:
 -B1ecm	<num>   B1 bound in the ECM method
 -B2ecm	<num>   B2 bound in the ECM method
 -ecm_path <path>	full path to ecm binary
--avxecm_rns_bits <num>	AVX-ECM (AVX-512 builds) uses RNS arithmetic instead of
-			radix-2^52 Montgomery for inputs of at least <num> bits (0 = never).
-			Default: built in (1200 bits with IFMA, 1500 without); ecmtune()
+-avxecm_rns_bits <num>	AVX-ECM (AVX-512 and AVX2 builds) uses RNS arithmetic instead
+			of radix-2^52 Montgomery for inputs of at least <num> bits (0 = never).
+			Default: built in (1200 bits with IFMA, 1500 with AVX-512F only,
+			1550 with AVX2); ecmtune()
 			measures this machine's crossover and writes it to yafu.ini.
 
 

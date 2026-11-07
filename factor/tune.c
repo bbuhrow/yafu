@@ -1454,7 +1454,7 @@ static void update_INI_key(const char *key, const char *value)
     printf("wrote %s=%s to yafu.ini\n", key, value);
 }
 
-#ifdef USE_AVX512F
+#if defined(USE_AVX512F) || defined(USE_AVX2)
 
 // seconds for one 8-curve AVX-ECM batch on n (1 thread), rns_bits as given
 static double ecmtune_time(fact_obj_t *fobj, mpz_t n, int rns_bits,
@@ -1601,7 +1601,7 @@ void ecm_rns_tune(fact_obj_t *fobj)
 
 void ecm_rns_tune(fact_obj_t *fobj)
 {
-    printf("ecmtune: AVX-ECM needs an AVX-512 build; nothing to tune\n");
+    printf("ecmtune: AVX-ECM needs an AVX-512 or AVX2 build; nothing to tune\n");
 }
 
 #endif

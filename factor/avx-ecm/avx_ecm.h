@@ -969,7 +969,7 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
 void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 
-#ifdef USE_AVX512F
+#if defined(USE_AVX512F) || defined(USE_AVX2)
 // Constant-S template mul/sqr cores (arith/vecmont/vecarith52_tmpl.c), any NWORDS >= 2,
 // IFMA or FP-emulated (no IFMA), bit-identical to the cores above.  Build with -DAVXECM_NO_TMPL_KERNELS
 // (e.g. make USER_CFLAGS=-DAVXECM_NO_TMPL_KERNELS) to A/B against them.
@@ -1082,6 +1082,13 @@ void vec_lane_set(vec_monty_t *mdata, vec_bignum_t *v, mpz_t src, int lane);
 void vec_set_raw_ui(vec_monty_t *mdata, vec_bignum_t *v, uint64_t x);
 void vec_monty_mulR(vec_monty_t *mdata, mpz_t x, mpz_t n);
 void vec_set_monty_one(vec_monty_t *mdata, vec_bignum_t *v, mpz_t n);
+
+// AVX2 builds (vecarith52_avx2.c): radix-2^52 add / sub, same results as
+// vecaddmod52 / vecsubmod52 / vec_simul_addsub52
+void vecaddmod52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void vecsubmod52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void vec_simul_addsub52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum,
+    vec_bignum_t *diff, vec_monty_t *mdata);
 
 // RNS backend.  avxecm_rns_fixed: the size-class tables for N (NULL if RNS
 // is unavailable for it); *words = n*s, the vector size the layout needs.

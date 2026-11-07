@@ -100,12 +100,78 @@ FP52; the default is 12.
   does), and MSVC needs `#pragma fenv_access(on)` in place of
   `-frounding-math`.
 
+## MXCSR: switch per call or once per run?
+
+MXCSR is per-thread state (saved and restored by the OS on context
+switches), so a worker thread could set round-toward-zero once around a
+batch of curves. Measured with `-DA2M_CALLER_RZ` (the benchmark sets RZ
+once for the whole run; the kernels don't touch MXCSR): **0-2% faster**,
+within run-to-run noise except at the smallest sizes (256-bit powm 4.12 /
+4.15 -> 4.04 / 4.07 us; 4096-bit sqr 1428 -> 1397 ns). One `stmxcsr` and
+two `ldmxcsr` cost a few cycles against >= 50 ns of work per call. Kept
+per call: rounding stays local to each kernel, so no other code in the
+thread runs under RZ.
+
+## RNS on AVX2 (done)
+
+The batch Yao kernel (`arith/rns/rns_yaob_kern.h`) is now written against
+a small vector layer (`rns_vec52.h`: `rns_vi` / `rns_vd`, `V_*` ops, the FP
+product helpers) and built twice: `rns_yaob_avx512.c` (RNS_VW 512) and
+`rns_yaob_avx2.c` (RNS_VW 256, `rnsyb_*_avx2`). The AVX2 build keeps the
+8-lane batch layout and runs each call as two 4-lane halves, so setup,
+lane get/set and AVX-ECM's layout are unchanged. AVX2 replacements:
+`vpsraq` by a biased logical shift, `vpcmpuq` by `vptest`, `vpermi2q` (the
+alpha' table) by `vpgatherqq`, `vcvtuqq2pd` by the 2^52 bias trick, and
+embedded RZ by an MXCSR switch per call (`rns_fp_rz_enter/leave`).
+`rns_yao_test` (both column-fold modes; exact mode bit for bit) passes with
+`make AVX2=1`; the objects have no zmm instructions.
+
+`rns_bench`, `make AVX2=1` (AVX2 template + Yao8, AVX2 code on Rocket
+Lake), powm us per number, every lane checked against mpz_powm:
+
+| bits | AVX2 tmpl | AVX2 Yao8 | mpz_powm | Yao8/tmpl | best/GMP |
+|---:|---:|---:|---:|---:|---:|
+| 256 | 3.8 | 13.9 | 7.2 | 0.28x | 1.87x |
+| 512 | 22.7 | 49.5 | 44.8 | 0.46x | 1.98x |
+| 1024 | 137.7 | 169.7 | 257.1 | 0.81x | 1.87x |
+| 1536 | 428.7 | 431.5 | 817.4 | 0.99x | 1.91x |
+| 2048 | 1012.0 | 819.4 | 1903.0 | 1.24x | 2.32x |
+| 3072 | 3088.0 | 2178.1 | 5727.7 | 1.42x | 2.63x |
+| 4096 | 6815.7 | 4615.8 | 12609.1 | 1.48x | 2.73x |
+
+## AVX-ECM on AVX2 (done)
+
+* Template: `arith/vecmont/vecarith52_tmpl.c` has an `#elif USE_AVX2`
+  section (the FP52 kernel above on the 8-lane `vec_bignum_t` layout, two
+  halves, one MXCSR switch per call; `AE2_FULL_MAX` 12).
+* `factor/avx-ecm/vecarith52_avx2.c`: `vecaddmod52_avx2`,
+  `vecsubmod52_avx2`, `vec_simul_addsub52_avx2` with the AVX-512 routines'
+  exact results.
+* `assign_mul_ptrs` (AVX2 builds): template cores at every size (loop form
+  above 32 words), AVX2 add/sub; RNS above the crossover. The old
+  fixed/BFIPS/karatsuba cores stay AVX-512 only; the Mersenne forms were
+  already never selected (`forceNoMersenne` is always 1).
+* yafu: `ecm.c` runs AVX-ECM in AVX2 builds when the CPU has AVX2
+  (`AVXECM_CPU_OK`); `prefer_gmpecm` defaults to 0 there as in AVX-512
+  builds. The Makefile compiles the two FP kernel objects with `-mfma
+  -frounding-math` only (elsewhere -mfma would let gcc contract other FP
+  code); MSVC / clang-cl use `fenv_access` / `STDC FENV_ACCESS` pragmas.
+  `ecmtune()` works in AVX2 builds; default `avxecm_rns_bits` 1550.
+* Verified (AVX2 code on Rocket Lake, binary without zmm): `ae_bench -t`
+  (`make AVX2=1`) bit-exact; yafu ECM finds p15s at 400-3000 bits with the
+  template and with RNS, with 4 threads; radix vs RNS identical finds with
+  fixed sigmas (1036, 2048, 3000 bits); **AVX2 vs IFMA build: identical
+  finds (lane, stage, sigma) at 520-3000 bits, both backends**. MSVC v143
+  and ClangCL compile the AVX2 ecm project.
+* `ecmtune()` (AVX2 build): crossover **1537 bits**; RNS 1.51x faster at
+  4096 bits (8-curve batch 5.63 s radix vs 3.73 s RNS at B1 = 20000).
+* AVX-ECM vs GMP-ECM in the same AVX2 build, stage 1 only (B2 = B1),
+  B1 = 50000, 8 curves, 1 thread, semiprime inputs: 520 bits 0.35 vs
+  0.66 s (1.9x), 1024 bits 0.81 vs 1.43 s (1.8x), 2048 bits (RNS) 2.16 vs
+  5.46 s (2.5x).
+
 ## Possible next steps (not done)
 
-* An AVX2 AVX-ECM would need FP52 versions of the template and of every
-  AVX-512-only routine AVX-ECM uses (add/sub, `vecmul52_1`, copies,
-  Mersenne paths); AVX-ECM is AVX-512 only today (`USE_AVX512F` in
-  `avx_ecm.h` and `factor_common.c`).
-* RNS on AVX2: FP52 channels would reuse `rns_vec52.h`'s FP products at 4
-  lanes; on AVX-512 the batch Yao kernel beats the template above ~1200
-  bits in ECM, so a similar gain is plausible at large sizes.
+* Measure on an AVX2-only CPU (Zen 2/3, Haswell..Skylake client).
+* AVX2 P-1/P+1 (`avxppm1.c`) is not ported (it is unreachable from yafu
+  anyway, see the handoff, section 4.2).

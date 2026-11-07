@@ -1626,8 +1626,8 @@ options_t* initOpt(void)
     strcpy(options->ecm_path, "");
     options->work = 0;
     options->sigma = 0;
-    // if we can use AVX-ECM, do so, and save B1 checkpoints.
-#ifdef USE_AVX512F
+    // if we can use AVX-ECM (AVX-512 or AVX2 builds), do so, and save B1 checkpoints.
+#if defined(USE_AVX512F) || defined(USE_AVX2)
     options->prefer_gmpecm = 0;
     options->prefer_gmpecm_stg2 = 0;
     options->saveB1 = 0;

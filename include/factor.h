@@ -162,11 +162,14 @@ typedef struct
 
 // built-in AVX-ECM RNS crossover (bits), the default of ecm_obj.avx_rns_bits
 // (option avxecm_rns_bits; ecmtune() measures it for a machine): ecmtune() on
-// Rocket Lake gave 1169 bits (IFMA) and 1489 bits (non-IFMA code).
+// Rocket Lake gave 1169 bits (IFMA), 1489 bits (AVX-512F code without IFMA)
+// and 1537 bits (AVX2 code).
 #if defined(USE_AVX512F) && defined(IFMA)
 #define AVXECM_RNS_BITS_DEFAULT 1200
 #elif defined(USE_AVX512F)
 #define AVXECM_RNS_BITS_DEFAULT 1500
+#elif defined(USE_AVX2)
+#define AVXECM_RNS_BITS_DEFAULT 1550
 #else
 #define AVXECM_RNS_BITS_DEFAULT 0
 #endif

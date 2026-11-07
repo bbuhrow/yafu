@@ -20,6 +20,14 @@ code to the public domain.
 
 #include <inttypes.h>
 #include "yafu_ecm.h"
+
+// AVX-ECM is built for AVX-512 and (since 2026-11) AVX2 + FMA; the CPU
+// must have the instructions the build uses
+#if defined(USE_AVX512F)
+#define AVXECM_CPU_OK(fobj) ((fobj)->HAS_AVX512F)
+#elif defined(USE_AVX2)
+#define AVXECM_CPU_OK(fobj) ((fobj)->HAS_AVX2)
+#endif
 #include "factor.h"
 #include "calc.h"
 #include "threadpool.h"
@@ -51,7 +59,7 @@ void get_ecm_method(fact_obj_t* fobj, uint64_t b1, int* b1_method, int* b2_metho
     *b1_method = 0; // default param 0
     *b2_method = 0; // default gmp_stg2_default
 
-#if !defined(USE_AVX512F) || defined(__MINGW32__)
+#if !(defined(USE_AVX512F) || defined(USE_AVX2)) || defined(__MINGW32__)
     if (1)
 #else
     // run ecm curves using gmp-ecm, either the internal or external version,
@@ -60,7 +68,7 @@ void get_ecm_method(fact_obj_t* fobj, uint64_t b1, int* b1_method, int* b2_metho
     if ((fobj->ecm_obj.prefer_gmpecm) ||
         ((fobj->ecm_obj.use_gpuecm) && (b1 > fobj->ecm_obj.ecm_ext_xover)) ||
         (b1 > fobj->ecm_obj.ecm_ext_xover) ||
-        (!fobj->HAS_AVX512F))
+        (!AVXECM_CPU_OK(fobj)))
 #endif
     {
 
@@ -912,7 +920,7 @@ int ecm_loop(fact_obj_t *fobj)
 		return 0;
 	
     // AVX-ECM won't work without AVX512F and the MINGW build appears to not work either (compiler bug?)
-#if !defined(USE_AVX512F) || defined(__MINGW32__)
+#if !(defined(USE_AVX512F) || defined(USE_AVX2)) || defined(__MINGW32__)
     if (1)
 #else
     // run ecm curves using gmp-ecm, either the internal or external version,
@@ -921,7 +929,7 @@ int ecm_loop(fact_obj_t *fobj)
     if ((fobj->ecm_obj.prefer_gmpecm) || 
         ((fobj->ecm_obj.use_gpuecm) && (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover)) ||
         (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover) ||
-        (!fobj->HAS_AVX512F))
+        (!AVXECM_CPU_OK(fobj)))
 #endif
     {
         // initialize the flag to watch for interrupts, and set the

@@ -71,6 +71,25 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
         return;
     }
 
+#if defined(USE_AVX2) && !defined(USE_AVX512F)
+    // AVX2 build (no AVX-512): the AVX2 template cores at every size (loop
+    // form above 32 words) and the AVX2 add/sub (vecarith52_avx2.c); the
+    // other cores and the Mersenne forms are AVX-512 only
+    if (!vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr))
+    {
+        printf("no AVX2 mul/sqr core for %u words\n", montyconst->NWORDS);
+        exit(1);
+    }
+    vecaddmod_ptr = &vecaddmod52_avx2;
+    vecsubmod_ptr = &vecsubmod52_avx2;
+    vecaddsubmod_ptr = &vec_simul_addsub52_avx2;
+    if (verbose > 1)
+    {
+        printf("Using AVX2 constant-S template mul/sqr core (%u words)\n", montyconst->NWORDS);
+    }
+    return;
+#endif
+
     if (DIGITBITS == 52)
     {
         if (montyconst->isMersenne > 1)

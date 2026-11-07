@@ -165,7 +165,7 @@ void init_factobj(fact_obj_t* fobj)
     // an external binary
     strcpy(fobj->ecm_obj.ecm_path, "");
     fobj->ecm_obj.use_external = 0;
-#ifdef USE_AVX512F
+#if defined(USE_AVX512F) || defined(USE_AVX2)
     fobj->ecm_obj.prefer_gmpecm = 0;
     fobj->ecm_obj.ecm_ext_xover = 300000000;
 #else

@@ -57,6 +57,9 @@
     <ClCompile Include="..\..\factor\avx-ecm\avxecm_rns.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith52_avx2.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\arith\vecmont\vecarith52_tmpl.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
@@ -73,6 +76,9 @@
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\arith\rns\rns_yaob_avx512.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arith\rns\rns_yaob_avx2.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
   </ItemGroup>
@@ -93,6 +99,9 @@
       <Filter>Source Files\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\arith\rns\rns_vec52.h">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\arith\rns\rns_yaob_kern.h">
       <Filter>Source Files\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\yafu_ecm.h">

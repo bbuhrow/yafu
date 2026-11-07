@@ -312,8 +312,17 @@ call), D28 (`vpmuludq`, 56-bit products summed whole), D32 (`vpmuludq`,
 (Rocket Lake running AVX2 code): **FP52 1.6-2.0x faster at 256-4096 bits**,
 D28 ~1.0-1.3x (parity above 1 kbit), D32 0.83-1.03x. FP52 is the AVX2
 format; 28/32-bit digits lose on product count. Full unrolling only pays
-up to S = 12 on AVX2 (16 registers). Not measured on an AVX2-only CPU; RNS
-on AVX2 and an AVX2 AVX-ECM are not started (next steps in the doc).
+up to S = 12 on AVX2 (16 registers). Not measured on an AVX2-only CPU.
+
+**Then done (2026-11-07): RNS on AVX2 and an AVX2 build of AVX-ECM** (same
+doc). The batch Yao kernel is ISA-generic (`rns_yaob_kern.h` +
+`rns_vec52.h`), built as `rnsyb_*_avx2` for AVX2 builds (8-lane layout,
+two 4-lane halves). The template has an AVX2 section; AVX2 add/sub in
+`factor/avx-ecm/vecarith52_avx2.c`; yafu AVX2 builds run AVX-ECM (template
+below, RNS above `avxecm_rns_bits`, default 1550; `ecmtune()` measured
+1537). AVX2 and IFMA builds report identical ECM finds with fixed sigmas;
+AVX2 AVX-ECM stage 1 is 1.8-2.5x faster than GMP-ECM. Per-call MXCSR
+switching costs 0-2%, so it is kept per call.
 
 Original notes follow.
 

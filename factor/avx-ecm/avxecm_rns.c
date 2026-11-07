@@ -66,7 +66,7 @@ typedef struct
 
 void vec_lane_get(vec_monty_t *mdata, mpz_t dest, vec_bignum_t *v, int lane)
 {
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
     if (mdata->rns != NULL)
     {
         avxecm_rns_t *r = RNSB(mdata);
@@ -80,7 +80,7 @@ void vec_lane_get(vec_monty_t *mdata, mpz_t dest, vec_bignum_t *v, int lane)
 
 void vec_lane_set(vec_monty_t *mdata, vec_bignum_t *v, mpz_t src, int lane)
 {
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
     if (mdata->rns != NULL)
     {
         avxecm_rns_t *r = RNSB(mdata);
@@ -99,7 +99,7 @@ void vec_lane_set(vec_monty_t *mdata, vec_bignum_t *v, mpz_t src, int lane)
 void vec_set_raw_ui(vec_monty_t *mdata, vec_bignum_t *v, uint64_t x)
 {
     int j;
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
     if (mdata->rns != NULL)
     {
         avxecm_rns_t *r = RNSB(mdata);
@@ -120,7 +120,7 @@ void vec_set_raw_ui(vec_monty_t *mdata, vec_bignum_t *v, uint64_t x)
 
 void vec_monty_mulR(vec_monty_t *mdata, mpz_t x, mpz_t n)
 {
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
     if (mdata->rns != NULL)
     {
         mpz_mul(x, x, RNSB(mdata)->ctx->MBmodN);
@@ -138,7 +138,7 @@ void vec_set_monty_one(vec_monty_t *mdata, vec_bignum_t *v, mpz_t n)
     mpz_init_set_ui(t, 1);
     if (mdata->isMersenne == 0)
         vec_monty_mulR(mdata, t, n);
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
     if (mdata->rns != NULL)
     {
         int j;
@@ -152,7 +152,7 @@ void vec_set_monty_one(vec_monty_t *mdata, vec_bignum_t *v, mpz_t n)
     mpz_clear(t);
 }
 
-#ifdef RNS_HAVE_AVX512
+#ifdef RNSYB_HAVE_VEC
 
 // ---------------------------------------------------------------------------
 // setup
@@ -249,25 +249,25 @@ void avxecm_rns_free_fixed(void *fxv)
 void avxecm_rns_mul(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,
     vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata)
 {
-    rnsyb_vmulmod_avx512(RNSB(mdata)->ctx, c->data, a->data, b->data);
+    rnsyb_vmulmod(RNSB(mdata)->ctx, c->data, a->data, b->data);
 }
 
 void avxecm_rns_sqr(vec_bignum_t *a, vec_bignum_t *c,
     vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata)
 {
-    rnsyb_vsqrmod_avx512(RNSB(mdata)->ctx, c->data, a->data);
+    rnsyb_vsqrmod(RNSB(mdata)->ctx, c->data, a->data);
 }
 
 void avxecm_rns_add(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,
     vec_monty_t *mdata)
 {
-    rnsyb_vaddmod_avx512(RNSB(mdata)->ctx, c->data, a->data, b->data);
+    rnsyb_vaddmod(RNSB(mdata)->ctx, c->data, a->data, b->data);
 }
 
 void avxecm_rns_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,
     vec_monty_t *mdata)
 {
-    rnsyb_vsubmod_avx512(RNSB(mdata)->ctx, c->data, a->data, b->data);
+    rnsyb_vsubmod(RNSB(mdata)->ctx, c->data, a->data, b->data);
 }
 
 // sum = a + b, diff = a - b; sum and diff may alias a and/or b
@@ -277,18 +277,18 @@ void avxecm_rns_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum,
     avxecm_rns_t *r = RNSB(mdata);
     if ((sum != a) && (sum != b))
     {
-        rnsyb_vaddmod_avx512(r->ctx, sum->data, a->data, b->data);
-        rnsyb_vsubmod_avx512(r->ctx, diff->data, a->data, b->data);
+        rnsyb_vaddmod(r->ctx, sum->data, a->data, b->data);
+        rnsyb_vsubmod(r->ctx, diff->data, a->data, b->data);
     }
     else if ((diff != a) && (diff != b))
     {
-        rnsyb_vsubmod_avx512(r->ctx, diff->data, a->data, b->data);
-        rnsyb_vaddmod_avx512(r->ctx, sum->data, a->data, b->data);
+        rnsyb_vsubmod(r->ctx, diff->data, a->data, b->data);
+        rnsyb_vaddmod(r->ctx, sum->data, a->data, b->data);
     }
     else
     {
-        rnsyb_vsubmod_avx512(r->ctx, r->vt, a->data, b->data);
-        rnsyb_vaddmod_avx512(r->ctx, sum->data, a->data, b->data);
+        rnsyb_vsubmod(r->ctx, r->vt, a->data, b->data);
+        rnsyb_vaddmod(r->ctx, sum->data, a->data, b->data);
         memcpy(diff->data, r->vt, (size_t)r->fx->nwords * VECLEN * sizeof(base_t));
     }
 }
