@@ -109,8 +109,9 @@ The order below is a suggestion: 4.4 and 4.5 are mechanical and make 4.1,
 
 ### 4.1 Replace the old AVX-ECM arithmetic with the template + RNS (user item 1)
 
-**RNS part done (2026-11-07).** The template part (removing the old
-fixed/BFIPS selection) is the pre-merge removal step (§5) and is not done.
+**Done (2026-11-07).** RNS part, then the template part in the pre-merge
+step (§5): `assign_mul_ptrs` is template-only up to `AVXECM_KARATSUBA_BITS`
+(karatsuba above, RNS from `avxecm_rns_bits`), no fixed/BFIPS selection.
 * `factor/avx-ecm/avxecm_rns.c`: the RNS backend. `vec_monty_t.rns`
   (opaque) holds the shared `rnsy_fixed_t`, a per-thread `rnsy_ctx_t`, a
   single-number buffer and a batch temporary. The five `vec*mod_ptr`
@@ -384,7 +385,7 @@ a consumer.
 
 ### 4.5 Integrate the template and RNS into yafu's Makefile (user item 5)
 
-**Done (2026-11-07), except removing the old cores (last step, §5).**
+**Done (2026-11-07), including removing the old cores (§5).**
 * The five RNS sources are in `ECM_SRCS` and in both VS ecm projects
   (+ filters, headers listed). The references/setup always build; the
   kernels compile to empty objects without IFMA.
@@ -426,8 +427,8 @@ Original notes follow.
 * RNS: currently only built by `arith/rns/Makefile`. Add `rns_ref.c`,
   `rns_avx512.c` (the small regime: keep it in, per §5), `rns_yao_ref.c`,
   `rns_yao_avx512.c`, `rns_yaob_avx512.c` to the yafu build.
-* The old cores come out of `ECM_SRCS` and the VS projects only as the
-  final pre-merge step (§5). Until then they stay in the build.
+* The old cores are out of `ECM_SRCS` and the VS projects (done as the
+  final pre-merge step, §5); they live in `vecarith52_oldcores.c`.
   - The kernels are guarded by `__AVX512F__ && __AVX512IFMA__` (compiler
     macros from `-march`), not by yafu's `USE_AVX512IFMA` / `IFMA`. Make
     those consistent: check both, or switch to yafu's defines.
@@ -550,3 +551,21 @@ AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
      table vs master, `git log master..wip_arith` and `git diff --stat
      master..wip_arith`.
   5. Merge (and push master) only on the user's explicit go-ahead.
+
+  **Status (2026-11-07): steps 1-3 done, waiting at step 4.**
+  - Split: `vecarith52.c` keeps `vecmul52_1`, `vecaddmod52`,
+    `vecsubmod52`, `vecsignedaddmod52`, `vec_simul_addsub52` and the
+    stubs; `vecarith52_oldcores.c` (not in the Makefile or VS projects)
+    holds the fixed/BFIPS cores, `vecmulmod52`, `vecsqrmod52`,
+    `vecsqrmod52_mul` and `vec_simul_addsub52_fixed1040`.  `ae_bench`,
+    `rns_bench` and `big_bench` still compile it.
+  - P±1 (`avxppm1.c`) defaults to karatsuba, template override up to
+    `AVXECM_KARATSUBA_BITS`.  P±1 is not reachable from yafu; in AVX2
+    builds its add/sub would be the AVX-512 stubs.
+  - `vecarith.c` (32-bit digits) is untouched.
+  - Matrix: builds generic / avx2 / f / ifma / native clean (warning
+    totals ~= master); `ae_bench -t/-neg/-a` on IFMA, NOIFMA and AVX2
+    (0 wrong at spare >= 3); rns tests (both fold modes, big) on all three;
+    ECM end to end 400-10000 bits on native / f / avx2 / generic; fixed
+    sigma finds identical across IFMA / AVX-512F / AVX2, radix and RNS.
+  - Not run: AVX2-only hardware, Skylake-X, MSVC builds.
