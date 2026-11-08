@@ -135,7 +135,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.ecm_exponent = 0;
     fobj->ecm_obj.ecm_multiplier = 0;
     fobj->ecm_obj.ecm_tune_freq = 0;
-    fobj->ecm_obj.bail_on_factor = 1;
+    fobj->ecm_obj.bail_on_factor = 0;
     fobj->ecm_obj.save_b1 = 0;
     fobj->ecm_obj.use_cgbn = 0;
     fobj->ecm_obj.gpucurves = 0;

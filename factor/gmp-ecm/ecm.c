@@ -1265,6 +1265,11 @@ int ecm_loop(fact_obj_t *fobj)
 
 int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 {
+    if (mpz_cmp_ui(thread_data->gmp_factor, 1) <= 0)
+    {
+        return 0;
+    }
+
 	fact_obj_t *fobj = thread_data->fobj;
 	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
