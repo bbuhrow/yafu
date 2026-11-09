@@ -27,7 +27,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * AVX-ECM stage 2, FFT continuation (arith/avxecm_stage2_fft_design.md):
  * baby roots x([k]Q), k in S1 = {1 <= k < D/2, gcd(k, D) = 1}, give F;
  * giant roots x([jD]Q) in blocks of dF give G_i; H = prod G_i mod F;
- * the lane result is prod_k H(x([k]Q)).  One curve per lane, polynomial
+ * the lane result is prod_k H(x([k]Q)).  With a Brent-Suyama polynomial f
+ * (design doc section 14) the roots are x([f(k)]Q) and x([f(jD)]Q).  One curve per lane, polynomial
  * arithmetic from arith/vecpoly.  Roots are computed in vecpoly's
  * radix-2^52 Montgomery domain, independent of the curve backend (radix,
  * RNS or Mersenne).
@@ -38,6 +39,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * the transforms of 1/F and F.  setup picks dF, the tree levels kept and
  * whether the transforms are kept, for the least estimated time within
  * the memory limit.
+ *
+ * Layout of this file: cost / memory model and the automatic choice of B2
+ * and of the Brent-Suyama polynomial (sections 11, 13.3, 14.9); setup and
+ * per-thread state; x-only Montgomery point arithmetic and batch
+ * normalization for the plain roots; the Brent-Suyama tables (affine
+ * points, finite differences); avxecm_s2fft_run, the per-thread driver.
  */
 
 #include "avx_ecm.h"
@@ -95,6 +102,7 @@ struct avxecm_s2fft_s
     mpz_t N, R;                             // arithmetic modulus, 2^(52n)
 };
 
+// Euclid; used for S1 membership (gcd(k, D) = 1)
 static uint32_t s2_gcd(uint32_t a, uint32_t b)
 {
     while (b) { uint32_t t = a % b; a = b; b = t; }
@@ -131,6 +139,7 @@ static double s2_tcost(int t, int n)
     return c < 8.0 ? 8.0 : c;
 }
 
+// number of F's tree levels stored when every k-th one is kept
 static int s2_levels(int t, int k)
 {
     return (t + k - 1) / k;                 // s = 0, k, 2k, ... < t
@@ -175,6 +184,7 @@ static double s2_bs_init_cost(int t, int n, double blocks, int deg, uint32_t M)
         + 2.0 * s2_bs_famcost(deg, M / 2, log2(D / 2.0), n, NULL);
 }
 
+// entries of the 2-D setup triangle: Delta_sigma^j Delta_delta^e f, j + e <= deg
 static uint32_t s2_bs_tri(int deg)
 {
     return (uint32_t)((deg + 1) * (deg + 2) / 2);
@@ -282,6 +292,7 @@ static double *s2_rho_table(int *len)
     return r;
 }
 
+// Dickman rho(u) by linear interpolation in the table (0 beyond it)
 static double s2_rho(const double *r, int len, double u)
 {
     double x, f;
@@ -309,6 +320,7 @@ static const s2_rhist_t s2_rhist[] = {
     { -12, 5, { 2, 4, 6, 10, 22 }, { 0.147, 0.262, 0.104, 0.102, 0.122 } },
 };
 
+// r distribution of polynomial bs, NULL if not tabulated (no q > B2 term)
 static const s2_rhist_t *s2_rhist_get(int bs)
 {
     int i;
@@ -379,6 +391,8 @@ static double s2_target_digits(double B1)
     return 70.0;
 }
 
+// largest prime covered by blocks blocks of dF = 2^t giant steps from
+// j0 = round(B1/D): the last giant step's jD plus D/2 - 1
 static uint64_t s2_covered_B2(int t, uint64_t B1, uint64_t blocks)
 {
     uint64_t D = s2_D[t], j0 = (B1 + D / 2) / D;
@@ -510,6 +524,13 @@ static int s2_auto_bs(int n, uint64_t B1, uint64_t B2, int threads, double cap, 
     return bbs;
 }
 
+// Shared setup (see avxecm_stage2fft.h).  Order: resolve the polynomial
+// option; automatic B2 (with the polynomial when bs is AVXECM_BS_AUTO) or,
+// for a fixed B2, the automatic polynomial; then the least-cost (t, k,
+// lean) within the memory limit; then D, S1, j0, the block count and the
+// covered B2, and the vecpoly context (NTT primes, twiddles, CRT tables)
+// shared read-only by all threads.  Per-thread state is allocated lazily
+// by the first avxecm_s2fft_run of each thread.
 avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
     int threads, double mem_mb, int auto_b2, int bs, int verbose)
 {
@@ -654,6 +675,7 @@ uint64_t avxecm_s2fft_B2(avxecm_s2fft_t *s)
     return s->B2;
 }
 
+// frees one thread's work area, polynomials and tables
 static void s2_thread_free(avxecm_s2fft_t *s, s2_thread_t *th)
 {
     int i;
@@ -693,6 +715,9 @@ void avxecm_s2fft_free(avxecm_s2fft_t *s)
     free(s);
 }
 
+// one thread's state: the vecpoly work area (NTT buffers), the root batch
+// (X, Z, prefix products), G, H (F lives in H unless lean), the kept tree
+// levels and, with Brent-Suyama, its tables and scratch (sizes: s2_mem)
 static void s2_thread_init(avxecm_s2fft_t *s, s2_thread_t *th)
 {
     int n = s->ctx->n, i;
@@ -736,6 +761,7 @@ static void s2_thread_init(avxecm_s2fft_t *s, s2_thread_t *th)
 
 typedef struct { uint64_t *X, *Z; } s2_pt;
 
+// one coefficient (8 lanes x n words)
 static void s2_copy(vp_ctx_t *ctx, uint64_t *d, const uint64_t *a)
 {
     memcpy(d, a, (size_t)8 * (size_t)ctx->n * sizeof(uint64_t));
@@ -1258,6 +1284,19 @@ static void s2_bs_baby(avxecm_s2fft_t *s, s2_thread_t *th, uint64_t *dest, s2_pt
     }
 }
 
+// Stage 2 for the 8 curves of one thread (called from
+// vec_ecm_stage2_fft_work_fcn after stage 1).  Steps:
+//  1. Q and (A+2)/4 from the backend's Montgomery form into vecpoly's
+//     (x R_b^-1 R mod N per lane); with Brent-Suyama also affine x0 and the
+//     scaled-curve constants.
+//  2. Baby roots (x-only xADD chain + batch normalization, or the
+//     Brent-Suyama tables), padded to dF; F's product tree; 1/F (+ its
+//     transforms unless lean).
+//  3. Per block: dF giant roots, G = their product (in place), H = G mod F
+//     (block 0) or H G mod F.
+//  4. H evaluated at the baby roots down F's tree; the product of the
+//     values times any factors folded in by failed inversions is the
+//     lane's result, written to work->stg2acc for the caller's gcd.
 int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *work,
     ecm_pt *P, int verbose)
 {

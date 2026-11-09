@@ -146,6 +146,8 @@ static uint64_t vp_mpz_mod_ui64(mpz_t x, uint64_t p)
     return r;
 }
 
+// one lane of a coefficient <-> an integer (52-bit words; no Montgomery
+// conversion)
 void vp_get(vp_ctx_t *ctx, mpz_t x, const uint64_t *c, int lane)
 {
     int k;
@@ -191,6 +193,12 @@ static int vp_is_prime(uint64_t p)
     return r;
 }
 
+// Shared context for modulus N (n words) and transforms up to 2^logLmax:
+// the K largest primes p = c 2^20 + 1 < 2^50 with prod p > 4 Lmax R^2;
+// per prime its conversion constants 2^(52k+104) mod p, twiddles (powers
+// of an Lmax-th root of unity, Shoup pairs or (w, w/p) doubles for the FP
+// NTT) plus the small per-level tables, and the CRT scales per length;
+// the CRT multipliers C_i = (P/p_i) R^-1 2^104 mod N and C_K.
 vp_ctx_t *vp_ctx_init(mpz_t N, int n, int logLmax)
 {
     vp_ctx_t *ctx;
@@ -422,6 +430,9 @@ void vp_ctx_free(vp_ctx_t *ctx)
     free(ctx);
 }
 
+// per-thread work area: the template mul/sqr for n words, N broadcast,
+// the NTT buffer (K Lmax vectors), the prime-group buffer, coefficient
+// scratch and the Montgomery one
 vp_work_t *vp_work_init(vp_ctx_t *ctx)
 {
     vp_work_t *w = (vp_work_t *)calloc(1, sizeof(vp_work_t));
@@ -492,6 +503,7 @@ void vp_work_free(vp_work_t *w)
     free(w);
 }
 
+// sizes for the memory model, matching vp_ctx_init / vp_work_init
 int vp_nprimes(int n, int logLmax)
 {
     // P > 4 Lmax R^2 with every p within 2^-20 of 2^50

@@ -168,6 +168,11 @@ RNS_INLINE rns_vd vpd_mulm(rns_vd a, rns_vd b, rns_vd p, rns_vd pinv)
 #define VP_FPNTT 0
 #endif
 
+// coefficients -> residues mod p_i (design doc sections 3.2, 13.1): per
+// coefficient the n 52-bit digits d_k are multiply-accumulated against
+// c_k = 2^(52k+104) mod p_i into a 104-bit sum (two 52-bit accumulators),
+// then reduced by 2^104: a two-word Montgomery REDC (integer NTT) or FP
+// products by 2^-52 and 2^-104 mod p (FP NTT).  Zero-pads to length L.
 void vpk_to_ntt_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L,
     const uint64_t *a, uint32_t len, int i0, int i1)
 {
@@ -642,6 +647,8 @@ static void vp_inv_rec(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S)
     }
 }
 
+// forward / inverse transforms, one prime at a time, through the shared
+// cache-blocked recursion (section 13.2)
 void vpk_fwd_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
 {
     int i;
@@ -669,6 +676,11 @@ void vpk_inv_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
 }
 
 
+// CRT back to coefficients (Montgomery's 3.4.4; sections 3.2, 13.1): per
+// output coefficient, y_i = residue x (L^-1 (P/p_i)^-1 [2^52]) mod p_i,
+// kappa = floor(sum y_i / p_i + 1/8) in FP, then sum_i y_i C_i + kappa C_K
+// limb by limb (limb outer, prime inner, two register accumulators) and two
+// Montgomery word reductions by 2^52: the result is Montgomery form, < 2N
 void vpk_from_ntt(const vp_ctx_t *ctx, uint64_t *a, const uint64_t *v,
     uint32_t L, uint32_t start, uint32_t count)
 {
@@ -761,6 +773,8 @@ void vpk_from_ntt(const vp_ctx_t *ctx, uint64_t *a, const uint64_t *v,
     VP_RZ_LEAVE();
 }
 
+// coefficient add / sub / negate mod 2N on [0, 2N): one carry pass, one
+// trial subtraction (or addition) of 2N, a blend on the final borrow
 void vpk_add(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a,
     const uint64_t *b, uint32_t cnt)
 {

@@ -23,6 +23,8 @@ extern void vp_aligned_free(void *p);
 
 #define CO(a, j) VP_COEF(w->ctx, (a), (j))
 
+// view one coefficient (8 lanes x n words) as a vec_bignum_t, no copy, so
+// the template mul/sqr cores can work on it in place
 static void vp_wrap(vec_bignum_t *v, const uint64_t *p, int n)
 {
     v->data = (base_t *)p;
@@ -55,6 +57,8 @@ static void vp_reverse(vp_work_t *w, uint64_t *a, uint32_t cnt)
     }
 }
 
+// coefficient-wise products with the AVX-ECM template Montgomery mul
+// (c = a b / R mod N, in [0, 2N)); one call per coefficient, 8 lanes each
 void vp_cmul(vp_work_t *w, uint64_t *c, const uint64_t *a, const uint64_t *b,
     uint32_t cnt)
 {
@@ -111,6 +115,7 @@ static int vp_use_school(vp_work_t *w, uint32_t la, uint32_t lb, int via_sm)
     return !via_sm || (la + lb <= 3 * VP_SCHOOL_CAP);
 }
 
+// smallest power of 2 >= x
 static uint32_t vp_pow2(uint32_t x)
 {
     uint32_t L = 1;
@@ -118,6 +123,7 @@ static uint32_t vp_pow2(uint32_t x)
     return L;
 }
 
+// transform lengths above the context's Lmax have no twiddles: fatal
 static void vp_check_len(vp_ctx_t *ctx, uint32_t L)
 {
     if (L > ctx->Lmax)
@@ -186,6 +192,8 @@ static void vp_mul_part(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t l
         vp_cyclic(w, c, a, la, b, lb, L, start, count);
 }
 
+// full product: schoolbook for short operands, else one cyclic NTT
+// convolution of length >= la + lb - 1 (so nothing wraps)
 void vp_mul(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t la,
     const uint64_t *b, uint32_t lb)
 {
@@ -195,6 +203,9 @@ void vp_mul(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t la,
         vp_cyclic(w, c, a, la, b, lb, vp_pow2(la + lb - 1), 0, la + lb - 1);
 }
 
+// product of two monic degree-d polynomials stored without their leading
+// 1s (design doc section 4.1): one length-2d cyclic product for a b (its
+// degree is 2d - 2, so it does not wrap), plus X^d (a + b)
 void vp_mul_monic(vp_work_t *w, uint64_t *c, const uint64_t *a,
     const uint64_t *b, uint32_t d)
 {
@@ -206,6 +217,10 @@ void vp_mul_monic(vp_work_t *w, uint64_t *c, const uint64_t *a,
     vpk_add(w->ctx, CO(c, d), CO(c, d), s, d);
 }
 
+// product tree (section 4.2): level 0 holds the monic linear factors
+// X - r as their constant terms -r; level s + 1 multiplies adjacent pairs
+// of level s with vp_mul_monic; the last product is the root polynomial.
+// Without a tree every level overwrites the previous one in out.
 void vp_from_roots(vp_work_t *w, uint64_t *out, uint64_t **tree,
     const uint64_t *roots, uint32_t m)
 {
@@ -239,6 +254,9 @@ void vp_from_roots(vp_work_t *w, uint64_t *out, uint64_t **tree,
             vp_mul_monic(w, CO(out, i), CO(out, i), CO(out, i + d), d);
 }
 
+// inv = floor(X^(2m-1) / F) for monic F = X^m + f (section 4.3): Newton
+// iteration on S = 1/rev(F) mod X^k, doubling k, each step two half-length
+// cyclic products that only form the coefficients they need
 void vp_recip(vp_work_t *w, uint64_t *inv, const uint64_t *f, uint32_t m,
     uint64_t *scratch)
 {
@@ -272,6 +290,9 @@ size_t vp_modf_bytes(int n, int K, uint32_t m, int flags)
     return b;
 }
 
+// precomputation for reductions modulo monic F of degree m: inv (vp_recip)
+// and, by flags, the forward transforms of inv (length 2m) and of f
+// (length m), which vp_mulmod_monic and vp_eval_tree otherwise recompute
 vp_modf_t *vp_modf_init(vp_work_t *w, uint64_t *f, uint32_t m, int flags,
     uint64_t *scratch)
 {
@@ -310,6 +331,7 @@ void vp_modf_free(vp_modf_t *mf)
     free(mf);
 }
 
+// G mod F for G, F both monic of degree m: G - F
 void vp_mod_monic(vp_work_t *w, vp_modf_t *mf, uint64_t *h, const uint64_t *g)
 {
     vpk_sub(w->ctx, h, g, mf->f, mf->m);
@@ -324,6 +346,10 @@ static void vp_ntt_mul_inv(vp_work_t *w, vp_modf_t *mf)
         vp_ntt_mul_by(w, 2 * mf->m, mf->inv, mf->m);
 }
 
+// h = h G mod F (G monic of degree m, h of degree < m), section 4.3: the
+// product, a Barrett quotient from its high half and the transform of inv,
+// and the remainder computed modulo X^m - 1 so that Q f is a wrapped
+// length-m product
 void vp_mulmod_monic(vp_work_t *w, vp_modf_t *mf, uint64_t *h, const uint64_t *g)
 {
     vp_ctx_t *ctx = w->ctx;
@@ -414,6 +440,11 @@ static void vp_eval_node(vp_work_t *w, uint64_t *u, const uint64_t *a,
     }
 }
 
+// vals[i] = h(r_i) for the m roots of F's product tree (section 4.4,
+// transposed / scaled remainder tree): the root step is a middle product
+// of h with inv; each level then splits every node's values into its two
+// children's with two middle products (vp_eval_node); levels that were
+// not kept are rebuilt from the nearest kept one below
 void vp_eval_tree(vp_work_t *w, vp_modf_t *mf, uint64_t **tree,
     uint64_t *vals, const uint64_t *h, uint64_t *scratch)
 {
@@ -476,6 +507,7 @@ void vp_eval_tree(vp_work_t *w, vp_modf_t *mf, uint64_t **tree,
     }
 }
 
+// prod = a[0] a[1] ... a[cnt-1] (Montgomery products, per lane)
 void vp_prod(vp_work_t *w, uint64_t *prod, const uint64_t *a, uint32_t cnt)
 {
     uint32_t t;
