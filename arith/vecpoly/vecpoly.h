@@ -170,6 +170,8 @@ void vpk_neg(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a, uint32_t cnt);
 // c[0..cnt) = a[0..cnt) * b[0..cnt), coefficient-wise (template mul)
 void vp_cmul(vp_work_t *w, uint64_t *c, const uint64_t *a, const uint64_t *b,
     uint32_t cnt);
+// c[0..cnt) = a[0..cnt)^2 (c may alias a)
+void vp_csqr(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t cnt);
 // full product c[0..la+lb-1) = a * b  (c must not alias a or b)
 void vp_mul(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t la,
     const uint64_t *b, uint32_t lb);

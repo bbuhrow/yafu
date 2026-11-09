@@ -893,15 +893,16 @@ non-trivial pair. S = 1 is the existing stage 2 and stays the default.
 
 ### 14.2 Code and options
 
-* `-avxecm_bs S`: 0 or 1 off (default), `S` or `pS` x^S, `dS` Dickson
+* `-avxecm_bs S`: 0 or 1 off, `auto` (§14.9; the default with
+  `-avxecm_stg2 2`, else off), `S` or `pS` x^S, `dS` Dickson
   D_S(x, -1), S <= 32 (a string, since the option parser takes `-` as the
   next switch). `ecm_obj.avx_stg2_bs` (> 1 power, < -1 Dickson);
   `avxecm_s2fft_setup(..., bs, ...)`.
 * `avxecm_stage2fft.c`: `s2_fpoly`, `s2_findiff`, `s2_inv_batch`,
   `s2_mul2` (ladder with an mpz scalar returning [c]Q and [c+1]Q),
   `s2_bs_init` (tables, y-recovery), `s2_bs_step`, `s2_bs_baby`; the
-  giant loop emits M roots per step. Per-thread tables: 5 M (deg + 1)
-  coefficients + the mpz multipliers.
+  giant loop emits M roots per step. (First version; §14.7 describes the
+  current tables, setup and cost terms.)
 * Test aid: `AVXECM_S2FFT_BSM=M` forces the number of progressions.
 * `-v` prints the polynomial, degree and M.
 * Cost model (`s2_cost`): per root deg (7 + 12/n) + 1 + 8 (4 + 160/n)/M
@@ -931,9 +932,10 @@ by lane.
   T_22 = +-T_23 in a giant table; q = 552833: T_9 = +-T_10 in a baby
   table) - genuine factors.
 
-### 14.4 Cost (yafu, 1 thread, B1 1e6, B2 9.7e8, dF 4096, 6 blocks)
+### 14.4 Cost (first version; §14.7 has the current one)
 
-Stage 2 time relative to the plain stage 2:
+Stage 2 time relative to the plain stage 2 (yafu, 1 thread, B1 1e6, B2 9.7e8,
+dF 4096, 6 blocks):
 
 | ISA, bits | D_3 | D_6 | x^6 | D_12 | D_30 |
 |---|---:|---:|---:|---:|---:|
@@ -959,7 +961,7 @@ dF 64, 7 blocks; 1893 curves with one prime q > B2 left): caught by
 D_6 49 (model 47.4), D_30 95 (87.6), x^12 57 (62.8) - within Poisson
 noise. Stage-2 finds grow +11% (D_6) / +21% (D_30) at this tiny size.
 
-### 14.6 Is it worth it?
+### 14.6 Is it worth it? (first version; §14.8 has the current answer)
 
 Least expected time per factor, (T1 + T2)/P, each option with its own best
 B2 and configuration within the memory limit, relative to the plain
@@ -997,12 +999,143 @@ Conclusions:
    probability model is validated only at 40-bit p (exact oracle); at
    p45+ it is the standard rho-based estimate.
 
-### 14.7 Next
+### 14.7 Cheaper roots (2026-11-09, second pass)
 
-* Choose the polynomial automatically with `-avxecm_stg2 2` (the C model
-  has the cost terms; it would need the r tables and the q > B2 integral
-  in `s2_prob`).
-* Cheaper roots: the extension is limited by 7 deg template mulmods per
-  root; a vectorized batch inversion (instead of `mpz_invert` per lane)
-  would allow M = 1-2 for every degree, and the affine additions could
-  use the vecpoly coefficient kernels with fewer passes.
+Â§14.4 - 14.6 describe the first version. The second pass makes each root
+cheaper without changing which roots are produced:
+
+* **Scaled Weierstrass coordinates.** With X = g x, Y = g^2 y the curve
+  g y^2 = x^3 + A x^2 + x becomes Y^2 = X^3 + a2 X^2 + a4 X (a2 = g A,
+  a4 = g^2): the addition x3 = g lambda^2 - ... loses its multiplication by
+  g, 6 mulmods per affine addition (3 batch inversion, lambda, lambda^2,
+  lambda (X1 - X3)) instead of 7. All roots (baby and giant) are scaled by
+  the same g per lane, so the product of differences only gains a factor
+  g^(dF ...), invertible unless Q has order 2 mod p (a find anyway).
+* **Entry-major tables, vector calls.** Entry (e, r) lives at e M + r. A
+  step reads entries e < deg and e + 1 > 0, two contiguous ranges offset by
+  M, so each operation of the step is one call over deg M coefficients
+  (`s2_aff_add`) instead of deg M single-coefficient calls; the M roots of
+  a step are one contiguous copy. The batch inversion (`s2_inv_batch`)
+  runs S2_NCH = 4 interleaved chains so its products are vector calls too,
+  at 3 S2_NCH extra mulmods per inversion.
+* **2-D table setup.** For one family of C progressions i0 + r' sigma
+  (step delta along each), row e of the tables over r' is
+  g_e(i0 + r' sigma) with g_e = Delta_delta^e f a polynomial of degree
+  deg - e, i.e. itself a finite-difference table in steps of sigma. The
+  setup ladders only the (deg + 1)(deg + 2)/2 entries of that triangle
+  (Delta_sigma^j Delta_delta^e f(i0), j + e <= deg, all positive) and then
+  steps the triangle C - 1 times (deg (deg + 1)/2 additions per step, one
+  batch inversion), copying its column j = 0 into progression r'. The
+  1-D setup (C (deg + 1) ladders) is kept for C <= ~(deg + 2)/2;
+  `s2_bs_famcost` picks the cheaper. Giant tables are one family
+  (i0 = j0 D, sigma = D, delta = M D); baby tables two (k = 1 + 6 r' and
+  5 + 6 r', delta = 3 M).
+* **More progressions.** With the setup nearly independent of M, M now
+  balances one batch inversion (8 lanes x mpz_invert) per M roots against
+  the C - 1 extra triangle steps: `s2_bs_m` evaluates the cost for M = 2,
+  4, ..., 128 (<= dF) and takes the least. Typical: 128 for D_3 / D_6 at
+  400 bits, 64 at 1024 bits (D_6) and for D_12, 2-4 for D_30 (still 1-D).
+* **Multipliers mod 2^61 - 1.** The integer multipliers that detect equal
+  points (doubling, Â§14.1) are tracked modulo the prime 2^61 - 1 instead of
+  as mpz. Not mod 2^64: the high differences (deg! delta^deg and their
+  neighbours) are divisible by large powers of 2, so mod 2^64 many unequal
+  multipliers look equal (found by the oracle: D_20 / D_30 lost lanes).
+* Scratch per thread: 2 (deg + 1) M + 7 max((deg + 1) M,
+  (deg + 1)(deg + 2)/2) + 2 (deg + 1)(deg + 2)/2 + 36 coefficients
+  (D_6, M = 64, 1024 bits: ~5.5 MB). `-v -v` prints the setup time.
+
+Cost model (`s2_cost`, mirrored in `bs_model.py`): per root
+deg (6 + 12/n) + 1 + (8 (4 + 160/n) + 12) / M template mulmods; setup per
+family as above with a ladder at 10 deg log2(argument) + 20 mulmods.
+Measured / model stage-2 ratio 0.93 - 1.04 for D_3 / D_6 / x^6 on all three
+ISAs at 400 and 1024 bits, 0.92 - 1.16 for D_12 / D_30. Measured per
+affine addition ~7 template mulmods (D_6, IFMA, 1024 bits); table setups
+0.013 s (D_3), 0.038 s (D_6), 0.21 s (D_12) of a 1.4 - 2.4 s stage 2.
+
+Verification: `oracle_cmp.sh` on IFMA, AVX-512F and AVX2 for plain, x^2,
+D_3, x^3, x^6, D_6, D_12, D_20, D_30, adaptive M and M = 4, 400 and
+1024 bits: every predicted lane found; the only differences are 1-2 extra
+D_12 / D_30 finds per 30 batches, each a table collision mod ord Q
+(`ecm_tests/coll2.py` simulates the new 1-D / 2-D tables and lists them;
+e.g. ord Q = 2871359, giant table step 50; ord Q = 676057, baby table).
+
+Stage 2 time relative to the plain stage 2 (B1 1e6, B2 9.7e8, dF 4096,
+6 blocks, 1 thread; first version in parentheses):
+
+| ISA, bits | D_3 | D_6 | x^6 | D_12 | D_30 |
+|---|---:|---:|---:|---:|---:|
+| IFMA 400 | 1.07 (1.17) | 1.25 (1.41) | 1.34 (1.55) | 1.72 (1.87) | 2.92 (3.55) |
+| IFMA 1024 | 1.02 (1.10) | 1.23 (1.34) | 1.23 (1.35) | 1.73 (1.88) | 3.16 (3.49) |
+| AVX-512F 400 | 1.13 (1.14) | 1.23 (1.35) | 1.32 (1.37) | 1.70 (1.77) | 2.75 (3.24) |
+| AVX-512F 1024 | 1.12 (1.20) | 1.37 (1.56) | 1.38 (1.52) | 2.29 (2.14) (1) | 3.70 (4.05) |
+| AVX2 400 | 1.11 (1.20) | 1.32 (1.49) | 1.32 (1.49) | 1.87 (2.16) | 3.36 (3.92) |
+| AVX2 1024 | 1.13 (1.21) | 1.41 (1.54) | 1.40 (1.58) | 2.15 (2.29) | (2) |
+
+(1) a noisy run (a rerun gave giant roots 2.6 s instead of 3.0 s, i.e.
+~2.0). (2) picked dF = 8192 with 2 blocks, not comparable.
+
+### 14.8 Is it worth it now?
+
+`bs_model.py table --isa ...` and the larger cases, time per factor
+relative to the plain stage 2, each with its own best B2 and configuration
+(first version, Â§14.6, in parentheses):
+
+| bits | B1 | p | MB | IFMA best | AVX-512F best | AVX2 best | D_12 IFMA / AVX2 |
+|---:|---:|---:|---:|---|---|---|---|
+| 400 | 2.5e5 | 30 | 256 | D_3 0.990 (plain) | D_3 0.999 (plain) | plain (plain) | 1.12 / 1.23 |
+| 400 | 1e6 | 35 | 256 | D_3/D_6 0.984 (0.997) | D_3 0.988 (plain) | D_3 0.996 (plain) | 1.03 / 1.10 |
+| 400 | 3e6 | 40 | 64 | D_6 0.965 (0.981) | D_6 0.975 (0.990) | D_3 0.987 (1.000) | 0.99 / 1.03 |
+| 1024 | 1e6 | 35 | 256 | D_3 0.981 (0.994) | D_3 0.988 (plain) | D_3 0.991 (plain) | 1.04 / 1.09 |
+| 1024 | 3e6 | 40 | 256 | D_6 0.973 (0.987) | D_3 0.983 (0.994) | D_3 0.985 (0.998) | 1.00 / 1.04 |
+| 1024 | 1.1e7 | 45 | 256 | D_6 0.968 (0.978) | D_6 0.980 (0.989) | D_3 0.983 (0.991) | 0.99 / 1.02 |
+| 1024 | 4.3e7 | 50 | 1024 | D_6 0.966 (0.973) | D_6 0.976 | D_6 0.982 (0.989) | 0.98 / 1.01 |
+| 1024 | 1.1e8 | 55 | 1024 | D_6 0.965 (0.971) | D_6 0.975 | D_6 0.980 (0.988) | 0.97 / 1.00 |
+| 2048 | 4.3e7 | 50 | 1024 | D_6 0.969 (0.977) | D_6 0.981 | D_3 0.983 (0.989) | 0.98 / 1.01 |
+
+* The gain roughly doubled: IFMA 2-3.5% (D_6 from p40 up, D_3 below),
+  AVX-512F 1.5-2.5%, AVX2 1-2%. Brent-Suyama now wins almost everywhere;
+  plain is best only for small B1 on AVX2.
+* D_3 and D_6 are within ~0.5% of each other almost everywhere (D_6 ahead
+  for larger p and on IFMA). D_12 approaches break-even only for p50+ on
+  IFMA and never wins; D_30 never wins; the powers x^S at best tie with
+  the Dickson polynomial of the same degree (same cost, nearly the same
+  r mean).
+* The remaining limit is the ~6 deg mulmods per root (the polynomial work
+  per root is ~150-300), not setup or inversions.
+
+### 14.9 Automatic choice
+
+`-avxecm_bs auto` chooses among plain, D_3, D_6, D_12 the least predicted
+time per factor; it is the default with `-avxecm_stg2 2` (automatic B2),
+where polynomial and B2 are chosen together. An explicit `-avxecm_bs`
+(including `0` for plain) overrides it; with `-avxecm_stg2 1` the default
+stays plain (`auto` must be asked for; B2 is then fixed and only the
+polynomial is chosen, `s2_auto_bs`).
+
+* `s2_prob(..., pairs, bs)` adds the q > B2 term of Â§14.5 with the
+  r distributions measured by `bs_model.py rsamples` (1200 samples),
+  stored as `s2_rhist` for x^2, x^3, x^6, D_3, D_6, D_12 (r: weight):
+  D_3 {4: 0.485}, D_6 {2: 0.251, 4: 0.262, 10: 0.223}, D_12 {2: 0.147,
+  4: 0.262, 6: 0.104, 10: 0.102, 22: 0.122} (r = 0 otherwise).
+  pairs = nbaby x blocks x dF. With an explicit polynomial the automatic
+  B2 now also counts its extra chance.
+* `s2_auto_B2` loops over the candidates (`s2_bs_cand`) as well as t, k,
+  lean and the block count; `-v` prints the choice
+  ("... (chosen automatically)" / "no Brent-Suyama (chosen
+  automatically)").
+* Option values: `AVXECM_BS_AUTO` = 64 (`auto`), `AVXECM_BS_DEFAULT` = 65
+  (option not given) in `avxecm_stage2fft.h`; `avx_ecm_main.c` maps the
+  default to auto or off.
+* Choices on Rocket Lake (1 thread, 256 MB): IFMA D_3 at B1 2.5e5 (400
+  bits) and 1e6 (1024), D_6 from B1 3e6 / 1.1e7 up; AVX-512F the same;
+  AVX2 plain at B1 2.5e5 (400 bits), D_3 elsewhere up to 4.3e7 - matching
+  the tables above.
+
+### 14.10 Next
+
+* Validate the time-per-factor gain end to end (curves to find a known
+  p40-p45 with plain vs auto) - expensive: ~1000s of curves per point for
+  a 2-3% effect.
+* The per-root cost is now the affine additions themselves; fewer
+  mulmods per root would need a different root generation (e.g. GMP-ECM's
+  polynomial-evaluation roots for larger dF).

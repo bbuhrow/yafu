@@ -147,16 +147,46 @@ def rates(p, B1, D, dF, blocks, S, ncurves, seed=1):
 
 
 # ---- time per factor: plain vs Brent-Suyama ----
-def bs_m(t, blocks, deg):
-    """s2_bs_m of avxecm_stage2fft.c"""
+# Brent-Suyama cost terms of avxecm_stage2fft.c (template mulmods); BS_ADD
+# and BS_INV_* are refit to yafu timings (design doc section 14)
+NCH, MAXM = 4, 128
+BS_ADD_A, BS_ADD_B = 6.0, 12.0
+BS_INV_A, BS_INV_B = 4.0, 160.0
+
+
+def bs_inv(n):
+    return 8.0 * (BS_INV_A + BS_INV_B / n) + 3.0 * NCH
+
+
+def bs_add(n):
+    return BS_ADD_A + BS_ADD_B / n
+
+
+def famcost(deg, C, lg, n):
+    """1-D or 2-D table setup of one family of C progressions"""
+    E, lad = deg + 1.0, 10.0 * deg * lg + 20.0
+    c1 = C * E * lad
+    c2 = E * (deg + 2.0) / 2.0 * lad + (C - 1.0) * (deg * E / 2.0 * bs_add(n) + bs_inv(n))
+    return min(c1, c2)
+
+
+def init_cost(t, n, blocks, deg, M):
     dF, D = float(1 << t), sm.D_TAB[t]
+    return (famcost(deg, M, math.log2((blocks * dF + 1.0) * D), n)
+            + 2.0 * famcost(deg, M // 2, math.log2(D / 2.0), n))
+
+
+def bs_m(t, n, blocks, deg):
+    """s2_bs_m of avxecm_stage2fft.c"""
+    dF = float(1 << t)
     roots = dF * (blocks + 1.6)
-    bits = deg * (math.log2((blocks * dF + 1.0) * D) + math.log2(D / 2.0))
-    mopt = math.sqrt(roots * 8.0 * 12.0 / ((deg + 1.0) * 10.0 * bits))
-    M = 2
-    while M * 2 <= 64 and M * 2 <= dF and M * 1.41 < mopt:
+    best_, bM, M = 1e300, 2, 2
+    while M <= MAXM and M <= dF:
+        c = roots * bs_inv(n) / M + init_cost(t, n, blocks, deg, M)
+        if c < best_:
+            best_, bM = c, M
         M *= 2
-    return M
+    return bM
 
 
 def cost_bs(t, n, k, lean, blocks, S, M=0):
@@ -167,14 +197,11 @@ def cost_bs(t, n, k, lean, blocks, S, M=0):
     groot, broot, init = 10.0 * dF, 17.0 * dF, 0.0
     deg = abs(S)
     if deg > 1:
-        D = sm.D_TAB[t]
-        M = M or bs_m(t, blocks, deg)
-        # 7 mulmods + ~6 add/sub (O(n)) per affine addition; one batch
-        # inversion (8 lanes x mpz_invert ~ 4 + 160/n mulmods) per M roots
-        per = deg * (7.0 + 12.0 / n) + 1.0 + 8.0 * (4.0 + 160.0 / n) / M
+        M = M or bs_m(t, n, blocks, deg)
+        per = deg * bs_add(n) + 1.0 + bs_inv(n) / M
         groot = dF * per
         broot = 1.6 * dF * per
-        init = M * (deg + 1.0) * 10.0 * deg * (math.log2((blocks * dF + 1.0) * D) + math.log2(D / 2.0))
+        init = init_cost(t, n, blocks, deg, M)
     return (blocks * (groot + T * (1.0 + (sm.MM_L if lean else sm.MM))) + init + broot
             + T * (1.0 + (sm.MI_L if lean else sm.MI) + (sm.EV_L if lean else sm.EV) + rebuilt))
 

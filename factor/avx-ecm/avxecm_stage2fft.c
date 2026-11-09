@@ -63,9 +63,15 @@ typedef struct
                                             // H (until block 0) unless lean
     vp_modf_t *mf;
     uint64_t *pt;                           // point scratch: 16 coefficients
-    uint64_t *bsx, *bsy, *bsd, *bsi, *bsp;  // Brent-Suyama tables, M (S+1) each
-    uint64_t *bc;                           // Brent-Suyama constants, 16
-    mpz_t *bsT;                             // the tables' integer multipliers
+    // Brent-Suyama (design doc section 14): tables of M progressions,
+    // entry (e, r) at e M + r, e = 0..deg; affine, scaled (X = g x, Y = g^2 y)
+    uint64_t *bsx, *bsy;
+    uint64_t *bsT;                          // their integer multipliers mod S2_TP
+    uint64_t *bden, *binv, *bpre, *blam, *bx3, *bt, *bsa;  // scratch, bsQ each
+    uint64_t *ix, *iy, *iT;                 // 2-D setup table, (deg+1)(deg+2)/2
+    uint64_t *bci;                          // chain inversion scratch, 16
+    uint64_t *bc;                           // constants and temporaries, 20
+    double tinit;                           // seconds in the table setups (-v -v)
 } s2_thread_t;
 
 struct avxecm_s2fft_s
@@ -77,6 +83,7 @@ struct avxecm_s2fft_s
     int bs;                                 // Brent-Suyama: 0 off, S > 1 x^S,
                                             //   S < -1 Dickson D_|S|(x, -1)
     uint32_t bsM;                           // progressions side by side
+    uint32_t bsQ;                           // Brent-Suyama scratch coefficients
     uint32_t dF, D, nbaby, chunk;
     uint32_t *baby;                         // the k in S1
     uint64_t j0;
@@ -129,35 +136,91 @@ static int s2_levels(int t, int k)
     return (t + k - 1) / k;                 // s = 0, k, 2k, ... < t
 }
 
+// ---- Brent-Suyama cost terms (design doc section 14), template mulmods ----
+#define S2_NCH      4       // interleaved chains in a batch inversion
+#define S2_BS_MAXM  128     // progressions side by side, at most
+
+// one batch inversion's fixed part: 8 lanes x mpz_invert, chain totals
+static double s2_bs_inv(int n)
+{
+    return 8.0 * (4.0 + 160.0 / n) + 3.0 * S2_NCH;
+}
+
+// one batched affine addition (6 mulmods + add/sub)
+static double s2_bs_add(int n)
+{
+    return 6.0 + 12.0 / n;
+}
+
+// table setup for one family of C progressions with arguments of ~lg bits:
+// 1-D: C (deg+1) ladders; 2-D: (deg+1)(deg+2)/2 ladders, then C - 1 steps
+// of deg (deg+1)/2 additions.  A ladder: ~10 mulmods per bit of an
+// argument^deg, + y-recovery and normalization.
+static double s2_bs_famcost(int deg, double C, double lg, int n, int *twod)
+{
+    double E = deg + 1.0, lad = 10.0 * deg * lg + 20.0;
+    double c1 = C * E * lad;
+    double c2 = E * (deg + 2.0) / 2.0 * lad
+        + (C - 1.0) * (deg * E / 2.0 * s2_bs_add(n) + s2_bs_inv(n));
+    if (twod != NULL)
+        *twod = c2 < c1;
+    return c2 < c1 ? c2 : c1;
+}
+
+// all table setups: giant (one family of M) and baby (two families of M/2)
+static double s2_bs_init_cost(int t, int n, double blocks, int deg, uint32_t M)
+{
+    double dF = (double)(1u << t), D = s2_D[t];
+    return s2_bs_famcost(deg, M, log2((blocks * dF + 1.0) * D), n, NULL)
+        + 2.0 * s2_bs_famcost(deg, M / 2, log2(D / 2.0), n, NULL);
+}
+
+static uint32_t s2_bs_tri(int deg)
+{
+    return (uint32_t)((deg + 1) * (deg + 2) / 2);
+}
+
+// progressions side by side: one batch inversion per M roots against the
+// table setups (cheap per progression with the 2-D setup)
+static uint32_t s2_bs_m(int t, int n, double blocks, int deg)
+{
+    double dF = (double)(1u << t), roots = dF * (blocks + 1.6), best = 1e300;
+    uint32_t M, bM = 2;
+    for (M = 2; (M <= S2_BS_MAXM) && (M <= (uint32_t)dF); M *= 2)
+    {
+        double c = roots * s2_bs_inv(n) / M + s2_bs_init_cost(t, n, blocks, deg, M);
+        if (c < best)
+        {
+            best = c;
+            bM = M;
+        }
+    }
+    return bM;
+}
+
+// Brent-Suyama scratch coefficients per array
+static uint32_t s2_bs_q(int deg, uint32_t M)
+{
+    uint32_t a = (uint32_t)(deg + 1) * M, b = s2_bs_tri(deg);
+    return a > b ? a : b;
+}
+
 // bytes per thread (excluding the shared context)
 static double s2_mem(int t, int n, int k, int lean, int bs, uint32_t bsM, double *ctxb)
 {
-    int K = vp_nprimes(n, t + 1);
+    int K = vp_nprimes(n, t + 1), deg = bs > 0 ? bs : -bs;
     double dF = (double)(1u << t), cb = 64.0 * n;
+    uint32_t M = bsM ? bsM : (bs ? s2_bs_m(t, n, 8.0, deg) : 0);
     double b = (double)vp_work_bytes(n, K, t + 1)
         + (2 + s2_levels(t, k) + (lean ? 1 : 0)) * dF * cb
         + (3.0 * (dF < S2_CHUNK ? dF : S2_CHUNK) + 16.0) * cb
-        + (bs ? (5.0 * (bsM ? bsM : 64) * ((bs > 0 ? bs : -bs) + 1) + 16.0) * cb : 0.0)
+        + (bs ? (2.0 * (deg + 1) * M + 7.0 * s2_bs_q(deg, M) + 2.0 * s2_bs_tri(deg) + 36.0) * cb
+            + 8.0 * ((double)(deg + 1) * M + s2_bs_tri(deg)) : 0.0)
         + (double)vp_modf_bytes(n, K, 1u << t,
             lean ? 0 : VP_MODF_KEEP_INV | VP_MODF_KEEP_F);
     if (ctxb != NULL)
         *ctxb = (double)vp_ctx_bytes(n, K, t + 1);
     return b;
-}
-
-// Brent-Suyama progressions side by side: balances the table setup
-// (M (deg+1) ladders over ~deg log2(argument) bits, ~10 mulmods per bit)
-// against one batch inversion (8 lanes x ~12 mulmods) per M roots
-static uint32_t s2_bs_m(int t, double blocks, int deg)
-{
-    double dF = (double)(1u << t), D = s2_D[t];
-    double roots = dF * (blocks + 1.6);
-    double bits = deg * (log((blocks * dF + 1.0) * D) + log(D / 2.0)) / log(2.0);
-    double mopt = sqrt(roots * 8.0 * 12.0 / ((deg + 1.0) * 10.0 * bits));
-    uint32_t M = 2;
-    while ((M * 2 <= 64) && (M * 2 <= (uint32_t)dF) && (M * 1.41 < mopt))
-        M *= 2;
-    return M;
 }
 
 // estimated mulmods for the whole stage 2 (blocks blocks)
@@ -175,19 +238,16 @@ static double s2_cost(int t, int n, int k, int lean, double blocks, int bs, uint
     // tree, 1/F, evaluation (+ rebuilt tree levels), in units of a tree
     if (deg > 1)
     {
-        // Brent-Suyama (fit to yafu timings, design doc section 14): deg
-        // affine additions per root; D/6 ~ 1.6 dF baby candidates; tables:
-        // 2 M (deg + 1) ladders of ~10 mulmods per bit
-        double D = s2_D[t], per;
+        // Brent-Suyama (design doc section 14): deg affine additions per
+        // root, one batch inversion per M roots; D/6 ~ 1.6 dF baby
+        // candidates; table setups
+        double per;
         if (bsM == 0)
-            bsM = s2_bs_m(t, blocks, deg);
-        // 7 mulmods + ~6 add/sub (O(n)) per affine addition; one batch
-        // inversion (8 lanes x mpz_invert ~ 4 + 160/n mulmods) per M roots
-        per = deg * (7.0 + 12.0 / n) + 1.0 + 8.0 * (4.0 + 160.0 / n) / bsM;
+            bsM = s2_bs_m(t, n, blocks, deg);
+        per = deg * s2_bs_add(n) + 1.0 + s2_bs_inv(n) / bsM;
         groot = dF * per;
         broot = 1.6 * dF * per;
-        init = bsM * (deg + 1.0) * 10.0 * deg *
-            (log((blocks * dF + 1.0) * D) + log(D / 2.0)) / log(2.0);
+        init = s2_bs_init_cost(t, n, blocks, deg, bsM);
     }
     return blocks * (groot + T * (1.0 + (lean ? s2m.mm_lean : s2m.mm)))
         + init + broot + T * (1.0 + (lean ? s2m.mi_lean : s2m.mi) +
@@ -234,20 +294,77 @@ static double s2_rho(const double *r, int len, double u)
     return r[i] * (1 - f) + r[i + 1] * f;
 }
 
-// probability that a group order of size p/23 (Suyama torsion) is
-// B1-smooth but for one prime in (B1, B2]; lnp = ln p
-static double s2_prob(const double *r, int len, double lnp, double B1, double B2)
+// Brent-Suyama: for a prime q > B2 the expected number of non-trivial
+// pairs with f(jD) = +-f(k) mod q is pairs r / q, r the number of
+// non-trivial x with f(x) = +-f(y); r depends on q's residue class, so the
+// catch chance 1 - exp(-pairs r / q) is averaged over r's distribution
+// (counted over random primes, arith/vecpoly/ecm_tests/bs_model.py).
+typedef struct { int S, cnt; double r[6], w[6]; } s2_rhist_t;
+static const s2_rhist_t s2_rhist[] = {
+    {  2, 1, { 2 }, { 0.500 } },
+    {  3, 1, { 4 }, { 0.467 } },
+    {  6, 3, { 2, 4, 10 }, { 0.273, 0.240, 0.227 } },
+    { -3, 1, { 4 }, { 0.485 } },
+    { -6, 3, { 2, 4, 10 }, { 0.251, 0.262, 0.223 } },
+    { -12, 5, { 2, 4, 6, 10, 22 }, { 0.147, 0.262, 0.104, 0.102, 0.122 } },
+};
+
+static const s2_rhist_t *s2_rhist_get(int bs)
 {
-    double L = lnp - log(23.0), a = log(B1), b = log(B2), h, sum = 0;
-    int i, steps = 100;
+    int i;
+    for (i = 0; i < (int)(sizeof(s2_rhist) / sizeof(s2_rhist[0])); i++)
+        if (s2_rhist[i].S == bs)
+            return &s2_rhist[i];
+    return NULL;
+}
+
+// probability that a group order of size p/23 (Suyama torsion) is
+// B1-smooth but for one prime q in (B1, B2]; lnp = ln p.  With a
+// Brent-Suyama polynomial bs (and its r distribution known) also one q
+// above B2, caught with the chance above (pairs = nbaby x giant steps).
+static double s2_prob(const double *r, int len, double lnp, double B1, double B2,
+    double pairs, int bs)
+{
+    double L = lnp - log(23.0), a = log(B1), b = log(B2), h, sum = 0, p;
+    const s2_rhist_t *rh = s2_rhist_get(bs);
+    int i, j, steps = 100;
     h = (b - a) / steps;
     for (i = 0; i <= steps; i++)
     {
         double l = a + i * h, wt = (i == 0 || i == steps) ? 0.5 : 1.0;
         sum += wt * s2_rho(r, len, (L - l) / a) / l;
     }
-    return s2_rho(r, len, L / a) + sum * h;
+    p = s2_rho(r, len, L / a) + sum * h;
+    if ((rh != NULL) && (L > b))
+    {
+        h = (L - b) / steps;
+        sum = 0;
+        for (i = 0; i <= steps; i++)
+        {
+            double l = b + i * h, wt = (i == 0 || i == steps) ? 0.5 : 1.0;
+            double E1 = pairs / exp(l), c = 0;
+            for (j = 0; j < rh->cnt; j++)
+                c += rh->w[j] * (1.0 - exp(-E1 * rh->r[j]));
+            sum += wt * s2_rho(r, len, (L - l) / a) / l * c;
+        }
+        p += sum * h;
+    }
+    return p;
 }
+
+// baby steps for D: k < D/2 coprime to D
+static double s2_nbaby(uint32_t D)
+{
+    uint32_t k, c = 0;
+    for (k = 1; k < D / 2; k++)
+        if (s2_gcd(k, D) == 1)
+            c++;
+    return (double)c;
+}
+
+// polynomials the automatic choice considers (design doc section 14.8)
+static const int s2_bs_cand[] = { 0, -3, -6, -12 };
+#define S2_BS_NCAND ((int)(sizeof(s2_bs_cand) / sizeof(s2_bs_cand[0])))
 
 // digits of the factors B1 is usually chosen for (GMP-ECM's table,
 // interpolated in log B1)
@@ -269,100 +386,14 @@ static uint64_t s2_covered_B2(int t, uint64_t B1, uint64_t blocks)
     return (j0 + blocks * (1u << t) - 1) * D + D / 2 - 1;
 }
 
-// returns the chosen B2 (0: none fits) and the configuration
-static uint64_t s2_auto_B2(int n, uint64_t B1, int threads, double cap, int bs, uint32_t bsM,
-    int *bt, int *bk, int *bl, double *ratio, double *pdig)
+// least-cost configuration (t, k, lean) for a fixed B2 within the memory
+// limit; returns its cost (1e300: none fits)
+static double s2_fixed_cfg(int n, uint64_t B1, uint64_t B2, int threads, double cap,
+    int bs, uint32_t bsM, int *bt, int *bk, int *bl, double *bmem, double *bctx)
 {
-    int len, t, k, lean;
-    double *r = s2_rho_table(&len);
-    double T1 = S2_C1 * (double)B1, best = 0;
-    double lnp;
-    uint64_t bB2 = 0;
-
-    *pdig = s2_target_digits((double)B1);
-    lnp = *pdig * log(10.0);
+    int t, k, lean;
+    double best = 1e300;
     for (t = 3; t <= 15; t++)
-    {
-        if (B1 < s2_D[t])
-            break;
-        for (lean = 0; lean <= 1; lean++)
-        {
-            for (k = 1; k <= 4; k++)
-            {
-                double ctxb, mem = s2_mem(t, n, k, lean, bs, bsM, &ctxb);
-                uint64_t blocks = 1;
-                if (mem + ctxb / threads > cap)
-                    continue;
-                while (1)
-                {
-                    double T2 = S2_COST_SCALE * s2_cost(t, n, k, lean, (double)blocks, bs, bsM);
-                    uint64_t B2c = s2_covered_B2(t, B1, blocks);
-                    double e;
-                    if ((T2 > 4.0 * T1) || (B2c > (uint64_t)1e15))
-                        break;
-                    e = s2_prob(r, len, lnp, (double)B1, (double)B2c) / (T1 + T2);
-                    if (e > best)
-                    {
-                        best = e;
-                        bB2 = B2c;
-                        *bt = t; *bk = k; *bl = lean;
-                        *ratio = T2 / T1;
-                    }
-                    blocks = blocks < 8 ? blocks + 1 : blocks + blocks / 8;
-                }
-            }
-        }
-    }
-    free(r);
-    return bB2;
-}
-
-avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
-    int threads, double mem_mb, int auto_b2, int bs, int verbose)
-{
-    avxecm_s2fft_t *s;
-    int n, t, k, lean, bt = 0, bk = 1, bl = 0;
-    uint32_t bsM = 0;                       // 0: s2_bs_m per configuration
-    double best = 1e300, bmem = 0, bctx = 0, cap = mem_mb * 1048576.0;
-    double aratio = 0, adig = 0;
-    uint32_t j;
-
-    if (mpz_even_p(N))
-        return NULL;
-    if (threads < 1) threads = 1;
-    // Brent-Suyama: |S| <= 1 is the plain stage 2; |S| <= 32
-    if ((bs >= -1) && (bs <= 1))
-        bs = 0;
-    if (bs > 32) bs = 32;
-    if (bs < -32) bs = -32;
-    {
-        // testing aid: AVXECM_S2FFT_BSM = progressions side by side
-        const char *e = getenv("AVXECM_S2FFT_BSM");
-        if ((e != NULL) && (atoi(e) >= 2) && (atoi(e) <= 256))
-            bsM = (uint32_t)atoi(e);
-        while (bsM & (bsM - 1)) bsM &= bsM - 1;    // power of 2
-    }
-    n = (int)((mpz_sizeinbase(N, 2) + 3 + 51) / 52);
-    if (n < 2) n = 2;
-
-    if (auto_b2)
-    {
-        uint64_t aB2 = s2_auto_B2(n, B1, threads, cap, bs, bsM, &bt, &bk, &bl, &aratio, &adig);
-        if (aB2 > B1)
-        {
-            B2 = aB2;
-            bmem = s2_mem(bt, n, bk, bl, bs, bsM, &bctx);
-        }
-        else
-        {
-            bt = 0;
-            auto_b2 = 0;
-        }
-    }
-    if (B2 <= B1)
-        return NULL;
-
-    for (t = (bt > 0) ? 16 : 3; t <= 15; t++)       // skipped when auto chose
     {
         double dF = (double)(1u << t), D = s2_D[t];
         double blocks = ceil((double)(B2 - B1) / (dF * D));
@@ -379,12 +410,160 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
                 if (cost < best)
                 {
                     best = cost;
-                    bt = t; bk = k; bl = lean;
-                    bmem = mem; bctx = ctxb;
+                    *bt = t; *bk = k; *bl = lean;
+                    *bmem = mem; *bctx = ctxb;
                 }
             }
         }
     }
+    return best;
+}
+
+// Automatic B2: the configuration and block count with the least predicted
+// time per factor.  *bs = AVXECM_BS_AUTO also chooses the polynomial among
+// s2_bs_cand.  Returns the chosen B2 (0: none fits).
+static uint64_t s2_auto_B2(int n, uint64_t B1, int threads, double cap, int *bs, uint32_t bsM,
+    int *bt, int *bk, int *bl, double *ratio, double *pdig)
+{
+    int len, t, k, lean, c, ncand = (*bs == AVXECM_BS_AUTO) ? S2_BS_NCAND : 1, bbs = 0;
+    double *r = s2_rho_table(&len);
+    double T1 = S2_C1 * (double)B1, best = 0;
+    double lnp;
+    uint64_t bB2 = 0;
+
+    *pdig = s2_target_digits((double)B1);
+    lnp = *pdig * log(10.0);
+    for (c = 0; c < ncand; c++)
+    {
+        int cs = (*bs == AVXECM_BS_AUTO) ? s2_bs_cand[c] : *bs;
+        for (t = 3; t <= 15; t++)
+        {
+            double nb;
+            if (B1 < s2_D[t])
+                break;
+            nb = s2_nbaby(s2_D[t]);
+            for (lean = 0; lean <= 1; lean++)
+            {
+                for (k = 1; k <= 4; k++)
+                {
+                    double ctxb, mem = s2_mem(t, n, k, lean, cs, bsM, &ctxb);
+                    uint64_t blocks = 1;
+                    if (mem + ctxb / threads > cap)
+                        continue;
+                    while (1)
+                    {
+                        double T2 = S2_COST_SCALE * s2_cost(t, n, k, lean, (double)blocks, cs, bsM);
+                        uint64_t B2c = s2_covered_B2(t, B1, blocks);
+                        double e;
+                        if ((T2 > 4.0 * T1) || (B2c > (uint64_t)1e15))
+                            break;
+                        e = s2_prob(r, len, lnp, (double)B1, (double)B2c,
+                            nb * (double)blocks * (double)(1u << t), cs) / (T1 + T2);
+                        if (e > best)
+                        {
+                            best = e;
+                            bB2 = B2c;
+                            bbs = cs;
+                            *bt = t; *bk = k; *bl = lean;
+                            *ratio = T2 / T1;
+                        }
+                        blocks = blocks < 8 ? blocks + 1 : blocks + blocks / 8;
+                    }
+                }
+            }
+        }
+    }
+    free(r);
+    *bs = bbs;
+    return bB2;
+}
+
+// fixed B2, bs = AVXECM_BS_AUTO: the polynomial with the least predicted
+// time per factor at this B2
+static int s2_auto_bs(int n, uint64_t B1, uint64_t B2, int threads, double cap, uint32_t bsM,
+    double *pdig)
+{
+    int len, c, bbs = 0;
+    double *r = s2_rho_table(&len);
+    double T1 = S2_C1 * (double)B1, best = 0, lnp;
+
+    *pdig = s2_target_digits((double)B1);
+    lnp = *pdig * log(10.0);
+    for (c = 0; c < S2_BS_NCAND; c++)
+    {
+        int bt = 0, bk = 1, bl = 0;
+        double bmem, bctx, cost, e, dF, blocks;
+        cost = s2_fixed_cfg(n, B1, B2, threads, cap, s2_bs_cand[c], bsM, &bt, &bk, &bl, &bmem, &bctx);
+        if (bt == 0)
+            continue;
+        dF = (double)(1u << bt);
+        blocks = ceil((double)(B2 - B1) / (dF * s2_D[bt]));
+        e = s2_prob(r, len, lnp, (double)B1, (double)B2, s2_nbaby(s2_D[bt]) * blocks * dF,
+            s2_bs_cand[c]) / (T1 + S2_COST_SCALE * cost);
+        if (e > best)
+        {
+            best = e;
+            bbs = s2_bs_cand[c];
+        }
+    }
+    free(r);
+    return bbs;
+}
+
+avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
+    int threads, double mem_mb, int auto_b2, int bs, int verbose)
+{
+    avxecm_s2fft_t *s;
+    int n, t, bt = 0, bk = 1, bl = 0, bs_auto = (bs == AVXECM_BS_AUTO);
+    uint32_t bsM = 0;                       // 0: s2_bs_m per configuration
+    double bmem = 0, bctx = 0, cap = mem_mb * 1048576.0;
+    double aratio = 0, adig = 0;
+    uint32_t j;
+
+    if (mpz_even_p(N))
+        return NULL;
+    if (threads < 1) threads = 1;
+    // Brent-Suyama: |S| <= 1 is the plain stage 2; |S| <= 32
+    if (!bs_auto)
+    {
+        if ((bs >= -1) && (bs <= 1))
+            bs = 0;
+        if (bs > 32) bs = 32;
+        if (bs < -32) bs = -32;
+    }
+    {
+        // testing aid: AVXECM_S2FFT_BSM = progressions side by side
+        const char *e = getenv("AVXECM_S2FFT_BSM");
+        if ((e != NULL) && (atoi(e) >= 2) && (atoi(e) <= 256))
+            bsM = (uint32_t)atoi(e);
+        while (bsM & (bsM - 1)) bsM &= bsM - 1;    // power of 2
+    }
+    n = (int)((mpz_sizeinbase(N, 2) + 3 + 51) / 52);
+    if (n < 2) n = 2;
+
+    if (auto_b2)
+    {
+        uint64_t aB2 = s2_auto_B2(n, B1, threads, cap, &bs, bsM, &bt, &bk, &bl, &aratio, &adig);
+        if (aB2 > B1)
+        {
+            B2 = aB2;
+            bmem = s2_mem(bt, n, bk, bl, bs, bsM, &bctx);
+        }
+        else
+        {
+            bt = 0;
+            auto_b2 = 0;
+            if (bs_auto)
+                bs = AVXECM_BS_AUTO;
+        }
+    }
+    if (B2 <= B1)
+        return NULL;
+    if (bs == AVXECM_BS_AUTO)
+        bs = s2_auto_bs(n, B1, B2, threads, cap, bsM, &adig);
+
+    if (bt == 0)                    // fixed B2 (or auto found nothing)
+        s2_fixed_cfg(n, B1, B2, threads, cap, bs, bsM, &bt, &bk, &bl, &bmem, &bctx);
     // testing aid: AVXECM_S2FFT_CFG="t,k,lean" forces a configuration
     {
         const char *e = getenv("AVXECM_S2FFT_CFG");
@@ -410,10 +589,11 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
     s->j0 = (B1 + s->D / 2) / s->D;
     if (s->j0 < 1) s->j0 = 1;
     if (bs && (s->bsM == 0))
-        s->bsM = s2_bs_m(t, (double)((B2 + s->D / 2 - s->j0 * s->D) / ((uint64_t)s->dF * s->D) + 1),
+        s->bsM = s2_bs_m(t, n, (double)((B2 + s->D / 2 - s->j0 * s->D) / ((uint64_t)s->dF * s->D) + 1),
             bs > 0 ? bs : -bs);
     while (s->bsM > (1u << t)) s->bsM >>= 1;   // M divides dF (both powers of 2)
     if (s->bsM < 2) s->bsM = 2;
+    s->bsQ = bs ? s2_bs_q(bs > 0 ? bs : -bs, s->bsM) : 0;
     s->mem = bmem;
     s->ctxmem = bctx;
     s->dF = 1u << t;
@@ -457,8 +637,11 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
             s->mem / 1048576.0, s->ctxmem / 1048576.0, mem_mb,
             s2_levels(t, s->kstride), t, s->lean ? ", 1/F and F transforms recomputed" : "");
         if (s->bs)
-            printf("ecm: FFT stage 2: Brent-Suyama with %s of degree %d, %u progressions\n",
-                s->bs > 0 ? "x^S" : "Dickson D_S(x, -1)", s->bs > 0 ? s->bs : -s->bs, s->bsM);
+            printf("ecm: FFT stage 2: Brent-Suyama with %s of degree %d, %u progressions%s\n",
+                s->bs > 0 ? "x^S" : "Dickson D_S(x, -1)", s->bs > 0 ? s->bs : -s->bs, s->bsM,
+                bs_auto ? " (chosen automatically)" : "");
+        else if (bs_auto)
+            printf("ecm: FFT stage 2: no Brent-Suyama (chosen automatically)\n");
         if (auto_b2)
             printf("ecm: FFT stage 2: B2 chosen for the memory limit (target p%1.0f, "
                 "predicted stage 2 / stage 1 time %1.2f)\n", adig, aratio);
@@ -480,11 +663,11 @@ static void s2_thread_free(avxecm_s2fft_t *s, s2_thread_t *th)
     if (s->lean) vp_free(th->F);
     if (s->bs)
     {
-        vp_free(th->bsx); vp_free(th->bsy); vp_free(th->bsd);
-        vp_free(th->bsi); vp_free(th->bsp); vp_free(th->bc);
-        for (i = 0; i < (int)s->bsM * ((s->bs > 0 ? s->bs : -s->bs) + 1); i++)
-            mpz_clear(th->bsT[i]);
-        free(th->bsT);
+        vp_free(th->bsx); vp_free(th->bsy); free(th->bsT);
+        vp_free(th->bden); vp_free(th->binv); vp_free(th->bpre);
+        vp_free(th->blam); vp_free(th->bx3); vp_free(th->bt); vp_free(th->bsa);
+        vp_free(th->ix); vp_free(th->iy); free(th->iT);
+        vp_free(th->bci); vp_free(th->bc);
     }
     for (i = 0; i < s->t; i++)
         if (th->tree[i] != NULL) vp_free(th->tree[i]);
@@ -523,16 +706,23 @@ static void s2_thread_init(avxecm_s2fft_t *s, s2_thread_t *th)
     th->pt = vp_alloc(16, n);
     if (s->bs)
     {
-        size_t q = (size_t)s->bsM * (size_t)((s->bs > 0 ? s->bs : -s->bs) + 1);
-        th->bsx = vp_alloc(q, n);
-        th->bsy = vp_alloc(q, n);
-        th->bsd = vp_alloc(q, n);
-        th->bsi = vp_alloc(q, n);
-        th->bsp = vp_alloc(q, n);
-        th->bc = vp_alloc(16, n);
-        th->bsT = (mpz_t *)malloc(q * sizeof(mpz_t));
-        for (i = 0; i < (int)q; i++)
-            mpz_init(th->bsT[i]);
+        int deg = s->bs > 0 ? s->bs : -s->bs;
+        size_t e = (size_t)s->bsM * (size_t)(deg + 1), q = s->bsQ, tri = s2_bs_tri(deg);
+        th->bsx = vp_alloc(e, n);
+        th->bsy = vp_alloc(e, n);
+        th->bsT = (uint64_t *)calloc(e, sizeof(uint64_t));
+        th->bden = vp_alloc(q, n);
+        th->binv = vp_alloc(q, n);
+        th->bpre = vp_alloc(q, n);
+        th->blam = vp_alloc(q, n);
+        th->bx3 = vp_alloc(q, n);
+        th->bt = vp_alloc(q, n);
+        th->bsa = vp_alloc(q, n);
+        th->ix = vp_alloc(tri, n);
+        th->iy = vp_alloc(tri, n);
+        th->iT = (uint64_t *)calloc(tri, sizeof(uint64_t));
+        th->bci = vp_alloc(16, n);
+        th->bc = vp_alloc(20, n);
     }
     th->tree = (uint64_t **)malloc((size_t)s->t * sizeof(uint64_t *));
     for (i = 0; i < s->t; i++)
@@ -717,24 +907,35 @@ static void s2_findiff(int S, int deg, mpz_t *out, uint64_t i0, uint64_t delta)
     mpz_clear(d);
 }
 
-// out[i] = 1 / in[i], i < m (Montgomery's batch inversion per lane; pre:
-// m coefficients).  A lane whose product is not invertible is folded into
-// found[lane] (a stage-2 find when it shares a factor with N).
-static void s2_inv_batch(avxecm_s2fft_t *s, s2_thread_t *th, uint32_t m,
+// out[i] = 1 / in[i], i < Q (Montgomery's batch inversion per lane, over
+// S2_NCH interleaved chains so the products are vector calls; pre: Q
+// coefficients; out must not overlap in).  A lane whose product is not
+// invertible is folded into found[lane] (a stage-2 find when it shares a
+// factor with N) and continues with garbage.
+static void s2_inv_batch(avxecm_s2fft_t *s, s2_thread_t *th, uint32_t Q,
     const uint64_t *in, uint64_t *out, uint64_t *pre, mpz_t *found, mpz_t t1, mpz_t t2)
 {
     vp_work_t *w = th->w;
     vp_ctx_t *ctx = w->ctx;
-    uint64_t *I = PC(8), *T = PC(9);
-    uint32_t i;
+    uint32_t c = Q < S2_NCH ? Q : S2_NCH, i, j, ri, rows = (Q + c - 1) / c;
+    uint64_t *tot = VP_COEF(ctx, th->bci, 0), *tp = VP_COEF(ctx, th->bci, S2_NCH);
+    uint64_t *I = VP_COEF(ctx, th->bci, 2 * S2_NCH), *x = VP_COEF(ctx, th->bci, 3 * S2_NCH);
     int l;
 
-    s2_copy(ctx, VP_COEF(ctx, pre, 0), VP_COEF(ctx, in, 0));
-    for (i = 1; i < m; i++)
-        vp_cmul(w, VP_COEF(ctx, pre, i), VP_COEF(ctx, pre, i - 1), VP_COEF(ctx, in, i), 1);
+    memcpy(pre, in, (size_t)c * 8 * (size_t)ctx->n * sizeof(uint64_t));
+    for (i = c; i < Q; i += c)
+        vp_cmul(w, VP_COEF(ctx, pre, i), VP_COEF(ctx, pre, i - c), VP_COEF(ctx, in, i),
+            Q - i < c ? Q - i : c);
+    // chain totals and their product
+    for (j = 0; j < c; j++)
+        s2_copy(ctx, VP_COEF(ctx, tot, j), VP_COEF(ctx, pre, j + c * ((Q - 1 - j) / c)));
+    s2_copy(ctx, tp, tot);
+    for (j = 1; j < c; j++)
+        vp_cmul(w, VP_COEF(ctx, tp, j), VP_COEF(ctx, tp, j - 1), VP_COEF(ctx, tot, j), 1);
     for (l = 0; l < 8; l++)
     {
-        vp_get(ctx, t1, VP_COEF(ctx, pre, m - 1), l);
+        // v = v_p R; want v_p^-1 R = v^-1 R^2
+        vp_get(ctx, t1, VP_COEF(ctx, tp, c - 1), l);
         mpz_mod(t1, t1, s->N);
         if (mpz_invert(t2, t1, s->N) == 0)
         {
@@ -745,15 +946,24 @@ static void s2_inv_batch(avxecm_s2fft_t *s, s2_thread_t *th, uint32_t m,
         mpz_mul(t2, t2, s->R);
         mpz_mul(t2, t2, s->R);
         mpz_mod(t2, t2, s->N);
-        vp_set(ctx, I, t2, l);
+        vp_set(ctx, x, t2, l);
     }
-    for (i = m - 1; i > 0; i--)
+    for (j = c - 1; j > 0; j--)
     {
-        vp_cmul(w, T, I, VP_COEF(ctx, pre, i - 1), 1);
-        vp_cmul(w, I, I, VP_COEF(ctx, in, i), 1);
-        s2_copy(ctx, VP_COEF(ctx, out, i), T);
+        vp_cmul(w, VP_COEF(ctx, I, j), x, VP_COEF(ctx, tp, j - 1), 1);
+        vp_cmul(w, x, x, VP_COEF(ctx, tot, j), 1);
     }
-    s2_copy(ctx, VP_COEF(ctx, out, 0), I);
+    s2_copy(ctx, I, x);
+    // I[j] = 1 / (chain j's product so far); walk the rows back
+    for (ri = rows - 1; ri >= 1; ri--)
+    {
+        uint32_t m;
+        i = ri * c;
+        m = Q - i < c ? Q - i : c;
+        vp_cmul(w, VP_COEF(ctx, out, i), I, VP_COEF(ctx, pre, i - c), m);
+        vp_cmul(w, I, I, VP_COEF(ctx, in, i), m);
+    }
+    memcpy(out, I, (size_t)c * 8 * (size_t)ctx->n * sizeof(uint64_t));
 }
 
 // x-only ladder with an mpz scalar c >= 1: R0 = [c]P, R1 = [c+1]P
@@ -783,144 +993,263 @@ static void s2_mul2(s2_thread_t *th, s2_pt R0o, s2_pt R1o, s2_pt P, const mpz_t 
     s2_copy(ctx, R1o.X, R1.X); s2_copy(ctx, R1o.Z, R1.Z);
 }
 
-// BS curve constants, in th->bc: x0, A, 2A, g, 2g
+// BS curve constants, in th->bc: x0, A, 2A, g, 2g; the scaled curve
+// Y^2 = X^3 + a2 X^2 + a4 X (X = g x, Y = g^2 y): a2 = g A, a4 = g^2, 2 a2
 #define BC_X0(th)  VP_COEF(ctx, (th)->bc, 0)
 #define BC_A(th)   VP_COEF(ctx, (th)->bc, 1)
 #define BC_A2(th)  VP_COEF(ctx, (th)->bc, 2)
 #define BC_G(th)   VP_COEF(ctx, (th)->bc, 3)
 #define BC_G2(th)  VP_COEF(ctx, (th)->bc, 4)
-#define BC_T(th, i) VP_COEF(ctx, (th)->bc, 5 + (i))     // 11 temporaries
+#define BC_W2(th)  VP_COEF(ctx, (th)->bc, 5)
+#define BC_W4(th)  VP_COEF(ctx, (th)->bc, 6)
+#define BC_W22(th) VP_COEF(ctx, (th)->bc, 7)
+#define BC_T(th, i) VP_COEF(ctx, (th)->bc, 8 + (i))     // 12 temporaries
 
-// Tables of the M progressions i_r(m) = i0[r] + m delta: entry (r, e) =
-// [Delta^e f(i_r(0))]Q, affine, in th->bsx / th->bsy at r (S+1) + e
-static void s2_bs_init(avxecm_s2fft_t *s, s2_thread_t *th, const uint64_t *i0,
-    uint64_t delta, s2_pt Q, const uint64_t *a24, mpz_t *found, mpz_t t1, mpz_t t2)
+// The tables' integer multipliers are tracked modulo the prime S2_TP to
+// detect equal points (not mod 2^64: high differences such as
+// deg! delta^deg are divisible by large powers of 2).
+#define S2_TP 0x1FFFFFFFFFFFFFFFull     // 2^61 - 1
+
+static uint64_t s2_tp_add(uint64_t a, uint64_t b)
+{
+    uint64_t c = a + b;                 // < 2^62
+    return c >= S2_TP ? c - S2_TP : c;
+}
+
+// affine points [c_i]Q, i < cnt, scaled, into X[], Y[] (contiguous); the
+// multipliers mod S2_TP into T[]
+static void s2_bs_points(avxecm_s2fft_t *s, s2_thread_t *th, uint32_t cnt, mpz_t *c,
+    uint64_t *X, uint64_t *Y, uint64_t *T, s2_pt Q, const uint64_t *a24,
+    mpz_t *found, mpz_t t1, mpz_t t2)
 {
     vp_work_t *w = th->w;
     vp_ctx_t *ctx = w->ctx;
-    int S = s->bs, deg = S > 0 ? S : -S, e;
-    uint32_t r, M = s->bsM, E = (uint32_t)deg + 1;
-    mpz_t c[64];
     s2_pt R0 = { BC_T(th, 0), BC_T(th, 1) }, R1 = { BC_T(th, 2), BC_T(th, 3) };
     uint64_t *u = BC_T(th, 4), *v = BC_T(th, 5), *z11 = BC_T(th, 6), *z12 = BC_T(th, 7);
     uint64_t *t3 = BC_T(th, 8);
+    uint32_t q;
 
-    for (e = 0; e <= deg; e++) mpz_init(c[e]);
-    for (r = 0; r < M; r++)
+    for (q = 0; q < cnt; q++)
     {
-        s2_findiff(S, deg, c, i0[r], delta);
-        for (e = 0; e <= deg; e++)
-        {
-            uint32_t q = r * E + (uint32_t)e;
-            uint64_t *X1 = R0.X, *Z1 = R0.Z, *X2 = R1.X, *Z2 = R1.Z;
-            mpz_set(th->bsT[q], c[e]);
-            s2_mul2(th, R0, R1, Q, c[e], a24);
-            // Okeya-Sakurai: y = [Z2((x0 X1 + Z1)(x0 Z1 + X1 + 2A Z1) - 2A Z1^2)
-            //   - (x0 Z1 - X1)^2 X2] / (2 g Z1^2 Z2),  x = X1 2g Z1 Z2 / (same)
-            vp_cmul(w, u, BC_X0(th), X1, 1);
-            vpk_add(ctx, u, u, Z1, 1);                      // x0 X1 + Z1
-            vp_cmul(w, v, BC_X0(th), Z1, 1);                // x0 Z1
-            vp_cmul(w, t3, BC_A2(th), Z1, 1);
-            vpk_add(ctx, t3, t3, X1, 1);
-            vpk_add(ctx, t3, t3, v, 1);                     // x0 Z1 + X1 + 2A Z1
-            vp_cmul(w, u, u, t3, 1);
-            vp_cmul(w, z11, Z1, Z1, 1);                     // Z1^2
-            vp_cmul(w, t3, BC_A2(th), z11, 1);
-            vpk_sub(ctx, u, u, t3, 1);
-            vp_cmul(w, u, u, Z2, 1);                        // Z2 (...)
-            vpk_sub(ctx, v, v, X1, 1);
-            vp_cmul(w, v, v, v, 1);
-            vp_cmul(w, v, v, X2, 1);                        // (x0 Z1 - X1)^2 X2
-            vpk_sub(ctx, VP_COEF(ctx, th->bsy, q), u, v, 1);
-            vp_cmul(w, z12, Z1, Z2, 1);
-            vp_cmul(w, z12, z12, BC_G2(th), 1);             // 2g Z1 Z2
-            vp_cmul(w, VP_COEF(ctx, th->bsx, q), X1, z12, 1);
-            vp_cmul(w, VP_COEF(ctx, th->bsd, q), z12, Z1, 1);   // W = 2g Z1^2 Z2
-        }
+        uint64_t *X1 = R0.X, *Z1 = R0.Z, *X2 = R1.X, *Z2 = R1.Z;
+        mpz_set_ui(t1, 1);
+        mpz_mul_2exp(t1, t1, 61);
+        mpz_sub_ui(t1, t1, 1);
+        mpz_mod(t2, c[q], t1);
+        T[q] = (uint64_t)mpz_getlimbn(t2, 0);
+        s2_mul2(th, R0, R1, Q, c[q], a24);
+        // Okeya-Sakurai: y = [Z2((x0 X1 + Z1)(x0 Z1 + X1 + 2A Z1) - 2A Z1^2)
+        //   - (x0 Z1 - X1)^2 X2] / (2 g Z1^2 Z2),  x = X1 2g Z1 Z2 / (same)
+        vp_cmul(w, u, BC_X0(th), X1, 1);
+        vpk_add(ctx, u, u, Z1, 1);                      // x0 X1 + Z1
+        vp_cmul(w, v, BC_X0(th), Z1, 1);                // x0 Z1
+        vp_cmul(w, t3, BC_A2(th), Z1, 1);
+        vpk_add(ctx, t3, t3, X1, 1);
+        vpk_add(ctx, t3, t3, v, 1);                     // x0 Z1 + X1 + 2A Z1
+        vp_cmul(w, u, u, t3, 1);
+        vp_csqr(w, z11, Z1, 1);                         // Z1^2
+        vp_cmul(w, t3, BC_A2(th), z11, 1);
+        vpk_sub(ctx, u, u, t3, 1);
+        vp_cmul(w, u, u, Z2, 1);                        // Z2 (...)
+        vpk_sub(ctx, v, v, X1, 1);
+        vp_csqr(w, v, v, 1);
+        vp_cmul(w, v, v, X2, 1);                        // (x0 Z1 - X1)^2 X2
+        vpk_sub(ctx, u, u, v, 1);
+        vp_cmul(w, VP_COEF(ctx, Y, q), u, BC_W4(th), 1);    // g^2 y numerator
+        vp_cmul(w, z12, Z1, Z2, 1);
+        vp_cmul(w, z12, z12, BC_G2(th), 1);             // 2g Z1 Z2
+        vp_cmul(w, VP_COEF(ctx, th->bden, q), z12, Z1, 1);  // W = 2g Z1^2 Z2
+        vp_cmul(w, z12, z12, BC_G(th), 1);
+        vp_cmul(w, VP_COEF(ctx, X, q), X1, z12, 1);     // g x numerator
     }
-    for (e = 0; e <= deg; e++) mpz_clear(c[e]);
-
-    s2_inv_batch(s, th, M * E, th->bsd, th->bsi, th->bsp, found, t1, t2);
-    vp_cmul(w, th->bsx, th->bsx, th->bsi, M * E);
-    vp_cmul(w, th->bsy, th->bsy, th->bsi, M * E);
+    s2_inv_batch(s, th, cnt, th->bden, th->binv, th->bpre, found, t1, t2);
+    vp_cmul(w, X, X, th->binv, cnt);
+    vp_cmul(w, Y, Y, th->binv, cnt);
 }
 
-// one step of all M tables: (r, e) <- (r, e) + (r, e+1), e < deg
-static void s2_bs_step(avxecm_s2fft_t *s, s2_thread_t *th, mpz_t *found, mpz_t t1, mpz_t t2)
+// (X1, Y1) <- (X1, Y1) + (X2, Y2) elementwise over nr rows of cnt[i]
+// points (X2 may be X1 at a higher offset: rows are read before they are
+// written), sharing one batch inversion; multipliers T1 += T2.  The
+// multipliers are positive integers (positive coefficients, positive
+// arguments); equal ones mean equal points: a doubling (2 Y denominator).
+static void s2_aff_add(avxecm_s2fft_t *s, s2_thread_t *th, int nr,
+    uint64_t **X1, uint64_t **Y1, uint64_t **X2, uint64_t **Y2,
+    uint64_t **T1, uint64_t **T2, const uint32_t *cnt, mpz_t *found, mpz_t t1, mpz_t t2)
 {
     vp_work_t *w = th->w;
     vp_ctx_t *ctx = w->ctx;
-    uint32_t deg = (uint32_t)(s->bs > 0 ? s->bs : -s->bs), e;
-    uint32_t r, M = s->bsM, E = deg + 1, q = 0;
-    uint64_t *lam = BC_T(th, 0), *x3 = BC_T(th, 1);
+    uint32_t off = 0, q, m;
+    int i;
 
-    // the multipliers T(r, e) are positive integers (positive coefficients,
-    // positive arguments); when T(r, e) = T(r, e+1) the two points are equal
-    // and the addition is a doubling (denominator 2 g y)
-    for (r = 0; r < M; r++)
-        for (e = 0; e < deg; e++, q++)
-        {
-            if (mpz_cmp(th->bsT[r * E + e], th->bsT[r * E + e + 1]) == 0)
-                vp_cmul(w, VP_COEF(ctx, th->bsd, q), BC_G2(th),
-                    VP_COEF(ctx, th->bsy, r * E + e), 1);
-            else
-                vpk_sub(ctx, VP_COEF(ctx, th->bsd, q),
-                    VP_COEF(ctx, th->bsx, r * E + e + 1), VP_COEF(ctx, th->bsx, r * E + e), 1);
-        }
-    s2_inv_batch(s, th, q, th->bsd, th->bsi, th->bsp, found, t1, t2);
-    q = 0;
-    for (r = 0; r < M; r++)
-        for (e = 0; e < deg; e++, q++)
-        {
-            uint64_t *x1 = VP_COEF(ctx, th->bsx, r * E + e), *y1 = VP_COEF(ctx, th->bsy, r * E + e);
-            uint64_t *x2 = VP_COEF(ctx, th->bsx, r * E + e + 1), *y2 = VP_COEF(ctx, th->bsy, r * E + e + 1);
-            if (mpz_cmp(th->bsT[r * E + e], th->bsT[r * E + e + 1]) == 0)
+    for (i = 0; i < nr; i++)
+    {
+        m = cnt[i];
+        vpk_sub(ctx, VP_COEF(ctx, th->bden, off), X2[i], X1[i], m);
+        for (q = 0; q < m; q++)
+            if (T1[i][q] == T2[i][q])
+                vpk_add(ctx, VP_COEF(ctx, th->bden, off + q), VP_COEF(ctx, Y1[i], q),
+                    VP_COEF(ctx, Y1[i], q), 1);
+        off += m;
+    }
+    s2_inv_batch(s, th, off, th->bden, th->binv, th->bpre, found, t1, t2);
+    off = 0;
+    for (i = 0; i < nr; i++)
+    {
+        uint64_t *lam = VP_COEF(ctx, th->blam, off), *x3 = VP_COEF(ctx, th->bx3, off);
+        uint64_t *tt = VP_COEF(ctx, th->bt, off);
+        m = cnt[i];
+        vpk_sub(ctx, lam, Y2[i], Y1[i], m);             // (Y2 - Y1) / (X2 - X1)
+        for (q = 0; q < m; q++)
+            if (T1[i][q] == T2[i][q])
             {
-                // (3 x1^2 + 2 A x1 + 1) / (2 g y1)
-                vpk_add(ctx, lam, x1, x1, 1);
-                vpk_add(ctx, lam, lam, x1, 1);
-                vpk_add(ctx, lam, lam, BC_A2(th), 1);
-                vp_cmul(w, lam, lam, x1, 1);
-                vpk_add(ctx, lam, lam, w->one, 1);
+                // (3 X^2 + 2 a2 X + a4) / (2 Y)
+                uint64_t *l = VP_COEF(ctx, lam, q), *x = VP_COEF(ctx, X1[i], q);
+                uint64_t *u = VP_COEF(ctx, tt, q);
+                vp_csqr(w, l, x, 1);
+                vpk_add(ctx, u, l, l, 1);
+                vpk_add(ctx, l, l, u, 1);
+                vp_cmul(w, u, BC_W22(th), x, 1);
+                vpk_add(ctx, l, l, u, 1);
+                vpk_add(ctx, l, l, BC_W4(th), 1);
             }
-            else
-                vpk_sub(ctx, lam, y2, y1, 1);                  // (y2 - y1) / (x2 - x1)
-            vp_cmul(w, lam, lam, VP_COEF(ctx, th->bsi, q), 1);
-            mpz_add(th->bsT[r * E + e], th->bsT[r * E + e], th->bsT[r * E + e + 1]);
-            vp_cmul(w, x3, lam, lam, 1);
-            vp_cmul(w, x3, x3, BC_G(th), 1);
-            vpk_sub(ctx, x3, x3, BC_A(th), 1);
-            vpk_sub(ctx, x3, x3, x1, 1);
-            vpk_sub(ctx, x3, x3, x2, 1);                       // g lam^2 - A - x1 - x2
-            vpk_sub(ctx, x1, x1, x3, 1);
-            vp_cmul(w, x1, x1, lam, 1);
-            vpk_sub(ctx, y1, x1, y1, 1);                       // lam (x1 - x3) - y1
-            s2_copy(ctx, x1, x3);
-        }
+        vp_cmul(w, lam, lam, VP_COEF(ctx, th->binv, off), m);
+        vp_csqr(w, x3, lam, m);
+        vpk_add(ctx, tt, X1[i], X2[i], m);
+        vpk_sub(ctx, x3, x3, tt, m);
+        vpk_sub(ctx, x3, x3, th->bsa, m);               // lam^2 - a2 - X1 - X2
+        vpk_sub(ctx, tt, X1[i], x3, m);
+        vp_cmul(w, tt, tt, lam, m);
+        vpk_sub(ctx, Y1[i], tt, Y1[i], m);              // lam (X1 - X3) - Y1
+        memcpy(X1[i], x3, (size_t)m * 8 * (size_t)ctx->n * sizeof(uint64_t));
+        for (q = 0; q < m; q++)
+            T1[i][q] = s2_tp_add(T1[i][q], T2[i][q]);
+        off += m;
+    }
 }
 
-// baby roots x([f(k)]Q), k in S1, into dest (nbaby coefficients); progressions
-// k = c + 6 (r + (M/2) m), c in {1, 5}
+// Tables of M progressions in nfam families of C = M / nfam: progression
+// r = f C + r' starts at base[f] + r' rstep, step delta; entry (e, r) =
+// [Delta_delta^e f(i_r)]Q at e M + r in bsx, bsy, bsT.  1-D setup: a
+// ladder per entry.  2-D setup (cheaper for C > ~deg/2): g_e = Delta_delta^e f
+// is a polynomial of degree deg - e, so the entries of row e over r' are a
+// finite-difference table in steps of rstep; one ladder per entry of that
+// triangle (row e: deg - e + 1), then C - 1 steps of all rows at once.
+static void s2_bs_init(avxecm_s2fft_t *s, s2_thread_t *th, int nfam, const uint64_t *base,
+    uint64_t rstep, uint64_t delta, s2_pt Q, const uint64_t *a24, mpz_t *found,
+    mpz_t t1, mpz_t t2)
+{
+    vp_ctx_t *ctx = th->w->ctx;
+    int S = s->bs, twod, f;
+    uint32_t deg = (uint32_t)(S > 0 ? S : -S), e, k;
+    uint32_t M = s->bsM, C = M / (uint32_t)nfam, E = deg + 1, tri = s2_bs_tri((int)deg), r, nc;
+    double lg = log2((double)base[nfam - 1] + (double)C * (double)rstep + (double)deg * (double)delta);
+    mpz_t *c, *g;
+    size_t cb = (size_t)8 * (size_t)ctx->n * sizeof(uint64_t);
+    struct timeval tv0, tv1;
+
+    gettimeofday(&tv0, NULL);
+    s2_bs_famcost((int)deg, C, lg, ctx->n, &twod);
+    nc = twod ? tri : E * M;
+    c = (mpz_t *)malloc((size_t)nc * sizeof(mpz_t));
+    g = (mpz_t *)malloc((size_t)E * E * sizeof(mpz_t));
+    for (r = 0; r < nc; r++) mpz_init(c[r]);
+    for (r = 0; r < E * E; r++) mpz_init(g[r]);
+
+    if (!twod)
+    {
+        for (f = 0; f < nfam; f++)
+            for (r = 0; r < C; r++)
+            {
+                s2_findiff(S, (int)deg, g, base[f] + r * rstep, delta);
+                for (e = 0; e <= deg; e++)
+                    mpz_set(c[e * M + (uint32_t)f * C + r], g[e]);
+            }
+        s2_bs_points(s, th, E * M, c, th->bsx, th->bsy, th->bsT, Q, a24, found, t1, t2);
+    }
+    else
+    {
+        uint64_t *X1[64], *Y1[64], *X2[64], *Y2[64], *T1[64], *T2[64];
+        uint32_t cnt[64], off[64];
+        for (e = 0, r = 0; e <= deg; e++)
+        {
+            off[e] = r;
+            r += deg - e + 1;
+        }
+        for (e = 0; e < deg; e++)
+        {
+            X1[e] = VP_COEF(ctx, th->ix, off[e]);  X2[e] = VP_COEF(ctx, th->ix, off[e] + 1);
+            Y1[e] = VP_COEF(ctx, th->iy, off[e]);  Y2[e] = VP_COEF(ctx, th->iy, off[e] + 1);
+            T1[e] = th->iT + off[e];               T2[e] = th->iT + off[e] + 1;
+            cnt[e] = deg - e;
+        }
+        for (f = 0; f < nfam; f++)
+        {
+            // g[k E + e] = Delta_delta^e f(base + k rstep), then differences
+            // over k: entry (e, j) of the triangle = Delta_rstep^j of row e
+            for (k = 0; k <= deg; k++)
+                s2_findiff(S, (int)(deg - k), g + k * E, base[f] + (uint64_t)k * rstep, delta);
+            for (e = 0; e <= deg; e++)
+            {
+                uint32_t L = deg - e + 1, j;
+                for (k = 0; k < L; k++)
+                    mpz_set(c[off[e] + k], g[k * E + e]);
+                for (j = 1; j < L; j++)
+                    for (k = L - 1; k >= j; k--)
+                        mpz_sub(c[off[e] + k], c[off[e] + k], c[off[e] + k - 1]);
+            }
+            s2_bs_points(s, th, tri, c, th->ix, th->iy, th->iT, Q, a24, found, t1, t2);
+            for (r = 0; r < C; r++)
+            {
+                uint32_t idx = (uint32_t)f * C + r;
+                for (e = 0; e <= deg; e++)
+                {
+                    memcpy(VP_COEF(ctx, th->bsx, e * M + idx), VP_COEF(ctx, th->ix, off[e]), cb);
+                    memcpy(VP_COEF(ctx, th->bsy, e * M + idx), VP_COEF(ctx, th->iy, off[e]), cb);
+                    th->bsT[e * M + idx] = th->iT[off[e]];
+                }
+                if (r + 1 < C)
+                    s2_aff_add(s, th, (int)deg, X1, Y1, X2, Y2, T1, T2, cnt, found, t1, t2);
+            }
+        }
+    }
+    for (r = 0; r < nc; r++) mpz_clear(c[r]);
+    for (r = 0; r < E * E; r++) mpz_clear(g[r]);
+    free(c);
+    free(g);
+    gettimeofday(&tv1, NULL);
+    th->tinit += ytools_difftime(&tv0, &tv1);
+}
+
+// one step of all M tables: (e, r) <- (e, r) + (e + 1, r), e < deg
+static void s2_bs_step(avxecm_s2fft_t *s, s2_thread_t *th, mpz_t *found, mpz_t t1, mpz_t t2)
+{
+    vp_ctx_t *ctx = th->w->ctx;
+    uint32_t M = s->bsM, Q = (uint32_t)(s->bs > 0 ? s->bs : -s->bs) * M;
+    uint64_t *X1 = th->bsx, *Y1 = th->bsy, *X2 = VP_COEF(ctx, th->bsx, M);
+    uint64_t *Y2 = VP_COEF(ctx, th->bsy, M), *T1 = th->bsT, *T2 = th->bsT + M;
+    s2_aff_add(s, th, 1, &X1, &Y1, &X2, &Y2, &T1, &T2, &Q, found, t1, t2);
+}
+
+// baby roots X([f(k)]Q), k in S1, into dest (nbaby coefficients):
+// families k = c + 6 (r' + h m), c in {1, 5}, r' < h = M/2
 static void s2_bs_baby(avxecm_s2fft_t *s, s2_thread_t *th, uint64_t *dest, s2_pt Q,
     const uint64_t *a24, mpz_t *found, mpz_t t1, mpz_t t2)
 {
     vp_ctx_t *ctx = th->w->ctx;
-    uint32_t M = s->bsM, h = M / 2, r, idx = 0, E = (uint32_t)(s->bs > 0 ? s->bs : -s->bs) + 1;
-    uint64_t i0[256], m, delta = 6 * (uint64_t)h;
-    for (r = 0; r < M; r++)
-        i0[r] = ((r & 1) ? 5 : 1) + 6 * (uint64_t)(r >> 1);
-    s2_bs_init(s, th, i0, delta, Q, a24, found, t1, t2);
+    uint32_t M = s->bsM, h = M / 2, r, idx = 0;
+    uint64_t base[2] = { 1, 5 }, m, delta = 6 * (uint64_t)h;
+    s2_bs_init(s, th, 2, base, 6, delta, Q, a24, found, t1, t2);
     for (m = 0; ; m++)
     {
         int any = 0;
-        for (r = 0; r < M; r++)
+        for (r = 0; (r < M) && (idx < s->nbaby); r++)
         {
-            uint64_t k = i0[r] + m * delta;
+            uint64_t k = base[r / h] + 6 * (uint64_t)(r % h) + m * delta;
             if (k < s->D / 2)
             {
                 any = 1;
                 if (s2_gcd((uint32_t)k, s->D) == 1)
-                    s2_copy(ctx, VP_COEF(ctx, dest, idx++), VP_COEF(ctx, th->bsx, r * E));
+                    s2_copy(ctx, VP_COEF(ctx, dest, idx++), VP_COEF(ctx, th->bsx, r));
             }
         }
         if (!any || idx == s->nbaby)
@@ -946,6 +1275,7 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
     if (th->w == NULL)
         s2_thread_init(s, th);
     w = th->w;
+    th->tinit = 0;
 
     for (l = 0; l < 8; l++) mpz_init_set_ui(found[l], 1);
     mpz_init(t1);
@@ -1010,6 +1340,11 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
         vpk_add(ctx, BC_G(th), BC_G(th), w->one, 1);
         vp_cmul(w, BC_G(th), BC_G(th), BC_X0(th), 1);   // g = x0 (x0 (x0 + A) + 1)
         vpk_add(ctx, BC_G2(th), BC_G(th), BC_G(th), 1);
+        vp_cmul(w, BC_W2(th), BC_G(th), BC_A(th), 1);   // scaled curve: a2 = g A
+        vp_csqr(w, BC_W4(th), BC_G(th), 1);             //   a4 = g^2
+        vpk_add(ctx, BC_W22(th), BC_W2(th), BC_W2(th), 1);
+        for (i = 0; i < s->bsQ; i++)
+            s2_copy(ctx, VP_COEF(ctx, th->bsa, i), BC_W2(th));
     }
 
     gettimeofday(&t0, NULL);
@@ -1076,20 +1411,18 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
     if (s->bs)
     {
         // M progressions j = j0 + r + M m, r < M: each step gives M roots
-        uint64_t i0[256];
-        uint32_t M = s->bsM, r, E = (uint32_t)(s->bs > 0 ? s->bs : -s->bs) + 1, st;
-        for (r = 0; r < M; r++)
-            i0[r] = (s->j0 + r) * s->D;
+        uint64_t base = s->j0 * s->D;
+        uint32_t M = s->bsM, st;
         gettimeofday(&t0, NULL);
-        s2_bs_init(s, th, i0, (uint64_t)M * s->D, Q, a24, found, t1, t2);
+        s2_bs_init(s, th, 1, &base, s->D, (uint64_t)M * s->D, Q, a24, found, t1, t2);
         for (b = 0; b < s->blocks; b++)
         {
             if (b > 0)
                 gettimeofday(&t0, NULL);
             for (st = 0; st < s->dF / M; st++)
             {
-                for (r = 0; r < M; r++)
-                    s2_copy(ctx, VP_COEF(ctx, th->G, st * M + r), VP_COEF(ctx, th->bsx, r * E));
+                memcpy(VP_COEF(ctx, th->G, st * M), th->bsx,
+                    (size_t)M * 8 * (size_t)ctx->n * sizeof(uint64_t));
                 if ((b + 1 < s->blocks) || (st + 1 < s->dF / M))
                     s2_bs_step(s, th, found, t1, t2);
             }
@@ -1176,7 +1509,10 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
     if (verbose > 1)
     {
         printf("FFT stage 2 (thread %d): F + 1/F %1.3f s, giant roots + G %1.3f s, "
-            "H*G mod F %1.3f s, eval %1.3f s\n", tid, tb, tg, tf, te);
+            "H*G mod F %1.3f s, eval %1.3f s", tid, tb, tg, tf, te);
+        if (s->bs)
+            printf(" (Brent-Suyama table setups %1.3f s)", th->tinit);
+        printf("\n");
     }
 
     vp_modf_free(th->mf);

@@ -1425,9 +1425,16 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[143]) == 0)
     {
         // argument "avxecm_bs": Brent-Suyama polynomial for the FFT stage 2:
-        // "0"/"1" off, "S" or "pS" x^S, "dS" Dickson D_S(x, -1) (stored as -S)
+        // "0"/"1" off, "S" or "pS" x^S, "dS" Dickson D_S(x, -1) (stored as -S),
+        // "auto" chosen by the stage-2 cost model (stored as 64, the value of
+        // AVXECM_BS_AUTO; not given: 65, auto with -avxecm_stg2 2, else off)
         int sgn = 1, v;
         const char *q = arg;
+        if ((*q == 'a') || (*q == 'A'))
+        {
+            options->avxecm_bs = 64;
+            return;
+        }
         if ((*q == 'd') || (*q == 'D')) { sgn = -1; q++; }
         else if ((*q == 'p') || (*q == 'P')) q++;
         v = (int)strtol(q, NULL, 10);
@@ -1634,7 +1641,7 @@ options_t* initOpt(void)
     options->avxecm_rns_bits = -1;
     options->avxecm_stg2 = -1;
     options->avxecm_stg2mem = -1;
-    options->avxecm_bs = 0;
+    options->avxecm_bs = 65;            // not given (AVXECM_BS_DEFAULT)
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;

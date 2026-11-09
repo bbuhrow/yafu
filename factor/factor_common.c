@@ -177,7 +177,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.avx_rns_bits = AVXECM_RNS_BITS_DEFAULT;
     fobj->ecm_obj.avx_stg2_fft = AVXECM_STG2_FFT_DEFAULT;
     fobj->ecm_obj.avx_stg2_mem = AVXECM_STG2_MEM_DEFAULT;
-    fobj->ecm_obj.avx_stg2_bs = 0;
+    fobj->ecm_obj.avx_stg2_bs = 65;     // AVXECM_BS_DEFAULT: auto with the automatic B2
 
     // initialize stuff for squfof
     fobj->squfof_obj.num_factors = 0;

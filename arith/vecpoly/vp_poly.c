@@ -70,6 +70,19 @@ void vp_cmul(vp_work_t *w, uint64_t *c, const uint64_t *a, const uint64_t *b,
     }
 }
 
+void vp_csqr(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t cnt)
+{
+    vec_bignum_t A, C;
+    uint32_t t;
+    int n = w->ctx->n;
+    for (t = 0; t < cnt; t++)
+    {
+        vp_wrap(&A, CO(a, t), n);
+        vp_wrap(&C, CO(c, t), n);
+        w->sqr(&A, &C, &w->vn, &w->vs, &w->md);
+    }
+}
+
 // schoolbook: c[0..la+lb-1) = a * b.  c must not overlap a or b; uses the
 // last coefficient of w->sm.
 static void vp_school(vp_work_t *w, uint64_t *c, const uint64_t *a, uint32_t la,
