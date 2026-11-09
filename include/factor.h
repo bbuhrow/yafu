@@ -176,7 +176,7 @@ typedef struct
 
 // AVX-ECM stage 2 defaults: FFT continuation off (pairing, B2 = 100*B1)
 // until it has been validated more widely; memory limit per thread (MB)
-#define AVXECM_STG2_FFT_DEFAULT 0
+#define AVXECM_STG2_FFT_DEFAULT 2
 #define AVXECM_STG2_MEM_DEFAULT 256
 
 typedef struct

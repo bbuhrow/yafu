@@ -1445,6 +1445,11 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
     gettimeofday(&t1v, NULL);
     tb = ytools_difftime(&t0, &t1v);
 
+    if (verbose > 1)
+    {
+        printf("FFT stage 2 (thread %d): F + 1/F %1.3f s\n", tid, tb);
+    }
+
     // ---- giant roots [jD]Q (or [f(jD)]Q), j = j0, j0 + 1, ... ----
     DQ.X = PC(15); DQ.Z = PC(13);           // PC(13) is free after the baby steps
     if (s->bs)
@@ -1521,12 +1526,29 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
         vp_free(pZ);
     }
 
+    if (verbose > 1)
+    {
+        printf("FFT stage 2 (thread %d): H*G mod F %1.3f s\n", tid, tf);
+    }
+
     // ---- evaluate H at the baby roots, multiply up ----
     gettimeofday(&t0, NULL);
     vp_eval_tree(w, th->mf, th->tree, th->H, th->H, th->G);
     vp_prod(w, th->G, th->H, s->dF);
     gettimeofday(&t1v, NULL);
     te = ytools_difftime(&t0, &t1v);
+
+    if (verbose > 1)
+    {
+        printf("FFT stage 2 (thread %d): eval %1.3f s\n", tid, te);
+    }
+
+    if (verbose > 1)
+    {
+        printf("FFT stage 2 (thread %d): giant roots + G %1.3f s\n", tid, tg);
+        if (s->bs)
+            printf("FFT stage 2 (thread %d): Brent-Suyama table setups %1.3f s\n", tid, th->tinit);
+    }
 
     // lane result = found * prod (as a plain integer), into the backend
     // accumulator (only its gcd with N is used)
@@ -1545,14 +1567,14 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
         mpz_clear(Ri);
     }
 
-    if (verbose > 1)
-    {
-        printf("FFT stage 2 (thread %d): F + 1/F %1.3f s, giant roots + G %1.3f s, "
-            "H*G mod F %1.3f s, eval %1.3f s", tid, tb, tg, tf, te);
-        if (s->bs)
-            printf(" (Brent-Suyama table setups %1.3f s)", th->tinit);
-        printf("\n");
-    }
+    // if (verbose > 1)
+    // {
+    //     printf("FFT stage 2 (thread %d): F + 1/F %1.3f s, giant roots + G %1.3f s, "
+    //         "H*G mod F %1.3f s, eval %1.3f s", tid, tb, tg, tf, te);
+    //     if (s->bs)
+    //         printf(" (Brent-Suyama table setups %1.3f s)", th->tinit);
+    //     printf("\n");
+    // }
 
     vp_modf_free(th->mf);
     th->mf = NULL;

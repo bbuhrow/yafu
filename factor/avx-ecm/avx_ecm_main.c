@@ -333,6 +333,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	struct timeval startt;	// start time of this job
 	double t_time;
 
+    // Kara / Toom / School benchmarking, but using arith functions that no longer exist.
+#if 0
 	/* ---- microbenchmark mode (plans/toom3_bench_tune.md, Phase 1) ----
 	   YAFU_VECBENCH=lo,hi,step,reps[,validate]
 	   Widths in 52-bit words (step kept a multiple of 4).  For each width
@@ -353,6 +355,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 		vec_bench(vblo, vbhi, vbstep, vbreps, vbvalidate);
 		exit(0);
 	}
+#endif
 
 	gettimeofday(&startt, NULL);
 
@@ -1618,7 +1621,8 @@ void test_vecarith(int numbits, int iterations, int validate)
     return;
 }
 
-
+// Kara / Toom / School benchmarking, but using arith functions that no longer exist.
+#if 0
 
 /* ---- microbenchmark of the REDC cores (plans/toom3_bench_tune.md) ----
    For each operand width and each core (base, kara, toom) prints one CSV
@@ -1952,3 +1956,6 @@ void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validat
     mpz_clear(t2);
     return;
 }
+
+
+#endif
