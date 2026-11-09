@@ -1,7 +1,10 @@
 # AVX-ECM stage 1 on twisted Edwards curves: background and plan
 
-Status: Phase 0 done (2026-11-09, branch `wip_edwards`): the gate passes,
-results in Part C; no yafu code yet. Part A is the
+Status (2026-11-09, branch `wip_edwards`): Phase 0 done, the gate passes
+(Part C). Phase 1 done (Part D): `-avxecm_curve 1` builds family (iv)
+curves and runs their Montgomery image through the existing PRAC stage 1
+and both stage 2s, lane-exact against the oracle on IFMA / AVX-512F / AVX2.
+Part A is the
 background (what the three papers say, how Edwards curves work, which
 curves to use, and how they connect to the existing stage 2). Part B is the
 implementation plan for IFMA, AVX-512F and AVX2 (and the RNS backend above
@@ -235,6 +238,17 @@ is the identity mod p. The failed formula then produces zero coordinates mod
 p, which the final gcd catches. The effect is an early stage-1 find (or N if
 it happens mod every prime, which is vanishingly rare). The lane-exact
 oracle (Phase 0) will show whether it ever matters.
+
+The x-only PRAC stage 1 has an exceptional case of its own (found in
+Phase 1, Part D2). A differential addition is only correct while the
+difference point is not the identity. Modulo p, once a point's remaining
+order r is a small prime, a PRAC chain for a later prime q > r can meet a
+difference [k]P with r | k. The chain then collapses to Z = 0, and stage 1
+finds p although [s]P != O mod p. Example: r = 61 with 61^2 | ord P, B1 =
+3000, so s contains only 61^1, collapsing in the chain for q = 647. This
+happens on any curve family, Suyama included. It costs nothing and is
+occasionally a free find. An exact oracle has to replay the chains
+(`edw_ref.py prac_stage1_z`); the order alone does not predict it.
 
 ## A7. Hand-off to the existing stage 2
 
@@ -587,3 +601,89 @@ Changes to the plan from Phase 0:
   oracle already reports as stage 0.
 * Phase 5 runs the lane-exact comparison with `edw_ref.py lanes iv ...`
   (an `oracle_cmp.sh` variant for `-avxecm_curve 1`).
+
+---
+
+# Part D: Phase 1 results (2026-11-09)
+
+## D1. What was built
+
+Phase 1 builds the family (iv) curves and hands their Montgomery image
+(§A7) to the *existing* x-only code. That is a complete, testable step on
+its own: stage 1 is still PRAC, but the curves, and so the +6.5% yield of
+C1, are already in use. Phases 2-3 then only replace the stage-1
+arithmetic.
+
+* Option `-avxecm_curve 0|1` (`OptionArray[144]`, `options->avxecm_curve`,
+  `ecm_obj.avx_curve`, `thread_data_t.curve_type`); also readable from
+  `yafu.ini`.
+  - Default `AVXECM_CURVE_DEFAULT` = 0 (Suyama) in `include/factor.h`.
+  - Constants `AVXECM_CURVE_SUYAMA` / `AVXECM_CURVE_EDW4` in `avx_ecm.h`.
+* `vec_build_one_curve_edwards` (`avxecm.c`, beside `vec_build_one_curve`),
+  per lane, mpz mod N:
+  - [m]Q on E' left to right (`edw_wstep`, affine; one inversion per step);
+  - t, e, y1 (Horner);
+  - A24 = 1/(1 - e^4) and u = (1 + y1)/(1 - y1);
+  - then X = u, Z = 1, `work->s` = A24 in Montgomery form, exactly where
+    the Suyama builder puts its values.
+* Failed inversions:
+  - If a denominator shares a factor g with N (1 < g < N), the lane becomes
+    (1 : g). That is the identity modulo g's primes, it stays there through
+    PRAC, and the stage-1 gcd reports it.
+  - If a denominator is 0 mod N, m moves to m + 1. The reported sigma is
+    the m actually used.
+* Random m: the LCG, in [2, 2^31). `-sigma s` gives lanes s, s+1, ..., as
+  for Suyama.
+* `-v` prints the curve family.
+* `save_b1` lines for Edwards curves write `A=` (the Montgomery
+  A = 4 A24 - 2) instead of `SIGMA=`, plus X as before
+  (`vec_ecm_save_curve`). GMP-ECM's resume reads `A=`
+  (`ecm-master/resume.c`).
+* x1 is not computed yet (the x-only image does not need it); Phase 2 adds
+  it.
+
+## D2. Verification
+
+`arith/edwards/edw_oracle_cmp.sh` (like `oracle_cmp.sh`: yafu
+`-avxecm_curve 1 -avxecm_stg2 1` vs `edw_ref.py lanes iv-mont`, lane for
+lane, stage 1 and stage 2). Every row has 0 batches differing, on IFMA,
+AVX-512F (no `vpmadd52` in the binary) and AVX2 (no zmm):
+
+| input | B1 / B2 | batches | stage-1 / stage-2 finds |
+|---|---|---:|---|
+| 400-bit, p40, plain | 3000 / 231284 | 30 | 6 / 50 |
+| same, Brent-Suyama D_6 | | 15 | 4 / 31-33 (dF differs per ISA) |
+| 400-bit, p32 | | 15 | 24 / 68 |
+| 1024-bit, p40 | | 12 | 4 / 21 |
+| 2048-bit (RNS backend), p40 | | 8 | 2 / 5 |
+
+Also:
+
+* The Suyama default still matches `bs_oracle.py`.
+* Random m with 4 threads finds a p16 at 520 bits, with the pairing and the
+  FFT stage 2.
+* GMP-ECM 7.0.6 `-resume` of yafu's 8 `save_b1` lines (B1 3000, B2 231284)
+  finds p on exactly the lanes whose remaining order is a prime <= B2
+  (lanes 1, 4, 5). So `A=` and X are right.
+
+One oracle fix came out of this: **PRAC can find p in stage 1 when the
+order alone says it can't.**
+
+* The case: the point's remaining order r is a small prime (here 61, with
+  61^2 | ord P but only 61 in s).
+* What happens: a later PRAC chain (q = 647) meets an intermediate
+  difference that is a multiple of r, i.e. the identity mod p. The x-only
+  differential addition then collapses to Z = 0.
+* The fix: `edw_ref.py` now replays yafu's PRAC chains mod p
+  (`prac_stage1_z`) whenever 1 < r < B1, for Suyama and `iv-mont` alike.
+* This is a property of x-only PRAC, not of the curves: a ladder by the same
+  s does not find it. The Edwards stage 1 of Phase 3 has no differential
+  additions, so it will not have it (its own exceptional cases, §A6, are
+  different).
+
+## D3. Next
+
+Phase 2 (extended-coordinate point arithmetic, add/sub bounds audit) and
+Phase 3 (signed-window driver). Phase 4's `save_b1` and stage-2 hand-off
+parts are already done: stage 1 will convert back with X_M = Z + Y,
+Z_M = Z - Y and keep `work->s` = A24.

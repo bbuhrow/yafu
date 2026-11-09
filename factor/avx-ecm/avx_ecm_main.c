@@ -878,6 +878,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         tdata[i].MAXBITS = maxbits;
         tdata[i].NBLOCKS = nblocks;
         tdata[i].NWORDS = nwords;
+        tdata[i].curve_type = fobj->ecm_obj.avx_curve;
         
         if (i == 0)
         {
@@ -974,6 +975,12 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
 	gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
+
+    if ((verbose > 0) && (fobj->ecm_obj.avx_curve == AVXECM_CURVE_EDW4))
+    {
+        printf("ecm: twisted Edwards curves, family (iv): sigma = m, the multiple of "
+            "(5,8) on y^2 = x^3 - x^2 - 9x + 9\n");
+    }
 
     if (verbose > 1)
     {

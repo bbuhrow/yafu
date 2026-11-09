@@ -1239,7 +1239,13 @@ typedef struct
     uint32_t PRIME_RANGE;
     int DO_STAGE2;
     struct avxecm_s2fft_s *s2fft;   // FFT stage 2 (shared; NULL: pairing)
+    int curve_type;                 // AVXECM_CURVE_*
 } thread_data_t;
+
+// curve families (option avxecm_curve, ecm_obj.avx_curve)
+#define AVXECM_CURVE_SUYAMA 0       // Montgomery, Suyama's sigma
+#define AVXECM_CURVE_EDW4   1       // a = -1 twisted Edwards, Gelin-Kleinjung-
+                                    // Lenstra family (iv); sigma = multiple m
 
 void vececm(thread_data_t *tdata);
 int avxecm_s2fft_run(struct avxecm_s2fft_s *s, int tid, vec_monty_t *mdata,

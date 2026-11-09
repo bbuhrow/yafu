@@ -9,7 +9,8 @@ Phase 0 reference for AVX-ECM stage 1 on a = -1 twisted Edwards curves
   python edw_ref.py lanes fam p B1 D dF blocks S m0 nbatch
       exact oracle, like ../vecpoly/ecm_tests/bs_oracle.py lanes: per batch of
       8 curves (m0 + 8 b + lane) the lanes found at curve build (stage 0), in
-      stage 1 and in stage 2.  fam: suyama | iv | j1
+      stage 1 and in stage 2.  fam: suyama | iv | j1 | iv-mont (Phase 1:
+      the Montgomery image through PRAC)
   python edw_ref.py yield bits B1 B2 ncurves [seed]
       paired yield comparison of the curve families on random primes
 
@@ -221,12 +222,18 @@ def w_add(P, Q, a2, a4, p):
 
 
 def w_mul(k, P, a2, a4, p):
-    R = None
-    while k:
-        if k & 1:
+    """[k]P, left to right like vec_build_one_curve_edwards (avxecm.c):
+    every step inverts a denominator, so an intermediate point at infinity
+    mod p, or an addition R + P with x(R) = x(P) mod p, is a Find"""
+    R = P
+    for b in bin(k)[3:]:
+        if R[1] % p == 0:
+            raise Find()                    # 2y = 0: doubling to infinity
+        R = w_add(R, R, a2, a4, p)
+        if b == '1':
+            if (R[0] - P[0]) % p == 0:
+                raise Find()
             R = w_add(R, P, a2, a4, p)
-        P = w_add(P, P, a2, a4, p)
-        k >>= 1
     return R
 
 
@@ -298,7 +305,80 @@ def stage1_r(fam, m, p, k1):
     return r0 // math.gcd(r0, k1), (A, g, P)
 
 
+def prac_stage1_z(x0, A, p, B1):
+    """Z mod p after yafu's x-only stage 1 on (x0 : 1): doublings for 2^k <
+    B1, then vec_prac(q) for every prime power q^j < B1 (ORIG_PRAC off), with
+    the same chains (edw_model replays vec_prac's choices).  It differs from a
+    ladder by s when the point's remaining order r is small: a PRAC chain for
+    a later prime q > r can meet a difference that is the identity mod p, and
+    the differential addition then collapses to Z = 0 -- a stage-1 find that
+    the order alone does not predict."""
+    import edw_model as em
+    a24 = (A + 2) * pow(4, -1, p) % p
+
+    def dup(P):
+        s, d = (P[0] + P[1]) ** 2 % p, (P[0] - P[1]) ** 2 % p
+        t = (s - d) % p
+        return s * d % p, t * (d + a24 * t) % p
+
+    def add(P1, P2, Pd):
+        u = (P1[0] - P1[1]) * (P2[0] + P2[1]) % p
+        v = (P1[0] + P1[1]) * (P2[0] - P2[1]) % p
+        return Pd[1] * (u + v) ** 2 % p, Pd[0] * (u - v) ** 2 % p
+
+    def prac(P, c):
+        best, cmin = 0, 1e300
+        for i, v in enumerate(em.VAL):
+            cs = em.lucas_cost(c, v)
+            if cs < cmin:
+                cmin, best = cs, i
+        r = int(c * em.VAL[best] + 0.5)
+        d, e = c - r, 2 * r - c
+        A_, B_, C_ = dup(P), P, P
+        while d != e:
+            if d < e:
+                d, e = e, d
+                A_, B_ = B_, A_
+            if (d + 3) // 4 <= e:
+                d -= e
+                B_, C_ = add(B_, A_, C_), B_
+            elif (d + e) % 2 == 0:
+                d = (d - e) // 2
+                B_ = add(B_, A_, C_)
+                A_ = dup(A_)
+            elif d % 2 == 0:
+                d //= 2
+                C_ = add(C_, A_, B_)
+                A_ = dup(A_)
+            else:
+                e //= 2
+                C_ = add(C_, B_, A_)
+                B_ = dup(B_)
+        return add(A_, B_, C_)
+
+    P = (x0 % p, 1)
+    q = 2
+    while q < B1:
+        P = dup(P)
+        q *= 2
+    for q in em.primes_below(B1)[1:]:
+        c = 1
+        while True:
+            P = prac(P, q)
+            c *= q
+            if c * q >= B1:
+                break
+    return P[1] % p
+
+
 def lanes(fam, p, B1, D, dF, blocks, S, m0, nbatch):
+    """fam 'iv-mont': the curve runs as its Montgomery image through yafu's
+    x-only PRAC stage 1 (Phase 1, -avxecm_curve 1).  For x-only stage 1
+    (suyama, iv-mont) a remaining order 1 < r < B1 is checked by replaying
+    the PRAC chains (prac_stage1_z)."""
+    mont = fam.endswith('-mont')
+    fam = fam.replace('-mont', '')
+    xonly = mont or fam == 'suyama'
     k1 = bo.stage1_exponent(B1)
     f = bo.make_f(S)
     j0 = max(1, (B1 + D // 2) // D)
@@ -306,12 +386,15 @@ def lanes(fam, p, B1, D, dF, blocks, S, m0, nbatch):
         s0, s1, s2 = [], [], []
         for lane in range(8):
             m = m0 + 8 * b + lane
-            r, _ = stage1_r(fam, m, p, k1)
+            r, info = stage1_r(fam, m, p, k1)
             if r == 0:
                 s0.append(lane)
                 s1.append(lane)
                 s2.append(lane)
-            elif r == 1 or (r == 2 and fam != 'suyama'):
+            elif r == 1 or (r == 2 and not xonly):
+                s1.append(lane)
+                s2.append(lane)
+            elif xonly and r < B1 and prac_stage1_z(info[2][0], info[0], p, B1) == 0:
                 s1.append(lane)
                 s2.append(lane)
             elif bo.covered(r, f, D, j0, blocks * dF):
