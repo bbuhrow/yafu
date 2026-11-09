@@ -3,7 +3,8 @@
 #   make                IFMA (-march=native)
 #   make NOIFMA=1       AVX-512F only: FP-emulated 52-bit products
 #   make AVX2=1         AVX2 + FMA only
-#   ./vp_test [bits ...] [-l logL] [-b] [-s school_max]
+#   ... INTNTT=1        integer NTT instead of the native FP one (A/B)
+#   ./vp_test [bits ...] [-l logL] [-b] [-k] [-s school_max]
 
 GMP_PREFIX ?= ../../../gmp-install/6.2.1
 CC ?= gcc
@@ -16,6 +17,10 @@ ISA = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX
 else
 ARCH ?= -march=native
 ISA = -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DUSE_AVX512IFMA -DIFMA
+endif
+# INTNTT=1: integer NTT (emulated 52-bit products) on non-IFMA targets too
+ifeq ($(INTNTT),1)
+ISA += -DVP_INT_NTT
 endif
 CFLAGS ?= -O3 -g -Wall
 CPPFLAGS += -I$(GMP_PREFIX)/include $(ISA)

@@ -353,7 +353,8 @@ tree.
    143 MB per thread (77 MB lean); the setup picks dF, the tree levels
    kept and the lean mode within the limit; `-avxecm_stg2mem` takes
    fractional MB; §11.3 gives the best B2 per memory limit.
-3. **Speed.** Native FP butterflies for non-IFMA; cache-blocked / fused
+3. **Speed.** Native FP butterflies for non-IFMA and radix-4 passes: done
+   (§12). Remaining: cache-blocked / fused
    NTT passes for 2dF*64 B > L2; keep a transform between tree levels;
    tune `school_max` (8) and the cost model in `s2_tcost`; RNS-domain roots
    above the crossover.
@@ -597,3 +598,121 @@ GMP-ECM's B2 for a given B1. In mode 2 the progress output and log show
 the actual B2, but the work bookkeeping is not adjusted, so mode 2 is
 meant for direct `ecm()` runs; making it the default would need a
 t-level calculation that uses the actual B2.
+
+## 12. Native floating-point NTT for non-IFMA targets; radix-4 passes (2026-11-09)
+
+### 12.1 Design
+
+Without IFMA, the integer NTT emulated every 52 x 52 -> 104-bit product
+with double-precision FMAs (`rns_vec52.h`, ~10 vector ops per LO52/HI52;
+~25 per Shoup twiddle product). The FP NTT keeps the NTT domain in doubles
+instead (selected at compile time: `VP_FPNTT` = non-IFMA build; `-DVP_INT_NTT`
+or `make ... INTNTT=1` forces the integer NTT for A/B tests):
+
+* Values are doubles holding integers x with |x| <= p (p < 2^50) after
+  every kernel call.
+* Product modulo p (as FLINT's fft_small): h = a b (rounded),
+  l = fma(a, b, -h) (exact), q = round(h / p), r = fnmadd(q, p, h) + l
+  = a b - q p. Every step is exact for p < 2^50 (h - q p and r are
+  integers below 2^53 in magnitude); |a|, |b| <= p gives |r| <= 0.875 p.
+  Twiddles are (w, w/p) pairs with |w| <= p/2, and then
+  q = round(x (w/p)) works for |x| up to 4p with |r| <= 0.75 p.
+* Reduction of sums: x - p round(x/p) (3 ops).
+* The pointwise product is plain a b mod p (no Montgomery 2^-52), so the
+  CRT scales lose their 2^52 factor; `ctx->fpntt` (from `vpk_fp_ntt()`)
+  tells `vp_ctx_init` which table format to build (same sizes).
+* Conversions stay as they were (FP-emulated exact 104-bit
+  multiply-accumulate) with an FP boundary: to_ntt centers its [0, 2p)
+  integer residue and stores a double; from_ntt multiplies by the CRT
+  scale in FP, maps to [0, p) and feeds the double straight into the
+  multiply-accumulate.
+* No MXCSR switch in the FP transforms (every step is exact or explicitly
+  rounded); the AVX2 conversions still run with round-toward-zero, which
+  the FP steps there tolerate.
+
+Two changes for every ISA, IFMA included:
+
+* **Radix-4 passes**: two radix-2 levels per sweep over a prime's L
+  values (plus one radix-2 level when log2 L is odd), half the memory
+  traffic. At L = 4096 a prime's transform is 256 KB, larger than L1, and
+  the transforms were L2-bandwidth bound (AVX2 and AVX-512F FP ran at the
+  same speed). In the FP path reductions sit only where the exactness
+  bounds need them: DIF reduces the second level's sum (<= 4p), DIT the
+  second level's outputs (<= 2p); per two levels 4 twiddle products +
+  2 (DIF) or 4 (DIT) reductions instead of 4 + 4 / 4 + 8.
+* **Conversion constants as doubles** (`ctx->cvtd`, `ctx->crtd`): the
+  FP-emulated multiply-accumulate converted each 52-bit table entry from
+  integer inside the inner loop; now it broadcasts a stored double.
+
+### 12.2 Kernel timings
+
+`vp_test -k -l 12` (L = 4096, best of 7, Rocket Lake, 1 thread), ns per
+element-prime (transforms, pointwise) or per coefficient-prime
+(conversions):
+
+| bits | build | to_ntt | fwd | pmul | inv | from_ntt |
+|---:|---|---:|---:|---:|---:|---:|
+| 400 | IFMA, before radix-4 | 7.4 | 10.3 | 2.5 | 10.2 | 9.3 |
+| 400 | IFMA | 7.2 | 7.7 | 2.5 | 7.8 | 9.5 |
+| 400 | AVX-512F, integer NTT (before) | 16.0 | 19.3 | 4.5 | 18.3 | 17.6 |
+| 400 | AVX-512F, FP NTT | 13.9 | 14.4 | 2.4 | 17.2 | 14.1 |
+| 400 | AVX2, integer NTT (before) | 26.6 | 31.4 | 6.5 | 30.9 | 30.9 |
+| 400 | AVX2, FP NTT | 25.7 | 14.9 | 2.8 | 21.1 | 23.5 |
+| 1024 | IFMA | 14.6 | 9.1 | 4.7 | 10.4 | 19.0 |
+| 1024 | AVX-512F, FP NTT | 24.2 | 15.4 | 5.1 | 19.2 | 25.2 |
+| 1024 | AVX2, FP NTT | 48.3 | 16.0 | 6.1 | 24.3 | 43.4 |
+| 2048 | IFMA | 29.3 | 11.2 | 6.3 | 12.7 | 35.3 |
+| 2048 | AVX-512F, FP NTT | 40.8 | 16.8 | 6.1 | 20.3 | 45.6 |
+| 2048 | AVX2, FP NTT | 81.5 | 17.3 | 6.7 | 24.3 | 74.7 |
+
+* The FP transforms are 1.5-2x faster than the emulated integer ones on
+  AVX2 and ~1.3x on AVX-512F; pointwise products 2x. AVX2 FP transforms
+  run as fast as AVX-512F ones: Rocket Lake has one 512-bit FMA port
+  (ports 0+1 fused), so native FP gets no width advantage from AVX-512.
+* FP transforms are within 1.5-2x of IFMA's integer ones, and FP pointwise
+  products match IFMA.
+* What is left between non-IFMA and IFMA is mostly the conversions (O(K n)
+  emulated 104-bit multiply-accumulates per coefficient): at 1024 bits
+  they are ~60% of an AVX2 product (to_ntt 3.3x, from_ntt 2.3x IFMA).
+
+### 12.3 ECM stage 2 (yafu, 1 thread, 8 curves, B1 = 1e6, `-avxecm_stg2 1`)
+
+| bits | build | stage 1 | stage 2, B2 = 1.2e8 | stage 2, default B2 (9.7e8) | before §12 (default B2) |
+|---:|---|---:|---:|---:|---:|
+| 400 | IFMA | 1.04 s | 0.10 s | 0.38 s | 0.49 s |
+| 400 | AVX-512F | 1.63 s | 0.16 s | 0.60 s | 0.71 s |
+| 400 | AVX2 | 3.4 s | 0.25 s | 0.88 s | 1.13 s |
+| 1024 | IFMA | 5.0 s | 0.38 s | 1.41 s | 1.55 s |
+| 1024 | AVX-512F | 9.4 s | 0.65 s | 2.34 s | |
+| 1024 | AVX2 | 15.0 s | 0.88 s | 3.17 s | |
+
+Relative to IFMA, stage 2 now costs 1.6-1.7x on AVX-512F and 2.2-2.3x on
+AVX2, while stage 1 costs 1.6-1.9x and 3.0-3.3x: on non-IFMA machines
+stage 2 is relatively cheaper than on IFMA ones, which favors a larger B2
+there (§11.3; the cost model and the automatic B2 still use constants
+fit on IFMA).
+
+### 12.4 Verification
+
+* `vp_test` (200, 400, 520, 1024, 2048 bits, every polynomial operation
+  and lane against GMP, including the all-(2N-1) bound): pass for IFMA,
+  AVX-512F FP, AVX-512F integer (`INTNTT=1`), AVX2 FP and AVX2 integer.
+* ECM lane for lane (`cmp_s2.sh`), clean yafu builds (AVX2 binary: no zmm;
+  AVX-512F: no `vpmadd52`): 400-bit p40 (240 curves), model's choice and
+  forced t=8 k=3 lean: 47/47 (+1) and 47/47 (+7); 1024-bit p40 (96
+  curves), forced t=7 k=2 full: 23/23 (+1); on IFMA, AVX-512F and AVX2.
+* clang-cl compiles `vp_kern.c` / `vp_setup.c` / `vp_poly.c` warning-free
+  for avx2 / avx512 / avx512ifma; gcc warning-free for all five variants.
+
+### 12.5 Next
+
+* Conversions for non-IFMA (the remaining gap): the emulated multiply-
+  accumulate costs ~5 ops per 52 x 52 product; options are a native-FP
+  formulation with fewer, wider partial products, or reducing K n (larger
+  or fewer primes per conversion).
+* Refit `s2_tcost` / the `s2_cost` ratios and S2_C1 per ISA (or measure
+  the stage-1 / stage-2 cost ratio at run time) so `-avxecm_stg2 2` picks
+  B2 for the machine it runs on.
+* Radix-4 halved the transforms' memory traffic; a cache-blocked
+  (four-step / two-pass) transform would take L = 4096..32768 out of L2
+  entirely.

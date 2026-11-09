@@ -2,7 +2,7 @@
  * vecpoly tests (every lane against GMP) and timings.
  *   vp_test [bits ...]        default: 200 400 520 1024 2048
  * Options: -l logL (largest test degree 2^logL, default 9), -b (benchmarks
- * only), -s school_max.
+ * only), -k (per-kernel timings at L = 2^logL), -s school_max.
  */
 
 #include "vecpoly.h"
@@ -337,16 +337,66 @@ static void bench(vp_ctx_t *ctx, vp_work_t *w, uint32_t m, int lean)
     plist_free(Rt, m);
 }
 
+// best of 7 trials of reps calls
+#define KB_MIN(var, call) do {                                  \
+        int tr_;                                                \
+        var = 1e30;                                             \
+        for (tr_ = 0; tr_ < 7; tr_++) {                         \
+            double s_ = now(), e_;                              \
+            for (it = 0; it < reps; it++) call;                 \
+            e_ = (now() - s_) / reps;                           \
+            if (e_ < var) var = e_;                             \
+        }                                                       \
+    } while (0)
+
+// per-kernel times for one length-L product (L/2 coefficients each side):
+// ns per coefficient-prime (to_ntt, from_ntt) or per element-prime (NTTs,
+// pointwise)
+static void kbench(vp_ctx_t *ctx, vp_work_t *w, uint32_t L)
+{
+    uint32_t h = L / 2;
+    uint64_t *a = vp_alloc(h, ctx->n), *c = vp_alloc(L, ctx->n);
+    uint64_t *v = w->ntt, *v2 = w->ntt + (size_t)ctx->K * L * 8;
+    mpz_t **A = plist(h);
+    double tc, tf, tp, ti, tr, per;
+    int it, reps = (int)(1 + (1u << 22) / ((uint64_t)L * ctx->K * ctx->n));
+
+    if (2 * L > ctx->Lmax) { printf("  kbench: L too large\n"); return; }
+    rand_poly(ctx, a, A, h, 0);
+    vpk_to_ntt(ctx, v2, L, a, h);
+    vpk_fwd(ctx, v2, L);
+    KB_MIN(tc, vpk_to_ntt(ctx, v, L, a, h));
+    KB_MIN(tf, vpk_fwd(ctx, v, L));
+    vpk_to_ntt(ctx, v, L, a, h);
+    vpk_fwd(ctx, v, L);
+    KB_MIN(tp, vpk_pmul(ctx, v, v, v2, L));
+    KB_MIN(ti, vpk_inv(ctx, v, L));
+    KB_MIN(tr, vpk_from_ntt(ctx, c, v, L, 0, L));
+    per = 1e9 / ((double)L * ctx->K);
+    printf("  kernels L=%u (one product = 2 to_ntt(L/2) + 2 fwd + pmul + inv + from_ntt(L)):\n"
+        "    to_ntt %7.3f ms (%5.2f ns/coef-prime), fwd %7.3f ms (%5.2f ns/elt-prime), "
+        "pmul %7.3f ms (%5.2f), inv %7.3f ms (%5.2f), from_ntt %7.3f ms (%5.2f ns/coef-prime)\n"
+        "    shares of one product: to_ntt %2.0f%%, fwd %2.0f%%, pmul %2.0f%%, inv %2.0f%%, from_ntt %2.0f%%\n",
+        L, tc * 1e3, tc * 2e9 / ((double)L * ctx->K), tf * 1e3, tf * per, tp * 1e3, tp * per,
+        ti * 1e3, ti * per, tr * 1e3, tr * per,
+        100 * 2 * tc / (2 * tc + 2 * tf + tp + ti + tr), 100 * 2 * tf / (2 * tc + 2 * tf + tp + ti + tr),
+        100 * tp / (2 * tc + 2 * tf + tp + ti + tr), 100 * ti / (2 * tc + 2 * tf + tp + ti + tr),
+        100 * tr / (2 * tc + 2 * tf + tp + ti + tr));
+    vp_free(a); vp_free(c);
+    plist_free(A, h);
+}
+
 int main(int argc, char **argv)
 {
     int bitsl[16] = { 200, 400, 520, 1024, 2048 }, nb = 5, i, logL = 9;
-    int benchonly = 0, school = -1;
+    int benchonly = 0, school = -1, konly = 0;
     uint32_t m;
 
     for (i = 1; i < argc; i++)
     {
         if (!strcmp(argv[i], "-l") && i + 1 < argc) logL = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-b")) benchonly = 1;
+        else if (!strcmp(argv[i], "-k")) konly = benchonly = 1;
         else if (!strcmp(argv[i], "-s") && i + 1 < argc) school = atoi(argv[++i]);
         else
         {
@@ -406,6 +456,13 @@ int main(int argc, char **argv)
             test_tree(ctx, w, 64, 1);
             ctx->school_max = sm;
             printf("  tests: %s\n", fails == f0 ? "pass" : "FAIL");
+        }
+        if (konly)
+        {
+            kbench(ctx, w, 1u << logL);
+            vp_work_free(w);
+            vp_ctx_free(ctx);
+            continue;
         }
         for (m = 64; m <= (1u << logL); m <<= 1)
         {

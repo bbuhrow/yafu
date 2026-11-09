@@ -75,12 +75,17 @@ typedef struct
     uint64_t *cvt;          // [K][n] 2^(52k + 104) mod p_i
     uint64_t *crt;          // [K+1][n] C_i = (P/p_i) R^-1 2^104 mod N;
                             //          C_K = -P R^-1 2^104 mod N
+    double *cvtd, *crtd;    // cvt and crt as exact doubles (52-bit words),
+                            //   for the FP-emulated products
     uint64_t *yscale;       // [logLmax+1][K][2] Shoup pair of
                             //   L^-1 2^52 (P/p_i)^-1 mod p_i, L = 2^l
     uint64_t *tw;           // [K][Lmax/2][2] forward twiddles w_Lmax^j and
                             //   Shoup w'; level m reads every (Lmax/2m)-th
     uint64_t *itw;          // [K][Lmax/2][2] inverse (w_Lmax^-j)
     int school_max;         // degrees <= this use schoolbook products
+    int fpntt;              // NTT domain in doubles (vpk_fp_ntt()): tw, itw
+                            //   and yscale then hold (w, w/p) double pairs,
+                            //   |w| <= p/2, and yscale has no 2^52 factor
 } vp_ctx_t;
 
 // per thread
@@ -133,6 +138,9 @@ void vpk_inv_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1);
 // c = a * b * 2^-52, pointwise (c may alias a or b)
 void vpk_pmul_r(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a,
     const uint64_t *b, uint32_t L, int i0, int i1);
+// 1 when the kernels keep the NTT domain in doubles (non-IFMA builds:
+// native FP products instead of emulated 52-bit integer ones)
+int vpk_fp_ntt(void);
 #define vpk_to_ntt(ctx, v, L, a, len) vpk_to_ntt_r((ctx), (v), (L), (a), (len), 0, (ctx)->K)
 #define vpk_fwd(ctx, v, L) vpk_fwd_r((ctx), (v), (L), 0, (ctx)->K)
 #define vpk_inv(ctx, v, L) vpk_inv_r((ctx), (v), (L), 0, (ctx)->K)

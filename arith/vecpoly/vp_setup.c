@@ -171,6 +171,15 @@ void vp_set(vp_ctx_t *ctx, uint64_t *c, mpz_t x, int lane)
     free(w);
 }
 
+// (w, w/p) as doubles in two u64 slots, w centered: |w| <= p/2
+static void vp_set_fppair(uint64_t *slot, uint64_t w, uint64_t p)
+{
+    double d[2];
+    d[0] = (w > p / 2) ? -(double)(p - w) : (double)w;
+    d[1] = d[0] / (double)p;
+    memcpy(slot, d, sizeof(d));
+}
+
 static int vp_is_prime(uint64_t p)
 {
     mpz_t t;
@@ -200,6 +209,7 @@ vp_ctx_t *vp_ctx_init(mpz_t N, int n, int logLmax)
     ctx->logLmax = logLmax;
     ctx->Lmax = Lmax = 1u << logLmax;
     ctx->school_max = 8;
+    ctx->fpntt = vpk_fp_ntt();
     mpz_init_set(ctx->N, N);
 
     mpz_init(P);
@@ -242,6 +252,8 @@ vp_ctx_t *vp_ctx_init(mpz_t N, int n, int logLmax)
     ctx->pinvd = (double *)malloc((size_t)K * sizeof(double));
     ctx->cvt = (uint64_t *)malloc((size_t)K * (size_t)n * sizeof(uint64_t));
     ctx->crt = (uint64_t *)malloc((size_t)(K + 1) * (size_t)n * sizeof(uint64_t));
+    ctx->cvtd = (double *)malloc((size_t)K * (size_t)n * sizeof(double));
+    ctx->crtd = (double *)malloc((size_t)(K + 1) * (size_t)n * sizeof(double));
     ctx->yscale = (uint64_t *)malloc((size_t)(logLmax + 1) * (size_t)K * 2 * sizeof(uint64_t));
     ctx->tw = (uint64_t *)vp_aligned_alloc((size_t)K * Lmax * sizeof(uint64_t));
     ctx->itw = (uint64_t *)vp_aligned_alloc((size_t)K * Lmax * sizeof(uint64_t));
@@ -290,25 +302,41 @@ vp_ctx_t *vp_ctx_init(mpz_t N, int n, int logLmax)
             iw = 1;
             for (j = 0; j < Lmax / 2; j++)
             {
-                tp[2 * j] = w;
-                tp[2 * j + 1] = vp_shoup(w, p);
-                itp[2 * j] = iw;
-                itp[2 * j + 1] = vp_shoup(iw, p);
+                if (ctx->fpntt)
+                {
+                    vp_set_fppair(tp + 2 * j, w, p);
+                    vp_set_fppair(itp + 2 * j, iw, p);
+                }
+                else
+                {
+                    tp[2 * j] = w;
+                    tp[2 * j + 1] = vp_shoup(w, p);
+                    itp[2 * j] = iw;
+                    itp[2 * j + 1] = vp_shoup(iw, p);
+                }
                 w = vp_mulmod(w, wm, p);
                 iw = vp_mulmod(iw, iwm, p);
             }
         }
 
         // CRT: (P/p_i)^-1 mod p_i, then per length L^-1 2^52 (P/p_i)^-1
+        // (no 2^52 for the FP NTT: its pointwise product is not Montgomery)
         vp_mpz_set_u64(t, p);
         mpz_divexact(u, P, t);          // u = P / p_i
         h = vp_invmod(vp_mpz_mod_ui64(u, p), p);
-        h = vp_mulmod(h, vp_powmod(2, 52, p), p);
+        if (!ctx->fpntt)
+            h = vp_mulmod(h, vp_powmod(2, 52, p), p);
         for (l = 0; l <= logLmax; l++)
         {
             uint64_t s = vp_mulmod(h, vp_invmod(vp_powmod(2, (uint64_t)l, p), p), p);
-            ctx->yscale[((size_t)l * (size_t)K + (size_t)i) * 2] = s;
-            ctx->yscale[((size_t)l * (size_t)K + (size_t)i) * 2 + 1] = vp_shoup(s, p);
+            uint64_t *yp = ctx->yscale + ((size_t)l * (size_t)K + (size_t)i) * 2;
+            if (ctx->fpntt)
+                vp_set_fppair(yp, s, p);
+            else
+            {
+                yp[0] = s;
+                yp[1] = vp_shoup(s, p);
+            }
         }
 
         // C_i = (P/p_i) R^-1 2^104 mod N
@@ -328,6 +356,11 @@ vp_ctx_t *vp_ctx_init(mpz_t N, int n, int logLmax)
     mpz_mod(u, u, N);
     vp_mpz_to_words(ctx->crt + (size_t)K * (size_t)n, n, u);
 
+    for (i = 0; i < K * n; i++)
+        ctx->cvtd[i] = (double)ctx->cvt[i];
+    for (i = 0; i < (K + 1) * n; i++)
+        ctx->crtd[i] = (double)ctx->crt[i];
+
     free(plist);
     mpz_clear(P);
     mpz_clear(R);
@@ -346,6 +379,8 @@ void vp_ctx_free(vp_ctx_t *ctx)
     free(ctx->pinvd);
     free(ctx->cvt);
     free(ctx->crt);
+    free(ctx->cvtd);
+    free(ctx->crtd);
     free(ctx->yscale);
     vp_aligned_free(ctx->tw);
     vp_aligned_free(ctx->itw);
@@ -434,7 +469,7 @@ size_t vp_ctx_bytes(int n, int K, int logLmax)
 {
     size_t Lmax = (size_t)1 << logLmax;
     return 2 * (size_t)K * Lmax * sizeof(uint64_t)                 // tw, itw
-        + ((size_t)(2 * K + 1) * (size_t)n + (size_t)(logLmax + 1) * (size_t)K * 2
+        + ((size_t)(2 * K + 1) * (size_t)n * 2 + (size_t)(logLmax + 1) * (size_t)K * 2
             + (size_t)K * 3) * sizeof(uint64_t);
 }
 
