@@ -125,7 +125,17 @@ vec_monty_t* vec_monty_alloc(uint32_t words)
     mdata->mtmp1 = vecInit(words);
     mdata->mtmp2 = vecInit(words);
     mdata->mtmp3 = vecInit(words);
-    mdata->mtmp4 = vecInit(3*words);
+    /* mtmp4 backs the Toom-3 scratch (tmuln).  Its layout needs
+       T = 34*W + 23 + A vector-words with W = wmax+2 (worst case
+       words/3 + 5 across residues) and A = 2*words+2.  vecInit(x)
+       allocates 2*x+4 vector-words, so x = (T+1)/2.  Karatsuba
+       (veckmul_mersenne) and vecmod_mersenne need only ~4*words and are
+       unaffected by the larger allocation. */
+    {
+        int toomW = words / 3 + 5;
+        int toomT = 34 * toomW + 23 + 2 * words + 2;
+        mdata->mtmp4 = vecInit((toomT + 1) / 2);
+    }
 
     mdata->g = (vec_bignum_t **)malloc((1 << MAX_WINSIZE) * sizeof(vec_bignum_t *));
     mdata->g[0] = vecInit(words);
@@ -168,6 +178,8 @@ void vec_monty_free(vec_monty_t *mdata)
         vecFree(mdata->g[i]);
     }
     free(mdata->g);
+
+    //free(mdata);
 
     return;
 }

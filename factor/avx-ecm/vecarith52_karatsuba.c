@@ -5484,11 +5484,11 @@ void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     veckmul(a1, b1, c + 2 * lowords * VECLEN, scratch, hiwords);
     // result is negative if the longer subtractand does not have a leading digit
     // AND if the rest of the comparison is true.
-    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN),
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + hiwords * VECLEN),
         _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
     // result is negative if the longer subtractand has a leading digit
     // OR if the rest of the comparison is true.
-    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + lowords * VECLEN),
+    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + hiwords * VECLEN),
         _mm512_setzero_si512()) | vec_gte2_52(b0, b1, hiwords)) : vec_gte2_52(b0, b1, hiwords);
     base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
     base_abssub_52(b1, b0, s2, m2, hiwords, lowords);
@@ -5530,11 +5530,11 @@ void kmuln_lo(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int word
     veckmul_lo(a1, b1, c + 2 * lowords * VECLEN, scratch, hiwords);
     // result is negative if the longer subtractand does not have a leading digit
     // AND if the rest of the comparison is true.
-    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN),
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + hiwords * VECLEN),
         _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
     // result is negative if the longer subtractand has a leading digit
     // OR if the rest of the comparison is true.
-    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + lowords * VECLEN),
+    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + hiwords * VECLEN),
         _mm512_setzero_si512()) | vec_gte2_52(b0, b1, hiwords)) : vec_gte2_52(b0, b1, hiwords);
     base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
     base_abssub_52(b1, b0, s2, m2, hiwords, lowords);
@@ -5624,7 +5624,7 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words)
 
     // result is negative if the longer subtractand does not have a leading digit
     // AND if the rest of the comparison is true.
-    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN),
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + hiwords * VECLEN),
         _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
     base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
 

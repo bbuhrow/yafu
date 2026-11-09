@@ -35,6 +35,8 @@ either expressed or implied, of the FreeBSD Project.
 #include "ytools.h"
 #include "nfs_impl.h"
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __MINGW32__
 #include <sys/time.h>
@@ -51,6 +53,14 @@ either expressed or implied, of the FreeBSD Project.
 static int debugctr = 0;
 void thread_init(thread_data_t* tdata, vec_monty_t* mdata, uint64_t B1, uint64_t B2);
 void test_vecarith(int numbits, int iterations, int validate);
+void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validate);
+
+/* Toom-3 supersedes Karatsuba from the Karatsuba band entry (~16400 bits =
+   ~317 words; pointwise products ~107 words vs Karatsuba's ~159-word halves).
+   Initial guess only -- the planned benchmark harness will establish the true
+   Toom/Karatsuba crossover; lower this constant (keeping it > 16400) to move
+   the boundary down inside the Karatsuba band.  (plans/toom3_finish.md) */
+#define TOOM3_MIN_BITS 26400
 
 void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
 {
@@ -303,6 +313,27 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	struct timeval stopt;	// stop time of this job
 	struct timeval startt;	// start time of this job
 	double t_time;
+
+	/* ---- microbenchmark mode (plans/toom3_bench_tune.md, Phase 1) ----
+	   YAFU_VECBENCH=lo,hi,step,reps[,validate]
+	   Widths in 52-bit words (step kept a multiple of 4).  For each width
+	   and each REDC core (base, kara, toom) times tight mul/sqr/addsub
+	   loops and prints one CSV row; then exits.  No ECM is run.
+	   Example:  YAFU_VECBENCH=320,2048,32,3,1 ./yafu "ecm(<big N>)"  */
+	if (getenv("YAFU_VECBENCH") != NULL)
+	{
+		int vblo = 320, vbhi = 2048, vbstep = 32, vbreps = 3, vbvalidate = 1;
+		const char* s = getenv("YAFU_VECBENCH");
+		char* endp;
+		long v;
+		vblo = (int)strtol(s, &endp, 10);
+		if (*endp == ',') { v = strtol(endp + 1, &endp, 10); vbhi = (int)v; }
+		if (*endp == ',') { v = strtol(endp + 1, &endp, 10); vbstep = (int)v; }
+		if (*endp == ',') { v = strtol(endp + 1, &endp, 10); vbreps = (int)v; }
+		if (*endp == ',') { v = strtol(endp + 1, &endp, 10); vbvalidate = (int)v; }
+		vec_bench(vblo, vbhi, vbstep, vbreps, vbvalidate);
+		exit(0);
+	}
 
 	gettimeofday(&startt, NULL);
 
@@ -1489,3 +1520,336 @@ void test_vecarith(int numbits, int iterations, int validate)
 }
 
 
+
+/* ---- microbenchmark of the REDC cores (plans/toom3_bench_tune.md) ----
+   For each operand width and each core (base, kara, toom) prints one CSV
+   row:  nwords,core,mul_ns,sqr_ns,addsub_ns,iters
+   Times are the minimum over `reps` runs of a ping-pong loop calibrated to
+   ~0.3 s.  Operands are random values in Montgomery form; each call's
+   output feeds the next call (ping-pong, no aliasing), so the loop cannot
+   be optimized away and cache state is realistic.  If validate is nonzero,
+   one mul/sqr/addsub per (width, core) is checked against GMP first and
+   the run aborts on any mismatch. */
+void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validate)
+{
+    int numwords, core, rep, it, iters, j;
+    gmp_randstate_t state;
+    mpz_t n, r, pa, pb, ma, mb, t1, t2, t3, t4;
+    vec_bignum_t *va, *vb, *vc, *vd, *vn, *vs;
+    vec_monty_t* mdata;
+    struct timeval tv0, tv1;
+    const char* corenames[3] = { "base", "kara", "toom" };
+    void (*mulptrs[3])(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+    void (*sqrptrs[3])(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+
+    mulptrs[0] = &vecmulmod52;   sqrptrs[0] = &vecsqrmod52;
+    mulptrs[1] = &veckmul_redc;  sqrptrs[1] = &vecksqr_redc;
+    mulptrs[2] = &vectmul_redc;  sqrptrs[2] = &vectsqr_redc;
+
+    if (step_words < 4)
+        step_words = 4;
+    step_words -= step_words % 4;
+    if (lo_words < 8)
+        lo_words = 8;
+    if (reps < 1)
+        reps = 1;
+
+    gmp_randinit_default(state);
+    mpz_init(n);
+    mpz_init(r);
+    mpz_init(pa);
+    mpz_init(pb);
+    mpz_init(ma);
+    mpz_init(mb);
+    mpz_init(t1);
+    mpz_init(t2);
+    mpz_init(t3);
+    mpz_init(t4);
+
+    printf("# vecbench: words %d..%d step %d reps %d validate %d\n",
+        lo_words, hi_words, step_words, reps, validate);
+    printf("nwords,core,mul_ns,sqr_ns,addsub_ns,iters\n");
+
+    for (numwords = lo_words; numwords <= hi_words; numwords += step_words)
+    {
+        mdata = vec_monty_alloc(numwords);
+        mdata->NBLOCKS = numwords / BLOCKWORDS;
+        mdata->MAXBITS = numwords * DIGITBITS;
+        mdata->NWORDS = numwords;
+
+        va = vecInit(numwords);
+        vb = vecInit(numwords);
+        vc = vecInit(numwords);
+        vd = vecInit(numwords);
+        vn = vecInit(numwords);
+        vs = vecInit(numwords);
+
+        /* random full-size odd modulus just under R = 2^(52*numwords) */
+        mpz_urandomb(n, state, numwords * DIGITBITS);
+        mpz_setbit(n, numwords * DIGITBITS - 1);
+        mpz_setbit(n, 0);
+
+        /* monty constants - same setup as test_vecarith */
+        mdata->isMersenne = 0;
+        mdata->nbits = mpz_sizeinbase(n, 2);
+        mdata->use_vnbits = 0;
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, numwords * DIGITBITS);
+        mpz_invert(mdata->nhat, n, r);
+        mpz_sub(mdata->nhat, r, mdata->nhat);
+        mpz_mul(mdata->rhat, r, r);
+        mpz_tdiv_r(mdata->rhat, mdata->rhat, n);
+        vecClear(mdata->n);
+        vecClear(mdata->r);
+        vecClear(mdata->vrhat);
+        vecClear(mdata->vnhat);
+        vecClear(mdata->one);
+        broadcast_mpz_to_vec(mdata->n, n);
+        broadcast_mpz_to_vec(mdata->r, r);
+        broadcast_mpz_to_vec(mdata->vrhat, mdata->rhat);
+        broadcast_mpz_to_vec(mdata->vnhat, mdata->nhat);
+        mpz_tdiv_r(mdata->rhat, r, n);
+        broadcast_mpz_to_vec(mdata->one, mdata->rhat);
+        for (j = 0; j < VECLEN; j++)
+        {
+            mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
+        }
+
+        broadcast_mpz_to_vec(vn, n);
+
+        for (core = 0; core < 3; core++)
+        {
+            double mul_ns = -1.0, sqr_ns = -1.0, addsub_ns = -1.0;
+
+            vecmulmod_ptr = mulptrs[core];
+            vecsqrmod_ptr = sqrptrs[core];
+            vecaddsubmod_ptr = &vec_simul_addsub52;
+
+            /* fresh random operands, reduced and converted to monty form;
+               keep lane-0 plain values for the GMP reference */
+            for (j = 0; j < VECLEN; j++)
+            {
+                mpz_urandomb(t1, state, numwords * DIGITBITS);
+                mpz_tdiv_r(t1, t1, n);
+                mpz_urandomb(t2, state, numwords * DIGITBITS);
+                mpz_tdiv_r(t2, t2, n);
+                if (j == 0)
+                {
+                    mpz_set(pa, t1);
+                    mpz_set(pb, t2);
+                }
+                insert_mpz_to_vec(va, t1, j);
+                insert_mpz_to_vec(vb, t2, j);
+            }
+            vecmulmod_ptr(va, mdata->vrhat, va, vn, vs, mdata);
+            vecmulmod_ptr(vb, mdata->vrhat, vb, vn, vs, mdata);
+
+            if (validate)
+            {
+                extract_bignum_from_vec_to_mpz(ma, va, 0, numwords);
+                extract_bignum_from_vec_to_mpz(mb, vb, 0, numwords);
+
+                /* mul: monty(pa*pb) = (pa*pb mod n)*R mod n.
+                   Tolerant mod-n comparison: the REDC wrappers are allowed
+                   to return a result in [n, 2n) (final conditional
+                   subtraction is their business, not ours). */
+                vecmulmod_ptr(va, vb, vc, vn, vs, mdata);
+                extract_bignum_from_vec_to_mpz(t1, vc, 0, numwords);
+                mpz_mul(t2, pa, pb);
+                mpz_mod(t2, t2, n);
+                mpz_mul_2exp(t2, t2, numwords * DIGITBITS);
+                mpz_mod(t2, t2, n);
+                mpz_sub(t3, t1, t2);
+                mpz_mod(t3, t3, n);
+                if (mpz_cmp_ui(t3, 0) != 0)
+                {
+                    printf("vecbench VALIDATION FAILED: mul words=%d core=%s\n",
+                        numwords, corenames[core]);
+                    exit(1);
+                }
+
+                /* sqr: monty(pa*pa) */
+                vecsqrmod_ptr(va, vc, vn, vs, mdata);
+                extract_bignum_from_vec_to_mpz(t1, vc, 0, numwords);
+                mpz_mul(t2, pa, pa);
+                mpz_mod(t2, t2, n);
+                mpz_mul_2exp(t2, t2, numwords * DIGITBITS);
+                mpz_mod(t2, t2, n);
+                mpz_sub(t3, t1, t2);
+                mpz_mod(t3, t3, n);
+                if (mpz_cmp_ui(t3, 0) != 0)
+                {
+                    printf("vecbench VALIDATION FAILED: sqr words=%d core=%s\n",
+                        numwords, corenames[core]);
+                    exit(1);
+                }
+
+                /* addsub: tolerant mod-n comparison of both outputs.
+                   ma, mb hold the lane-0 monty-domain operands; the
+                   reference sum/diff are reduced mod n and the vec
+                   outputs are compared mod n so either output
+                   convention (reduced or not) passes. */
+                {
+                    int bad = 0;
+                    vecaddsubmod_ptr(va, vb, vc, vd, mdata);
+                    extract_bignum_from_vec_to_mpz(t1, vc, 0, numwords);
+                    extract_bignum_from_vec_to_mpz(t2, vd, 0, numwords);
+                    /* sum reference: (ma + mb) mod n */
+                    mpz_add(t3, ma, mb);
+                    mpz_mod(t3, t3, n);
+                    mpz_sub(t3, t1, t3);
+                    mpz_mod(t3, t3, n);
+                    if (mpz_cmp_ui(t3, 0) != 0) bad = 1;
+                    /* diff reference: (ma - mb) mod n */
+                    mpz_sub(t3, ma, mb);
+                    mpz_mod(t3, t3, n);
+                    mpz_sub(t3, t2, t3);
+                    mpz_mod(t3, t3, n);
+                    if (mpz_cmp_ui(t3, 0) != 0) bad = 1;
+                    if (bad)
+                    {
+                        printf("vecbench VALIDATION FAILED: addsub words=%d core=%s\n",
+                            numwords, corenames[core]);
+                        exit(1);
+                    }
+                }
+            }
+
+            /* ---- time mul: ping-pong va,vb -> vc -> va ---- */
+            iters = 32;
+            gettimeofday(&tv0, NULL);
+            for (it = 0; it < 32; it++)
+            {
+                vecmulmod_ptr(va, vb, vc, vn, vs, mdata);
+                vecmulmod_ptr(vc, vb, va, vn, vs, mdata);
+            }
+            gettimeofday(&tv1, NULL);
+            {
+                double per = ((double)(tv1.tv_sec - tv0.tv_sec) +
+                    1e-6 * (double)(tv1.tv_usec - tv0.tv_usec)) / 64.0;
+                if (per <= 0.0)
+                    per = 1e-9;
+                iters = (int)(0.3 / per);
+                if (iters < 32) iters = 32;
+                if (iters > 20000000) iters = 20000000;
+            }
+            {
+                double best = 1e30;
+                for (rep = 0; rep < reps; rep++)
+                {
+                    gettimeofday(&tv0, NULL);
+                    for (it = 0; it < iters; it++)
+                    {
+                        vecmulmod_ptr(va, vb, vc, vn, vs, mdata);
+                        vecmulmod_ptr(vc, vb, va, vn, vs, mdata);
+                    }
+                    gettimeofday(&tv1, NULL);
+                    {
+                        double el = ((double)(tv1.tv_sec - tv0.tv_sec) +
+                            1e-6 * (double)(tv1.tv_usec - tv0.tv_usec));
+                        double ns = el * 1e9 / (2.0 * (double)iters);
+                        if (ns < best) best = ns;
+                    }
+                }
+                mul_ns = best;
+            }
+
+            /* ---- time sqr: ping-pong va -> vc -> va ---- */
+            gettimeofday(&tv0, NULL);
+            for (it = 0; it < 32; it++)
+            {
+                vecsqrmod_ptr(va, vc, vn, vs, mdata);
+                vecsqrmod_ptr(vc, va, vn, vs, mdata);
+            }
+            gettimeofday(&tv1, NULL);
+            {
+                double per = ((double)(tv1.tv_sec - tv0.tv_sec) +
+                    1e-6 * (double)(tv1.tv_usec - tv0.tv_usec)) / 64.0;
+                if (per <= 0.0)
+                    per = 1e-9;
+                iters = (int)(0.3 / per);
+                if (iters < 32) iters = 32;
+                if (iters > 20000000) iters = 20000000;
+            }
+            {
+                double best = 1e30;
+                for (rep = 0; rep < reps; rep++)
+                {
+                    gettimeofday(&tv0, NULL);
+                    for (it = 0; it < iters; it++)
+                    {
+                        vecsqrmod_ptr(va, vc, vn, vs, mdata);
+                        vecsqrmod_ptr(vc, va, vn, vs, mdata);
+                    }
+                    gettimeofday(&tv1, NULL);
+                    {
+                        double el = ((double)(tv1.tv_sec - tv0.tv_sec) +
+                            1e-6 * (double)(tv1.tv_usec - tv0.tv_usec));
+                        double ns = el * 1e9 / (2.0 * (double)iters);
+                        if (ns < best) best = ns;
+                    }
+                }
+                sqr_ns = best;
+            }
+
+            /* ---- time addsub: fixed operands ---- */
+            gettimeofday(&tv0, NULL);
+            for (it = 0; it < 32; it++)
+            {
+                vecaddsubmod_ptr(va, vb, vc, vd, mdata);
+            }
+            gettimeofday(&tv1, NULL);
+            {
+                double per = ((double)(tv1.tv_sec - tv0.tv_sec) +
+                    1e-6 * (double)(tv1.tv_usec - tv0.tv_usec)) / 32.0;
+                if (per <= 0.0)
+                    per = 1e-9;
+                iters = (int)(0.3 / per);
+                if (iters < 32) iters = 32;
+                if (iters > 20000000) iters = 20000000;
+            }
+            {
+                double best = 1e30;
+                for (rep = 0; rep < reps; rep++)
+                {
+                    gettimeofday(&tv0, NULL);
+                    for (it = 0; it < iters; it++)
+                    {
+                        vecaddsubmod_ptr(va, vb, vc, vd, mdata);
+                    }
+                    gettimeofday(&tv1, NULL);
+                    {
+                        double el = ((double)(tv1.tv_sec - tv0.tv_sec) +
+                            1e-6 * (double)(tv1.tv_usec - tv0.tv_usec));
+                        double ns = el * 1e9 / (double)iters;
+                        if (ns < best) best = ns;
+                    }
+                }
+                addsub_ns = best;
+            }
+
+            printf("%d,%s,%.1f,%.1f,%.1f,%d\n", numwords, corenames[core],
+                mul_ns, sqr_ns, addsub_ns, iters);
+            fflush(stdout);
+        }
+
+        vecFree(va);
+        vecFree(vb);
+        vecFree(vc);
+        vecFree(vd);
+        vecFree(vn);
+        vecFree(vs);
+        vec_monty_free(mdata);
+    }
+
+    gmp_randclear(state);
+    mpz_clear(n);
+    mpz_clear(r);
+    mpz_clear(pa);
+    mpz_clear(pb);
+    mpz_clear(ma);
+    mpz_clear(mb);
+    mpz_clear(t1);
+    mpz_clear(t2);
+    return;
+}

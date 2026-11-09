@@ -4900,6 +4900,9 @@ void vecsubmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec
     if (mdata->isMersenne > 0)
     {
         // if we had a final carry, then b was bigger than a so we need to re-add n.
+        // save the borrow now: every limb needs to add n's corresponding word,
+        // and the limb-0 adc below overwrites carry with its own overflow.
+        mask = carry;
         nvec = _mm512_set1_epi64(0x10000000000000ULL);
         nvec = _mm512_sub_epi64(nvec, _mm512_set1_epi64(mdata->isMersenne));
         cvec = _mm512_load_epi64(c->data + 0 * VECLEN);
@@ -5044,6 +5047,9 @@ void vecsubmod52_mersenne2(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, ve
     if (mdata->isMersenne > 0)
     {
         // if we had a final carry, then b was bigger than a so we need to re-add n.
+        // save the borrow now: every limb needs to add n's corresponding word,
+        // and the limb-0 adc below overwrites carry with its own overflow.
+        mask = carry;
         nvec = _mm512_set1_epi64(0x10000000000000ULL);
         nvec = _mm512_sub_epi64(nvec, _mm512_set1_epi64(mdata->isMersenne));
         cvec = _mm512_load_epi64(c->data + 0 * VECLEN);
@@ -10881,10 +10887,21 @@ void vecsqr52_n(uint64_t* a, uint64_t* c, int words)
 void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words);
 void kmuln_lo(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words);
 void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
-
+/* Base-case threshold of the veckmul dispatch: widths <= this go straight to
+   the block kernels (vecmul52_n at %4==0, else vecmul52_cios), wider widths
+   recurse into kmuln.  Measured on the dev Xeon (plans/toom3_optimize.md
+   4c): base beats 1-level karatsuba at every width 21..28, so 28 beats the
+   old 20 -- but the balance is machine-dependent.  The standalone harness
+   (plans/bench/thresh/, mode "thresh") measures the optimum per machine;
+   override here with -DVECKMUL_BASE_THRESH=n when the sweep says so.
+   NOTE: vecksqr and vectmul keep their own (20) thresholds -- ksqrn-vs-base
+   is mixed in 21..32 and toom-3 is hopeless below ~30 words. */
+#ifndef VECKMUL_BASE_THRESH
+#define VECKMUL_BASE_THRESH 28
+#endif
 #define veckmul(a, b, c, s, words)				\
   do {									\
-    if (words <= 20) {						\
+    if (words <= VECKMUL_BASE_THRESH) {			\
         if ((words & 0x3) == 0) { vecmul52_n(a, b, c, words); } \
         else { vecmul52_cios(a, b, c, words); } }     \
     else								\
@@ -10893,7 +10910,7 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
 
 #define veckmul_lo(a, b, c, s, words)				\
   do {									\
-    if (words <= 20) {						\
+    if (words <= VECKMUL_BASE_THRESH) {			\
         if ((words & 0x3) == 0) { vecmul52_lo(a, b, c, words); } \
         else { vecmul52_cios_lo(a, b, c, words); } }     \
     else								\
@@ -10918,163 +10935,751 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words);
         tmuln(a, b, c, s, words);				\
   } while (0);
 
+/* exact in-place division by 3 of each vec_bignum in u (L limbs each).
+   LSB-first Hensel division: q_i = (r_i * inv3) mod B, then subtract
+   3*q_i*B^i -- by the divisibility invariant this touches only limb i
+   (which becomes zero, no borrow) and limb i+1 (hi = 3*q_i >> 52, no
+   borrow because the remaining value is a non-negative multiple of
+   B^(i+1)).  Requires 3 | u.  Sign of u must be tracked by the caller. */
+#define TOOM_INV3 3002399751580331ULL   /* (2^53+1)/3: 3*INV3 = 2^53+1 = 1 mod 2^52 */
+
+void vec_hdiv3_52(uint64_t* u, int L)
+{
+    int i;
+    __m512i inv3 = _mm512_set1_epi64(TOOM_INV3);
+    __m512i lomask = _mm512_set1_epi64(0xfffffffffffffULL);
+    __m512i r, q, prod, lo, hi, n;
+
+    for (i = 0; i < L; i++)
+    {
+        r = _mm512_load_epi64(u + i * VECLEN_I);
+        q = _mm512_and_epi64(lomask, _mm512_mullo_epi64(r, inv3));
+        prod = _mm512_add_epi64(q, _mm512_add_epi64(q, q));      /* 3*q < 2^54 */
+        lo = _mm512_and_epi64(lomask, prod);
+        hi = _mm512_srli_epi64(prod, 52);                        /* 0, 1 or 2 */
+#ifdef DEBUG_MERSENNE
+        if (_mm512_kor(0, _mm512_mask_cmpneq_epu64_mask(0xff, r, lo)) != 0)
+        {
+            printf("tmuln: hdiv3 limb %d not divisible by 3\n", i);
+            exit(1);
+        }
+#endif
+        _mm512_store_epi64(u + i * VECLEN_I, q);   /* write quotient limb; residual limb i is exactly 0 */
+        if (i + 1 < L)
+        {
+            n = _mm512_load_epi64(u + (i + 1) * VECLEN_I);
+#ifdef DEBUG_MERSENNE
+            if (_mm512_kor(0, _mm512_mask_cmpgt_epu64_mask(0xff, hi, n)) != 0)
+            {
+                printf("tmuln: hdiv3 unexpected borrow at limb %d\n", i);
+                exit(1);
+            }
+#endif
+            _mm512_store_epi64(u + (i + 1) * VECLEN_I, _mm512_sub_epi64(n, hi));
+        }
+    }
+    return;
+}
+
+/* exact in-place 1-bit right shift of each vec_bignum in u (L limbs).
+   Requires u even.  Sign of u must be tracked by the caller. */
+void vec_rshift1_52(uint64_t* u, int L)
+{
+    int i;
+    __m512i lomask = _mm512_set1_epi64(0xfffffffffffffULL);
+    __m512i one = _mm512_set1_epi64(1);
+    __m512i lo, hi, r;
+
+    for (i = 0; i < L; i++)
+    {
+        lo = _mm512_load_epi64(u + i * VECLEN_I);
+        hi = (i + 1 < L) ? _mm512_load_epi64(u + (i + 1) * VECLEN_I)
+                         : _mm512_setzero_si512();
+        r = _mm512_or_epi64(_mm512_srli_epi64(lo, 1),
+                            _mm512_slli_epi64(_mm512_and_epi64(hi, one), 51));
+#ifdef DEBUG_MERSENNE
+        /* exact /2 requires the whole value to be even, i.e. limb 0 even */
+        if (i == 0 && _mm512_kor(0, _mm512_mask_test_epi64_mask(0xff, lo, one)) != 0)
+        {
+            printf("tmuln: rshift1 of odd value\n");
+            exit(1);
+        }
+#endif
+        _mm512_store_epi64(u + i * VECLEN_I, _mm512_and_epi64(lomask, r));
+    }
+    return;
+}
+
+/* signed add of two vec_bignum arrays with per-lane sign masks:
+   c = (a, aneg) + (b, bneg), where a set neg bit means that lane's value
+   is negative.  c may alias a or b.  Returns the per-lane sign mask of
+   the result (set = negative; zero-magnitude lanes may keep a stale sign
+   bit -- canonicalize before testing).  W = limb width; c needs W+1
+   limbs of space (a carry limb is written at index W). */
+__mmask8 base_sadd_52(uint64_t* a, __mmask8 aneg, uint64_t* b, __mmask8 bneg,
+    uint64_t* c, int W)
+{
+    __mmask8 opp = aneg ^ bneg;
+    __mmask8 addmask = ~opp;
+    __mmask8 abssubmask = opp & vec_gte2_52(b, a, W);
+    __mmask8 acarry = base_absaddsub_52(a, b, c, addmask, abssubmask, W, W);
+#ifdef DEBUG_MERSENNE
+    if (acarry)
+    {
+        printf("base_sadd_52: unexpected carry out of %d limbs\n", W);
+        exit(1);
+    }
+#endif
+    return (aneg & addmask) | (opp & ((abssubmask & bneg) | (~abssubmask & aneg)));
+}
+
+/* fused add + subtract (GMP's mpn_add_n_sub_n pattern, used by its toom
+   evaluators): one bottom-up pass writes
+   sum = a + b  (carry limb written at sum[W], like base_add_52_wc) and
+   diff = a - b  (raw difference; negative in the lanes of the returned
+   borrow mask, i.e. where b > a).  a and b need W limbs; sum needs W+1,
+   diff W.  Follow with base_neg_52(diff, borrow, W) to get the
+   magnitude |a - b| in the borrow lanes (magnitude + sign-mask pair, as
+   base_abssub_52 would produce).  One full-width sweep fewer than the
+   add + gte + abssub triple. */
+__mmask8 base_addsub_52(uint64_t* a, uint64_t* b, uint64_t* sum, uint64_t* diff, int W)
+{
+    int i;
+    __m512i avec, bvec, svec, dvec;
+    __mmask8 scarry = 0, sborrow = 0;
+
+    for (i = 0; i < W; i++)
+    {
+        avec = _mm512_load_epi64(a + i * VECLEN_I);
+        bvec = _mm512_load_epi64(b + i * VECLEN_I);
+
+        svec = _mm512_adc_epi52(avec, scarry, bvec, &scarry);
+        dvec = _mm512_sbb_epi52(avec, sborrow, bvec, &sborrow);
+
+        _mm512_store_epi64(sum + i * VECLEN_I, svec);
+        _mm512_store_epi64(diff + i * VECLEN_I, dvec);
+    }
+    _mm512_store_epi64(sum + i * VECLEN_I, _mm512_mask_mov_epi64(
+        _mm512_setzero_si512(), scarry, _mm512_set1_epi64(1)));
+
+    return sborrow;     /* set where b > a: the difference is negative */
+}
+
+/* conditional negate: in the lanes of sm, dst = -(dst) mod B^W (two's
+   complement over the W limbs); the other lanes pass through unchanged.
+   Turns the raw difference of base_addsub_52 into the magnitude of the
+   per-lane signed value. */
+void base_neg_52(uint64_t* dst, __mmask8 sm, int W)
+{
+    int i;
+    __m512i lomask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i d, t, carry;
+    __m512i czero = _mm512_maskz_set1_epi64(sm, 1);     /* +1 in sm lanes */
+
+    carry = czero;
+    for (i = 0; i < W; i++)
+    {
+        d = _mm512_load_epi64(dst + i * VECLEN_I);
+        /* ~limb + carry: ~d is lomask ^ d for limbs < B */
+        t = _mm512_add_epi64(_mm512_xor_epi64(d, lomask), carry);
+        _mm512_store_epi64(dst + i * VECLEN_I, _mm512_mask_mov_epi64(d, sm,
+            _mm512_and_epi64(lomask, t)));
+        carry = _mm512_srli_epi64(t, 52);
+    }
+
+    return;
+}
+
+/* signed sublsh1 (GMP's as2 = 2*(a2 + as1) - a0 fusion in toom33_mul.c,
+   threaded through the per-lane sign masks tmuln's magnitude+sign
+   convention needs): dst = 2*(dst, dsign) - (src, all lanes negative).
+   The signed sum is accumulated in reduced radix over W+1 limbs: each
+   negated term enters complemented (XOR each limb with B-1) with its +1
+   at limb 0, the B^(W+1) multiples land in the carry dropped past limb
+   W, and a lane's result is negative exactly when its dropped carry
+   equals the number of complemented terms minus one (= dsign).  The
+   caller fixes the negative lanes up with base_neg_52(dst, mask, W+1).
+   |result| < B^W is the caller's guarantee; dst needs W+1 limbs. */
+__mmask8 base_sublsh1_52(uint64_t* dst, __mmask8 dsign, uint64_t* src, int W)
+{
+    int i;
+    __m512i lomask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i zero = _mm512_setzero_si512();
+    __m512i one = _mm512_set1_epi64(1);
+    __m512i dsignv = _mm512_maskz_set1_epi64(dsign, 1);  /* value 1 in dsign lanes */
+    __m512i d, dig, t, v, svec, c2 = zero, cp = zero;
+    __mmask8 m;
+
+    for (i = 0; i <= W; i++)
+    {
+        /* double the dst digit (limb W holds the incoming carry limb) */
+        d = _mm512_load_epi64(dst + i * VECLEN_I);
+        d = _mm512_add_epi64(d, d);
+        d = _mm512_add_epi64(d, c2);
+        dig = _mm512_and_epi64(lomask, d);
+        c2 = _mm512_srli_epi64(d, 52);
+
+        /* +2*dst, complemented in the dsign lanes */
+        t = _mm512_mask_mov_epi64(dig, dsign, _mm512_xor_epi64(dig, lomask));
+
+        /* - src (complemented; zero-extended past its W limbs) */
+        svec = (i < W) ? _mm512_load_epi64(src + i * VECLEN_I) : zero;
+        t = _mm512_add_epi64(t, _mm512_xor_epi64(svec, lomask));
+
+        /* the two complement +1's at limb 0 (src always, dst in dsign) */
+        v = _mm512_add_epi64(t, cp);
+        if (i == 0)
+        {
+            v = _mm512_add_epi64(v, one);
+            v = _mm512_add_epi64(v, dsignv);
+        }
+
+        _mm512_store_epi64(dst + i * VECLEN_I, _mm512_and_epi64(lomask, v));
+        cp = _mm512_srli_epi64(v, 52);
+    }
+
+    /* negative exactly where the dropped carry equals dsign */
+    m = _mm512_cmpeq_epu64_mask(cp, dsignv);
+    return m;
+}
+
+/* signed addlsh1 (GMP's mpn_sublsh1_n_ip1 pattern in
+   toom_interpolate_5pts.c, threaded through the per-lane sign masks):
+   dst = (dst, dsign) + 2*(src, all lanes non-negative).  src is NOT
+   modified.  Same reduced-radix scheme as base_sublsh1_52: the signed
+   sum runs over W+1 limbs, complemented terms enter with their +1 at
+   limb 0, and the B^(W+1) multiples land in the carry dropped past limb
+   W; a dsign lane's result is negative exactly when its dropped carry
+   is zero.  The caller fixes the negative lanes up with
+   base_neg_52(dst, mask, W+1).  |result| < B^W is the caller's
+   guarantee; dst needs W+1 limbs. */
+__mmask8 base_addlsh1s_52(uint64_t* dst, __mmask8 dsign, uint64_t* src, int W)
+{
+    int i;
+    __m512i lomask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i zero = _mm512_setzero_si512();
+    __m512i one = _mm512_set1_epi64(1);
+    __m512i d, dig, t, v, svec, c2 = zero, cp = zero;
+    __mmask8 m;
+
+    for (i = 0; i <= W; i++)
+    {
+        /* double the src digit on the fly */
+        svec = _mm512_load_epi64(src + i * VECLEN_I);
+        d = _mm512_add_epi64(svec, svec);
+        d = _mm512_add_epi64(d, c2);
+        dig = _mm512_and_epi64(lomask, d);
+        c2 = _mm512_srli_epi64(d, 52);
+
+        /* + dst, complemented in the dsign lanes */
+        d = _mm512_load_epi64(dst + i * VECLEN_I);
+        t = _mm512_mask_mov_epi64(d, dsign, _mm512_xor_epi64(d, lomask));
+
+        v = _mm512_add_epi64(t, dig);
+        v = _mm512_add_epi64(v, cp);
+        if (i == 0)
+            v = _mm512_add_epi64(v, _mm512_maskz_set1_epi64(dsign, 1));
+
+        _mm512_store_epi64(dst + i * VECLEN_I, _mm512_and_epi64(lomask, v));
+        cp = _mm512_srli_epi64(v, 52);
+    }
+
+    /* a dsign lane is negative exactly when its dropped carry is zero */
+    m = dsign & _mm512_cmpeq_epu64_mask(cp, zero);
+    return m;
+}
+
+/* signed add of two vec_bignum arrays with per-lane sign masks, followed
+   by an exact division by two written directly to c (shift-on-write):
+   c = ((a, aneg) + (b, bneg)) / 2, where the sum must be even.  Fuses
+   base_sadd_52 + vec_rshift1_52 and saves the separate full-width rshift
+   sweep: limb i of the result only needs bit 0 of the sum's limb i+1,
+   which is computed as the pipeline's next step.  c needs W limbs of
+   space; the sum must be < 2*B^W (result fits W limbs).  Sign of the
+   result returned as in base_sadd_52. */
+__mmask8 base_sadd_rshift1_52(uint64_t* a, __mmask8 aneg, uint64_t* b, __mmask8 bneg,
+    uint64_t* c, int W)
+{
+    int i;
+    __m512i lomask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i one = _mm512_set1_epi64(1);
+    __m512i avec, bvec, tmp, cur, nxt;
+    __mmask8 opp = aneg ^ bneg;
+    __mmask8 addmask = ~opp;
+    __mmask8 abssubmask = opp & vec_gte2_52(b, a, W);
+    __mmask8 scarry = 0, acarry = 0;
+
+    /* pipeline: cur = signed sum of limb i, nxt = signed sum of limb i+1
+       (or the sum's carry limb at the top); limb i of the halved result
+       is (cur >> 1) | (nxt bit 0) << 51. */
+    avec = _mm512_load_epi64(a);
+    bvec = _mm512_load_epi64(b);
+
+    /* swap words in the lanes we are abs-subbing */
+    tmp = avec;
+    avec = _mm512_mask_mov_epi64(avec, abssubmask, bvec);
+    bvec = _mm512_mask_mov_epi64(bvec, abssubmask, tmp);
+
+    cur = _mm512_mask_sbb_epi52(avec, ~addmask, scarry, bvec, &scarry);
+    cur = _mm512_mask_mov_epi64(cur, addmask,
+        _mm512_mask_adc_epi52(avec, addmask, acarry, bvec, &acarry));
+
+    for (i = 0; i < W; i++)
+    {
+        if (i + 1 < W)
+        {
+            avec = _mm512_load_epi64(a + (i + 1) * VECLEN_I);
+            bvec = _mm512_load_epi64(b + (i + 1) * VECLEN_I);
+
+            tmp = avec;
+            avec = _mm512_mask_mov_epi64(avec, abssubmask, bvec);
+            bvec = _mm512_mask_mov_epi64(bvec, abssubmask, tmp);
+
+            nxt = _mm512_mask_sbb_epi52(avec, ~addmask, scarry, bvec, &scarry);
+            nxt = _mm512_mask_mov_epi64(nxt, addmask,
+                _mm512_mask_adc_epi52(avec, addmask, acarry, bvec, &acarry));
+        }
+        else
+        {
+            /* the sum's carry limb: 1 in the lanes that added with carry */
+            nxt = _mm512_maskz_set1_epi64(acarry, 1);
+        }
+
+        _mm512_store_epi64(c + i * VECLEN_I, _mm512_and_epi64(lomask,
+            _mm512_or_epi64(_mm512_srli_epi64(cur, 1),
+                _mm512_slli_epi64(_mm512_and_epi64(nxt, one), 51))));
+        cur = nxt;
+    }
+
+    return (aneg & addmask) | (opp & ((abssubmask & bneg) | (~abssubmask & aneg)));
+}
+
+/* signed 3-input add with per-lane sign masks:
+   c = (a, aneg) + (b, bneg) + (d, dneg).  Sums the positive and negative
+   groups separately in one bottom-up pass (into caller-provided
+   temporaries p and n, each with W+1 limbs of space), compares the group
+   magnitudes (top-down, carry limbs included), then subtracts the
+   smaller group from the larger -- one full-width sweep fewer than two
+   base_sadd_52 calls.  c may alias a, b, or d.  Returns the sign mask of
+   the result (set = negative; zero-magnitude lanes may keep a stale sign
+   bit -- canonicalize before testing). */
+__mmask8 base_sadd3_52(uint64_t* a, __mmask8 aneg, uint64_t* b, __mmask8 bneg,
+    uint64_t* d, __mmask8 dneg, uint64_t* c, int W, uint64_t* p, uint64_t* n)
+{
+    int i;
+    __m512i lomask = _mm512_set1_epi64(0x000fffffffffffffULL);
+    __m512i one = _mm512_set1_epi64(1);
+    __m512i av, pacc, nacc, pc, nc, m1, m2, m3, pcarry, ncarry, t;
+    __m512i ones = _mm512_set1_epi64(~0LL);
+    __mmask8 ngt, plt, m;
+
+    /* per-lane membership masks (all-ones in the lanes where the term
+       belongs to the positive group; membership is per-lane and constant
+       across limbs, so non-member lanes never accumulate and their carry
+       is always zero) */
+    m1 = _mm512_maskz_mov_epi64(~aneg, ones);
+    m2 = _mm512_maskz_mov_epi64(~bneg, ones);
+    m3 = _mm512_maskz_mov_epi64(~dneg, ones);
+
+    pcarry = _mm512_setzero_si512();
+    ncarry = _mm512_setzero_si512();
+    for (i = 0; i < W; i++)
+    {
+        av = _mm512_load_epi64(a + i * VECLEN_I);
+        pacc = _mm512_and_epi64(av, m1);
+        nacc = _mm512_andnot_epi64(m1, av);
+
+        av = _mm512_load_epi64(b + i * VECLEN_I);
+        pacc = _mm512_add_epi64(pacc, _mm512_and_epi64(av, m2));
+        nacc = _mm512_add_epi64(nacc, _mm512_andnot_epi64(m2, av));
+
+        av = _mm512_load_epi64(d + i * VECLEN_I);
+        pacc = _mm512_add_epi64(pacc, _mm512_and_epi64(av, m3));
+        nacc = _mm512_add_epi64(nacc, _mm512_andnot_epi64(m3, av));
+
+        /* fold in the previous limb's carry once (0 in non-member lanes) */
+        pacc = _mm512_add_epi64(pacc, pcarry);
+        nacc = _mm512_add_epi64(nacc, ncarry);
+
+        _mm512_store_epi64(p + i * VECLEN_I, _mm512_and_epi64(lomask, pacc));
+        pcarry = _mm512_srli_epi64(pacc, 52);
+
+        _mm512_store_epi64(n + i * VECLEN_I, _mm512_and_epi64(lomask, nacc));
+        ncarry = _mm512_srli_epi64(nacc, 52);
+    }
+
+    _mm512_store_epi64(p + i * VECLEN_I, pcarry);
+    _mm512_store_epi64(n + i * VECLEN_I, ncarry);
+
+    /* compare the group sums (including their carry limbs):
+       m = (n >= p) per lane; where set the result is negative */
+    pc = _mm512_load_epi64(p + i * VECLEN_I);
+    nc = _mm512_load_epi64(n + i * VECLEN_I);
+    ngt = _mm512_cmpgt_epu64_mask(nc, pc);
+    plt = _mm512_cmpgt_epu64_mask(pc, nc);
+    m = ngt | (~plt & vec_gte2_52(n, p, W));
+
+    base_absaddsub_52(p, n, c, 0, m, W, W);     /* |p - n|, direction m */
+    return m;
+}
+
+/* optional per-phase cycle instrumentation for tmuln (zero cost when
+   TMULN_PROFILE is not defined).  Accumulates rdtsc deltas for the eval,
+   pointwise, interpolation and recomposition phases across calls;
+   tmuln_profile_reset() zeroes the accumulators and tmuln_profile_report()
+   prints the split. */
+#ifdef TMULN_PROFILE
+#include <x86intrin.h>
+static unsigned long long tmuln_prof_calls = 0;
+static unsigned long long tmuln_prof_setup = 0;
+static unsigned long long tmuln_prof_eval = 0;
+static unsigned long long tmuln_prof_pw = 0;
+static unsigned long long tmuln_prof_interp = 0;
+static unsigned long long tmuln_prof_recomp = 0;
+static unsigned long long tmuln_prof_total = 0;
+
+void tmuln_profile_reset(void)
+{
+    tmuln_prof_calls = 0;
+    tmuln_prof_setup = 0;
+    tmuln_prof_eval = 0;
+    tmuln_prof_pw = 0;
+    tmuln_prof_interp = 0;
+    tmuln_prof_recomp = 0;
+    tmuln_prof_total = 0;
+    return;
+}
+
+void tmuln_profile_report(void)
+{
+    if (tmuln_prof_calls == 0)
+    {
+        printf("tmuln_profile: no calls\n");
+        return;
+    }
+    printf("tmuln_profile: calls=%llu total=%.1f cyc/op\n"
+        "  setup=%.1f (%.1f%%) eval=%.1f (%.1f%%) pointwise=%.1f (%.1f%%) "
+        "interp=%.1f (%.1f%%) recomp=%.1f (%.1f%%)\n",
+        tmuln_prof_calls, (double)tmuln_prof_total / tmuln_prof_calls,
+        (double)tmuln_prof_setup / tmuln_prof_calls,
+        100.0 * tmuln_prof_setup / tmuln_prof_total,
+        (double)tmuln_prof_eval / tmuln_prof_calls,
+        100.0 * tmuln_prof_eval / tmuln_prof_total,
+        (double)tmuln_prof_pw / tmuln_prof_calls,
+        100.0 * tmuln_prof_pw / tmuln_prof_total,
+        (double)tmuln_prof_interp / tmuln_prof_calls,
+        100.0 * tmuln_prof_interp / tmuln_prof_total,
+        (double)tmuln_prof_recomp / tmuln_prof_calls,
+        100.0 * tmuln_prof_recomp / tmuln_prof_total);
+    return;
+}
+#endif
+
 void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
 {
-    int w0, w1, w2;
-
-    w0 = w1 = words / 3;
-    w2 = words - w1 - w0;
+    /*
+     * Toom-3 multiplication of words-limb vec_bignums, VECLEN at a time.
+     * Split: a = a0 + a1*X + a2*X^2 (w0 = w1 = words/3 limbs each, X = B^w0),
+     * evaluate at 0, 1, -1, -2, inf, multiply pointwise (Karatsuba), then
+     * interpolate and recompose.  All signed arithmetic uses magnitudes plus
+     * one sign bit per lane, exactly like kcombine2.  The algorithm was
+     * validated with a scalar per-lane transcription against schoolbook
+     * multiplication (1M+ cases, plans/toom3_finish.md).
+     *
+     * Scratch layout (offsets in vector-words; one 'word' = VECLEN_I limbs):
+     *   [0, K)                     recursive Karatsuba scratch (K = 4*W+8)
+     *   a0p..b2p (6 * W)           padded copies of the six split pieces
+     *   pm1, p1, pm2, qm1, q1, qm2 evaluation points (W+1 each)
+     *   r0, r1, rm1, rm2, rinf     pointwise products (P+1 each, P = 2*W)
+     *   i1, i2, i3                 interpolation (P+1 each)
+     * The region above K is zeroed once, before any recursion; the
+     * recursive calls only touch [0, K).
+     */
+    int i;
+    int w0 = words / 3, w1 = words / 3, w2 = words - 2 * w0;
     int wmax = MAX(w0, w2) + 1;
-    int scratchwords = wmax + 2;
+    /* eval width: the evaluation values are bounded by 9*B^w2 < B^wmax
+       (|p(-2)| < 8*B^w2 + B^w0), so wmax limbs + the primitives' carry
+       limb suffice; the old +2 guard pads the sweeps but is never needed
+       for the wc carries.  P = 2*W covers the interpolation values, which
+       are bounded by 3*B^(P/2-1) < B^P. */
+    int W = wmax;                 /* eval padded width */
+    int P = 2 * W;                /* pointwise/interpolation padded width */
+    int A = 2 * words + 2;        /* recomposition accumulator width */
+    int K = 4 * W + 8;            /* recursive karatsuba scratch (vector-words) */
+    int o_a0p, o_a1p, o_a2p, o_b0p, o_b1p, o_b2p;
+    int o_pm1, o_p1, o_pm2, o_qm1, o_q1, o_qm2;
+    int o_r0, o_r1, o_rm1, o_rm2, o_rinf;
+    int o_i1, o_i2, o_i3;
+    int T;
+    uint64_t *a0p, *a1p, *a2p, *b0p, *b1p, *b2p;
+    uint64_t *pm1, *p1, *pm2, *qm1, *q1, *qm2;
+    uint64_t *r0, *r1, *rm1, *rm2, *rinf;
+    uint64_t *i1, *i2, *i3;
+    __mmask8 m1, m2, m3, m4, tsign, qsign, rm1sign, rm2sign;
+    __mmask8 i1sign, i2sign, i3sign;
+    __m512i zero = _mm512_setzero_si512();
+#ifdef TMULN_PROFILE
+    unsigned long long tp0, tp1, tp2, tp3, tp4, tp5;
+    tp0 = __rdtsc();
+#endif
 
-    //printf("Splitting phase\n");
-    uint64_t* a0 = a;
-    uint64_t* a1 = a + w0 * VECLEN_I;
-    uint64_t* a2 = a + (w0 + w1) * VECLEN_I;
-    uint64_t* b0 = b;
-    uint64_t* b1 = b + w1 * VECLEN_I;
-    uint64_t* b2 = b + (w0 + w1) * VECLEN_I;
-    uint64_t* p1 = scratch + 0 * scratchwords;
-    uint64_t* pm1 = scratch + 1 * scratchwords;
-    uint64_t* pm2 = scratch + 2 * scratchwords;
-    uint64_t* q1 = scratch + 3 * scratchwords;
-    uint64_t* qm1 = scratch + 4 * scratchwords;
-    uint64_t* qm2 = scratch + 5 * scratchwords;
-    uint64_t* rtmp = scratch + 6 * scratchwords;
-    uint64_t* r1 = scratch + 8 * scratchwords;
-    uint64_t* rm1 = scratch + 10 * scratchwords;
-    uint64_t* rm2 = scratch + 12 * scratchwords;
-    uint64_t* rinf = scratch + 14 * scratchwords;
-    __mmask8 m1;
-    __mmask8 m2;
-    __mmask8 m3;
-    __mmask8 m4;
-    __mmask8 m5;
-    __mmask8 carry;
+    o_a0p = K;
+    o_a1p = o_a0p + W;
+    o_a2p = o_a1p + W;
+    o_b0p = o_a2p + W;
+    o_b1p = o_b0p + W;
+    o_b2p = o_b1p + W;
+    o_pm1 = o_b2p + W;
+    o_p1 = o_pm1 + W + 1;
+    o_pm2 = o_p1 + W + 1;
+    o_qm1 = o_pm2 + W + 1;
+    o_q1 = o_qm1 + W + 1;
+    o_qm2 = o_q1 + W + 1;
+    o_r0 = o_qm2 + W + 1;
+    o_r1 = o_r0 + P + 1;
+    o_rm1 = o_r1 + P + 1;
+    o_rm2 = o_rm1 + P + 1;
+    o_rinf = o_rm2 + P + 1;
+    o_i1 = o_rinf + P + 1;
+    o_i2 = o_i1 + P + 1;
+    o_i3 = o_i2 + P + 1;
+    T = o_i3 + P + 1;
 
-    memset(scratch, 0, 16 * scratchwords * sizeof(uint64_t));
+    /* mtmp4 is sized in vec_monty_alloc from the same worst-case formula:
+       toomT = 34*(words/3+5) + 23 + 2*words + 2 vector-words, guaranteed
+       via vecInit((toomT+1)/2) -> 2*ceil(toomT/2)+4 >= toomT+4. */
+    {
+        int toomWg = words / 3 + 5;
+        int toomTg = 34 * toomWg + 23 + 2 * words + 2;
+        if (T > toomTg + 4)
+        {
+            printf("tmuln: scratch overflow: need %d have %d\n", T, toomTg + 4);
+            exit(1);
+        }
+    }
 
-    //printf("Evaluation phase\n");
-    //mpz_set(p0, a0);
-    //mpz_set(pinf, a2);
-    //mpz_add(pm1, a0, a2);
-    //mpz_add(p1, pm1, a1);
-    //mpz_sub(pm1, pm1, a1);
-    //mpz_add(pm2, pm1, a2);
-    //mpz_mul_2exp(pm2, pm2, 1);
-    //mpz_sub(pm2, pm2, a0);
-    base_add_52_wc(a0, a2, pm1, w0, w2);
-    base_add_52_wc(p1, pm1, a1, wmax, wmax);
-    m1 = vec_gte2_52(a1, pm1, wmax);
-    base_abssub_52(pm1, a1, pm1, m1, wmax, w1);
-    base_add_52_wc(pm1, a2, pm2, wmax, w2);
-    base_add_52_wc(pm2, pm2, pm2, wmax, wmax);
-    m2 = vec_gte2_52(a0, pm2, wmax);
-    base_abssub_52(pm2, a0, pm2, m2, wmax, w0);
+    a0p = scratch + o_a0p * VECLEN_I;
+    a1p = scratch + o_a1p * VECLEN_I;
+    a2p = scratch + o_a2p * VECLEN_I;
+    b0p = scratch + o_b0p * VECLEN_I;
+    b1p = scratch + o_b1p * VECLEN_I;
+    b2p = scratch + o_b2p * VECLEN_I;
+    pm1 = scratch + o_pm1 * VECLEN_I;
+    p1 = scratch + o_p1 * VECLEN_I;
+    pm2 = scratch + o_pm2 * VECLEN_I;
+    qm1 = scratch + o_qm1 * VECLEN_I;
+    q1 = scratch + o_q1 * VECLEN_I;
+    qm2 = scratch + o_qm2 * VECLEN_I;
+    r0 = scratch + o_r0 * VECLEN_I;
+    r1 = scratch + o_r1 * VECLEN_I;
+    rm1 = scratch + o_rm1 * VECLEN_I;
+    rm2 = scratch + o_rm2 * VECLEN_I;
+    rinf = scratch + o_rinf * VECLEN_I;
+    i1 = scratch + o_i1 * VECLEN_I;
+    i2 = scratch + o_i2 * VECLEN_I;
+    i3 = scratch + o_i3 * VECLEN_I;
 
-    //mpz_set(q0, b0);
-    //mpz_set(qinf, b2);
-    //mpz_add(qm1, b0, b2);
-    //mpz_add(q1, qm1, b1);
-    //mpz_sub(qm1, qm1, b1);
-    //mpz_add(qm2, qm1, b2);
-    //mpz_mul_2exp(qm2, qm2, 1);
-    //mpz_sub(qm2, qm2, b0);
-    base_add_52_wc(b0, b2, qm1, w0, w2);
-    base_add_52_wc(q1, qm1, b1, wmax, w1);
-    m3 = vec_gte2_52(b1, qm1, wmax);
-    base_abssub_52(qm1, b1, qm1, m3, wmax, w1);
-    base_add_52_wc(qm1, b2, qm2, wmax, w2);
-    base_add_52_wc(qm2, qm2, qm2, wmax, wmax);
-    m4 = vec_gte2_52(b0, qm2, wmax);
-    base_abssub_52(qm2, b0, qm2, m4, wmax, w0);
+    /* zero everything above the recursive scratch; safe here because the
+        pointwise recursive calls below only touch [0, K). */
+    memset(scratch + K * VECLEN_I, 0, (T - K) * VECLEN_I * sizeof(uint64_t));
 
-    //printf("Pointwise multiplication phase\n");
-    //mpz_mul(r0, p0, q0);
-    //mpz_mul(r1, p1, q1);
-    //mpz_mul(rm1, pm1, qm1);
-    //mpz_mul(rm2, pm2, qm2);
-    //mpz_mul(rinf, pinf, qinf);
-    vectmul(a0, b0, c, scratch, w0);
-    vectmul(p1, q1, r1, scratch, wmax);
-    vectmul(pm1, qm1, rm1, scratch, wmax);
-    vectmul(pm2, qm2, rm2, scratch, wmax);
-    vectmul(a2, b2, c + (2 * w0) * VECLEN_I, scratch, w2);
+    /* padded copies of the six split pieces */
+    memcpy(a0p, a, w0 * VECLEN_I * sizeof(uint64_t));
+    memcpy(a1p, a + w0 * VECLEN_I, w1 * VECLEN_I * sizeof(uint64_t));
+    memcpy(a2p, a + 2 * w0 * VECLEN_I, w2 * VECLEN_I * sizeof(uint64_t));
+    memcpy(b0p, b, w0 * VECLEN_I * sizeof(uint64_t));
+    memcpy(b1p, b + w0 * VECLEN_I, w1 * VECLEN_I * sizeof(uint64_t));
+    memcpy(b2p, b + 2 * w0 * VECLEN_I, w2 * VECLEN_I * sizeof(uint64_t));
 
-    //printf("Interpolation phase\n");
-    //mpz_set(i0, r0);
-    //mpz_set(i4, rinf);
-    //mpz_sub(i3, rm2, r1);
-    // rm2 is negative for bits m2 ^ m4.  So for those we add
-    // and the results remains negative.  If rm2 is positive then
-    // we do a normal abssub.  The only positive results are where
-    // r1 !>= rm2 and rm2 is positive.
-    m5 = vec_gte2_52(r1, rm2, 2 * wmax + 2);
-    base_absaddsub_52(rm2, r1, rm2, (m2 ^ m4), 
-       (~(m2 ^ m4)) & m5, 2 * wmax + 2, 2 * wmax + 2);
-    m2 = ~m5;
-    
-    //mpz_tdiv_q_ui(i3, i3, 3);
-    // todo.
+#ifdef TMULN_PROFILE
+    tp1 = __rdtsc();    /* end of setup (memset + split copies) */
+#endif
 
+    /* ---- evaluation phase ----
+       p(0) = a0, p(inf) = a2, p(1) = a0+a1+a2,
+       p(-1) = a0+a2-a1, p(-2) = 2*(p(-1)+a2)-a0  (signs kept per lane).
+       The +1/-1 pair is one fused add+sub pass (GMP's mpn_add_n_sub_n
+       pattern) plus a conditional negate for the borrow lanes. */
+    base_add_52_wc(a0p, a2p, pm1, W, W);            /* pm1 = a0 + a2 */
+    m1 = base_addsub_52(pm1, a1p, p1, pm1, W);      /* p1 = gp+a1; pm1 = gp-a1 */
+    if (m1)
+        base_neg_52(pm1, m1, W);                    /* pm1 = |p(-1)|, sign m1 */
 
-    //mpz_sub(i1, r1, rm1);
-    // rm1 is negative for bits m1 ^ m3. So for those we add
-    // and the results are positive.  If rm1 is positive then
-    // we do a normal abssub.
-    m5 = vec_gte2_52(rm1, r1, 2 * wmax + 2);
-    base_absaddsub_52(r1, rm1, rtmp, (m1 ^ m3),
-        (~(m1 ^ m3)) & m5, 2 * wmax + 2, 2 * wmax + 2);
-    m4 = m5;
-    
-    //mpz_tdiv_q_2exp(i1, i1, 1);
-    // todo.
+    tsign = base_sadd_52(pm1, m1, a2p, 0, pm2, W);  /* pm2 = p(-1) + a2 (signed) */
+    m2 = base_sublsh1_52(pm2, tsign, a0p, W);       /* p(-2) = 2*pm2 - a0 */
+    if (m2)
+        base_neg_52(pm2, m2, W + 1);                /* magnitude in the negative lanes */
 
-    
-    //mpz_sub(i2, rm1, r0);
-    // rm1 is negative for bits m1 ^ m3. So for those we add
-    // and the results remains negative.  If rm1 is positive then
-    // we do a normal abssub.  The only positive results are where
-    // r0 !>= rm1 and rm1 is positive.
-    m5 = vec_gte2_52(c, rm1, 2 * w0);       // <-- problem b/c c has 2 * w0 words and has
-                                            // no extra scratch space while rm1 can be larger.
-                                            // need to check if rm1 has more words than 2 * w0
-                                            // and factor that into the determination of >=
-    base_absaddsub_52(rm1, c, rm1, (m1 ^ m3),
-        (~(m1 ^ m3)) & m5, 2 * wmax + 2, 2 * w0);
-    m1 = ~m5;
-    
-    //mpz_sub(i3, i2, i3);
-    // i2 is stored in rm1 and its sign is in m1
-    // i3 is stored in rm2 and its sign is in m2
-     
-    
-    //mpz_tdiv_q_2exp(i3, i3, 1);
-    //mpz_mul_2exp(rinf, rinf, 1);
-    //mpz_add(i3, i3, rinf);
-    //mpz_add(i2, i2, i1);
-    //mpz_sub(i2, i2, i4);
-    //mpz_sub(i1, i1, i3);
+    base_add_52_wc(b0p, b2p, qm1, W, W);            /* qm1 = b0 + b2 */
+    base_add_52_wc(qm1, b1p, q1, W, W);             /* q1 = q(1) */
+    m3 = vec_gte2_52(b1p, qm1, W);                  /* b1 >= qm1: q(-1) <= 0 */
+    base_abssub_52(qm1, b1p, qm1, m3, W, W);        /* qm1 = |q(-1)|, sign m3 */
 
+    qsign = base_sadd_52(qm1, m3, b2p, 0, qm2, W);
+    m4 = base_sublsh1_52(qm2, qsign, b0p, W);       /* q(-2) = 2*qm2 - b0 */
+    if (m4)
+        base_neg_52(qm2, m4, W + 1);
 
-    //printf("Recomposition phase\n");
-    //mpz_set(out, i0);
-    //mpz_mul(i1, i1, B);
-    //mpz_mul(i2, i2, B);
-    //mpz_mul(i2, i2, B);
-    //mpz_mul(i3, i3, B);
-    //mpz_mul(i3, i3, B);
-    //mpz_mul(i3, i3, B);
-    //mpz_mul(i4, i4, B);
-    //mpz_mul(i4, i4, B);
-    //mpz_mul(i4, i4, B);
-    //mpz_mul(i4, i4, B);
-    //mpz_add(out, out, i1);
-    //mpz_add(out, out, i2);
-    //mpz_add(out, out, i3);
-    //mpz_add(out, out, i4);
+#ifdef TMULN_PROFILE
+    tp2 = __rdtsc();    /* end of evaluation */
+#endif
 
+    /* ---- pointwise multiplication (Karatsuba above the base case) ---- */
+    veckmul(a0p, b0p, r0, scratch, W);
+    veckmul(p1, q1, r1, scratch, W);
+    veckmul(pm1, qm1, rm1, scratch, W);
+    veckmul(pm2, qm2, rm2, scratch, W);
+    veckmul(a2p, b2p, rinf, scratch, W);
+    rm1sign = m1 ^ m3;      /* product of signed values */
+    rm2sign = m2 ^ m4;
+#ifdef TMULN_PROFILE
+    tp3 = __rdtsc();    /* end of pointwise */
+#endif
 
+    /* ---- interpolation (mirrors the proven scalar sequence) ----
+       i3 = (rm2 - r1)/3;  i1 = (r1 - rm1)/2;  i2 = rm1 - r0;
+       i3 = (i2 - i3)/2 + 2*rinf;  i2 = i2 + i1 - rinf;  i1 = i1 - i3.
+       Fused primitives: the /2 shifts are folded into the preceding
+       signed adds (shift-on-write), the doubling of rinf skips its
+       (always equal) magnitude comparison, and i2 += i1 - rinf is a
+       single 3-input signed pass. */
+    i3sign = base_sadd_52(rm2, rm2sign, r1, 0xff, i3, P);   /* i3 = rm2 - r1 */
+    vec_hdiv3_52(i3, P);                                    /* /3, exact */
+
+    i1sign = base_sadd_rshift1_52(r1, 0, rm1, ~rm1sign, i1, P);  /* i1 = (r1 - rm1)/2 */
+
+    i2sign = base_sadd_52(rm1, rm1sign, r0, 0xff, i2, P);   /* i2 = rm1 - r0 */
+
+    i3sign = base_sadd_rshift1_52(i2, i2sign, i3, ~i3sign, i3, P);  /* i3 = (i2 - i3)/2 */
+
+    i3sign = base_addlsh1s_52(i3, i3sign, rinf, P);         /* i3 += 2*rinf (rinf unmodified) */
+    if (i3sign)
+        base_neg_52(i3, i3sign, P + 1);                     /* magnitude in the negative lanes */
+
+    i2sign = base_sadd3_52(i2, i2sign, i1, i1sign, rinf, 0xff, i2, P, r1, rm2);  /* i2 += i1 - rinf (temps r1/rm2 are dead here; r0 still needed by the recomposition) */
+    i1sign = base_sadd_52(i1, i1sign, i3, ~i3sign, i1, P);  /* i1 -= i3 */
+#ifdef TMULN_PROFILE
+    tp4 = __rdtsc();    /* end of interpolation */
+#endif
+
+    /* ---- recomposition ----
+       c = i0 + i1*B^w0 + i2*B^2w0 + i3*B^3w0 + i4*B^4w0, with i4 = the
+       original rinf (2*w2 significant limbs: 4*w0 + 2*w2 = 2*words exactly).
+       Instead of four (memset + offset copy + full-width signed add)
+       cycles, accumulate everything in one reduced-radix pass, kcombine2
+       style: each signed term is added as-is or complemented per lane
+       (XOR each limb with B-1, plus a +1 at the term's bottom limb for
+       the negated lanes).  A negated P-limb term at offset o represents
+       -term*B^o mod B^A with complement digits (B-1) in [o+P, A), so the
+       loop below adds B-1 in the negated lanes past each term's window.
+       The sum of all digit contributions is then exactly the true value
+       plus (number of negated lanes)*B^A, and since the product is
+       non-negative and < B^(2*words) < B^A, limbs [0, A) of the exact
+       digit-wise sum are the product (the B^A multiples land in the
+       dropped carry out of limb A-1). */
+    memcpy(c, r0, P * VECLEN_I * sizeof(uint64_t));         /* acc = i0 */
+    memset(c + P * VECLEN_I, 0, (A - P) * VECLEN_I * sizeof(uint64_t));
+
+    {
+        __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);
+        __m512i vone = _mm512_set1_epi64(1);
+        __m512i vB1 = _mm512_set1_epi64(0x000fffffffffffffULL);  /* B-1 */
+        __m512i v, t, vc = zero;
+        uint64_t *p1 = i1, *p2 = i2, *p3 = i3, *p4 = rinf;
+
+        for (i = 0; i < A; i++)
+        {
+            v = _mm512_add_epi64(_mm512_load_epi64(c + i * VECLEN_I), vc);
+
+            /* i1*B^w0, negated in lanes of i1sign */
+            if (i >= w0)
+            {
+                if (i < w0 + P)
+                {
+                    t = _mm512_load_epi64(p1);
+                    p1 += VECLEN_I;
+                    t = _mm512_mask_xor_epi64(t, i1sign, t, vlmask);
+                    v = _mm512_add_epi64(v, t);
+                    if (i == w0)
+                        v = _mm512_mask_add_epi64(v, i1sign, v, vone);
+                }
+                else
+                {
+                    v = _mm512_mask_add_epi64(v, i1sign, v, vB1);
+                }
+            }
+            /* i2*B^2w0, negated in lanes of i2sign */
+            if (i >= 2 * w0)
+            {
+                if (i < 2 * w0 + P)
+                {
+                    t = _mm512_load_epi64(p2);
+                    p2 += VECLEN_I;
+                    t = _mm512_mask_xor_epi64(t, i2sign, t, vlmask);
+                    v = _mm512_add_epi64(v, t);
+                    if (i == 2 * w0)
+                        v = _mm512_mask_add_epi64(v, i2sign, v, vone);
+                }
+                else
+                {
+                    v = _mm512_mask_add_epi64(v, i2sign, v, vB1);
+                }
+            }
+            /* i3*B^3w0, negated in lanes of i3sign */
+            if (i >= 3 * w0)
+            {
+                if (i < 3 * w0 + P)
+                {
+                    t = _mm512_load_epi64(p3);
+                    p3 += VECLEN_I;
+                    t = _mm512_mask_xor_epi64(t, i3sign, t, vlmask);
+                    v = _mm512_add_epi64(v, t);
+                    if (i == 3 * w0)
+                        v = _mm512_mask_add_epi64(v, i3sign, v, vone);
+                }
+                else
+                {
+                    v = _mm512_mask_add_epi64(v, i3sign, v, vB1);
+                }
+            }
+            /* rinf*B^4w0, always non-negative */
+            if (i >= 4 * w0)
+            {
+                v = _mm512_add_epi64(v, _mm512_load_epi64(p4));
+                p4 += VECLEN_I;
+            }
+
+            /* carry-propagate and store this limb of the exact sum */
+            _mm512_store_epi64(c + i * VECLEN_I, _mm512_and_epi64(vlmask, v));
+            vc = _mm512_srli_epi64(v, 52);
+        }
+    }
+
+    /* the product is non-negative and < B^(2*words): limbs [2*words, A)
+       of the exact sum must be zero */
+#ifdef DEBUG_MERSENNE
+    {
+        __mmask8 hi_limb = 0;
+        for (i = 2 * words; i < A; i++)
+            hi_limb |= _mm512_cmpneq_epu64_mask(_mm512_load_epi64(c + i * VECLEN_I), zero);
+        if (hi_limb)
+        {
+            printf("tmuln: product exceeds 2*words limbs\n");
+            exit(1);
+        }
+    }
+#endif
+#ifdef TMULN_PROFILE
+    tp5 = __rdtsc();
+    tmuln_prof_calls++;
+    tmuln_prof_setup += tp1 - tp0;
+    tmuln_prof_eval += tp2 - tp1;
+    tmuln_prof_pw += tp3 - tp2;
+    tmuln_prof_interp += tp4 - tp3;
+    tmuln_prof_recomp += tp5 - tp4;
+    tmuln_prof_total += tp5 - tp0;
+#endif
 
     return;
 }
@@ -11112,11 +11717,11 @@ void kmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
     veckmul(a1, b1, c + 2 * lowords * VECLEN_I, scratch, hiwords);
     // result is negative if the longer subtractand does not have a leading digit
     // AND if the rest of the comparison is true.
-    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN_I),
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + hiwords * VECLEN_I),
         _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
     // result is negative if the longer subtractand has a leading digit
     // OR if the rest of the comparison is true.
-    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + lowords * VECLEN_I),
+    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + hiwords * VECLEN_I),
         _mm512_setzero_si512()) | vec_gte2_52(b0, b1, hiwords)) : vec_gte2_52(b0, b1, hiwords);
     base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
     base_abssub_52(b1, b0, s2, m2, hiwords, lowords);
@@ -11158,11 +11763,11 @@ void kmuln_lo(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int word
     veckmul_lo(a1, b1, c + 2 * lowords * VECLEN_I, scratch, hiwords);
     // result is negative if the longer subtractand does not have a leading digit
     // AND if the rest of the comparison is true.
-    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN_I),
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + hiwords * VECLEN_I),
         _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
     // result is negative if the longer subtractand has a leading digit
     // OR if the rest of the comparison is true.
-    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + lowords * VECLEN_I),
+    m2 = hiwords < lowords ? (_mm512_cmpgt_epu64_mask(_mm512_load_epi64(b0 + hiwords * VECLEN_I),
         _mm512_setzero_si512()) | vec_gte2_52(b0, b1, hiwords)) : vec_gte2_52(b0, b1, hiwords);
     base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
     base_abssub_52(b1, b0, s2, m2, hiwords, lowords);
@@ -11252,7 +11857,7 @@ void ksqrn(uint64_t* a, uint64_t* c, uint64_t* scratch, int words)
 
     // result is negative if the longer subtractand does not have a leading digit
     // AND if the rest of the comparison is true.
-    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + lowords * VECLEN_I),
+    m1 = hiwords < lowords ? (_mm512_cmpeq_epu64_mask(_mm512_load_epi64(a0 + hiwords * VECLEN_I),
         _mm512_setzero_si512()) & vec_gte2_52(a1, a0, hiwords)) : vec_gte2_52(a1, a0, hiwords);
     base_abssub_52(a0, a1, s1, m1, lowords, hiwords);
 
