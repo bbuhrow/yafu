@@ -6,6 +6,7 @@
  *     -p  include powm timing            -w  word counts to run
  *     -neg  negative self-test: a corrupting kernel must FAIL
  *     -a  add/sub-mod range test on AMM outputs
+ *     -e  curve-operation costs (Montgomery PRAC steps vs Edwards a = -1)
  *     -spare k  N has 52*S - k bits (default: k = 1 and a mid-size N)
  *
  * Kernels compared per word count S:
@@ -635,6 +636,181 @@ static void make_N(mpz_t N, int bits, gmp_randstate_t rs);
 #define vecsubmod52 vecsubmod52_avx2
 #endif
 
+// ---------------------------------------------------------------------------
+// -e: curve-operation costs for the Edwards stage-1 model
+// (arith/edwards/edw_model.py).  Times the template mul/sqr, add/sub, and
+// composed point operations built from them exactly as curve code calls
+// them (one kernel call per field operation):
+//   mont_add  PRAC differential add incl. the caller's sum/diff of 2 points:
+//             4M + 2S + 6 add/sub                  (vec_add in avxecm.c)
+//   mont_dup  3M + 2S + 4 add/sub                  (vec_duplicate + its caller)
+//   edw_dbl   a = -1 extended doubling, no T:      3M + 4S + 6 add/sub
+//   edw_dblt  the same with T:                     4M + 4S + 6 add/sub
+//   edw_add   cached addition, no T3:              7M + 6 add/sub
+// ns per 8-lane call, min of 7 trials.
+// ---------------------------------------------------------------------------
+static void time_ecm_ops(ae_t *ae, gmp_randstate_t rs)
+{
+    int S = ae->words, l, i, k, tr, reps;
+    vec_bignum_t *v[24];
+    mpz_t t;
+    double t0, el, best[9];
+    vec_monty_t *md = ae->md;
+    vec_bignum_t *n = ae->n, *s = ae->s;
+
+    mpz_init(t);
+    for (k = 0; k < 24; k++)
+    {
+        v[k] = vecInit(S);
+        for (l = 0; l < VECLEN; l++)
+        {
+            mpz_urandomm(t, rs, ae->N);
+            vec_insert(v[k], t, l, S);
+        }
+    }
+    // point 1 = v0..v3 (X Y Z T), cached point 2 = v4..v7, results
+    // v8..v11, temporaries v12..v23
+#define X1 v[0]
+#define Y1 v[1]
+#define Z1 v[2]
+#define T1 v[3]
+#define C0 v[4]
+#define C1 v[5]
+#define C2 v[6]
+#define C3 v[7]
+#define X3 v[8]
+#define Y3 v[9]
+#define Z3 v[10]
+#define T3 v[11]
+#define tA v[12]
+#define tB v[13]
+#define tC v[14]
+#define tD v[15]
+#define tE v[16]
+#define tF v[17]
+#define tG v[18]
+#define tH v[19]
+#define u1 v[20]
+#define u2 v[21]
+#define u3 v[22]
+#define u4 v[23]
+
+    reps = S > 40 ? 300 : 3000;
+    for (k = 0; k < 9; k++)
+        best[k] = 1e9;
+    t0 = now_sec();
+    while (now_sec() - t0 < 0.2)            // warm up
+        ae->mul(X1, Y1, X3, n, s, md);
+    for (tr = 0; tr < 7; tr++)
+    {
+        for (k = 0; k < 9; k++)
+        {
+            t0 = now_sec();
+            for (i = 0; i < reps; i++)
+            {
+                switch (k)
+                {
+                case 0: ae->mul(X1, Y1, X3, n, s, md); break;
+                case 1: ae->sqr(X1, X3, n, s, md); break;
+                case 2: vecaddmod52(X1, Y1, X3, md); break;
+                case 3: vecsubmod52(X1, Y1, X3, md); break;
+                case 4:     // PRAC: sum/diff of two points, then vec_add
+                    vecsubmod52(X1, Z1, tA, md); vecaddmod52(X1, Z1, tB, md);
+                    vecsubmod52(Y1, T1, tC, md); vecaddmod52(Y1, T1, tD, md);
+                    ae->mul(tA, tD, u1, n, s, md);
+                    ae->mul(tB, tC, u2, n, s, md);
+                    vecsubmod52(u1, u2, u4, md); vecaddmod52(u1, u2, u3, md);
+                    ae->sqr(u3, u1, n, s, md);
+                    ae->sqr(u4, u2, n, s, md);
+                    ae->mul(u1, C2, X3, n, s, md);
+                    ae->mul(u2, C0, Z3, n, s, md);
+                    break;
+                case 5:     // PRAC doubling (the caller's sum/diff included)
+                    vecsubmod52(X1, Z1, tA, md); vecaddmod52(X1, Z1, tB, md);
+                    ae->sqr(tA, u1, n, s, md);
+                    ae->sqr(tB, u2, n, s, md);
+                    ae->mul(u1, u2, X3, n, s, md);
+                    vecsubmod52(u2, u1, u3, md);
+                    ae->mul(u3, C3, u4, n, s, md);
+                    vecaddmod52(u4, u1, u4, md);
+                    ae->mul(u4, u3, Z3, n, s, md);
+                    break;
+                case 6:
+                case 7:     // a = -1 doubling with the signs folded:
+                            // E' = -E, F' = -F, G' = -G, H' = -H give the
+                            // same X3 = E F, Y3 = G H, Z3 = F G, T3 = E H
+                    ae->sqr(X1, tA, n, s, md);              // A = X^2
+                    ae->sqr(Y1, tB, n, s, md);              // B = Y^2
+                    ae->sqr(Z1, tC, n, s, md);
+                    vecaddmod52(tC, tC, tC, md);            // C = 2 Z^2
+                    vecaddmod52(X1, Y1, u1, md);
+                    ae->sqr(u1, u2, n, s, md);              // (X+Y)^2
+                    vecaddmod52(tA, tB, tH, md);            // H' = A + B
+                    vecsubmod52(tH, u2, tE, md);            // E' = H' - (X+Y)^2
+                    vecsubmod52(tA, tB, tG, md);            // G' = A - B
+                    vecaddmod52(tC, tG, tF, md);            // F' = C + G'
+                    ae->mul(tE, tF, X3, n, s, md);
+                    ae->mul(tG, tH, Y3, n, s, md);
+                    ae->mul(tF, tG, Z3, n, s, md);
+                    if (k == 7)
+                        ae->mul(tE, tH, T3, n, s, md);
+                    break;
+                case 8:     // P + cached (Y2-X2, Y2+X2, 2d T2, 2 Z2), no T3
+                    vecsubmod52(Y1, X1, u1, md);
+                    vecaddmod52(Y1, X1, u2, md);
+                    ae->mul(u1, C0, tA, n, s, md);
+                    ae->mul(u2, C1, tB, n, s, md);
+                    ae->mul(T1, C2, tC, n, s, md);
+                    ae->mul(Z1, C3, tD, n, s, md);
+                    vecsubmod52(tB, tA, tE, md);
+                    vecsubmod52(tD, tC, tF, md);
+                    vecaddmod52(tD, tC, tG, md);
+                    vecaddmod52(tB, tA, tH, md);
+                    ae->mul(tE, tF, X3, n, s, md);
+                    ae->mul(tG, tH, Y3, n, s, md);
+                    ae->mul(tF, tG, Z3, n, s, md);
+                    break;
+                }
+            }
+            el = (now_sec() - t0) / reps;
+            if (el < best[k])
+                best[k] = el;
+        }
+    }
+    printf(" %2d %5d", S, S * DIGITBITS);
+    for (k = 0; k < 9; k++)
+        printf(" %9.1f", best[k] * 1e9);
+    printf("\n");
+    fflush(stdout);
+#undef X1
+#undef Y1
+#undef Z1
+#undef T1
+#undef C0
+#undef C1
+#undef C2
+#undef C3
+#undef X3
+#undef Y3
+#undef Z3
+#undef T3
+#undef tA
+#undef tB
+#undef tC
+#undef tD
+#undef tE
+#undef tF
+#undef tG
+#undef tH
+#undef u1
+#undef u2
+#undef u3
+#undef u4
+    for (k = 0; k < 24; k++)
+        vecFree(v[k]);
+    mpz_clear(t);
+}
+
 // vecaddmod52 / vecsubmod52 on AMM-product outputs (as ECM feeds them):
 // count lanes where the result is not == a+-b mod N, or not < R
 static void test_addsub(int S, gmp_randstate_t rs)
@@ -714,6 +890,7 @@ int main(int argc, char **argv)
     int def_words[] = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20,
         22, 24, 28, 30, 32, 36, 40, 48, 60, 80 };
     int words[64], nw = 0, w, i, do_test = 1, do_bench = 1, do_powm = 0, do_addsub = 0, do_neg = 0;
+    int do_ecmops = 0;
     int spare = -1;
     unsigned long seed = (unsigned long)time(NULL);
     gmp_randstate_t rs;
@@ -734,6 +911,8 @@ int main(int argc, char **argv)
             do_neg = 1, do_bench = 0;
         else if (!strcmp(argv[i], "-a"))
             do_addsub = 1, do_test = do_bench = 0;
+        else if (!strcmp(argv[i], "-e"))
+            do_ecmops = 1, do_test = do_bench = 0;
         else if (!strcmp(argv[i], "-spare") && i + 1 < argc)
             spare = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-w") && i + 1 < argc)
@@ -761,6 +940,24 @@ int main(int argc, char **argv)
 #else
     printf("seed %lu; no IFMA: FMA-calibrated cycle %.4f ns (%.2f GHz); template = FP-emulated\n", seed, cyc, 1.0 / cyc);
 #endif
+
+    if (do_ecmops)
+    {
+        printf("curve-operation costs, ns per 8-lane call (template core, N with 3 spare bits)\n");
+        printf("  S  bits       mul       sqr       add       sub  mont_add  mont_dup   edw_dbl  edw_dblt   edw_add\n");
+        for (w = 0; w < nw; w++)
+        {
+            ae_t ae;
+            mpz_t N;
+            mpz_init(N);
+            make_N(N, words[w] * DIGITBITS - 3, rs);
+            ae_init(&ae, N, words[w]);
+            if (pick_new(&ae))
+                time_ecm_ops(&ae, rs);
+            ae_free(&ae);
+            mpz_clear(N);
+        }
+    }
 
     if (do_addsub)
     {
