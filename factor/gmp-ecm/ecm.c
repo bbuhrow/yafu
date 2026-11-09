@@ -1093,7 +1093,15 @@ int ecm_loop(fact_obj_t *fobj)
 
         if (fobj->ecm_obj.stg2_is_default)
         {
-            B2 = 100 * (uint64_t)fobj->ecm_obj.B1;
+            if (fobj->ecm_obj.avx_stg2_fft)
+            {
+                // FFT continuation: GMP-ECM's default, (11/6 B1)^1.43
+                B2 = (uint64_t)pow(11.0 / 6.0 * (double)fobj->ecm_obj.B1, 1.43);
+            }
+            else
+            {
+                B2 = 100 * (uint64_t)fobj->ecm_obj.B1;
+            }
         }
         else
         {

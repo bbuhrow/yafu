@@ -1749,6 +1749,10 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->ecm_obj.prefer_gmpecm_stg2 = options->prefer_gmpecm_stg2;
     if (options->avxecm_rns_bits >= 0)
         fobj->ecm_obj.avx_rns_bits = options->avxecm_rns_bits;
+    if (options->avxecm_stg2 >= 0)
+        fobj->ecm_obj.avx_stg2_fft = options->avxecm_stg2;
+    if (options->avxecm_stg2mem > 0)
+        fobj->ecm_obj.avx_stg2_mem = options->avxecm_stg2mem;
     fobj->ecm_obj.ecm_ext_xover = options->ext_ecm_xover;
 
     // initialize stuff for squfof

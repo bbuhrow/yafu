@@ -30,6 +30,7 @@ either expressed or implied, of the FreeBSD Project.
 #include <inttypes.h>
 #include "yafu_ecm.h"
 #include "avx_ecm.h"
+#include "avxecm_stage2fft.h"
 #include "soe.h"
 #include "gmp.h"
 #include "ytools.h"
@@ -902,6 +903,38 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
     }
 
+    // FFT stage 2 (option avxecm_stg2): shared setup for this modulus and
+    // range; the arithmetic modulus is montyconst->n (radix 2^52 in every
+    // backend, the base Mersenne number for Mersenne inputs)
+    {
+        struct avxecm_s2fft_s *s2 = NULL;
+        if (tdata[0].DO_STAGE2 && fobj->ecm_obj.avx_stg2_fft &&
+            (tdata[0].STAGE2_MAX > tdata[0].STAGE1_MAX))
+        {
+            mpz_t M;
+            mpz_init(M);
+            extract_bignum_from_vec_to_mpz(M, montyconst->n, 0, (int)montyconst->NWORDS);
+            // avx_stg2_fft = 2 and no explicit B2: B2 from the memory limit
+            s2 = avxecm_s2fft_setup(M, tdata[0].STAGE1_MAX, tdata[0].STAGE2_MAX,
+                (int)threads, (double)fobj->ecm_obj.avx_stg2_mem,
+                (fobj->ecm_obj.avx_stg2_fft == 2) && fobj->ecm_obj.stg2_is_default,
+                verbose);
+            mpz_clear(M);
+            if (s2 != NULL)
+            {
+                B2 = avxecm_s2fft_B2(s2);
+                for (i = 0; i < threads; i++)
+                    tdata[i].STAGE2_MAX = B2;
+            }
+            else if (verbose > 0)
+            {
+                printf("ecm: FFT stage 2 unavailable for these parameters, using pairing\n");
+            }
+        }
+        for (i = 0; i < threads; i++)
+            tdata[i].s2fft = s2;
+    }
+
 	gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
 
@@ -1123,6 +1156,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     avxecm_rns_detach(montyconst);      // after the threads: owns the fixed tables
     vec_monty_free(montyconst);
 	free(montyconst);
+    avxecm_s2fft_free(tdata[0].s2fft);
     free(tdata);
 
 	return;

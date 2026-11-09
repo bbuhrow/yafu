@@ -500,6 +500,18 @@ AVX-ECM switches to karatsuba above `AVXECM_KARATSUBA_BITS` = 16400 today
   and `mpz_powm`. `rns_bench` can be extended: sizes above 4096, engines
   for karatsuba and Yao-large.
 
+### 4.8 FFT stage 2 for AVX-ECM (started 2026-11-08)
+
+**First implementation working, not committed.** Design, verification and
+timings: `arith/avxecm_stage2_fft_design.md` (§10 has the status and the
+open items). `arith/vecpoly/` holds 8-lane polynomial arithmetic over Z/NZ
+(RNS-NTT products on the `rns_vec52.h` layer, so IFMA / AVX-512F / AVX2
+from one source); `factor/avx-ecm/avxecm_stage2fft.c` is the ECM driver,
+thread phase 4 in `vececm`. Opt-in: `-avxecm_stg2 1` (memory cap
+`-avxecm_stg2mem`, MB per thread). At equal B2 it is 5-9x faster than the
+pairing stage 2; GMP-ECM's default B2 (~10x larger) costs less than the old
+100*B1 pairing.
+
 ## 5. Decisions (user, 2026-11-07)
 
 * **Above 16400 bits:** benchmark the karatsuba REDC, the Yao kernels, and

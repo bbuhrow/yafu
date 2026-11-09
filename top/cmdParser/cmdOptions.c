@@ -88,7 +88,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
     "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV", "siqsMid",
     "siqsLarge", "siqsKernel", "siqsSparseKernel", "siqsLPisa", "noneon",
-    "avxecm_rns_bits" };
+    "avxecm_rns_bits", "avxecm_stg2", "avxecm_stg2mem" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -234,7 +234,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : SIQS sparse sieve kernel: bitloop, creg or cmem (default: auto)",
     "(String)          : SIQS large-prime kernel ISA: scalar, sse41, avx2, avx512, neon (default: best)",
     "                  : AArch64: use the portable C kernels instead of NEON (for A/B testing)",
-    "(Integer < 32-bit): AVX-ECM: use RNS arithmetic for inputs of at least this many bits (0 = never; ecmtune() measures it)"
+    "(Integer < 32-bit): AVX-ECM: use RNS arithmetic for inputs of at least this many bits (0 = never; ecmtune() measures it)",
+    "(Integer < 32-bit): AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
+    "(Floating point)   : AVX-ECM FFT stage 2: memory limit per thread in MB"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -272,7 +274,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,         // nfs_stage1_args, cuda_sieve, cuda_dev
     1,1,1,1,1,     // siqsSPV, siqsMid, siqsLarge, siqsKernel, siqsSparseKernel
     1, 0,          // siqsLPisa, noneon
-    1              // avxecm_rns_bits
+    1, 1, 1        // avxecm_rns_bits, avxecm_stg2, avxecm_stg2mem
 };
 
 // command line option aliases, specified by '--'
@@ -307,7 +309,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    ""
+    "", "", ""
 };
 
 
@@ -1401,6 +1403,24 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (options->avxecm_rns_bits < 0)
             options->avxecm_rns_bits = 0;
     }
+    else if (strcmp(opt, OptionArray[141]) == 0)
+    {
+        // argument "avxecm_stg2": 0 pairing, 1 FFT continuation, 2 FFT
+        // continuation with B2 chosen from the memory limit
+        options->avxecm_stg2 = (int)strtol(arg, NULL, 10);
+        if ((options->avxecm_stg2 < 0) || (options->avxecm_stg2 > 2))
+        {
+            printf("*** avxecm_stg2 must be 0 (pairing), 1 (FFT) or 2 (FFT, auto B2); ignoring ***\n");
+            options->avxecm_stg2 = -1;
+        }
+    }
+    else if (strcmp(opt, OptionArray[142]) == 0)
+    {
+        // argument "avxecm_stg2mem": MB per thread
+        options->avxecm_stg2mem = strtod(arg, NULL);
+        if (!(options->avxecm_stg2mem > 0))
+            options->avxecm_stg2mem = -1;
+    }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {
         //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
@@ -1595,6 +1615,8 @@ options_t* initOpt(void)
     options->siqsLPisa = 0;
     options->noneon = 0;
     options->avxecm_rns_bits = -1;
+    options->avxecm_stg2 = -1;
+    options->avxecm_stg2mem = -1;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;

@@ -1236,9 +1236,12 @@ typedef struct
     uint64_t STAGE2_MAX;
     uint32_t PRIME_RANGE;
     int DO_STAGE2;
+    struct avxecm_s2fft_s *s2fft;   // FFT stage 2 (shared; NULL: pairing)
 } thread_data_t;
 
 void vececm(thread_data_t *tdata);
+int avxecm_s2fft_run(struct avxecm_s2fft_s *s, int tid, vec_monty_t *mdata,
+    ecm_work *work, ecm_pt *P, int verbose);
 void vec_ecm_pt_init(ecm_pt *pt, uint32_t words);
 void vec_ecm_pt_free(ecm_pt *pt);
 void vec_ecm_work_init(ecm_work *work);

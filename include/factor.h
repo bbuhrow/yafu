@@ -174,6 +174,11 @@ typedef struct
 #define AVXECM_RNS_BITS_DEFAULT 0
 #endif
 
+// AVX-ECM stage 2 defaults: FFT continuation off (pairing, B2 = 100*B1)
+// until it has been validated more widely; memory limit per thread (MB)
+#define AVXECM_STG2_FFT_DEFAULT 0
+#define AVXECM_STG2_MEM_DEFAULT 256
+
 typedef struct
 {
 	mpz_t gmp_n;
@@ -184,6 +189,8 @@ typedef struct
     int prefer_gmpecm_stg2;
     int prefer_avxecm_stg2;
     int avx_rns_bits;       // AVX-ECM: RNS arithmetic for inputs >= this many bits (0 = never)
+    int avx_stg2_fft;       // AVX-ECM stage 2: 1 FFT continuation, 0 pairing
+    double avx_stg2_mem;    // AVX-ECM FFT stage 2: MB per thread
 	char ecm_path[1024];
 	int use_external;
 	uint64_t B1;

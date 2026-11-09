@@ -81,6 +81,18 @@
     <ClCompile Include="..\..\arith\rns\rns_yaob_avx2.c">
       <Filter>Source Files\avx-ecm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\arith\vecpoly\vp_setup.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arith\vecpoly\vp_kern.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arith\vecpoly\vp_poly.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\avx-ecm\avxecm_stage2fft.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h">
@@ -99,6 +111,12 @@
       <Filter>Source Files\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\arith\rns\rns_vec52.h">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\arith\vecpoly\vecpoly.h">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\avx-ecm\avxecm_stage2fft.h">
       <Filter>Source Files\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\arith\rns\rns_yaob_kern.h">

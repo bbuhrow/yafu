@@ -168,6 +168,10 @@
     <ClCompile Include="..\..\arith\rns\rns_yao_avx512.c" />
     <ClCompile Include="..\..\arith\rns\rns_yaob_avx512.c" />
     <ClCompile Include="..\..\arith\rns\rns_yaob_avx2.c" />
+    <ClCompile Include="..\..\arith\vecpoly\vp_setup.c" />
+    <ClCompile Include="..\..\arith\vecpoly\vp_kern.c" />
+    <ClCompile Include="..\..\arith\vecpoly\vp_poly.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avxecm_stage2fft.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vec_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
@@ -180,6 +184,8 @@
     <ClInclude Include="..\..\arith\rns\rns_yao.h" />
     <ClInclude Include="..\..\arith\rns\rns_yao_vec.h" />
     <ClInclude Include="..\..\arith\rns\rns_vec52.h" />
+    <ClInclude Include="..\..\arith\vecpoly\vecpoly.h" />
+    <ClInclude Include="..\..\factor\avx-ecm\avxecm_stage2fft.h" />
     <ClInclude Include="..\..\arith\rns\rns_yaob_kern.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
