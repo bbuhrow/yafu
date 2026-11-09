@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 143
+#define NUMOPTIONS 144
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -112,6 +112,7 @@ typedef struct
     int avxecm_rns_bits;        // AVX-ECM RNS crossover in bits (-1: built-in default, 0: never)
     int avxecm_stg2;            // AVX-ECM stage 2: 0 pairing, 1 FFT continuation (-1: default)
     double avxecm_stg2mem;      // AVX-ECM FFT stage 2 memory per thread, MB (-1: default)
+    int avxecm_bs;              // AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S > 1 x^S, S < -1 Dickson
     uint32_t siqsNobat;
     uint32_t siqsR;
     uint32_t siqsT;

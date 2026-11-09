@@ -18,9 +18,10 @@ typedef struct avxecm_s2fft_s avxecm_s2fft_t;
 // kernels, B2 <= B1, or B1 too small for the smallest D).
 // auto_b2: ignore B2 and choose the most efficient one for the memory
 // limit (design doc section 11.3: the least predicted time per factor at
-// the factor size B1 is usually chosen for).
+// the factor size B1 is usually chosen for).  bs: Brent-Suyama polynomial
+// (0 off, S > 1 x^S, S < -1 Dickson D_|S|(x, -1); design doc section 14).
 avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
-    int threads, double mem_mb, int auto_b2, int verbose);
+    int threads, double mem_mb, int auto_b2, int bs, int verbose);
 uint64_t avxecm_s2fft_B2(avxecm_s2fft_t *s);
 void avxecm_s2fft_free(avxecm_s2fft_t *s);
 

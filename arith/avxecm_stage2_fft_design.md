@@ -845,3 +845,164 @@ best B2 2.6e9 (IFMA) / 2.6e9 (AVX-512F) / 3.2e9 (AVX2); 400 bits, 64 MB:
 * Multithreaded stage 2 is bandwidth-bound (§13.2); a per-thread memory
   model that accounts for shared L3 / DRAM bandwidth, or sharing one
   batch's polynomial work across threads, would help large thread counts.
+
+## 14. Brent-Suyama extension (2026-11-09)
+
+### 14.1 Method
+
+With a root polynomial f, the FFT stage 2 uses the roots x([f(k)]Q)
+(baby, k in S1) and x([f(jD)]Q) (giant). The product of the differences
+vanishes mod p when f(jD) = +-f(k) (mod ord Q). For f(x) = x^S or the
+Dickson polynomial D_S(x, -1) (D_0 = 2, D_1 = x, D_n = x D_{n-1} + D_{n-2}),
+f(jD) - f(k) contains (jD - k)(jD + k), so every prime the plain stage 2
+finds is still found (q = jD +- k); a larger q is found when it divides
+one of the other algebraic factors, i.e. when f(jD) = +-f(k) mod q for a
+non-trivial pair. S = 1 is the existing stage 2 and stays the default.
+
+* **Points with y.** Finite differences need general point additions,
+  which x-only Montgomery arithmetic does not have. Q = (x0 : 1) is put on
+  the curve g y^2 = x^3 + A x^2 + x with g = x0^3 + A x0^2 + x0 and
+  y = 1: the stage-1 curve or its quadratic twist, either way with the
+  same x-coordinates for every multiple of Q (which is all stage 2 uses).
+  Affine addition: lambda = (y2 - y1)/(x2 - x1), x3 = g lambda^2 - A - x1
+  - x2, y3 = lambda (x1 - x3) - y1; doubling lambda = (3x^2 + 2Ax + 1)/(2gy).
+* **Tables.** For an arithmetic progression i_m = i0 + m delta the
+  finite-difference table [Delta^e f(i_0)]Q, e = 0..deg, advances by
+  E_e <- E_e + E_{e+1} (deg additions per root; E_0 is the root). Initial
+  entries: x-only ladder for [c]Q and [c+1]Q (c = Delta^e f(i0), an
+  integer of ~deg log2(i) bits), then Okeya-Sakurai y-recovery
+  y_c = [Z2((x0 X1 + Z1)(x0 Z1 + X1 + 2A Z1) - 2A Z1^2) - (x0 Z1 - X1)^2 X2]
+  / (2g Z1^2 Z2) in projective form, all normalized with one batch
+  inversion.
+* **M progressions side by side** so each step's M deg denominators share
+  one batch inversion (one `mpz_invert` per lane): giant j = j0 + r + M m
+  (r < M, i0 = (j0 + r) D, delta = M D); baby k = c + 6 (r + (M/2) m),
+  c in {1, 5} (S1 consists of such k because 6 | D), kept when k < D/2 and
+  gcd(k, D) = 1. M (a power of 2, `s2_bs_m`) balances table setup
+  (M (deg + 1) ladders) against inversions (one per M roots): ~32 for
+  degree 3, 16 for 6, 8 for 12, 2 for 30 at dF = 4096.
+* **Integer coincidences.** The table multipliers are positive integers
+  (positive coefficients and arguments) and are tracked exactly (mpz).
+  When two adjacent ones are equal the two points are equal and the step
+  is a doubling (found by the oracle: x^2 with j0 + r = M/2 makes
+  Delta f = Delta^2 f exactly, which collapsed every lane before the fix).
+  Coincidences modulo ord Q (T_e = +-T_{e+1} or T_e = 0 mod q) make a
+  denominator vanish mod p: the batch inversion folds it into the lane's
+  result, a genuine extra find (seen with D_12 / D_30 at tiny q; verified
+  case by case).
+
+### 14.2 Code and options
+
+* `-avxecm_bs S`: 0 or 1 off (default), `S` or `pS` x^S, `dS` Dickson
+  D_S(x, -1), S <= 32 (a string, since the option parser takes `-` as the
+  next switch). `ecm_obj.avx_stg2_bs` (> 1 power, < -1 Dickson);
+  `avxecm_s2fft_setup(..., bs, ...)`.
+* `avxecm_stage2fft.c`: `s2_fpoly`, `s2_findiff`, `s2_inv_batch`,
+  `s2_mul2` (ladder with an mpz scalar returning [c]Q and [c+1]Q),
+  `s2_bs_init` (tables, y-recovery), `s2_bs_step`, `s2_bs_baby`; the
+  giant loop emits M roots per step. Per-thread tables: 5 M (deg + 1)
+  coefficients + the mpz multipliers.
+* Test aid: `AVXECM_S2FFT_BSM=M` forces the number of progressions.
+* `-v` prints the polynomial, degree and M.
+* Cost model (`s2_cost`): per root deg (7 + 12/n) + 1 + 8 (4 + 160/n)/M
+  mulmods, ~1.6 dF baby candidates, table setup M (deg + 1) 10 deg
+  (log2(giant arg) + log2(D/2)); measured / model 0.88-1.15 on all three
+  ISAs at 400 and 1024 bits (1.23 for D_30 at 400 bits on IFMA).
+
+### 14.3 Verification: an exact oracle
+
+`ecm_tests/bs_oracle.py` decides exactly which curves stage 2 must find
+for a small p: Suyama curve from sigma (as yafu builds it), order of the
+starting point by baby-step giant-step on the Hasse interval, yafu's
+stage-1 exponent (2^e and p^e < B1 for p < B1), then the condition
+f(jD) = +-f(k) (mod ord Q) over the actual D, dF, blocks; stage-1 lanes
+also count as stage-2 finds (Q is the identity mod p). Self-test: the
+x-only ladder against the affine group law on the twist and the
+y-recovery formula. `ecm_tests/oracle_cmp.sh` compares it with yafu lane
+by lane.
+
+* Plain stage 2: 0 differing batches of 42 (336 curves, 400 and 1024 bits)
+  - an exact check of the existing FFT stage 2 too.
+* Brent-Suyama, 400-bit p40 (240 curves, B1 3000, B2 231284) and 1024-bit
+  (96 curves): x^2, x^3, x^6, x^12, D_2, D_3, D_6, D_12, D_30, M = 4 / 16 /
+  adaptive, on IFMA, AVX-512F and AVX2: every lane the oracle predicts is
+  found; the only differences are 1-2 extra yafu finds for D_12 / D_30,
+  each verified to be a table collision mod ord Q (e.g. q = 20635493:
+  T_22 = +-T_23 in a giant table; q = 552833: T_9 = +-T_10 in a baby
+  table) - genuine factors.
+
+### 14.4 Cost (yafu, 1 thread, B1 1e6, B2 9.7e8, dF 4096, 6 blocks)
+
+Stage 2 time relative to the plain stage 2:
+
+| ISA, bits | D_3 | D_6 | x^6 | D_12 | D_30 |
+|---|---:|---:|---:|---:|---:|
+| IFMA 400 / 1024 | 1.17 / 1.10 | 1.41 / 1.34 | 1.55 / 1.35 | 1.87 / 1.88 | 3.55 / 3.49 |
+| AVX-512F 400 / 1024 | 1.14 / 1.20 | 1.35 / 1.56 | 1.37 / 1.52 | 1.77 / 2.14 | 3.24 / 4.05 |
+| AVX2 400 / 1024 | 1.20 / 1.21 | 1.49 / 1.54 | 1.49 / 1.58 | 2.16 / 2.29 | 3.92 / 4.10 (1) |
+
+(1) AVX2 1024-bit D_30 picked dF = 8192, 2 blocks. The extension's work
+is mostly template mulmods (7 per affine addition), so relative to the
+NTT-heavy plain stage 2 it costs more on AVX-512F / AVX2.
+
+### 14.5 Probability
+
+Expected number of non-trivial pairs for a prime q > B2:
+E(q) = nbaby ngiant r / q, r the number of non-trivial x with
+f(x) = +-f(y) mod q. r depends on q's residue class (x^6: gcd(6, q - 1)
+etc.), so the chance 1 - exp(-E) is averaged over a sample of r values
+(`bs_model.py`, 1200 samples over random q): means x^2 1.00, D_3 1.94,
+x^6 3.77, D_6 3.78, D_12 5.66, D_30 9.58 (powers and Dickson polynomials of
+the same degree have nearly the same mean; Dickson spreads it over all q).
+Oracle-exact check on 3000 random curves (p 40 bits, B1 3000, D 510,
+dF 64, 7 blocks; 1893 curves with one prime q > B2 left): caught by
+D_6 49 (model 47.4), D_30 95 (87.6), x^12 57 (62.8) - within Poisson
+noise. Stage-2 finds grow +11% (D_6) / +21% (D_30) at this tiny size.
+
+### 14.6 Is it worth it?
+
+Least expected time per factor, (T1 + T2)/P, each option with its own best
+B2 and configuration within the memory limit, relative to the plain
+stage 2 (`bs_model.py table`, `--isa`; per-ISA cost constants of §13.3 and
+the Brent-Suyama terms of §14.2):
+
+| bits | B1 | p | MB | IFMA best | AVX-512F best | AVX2 best | D_12 (IFMA / AVX2) | D_30 (IFMA / AVX2) |
+|---:|---:|---:|---:|---|---|---|---|---|
+| 400 | 2.5e5 | 30 | 256 | plain | plain | plain | 1.14 / 1.26 | 1.39 / 1.63 |
+| 400 | 1e6 | 35 | 256 | D_3 0.997 | plain | plain | 1.06 / 1.13 | 1.23 / 1.41 |
+| 400 | 3e6 | 40 | 64 | D_6 0.981 | D_3 0.990 | D_3 1.000 | 1.01 / 1.07 | 1.10 / 1.20 |
+| 1024 | 1e6 | 35 | 256 | D_3 0.994 | plain | plain | 1.07 / 1.13 | 1.24 / 1.37 |
+| 1024 | 3e6 | 40 | 256 | D_3 0.987 | D_3 0.994 | D_3 0.998 | 1.02 / 1.07 | 1.12 / 1.21 |
+| 1024 | 1.1e7 | 45 | 256 | D_6 0.978 | D_3 0.989 | D_3 0.991 | 1.00 / 1.04 | 1.07 / 1.14 |
+| 1024 | 4.3e7 | 50 | 1024 | D_6 0.973 | | D_3 0.989 | 0.99 / 1.02 | 1.03 / 1.10 |
+| 1024 | 1.1e8 | 55 | 1024 | D_6 0.971 | | D_3/D_6 0.988 | 0.98 / 1.01 | 1.02 / 1.08 |
+| 2048 | 4.3e7 | 50 | 1024 | D_6 0.977 | | D_3 0.989 | 1.00 / 1.03 | 1.05 / 1.11 |
+
+Conclusions:
+
+1. **Small gain at best.** Brent-Suyama with D_3 / D_6 lowers the expected
+   time per factor by 1-3% on IFMA from p40 up (2.5-3% at p50-p55), ~1% on
+   AVX-512F / AVX2; at p30-p35 it is break-even or a loss. Degree 12 and
+   30 lose almost everywhere (they only approach break-even at p55).
+2. **Why so little.** At these dF the extra chance comes from q a few
+   times above B2 (E(q) ~ pairs r / q with pairs ~ dF^2 blocks), while
+   each root costs 7 deg template mulmods on top of ~150-300 for the
+   polynomial work; GMP-ECM's larger dF (2^16 and up) puts far more pairs
+   behind each root. The best B2 with the extension is somewhat smaller
+   than without it.
+3. **Non-IFMA gains least**: the root work is template mulmods, which are
+   relatively expensive there (§13.3).
+4. **Recommendation:** keep it off by default; `-avxecm_bs d6` on IFMA
+   (or `d3` elsewhere) is a ~2-3% improvement for p45+ work. The
+   probability model is validated only at 40-bit p (exact oracle); at
+   p45+ it is the standard rho-based estimate.
+
+### 14.7 Next
+
+* Choose the polynomial automatically with `-avxecm_stg2 2` (the C model
+  has the cost terms; it would need the r tables and the q > B2 integral
+  in `s2_prob`).
+* Cheaper roots: the extension is limited by 7 deg template mulmods per
+  root; a vectorized batch inversion (instead of `mpz_invert` per lane)
+  would allow M = 1-2 for every degree, and the affine additions could
+  use the vecpoly coefficient kernels with fewer passes.

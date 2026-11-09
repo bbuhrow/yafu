@@ -191,6 +191,7 @@ typedef struct
     int avx_rns_bits;       // AVX-ECM: RNS arithmetic for inputs >= this many bits (0 = never)
     int avx_stg2_fft;       // AVX-ECM stage 2: 1 FFT continuation, 0 pairing
     double avx_stg2_mem;    // AVX-ECM FFT stage 2: MB per thread
+    int avx_stg2_bs;        // AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S > 1 x^S, S < -1 Dickson D_|S|
 	char ecm_path[1024];
 	int use_external;
 	uint64_t B1;

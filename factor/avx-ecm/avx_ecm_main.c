@@ -918,7 +918,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             s2 = avxecm_s2fft_setup(M, tdata[0].STAGE1_MAX, tdata[0].STAGE2_MAX,
                 (int)threads, (double)fobj->ecm_obj.avx_stg2_mem,
                 (fobj->ecm_obj.avx_stg2_fft == 2) && fobj->ecm_obj.stg2_is_default,
-                verbose);
+                fobj->ecm_obj.avx_stg2_bs, verbose);
             mpz_clear(M);
             if (s2 != NULL)
             {

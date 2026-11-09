@@ -1753,6 +1753,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->ecm_obj.avx_stg2_fft = options->avxecm_stg2;
     if (options->avxecm_stg2mem > 0)
         fobj->ecm_obj.avx_stg2_mem = options->avxecm_stg2mem;
+    fobj->ecm_obj.avx_stg2_bs = options->avxecm_bs;
     fobj->ecm_obj.ecm_ext_xover = options->ext_ecm_xover;
 
     // initialize stuff for squfof
