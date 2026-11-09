@@ -14,7 +14,11 @@ Status (2026-11-09, branch `wip_edwards`):
   64k-bit chunk, and table prefetch. Stage 1 is 1.16-1.29x faster than
   PRAC on every ISA and size measured. The auto-B2 model has the Edwards
   stage-1 cost.
-* Open: the default curve type (F6), MSVC builds.
+* Default (2026-11-09): `AVXECM_CURVE_DEFAULT` = 2, the Edwards stage 1.
+  `-sigma s` now means the family (iv) multiples m = s, s+1, ..., and
+  fixed-sigma Suyama comparisons need `-avxecm_curve 0`
+  (`ecm_tests/oracle_cmp.sh` passes it). `-avxecm_curve 0` and `1` remain.
+* Open: MSVC builds (F6).
 
 Part A is the
 background (what the three papers say, how Edwards curves work, which

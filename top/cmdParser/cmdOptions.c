@@ -238,7 +238,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
     "(Floating point)   : AVX-ECM FFT stage 2: memory limit per thread in MB",
     "(String)           : AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)",
-    "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv) (sigma = multiple m), x-only / Edwards stage 1"
+    "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv) (sigma = multiple m), x-only / Edwards stage 1 (default 2)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
