@@ -47,6 +47,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * points, finite differences); avxecm_s2fft_run, the per-thread driver.
  */
 
+#include <sys/time.h>	//for gettimeofday using gcc
 #include "avx_ecm.h"
 #include "avxecm_stage2fft.h"
 #include "../../arith/vecpoly/vecpoly.h"
