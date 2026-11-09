@@ -2,7 +2,8 @@
  * vecpoly tests (every lane against GMP) and timings.
  *   vp_test [bits ...]        default: 200 400 520 1024 2048
  * Options: -l logL (largest test degree 2^logL, default 9), -b (benchmarks
- * only), -k (per-kernel timings at L = 2^logL), -s school_max.
+ * only), -k (per-kernel timings at L = 2^logL), -s school_max, -B block
+ * (transform block size in elements, power of 2; default VP_BLK).
  */
 
 #include "vecpoly.h"
@@ -389,7 +390,7 @@ static void kbench(vp_ctx_t *ctx, vp_work_t *w, uint32_t L)
 int main(int argc, char **argv)
 {
     int bitsl[16] = { 200, 400, 520, 1024, 2048 }, nb = 5, i, logL = 9;
-    int benchonly = 0, school = -1, konly = 0;
+    int benchonly = 0, school = -1, konly = 0, blk = 0;
     uint32_t m;
 
     for (i = 1; i < argc; i++)
@@ -397,6 +398,7 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "-l") && i + 1 < argc) logL = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-b")) benchonly = 1;
         else if (!strcmp(argv[i], "-k")) konly = benchonly = 1;
+        else if (!strcmp(argv[i], "-B") && i + 1 < argc) blk = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-s") && i + 1 < argc) school = atoi(argv[++i]);
         else
         {
@@ -425,6 +427,7 @@ int main(int argc, char **argv)
         ctx = vp_ctx_init(gN, n, logL + 1 > 9 ? logL + 1 : 9);
         if (ctx == NULL) { printf("ctx init failed at %d bits\n", bits); return 1; }
         if (school >= 0) ctx->school_max = school;
+        if (blk > 0) ctx->blk = (uint32_t)blk;
         w = vp_work_init(ctx);
         printf("%d bits: n = %d words, K = %d primes, Lmax = %u, school_max = %d\n",
             bits, n, ctx->K, ctx->Lmax, ctx->school_max);

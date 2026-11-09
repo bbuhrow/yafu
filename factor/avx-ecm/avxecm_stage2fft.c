@@ -90,11 +90,31 @@ static uint32_t s2_gcd(uint32_t a, uint32_t b)
 
 // ---- memory and cost model (design doc section 11) ----
 
-// G's product tree (from dF = 2^t roots), in template mulmods per root;
-// fit to vp_test -b, n = 4..40 words, t = 8..13 (IFMA)
+// Cost model constants per ISA, in template mulmods (one 8-lane mulmod of
+// this build).  Fit with arith/vecpoly/ecm_tests/fit_s2.py to vp_test -b
+// (n = 4..40 words, t = 8..13) and yafu stage 1 / stage 2 timings.
+//   tc = a t + b + c t^2 / n: G's product tree, mulmods per root
+//   mm, mi, ev: H G mod F, 1/F (+ stored transforms), evaluation, per tree
+//   c1: stage 1 mulmods per unit of B1; scale: s2_cost vs measured stage 2
+typedef struct
+{
+    double a, b, c;
+    double mm, mm_lean, mi, mi_lean, ev, ev_lean;
+    double c1, scale;
+} s2_model_t;
+
+#if defined(USE_AVX512IFMA) || defined(IFMA)
+static const s2_model_t s2m = { 6.819, -36.97, 3.336, 0.817, 0.939, 0.785, 0.566, 1.842, 1.906, 15.5, 0.90 };
+#elif defined(USE_AVX512F)
+static const s2_model_t s2m = { 3.445, -7.58, 2.687, 0.721, 0.837, 0.762, 0.549, 1.916, 1.870, 14.2, 0.92 };
+#else
+static const s2_model_t s2m = { 4.219, -14.68, 1.402, 0.669, 0.734, 0.679, 0.492, 1.828, 1.808, 14.5, 1.0 };
+#endif
+
+// G's product tree (from dF = 2^t roots), in template mulmods per root
 static double s2_tcost(int t, int n)
 {
-    double c = 8.0 * t - 42.8 + 4.05 * t * t / n;
+    double c = s2m.a * t + s2m.b + s2m.c * t * t / n;
     return c < 8.0 ? 8.0 : c;
 }
 
@@ -129,18 +149,19 @@ static double s2_cost(int t, int n, int k, int lean, double blocks)
     rebuilt /= t;
     // per block: giant roots, G's tree, H G mod F; once: baby roots, F's
     // tree, 1/F, evaluation (+ rebuilt tree levels), in units of a tree
-    return blocks * (10.0 * dF + T * (lean ? 1.90 : 1.78))
-        + 17.0 * dF + T * (1.0 + (lean ? 0.59 : 0.82) + 1.88 + (lean ? 0.1 : 0) + rebuilt);
+    return blocks * (10.0 * dF + T * (1.0 + (lean ? s2m.mm_lean : s2m.mm)))
+        + 17.0 * dF + T * (1.0 + (lean ? s2m.mi_lean : s2m.mi) +
+            (lean ? s2m.ev_lean : s2m.ev) + rebuilt);
 }
 
 // ---- automatic B2 (design doc section 11.3) ----
 // Choose (t, k, lean, blocks) for the least predicted time per factor,
 // (T1 + T2) / P(B1, B2), at the factor size B1 is usually chosen for.
 // T1 is predicted (stage 2 is set up before stage 1 runs): S2_C1 template
-// mulmods per unit of B1, measured 13.9 (1024 bits) .. 16.9 (400 bits).
+// mulmods per unit of B1 (per ISA, s2m.c1).
 
-#define S2_C1           15.0
-#define S2_COST_SCALE   0.93    // s2_cost vs measured stage 2 times
+#define S2_C1           s2m.c1
+#define S2_COST_SCALE   s2m.scale
 #define S2_RHO_H        0.001
 #define S2_RHO_MAX      40.0
 

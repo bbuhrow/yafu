@@ -57,6 +57,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define VP_MASK52       0xfffffffffffffULL
 #define VP_GRP          4           // primes per group for the second operand
 #define VP_SCHOOL_CAP   16          // largest schoolbook degree (w->sm sizing)
+#define VP_MAXW         512         // max words per coefficient (stack arrays)
+#define VP_MAXK         ((VP_MAXW * 21) / 10 + 4)   // max NTT primes
+#define VP_TWS_M        256         // levels with contiguous twiddle tables
+#define VP_BLK          512         // default transform block (32 KB / prime)
 
 // shared, read-only after vp_ctx_init (one per N and maximum length)
 typedef struct
@@ -77,11 +81,17 @@ typedef struct
                             //          C_K = -P R^-1 2^104 mod N
     double *cvtd, *crtd;    // cvt and crt as exact doubles (52-bit words),
                             //   for the FP-emulated products
+    double *rdcd;           // [K][4] FP NTT: (2^-52, 2^-104) mod p as
+                            //   (w, w/p) pairs, |w| <= p/2 (to_ntt)
     uint64_t *yscale;       // [logLmax+1][K][2] Shoup pair of
                             //   L^-1 2^52 (P/p_i)^-1 mod p_i, L = 2^l
     uint64_t *tw;           // [K][Lmax/2][2] forward twiddles w_Lmax^j and
                             //   Shoup w'; level m reads every (Lmax/2m)-th
     uint64_t *itw;          // [K][Lmax/2][2] inverse (w_Lmax^-j)
+    uint64_t *tws, *itws;   // [K][2 twsm - 1][2] levels m <= twsm contiguous:
+                            //   level m at m - 1, entries w_2m^j (cache)
+    uint32_t twsm;          // min(VP_TWS_M, Lmax/2)
+    uint32_t blk;           // transform block size kept in L1 (elements)
     int school_max;         // degrees <= this use schoolbook products
     int fpntt;              // NTT domain in doubles (vpk_fp_ntt()): tw, itw
                             //   and yscale then hold (w, w/p) double pairs,

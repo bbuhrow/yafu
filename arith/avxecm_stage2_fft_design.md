@@ -706,6 +706,8 @@ fit on IFMA).
 
 ### 12.5 Next
 
+(All three items below were taken up in §13.)
+
 * Conversions for non-IFMA (the remaining gap): the emulated multiply-
   accumulate costs ~5 ops per 52 x 52 product; options are a native-FP
   formulation with fewer, wider partial products, or reducing K n (larger
@@ -716,3 +718,130 @@ fit on IFMA).
 * Radix-4 halved the transforms' memory traffic; a cache-blocked
   (four-step / two-pass) transform would take L = 4096..32768 out of L2
   entirely.
+
+## 13. Conversions, cache-blocked transforms, per-ISA cost model (2026-11-09)
+
+### 13.1 Conversions
+
+* **from_ntt, loops interchanged** (all ISAs). The CRT multiply-accumulate
+  ran prime-outer / limb-inner into n + 2 column accumulators, which do
+  not fit in registers (n = 20 at 1024 bits): every multiply-accumulate
+  loaded and stored two spilled accumulators. Now the K scaled residues
+  y_i (and kappa as the (K+1)-th) are computed first into a stack array,
+  then each column k = sum_i y_i C_i[k] is accumulated limb-outer /
+  prime-inner in two registers; the high half carries into column k + 1.
+  Stack: `VP_MAXK` (= 2.1 `VP_MAXW` + 4) vectors.
+* **to_ntt, native-FP final reduction** (non-IFMA). The accumulated
+  X = h1 2^104 + h0 2^52 + lo (X = x 2^104 mod p by the conversion table)
+  is reduced as h1 + h0 (2^-52 mod p) + lo (2^-104 mod p) with two FP
+  constant products and one reduction (`ctx->rdcd`), instead of the
+  emulated two-word Montgomery REDC (~22 ops instead of ~45). Bound: each
+  product <= 1.25 p for inputs < 2^52 even with round-toward-zero (the
+  AVX2 conversions run in that mode), sum < 2.6 p, reduced to <= p/2.
+
+ns per coefficient-prime, `vp_test -k -l 12`, before -> after:
+
+| | from_ntt 400 / 1024 / 2048 bits | to_ntt 400 / 1024 / 2048 bits |
+|---|---|---|
+| IFMA | 9.5 -> 6.2 / 19.0 -> 14.2 / 35.3 -> 30.0 | (integer path, unchanged) |
+| AVX-512F | 14.1 -> 9.4 / 25.2 -> 18.5 / 45.6 -> 32.7 | 13.9 -> 12.4 / 24.2 -> 21.5 / 40.8 -> 37.6 |
+| AVX2 | 23.5 -> 18.6 / 43.4 -> 35.9 / 74.7 -> 64.7 | 25.7 -> 19.5 / 48.3 -> 41.3 / 81.5 -> 73.0 |
+
+### 13.2 Cache-blocked transforms
+
+The transforms are now recursive and depth first (`vp_fwd_rec`,
+`vp_inv_rec`): above the block size (`ctx->blk`, default `VP_BLK` = 512
+elements = 32 KB per prime) one radix-4 pass (or a radix-2 pass to even
+out the level count), then the sub-blocks; a block of `blk` elements
+then finishes all its remaining levels while it is in L1. Levels up to
+`VP_TWS_M` = 256 read their twiddles from a contiguous per-level table
+(`ctx->tws` / `itws`, K (2 * 256 - 1) * 16 bytes each, shared) instead of
+striding through the w_Lmax table, so the in-L1 levels' twiddles stay in
+L1 too. The pass functions are per representation (FP / integer); the
+recursion is shared. `vp_test -B blk` sets the block size (tested down
+to 4 and 8, which exercise every recursion path).
+
+* One thread: no measurable difference, even at L = 16384 (1 MB per
+  prime, twice L2): Rocket Lake's prefetchers stream from L3 well enough.
+* 8 concurrent copies (as yafu runs ECM, one batch per thread), L = 16384,
+  ns per element-prime, blocked / unblocked: IFMA fwd 82 / 98, inv
+  65 / 106; AVX2 fwd 67 / 93, inv 66 / 117 (20-45% faster). L = 4096:
+  neutral. Kept on, B = 512.
+* Note that 8 concurrent copies run the transforms ~4x slower per copy
+  than one copy (shared L3 / memory bandwidth); stage 2 throughput with
+  many threads is bandwidth-limited, which favors smaller dF per thread
+  more than the single-thread model says.
+
+### 13.3 Per-ISA cost model
+
+`s2_cost` (§11.2) is now parameterized per build (`s2_model_t s2m` in
+`avxecm_stage2fft.c`, selected by `USE_AVX512IFMA` / `USE_AVX512F` /
+AVX2): tree cost tc = a t + b + c t^2/n and the per-tree ratios fit by
+`ecm_tests/fit_s2.py` to `vp_test -b` per ISA (n = 4..40, t = 8..13; max
+error 14-28%), the stage-1 cost c1 (mulmods per unit of B1, from yafu
+stage-1 times) and a scale fit to yafu stage-2 times (measured / model
+0.84-1.09 over 5 configurations per ISA):
+
+| ISA | a, b, c | mm, mi, ev (full) | lean | c1 | scale | template mulmod ns, n = 8 / 20 |
+|---|---|---|---|---|---|---|
+| IFMA | 6.82, -37.0, 3.34 | 0.82, 0.79, 1.84 | 0.94, 0.57, 1.91 | 15.5 | 0.90 | 61 / 359 |
+| AVX-512F | 3.45, -7.6, 2.69 | 0.72, 0.76, 1.92 | 0.84, 0.55, 1.87 | 14.2 | 0.92 | 105 / 732 |
+| AVX2 | 4.22, -14.7, 1.40 | 0.67, 0.68, 1.83 | 0.73, 0.49, 1.81 | 14.5 | 1.00 | 223 / 1032 |
+
+In units of each build's own template mulmod, the polynomial work is 2-3x
+cheaper on AVX-512F / AVX2 than on IFMA (their template mulmod is
+relatively slower than their native-FP transforms), so stage 2 is
+relatively cheaper there and the best B2 is larger. `s2model.py --isa
+ifma|f|avx2` uses the same constants; e.g. 1024 bits, B1 = 1e6, 256 MB:
+best B2 2.6e9 (IFMA) / 2.6e9 (AVX-512F) / 3.2e9 (AVX2); 400 bits, 64 MB:
+9.7e8 / 1.1e9 / 2.6e9. GMP-ECM's default B2 with ample memory loses up to
+~5% on IFMA and up to ~12% on AVX2 against the best.
+
+`-avxecm_stg2 2` (B1 = 1e6, 1 thread), predicted vs measured T2/T1:
+
+| bits | limit | IFMA | AVX-512F | AVX2 |
+|---:|---:|---|---|---|
+| 400 | 256 MB | B2 1.9e9: 0.55 / 0.55 | B2 1.9e9: 0.47 / 0.52 | B2 2.6e9: 0.43 / 0.43 |
+| 400 | 64 MB | 9.7e8: 0.38 / 0.36 | 1.1e9: 0.37 / 0.40 | 2.6e9: 0.49 / 0.50 |
+| 1024 | 256 MB | 2.6e9: 0.45 / 0.49 | 2.6e9: 0.37 / 0.39 | 3.2e9: 0.39 / 0.40 |
+| 1024 | 64 MB | 7.8e8: 0.31 / 0.35 | 8.6e8: 0.29 / 0.30 | 9.4e8: 0.29 / 0.29 |
+
+### 13.4 ECM stage 2 now (yafu, 1 thread, 8 curves, B1 = 1e6, default B2 9.7e8, 256 MB)
+
+| bits | ISA | stage 1 | stage 2 | stage 2 / IFMA | before §13 | stage 1 / IFMA |
+|---:|---|---:|---:|---:|---:|---:|
+| 400 | IFMA | 1.02 s | 0.35 s | 1 | 0.38 s | 1 |
+| 400 | AVX-512F | 1.65 s | 0.57 s | 1.63 | 0.60 s | 1.6 |
+| 400 | AVX2 | 3.27 s | 0.81 s | 2.31 | 0.88 s | 3.2 |
+| 1024 | IFMA | 5.05 s | 1.39 s | 1 | 1.41 s | 1 |
+| 1024 | AVX-512F | 9.36 s | 2.06 s | 1.48 | 2.34 s | 1.85 |
+| 1024 | AVX2 | 14.73 s | 2.95 s | 2.12 | 3.17 s | 2.9 |
+
+(For reference, the pairing stage 2 at B2 = 1e8: IFMA 0.99 / 2.96 s, AVX2
+1.93 / 6.07 s at 400 / 1024 bits; the FFT stage 2 at B2 = 1.2e8: 0.11 /
+0.39 s and 0.23 / 0.90 s.)
+
+### 13.5 Verification
+
+* `vp_test` 200..2048 bits, every operation and lane vs GMP: pass for
+  IFMA, AVX-512F FP / integer, AVX2 FP / integer, with the default block
+  and with blocks of 4 and 8 elements.
+* ECM lane for lane (`cmp_s2.sh`), clean builds of the three ISAs (AVX2:
+  no zmm; AVX-512F: no `vpmadd52`), every row 0 pairing finds missed:
+  400-bit 47/47 (+1), 1024-bit 23/23 (+1), 2048-bit (RNS) 7/7, forced
+  t=8 k=3 lean 47/47 (+7) and 7/7 (+5), forced t=7 k=2 full 23/23 (+1);
+  AVX2 2^439-1 93/93 (+4).
+* gcc warning-free for the five standalone variants; clang-cl compiles
+  `vp_setup.c`, `vp_kern.c`, `vp_poly.c`, `avxecm_stage2fft.c` for avx2 /
+  avx512 / avx512ifma without warnings.
+
+### 13.6 Next
+
+* The conversions are now the largest share on non-IFMA (to_ntt +
+  from_ntt ~60% of an AVX2 product at 1024 bits): their emulated 104-bit
+  multiply-accumulate is ~5 ops per 52 x 52 product, close to the floor
+  for exact FP products; the remaining levers are fewer products (larger
+  digits / fewer primes) or IFMA.
+* Multithreaded stage 2 is bandwidth-bound (§13.2); a per-thread memory
+  model that accounts for shared L3 / DRAM bandwidth, or sharing one
+  batch's polynomial work across threads, would help large thread counts.

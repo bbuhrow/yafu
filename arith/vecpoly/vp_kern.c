@@ -30,7 +30,6 @@
 #include "../rns/rns_vec52.h"
 
 #define VP_H (8 / V_LANES)      // vectors per 8-lane element
-#define VP_MAXW 512             // max words per coefficient (stack arrays)
 
 #if RNS_VW == 512
 // x >= m ? x - m : x   (x, m < 2^63)
@@ -195,19 +194,29 @@ void vpk_to_ntt_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L,
                     VP_MAC(lo, hi, d[k], VP_OPT(cv, cvd, k));
                 VP_UNBIAS_LO(lo, n);
                 VP_UNBIAS_HI(hi, n);
-                // x 2^104 = hi 2^52 + lo; REDC by 2^104
+                // x 2^104 = hi 2^52 + lo
                 hi = V_ADD(hi, V_SRLI(lo, 52));
                 lo = V_AND(lo, VM52);
+#if VP_FPNTT
+                // x = h1 2^52 + h0 + lo 2^-52 (h0 = hi mod 2^52, h1 = hi / 2^52):
+                // native FP products by 2^-52 and 2^-104 mod p; |.| <= p/2
+                {
+                    const double *rc = ctx->rdcd + (size_t)4 * (size_t)i;
+                    rns_vd pd = V_BCD((double)ctx->p[i]);
+                    rns_vd r1 = vpd_mulc(V_CVT52(V_AND(hi, VM52)), V_BCD(rc[0]), V_BCD(rc[1]), pd);
+                    rns_vd r2 = vpd_mulc(V_CVT52(lo), V_BCD(rc[2]), V_BCD(rc[3]), pd);
+                    rns_vd r3 = V_CVT52(V_SRLI(hi, 52));
+                    (void)m; (void)r; (void)h0; (void)pneg; (void)p;
+                    V_STD(VP_RES(v, L, i - i0, t) + o, vpd_red(D_ADD(D_ADD(r1, r2), r3),
+                        pd, V_BCD(ctx->pinvd[i])));
+                }
+#else
+                // REDC by 2^104
                 m = LO52(V_ZERO, lo, pneg);
                 hi = V_ADD(HI52(hi, m, p), V_NZ1(lo));
                 h0 = V_AND(hi, VM52);
                 m = LO52(V_ZERO, h0, pneg);
                 r = V_ADD(HI52(V_SRLI(hi, 52), m, p), V_NZ1(h0));
-#if VP_FPNTT
-                // r in [0, 2p) -> |r| <= p/2, as a double
-                V_STD(VP_RES(v, L, i - i0, t) + o, vpd_red(V_CVT52(r),
-                    V_BCD((double)ctx->p[i]), V_BCD(ctx->pinvd[i])));
-#else
                 V_ST(VP_RES(v, L, i - i0, t) + o, r);
 #endif
             }
@@ -220,18 +229,37 @@ void vpk_to_ntt_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L,
     VP_RZ_LEAVE();
 }
 
+// twiddle pairs of level m (w_2m^j, j < m): pointer to the pair for j = 0,
+// *stride = u64 distance between consecutive j.  Levels up to ctx->twsm
+// come from the contiguous small table, larger ones stride through the
+// table of w_Lmax powers.
+static const uint64_t *vp_twl(const vp_ctx_t *ctx, int inv, int i, uint32_t m,
+    uint32_t *stride)
+{
+    if (m <= ctx->twsm)
+    {
+        *stride = 2;
+        return (inv ? ctx->itws : ctx->tws) +
+            ((size_t)i * (2 * ctx->twsm - 1) + (m - 1)) * 2;
+    }
+    *stride = 2 * (ctx->Lmax / (2 * m));
+    return (inv ? ctx->itw : ctx->tw) + (size_t)i * ctx->Lmax;
+}
+
 #if VP_FPNTT
 
 /*
- * Transforms: radix-4 passes (two radix-2 levels per sweep over the data,
- * half the memory traffic), plus one radix-2 level when log2 L is odd
- * (first for DIF, last for DIT).  No MXCSR switch: every step is exact or
- * explicitly rounded.  Bounds, inputs |.| <= p:
+ * Transform passes over one prime's array [base, base + S): radix-2 or
+ * radix-4 (two radix-2 levels per sweep).  The recursive driver below runs
+ * them depth first so a block of ctx->blk elements finishes all its
+ * remaining levels while it is in L1.  No MXCSR switch: every step is
+ * exact or explicitly rounded.  Bounds, inputs |.| <= p:
  *   DIF, two levels: sums unreduced after the first (<= 2p), the second
  *     level reduces its sum (<= 4p -> p/2) and multiplies differences of
  *     at most 4p (-> 0.75p): out |.| <= p.
  *   DIT, two levels: first level unreduced (<= 1.5p), second level reduces
  *     both outputs (<= 2p -> p/2): out |.| <= p.
+ *   Single radix-2 levels reduce what they produce.
  */
 
 // DIF butterfly: x' = x + y (reduced if red), y' = (x - y) w
@@ -249,133 +277,123 @@ void vpk_to_ntt_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L,
         (y) = (red) ? vpd_red(b_, p, pinv) : b_;                        \
     } while (0)
 
-static int vp_log2(uint32_t L)
+#define VPD_CONSTS(i) \
+    rns_vd p = V_BCD((double)ctx->p[i]), pinv = V_BCD(ctx->pinvd[i])
+
+// one DIF level m (blocks of 2m)
+static void vp_pass_f2(const vp_ctx_t *ctx, int i, uint64_t *vb, uint32_t S, uint32_t m)
 {
-    int l = 0;
-    while ((1u << l) < L) l++;
-    return l;
-}
-
-void vpk_fwd_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
-{
-    int i, h, lg = vp_log2(L);
-    uint32_t m, b, j, st;
-
-    for (i = i0; i < i1; i++)
-    {
-        rns_vd p = V_BCD((double)ctx->p[i]), pinv = V_BCD(ctx->pinvd[i]);
-        double *base = (double *)(v + (size_t)(i - i0) * L * 8);
-        const double *tw = (const double *)ctx->tw + (size_t)i * ctx->Lmax;
-        m = L >> 1;
-        if (lg & 1)
+    VPD_CONSTS(i);
+    double *base = (double *)vb;
+    uint32_t b, j, sa;
+    int h;
+    const double *ta = (const double *)vp_twl(ctx, 0, i, m, &sa);
+    for (b = 0; b < S; b += 2 * m)
+        for (j = 0; j < m; j++)
         {
-            // one radix-2 level (twiddles w_2m^j, table stride Lmax/2m)
-            st = ctx->Lmax / (2 * m);
-            for (b = 0; b < L; b += 2 * m)
-                for (j = 0; j < m; j++)
-                {
-                    rns_vd w = V_BCD(tw[2 * j * st]), wp = V_BCD(tw[2 * j * st + 1]);
-                    double *px = base + (size_t)(b + j) * 8, *py = px + (size_t)m * 8;
-                    for (h = 0; h < VP_H; h++)
-                    {
-                        int o = h * V_LANES;
-                        rns_vd x = V_LDD(px + o), y = V_LDD(py + o);
-                        VPD_FWD2(x, y, w, wp, 1);
-                        V_STD(px + o, x);
-                        V_STD(py + o, y);
-                    }
-                }
-            m >>= 1;
-        }
-        for (; m >= 2; m >>= 2)
-        {
-            // levels m and m/2 on a0..a3 = b + j + {0, m/2, m, 3m/2}
-            uint32_t q = m / 2;
-            st = ctx->Lmax / (2 * m);
-            for (b = 0; b < L; b += 2 * m)
-                for (j = 0; j < q; j++)
-                {
-                    rns_vd wa = V_BCD(tw[2 * j * st]), wap = V_BCD(tw[2 * j * st + 1]);
-                    rns_vd wb = V_BCD(tw[2 * (j + q) * st]), wbp = V_BCD(tw[2 * (j + q) * st + 1]);
-                    rns_vd wc = V_BCD(tw[4 * j * st]), wcp = V_BCD(tw[4 * j * st + 1]);
-                    double *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)q * 8;
-                    double *p2 = p0 + (size_t)m * 8, *p3 = p2 + (size_t)q * 8;
-                    for (h = 0; h < VP_H; h++)
-                    {
-                        int o = h * V_LANES;
-                        rns_vd a0 = V_LDD(p0 + o), a1 = V_LDD(p1 + o);
-                        rns_vd a2 = V_LDD(p2 + o), a3 = V_LDD(p3 + o);
-                        VPD_FWD2(a0, a2, wa, wap, 0);
-                        VPD_FWD2(a1, a3, wb, wbp, 0);
-                        VPD_FWD2(a0, a1, wc, wcp, 1);
-                        VPD_FWD2(a2, a3, wc, wcp, 1);
-                        V_STD(p0 + o, a0);
-                        V_STD(p1 + o, a1);
-                        V_STD(p2 + o, a2);
-                        V_STD(p3 + o, a3);
-                    }
-                }
-        }
-    }
-}
-
-void vpk_inv_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
-{
-    int i, h;
-    uint32_t m, b, j, st;
-
-    for (i = i0; i < i1; i++)
-    {
-        rns_vd p = V_BCD((double)ctx->p[i]), pinv = V_BCD(ctx->pinvd[i]);
-        double *base = (double *)(v + (size_t)(i - i0) * L * 8);
-        const double *tw = (const double *)ctx->itw + (size_t)i * ctx->Lmax;
-        for (m = 1; 2 * m < L; m <<= 2)
-        {
-            // levels m and 2m on a0..a3 = b + j + {0, m, 2m, 3m}
-            st = ctx->Lmax / (4 * m);
-            for (b = 0; b < L; b += 4 * m)
-                for (j = 0; j < m; j++)
-                {
-                    rns_vd wa = V_BCD(tw[4 * j * st]), wap = V_BCD(tw[4 * j * st + 1]);
-                    rns_vd wb = V_BCD(tw[2 * j * st]), wbp = V_BCD(tw[2 * j * st + 1]);
-                    rns_vd wc = V_BCD(tw[2 * (j + m) * st]), wcp = V_BCD(tw[2 * (j + m) * st + 1]);
-                    double *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)m * 8;
-                    double *p2 = p1 + (size_t)m * 8, *p3 = p2 + (size_t)m * 8;
-                    for (h = 0; h < VP_H; h++)
-                    {
-                        int o = h * V_LANES;
-                        rns_vd a0 = V_LDD(p0 + o), a1 = V_LDD(p1 + o);
-                        rns_vd a2 = V_LDD(p2 + o), a3 = V_LDD(p3 + o);
-                        VPD_INV2(a0, a1, wa, wap, 0);
-                        VPD_INV2(a2, a3, wa, wap, 0);
-                        VPD_INV2(a0, a2, wb, wbp, 1);
-                        VPD_INV2(a1, a3, wc, wcp, 1);
-                        V_STD(p0 + o, a0);
-                        V_STD(p1 + o, a1);
-                        V_STD(p2 + o, a2);
-                        V_STD(p3 + o, a3);
-                    }
-                }
-        }
-        if (m < L)
-        {
-            // last radix-2 level (m = L/2)
-            st = ctx->Lmax / (2 * m);
-            for (j = 0; j < m; j++)
+            rns_vd w = V_BCD(ta[j * sa]), wp = V_BCD(ta[j * sa + 1]);
+            double *px = base + (size_t)(b + j) * 8, *py = px + (size_t)m * 8;
+            for (h = 0; h < VP_H; h++)
             {
-                rns_vd w = V_BCD(tw[2 * j * st]), wp = V_BCD(tw[2 * j * st + 1]);
-                double *px = base + (size_t)j * 8, *py = px + (size_t)m * 8;
-                for (h = 0; h < VP_H; h++)
-                {
-                    int o = h * V_LANES;
-                    rns_vd x = V_LDD(px + o), y = V_LDD(py + o);
-                    VPD_INV2(x, y, w, wp, 1);
-                    V_STD(px + o, x);
-                    V_STD(py + o, y);
-                }
+                int o = h * V_LANES;
+                rns_vd x = V_LDD(px + o), y = V_LDD(py + o);
+                VPD_FWD2(x, y, w, wp, 1);
+                V_STD(px + o, x);
+                V_STD(py + o, y);
             }
         }
-    }
+}
+
+// DIF levels m and m/2 on a0..a3 = b + j + {0, m/2, m, 3m/2}
+static void vp_pass_f4(const vp_ctx_t *ctx, int i, uint64_t *vb, uint32_t S, uint32_t m)
+{
+    VPD_CONSTS(i);
+    double *base = (double *)vb;
+    uint32_t b, j, q = m / 2, sa, sc;
+    int h;
+    const double *ta = (const double *)vp_twl(ctx, 0, i, m, &sa);
+    const double *tc = (const double *)vp_twl(ctx, 0, i, q, &sc);
+    for (b = 0; b < S; b += 2 * m)
+        for (j = 0; j < q; j++)
+        {
+            rns_vd wa = V_BCD(ta[j * sa]), wap = V_BCD(ta[j * sa + 1]);
+            rns_vd wb = V_BCD(ta[(j + q) * sa]), wbp = V_BCD(ta[(j + q) * sa + 1]);
+            rns_vd wc = V_BCD(tc[j * sc]), wcp = V_BCD(tc[j * sc + 1]);
+            double *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)q * 8;
+            double *p2 = p0 + (size_t)m * 8, *p3 = p2 + (size_t)q * 8;
+            for (h = 0; h < VP_H; h++)
+            {
+                int o = h * V_LANES;
+                rns_vd a0 = V_LDD(p0 + o), a1 = V_LDD(p1 + o);
+                rns_vd a2 = V_LDD(p2 + o), a3 = V_LDD(p3 + o);
+                VPD_FWD2(a0, a2, wa, wap, 0);
+                VPD_FWD2(a1, a3, wb, wbp, 0);
+                VPD_FWD2(a0, a1, wc, wcp, 1);
+                VPD_FWD2(a2, a3, wc, wcp, 1);
+                V_STD(p0 + o, a0);
+                V_STD(p1 + o, a1);
+                V_STD(p2 + o, a2);
+                V_STD(p3 + o, a3);
+            }
+        }
+}
+
+// one DIT level m
+static void vp_pass_i2(const vp_ctx_t *ctx, int i, uint64_t *vb, uint32_t S, uint32_t m)
+{
+    VPD_CONSTS(i);
+    double *base = (double *)vb;
+    uint32_t b, j, sa;
+    int h;
+    const double *ta = (const double *)vp_twl(ctx, 1, i, m, &sa);
+    for (b = 0; b < S; b += 2 * m)
+        for (j = 0; j < m; j++)
+        {
+            rns_vd w = V_BCD(ta[j * sa]), wp = V_BCD(ta[j * sa + 1]);
+            double *px = base + (size_t)(b + j) * 8, *py = px + (size_t)m * 8;
+            for (h = 0; h < VP_H; h++)
+            {
+                int o = h * V_LANES;
+                rns_vd x = V_LDD(px + o), y = V_LDD(py + o);
+                VPD_INV2(x, y, w, wp, 1);
+                V_STD(px + o, x);
+                V_STD(py + o, y);
+            }
+        }
+}
+
+// DIT levels m and 2m on a0..a3 = b + j + {0, m, 2m, 3m}
+static void vp_pass_i4(const vp_ctx_t *ctx, int i, uint64_t *vb, uint32_t S, uint32_t m)
+{
+    VPD_CONSTS(i);
+    double *base = (double *)vb;
+    uint32_t b, j, sa, sb;
+    int h;
+    const double *ta = (const double *)vp_twl(ctx, 1, i, m, &sa);
+    const double *tb = (const double *)vp_twl(ctx, 1, i, 2 * m, &sb);
+    for (b = 0; b < S; b += 4 * m)
+        for (j = 0; j < m; j++)
+        {
+            rns_vd wa = V_BCD(ta[j * sa]), wap = V_BCD(ta[j * sa + 1]);
+            rns_vd wb = V_BCD(tb[j * sb]), wbp = V_BCD(tb[j * sb + 1]);
+            rns_vd wc = V_BCD(tb[(j + m) * sb]), wcp = V_BCD(tb[(j + m) * sb + 1]);
+            double *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)m * 8;
+            double *p2 = p1 + (size_t)m * 8, *p3 = p2 + (size_t)m * 8;
+            for (h = 0; h < VP_H; h++)
+            {
+                int o = h * V_LANES;
+                rns_vd a0 = V_LDD(p0 + o), a1 = V_LDD(p1 + o);
+                rns_vd a2 = V_LDD(p2 + o), a3 = V_LDD(p3 + o);
+                VPD_INV2(a0, a1, wa, wap, 0);
+                VPD_INV2(a2, a3, wa, wap, 0);
+                VPD_INV2(a0, a2, wb, wbp, 1);
+                VPD_INV2(a1, a3, wc, wcp, 1);
+                V_STD(p0 + o, a0);
+                V_STD(p1 + o, a1);
+                V_STD(p2 + o, a2);
+                V_STD(p3 + o, a3);
+            }
+        }
 }
 
 // c = a b mod p (no Montgomery factor)
@@ -403,7 +421,7 @@ void vpk_pmul_r(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a,
 #else
 
 /*
- * Integer transforms, radix-4 passes as above.  Ranges: DIF keeps [0, 2p)
+ * Integer transform passes (same structure).  Ranges: DIF keeps [0, 2p)
  * (sum: conditional subtract of 2p; difference + 2p < 4p into the Shoup
  * product); DIT takes [0, 4p) to [0, 4p) (x reduced below 2p, t = y w in
  * [0, 2p)).  The same butterflies twice in registers keep the same ranges.
@@ -422,135 +440,115 @@ void vpk_pmul_r(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a,
         (y) = V_ADD(V_SUB(x_, t_), p2);                                 \
     } while (0)
 
-static int vp_log2(uint32_t L)
+#define VPI_CONSTS(i) \
+    rns_vi p = V_BC(ctx->p[i]), p2 = V_BC(2 * ctx->p[i])
+
+static void vp_pass_f2(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S, uint32_t m)
 {
-    int l = 0;
-    while ((1u << l) < L) l++;
-    return l;
-}
-
-void vpk_fwd_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
-{
-    int i, h, lg = vp_log2(L);
-    uint32_t m, b, j, st;
-    VP_RZ_ENTER();
-
-    for (i = i0; i < i1; i++)
-    {
-        rns_vi p = V_BC(ctx->p[i]);
-        rns_vi p2 = V_BC(2 * ctx->p[i]);
-        uint64_t *base = v + (size_t)(i - i0) * L * 8;
-        const uint64_t *tw = ctx->tw + (size_t)i * ctx->Lmax;
-        m = L >> 1;
-        if (lg & 1)
+    VPI_CONSTS(i);
+    uint32_t b, j, sa;
+    int h;
+    const uint64_t *ta = vp_twl(ctx, 0, i, m, &sa);
+    for (b = 0; b < S; b += 2 * m)
+        for (j = 0; j < m; j++)
         {
-            st = ctx->Lmax / (2 * m);
-            for (b = 0; b < L; b += 2 * m)
-                for (j = 0; j < m; j++)
-                {
-                    rns_vi w = V_BC(tw[2 * j * st]), wp = V_BC(tw[2 * j * st + 1]);
-                    uint64_t *px = base + (size_t)(b + j) * 8, *py = px + (size_t)m * 8;
-                    for (h = 0; h < VP_H; h++)
-                    {
-                        int o = h * V_LANES;
-                        rns_vi x = V_LD(px + o), y = V_LD(py + o);
-                        VPI_FWD2(x, y, w, wp);
-                        V_ST(px + o, x);
-                        V_ST(py + o, y);
-                    }
-                }
-            m >>= 1;
-        }
-        for (; m >= 2; m >>= 2)
-        {
-            uint32_t q = m / 2;
-            st = ctx->Lmax / (2 * m);
-            for (b = 0; b < L; b += 2 * m)
-                for (j = 0; j < q; j++)
-                {
-                    rns_vi wa = V_BC(tw[2 * j * st]), wap = V_BC(tw[2 * j * st + 1]);
-                    rns_vi wb = V_BC(tw[2 * (j + q) * st]), wbp = V_BC(tw[2 * (j + q) * st + 1]);
-                    rns_vi wc = V_BC(tw[4 * j * st]), wcp = V_BC(tw[4 * j * st + 1]);
-                    uint64_t *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)q * 8;
-                    uint64_t *pp2 = p0 + (size_t)m * 8, *p3 = pp2 + (size_t)q * 8;
-                    for (h = 0; h < VP_H; h++)
-                    {
-                        int o = h * V_LANES;
-                        rns_vi a0 = V_LD(p0 + o), a1 = V_LD(p1 + o);
-                        rns_vi a2 = V_LD(pp2 + o), a3 = V_LD(p3 + o);
-                        VPI_FWD2(a0, a2, wa, wap);
-                        VPI_FWD2(a1, a3, wb, wbp);
-                        VPI_FWD2(a0, a1, wc, wcp);
-                        VPI_FWD2(a2, a3, wc, wcp);
-                        V_ST(p0 + o, a0);
-                        V_ST(p1 + o, a1);
-                        V_ST(pp2 + o, a2);
-                        V_ST(p3 + o, a3);
-                    }
-                }
-        }
-    }
-    VP_RZ_LEAVE();
-}
-
-void vpk_inv_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
-{
-    int i, h;
-    uint32_t m, b, j, st;
-    VP_RZ_ENTER();
-
-    for (i = i0; i < i1; i++)
-    {
-        rns_vi p = V_BC(ctx->p[i]);
-        rns_vi p2 = V_BC(2 * ctx->p[i]);
-        uint64_t *base = v + (size_t)(i - i0) * L * 8;
-        const uint64_t *tw = ctx->itw + (size_t)i * ctx->Lmax;
-        for (m = 1; 2 * m < L; m <<= 2)
-        {
-            st = ctx->Lmax / (4 * m);
-            for (b = 0; b < L; b += 4 * m)
-                for (j = 0; j < m; j++)
-                {
-                    rns_vi wa = V_BC(tw[4 * j * st]), wap = V_BC(tw[4 * j * st + 1]);
-                    rns_vi wb = V_BC(tw[2 * j * st]), wbp = V_BC(tw[2 * j * st + 1]);
-                    rns_vi wc = V_BC(tw[2 * (j + m) * st]), wcp = V_BC(tw[2 * (j + m) * st + 1]);
-                    uint64_t *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)m * 8;
-                    uint64_t *pp2 = p1 + (size_t)m * 8, *p3 = pp2 + (size_t)m * 8;
-                    for (h = 0; h < VP_H; h++)
-                    {
-                        int o = h * V_LANES;
-                        rns_vi a0 = V_LD(p0 + o), a1 = V_LD(p1 + o);
-                        rns_vi a2 = V_LD(pp2 + o), a3 = V_LD(p3 + o);
-                        VPI_INV2(a0, a1, wa, wap);
-                        VPI_INV2(a2, a3, wa, wap);
-                        VPI_INV2(a0, a2, wb, wbp);
-                        VPI_INV2(a1, a3, wc, wcp);
-                        V_ST(p0 + o, a0);
-                        V_ST(p1 + o, a1);
-                        V_ST(pp2 + o, a2);
-                        V_ST(p3 + o, a3);
-                    }
-                }
-        }
-        if (m < L)
-        {
-            st = ctx->Lmax / (2 * m);
-            for (j = 0; j < m; j++)
+            rns_vi w = V_BC(ta[j * sa]), wp = V_BC(ta[j * sa + 1]);
+            uint64_t *px = base + (size_t)(b + j) * 8, *py = px + (size_t)m * 8;
+            for (h = 0; h < VP_H; h++)
             {
-                rns_vi w = V_BC(tw[2 * j * st]), wp = V_BC(tw[2 * j * st + 1]);
-                uint64_t *px = base + (size_t)j * 8, *py = px + (size_t)m * 8;
-                for (h = 0; h < VP_H; h++)
-                {
-                    int o = h * V_LANES;
-                    rns_vi x = V_LD(px + o), y = V_LD(py + o);
-                    VPI_INV2(x, y, w, wp);
-                    V_ST(px + o, x);
-                    V_ST(py + o, y);
-                }
+                int o = h * V_LANES;
+                rns_vi x = V_LD(px + o), y = V_LD(py + o);
+                VPI_FWD2(x, y, w, wp);
+                V_ST(px + o, x);
+                V_ST(py + o, y);
             }
         }
-    }
-    VP_RZ_LEAVE();
+}
+
+static void vp_pass_f4(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S, uint32_t m)
+{
+    VPI_CONSTS(i);
+    uint32_t b, j, q = m / 2, sa, sc;
+    int h;
+    const uint64_t *ta = vp_twl(ctx, 0, i, m, &sa);
+    const uint64_t *tc = vp_twl(ctx, 0, i, q, &sc);
+    for (b = 0; b < S; b += 2 * m)
+        for (j = 0; j < q; j++)
+        {
+            rns_vi wa = V_BC(ta[j * sa]), wap = V_BC(ta[j * sa + 1]);
+            rns_vi wb = V_BC(ta[(j + q) * sa]), wbp = V_BC(ta[(j + q) * sa + 1]);
+            rns_vi wc = V_BC(tc[j * sc]), wcp = V_BC(tc[j * sc + 1]);
+            uint64_t *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)q * 8;
+            uint64_t *pp2 = p0 + (size_t)m * 8, *p3 = pp2 + (size_t)q * 8;
+            for (h = 0; h < VP_H; h++)
+            {
+                int o = h * V_LANES;
+                rns_vi a0 = V_LD(p0 + o), a1 = V_LD(p1 + o);
+                rns_vi a2 = V_LD(pp2 + o), a3 = V_LD(p3 + o);
+                VPI_FWD2(a0, a2, wa, wap);
+                VPI_FWD2(a1, a3, wb, wbp);
+                VPI_FWD2(a0, a1, wc, wcp);
+                VPI_FWD2(a2, a3, wc, wcp);
+                V_ST(p0 + o, a0);
+                V_ST(p1 + o, a1);
+                V_ST(pp2 + o, a2);
+                V_ST(p3 + o, a3);
+            }
+        }
+}
+
+static void vp_pass_i2(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S, uint32_t m)
+{
+    VPI_CONSTS(i);
+    uint32_t b, j, sa;
+    int h;
+    const uint64_t *ta = vp_twl(ctx, 1, i, m, &sa);
+    for (b = 0; b < S; b += 2 * m)
+        for (j = 0; j < m; j++)
+        {
+            rns_vi w = V_BC(ta[j * sa]), wp = V_BC(ta[j * sa + 1]);
+            uint64_t *px = base + (size_t)(b + j) * 8, *py = px + (size_t)m * 8;
+            for (h = 0; h < VP_H; h++)
+            {
+                int o = h * V_LANES;
+                rns_vi x = V_LD(px + o), y = V_LD(py + o);
+                VPI_INV2(x, y, w, wp);
+                V_ST(px + o, x);
+                V_ST(py + o, y);
+            }
+        }
+}
+
+static void vp_pass_i4(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S, uint32_t m)
+{
+    VPI_CONSTS(i);
+    uint32_t b, j, sa, sb;
+    int h;
+    const uint64_t *ta = vp_twl(ctx, 1, i, m, &sa);
+    const uint64_t *tb = vp_twl(ctx, 1, i, 2 * m, &sb);
+    for (b = 0; b < S; b += 4 * m)
+        for (j = 0; j < m; j++)
+        {
+            rns_vi wa = V_BC(ta[j * sa]), wap = V_BC(ta[j * sa + 1]);
+            rns_vi wb = V_BC(tb[j * sb]), wbp = V_BC(tb[j * sb + 1]);
+            rns_vi wc = V_BC(tb[(j + m) * sb]), wcp = V_BC(tb[(j + m) * sb + 1]);
+            uint64_t *p0 = base + (size_t)(b + j) * 8, *p1 = p0 + (size_t)m * 8;
+            uint64_t *pp2 = p1 + (size_t)m * 8, *p3 = pp2 + (size_t)m * 8;
+            for (h = 0; h < VP_H; h++)
+            {
+                int o = h * V_LANES;
+                rns_vi a0 = V_LD(p0 + o), a1 = V_LD(p1 + o);
+                rns_vi a2 = V_LD(pp2 + o), a3 = V_LD(p3 + o);
+                VPI_INV2(a0, a1, wa, wap);
+                VPI_INV2(a2, a3, wa, wap);
+                VPI_INV2(a0, a2, wb, wbp);
+                VPI_INV2(a1, a3, wc, wcp);
+                V_ST(p0 + o, a0);
+                V_ST(p1 + o, a1);
+                V_ST(pp2 + o, a2);
+                V_ST(p3 + o, a3);
+            }
+        }
 }
 
 void vpk_pmul_r(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a,
@@ -577,12 +575,107 @@ void vpk_pmul_r(const vp_ctx_t *ctx, uint64_t *c, const uint64_t *a,
 }
 #endif  // !VP_FPNTT
 
+// ---- transform drivers (both representations) ----
+
+static int vp_log2(uint32_t L)
+{
+    int l = 0;
+    while ((1u << l) < L) l++;
+    return l;
+}
+
+// DIF on [base, base + S), all levels S/2 .. 1, depth first: above the
+// block size one pass (radix-4, or radix-2 to even out the level count)
+// then the sub-blocks; at or below it radix-4 passes over the block
+static void vp_fwd_rec(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S)
+{
+    uint32_t m, k;
+    if (S <= ctx->blk)
+    {
+        m = S >> 1;
+        if (vp_log2(S) & 1)
+        {
+            vp_pass_f2(ctx, i, base, S, m);
+            m >>= 1;
+        }
+        for (; m >= 2; m >>= 2)
+            vp_pass_f4(ctx, i, base, S, m);
+        return;
+    }
+    if ((vp_log2(S) - vp_log2(ctx->blk)) & 1)
+    {
+        vp_pass_f2(ctx, i, base, S, S / 2);
+        for (k = 0; k < 2; k++)
+            vp_fwd_rec(ctx, i, base + (size_t)k * (S / 2) * 8, S / 2);
+    }
+    else
+    {
+        vp_pass_f4(ctx, i, base, S, S / 2);
+        for (k = 0; k < 4; k++)
+            vp_fwd_rec(ctx, i, base + (size_t)k * (S / 4) * 8, S / 4);
+    }
+}
+
+// DIT on [base, base + S), levels 1 .. S/2: the mirror image
+static void vp_inv_rec(const vp_ctx_t *ctx, int i, uint64_t *base, uint32_t S)
+{
+    uint32_t m, k;
+    if (S <= ctx->blk)
+    {
+        for (m = 1; 2 * m < S; m <<= 2)
+            vp_pass_i4(ctx, i, base, S, m);
+        if (m < S)
+            vp_pass_i2(ctx, i, base, S, m);
+        return;
+    }
+    if ((vp_log2(S) - vp_log2(ctx->blk)) & 1)
+    {
+        for (k = 0; k < 2; k++)
+            vp_inv_rec(ctx, i, base + (size_t)k * (S / 2) * 8, S / 2);
+        vp_pass_i2(ctx, i, base, S, S / 2);
+    }
+    else
+    {
+        for (k = 0; k < 4; k++)
+            vp_inv_rec(ctx, i, base + (size_t)k * (S / 4) * 8, S / 4);
+        vp_pass_i4(ctx, i, base, S, S / 4);
+    }
+}
+
+void vpk_fwd_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
+{
+    int i;
+#if !VP_FPNTT
+    VP_RZ_ENTER();
+#endif
+    for (i = i0; i < i1; i++)
+        vp_fwd_rec(ctx, i, v + (size_t)(i - i0) * L * 8, L);
+#if !VP_FPNTT
+    VP_RZ_LEAVE();
+#endif
+}
+
+void vpk_inv_r(const vp_ctx_t *ctx, uint64_t *v, uint32_t L, int i0, int i1)
+{
+    int i;
+#if !VP_FPNTT
+    VP_RZ_ENTER();
+#endif
+    for (i = i0; i < i1; i++)
+        vp_inv_rec(ctx, i, v + (size_t)(i - i0) * L * 8, L);
+#if !VP_FPNTT
+    VP_RZ_LEAVE();
+#endif
+}
+
+
 void vpk_from_ntt(const vp_ctx_t *ctx, uint64_t *a, const uint64_t *v,
     uint32_t L, uint32_t start, uint32_t count)
 {
     int n = ctx->n, K = ctx->K, i, k, h, l = 0;
     uint32_t t;
-    rns_vi col[VP_MAXW + 2], hic[VP_MAXW + 2];
+    rns_vi col[VP_MAXW + 2];
+    vp_op yv[VP_MAXK + 1];
     const uint64_t *ys;
     VP_RZ_ENTER();
 
@@ -596,18 +689,12 @@ void vpk_from_ntt(const vp_ctx_t *ctx, uint64_t *a, const uint64_t *v,
         {
             int o = h * V_LANES;
             rns_vd sum = V_ZEROD;
-            rns_vi kap, m, carry;
+            rns_vi kap, m, carry, prevhi;
             vp_op yo;
 
-            for (k = 0; k <= n + 1; k++)
-            {
-                col[k] = V_ZERO;
-                hic[k] = V_ZERO;
-            }
+            // scaled residues y_i, and kappa as the (K+1)-th multiplier
             for (i = 0; i < K; i++)
             {
-                const uint64_t *cr = ctx->crt + (size_t)i * (size_t)n;
-                const double *crd = ctx->crtd + (size_t)i * (size_t)n;
 #if VP_FPNTT
                 // y = x * scale in [0, p), an exact double (= its VP_OP form)
                 const double *ysd = (const double *)ys;
@@ -622,24 +709,29 @@ void vpk_from_ntt(const vp_ctx_t *ctx, uint64_t *a, const uint64_t *v,
                 sum = V_FMAD(V_CVTD(y), V_BCD(ctx->pinvd[i]), sum);
                 yo = VP_OP(y);
 #endif
-                for (k = 0; k < n; k++)
-                    VP_MAC(col[k], hic[k + 1], yo, VP_OPT(cr, crd, k));
+                yv[i] = yo;
             }
             kap = V_KAPPA(sum);
-            yo = VP_OP(kap);
-            {
-                const uint64_t *cr = ctx->crt + (size_t)K * (size_t)n;
-                const double *crd = ctx->crtd + (size_t)K * (size_t)n;
-                for (k = 0; k < n; k++)
-                    VP_MAC(col[k], hic[k + 1], yo, VP_OPT(cr, crd, k));
-            }
+            yv[K] = VP_OP(kap);
+
+            // column k = sum_i y_i C_i[k] (C_K for kappa): limb outer,
+            // prime inner, so the two accumulators stay in registers; the
+            // high half carries into column k + 1
+            prevhi = V_ZERO;
             for (k = 0; k < n; k++)
             {
-                VP_UNBIAS_LO(col[k], K + 1);
-                VP_UNBIAS_HI(hic[k + 1], K + 1);
+                const uint64_t *cr = ctx->crt + k;
+                const double *crd = ctx->crtd + k;
+                rns_vi lo = V_ZERO, hi = V_ZERO;
+                for (i = 0; i <= K; i++)
+                    VP_MAC(lo, hi, yv[i], VP_OPT(cr, crd, (size_t)i * (size_t)n));
+                VP_UNBIAS_LO(lo, K + 1);
+                VP_UNBIAS_HI(hi, K + 1);
+                col[k] = V_ADD(lo, prevhi);
+                prevhi = hi;
             }
-            for (k = 1; k <= n; k++)
-                col[k] = V_ADD(col[k], hic[k]);
+            col[n] = prevhi;
+            col[n + 1] = V_ZERO;
 
             // two Montgomery word reductions (divide by 2^104)
             m = LO52(V_ZERO, col[0], V_BC(ctx->n0));

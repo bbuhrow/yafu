@@ -2,8 +2,9 @@
 AVX-ECM FFT stage 2: memory / time model and the most efficient B2 for a
 memory limit (arith/avxecm_stage2_fft_design.md section 11).
 
-  python3 s2model.py                 tables for the design doc
-  python3 s2model.py bits B1 MB      one case: every useful B2 at that limit
+  python3 s2model.py [--isa ifma|f|avx2]             tables for the design doc
+  python3 s2model.py [--isa ...] bits B1 MB          one case: every useful B2
+  python3 s2model.py [--isa ...] pred bits t k lean blocks   predicted stage 2 s
 
 Memory follows avxecm_stage2fft.c (s2_mem); time is the s2_cost model
 (template mulmods, fit to vp_test -b on IFMA) times the measured mulmod
@@ -18,20 +19,38 @@ D_TAB = [0, 12, 30, 60, 120, 240, 510, 1020, 2310, 4620, 9240, 19110, 39270,
          79170, 158340, 324870]
 GRP, SCHOOL_CAP, CHUNK = 4, 16, 256
 
-# measured (Rocket Lake, IFMA, 1 thread): template mulmod ns and stage-1
-# mulmods per unit of B1
-MU_NS = {4: 17, 8: 59, 11: 110, 20: 352, 40: 1430}
-C1 = {8: 16.9, 20: 13.9}
+# per ISA (Rocket Lake, 1 thread), as s2m in avxecm_stage2fft.c: tree cost
+# tc = a t + b + c t^2/n and per-tree ratios (fit_s2.py on vp_test -b),
+# stage-1 mulmods per unit of B1, s2_cost scale; template mulmod ns per n
+ISAS = {
+    'ifma': dict(m=(6.819, -36.97, 3.336, 0.817, 0.939, 0.785, 0.566, 1.842, 1.906, 15.5, 0.90),
+                 mu={4: 16, 8: 61, 11: 110, 20: 359, 40: 1416}),
+    'f':    dict(m=(3.445, -7.58, 2.687, 0.721, 0.837, 0.762, 0.549, 1.916, 1.870, 14.2, 0.92),
+                 mu={4: 37, 8: 105, 11: 202, 20: 732, 40: 2292}),
+    'avx2': dict(m=(4.219, -14.68, 1.402, 0.669, 0.734, 0.679, 0.492, 1.828, 1.808, 14.5, 1.0),
+                 mu={4: 73, 8: 223, 11: 444, 20: 1032, 40: 4082}),
+}
+ISA = 'ifma'
+for _i, _a in enumerate(sys.argv):
+    if _a == '--isa' and _i + 1 < len(sys.argv):
+        ISA = sys.argv[_i + 1]
+        del sys.argv[_i:_i + 2]
+        break
+M = ISAS[ISA]['m']
+A_, B_, C_, MM, MM_L, MI, MI_L, EV, EV_L, C1_, SCALE = M
 
 
 def mu_ns(n):
-    if n in MU_NS:
-        return MU_NS[n]
-    return 352.0 * (n / 20.0) ** 2
+    mu = ISAS[ISA]['mu']
+    if n in mu:
+        return mu[n]
+    ks = sorted(mu)
+    k = min(ks, key=lambda x: abs(x - n))
+    return mu[k] * (n / k) ** 2
 
 
 def c1(n):
-    return C1.get(n, 15.0)
+    return C1_
 
 
 def nprimes(n, t):
@@ -56,19 +75,19 @@ def mem_bytes(t, n, k, lean):
 
 
 def tcost(t, n):
-    return max(8.0, 8.0 * t - 42.8 + 4.05 * t * t / n)
+    return max(8.0, A_ * t + B_ + C_ * t * t / n)
 
 
 def cost_mulmods(t, n, k, lean, blocks):
     dF = float(1 << t)
     T = tcost(t, n) * dF
     rebuilt = sum(s % k for s in range(1, t)) / t
-    return (blocks * (10.0 * dF + T * (1.90 if lean else 1.78))
-            + 17.0 * dF + T * (1.0 + (0.59 if lean else 0.82) + 1.88 + (0.1 if lean else 0) + rebuilt))
+    return (blocks * (10.0 * dF + T * (1.0 + (MM_L if lean else MM)))
+            + 17.0 * dF + T * (1.0 + (MI_L if lean else MI) + (EV_L if lean else EV) + rebuilt))
 
 
 def t2_seconds(t, n, k, lean, blocks):
-    return 0.93 * cost_mulmods(t, n, k, lean, blocks) * mu_ns(n) * 1e-9
+    return SCALE * cost_mulmods(t, n, k, lean, blocks) * mu_ns(n) * 1e-9
 
 
 def t1_seconds(B1, n):
@@ -191,6 +210,11 @@ def gmp_default_B2(B1):
 
 
 def main():
+    if len(sys.argv) == 7 and sys.argv[1] == 'pred':
+        bits, t, k, lean, bl = [int(x) for x in sys.argv[2:]]
+        n = (bits + 3 + 51) // 52
+        print('%.3f' % t2_seconds(t, n, k, lean, bl))
+        return
     if len(sys.argv) == 4:
         bits, B1, cap = int(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3])
         n = (bits + 3 + 51) // 52
