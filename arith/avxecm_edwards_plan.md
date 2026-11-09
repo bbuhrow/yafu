@@ -10,7 +10,11 @@ Status (2026-11-09, branch `wip_edwards`):
   new Edwards extended-coordinate stage 1 (`avxecm_edwards.c`; fixed
   w = 6). It is lane-exact on all ISAs and the RNS backend, and stage 1 is
   already 1.14-1.27x faster than PRAC.
-* Next: Phase 3 tuning.
+* Phase 3 done (Part F): w <= 10 under a 1.5 MB table cap, chosen per
+  64k-bit chunk, and table prefetch. Stage 1 is 1.16-1.29x faster than
+  PRAC on every ISA and size measured. The auto-B2 model has the Edwards
+  stage-1 cost.
+* Open: the default curve type (F6), MSVC builds.
 
 Part A is the
 background (what the three papers say, how Edwards curves work, which
@@ -835,7 +839,7 @@ PRAC's per-step overhead (copies, chain bookkeeping) is larger than the
 model's 3-7%. With +6.5% finds per curve (C1), time per factor already
 drops ~20-30% in stage 1.
 
-## E5. Next (Phase 3)
+## E5. Next (Phase 3, done: Part F)
 
 * w from the cost model and a per-thread table memory cap (w = 8-10:
   another ~3-5% per C2), and chunk length L.
@@ -843,3 +847,140 @@ drops ~20-30% in stage 1.
 * Remeasure c1 per ISA for the auto-B2 model (`s2m.c1`).
 * Timings over 200-4000 bits and B1 = 1e4..1e7, with all threads.
 * Then the default.
+
+---
+
+# Part F: Phase 3 results (2026-11-09)
+
+## F1. Window width and chunk length
+
+`AVXECM_EDW_CFG="w,chunkbits,prefetch"` (test aid) forces the window
+width, the chunk length and the table prefetch. `arith/edwards/edw_sweep.sh`
+swept them; the raw output is in `sweep_phase3.txt`. Setup: Rocket Lake, 1
+thread, min of 2, B1 = 1e6 at 413 and 1037 bits, B1 = 2.5e5 at 2048 bits
+(RNS on IFMA and AVX-512F). Stage 1 in seconds:
+
+| ISA, bits | PRAC | w=6 | w=8 | w=9 | w=10 | w=11 | w=12 | w=8, 64k | w=10, 4k | **w=10, 64k** | best ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| IFMA 413 | 1.023 | 0.815 | 0.796 | 0.797 | 0.798 | 0.816 | 0.846 | 0.813 | 0.840 | 0.804 | 1.29 |
+| IFMA 1037 | 5.123 | 4.268 | 4.059 | 4.010 | 4.035 | 4.107 | 4.245 | 4.070 | 4.275 | **3.977** | 1.29 |
+| IFMA 2048 | 3.340 | 2.992 | 2.911 | 2.916 | 2.902 | 2.965 | 3.053 | 2.921 | 3.084 | **2.881** | 1.16 |
+| AVX-512F 413 | 1.605 | 1.343 | 1.320 | 1.328 | 1.338 | 1.316 | 1.365 | 1.302 | 1.365 | **1.281** | 1.25 |
+| AVX-512F 1037 | 9.105 | 7.681 | 7.429 | 7.372 | 7.388 | 7.488 | 7.772 | 7.432 | 7.905 | **7.304** | 1.25 |
+| AVX-512F 2048 | 5.854 | 5.221 | 5.073 | 5.042 | 5.046 | 5.108 | 5.284 | 5.066 | 5.339 | **4.987** | 1.17 |
+| AVX2 413 | 3.180 | 2.736 | 2.619 | 2.596 | 2.604 | 2.650 | 2.750 | 2.638 | 2.798 | **2.586** | 1.23 |
+| AVX2 1037 | 14.29 | 12.52 | 12.21 | 12.13 | 12.12 | 12.27 | 12.68 | 12.13 | 12.83 | **11.92** | 1.20 |
+| AVX2 2048 | 9.811 | 8.726 | 8.533 | 8.442 | 8.444 | 8.545 | 8.806 | 8.492 | 9.076 | **8.354** | 1.17 |
+
+(Columns without a chunk size are 16k-bit chunks. The w >= 9 runs had a
+digit overflow, fixed below. Their operation counts, and so their times,
+were unaffected.)
+
+* **w = 8-10 is flat at 16k bits; w >= 11 loses.** The table, 2^(w-2)
+  points at ~1.1 additions each per chunk, costs more than the shorter
+  chain saves.
+* **Longer chunks favor larger w:** w = 10 with 64k-bit chunks is the best
+  or within 1% everywhere; 4k-bit chunks lose 2-6%.
+* **Prefetch** of the next table entry is within noise with 1 thread
+  (±1%). With 6 threads it gains ~1% (F3), so it stays on.
+
+Defaults chosen (`avxecm_edwards.c`):
+* 64k-bit chunks.
+* The largest w <= 10 whose table (4 x 2^(w-2) cached coordinates) fits
+  1.5 MB per thread: w = 10 up to ~1200 bits, w = 9 at 2048 bits (1% from
+  w = 10 in every sweep row).
+* **Per chunk,** the width with the fewest additions for its length,
+  bits/(w+1) + 1.1 x 2^(w-2). A short scalar (small B1, the last chunk)
+  gets a smaller table; e.g. B1 = 3000 (4.3k bits) uses w = 8.
+
+**Bug found by the oracle, fixed:** the signed digits were `int8_t`, but a
+width-w NAF has |digits| < 2^(w-1), up to 511 at w = 10, so every width
+above 8 overflowed. Phase 2 ran at w = 6, so its results stand. The digits
+are now `int16_t` (w <= 15). Multi-chunk oracle runs pass on all ISAs
+since, including a forced w = 12.
+
+## F2. Stage 1 vs PRAC with the defaults
+
+`arith/edwards/edw_timing.sh` (8 curves, 1 thread, min of 3; raw output in
+`timing_phase3.txt`), stage 1 in seconds:
+
+| bits | B1 | IFMA PRAC / Edw | ratio | AVX-512F PRAC / Edw | ratio | AVX2 PRAC / Edw | ratio |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 256 | 1e6 | 0.490 / 0.379 | 1.29 | 0.827 / 0.671 | 1.23 | 1.570 / 1.301 | 1.21 |
+| 413 | 1e6 | 1.010 / 0.799 | 1.26 | 1.591 / 1.294 | 1.23 | 3.189 / 2.609 | 1.22 |
+| 700 | 1e6 | 2.568 / 2.024 | 1.27 | 4.494 / 3.595 | 1.25 | 8.121 / 6.804 | 1.19 |
+| 1037 | 1e6 | 4.878 / 3.928 | 1.24 | 9.062 / 7.302 | 1.24 | 14.29 / 11.94 | 1.20 |
+| 1500 | 2.5e5 | 2.329 / 1.981 (RNS) | 1.18 | 3.896 / 3.239 (RNS) | 1.20 | 6.629 / 5.586 | 1.19 |
+| 2048 | 2.5e5 | 3.288 / 2.834 (RNS) | 1.16 | 5.832 / 4.998 (RNS) | 1.17 | 9.760 / 8.339 (RNS) | 1.17 |
+| 413 | 5e4 | 0.0503 / 0.0406 | 1.24 | 0.0794 / 0.0656 | 1.21 | 0.159 / 0.132 | 1.20 |
+| 1037 | 5e4 | 0.242 / 0.197 | 1.23 | 0.450 / 0.366 | 1.23 | 0.707 / 0.599 | 1.18 |
+| 413 | 1.1e4 | 0.0114 / 0.0089 | 1.28 | 0.0178 / 0.0146 | 1.22 | 0.0356 / 0.0298 | 1.19 |
+
+**Stage 1 is 1.16-1.29x faster**: IFMA 1.24-1.29x on the radix path,
+AVX-512F 1.23-1.25x, AVX2 1.19-1.22x, and 1.16-1.20x with the RNS backend
+(squarings are no cheaper there). That is within a few percent of the
+Phase 0 model (C2: 1.19-1.28x at w = 10). Small B1 gains as much as large
+B1, thanks to the per-chunk width.
+
+Combined with the 6.5% more finds per curve of family (iv) (C1), and with
+stage 2 at its usual ~0.3-0.5 T1, the expected time per factor drops by
+**~20-25%** against Suyama curves with PRAC.
+
+## F3. All cores
+
+IFMA, 1037 bits, B1 = 1e6, 48 curves on 6 threads, stage 1: PRAC 6.93 s,
+Edwards 5.58 s (**1.24x**, the same as 1 thread), Edwards without prefetch
+5.63 s.
+
+Six tables of 1.25 MB fit the shared cache well enough. Above the 1.5 MB
+cap w drops, so the total stays bounded at higher thread counts.
+
+## F4. Automatic B2
+
+The stage-2 model predicts stage 1 as c1 B1 template mulmods.
+`avxecm_s2fft_setup` now takes the curve type, and `s2m.c1e` is the
+Edwards stage 1's c1, scaled from `s2m.c1` by the measured time ratio at
+413 / 1037 bits:
+
+| | c1 (PRAC) | c1e (Edwards) |
+|---|---:|---:|
+| IFMA | 15.5 | 12.0 |
+| AVX-512F | 14.2 | 11.4 |
+| AVX2 | 14.5 | 11.9 |
+
+With a cheaper stage 1 the best B2 shifts slightly lower, because stage 2
+must stay ~0.3-0.6 T1. At 1037 bits, B1 = 1e6, 256 MB, both pick the same
+B2 (1.95e9, 3 blocks): the optimum is flat and B2 comes in whole blocks.
+
+The success-probability model still assumes Suyama-like group orders
+(size p/23). Family (iv)'s 6.5% better yield would favor a slightly larger
+B2; not modelled.
+
+`arith/vecpoly/ecm_tests/s2model.py` and `bs_model.py` still use the
+PRAC c1.
+
+## F5. Verification
+
+With the final build (IFMA; the multi-chunk runs on all three ISAs),
+`edw_oracle_cmp.sh` `CURVE=2` gave 0 differing batches on:
+* 400-bit plain (30 batches), D_6 (15), p32 (15);
+* 1024-bit (12) and 2048-bit RNS (8);
+* B1 = 2e4 and 1e5 (two and three chunks of varying width) on IFMA,
+  AVX-512F and AVX2;
+* a forced w = 12.
+
+Regressions: curve 1 and Suyama both match their oracles.
+
+## F6. Open
+
+* **Default.** `-avxecm_curve 2` is faster and finds more on every ISA and
+  size measured, so it is the candidate for `AVXECM_CURVE_DEFAULT`.
+  `factor()`'s t-level accounting assumes GMP-ECM's curves. Family (iv) is
+  at least as good per curve, so its counts err on the safe side.
+* MSVC / clang-cl builds of `avxecm_edwards.c` are not compiled yet.
+* Not measured on non-Rocket-Lake hardware (Skylake-X: 2 FMA units; AVX2-
+  only CPUs).
+* Possible later gains:
+  - a dual-product kernel (the doubling's independent squarings and
+    products in pairs; helps <= 7 words);
+  - Bos-Kleinjung chains for tiny B1 (plan Phase 7).

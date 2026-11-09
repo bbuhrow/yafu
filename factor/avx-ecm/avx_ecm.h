@@ -1210,12 +1210,19 @@ typedef struct avxecm_edw_s
     vec_bignum_t *d2;               // 2d per lane
     edw_cpt *tab;                   // cached odd multiples (2i+1) R, i < ntab
     int ntab;
-    int w;                          // signed-window width (ntab = 2^(w-2))
+    int w;                          // largest signed-window width (ntab = 2^(w-2)
+                                    // table points allocated); each chunk uses
+                                    // the best width <= w for its length
+    int wfixed;                     // AVXECM_EDW_CFG: always use w
+    int wlast;                      // width used by the last chunk
     edw_pt P2;                      // table build: 2R
     edw_cpt c2;
     vec_bignum_t *t[AVXECM_EDW_NTMP];   // temporaries
-    int8_t *dig;                    // signed digits of one scalar chunk
+    int16_t *dig;                   // signed digits of one scalar chunk
+                                    // (|digit| < 2^(w-1): 16 bits for w <= 15)
     int diglen;
+    int chunk;                      // scalar chunk length in bits
+    int prefetch;                   // prefetch the next table entry
     uint32_t ndbl, nadd;            // operation counts (stage 1)
 } avxecm_edw_t;
 
