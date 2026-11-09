@@ -1723,7 +1723,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->ecm_obj.ecm_exponent = 0;
     fobj->ecm_obj.ecm_multiplier = 0;
     fobj->ecm_obj.ecm_tune_freq = 0;
-    fobj->ecm_obj.bail_on_factor = 1;
+    fobj->ecm_obj.bail_on_factor = 0;
     fobj->ecm_obj.save_b1 = options->saveB1;
     fobj->ecm_obj.rand_seed1 = fobj->seed1;
     fobj->ecm_obj.rand_seed2 = fobj->seed2;
