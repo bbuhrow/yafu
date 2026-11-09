@@ -180,7 +180,8 @@ typedef struct
 #define AVXECM_STG2_MEM_DEFAULT 256
 
 // AVX-ECM curve family: 0 Suyama (Montgomery), 1 a = -1 twisted Edwards
-// family (iv) of Gelin-Kleinjung-Lenstra (AVXECM_CURVE_* in avx_ecm.h)
+// family (iv) of Gelin-Kleinjung-Lenstra on the x-only arithmetic, 2 the
+// same curves with the Edwards stage 1 (AVXECM_CURVE_* in avx_ecm.h)
 #define AVXECM_CURVE_DEFAULT 0
 
 typedef struct
@@ -196,7 +197,7 @@ typedef struct
     int avx_stg2_fft;       // AVX-ECM stage 2: 1 FFT continuation, 0 pairing
     double avx_stg2_mem;    // AVX-ECM FFT stage 2: MB per thread
     int avx_stg2_bs;        // AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S > 1 x^S, S < -1 Dickson D_|S|
-    int avx_curve;          // AVX-ECM curve family: 0 Suyama, 1 Edwards family (iv)
+    int avx_curve;          // AVX-ECM curves: 0 Suyama, 1/2 Edwards family (iv), x-only / Edwards stage 1
 	char ecm_path[1024];
 	int use_external;
 	uint64_t B1;

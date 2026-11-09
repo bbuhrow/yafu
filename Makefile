@@ -967,7 +967,8 @@ ECM_SRCS = \
     arith/vecpoly/vp_setup.c \
     arith/vecpoly/vp_kern.c \
     arith/vecpoly/vp_poly.c \
-    factor/avx-ecm/avxecm_stage2fft.c
+    factor/avx-ecm/avxecm_stage2fft.c \
+    factor/avx-ecm/avxecm_edwards.c
 
 # FP-emulated vector kernels: the AVX2 versions switch MXCSR to round toward
 # zero around each call, so the compiler must keep the FP ops in order

@@ -73,7 +73,8 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c);
 void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c);
 void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c);
 void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64_t sigma);
-void vec_build_one_curve_edwards(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64_t sigma);
+void vec_build_one_curve_edwards(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A,
+    uint64_t sigma, int lane);
 void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t X2, mpz_t Z2, 
     mpz_t A, uint64_t sigma);
 void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, 
@@ -286,9 +287,14 @@ void vec_ecm_stage1_work_fcn(void *vptr)
     uint32_t tid = tpdata->tindex;
     int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
-    vec_ecm_stage1(udata[tid].mdata, udata[tid].work, udata[tid].P, 
-        udata[tid].STAGE1_MAX, udata[tid].primes, udata[tid].nump, 
-        verbose);
+    if (udata[tid].curve_type == AVXECM_CURVE_EDW4X)
+        avxecm_edw_stage1(udata[tid].mdata, udata[tid].work, udata[tid].P,
+            udata[tid].STAGE1_MAX, udata[tid].primes, udata[tid].nump,
+            verbose);
+    else
+        vec_ecm_stage1(udata[tid].mdata, udata[tid].work, udata[tid].P,
+            udata[tid].STAGE1_MAX, udata[tid].primes, udata[tid].nump,
+            verbose);
 
     return;
 }
@@ -356,8 +362,9 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
         vec_lane_set(tdata[tid].mdata, tdata[tid].work->s, A, i);
 #else
         // 8689346476060549ULL
-        if (tdata[tid].curve_type == AVXECM_CURVE_EDW4)
-            vec_build_one_curve_edwards(&tdata[tid], X, Z, A, tdata[tid].sigma[i]);
+        if ((tdata[tid].curve_type == AVXECM_CURVE_EDW4) ||
+            (tdata[tid].curve_type == AVXECM_CURVE_EDW4X))
+            vec_build_one_curve_edwards(&tdata[tid], X, Z, A, tdata[tid].sigma[i], i);
         else
             vec_build_one_curve(&tdata[tid], X, Z, A, tdata[tid].sigma[i]); // 6710676431370252287 + i);
 
@@ -411,6 +418,7 @@ void vec_ecm_work_init(ecm_work* work)
     work->numinv = 0;
     work->numprimes = 0;
     work->paired = 0;
+    work->edw = NULL;           // allocated by the curve build for curve type 2
 
     work->diff1 = vecInit(words);
     work->diff2 = vecInit(words);
@@ -541,6 +549,7 @@ void vec_ecm_work_free(ecm_work* work)
     free(work->Paprod);
     free(work->Pb);
     vecFree(work->stg2acc);
+    avxecm_edw_free(work);
 
     return;
 }
@@ -2365,13 +2374,23 @@ void vececm_old(thread_data_t *tdata)
 }
 #endif
 
+// the stage-1 result checked by the gcd: the Montgomery Z, or for the
+// Edwards stage 1 the Edwards X (0 mod p at the identity and at the
+// 2-torsion point (0 : -1 : 1); the image Z - Y misses the latter)
+static vec_bignum_t *vec_ecm_stage1_gcdvec(thread_data_t *t)
+{
+    if (t->curve_type == AVXECM_CURVE_EDW4X)
+        return t->work->edw->R.X;
+    return t->P->Z;
+}
+
 // the curve part of a save_b1 line: SIGMA for Suyama curves; for Edwards
 // curves the Montgomery A = 4 (A+2)/4 - 2 of the curve's Montgomery image
 // (the caller leaves (A+2)/4 out of Montgomery form in work->tt1), which
 // GMP-ECM's resume reads as A= together with X
 static void vec_ecm_save_curve(FILE *f, thread_data_t *t, int lane, mpz_t n, mpz_t tmp)
 {
-    if (t->curve_type == AVXECM_CURVE_EDW4)
+    if ((t->curve_type == AVXECM_CURVE_EDW4) || (t->curve_type == AVXECM_CURVE_EDW4X))
     {
         vec_lane_get(t->mdata, tmp, t->work->tt1, lane);
         mpz_mul_2exp(tmp, tmp, 2);
@@ -2681,7 +2700,7 @@ void vececm(thread_data_t* tdata)
 
                     for (i = 0; i < VECLEN; i++)
                     {
-                        vec_lane_get(tdata[j].mdata, gmpt, tdata[j].P->Z, i);
+                        vec_lane_get(tdata[j].mdata, gmpt, vec_ecm_stage1_gcdvec(&tdata[j]), i);
 
                         if (mpz_cmp_ui(gmpt, 0) == 0)
                         {
@@ -2800,7 +2819,7 @@ void vececm(thread_data_t* tdata)
                 //uint32_t msk = vec_gte52(tdata[j].work->tt3, tdata[j].work->n);
                 //vec_bignum52_mask_sub(tdata[j].work->tt3, tdata[j].work->n, tdata[j].work->tt2, msk);
                 //extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt2, i, NWORDS);
-                vec_lane_get(tdata[j].mdata, gmpt, tdata[j].P->Z, i);
+                vec_lane_get(tdata[j].mdata, gmpt, vec_ecm_stage1_gcdvec(&tdata[j]), i);
 
                 if (mpz_cmp_ui(gmpt, 0) == 0)
                 {
@@ -3430,9 +3449,11 @@ static int edw_wstep(mpz_t x1, mpz_t y1, mpz_t x2, mpz_t y2, int dbl,
     return 1;
 }
 
-// Montgomery image (u, (A+2)/4) of the family (iv) curve for multiple m.
+// Montgomery image (u, (A+2)/4) of the family (iv) curve for multiple m;
+// with ex != NULL also the Edwards point (ex, ey) and 2d (curve type 2).
 // Returns 1, or 0 with g = gcd(denominator, n) when an inversion fails.
-static int edw_family4(mpz_t u, mpz_t a24, uint64_t m, mpz_t n, mpz_t g)
+static int edw_family4(mpz_t u, mpz_t a24, uint64_t m, mpz_t n, mpz_t g,
+    mpz_ptr ex, mpz_ptr ey, mpz_ptr d2)
 {
     mpz_t x, y, qx, qy, t, e, t1, t2, t3;
     int bit, ok = 0;
@@ -3500,6 +3521,39 @@ static int edw_family4(mpz_t u, mpz_t a24, uint64_t m, mpz_t n, mpz_t g)
         mpz_mod(y, y, n);                   // y1
     }
 
+    if (ex != NULL)
+    {
+        // x1 = (2t^3 + 2t^2 - 8t - 8)/(t^4 + 6t^3 + 12t^2 + 16t), Horner
+        static const long xn[4] = { 2, 2, -8, -8 };
+        static const long xd[5] = { 1, 6, 12, 16, 0 };
+        int k;
+        mpz_set_si(t1, xn[0]);
+        for (k = 1; k < 4; k++)
+        {
+            mpz_mul(t1, t1, t);
+            if (xn[k] >= 0) mpz_add_ui(t1, t1, (unsigned long)xn[k]);
+            else mpz_sub_ui(t1, t1, (unsigned long)(-xn[k]));
+            mpz_mod(t1, t1, n);
+        }
+        mpz_set_si(t2, xd[0]);
+        for (k = 1; k < 5; k++)
+        {
+            mpz_mul(t2, t2, t);
+            mpz_add_ui(t2, t2, (unsigned long)xd[k]);
+            mpz_mod(t2, t2, n);
+        }
+        if (!edw_inv(t3, t2, n, g))
+            goto done;
+        mpz_mul(ex, t1, t3);
+        mpz_mod(ex, ex, n);
+        mpz_set(ey, y);
+        // 2d = -2 e^4
+        mpz_powm_ui(t1, e, 4, n);
+        mpz_mul_2exp(t1, t1, 1);
+        mpz_neg(t1, t1);
+        mpz_mod(d2, t1, n);
+    }
+
     // (A + 2)/4 = 1/(1 - e^4)
     mpz_powm_ui(t1, e, 4, n);
     mpz_ui_sub(t1, 1, t1);
@@ -3520,29 +3574,40 @@ done:
     return ok;
 }
 
-// Like vec_build_one_curve, for AVXECM_CURVE_EDW4: X, Z, A = the starting
-// point and (A+2)/4 of the Montgomery image, in Montgomery representation.
+// Like vec_build_one_curve, for AVXECM_CURVE_EDW4 / EDW4X: X, Z, A = the
+// starting point and (A+2)/4 of the Montgomery image, in Montgomery
+// representation.  For EDW4X also the Edwards point (x : y : 1 : xy) and 2d
+// go into this lane of work->edw (allocated with the first lane).
 // sigma = m (0: random).  If a denominator shares a factor g with n, the lane
-// becomes (1 : g) -- the identity modulo g's primes, which stays there
-// through stage 1 and is reported by the stage-1 gcd.  A denominator that is
-// 0 mod n (m hits a torsion/excluded value mod n) moves on to m + 1.
-void vec_build_one_curve_edwards(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64_t sigma)
+// becomes the identity modulo g's primes, which stays there through stage 1
+// and is reported by the stage-1 gcd: (1 : g) for the x-only image, and
+// (g : 1 + g : 1 : g(1+g)) in Edwards coordinates (Z - Y = -g is nonzero mod
+// n, so stage 2 still gets a usable lane).  A denominator that is 0 mod n
+// (m hits a torsion/excluded value mod n) moves on to m + 1.
+void vec_build_one_curve_edwards(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A,
+    uint64_t sigma, int lane)
 {
     vec_monty_t *mdata = tdata->mdata;
     ecm_work *work = tdata->work;
-    mpz_t n, g;
+    int edw = (tdata->curve_type == AVXECM_CURVE_EDW4X);
+    mpz_t n, g, ex, ey, et, d2;
     uint64_t m;
 
     mpz_init(n);
     mpz_init(g);
+    mpz_inits(ex, ey, et, d2, NULL);
     extract_bignum_from_vec_to_mpz(n, mdata->n, 0, (int)mdata->NWORDS);
+
+    if (edw && (work->edw == NULL))
+        avxecm_edw_alloc(work, work->NWORDS);
 
     m = (sigma == 0) ? spRandp(&tdata->lcg_state, 2, 0x7fffffff) : sigma;
     while (1)
     {
-        if (edw_family4(X, A, m, n, g))
+        if (edw_family4(X, A, m, n, g, edw ? ex : NULL, ey, d2))
         {
             mpz_set_ui(Z, 1);
+            mpz_set_ui(et, 1);
             break;
         }
         if (mpz_cmp_ui(g, 1) > 0 && mpz_cmp(g, n) < 0)
@@ -3550,11 +3615,38 @@ void vec_build_one_curve_edwards(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A
             mpz_set_ui(X, 1);
             mpz_set(Z, g);
             mpz_set_ui(A, 1);
+            mpz_set(ex, g);
+            mpz_add_ui(ey, g, 1);
+            mpz_set_ui(et, 1);
+            mpz_set_ui(d2, 0);
             break;
         }
         m++;
     }
     work->sigma = m;
+
+    if (edw)
+    {
+        // et holds the Edwards Z (= 1); T = xy
+        mpz_t tt;
+        mpz_init(tt);
+        mpz_mul(tt, ex, ey);
+        mpz_mod(tt, tt, n);
+        if (!mdata->isMersenne)
+        {
+            vec_monty_mulR(mdata, ex, n);
+            vec_monty_mulR(mdata, ey, n);
+            vec_monty_mulR(mdata, et, n);
+            vec_monty_mulR(mdata, tt, n);
+            vec_monty_mulR(mdata, d2, n);
+        }
+        vec_lane_set(mdata, work->edw->R.X, ex, lane);
+        vec_lane_set(mdata, work->edw->R.Y, ey, lane);
+        vec_lane_set(mdata, work->edw->R.Z, et, lane);
+        vec_lane_set(mdata, work->edw->R.T, tt, lane);
+        vec_lane_set(mdata, work->edw->d2, d2, lane);
+        mpz_clear(tt);
+    }
 
     if (!mdata->isMersenne)
     {
@@ -3571,6 +3663,7 @@ void vec_build_one_curve_edwards(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A
 
     mpz_clear(n);
     mpz_clear(g);
+    mpz_clears(ex, ey, et, d2, NULL);
     return;
 }
 

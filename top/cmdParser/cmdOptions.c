@@ -238,7 +238,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
     "(Floating point)   : AVX-ECM FFT stage 2: memory limit per thread in MB",
     "(String)           : AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)",
-    "(Integer)          : AVX-ECM curves: 0 Suyama, 1 twisted Edwards family (iv) (sigma = multiple m)"
+    "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv) (sigma = multiple m), x-only / Edwards stage 1"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -1448,11 +1448,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[144]) == 0)
     {
-        // argument "avxecm_curve": 0 Suyama, 1 Edwards family (iv)
+        // argument "avxecm_curve": 0 Suyama, 1 Edwards family (iv) on the
+        // x-only arithmetic, 2 the same curves with the Edwards stage 1
         options->avxecm_curve = (int)strtol(arg, NULL, 10);
-        if ((options->avxecm_curve < 0) || (options->avxecm_curve > 1))
+        if ((options->avxecm_curve < 0) || (options->avxecm_curve > 2))
         {
-            printf("*** avxecm_curve must be 0 (Suyama) or 1 (Edwards family (iv)); ignoring ***\n");
+            printf("*** avxecm_curve must be 0 (Suyama), 1 or 2 (Edwards family (iv)); ignoring ***\n");
             options->avxecm_curve = -1;
         }
     }

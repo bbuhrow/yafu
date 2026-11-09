@@ -1,9 +1,17 @@
 # AVX-ECM stage 1 on twisted Edwards curves: background and plan
 
-Status (2026-11-09, branch `wip_edwards`): Phase 0 done, the gate passes
-(Part C). Phase 1 done (Part D): `-avxecm_curve 1` builds family (iv)
-curves and runs their Montgomery image through the existing PRAC stage 1
-and both stage 2s, lane-exact against the oracle on IFMA / AVX-512F / AVX2.
+Status (2026-11-09, branch `wip_edwards`):
+
+* Phase 0 done; the gate passes (Part C).
+* Phase 1 done (Part D): `-avxecm_curve 1` builds family (iv) curves and
+  runs their Montgomery image through the existing PRAC stage 1 and both
+  stage 2s. Lane-exact against the oracle on IFMA / AVX-512F / AVX2.
+* Phase 2 done (Part E): `-avxecm_curve 2` runs the same curves through the
+  new Edwards extended-coordinate stage 1 (`avxecm_edwards.c`; fixed
+  w = 6). It is lane-exact on all ISAs and the RNS backend, and stage 1 is
+  already 1.14-1.27x faster than PRAC.
+* Next: Phase 3 tuning.
+
 Part A is the
 background (what the three papers say, how Edwards curves work, which
 curves to use, and how they connect to the existing stage 2). Part B is the
@@ -687,3 +695,151 @@ Phase 2 (extended-coordinate point arithmetic, add/sub bounds audit) and
 Phase 3 (signed-window driver). Phase 4's `save_b1` and stage-2 hand-off
 parts are already done: stage 1 will convert back with X_M = Z + Y,
 Z_M = Z - Y and keep `work->s` = A24.
+
+---
+
+# Part E: Phase 2 results (2026-11-09)
+
+## E1. What was built
+
+`-avxecm_curve` now has three values:
+
+| value | curves | stage 1 |
+|---:|---|---|
+| 0 | Suyama | PRAC (default) |
+| 1 | Edwards family (iv) | PRAC on the Montgomery image (Part D, kept) |
+| 2 | Edwards family (iv) | the Edwards stage 1 below |
+
+`factor/avx-ecm/avxecm_edwards.c` (new; in `ECM_SRCS` and both VS ecm
+projects):
+
+* **Storage.** `ecm_work.edw` (`avxecm_edw_t` in `avx_ecm.h`) holds the
+  point R (X, Y, Z, T), 2d per lane, a table of cached points (Y-X, Y+X,
+  2dT, 2Z), 12 temporaries and the digit buffer.
+  - It is allocated by the curve build (first lane) only for curve type 2,
+    with `work->NWORDS` words (so the RNS layout fits too).
+  - It is freed in `vec_ecm_work_free`.
+* **Point operations,** all through the backend pointers:
+  - `edw_dbl`: 3M + 4S + 6a (+1M for T), signs folded as in C0.
+  - `edw_add`: P plus or minus a cached point, 7M + 6a (+1M for T). The
+    unified add-2008-hwcd-3; a negative digit swaps Y-X / Y+X and F / G.
+  - `edw_cache`: 1M + 3a.
+* **Driver** `avxecm_edw_stage1`: the same scalar as `vec_ecm_stage1`
+  (2^k < B1, then q^j < B1 for `primes[1..]`).
+  - The prime powers are multiplied into chunks of ~16384 bits.
+  - Each chunk is recoded to a width-6 NAF (secp256k1's wNAF algorithm,
+    O(bits)).
+  - The table P, 3P, ..., 31P is rebuilt from R.
+  - R starts each chunk at the identity (the unified addition takes it, so
+    the top digit needs no special case). Digits run top to bottom; T is
+    computed only before an addition and at the chunk's end (the next
+    table needs it).
+  - At the end, P gets the Montgomery image (Z + Y : Z - Y) for stage 2,
+    `save_b1` and the intermediate saves.
+* **Curve build:** `edw_family4` also returns x1 and 2d = -2e^4 when asked
+  (an extra inversion only for curve type 2). A lane whose build finds a
+  factor g gets R = (g : 1+g : 1 : g(1+g)). That is the identity modulo
+  g's primes, but Z - Y = -g, so stage 2 still gets a usable lane mod N.
+* **Stage-1 gcd:** on the Edwards X (`vec_ecm_stage1_gcdvec`), which
+  catches the identity and the 2-torsion point (0 : -1 : 1). The image's
+  Z - Y would miss the latter.
+
+## E2. Add/sub range audit
+
+`vecaddmod52` is lazy on every ISA. `USE_AMM` is defined in
+`vecarith52.c`, so the AVX-512 version, like `vecaddmod52_avx2`, subtracts
+N only on a carry out of R. A sum of two values below kN is just below 2kN.
+
+`vecsubmod52` adds N up to twice, so it is exact while subtrahend <=
+minuend + 2N. So the worst-case bound does not close for the Edwards
+doubling, and it does not close for PRAC's chains either. Correctness rests
+on the AMM output distribution, so it was measured.
+
+`ae_bench -ed` (new) runs the exact `avxecm_edwards.c` operation
+sequences:
+* table builds, then doublings, each followed by a signed addition of a
+  random table entry 1/8 of the time;
+* T only where the driver computes it;
+* every few steps, every lane checked against GMP;
+* the largest value entering a product and the largest subtrahend
+  recorded, in units of N.
+
+| spare bits | wrong lane values | max product input | max subtrahend |
+|---:|---|---:|---:|
+| 1 | 15-99% | | |
+| 2 | 0 | 3.4-3.8 N | 1.8-2.7 N |
+| 3 | 0 (2.4M lane-doublings at S = 4, 8, 20; 3 seeds) | 3.1-3.4 N | 1.3-1.84 N |
+| 4 | 0 | 3.0-3.1 N | 1.2-1.3 N |
+| >= 8 | 0 | 3.0 N | 1.0 N |
+
+Identical on IFMA, AVX-512F and AVX2 (same bit-exact products, same add/sub
+semantics). The largest subtrahends are the squares (X+Y)^2 of a lazy sum
+in the doubling. PRAC subtracts only plain products.
+
+At 3 spare bits the measured maximum of 1.84N is uncomfortably close to the
+2N limit for runs of 10^8 lane-doublings (B1 = 1e7). A lane past it would
+only waste a curve, never give a false factor. Still, both `vecsubmod52`
+and `vecsubmod52_avx2` now add N a **third** time when a lane is still
+negative, so a subtraction is exact up to subtrahend <= minuend + 3N.
+
+* The pass runs only when needed; the x-only arithmetic never reaches it,
+  so PRAC and stage 2 cannot change.
+* `ae_bench -ed` checks it directly: 1600 subtractions per size with
+  subtrahend - minuend in (2N, 3N), all exact.
+* `ae_bench -t` still passes, and `ae_bench -a` gives the same counts as
+  before (failures only at 1-2 spare bits).
+* The RNS backend has its own bounds (inputs < 8kN, submod adds 2kN). The
+  Edwards chains stay below 5kN: E' = H' - S < 4kN, F' = C + G' < 5kN,
+  addition inputs < 3kN.
+
+## E3. Verification
+
+`edw_oracle_cmp.sh` with `CURVE=2` (yafu `-avxecm_curve 2` vs
+`edw_ref.py lanes iv`, Edwards stage-1 semantics: order <= 2 is a stage-1
+find) gave **0 differing batches** on IFMA, AVX-512F (no `vpmadd52`) and
+AVX2 (no zmm):
+
+| input | B1 / B2 | batches | stage-1 / stage-2 finds |
+|---|---|---:|---|
+| 400-bit, p40 | 3000 / 231284 | 30 | 5 / 50 |
+| same, D_6 | | 15 | 4 / 31-33 |
+| 400-bit, p32 | | 15 | 24 / 68 |
+| 1024-bit, p40 | | 12 | 4 / 21 |
+| 2048-bit (RNS), p40 | | 8 | 2 / 5 |
+| 600-bit, p30 | 20000 / 2e6 | 10 | 31 / 66 (two scalar chunks) |
+
+The 400-bit row has one stage-1 find less than with curve 1. That is the
+PRAC collapse of D2, which the Edwards stage 1 does not have, as the oracle
+predicts.
+
+Other checks:
+* Regressions (IFMA): curve 1 vs its oracle and Suyama vs `bs_oracle.py`:
+  0 differing batches.
+* Random m with 4 threads finds a p16 at 520 bits.
+
+## E4. First timings (w = 6, untuned)
+
+yafu stage 1, B1 = 1e6, 8 curves, 1 thread, `taskset`, min of 2:
+
+| ISA | bits | curve 0 (Suyama, PRAC) | curve 2 (Edwards) | speedup | model, w = 6 (C2) |
+|---|---:|---:|---:|---:|---:|
+| IFMA | 413 | 1.035 s | 0.813 s | 1.27x | 1.12x |
+| IFMA | 1037 | 4.996 s | 4.281 s | 1.17x | 1.18x |
+| AVX-512F | 413 | 1.633 s | 1.363 s | 1.20x | 1.17x |
+| AVX-512F | 1037 | 9.429 s | 7.977 s | 1.18x | 1.18x |
+| AVX2 | 413 | 3.426 s | 2.804 s | 1.22x | 1.14x |
+| AVX2 | 1037 | 14.757 s | 12.927 s | 1.14x | 1.14x |
+
+The model is right at ~1000 bits and pessimistic at small sizes, where
+PRAC's per-step overhead (copies, chain bookkeeping) is larger than the
+model's 3-7%. With +6.5% finds per curve (C1), time per factor already
+drops ~20-30% in stage 1.
+
+## E5. Next (Phase 3)
+
+* w from the cost model and a per-thread table memory cap (w = 8-10:
+  another ~3-5% per C2), and chunk length L.
+* Software prefetch of the next table entry.
+* Remeasure c1 per ISA for the auto-B2 model (`s2m.c1`).
+* Timings over 200-4000 bits and B1 = 1e4..1e7, with all threads.
+* Then the default.

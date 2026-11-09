@@ -976,10 +976,12 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
 
-    if ((verbose > 0) && (fobj->ecm_obj.avx_curve == AVXECM_CURVE_EDW4))
+    if ((verbose > 0) && (fobj->ecm_obj.avx_curve != AVXECM_CURVE_SUYAMA))
     {
         printf("ecm: twisted Edwards curves, family (iv): sigma = m, the multiple of "
-            "(5,8) on y^2 = x^3 - x^2 - 9x + 9\n");
+            "(5,8) on y^2 = x^3 - x^2 - 9x + 9; %s\n",
+            (fobj->ecm_obj.avx_curve == AVXECM_CURVE_EDW4X) ?
+            "Edwards extended-coordinate stage 1" : "x-only stage 1 on the Montgomery image");
     }
 
     if (verbose > 1)

@@ -173,6 +173,7 @@
     <ClCompile Include="..\..\arith\vecpoly\vp_kern.c" />
     <ClCompile Include="..\..\arith\vecpoly\vp_poly.c" />
     <ClCompile Include="..\..\factor\avx-ecm\avxecm_stage2fft.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avxecm_edwards.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vec_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />

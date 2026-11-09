@@ -128,7 +128,14 @@ void vecsubmod52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_mon
             __m256i co = add_n_masked(c->data, mdata->n->data, m, NWORDS, h);
             m = _mm256_andnot_si256(co, m);     // still negative: add N again
             if (any_set(m))
-                add_n_masked(c->data, mdata->n->data, m, NWORDS, h);
+            {
+                co = add_n_masked(c->data, mdata->n->data, m, NWORDS, h);
+                // and a third time (b up to a + 3N; the Edwards doubling
+                // can need it, see vecsubmod52 in vecarith52.c)
+                m = _mm256_andnot_si256(co, m);
+                if (any_set(m))
+                    add_n_masked(c->data, mdata->n->data, m, NWORDS, h);
+            }
         }
     }
 }
