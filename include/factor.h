@@ -160,6 +160,25 @@ typedef struct
 
 } pp1_obj_t;
 
+// built-in AVX-ECM RNS crossover (bits), the default of ecm_obj.avx_rns_bits
+// (option avxecm_rns_bits; ecmtune() measures it for a machine): ecmtune() on
+// Rocket Lake gave 1169 bits (IFMA), 1489 bits (AVX-512F code without IFMA)
+// and 1537 bits (AVX2 code).
+#if defined(USE_AVX512F) && defined(IFMA)
+#define AVXECM_RNS_BITS_DEFAULT 1200
+#elif defined(USE_AVX512F)
+#define AVXECM_RNS_BITS_DEFAULT 1500
+#elif defined(USE_AVX2)
+#define AVXECM_RNS_BITS_DEFAULT 1550
+#else
+#define AVXECM_RNS_BITS_DEFAULT 0
+#endif
+
+// AVX-ECM stage 2 defaults: FFT continuation off (pairing, B2 = 100*B1)
+// until it has been validated more widely; memory limit per thread (MB)
+#define AVXECM_STG2_FFT_DEFAULT 0
+#define AVXECM_STG2_MEM_DEFAULT 256
+
 typedef struct
 {
 	mpz_t gmp_n;
@@ -169,6 +188,10 @@ typedef struct
     int prefer_gmpecm;
     int prefer_gmpecm_stg2;
     int prefer_avxecm_stg2;
+    int avx_rns_bits;       // AVX-ECM: RNS arithmetic for inputs >= this many bits (0 = never)
+    int avx_stg2_fft;       // AVX-ECM stage 2: 1 FFT continuation, 0 pairing
+    double avx_stg2_mem;    // AVX-ECM FFT stage 2: MB per thread
+    int avx_stg2_bs;        // AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S > 1 x^S, S < -1 Dickson D_|S|
 	char ecm_path[1024];
 	int use_external;
 	uint64_t B1;
@@ -622,5 +645,7 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 // find a crossover between QS and NFS
 void factor_tune(fact_obj_t* inobj);
 void siqs_param_tune(fact_obj_t* fobj);
+// AVX-ECM radix-2^52 / RNS crossover: measure, write avxecm_rns_bits to yafu.ini
+void ecm_rns_tune(fact_obj_t* fobj);
 
 #endif //_FACTOR_H

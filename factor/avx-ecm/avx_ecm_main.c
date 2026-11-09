@@ -30,6 +30,7 @@ either expressed or implied, of the FreeBSD Project.
 #include <inttypes.h>
 #include "yafu_ecm.h"
 #include "avx_ecm.h"
+#include "avxecm_stage2fft.h"
 #include "soe.h"
 #include "gmp.h"
 #include "ytools.h"
@@ -64,6 +65,42 @@ void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validat
 
 void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
 {
+    if (montyconst->rns != NULL)
+    {
+        // RNS backend (avxecm_rns.c): arith/rns batch kernels
+        int rn, rs;
+        avxecm_rns_fixed_info(avxecm_rns_get_fixed(montyconst), &rn, &rs);
+        vecmulmod_ptr = &avxecm_rns_mul;
+        vecsqrmod_ptr = &avxecm_rns_sqr;
+        vecaddmod_ptr = &avxecm_rns_add;
+        vecsubmod_ptr = &avxecm_rns_sub;
+        vecaddsubmod_ptr = &avxecm_rns_addsub;
+        if (verbose > 1)
+        {
+            printf("Using RNS mul/sqr core (2 x %d channels of %d words)\n", rn, rs);
+        }
+        return;
+    }
+
+#if defined(USE_AVX2) && !defined(USE_AVX512F)
+    // AVX2 build (no AVX-512): the AVX2 template cores at every size (loop
+    // form above 32 words) and the AVX2 add/sub (vecarith52_avx2.c); the
+    // other cores and the Mersenne forms are AVX-512 only
+    if (!vecmulmod52_tmpl_get((int)montyconst->NWORDS, &vecmulmod_ptr, &vecsqrmod_ptr))
+    {
+        printf("no AVX2 mul/sqr core for %u words\n", montyconst->NWORDS);
+        exit(1);
+    }
+    vecaddmod_ptr = &vecaddmod52_avx2;
+    vecsubmod_ptr = &vecsubmod52_avx2;
+    vecaddsubmod_ptr = &vec_simul_addsub52_avx2;
+    if (verbose > 1)
+    {
+        printf("Using AVX2 constant-S template mul/sqr core (%u words)\n", montyconst->NWORDS);
+    }
+    return;
+#endif
+
     if (DIGITBITS == 52)
     {
         if (montyconst->isMersenne > 1)
@@ -122,52 +159,17 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
         }
         else
         {
-            if (maxbits == 416)
+#if defined(USE_AVX512F) && !defined(AVXECM_TMPL_KERNELS)
+#error "AVX-ECM needs the constant-S template cores (the old fixed / BFIPS cores are no longer built)"
+#endif
+            // constant-S template cores (arith/vecmont/vecarith52_tmpl.c) up to
+            // AVXECM_KARATSUBA_BITS, karatsuba REDC above (inputs too large for
+            // the RNS backend).  The old fixed416..1040 / BFIPS cores are in
+            // vecarith52_oldcores.c, outside the builds.
+            if (maxbits > AVXECM_KARATSUBA_BITS)
             {
-                vecmulmod_ptr = &vecmulmod52_fixed416_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed416_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 416-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits == 624)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed624_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed624_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 624-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits == 832)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed832_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed832_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 832-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits == 1040)
-            {
-                vecmulmod_ptr = &vecmulmod52_fixed1040_bfips;
-                vecsqrmod_ptr = &vecsqrmod52_fixed1040_bfips;
-                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
-                if (verbose > 1)
-                {
-                    printf("Using 1040-bit mul/sqr core\n");
-                }
-            }
-            else if (maxbits > 16400)
-            {
-                // faster starting around 16000 bits on Xeon 6254
                 vecmulmod_ptr = &veckmul_redc;
                 vecsqrmod_ptr = &vecksqr_redc;
-                vecaddsubmod_ptr = &vec_simul_addsub52;
                 if (verbose > 1)
                 {
                     printf("Using karatsuba mul/sqr core\n");
@@ -175,14 +177,23 @@ void assign_mul_ptrs(vec_monty_t* montyconst, int maxbits, int verbose)
             }
             else
             {
-                vecmulmod_ptr = &vecmulmod52;
-                vecsqrmod_ptr = &vecsqrmod52;
-                vecaddsubmod_ptr = &vec_simul_addsub52;
+#ifdef AVXECM_TMPL_KERNELS
+                if (!vecmulmod52_tmpl_get(maxbits / DIGITBITS, &vecmulmod_ptr, &vecsqrmod_ptr))
+                {
+                    printf("no mul/sqr core for %d words\n", maxbits / DIGITBITS);
+                    exit(1);
+                }
                 if (verbose > 1)
                 {
-                    printf("Using BFIPS base-52 mul/sqr core\n");
+                    printf("Using constant-S template mul/sqr core (%d words)\n",
+                        maxbits / DIGITBITS);
                 }
+#else
+                printf("AVX-ECM needs an AVX-512 or AVX2 build\n");
+                exit(1);
+#endif
             }
+            vecaddsubmod_ptr = &vec_simul_addsub52;
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
         }
@@ -283,6 +294,14 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
         vec_dest->data[lane + i * VECLEN] = thisword;
         i++;
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
+    }
+
+    // clear this lane's remaining words: callers reuse vectors (stage-2
+    // batch inversion, curve building), and a shorter value must not keep
+    // stale high words from the previous one.
+    for (; i < (int)vec_dest->WORDS_ALLOC; i++)
+    {
+        vec_dest->data[lane + i * VECLEN] = 0;
     }
 
     vec_dest->size = vec_dest->WORDS_ALLOC; // MAX(vec_dest->size, i);
@@ -448,26 +467,21 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // NBLOCKS 3 MERSENNEMOD is slower than NBLOCKS 2 REDC ratio 0.66 (barely slower)
     
     // compute NBLOCKS if using the actual size of the input (non-Mersenne)
-    if (DIGITBITS == 52)
-    {
-        maxbits = 208;
-        while (maxbits <= mpz_sizeinbase(N, 2))
-        {
-            maxbits += 208;
-        }
-    }
-    else
-    {
-        maxbits = 128;
-        while (maxbits <= mpz_sizeinbase(N, 2))
-        {
-            maxbits += 128;
-        }
-    }
-
-    
-    nwords = maxbits / DIGITBITS;
+    // exact word count when the constant-S template cores are available,
+    // else a multiple of 4 words; >= 3 spare bits either way.
+    nwords = avxecm_redc_nwords((uint32_t)mpz_sizeinbase(N, 2));
+    maxbits = nwords * DIGITBITS;
+    // only the blocked (BFIPS/fixed/karatsuba) cores use nblocks; they
+    // are never selected when nwords is not a multiple of BLOCKWORDS.
     nblocks = nwords / BLOCKWORDS;
+
+    // Mersenne mod keeps the old (multiple-of-4 word) sizing; MAXBITS in
+    // that case stays as before too.
+    uint32_t mers_maxbits = 208;
+    while (mers_maxbits <= mpz_sizeinbase(N, 2))
+    {
+        mers_maxbits += 208;
+    }
     //printf("input has %d bits, %d words, %d blocks, mersenne size is %d\n", 
     //    mpz_sizeinbase(N, 2), nwords, nblocks, size_n);
 
@@ -482,10 +496,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
     else
     {
-        maxbits = 128;
-        while (maxbits <= size_n)
+        mmaxbits = 128;
+        while (mmaxbits <= size_n)
         {
-            maxbits += 128;
+            mmaxbits += 128;
         }
     }
 
@@ -522,6 +536,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
     else if ((isMersenne != 0) && (forceNoMersenne == 0))
     {
+        maxbits = mers_maxbits;
         nwords = mmaxbits / DIGITBITS;
         nblocks = nwords / BLOCKWORDS;
     }
@@ -536,6 +551,28 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     {
         isMersenne = 0;
         size_n = mpz_sizeinbase(N, 2);
+    }
+
+    // RNS backend for large enough non-Mersenne inputs (avx_rns_bits,
+    // option avxecm_rns_bits; 0 = never).  The vectors must hold the RNS
+    // layout: n*s words.
+    void *rnsfx = NULL;
+    if ((isMersenne == 0) && (fobj->ecm_obj.avx_rns_bits > 0) &&
+        (size_n >= fobj->ecm_obj.avx_rns_bits) && avxecm_rns_available())
+    {
+        uint32_t rnswords = 0;
+        rnsfx = avxecm_rns_fixed(N, &rnswords);
+        if (rnsfx != NULL)
+        {
+            if (rnswords > nwords)
+                nwords = rnswords;
+            maxbits = nwords * DIGITBITS;
+            nblocks = nwords / BLOCKWORDS;
+        }
+        else if (verbose > 1)
+        {
+            printf("RNS arithmetic unavailable for this input, using radix 2^52\n");
+        }
     }
 
     // now that we know NWORDS, can allocate the monty structure.
@@ -599,6 +636,18 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
         mpz_tdiv_r(r, r, N);
         broadcast_mpz_to_vec(montyconst->one, r);
+
+        if ((rnsfx != NULL) && avxecm_rns_attach(montyconst, rnsfx, 1, N))
+        {
+            // values are RNS residues from here on (mdata->n stays radix
+            // 2^52: it is only read back as an integer)
+            vec_set_monty_one(montyconst, montyconst->one, N);
+        }
+        else if (rnsfx != NULL)
+        {
+            printf("RNS setup failed\n");
+            exit(1);
+        }
     }
 
     
@@ -885,6 +934,41 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
     }
 
+    // FFT stage 2 (option avxecm_stg2): shared setup for this modulus and
+    // range; the arithmetic modulus is montyconst->n (radix 2^52 in every
+    // backend, the base Mersenne number for Mersenne inputs)
+    {
+        struct avxecm_s2fft_s *s2 = NULL;
+        if (tdata[0].DO_STAGE2 && fobj->ecm_obj.avx_stg2_fft &&
+            (tdata[0].STAGE2_MAX > tdata[0].STAGE1_MAX))
+        {
+            mpz_t M;
+            mpz_init(M);
+            extract_bignum_from_vec_to_mpz(M, montyconst->n, 0, (int)montyconst->NWORDS);
+            // avx_stg2_fft = 2 and no explicit B2: B2 from the memory limit;
+            // the Brent-Suyama polynomial is then chosen too unless given
+            int auto_b2 = (fobj->ecm_obj.avx_stg2_fft == 2) && fobj->ecm_obj.stg2_is_default;
+            int bs = fobj->ecm_obj.avx_stg2_bs;
+            if (bs == AVXECM_BS_DEFAULT)
+                bs = auto_b2 ? AVXECM_BS_AUTO : 0;
+            s2 = avxecm_s2fft_setup(M, tdata[0].STAGE1_MAX, tdata[0].STAGE2_MAX,
+                (int)threads, (double)fobj->ecm_obj.avx_stg2_mem, auto_b2, bs, verbose);
+            mpz_clear(M);
+            if (s2 != NULL)
+            {
+                B2 = avxecm_s2fft_B2(s2);
+                for (i = 0; i < threads; i++)
+                    tdata[i].STAGE2_MAX = B2;
+            }
+            else if (verbose > 0)
+            {
+                printf("ecm: FFT stage 2 unavailable for these parameters, using pairing\n");
+            }
+        }
+        for (i = 0; i < threads; i++)
+            tdata[i].s2fft = s2;
+    }
+
 	gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
 
@@ -1063,6 +1147,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
        
         vec_ecm_work_free(tdata[i].work);
         vec_ecm_pt_free(tdata[i].P);
+        avxecm_rns_detach(tdata[i].mdata);
         vec_monty_free(tdata[i].mdata);
         free(tdata[i].mdata);
         free(tdata[i].work);
@@ -1102,8 +1187,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // clean up local/global data
     mpz_clear(g);
     mpz_clear(r);
+    avxecm_rns_detach(montyconst);      // after the threads: owns the fixed tables
     vec_monty_free(montyconst);
 	free(montyconst);
+    avxecm_s2fft_free(tdata[0].s2fft);
     free(tdata);
 
 	return;
@@ -1255,6 +1342,20 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
     tdata->mdata->isMersenne = mdata->isMersenne;
     memcpy(tdata->mdata->vrho, mdata->vrho, VECLEN * sizeof(base_t));
 
+    if (mdata->rns != NULL)
+    {
+        // RNS: shared fixed tables, a context (and scratch) per thread
+        mpz_t N;
+        mpz_init(N);
+        extract_bignum_from_vec_to_mpz(N, mdata->n, 0, (int)mdata->NWORDS);
+        if (!avxecm_rns_attach(tdata->mdata, avxecm_rns_get_fixed(mdata), 0, N))
+        {
+            printf("RNS thread setup failed\n");
+            exit(1);
+        }
+        mpz_clear(N);
+    }
+
     return;
 }
 
@@ -1274,9 +1375,7 @@ void test_vecarith(int numbits, int iterations, int validate)
     vec_bignum_t* vec_one;
     vec_bignum_t* vec_am;
 
-    numwords = 0;
-    while (numwords * DIGITBITS <= numbits)
-        numwords += 4;
+    numwords = (int)avxecm_redc_nwords((uint32_t)numbits);
 
     printf("commencing test with %d bits (%d words)\n", numbits, numwords);
     mdata = vec_monty_alloc(numwords);

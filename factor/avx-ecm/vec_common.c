@@ -147,6 +147,8 @@ vec_monty_t* vec_monty_alloc(uint32_t words)
 
     mdata->vrho = (base_t *)xmalloc_align(VECLEN * sizeof(base_t));
     mdata->vnbits = (int*)xmalloc_align(VECLEN * sizeof(int));
+    mdata->fpwork = (base_t *)xmalloc_align((size_t)3 * words * VECLEN * sizeof(base_t));
+    mdata->rns = NULL;
 
     return mdata;
 }
@@ -172,6 +174,7 @@ void vec_monty_free(vec_monty_t *mdata)
 
     align_free(mdata->vrho);
     align_free(mdata->vnbits);
+    align_free(mdata->fpwork);
 
     for (i = 0; i < (1 << MAX_WINSIZE); i++)
     {

@@ -432,6 +432,9 @@ tune_ecm:
 
 	}
 
+	// AVX-ECM: radix-2^52 / RNS arithmetic crossover (also ecmtune())
+	ecm_rns_tune(fobj);
+
 done:
 
 	//write the coefficients to the .ini file
@@ -1404,4 +1407,201 @@ void siqs_param_tune(fact_obj_t* fobj)
     return;
 }
 
+// ---------------------------------------------------------------------------
+// ecmtune(): AVX-ECM radix-2^52 / RNS crossover for this machine
+// ---------------------------------------------------------------------------
 
+// replace (or append) a "key=value" line in yafu.ini
+static void update_INI_key(const char *key, const char *value)
+{
+    FILE *in, *out;
+    char str[GSTR_MAXSIZE];
+    size_t klen = strlen(key);
+    int found = 0;
+
+    in = fopen("yafu.ini", "r");
+    out = fopen("_tmp.ini", "w");
+    if (out == NULL)
+    {
+        printf("could not open _tmp.ini for writing!\n");
+        if (in != NULL)
+            fclose(in);
+        return;
+    }
+    if (in != NULL)
+    {
+        while (fgets(str, GSTR_MAXSIZE, in) != NULL)
+        {
+            if ((strncmp(str, key, klen) == 0) && (str[klen] == '='))
+            {
+                if (!found)
+                    fprintf(out, "%s=%s\n", key, value);
+                found = 1;
+            }
+            else
+            {
+                fputs(str, out);
+            }
+        }
+        fclose(in);
+    }
+    if (!found)
+        fprintf(out, "%s=%s\n", key, value);
+    fclose(out);
+
+    remove("yafu.ini");
+    rename("_tmp.ini", "yafu.ini");
+    printf("wrote %s=%s to yafu.ini\n", key, value);
+}
+
+#if defined(USE_AVX512F) || defined(USE_AVX2)
+
+// seconds for one 8-curve AVX-ECM batch on n (1 thread), rns_bits as given
+static double ecmtune_time(fact_obj_t *fobj, mpz_t n, int rns_bits,
+    uint64_t B1, uint64_t sigma)
+{
+    struct timeval start, stop;
+    uint32_t curves_run = 0;
+    int numfactors = 0;
+    double best = 1e30;
+    int r;
+
+    for (r = 0; r < 2; r++)
+    {
+        mpz_set(fobj->ecm_obj.gmp_n, n);
+        fobj->ecm_obj.avx_rns_bits = rns_bits;
+        fobj->ecm_obj.sigma = sigma;
+        gettimeofday(&start, NULL);
+        vec_ecm_main(fobj, 8, B1, 0, 1, &numfactors, -1, 0, &curves_run);
+        gettimeofday(&stop, NULL);
+        double t = ytools_difftime(&start, &stop);
+        if (t < best)
+            best = t;
+    }
+    return best;
+}
+
+void ecm_rns_tune(fact_obj_t *fobj)
+{
+    // inputs: products of 256-bit primes (no curve can find a factor at
+    // this B1), sizes 768..4096 bits; time radix-2^52 vs RNS per size
+    const uint64_t B1 = 20000;
+    const uint64_t sigma = 1234567;
+    int sizes[32], ns = 0, bits, i;
+    double tr[32], tn[32];
+    uint64_t saved_sigma = fobj->ecm_obj.sigma;
+    int saved_vflag = fobj->VFLAG;
+    int saved_threads = fobj->THREADS;
+    double xover = 0;
+    char val[64];
+    gmp_randstate_t rs;
+    mpz_t n, p;
+
+    printf("ecmtune: AVX-ECM radix-2^52 vs RNS arithmetic, 8 curves, B1 = %" PRIu64
+        ", 1 thread\n", B1);
+    printf("  bits |   radix (s)     RNS (s) |  RNS/radix\n");
+    if (!avxecm_rns_available())
+    {
+        printf("RNS kernels are not in this build: disabling RNS\n");
+        update_INI_key("avxecm_rns_bits", "0");
+        return;
+    }
+
+    gmp_randinit_default(rs);
+    gmp_randseed_ui(rs, 42);
+    mpz_init(n);
+    mpz_init(p);
+    fobj->VFLAG = -1;
+    fobj->THREADS = 1;
+
+    for (bits = 768; bits <= 4096; bits += 256)
+        sizes[ns++] = bits;
+
+    for (i = 0; i < ns; i++)
+    {
+        // n = product of 256-bit primes and a last prime of 257..512 bits,
+        // exactly sizes[i] bits: no small factor (it would end the curves
+        // early, and RNS needs N coprime to its composite moduli)
+        do
+        {
+            mpz_set_ui(n, 1);
+            while ((int)mpz_sizeinbase(n, 2) + 512 <= sizes[i])
+            {
+                mpz_urandomb(p, rs, 256);
+                mpz_setbit(p, 255);
+                mpz_nextprime(p, p);
+                mpz_mul(n, n, p);
+            }
+            mpz_urandomb(p, rs, (mp_bitcnt_t)(unsigned)(sizes[i] - (int)mpz_sizeinbase(n, 2) + 1));
+            mpz_setbit(p, (mp_bitcnt_t)(unsigned)(sizes[i] - (int)mpz_sizeinbase(n, 2)));
+            mpz_nextprime(p, p);
+            mpz_mul(n, n, p);
+        } while ((int)mpz_sizeinbase(n, 2) != sizes[i]);
+
+        tr[i] = ecmtune_time(fobj, n, 0, B1, sigma);
+        {
+            // is RNS possible for this n at all? (else a forced run is radix)
+            uint32_t w;
+            void *fx = avxecm_rns_fixed(n, &w);
+            if (fx != NULL)
+            {
+                avxecm_rns_free_fixed(fx);
+                tn[i] = ecmtune_time(fobj, n, 1, B1, sigma);
+                printf("  %4d | %10.4f  %10.4f |  %8.3f\n", sizes[i], tr[i], tn[i], tn[i] / tr[i]);
+            }
+            else
+            {
+                tn[i] = 1e30;
+                printf("  %4d | %10.4f         n/a |       n/a\n", sizes[i], tr[i]);
+            }
+        }
+        fflush(stdout);
+    }
+
+    // crossover: the RNS/radix ratio falls below 1 and stays there; linear
+    // interpolation of the ratio between the bracketing sizes
+    for (i = ns - 1; i >= 0; i--)
+    {
+        if (tn[i] >= tr[i])
+            break;
+    }
+    if (i == ns - 1)
+    {
+        // RNS is not faster at the largest measured size (RNS stops near
+        // 4100 bits anyway): never use it
+        xover = 0;
+        printf("RNS is not faster at any size up to %d bits: disabling it\n", sizes[ns - 1]);
+    }
+    else if (i < 0)
+    {
+        xover = sizes[0];
+        printf("RNS is faster at every size measured: crossover at %d bits\n", sizes[0]);
+    }
+    else
+    {
+        double r0 = tn[i] / tr[i], r1 = tn[i + 1] / tr[i + 1];
+        xover = sizes[i] + (sizes[i + 1] - sizes[i]) * (r0 - 1.0) / (r0 - r1);
+        printf("RNS is faster from about %1.0f bits\n", xover);
+    }
+
+    sprintf(val, "%d", (int)(xover + 0.5));
+    update_INI_key("avxecm_rns_bits", val);
+
+    fobj->ecm_obj.avx_rns_bits = (int)(xover + 0.5);
+    fobj->ecm_obj.sigma = saved_sigma;
+    fobj->VFLAG = saved_vflag;
+    fobj->THREADS = saved_threads;
+    mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
+    mpz_clear(n);
+    mpz_clear(p);
+    gmp_randclear(rs);
+}
+
+#else
+
+void ecm_rns_tune(fact_obj_t *fobj)
+{
+    printf("ecmtune: AVX-ECM needs an AVX-512 or AVX2 build; nothing to tune\n");
+}
+
+#endif

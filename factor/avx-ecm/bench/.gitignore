@@ -1,0 +1,3 @@
+*.o
+ae_bench
+ae_bench_*

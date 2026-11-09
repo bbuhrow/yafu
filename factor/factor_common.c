@@ -165,7 +165,7 @@ void init_factobj(fact_obj_t* fobj)
     // an external binary
     strcpy(fobj->ecm_obj.ecm_path, "");
     fobj->ecm_obj.use_external = 0;
-#ifdef USE_AVX512F
+#if defined(USE_AVX512F) || defined(USE_AVX2)
     fobj->ecm_obj.prefer_gmpecm = 0;
     fobj->ecm_obj.ecm_ext_xover = 300000000;
 #else
@@ -174,6 +174,10 @@ void init_factobj(fact_obj_t* fobj)
 #endif
     fobj->ecm_obj.prefer_gmpecm_stg2 = 0;
     fobj->ecm_obj.prefer_avxecm_stg2 = 0;
+    fobj->ecm_obj.avx_rns_bits = AVXECM_RNS_BITS_DEFAULT;
+    fobj->ecm_obj.avx_stg2_fft = AVXECM_STG2_FFT_DEFAULT;
+    fobj->ecm_obj.avx_stg2_mem = AVXECM_STG2_MEM_DEFAULT;
+    fobj->ecm_obj.avx_stg2_bs = 65;     // AVXECM_BS_DEFAULT: auto with the automatic B2
 
     // initialize stuff for squfof
     fobj->squfof_obj.num_factors = 0;
@@ -554,6 +558,9 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->ecm_obj.ecm_tune_freq = src->ecm_obj.ecm_tune_freq;
     dest->ecm_obj.bail_on_factor = src->ecm_obj.bail_on_factor;
     dest->ecm_obj.save_b1 = src->ecm_obj.save_b1;
+    dest->ecm_obj.avx_stg2_fft = src->ecm_obj.avx_stg2_fft;
+    dest->ecm_obj.avx_stg2_mem = src->ecm_obj.avx_stg2_mem;
+    dest->ecm_obj.avx_stg2_bs = src->ecm_obj.avx_stg2_bs;
     dest->ecm_obj.gpucurves = src->ecm_obj.gpucurves;
     dest->ecm_obj.use_cgbn = src->ecm_obj.use_cgbn;
     dest->ecm_obj.use_gpudev = src->ecm_obj.use_gpudev;

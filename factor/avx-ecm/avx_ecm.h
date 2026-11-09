@@ -41,82 +41,11 @@ either expressed or implied, of the FreeBSD Project.
 #define MAX_WINSIZE 10
 #define BLOCKWORDS 4
 #define strto_uint64_t strtoull
-#define DIGITBITS 52
+// Digit size, vec_bignum_t and vec_monty_t live in arith/vecmont/vecmont.h
+// (shared with the template cores and the RNS benchmark).
+#include "../../arith/vecmont/vecmont.h"
 
-#ifndef DIGITBITS
-#define DIGITBITS 52
-#endif
-
-#if DIGITBITS==52
-
-#define base_t uint64_t
-#define base_signed_t int64_t
-
-#define VEC_HALFBITS 26
-#define VEC_HALFMASK 0x3ffffff
-#define VEC_MAXDIGIT 0xfffffffffffffULL
-#define VEC_HIBITMASK 0x8000000000000ULL
-#define VECLEN 8
-
-#elif DIGITBITS==32
-
-#define base_t uint32_t
-#define base_signed_t int32_t
-
-#define VEC_HALFBITS 16
-#define VEC_HALFMASK 0xffff
-#define VEC_MAXDIGIT 0xffffffff
-#define VEC_HIBITMASK 0x80000000
-#define VECLEN 16
-
-#else
-#error "DIGITBITS must be either 52 or 32"
-#endif
-
-// Signed-int aliases for VECLEN and BLOCKWORDS.
-// Use these in pointer arithmetic expressions that mix int loop variables
-// with VECLEN/BLOCKWORDS to avoid -Wsign-conversion warnings.
-// e.g.:  a->data + (i * BLOCKWORDS_I + j) * VECLEN_I
-// instead of: a->data + (i * BLOCKWORDS + j) * VECLEN
-#define VECLEN_I     ((int)VECLEN)
 #define BLOCKWORDS_I ((int)BLOCKWORDS)
-
-typedef struct
-{
-    base_t *data;
-    int size;
-    uint32_t signmask;
-    uint32_t WORDS_ALLOC;
-} vec_bignum_t;
-
-// a vector math library for montgomery arithmetic using AVX-512
-typedef struct
-{
-    mpz_t nhat;
-    mpz_t rhat;
-    mpz_t gmp_t1;
-    mpz_t gmp_t2;
-    vec_bignum_t *r;
-    vec_bignum_t *n;
-    vec_bignum_t *vnhat;
-    vec_bignum_t *vrhat;
-    vec_bignum_t *rmask;
-    vec_bignum_t *one;
-    vec_bignum_t *mtmp1;
-    vec_bignum_t *mtmp2;
-    vec_bignum_t *mtmp3;
-    vec_bignum_t *mtmp4;
-    vec_bignum_t **g;             // storage for windowed method precomputation
-    base_t *vrho;
-    base_t rho;
-    int nbits;
-    int isMersenne;
-    uint32_t MAXBITS;
-    uint32_t NWORDS;
-    uint32_t NBLOCKS;
-    int *vnbits;
-    int use_vnbits;
-} vec_monty_t;
 
 #ifdef USE_AVX512F
 
@@ -1029,6 +958,8 @@ void vecFree(vec_bignum_t *);
 void vecmulmod52_fixed624_cios(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_1(vec_bignum_t *a, base_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecredc52_base(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+// the old fixed / BFIPS cores (vecarith52_oldcores.c): not in the yafu builds,
+// declared for the A/B harnesses (ae_bench, rns_bench, big_bench)
 void vecmulmod52_fixed1040_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_fixed832_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
@@ -1039,6 +970,40 @@ void vecsqrmod52_fixed624_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
 void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+
+#if defined(USE_AVX512F) || defined(USE_AVX2)
+// Constant-S template mul/sqr cores (arith/vecmont/vecarith52_tmpl.c), any NWORDS >= 2,
+// IFMA or FP-emulated (no IFMA), bit-identical to the old cores above.  The yafu builds
+// require them (the old cores are no longer built; AVXECM_NO_TMPL_KERNELS stops with
+// #error in avx_ecm_main.c).  A/B against the old cores with factor/avx-ecm/bench.
+#ifndef AVXECM_NO_TMPL_KERNELS
+#define AVXECM_TMPL_KERNELS
+#endif
+// vecmulmod52_tmpl_get() is declared in arith/vecmont/vecmont.h.
+#endif
+
+// Max bits handled by the non-karatsuba REDC cores (see assign_mul_ptrs).
+#define AVXECM_KARATSUBA_BITS 16400
+// Spare bits required between nbits and 52*NWORDS: vecaddmod52 /
+// vecsubmod52 on AMM outputs are wrong for some lanes with only 1-2
+// spare bits (arith/avxecm_ifma_analysis.md, section 6).
+#define AVXECM_SPARE_BITS 3
+
+// Number of 52-bit words for a non-Mersenne (Montgomery/AMM) modulus of
+// nbits bits.  With the constant-S template kernels any word count >= 2
+// works, so use the exact ceil((nbits+3)/52).  Otherwise (the BFIPS and
+// fixed cores, karatsuba above 16400 bits) round up to a multiple of
+// BLOCKWORDS, as those cores loop over 4-word blocks.  Set
+// AVXECM_BLOCK_NWORDS to force multiple-of-4 sizing (for A/B tests).
+static inline uint32_t avxecm_redc_nwords(uint32_t nbits)
+{
+    uint32_t w = (nbits + AVXECM_SPARE_BITS + DIGITBITS - 1) / DIGITBITS;
+#if defined(AVXECM_TMPL_KERNELS) && !defined(AVXECM_BLOCK_NWORDS)
+    if (w * DIGITBITS <= AVXECM_KARATSUBA_BITS)
+        return (w < 2) ? 2 : w;
+#endif
+    return (w + BLOCKWORDS - 1) / BLOCKWORDS * BLOCKWORDS;
+}
 void vecsqrmod52_mul(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
@@ -1107,6 +1072,47 @@ uint32_t vec_gte(vec_bignum_t * u, vec_bignum_t * v);
 void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, int sz);
 void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src);
 void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane);
+
+// Arithmetic backends (avxecm_rns.c): radix 2^52 (mdata->rns == NULL) or
+// RNS (arith/rns batch kernels).  Code outside the vec*mod_ptr API moves
+// values between mpz and vectors only through these:
+//   vec_lane_get / vec_lane_set   a lane's value as an integer (a Montgomery
+//                                 residue stays one; set reduces mod N)
+//   vec_set_raw_ui                every lane = x, not in Montgomery form (a
+//                                 product with it leaves Montgomery form)
+//   vec_monty_mulR                x = x * R mod n (into Montgomery form)
+//   vec_set_monty_one             every lane = Montgomery 1
+void vec_lane_get(vec_monty_t *mdata, mpz_t dest, vec_bignum_t *v, int lane);
+void vec_lane_set(vec_monty_t *mdata, vec_bignum_t *v, mpz_t src, int lane);
+void vec_set_raw_ui(vec_monty_t *mdata, vec_bignum_t *v, uint64_t x);
+void vec_monty_mulR(vec_monty_t *mdata, mpz_t x, mpz_t n);
+void vec_set_monty_one(vec_monty_t *mdata, vec_bignum_t *v, mpz_t n);
+
+// AVX2 builds (vecarith52_avx2.c): radix-2^52 add / sub, same results as
+// vecaddmod52 / vecsubmod52 / vec_simul_addsub52
+void vecaddmod52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void vecsubmod52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void vec_simul_addsub52_avx2(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum,
+    vec_bignum_t *diff, vec_monty_t *mdata);
+
+// RNS backend.  avxecm_rns_fixed: the size-class tables for N (NULL if RNS
+// is unavailable for it); *words = n*s, the vector size the layout needs.
+// attach: per-mdata (= per-thread) context; returns 0 on failure.
+int avxecm_rns_available(void);
+void *avxecm_rns_fixed(mpz_t N, uint32_t *words);
+void avxecm_rns_fixed_info(void *fx, int *n, int *s);
+int avxecm_rns_attach(vec_monty_t *mdata, void *fx, int own_fx, mpz_t N);
+void avxecm_rns_detach(vec_monty_t *mdata);
+void *avxecm_rns_get_fixed(vec_monty_t *mdata);
+void avxecm_rns_free_fixed(void *fx);
+void avxecm_rns_mul(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c,
+    vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+void avxecm_rns_sqr(vec_bignum_t *a, vec_bignum_t *c,
+    vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+void avxecm_rns_add(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void avxecm_rns_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t *mdata);
+void avxecm_rns_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum,
+    vec_bignum_t *diff, vec_monty_t *mdata);
 
 // declare function pointers to the type of reduction needed
 extern void(*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
@@ -1232,9 +1238,12 @@ typedef struct
     uint64_t STAGE2_MAX;
     uint32_t PRIME_RANGE;
     int DO_STAGE2;
+    struct avxecm_s2fft_s *s2fft;   // FFT stage 2 (shared; NULL: pairing)
 } thread_data_t;
 
 void vececm(thread_data_t *tdata);
+int avxecm_s2fft_run(struct avxecm_s2fft_s *s, int tid, vec_monty_t *mdata,
+    ecm_work *work, ecm_pt *P, int verbose);
 void vec_ecm_pt_init(ecm_pt *pt, uint32_t words);
 void vec_ecm_pt_free(ecm_pt *pt);
 void vec_ecm_work_init(ecm_work *work);

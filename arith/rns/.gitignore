@@ -1,0 +1,5 @@
+# build outputs of the standalone Makefile (*.o is ignored at the top level)
+rns_test
+rns_bench
+rns_yao_test
+ymicro

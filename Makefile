@@ -954,7 +954,32 @@ ECM_SRCS = \
     factor/avx-ecm/vecarith.c \
     factor/avx-ecm/vecarith52.c \
     factor/avx-ecm/vecarith52_special.c \
-    factor/avx-ecm/vecarith52_common.c
+    factor/avx-ecm/vecarith52_common.c \
+    factor/avx-ecm/avxecm_rns.c \
+    factor/avx-ecm/vecarith52_avx2.c \
+    arith/vecmont/vecarith52_tmpl.c \
+    arith/rns/rns_ref.c \
+    arith/rns/rns_avx512.c \
+    arith/rns/rns_yao_ref.c \
+    arith/rns/rns_yao_avx512.c \
+    arith/rns/rns_yaob_avx512.c \
+    arith/rns/rns_yaob_avx2.c \
+    arith/vecpoly/vp_setup.c \
+    arith/vecpoly/vp_kern.c \
+    arith/vecpoly/vp_poly.c \
+    factor/avx-ecm/avxecm_stage2fft.c
+
+# FP-emulated vector kernels: the AVX2 versions switch MXCSR to round toward
+# zero around each call, so the compiler must keep the FP ops in order
+# (-frounding-math), and they need FMA, which -mavx2 alone does not enable.
+# Only these objects get -mfma: elsewhere it would let gcc contract other
+# floating-point code and change its results.
+FP_KERNEL_OBJS = arith/vecmont/vecarith52_tmpl$(OBJ_EXT) arith/rns/rns_yaob_avx2$(OBJ_EXT) \
+    arith/vecpoly/vp_kern$(OBJ_EXT)
+$(FP_KERNEL_OBJS): CFLAGS += -frounding-math
+ifeq ($(USE_AVX2),1)
+$(FP_KERNEL_OBJS): CFLAGS += -mfma
+endif
 
 
 # -----------------------------------------------------------------------------
