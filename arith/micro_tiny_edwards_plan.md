@@ -1019,3 +1019,77 @@ new (speedup):
 * Possibly move microecm_edw onto edw_kern.h too (it has the same code
   written out).
 * Then the B1 / B2 study (F5).
+
+---
+
+# Part H: Phase 4a, microecm_edw on AVX2 x4 (2026-11-09)
+
+`factor/gmp-ecm/microecm_edw_x4.c`: the x8 list's algorithm (same curves,
+chains, B2 = 25 B1 stage 2 with the "skip" accumulator, same results) on
+AVX2, 4 inputs n < 2^52 per ymm, using the shared kernel `edw_kern.h`.
+`getfactor_uecm_edw_x8_list` calls it on AVX2-only builds;
+`getfactor_uecm_edw_x4_list` / `uecm_edw_x4_run` are the direct entry
+points.  Built with `-mfma` (Makefile `EDW_X4_OBJS`); no MXCSR change.
+
+## H1. Arithmetic
+
+Residues are doubles holding integers in [0, n), R = 2^52.  The product
+uses FMA with the default round-to-nearest (variant (b) of B0):
+* `t = fma(x, y, 2^104)`, `hd = t - 2^104`, `l1 = fma(x, y, -hd)`: x y =
+  hd + l1 exactly, hd = H1 2^52, |l1| <= 2^51 (signed low half).  The same
+  split with bias 3 2^103 handles signed products.
+* `m = l1 rho mod 2^52` (rho = -1/n), signed, |m| <= 2^51; `v = fma(m, n,
+  3 2^103)` gives H2.
+* When |l1| < 2^51 the low half of m n is exactly -l1, so r = H1 + H2
+  straight from the high halves: `r = fma(v, 2^-52, H1 - 3 2^51)`, with
+  r - n and r + n formed by two more FMAs in parallel and two sign-bit
+  blends to land in [0, n) (r is in [-n/2, 3n/2)).
+* A tie |l1| = 2^51 (probability ~2^-52 per lane) needs the carry
+  (l1 + l2) / 2^52: a predictable branch takes the full exact form
+  (`uedw4_mulredc_full`).  The check costs within noise (0-3%).
+* add / sub: one FP add, one FP sub, one sign blend.
+
+The first version (full form always) had a ~58-cycle dependent latency
+per product, against ~12 for scalar mulx code.  The Edwards formulas offer
+only 2-4 independent products per step, so it was latency-bound and lost
+to scalar microecm_edw (0.77-0.89x).  The direct-from-high-halves form cut
+the latency to ~40 cycles: microbenchmark 0.52 ns per lane-product with 8
+independent chains (scalar 0.77 ns), 1.15 ns with 2 chains.
+
+Interleaving two ymm per residue (`UEDW4_W = 2`, 8 lanes) was slower (register
+spills), so W = 1 is the default; the option is kept.
+
+## H2. Verification
+
+| check | result |
+|---|---|
+| `uedw_oracle.py x8` on the x4 build (`uedw_test.c -DUEDW_TEST_X4`), AVX2-only | 0 of 21000 + 21000 mismatches (1-2 Edwards-exception early finds, allowed) |
+| same, AVX-512 build (gcc may use VL forms) | 0 of 21000 |
+| `u4_arith.c`: mul / add / sub vs __int128, n near 2^52 and small, x, y near n, forced ties | 0 of 16M lanes bad (1.08M ties) |
+| `objdump` of the AVX2-only build | no zmm |
+
+Run log: `arith/edwards/uedw4_oracle_run.txt`.
+
+## H3. Speed (i5-11600K, one core, `x4_build.sh`, `tiny_e2e` 4000 inputs, two seeds)
+
+AVX2-only build (no x8 there: the old `getfactor_uecm_x8_list` falls back
+to scalar microecm):
+
+| bits | B1 | old microecm us | microecm_edw us | x4 list us | x4 vs old | x4 vs edw scalar |
+|---|---|---|---|---|---|---|
+| 40 | 27 | 2.70-2.83 | 2.27-2.32 | 2.18-2.19 | 1.23-1.30x | 1.04-1.07x |
+| 44 | 47 | 4.14-4.21 | 3.37 | 3.11 | 1.33-1.35x | 1.08x |
+| 48 | 70 | 6.37-6.39 | 5.03-5.24 | 4.54-4.55 | 1.40x | 1.11-1.15x |
+| 52 | 85 | 10.0-10.4 | 8.19-8.31 | 7.01-7.33 | 1.37-1.48x | 1.12-1.19x |
+
+Found rates are 1.0000 throughout.  On AVX-512 the x8 list is 3-5x
+faster than x4, as expected; x4 there is only a fallback.
+
+## H4. Next
+
+* Phase 4b: tinyecm_edw x4 (104-bit as two 52-bit FP digits).  Its
+  product has 11 partial products, so latency will matter more; the
+  high-half shortcut needs care with the carries between digits.
+* Possible x4 refinements: precompute y rho for constant multipliers
+  (cuts m's latency); a cheaper add/sub.
+* Then the B1 / B2 study (F5).

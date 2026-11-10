@@ -5,6 +5,7 @@
  *   c n m B1 B2    -> stage factor     (one curve; stage 0 / 1 / 2)
  *   s n m B1       -> X Z              (Montgomery image after stage 1)
  *   f n            -> factor           (getfactor_uecm_edw, not arbitrary)
+ * Built with -DUEDW_TEST_X4, the x command runs the AVX2 x4 list instead.
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -43,7 +44,11 @@ int main(void)
             if (scanf("%u %u %u", &B1, &curves, &k) != 3 || k > 100000) break;
             for (i = 0; i < k; i++)
                 if (scanf("%" SCNu64, &qs[i]) != 1) return 1;
+#ifdef UEDW_TEST_X4
+            uint64_t tot = uecm_edw_x4_run(qs, fs, k, B1, curves);
+#else
             uint64_t tot = uecm_edw_x8_run(qs, fs, k, B1, curves);
+#endif
             printf("%" PRIu64, tot);
             for (i = 0; i < k; i++)
                 printf(" %" PRIu64, fs[i]);

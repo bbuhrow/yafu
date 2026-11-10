@@ -1,0 +1,5 @@
+0
+0
+0 of 16000000 bad (1083404 ties)
+x8: 0 of 21000 mismatch (0 with a degenerate curve skipped, 1 correct early finds from Edwards exceptions; curve totals can differ by those)
+x8: 0 of 21000 mismatch (0 with a degenerate curve skipped, 2 correct early finds from Edwards exceptions; curve totals can differ by those)

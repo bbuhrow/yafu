@@ -909,6 +909,7 @@ COMMON_SRCS = \
     factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c \
     factor/gmp-ecm/microecm_edw.c \
+    factor/gmp-ecm/microecm_edw_x4.c \
     factor/gmp-ecm/tinyecm_edw.c \
     ytools/threadpool.c \
     ytools/ytools.c \
@@ -982,6 +983,12 @@ FP_KERNEL_OBJS = arith/vecmont/vecarith52_tmpl$(OBJ_EXT) arith/rns/rns_yaob_avx2
 $(FP_KERNEL_OBJS): CFLAGS += -frounding-math
 ifeq ($(USE_AVX2),1)
 $(FP_KERNEL_OBJS): CFLAGS += -mfma
+endif
+# The Edwards micro/tinyecm AVX2 files use FMA with the default rounding
+# (no MXCSR change), so they need -mfma only.
+EDW_X4_OBJS = factor/gmp-ecm/microecm_edw_x4$(OBJ_EXT)
+ifeq ($(USE_AVX2),1)
+$(EDW_X4_OBJS): CFLAGS += -mfma
 endif
 
 

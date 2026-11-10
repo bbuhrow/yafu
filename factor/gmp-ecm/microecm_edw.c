@@ -697,8 +697,8 @@ static const uint8_t uedw_b1_205_x50[1013] = {
     11,17,19,29,49,53,0,59,37,31,29,19,11,7,1,23,
     41,53,0,47,43 };
 
-#ifdef USE_AVX512F
-/* the B2 = 25 B1 sequences at B1 >= 125, used by the x8 stage 2 (as microecm's) */
+#if defined(USE_AVX512F) || defined(USE_AVX2)
+/* the B2 = 25 B1 sequences at B1 >= 125, used by the vector stage 2 (as microecm's x8) */
 static const int uedw_numb1_125 = 319;
 static const uint8_t uedw_b1_125[319] = {
     23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
@@ -885,6 +885,27 @@ static uint64_t uedw_stage2(const uedw_pt *P, const uedw_curve *cv, uint32_t stg
         acc = tmp;
     }
     return acc;
+}
+
+/* the B2 = 25 B1 pair tables of the vector stage 2 (also for
+   microecm_edw_x4.c); 0 if B1 is not a level */
+int uedw_s2table25(uint32_t B1, const uint8_t **barray, int *numb)
+{
+#if !defined(USE_AVX512F) && !defined(USE_AVX2)
+    (void)B1; (void)barray; (void)numb;
+    return 0;
+#else
+    switch (B1) {
+    case 27: *barray = uedw_b1_27; *numb = uedw_numb1_27; return 1;
+    case 47: *barray = uedw_b1_47; *numb = uedw_numb1_47; return 1;
+    case 70: *barray = uedw_b1_70; *numb = uedw_numb1_70; return 1;
+    case 85: *barray = uedw_b1_85; *numb = uedw_numb1_85; return 1;
+    case 125: *barray = uedw_b1_125; *numb = uedw_numb1_125; return 1;
+    case 165: *barray = uedw_b1_165; *numb = uedw_numb1_165; return 1;
+    case 205: *barray = uedw_b1_205; *numb = uedw_numb1_205; return 1;
+    default: return 0;
+    }
+#endif
 }
 
 /* ------------------------------------------------------------- driver */
@@ -1788,6 +1809,10 @@ void getfactor_uecm_edw_x8_list(uint64_t *q64, uint64_t *f64, uint32_t num_in, u
         uedw8_list(q64, f64, num_in, B1, 25 * B1, curves, 0);
         return;
     }
+#elif defined(USE_AVX2)
+    // AVX2 builds: the x4 list (same curves and results)
+    getfactor_uecm_edw_x4_list(q64, f64, num_in, pran);
+    return;
 #endif
     for (i = 0; i < num_in; i++)
         f64[i] = getfactor_uecm_edw(q64[i], 0, pran);

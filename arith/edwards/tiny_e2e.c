@@ -69,6 +69,8 @@ int main(int argc, char **argv)
         }
         int ok = 0;
         uint64_t h = 0;
+        double t_edw = 0;
+        (void)t_edw;
         double t0 = now();
         for (int i = 0; i < num; i++) {
             uint64_t ff = getfactor_uecm(q[i], 0, &lcg);
@@ -90,6 +92,7 @@ int main(int argc, char **argv)
             double e1 = now();
             printf("  %4d %4d  %8.2f  %.4f   (uecm_edw)   speedup %.3f\n", ub[k], ublv[k],
                 (e1 - e0) * 1e6 / num, (double)okE / num, (t1 - t0) / (e1 - e0));
+            t_edw = e1 - e0;
         }
 #endif
         if (ub[k] <= 52) {
@@ -115,6 +118,21 @@ int main(int argc, char **argv)
                     okE += (f[i] > 1 && f[i] < q[i] && q[i] % f[i] == 0);
                 printf("  %4d %4d  %8.2f  %.4f   (uecm_edw x8 list)   speedup %.3f\n", ub[k],
                     ublv[k], (e1 - e0) * 1e6 / num, (double)okE / num, (t1 - t0) / (e1 - e0));
+            }
+#endif
+#ifdef WITH_X4
+            {
+                /* AVX2 x4 list; speedup vs the old x8 list (or its scalar
+                   fallback) and vs the scalar uecm_edw */
+                double e0 = now();
+                getfactor_uecm_edw_x4_list(q, f, num, &lcg);
+                double e1 = now();
+                int okE = 0;
+                for (int i = 0; i < num; i++)
+                    okE += (f[i] > 1 && f[i] < q[i] && q[i] % f[i] == 0);
+                printf("  %4d %4d  %8.2f  %.4f   (uecm_edw x4 list)   speedup %.3f, vs uecm_edw %.3f\n",
+                    ub[k], ublv[k], (e1 - e0) * 1e6 / num, (double)okE / num, (t1 - t0) / (e1 - e0),
+                    t_edw / (e1 - e0));
             }
 #endif
         }
@@ -182,7 +200,11 @@ int main(int argc, char **argv)
             }
             double o0 = now();
             for (int i = 0; i < n1; i++)
+#ifdef USE_AVX512F
                 if (getfactor_tecm_x8(nn[i], gf, t, &lcg) && mpz_divisible_p(nn[i], gf) &&
+#else
+                if (getfactor_tecm(nn[i], gf, t, &lcg) && mpz_divisible_p(nn[i], gf) &&
+#endif
                     mpz_cmp_ui(gf, 1) > 0 && mpz_cmp(gf, nn[i]) < 0)
                     okO++;
             double o1 = now();

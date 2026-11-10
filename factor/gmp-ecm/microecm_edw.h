@@ -59,6 +59,17 @@ int uecm_edw_hist(uint64_t *hist, int max);
 // curves run (0 without USE_AVX512F).
 uint64_t uecm_edw_x8_run(uint64_t *q64, uint64_t *f64, uint32_t num, uint32_t B1, uint32_t curves);
 
+// The same list on AVX2, 4 at a time (microecm_edw_x4.c; n < 2^52, else
+// or without USE_AVX2 the scalar fallback).  Same curves, B1 / curves and
+// results as getfactor_uecm_edw_x8_list; that one calls this on AVX2-only
+// builds.
+void getfactor_uecm_edw_x4_list(uint64_t *q64, uint64_t *f64, uint32_t num_in, uint64_t *pran);
+// x4 list at a given B1 and curve count (0 without USE_AVX2).
+uint64_t uecm_edw_x4_run(uint64_t *q64, uint64_t *f64, uint32_t num, uint32_t B1, uint32_t curves);
+
+// internal: the B2 = 25 B1 stage-2 pair tables shared by the vector versions
+int uedw_s2table25(uint32_t B1, const uint8_t **barray, int *numb);
+
 #ifdef __cplusplus
 }
 #endif

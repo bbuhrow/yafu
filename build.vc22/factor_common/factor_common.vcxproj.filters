@@ -48,6 +48,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw.c">
       <Filter>Source Files\small_factor</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw_x4.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm_edw.c">
       <Filter>Source Files\small_factor</Filter>
     </ClCompile>

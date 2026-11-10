@@ -159,6 +159,7 @@
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw_x4.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm_edw.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\micropm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
