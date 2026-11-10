@@ -763,8 +763,71 @@ two levels:
 * fewer per-curve multiplications in the build (shared powers, smaller
   constants).
 
-## E4. Next
+## E4. Small B1: the small-constant curves first
 
-Phase 2: microecm_edw x8 (AVX-512, n < 2^52), with the same curve
-construction vectorized (one m per lane), the IFMA `madd52lo` reduction,
-and the per-curve cost of the build now gone (no per-lane modinv).
+Revisiting §C3: the search found few small-constant curves, but most tiny
+inputs need only a few curves.
+
+**Curves needed per input** (`arith/edwards/uedw_stats.c`, microecm_edw
+built with `-DUEDW_STATS`, 10000 balanced semiprimes per level; curves
+run, the finding one included):
+
+| bits | B1 | mean | P(1) | P(<= 2) | P(<= 3) | P(<= 5) | P(<= 8) |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 40 | 27 | 1.96 | 0.521 | 0.763 | 0.880 | 0.969 | 0.997 |
+| 44 | 47 | 2.10 | 0.482 | 0.732 | 0.856 | 0.960 | 0.994 |
+| 48 | 70 | 2.35 | 0.438 | 0.675 | 0.808 | 0.935 | 0.987 |
+| 52 | 85 | 3.07 | 0.329 | 0.549 | 0.699 | 0.860 | 0.955 |
+| 58 | 125 | 3.40 | 0.294 | 0.503 | 0.646 | 0.822 | 0.940 |
+| 62 | 165 | 4.12 | 0.246 | 0.429 | 0.564 | 0.749 | 0.891 |
+| 64 | 205 | 4.15 | 0.247 | 0.428 | 0.567 | 0.747 | 0.888 |
+
+So a handful of cheap first curves covers most inputs at small B1.
+
+**What the table holds:**
+* The 8 curves of `curves_iv.json` are only 4 curves: for d = -e^4, the
+  curves with d and 1/d are isomorphic (same group order) and come in
+  pairs (g = 4 / 5/3, 9/2 / 11/7, 13/3 / 8/5, 17 / 9/8).
+* g = 4 is GKL's m = 1.
+* GKL's m = 2 fits in 59 bits.
+* `arith/edwards/tiny_table.py` writes these 5 distinct curves to
+  `factor/gmp-ecm/edw_tiny_curves.h` as signed 64-bit (X, Y, Z, T, dn,
+  dd).
+
+**What changed in `microecm_edw.c`:**
+* A curve source per input: the 5 table curves first (6 mulredcs each to
+  load), then GKL m = m0, m0 + 1, ... with m0 in [3, 258].
+* [m0]Q is computed only when the table runs out, i.e. for ~3-25% of the
+  inputs, depending on the level.
+* Test hooks take a curve id (GKL m, or `UECM_EDW_TABLE | i`). There is
+  also `uecm_edw_set_table` (experiments) and `uecm_edw_hist` (with
+  `UEDW_STATS`).
+
+**Verification:** `uedw_oracle.py` now also covers table curves:
+* `params`: 0 of 1350 mismatch, table and GKL curves;
+* `curves` (30% table curves): 0 mismatches in 37133 curves, two seeds,
+  plus 1 extra find from an Edwards exception.
+
+**Speed**, us per input, same inputs and run (IFMA build, 1 thread):
+
+| bits | B1 | getfactor_uecm | edw, GKL only | edw, table first | speedup (table) | speedup (GKL only) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 40 | 27 | 2.77 | 2.51 | 2.26 | **1.23** | 1.11 |
+| 44 | 47 | 4.17 | 3.63 | 3.38 | **1.24** | 1.15 |
+| 48 | 70 | 6.41 | 5.34 | 5.10 | **1.26** | 1.20 |
+| 52 | 85 | 10.16 | 8.23 | 7.99 | **1.27** | 1.23 |
+| 58 | 125 | 20.88 | 16.68 | 16.43 | **1.27** | 1.25 |
+| 62 | 165 | 32.75 | 27.61 | 25.61 | **1.28** | 1.19 |
+| 64 | 205 | 39.62 | 31.50 | 31.45 | **1.26** | 1.26 |
+
+microecm_edw is now 1.23-1.28x faster than the optimized `getfactor_uecm`
+at every level. More small curves (the a = +1 Z/12 and Z/2 x Z/8 tables)
+would only help the few inputs needing more than 5 curves, and would need
+the a = +1 addition. Not pursued.
+
+## E5. Next
+
+Phase 2: microecm_edw x8 (AVX-512, n < 2^52):
+* the same curve source per lane (table curves, then GKL), vectorized;
+* the IFMA `madd52lo` reduction;
+* no per-lane modinv in the build.

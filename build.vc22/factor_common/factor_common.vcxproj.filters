@@ -104,6 +104,9 @@
     <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_chains.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_curves.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -193,6 +193,7 @@
     <ClInclude Include="..\..\factor\gmp-ecm\microecm.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\microecm_edw.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_chains.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_curves.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />
     <ClInclude Include="..\..\factor\gpu_cofactorization.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>

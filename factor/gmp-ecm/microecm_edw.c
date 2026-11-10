@@ -28,6 +28,7 @@ Design and measurements: arith/micro_tiny_edwards_plan.md.  In short:
 
 #include "microecm_edw.h"
 #include "edw_tiny_chains.h"
+#include "edw_tiny_curves.h"
 #include <stdint.h>
 #include <stdlib.h>
 #if defined(_MSC_VER)
@@ -826,10 +827,73 @@ static int uedw_check(uint64_t x, uint64_t n, uint64_t *f)
     return 0;
 }
 
-/* run curves on the sequence R, R + Q, ...; returns the number of curves
-   run; *f = factor or 1; *stage = stage of the find */
+/* The curve source of one input: first the curves of edw_tiny_curves.h
+   (family (iv) curves whose constants fit in 63 bits: 6 multiplications to
+   load), then GKL [m]Q for m = m0, m0 + 1, ... (~46 multiplications per
+   curve, and a short scalar multiplication on E' for [m0]Q, done only if
+   the table runs out: most small inputs need just a few curves). */
+typedef struct {
+    uedw_wpt R;             // [m]Q of the next GKL curve, once started
+    uint32_t m0;
+    int started;
+    int tab;                // next table curve
+    int ntab;               // table curves to use
+} uedw_src;
+
+static int uedw_ntab_default = EDW_TINY_NCURVES;
+
+static void uedw_src_init(uedw_src *s, uint32_t m0)
+{
+    s->m0 = m0;
+    s->started = 0;
+    s->tab = 0;
+    s->ntab = uedw_ntab_default;
+}
+
+static void uedw_table_curve(int i, uedw_curve *cv, const uedw_ctx *c)
+{
+    uint64_t v[6];
+    int k;
+    for (k = 0; k < 6; k++) {
+        int64_t s = edw_tiny_curves[i][k];
+        uint64_t a = (s < 0) ? (uint64_t)0 - (uint64_t)s : (uint64_t)s;
+        uint64_t m = MUL(a, c->Rsqr);           // a < 2^63, so a R^2 < n R
+        v[k] = (s < 0) ? SUB(0, m) : m;
+    }
+    cv->P.X = v[0];
+    cv->P.Y = v[1];
+    cv->P.Z = v[2];
+    cv->P.T = v[3];
+    cv->dn2 = ADD(v[4], v[4]);
+    cv->dd = v[5];
+    cv->dd2 = ADD(v[5], v[5]);
+    cv->a24n = v[5];
+    cv->a24d = ADD(v[5], v[4]);
+}
+
+static void uedw_next_curve(uedw_src *s, uedw_curve *cv, const uedw_ctx *c)
+{
+    if (s->tab < s->ntab) {
+        uedw_table_curve(s->tab++, cv, c);
+        return;
+    }
+    if (!s->started) {
+        uedw_w_start(&s->R, s->m0, c);
+        s->started = 1;
+    }
+    uedw_gkl_curve(&s->R, cv, c);
+    uedw_w_addq(&s->R, c);                      // the next curve's point
+}
+
+#ifdef UEDW_STATS
+#define UEDW_HIST_MAX 64
+static uint64_t uedw_hist[UEDW_HIST_MAX + 1];
+#endif
+
+/* run curves from the source; returns the number of curves run; *f =
+   factor or 1; *stage = stage of the find */
 static int uedw_curves(uint64_t *f, uint32_t B1, uint32_t B2, uint32_t curves,
-    const uedw_ctx *c, uedw_wpt *R, int *stage)
+    const uedw_ctx *c, uedw_src *src, int *stage)
 {
     uedw_chain ch;
     uint32_t curve;
@@ -840,8 +904,7 @@ static int uedw_curves(uint64_t *f, uint32_t B1, uint32_t B2, uint32_t curves,
     for (curve = 0; curve < curves; curve++) {
         uedw_curve cv;
         uedw_pt P;
-        uedw_gkl_curve(R, &cv, c);
-        uedw_w_addq(R, c);                      // the next curve's point
+        uedw_next_curve(src, &cv, c);
         uedw_stage1(&cv, &ch, &P, c);
         if (uedw_check(P.Z, c->n, f)) {
             *stage = 1;
@@ -859,42 +922,50 @@ static int uedw_curves(uint64_t *f, uint32_t B1, uint32_t B2, uint32_t curves,
 }
 
 static uint64_t uedw_run(uint64_t *f, uint32_t B1, uint32_t curves, const uedw_ctx *c,
-    uedw_wpt *R)
+    uedw_src *src, int *ncurves)
 {
     int stage;
-    uedw_curves(f, B1, 25 * B1, curves, c, R, &stage);
+    *ncurves += uedw_curves(f, B1, 25 * B1, curves, c, src, &stage) + (*f > 1);
     return *f;
 }
 
 static uint32_t uedw_lcg_m0(uint64_t *pran)
 {
-    // start of the curve sequence: m0 in [2, 257] from the caller's LCG
+    // start of the GKL sequence: m0 in [3, 258] from the caller's LCG
+    // (m = 1 and 2 are in the table)
     *pran = 6364136223846793005ULL * (*pran) + 1442695040888963407ULL;
-    return 2 + (uint32_t)((*pran >> 40) & 0xff);
+    return 3 + (uint32_t)((*pran >> 40) & 0xff);
 }
 
 static uint64_t uedw_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_t *pran)
 {
     uedw_ctx ctx;
-    uedw_wpt R;
+    uedw_src src;
     uint64_t f = 1;
+    int nc = 0;
     uedw_ctx_init(&ctx, n);
-    uedw_w_start(&R, uedw_lcg_m0(pran), &ctx);
+    uedw_src_init(&src, uedw_lcg_m0(pran));
 
     if (arbitrary) {
         // fast attempts at possible small factors
-        if (uedw_run(&f, 47, 1, &ctx, &R) > 1) return f;
-        if (uedw_run(&f, 70, 1, &ctx, &R) > 1) return f;
+        if (uedw_run(&f, 47, 1, &ctx, &src, &nc) > 1) goto done;
+        if (uedw_run(&f, 70, 1, &ctx, &src, &nc) > 1) goto done;
         if (targetBits > 58)
-            if (uedw_run(&f, 125, 1, &ctx, &R) > 1) return f;
+            if (uedw_run(&f, 125, 1, &ctx, &src, &nc) > 1) goto done;
     }
-    if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &R);
-    else if (targetBits <= 44) uedw_run(&f, 47, 32, &ctx, &R);
-    else if (targetBits <= 48) uedw_run(&f, 70, 32, &ctx, &R);
-    else if (targetBits <= 52) uedw_run(&f, 85, 32, &ctx, &R);
-    else if (targetBits <= 58) uedw_run(&f, 125, 32, &ctx, &R);
-    else if (targetBits <= 62) uedw_run(&f, 165, 42, &ctx, &R);
-    else uedw_run(&f, 205, 42, &ctx, &R);
+    if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &src, &nc);
+    else if (targetBits <= 44) uedw_run(&f, 47, 32, &ctx, &src, &nc);
+    else if (targetBits <= 48) uedw_run(&f, 70, 32, &ctx, &src, &nc);
+    else if (targetBits <= 52) uedw_run(&f, 85, 32, &ctx, &src, &nc);
+    else if (targetBits <= 58) uedw_run(&f, 125, 32, &ctx, &src, &nc);
+    else if (targetBits <= 62) uedw_run(&f, 165, 42, &ctx, &src, &nc);
+    else uedw_run(&f, 205, 42, &ctx, &src, &nc);
+done:
+#ifdef UEDW_STATS
+    // curves run per input (the finding curve included), not thread-safe
+    uedw_hist[(nc > UEDW_HIST_MAX) ? UEDW_HIST_MAX : nc]++;
+#endif
+    (void)nc;
     return f;
 }
 
@@ -915,26 +986,44 @@ uint64_t getfactor_uecm_edw(uint64_t q64, int is_arbitrary, uint64_t *pran)
     return uedw_dispatch(q64, uedw_bits(q64), is_arbitrary, pran);
 }
 
-uint64_t uecm_edw_one_curve(uint64_t n, uint32_t m, uint32_t B1, uint32_t B2, int *stage)
+/* test hooks: a curve id >= 1 is GKL m = id; UECM_EDW_TABLE | i is curve i
+   of edw_tiny_curves.h */
+static void uedw_curve_by_id(uint32_t id, uedw_curve *cv, const uedw_ctx *c)
+{
+    if (id & UECM_EDW_TABLE) {
+        uedw_table_curve((int)(id & ~UECM_EDW_TABLE) % EDW_TINY_NCURVES, cv, c);
+    } else {
+        uedw_wpt R;
+        uedw_w_start(&R, id, c);
+        uedw_gkl_curve(&R, cv, c);
+    }
+}
+
+uint64_t uecm_edw_one_curve(uint64_t n, uint32_t id, uint32_t B1, uint32_t B2, int *stage)
 {
     uedw_ctx ctx;
-    uedw_wpt R;
+    uedw_src src;
     uint64_t f = 1;
     uedw_ctx_init(&ctx, n);
-    uedw_w_start(&R, m, &ctx);
-    uedw_curves(&f, B1, B2, 1, &ctx, &R, stage);
+    if (id & UECM_EDW_TABLE) {
+        uedw_src_init(&src, 3);
+        src.tab = (int)(id & ~UECM_EDW_TABLE) % EDW_TINY_NCURVES;
+        src.ntab = src.tab + 1;
+    } else {
+        uedw_src_init(&src, id);
+        src.ntab = 0;
+    }
+    uedw_curves(&f, B1, B2, 1, &ctx, &src, stage);
     return f;
 }
 
-void uecm_edw_curve_params(uint64_t n, uint32_t m, uint64_t out[6])
+void uecm_edw_curve_params(uint64_t n, uint32_t id, uint64_t out[6])
 {
     uedw_ctx ctx;
-    uedw_wpt R;
     uedw_curve cv;
     const uedw_ctx *c = &ctx;
     uedw_ctx_init(&ctx, n);
-    uedw_w_start(&R, m, &ctx);
-    uedw_gkl_curve(&R, &cv, &ctx);
+    uedw_curve_by_id(id, &cv, &ctx);
     // out of Montgomery form: x R / R
     out[0] = MUL(cv.P.X, 1);
     out[1] = MUL(cv.P.Y, 1);
@@ -944,21 +1033,40 @@ void uecm_edw_curve_params(uint64_t n, uint32_t m, uint64_t out[6])
     out[5] = MUL(cv.dd, 1);
 }
 
-void uecm_edw_stage1_point(uint64_t n, uint32_t m, uint32_t B1, uint64_t out[2])
+void uecm_edw_stage1_point(uint64_t n, uint32_t id, uint32_t B1, uint64_t out[2])
 {
     uedw_ctx ctx;
-    uedw_wpt R;
     uedw_curve cv;
     uedw_chain ch;
     uedw_pt P;
     const uedw_ctx *c = &ctx;
     uedw_ctx_init(&ctx, n);
-    uedw_w_start(&R, m, &ctx);
-    uedw_gkl_curve(&R, &cv, &ctx);
+    uedw_curve_by_id(id, &cv, &ctx);
     out[0] = out[1] = 0;
     if (!uedw_chain_for(B1, &ch))
         return;
     uedw_stage1(&cv, &ch, &P, &ctx);
     out[0] = MUL(P.X, 1);
     out[1] = MUL(P.Z, 1);
+}
+
+void uecm_edw_set_table(int ntab)
+{
+    uedw_ntab_default = (ntab < 0) ? 0 : (ntab > EDW_TINY_NCURVES) ? EDW_TINY_NCURVES : ntab;
+}
+
+int uecm_edw_hist(uint64_t *hist, int max)
+{
+#ifdef UEDW_STATS
+    int i;
+    for (i = 0; i <= max && i <= UEDW_HIST_MAX; i++) {
+        hist[i] = uedw_hist[i];
+        uedw_hist[i] = 0;
+    }
+    return UEDW_HIST_MAX;
+#else
+    (void)hist;
+    (void)max;
+    return -1;
+#endif
 }

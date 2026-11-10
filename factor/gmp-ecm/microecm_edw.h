@@ -28,15 +28,25 @@ extern "C" {
 uint64_t getfactor_uecm_edw(uint64_t q64, int is_arbitrary, uint64_t *pran);
 
 // test / research hooks
-// One curve, GKL m (m >= 1), at a supported B1 (27, 47, 70, 85, 125, 165,
-// 205) with microecm's B2 for that B1 (or B2 <= B1: stage 1 only).
-// Returns the factor found (1 if none); *stage = 0 (none), 1 or 2.
-uint64_t uecm_edw_one_curve(uint64_t n, uint32_t m, uint32_t B1, uint32_t B2, int *stage);
-// The curve for m, out of Montgomery form: X, Y, Z, T of the start point
+// A curve id >= 1 is GKL's [m]Q curve, m = id; UECM_EDW_TABLE | i is curve i
+// of the small-constant table (edw_tiny_curves.h).
+#define UECM_EDW_TABLE 0x80000000u
+// One curve at a supported B1 (27, 47, 70, 85, 125, 165, 205) with
+// microecm's B2 for that B1 (or B2 <= B1: stage 1 only).  Returns the factor
+// found (1 if none); *stage = 0 (none), 1 or 2.
+uint64_t uecm_edw_one_curve(uint64_t n, uint32_t id, uint32_t B1, uint32_t B2, int *stage);
+// The curve, out of Montgomery form: X, Y, Z, T of the start point
 // (extended coordinates) and d = dn / dd.
-void uecm_edw_curve_params(uint64_t n, uint32_t m, uint64_t out[6]);
+void uecm_edw_curve_params(uint64_t n, uint32_t id, uint64_t out[6]);
 // The Montgomery (X : Z) after stage 1, out of Montgomery form.
-void uecm_edw_stage1_point(uint64_t n, uint32_t m, uint32_t B1, uint64_t out[2]);
+void uecm_edw_stage1_point(uint64_t n, uint32_t id, uint32_t B1, uint64_t out[2]);
+// How many table curves getfactor_uecm_edw runs before the GKL sequence
+// (default: all; process-wide, for experiments only).
+void uecm_edw_set_table(int ntab);
+// Built with -DUEDW_STATS: copies and clears the histogram of curves run per
+// input (hist[0..max]; the last bin counts "or more"); returns its size - 1,
+// or -1 without UEDW_STATS.
+int uecm_edw_hist(uint64_t *hist, int max);
 
 #ifdef __cplusplus
 }

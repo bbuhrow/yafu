@@ -1,17 +1,17 @@
-curves: 0 of 18535 mismatch (2 degenerate builds skipped, 1 extra stage-1 finds from Edwards exceptions)
-  B1  27: expected stage 1   96, stage 2 1262, none 1641
-  B1  47: expected stage 1  146, stage 2 1172, none 1680
-  B1  70: expected stage 1  140, stage 2 1010, none 1850
-  B1  85: expected stage 1   99, stage 2  821, none 2080
-  B1 125: expected stage 1   59, stage 2  741, none 2200
-  B1 165: expected stage 1   54, stage 2  516, none 1984
-  B1 205: expected stage 1   24, stage 2  208, none  752
-curves: 0 of 18587 mismatch (0 degenerate builds skipped, 2 extra stage-1 finds from Edwards exceptions)
-  B1  27: expected stage 1  113, stage 2 1237, none 1650
-  B1  47: expected stage 1  138, stage 2 1147, none 1714
-  B1  70: expected stage 1  137, stage 2 1011, none 1852
-  B1  85: expected stage 1   93, stage 2  812, none 2095
-  B1 125: expected stage 1   74, stage 2  726, none 2199
-  B1 165: expected stage 1   50, stage 2  527, none 1964
-  B1 205: expected stage 1   30, stage 2  246, none  772
-params: 0 of 2000 mismatch
+params: 0 of 1350 mismatch
+curves: 0 of 18536 mismatch (1 degenerate builds skipped, 1 extra stage-1 finds from Edwards exceptions)
+  B1  27: expected stage 1  102, stage 2 1249, none 1647
+  B1  47: expected stage 1  126, stage 2 1179, none 1695
+  B1  70: expected stage 1  133, stage 2  999, none 1868
+  B1  85: expected stage 1   99, stage 2  798, none 2103
+  B1 125: expected stage 1   73, stage 2  742, none 2185
+  B1 165: expected stage 1   61, stage 2  497, none 1959
+  B1 205: expected stage 1   29, stage 2  238, none  754
+curves: 0 of 18597 mismatch (0 degenerate builds skipped, 0 extra stage-1 finds from Edwards exceptions)
+  B1  27: expected stage 1  112, stage 2 1270, none 1618
+  B1  47: expected stage 1  146, stage 2 1160, none 1694
+  B1  70: expected stage 1  140, stage 2  951, none 1909
+  B1  85: expected stage 1  102, stage 2  790, none 2108
+  B1 125: expected stage 1   62, stage 2  693, none 2245
+  B1 165: expected stage 1   47, stage 2  536, none 1937
+  B1 205: expected stage 1   29, stage 2  224, none  824

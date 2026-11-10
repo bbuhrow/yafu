@@ -42,16 +42,41 @@ def rand_prime(rng, bits):
             return p
 
 
+TABLE = 0x80000000
+_TAB = None
+
+
+def table_curves():
+    """the constants of factor/gmp-ecm/edw_tiny_curves.h: X, Y, Z, T, dn, dd"""
+    global _TAB
+    if _TAB is None:
+        import re
+        src = open(os.path.join(tcv.tc.SRC, 'edw_tiny_curves.h')).read()
+        _TAB = [[int(v) for v in re.findall(r'-?\d+(?=LL)', row)]
+                for row in re.findall(r'\{([^{}]*LL[^{}]*)\}', src)]
+    return _TAB
+
+
+def curve_ref(cid, p):
+    """(d, x, y) mod p of curve id cid (GKL m, or TABLE | i); raises er.Find"""
+    if cid & TABLE:
+        X, Y, Z, T, dn, dd = table_curves()[(cid & ~TABLE) % len(table_curves())]
+        zi = er.inv(Z, p)
+        return dn * er.inv(dd, p) % p, X * zi % p, Y * zi % p
+    return er.curve_iv(cid, p)
+
+
 def check_params(binp, ncases=20):
     d = Driver(binp)
     rng = random.Random(5)
     bad = tot = 0
     for _ in range(ncases):
         p = rand_prime(rng, rng.choice([40, 52, 61, 63, 64]))
-        for m in range(1, 41):
+        ntab = len(table_curves())
+        for m in list(range(1, 41)) + [TABLE | i for i in range(ntab)]:
             X, Y, Z, T, dn, dd = (int(v) for v in d.ask('p %d %d' % (p, m)))
             try:
-                dref, x1, y1 = er.curve_iv(m, p)
+                dref, x1, y1 = curve_ref(m, p)
             except er.Find:
                 continue
             zi = pow(Z, -1, p)
@@ -179,7 +204,11 @@ def predict(p, m, B1, s):
     """(stage-1 found, stage-2 zero flags) mod p, or None if the curve build
     is degenerate mod p"""
     try:
-        A, g, P = er.curve_point('iv', m, p)
+        d, x, y = curve_ref(m, p)
+        if (1 + d) % p == 0:
+            raise er.Find()
+        A, g, u, v = er.edw_to_mont(d, x, y, p)
+        P = (u, v)
     except (er.Find, ValueError, ZeroDivisionError):
         return None
     R0, _ = bo.x_ladder(s, P[0], A, p)
@@ -205,6 +234,8 @@ def check_curves(binp, nper=300, seed=1):
             if n >= 1 << 64:
                 continue
             m = rng.randrange(1, 400)
+            if rng.random() < 0.3:
+                m = TABLE | rng.randrange(len(table_curves()))
             sp, sq = predict(p, m, B1, s), predict(q, m, B1, s)
             st, f = (int(v) for v in d.ask('c %d %d %d %d' % (n, m, B1, 25 * B1)))
             if sp is None or sq is None:
