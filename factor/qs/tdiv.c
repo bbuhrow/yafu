@@ -26,8 +26,8 @@ code to the public domain.
 #ifdef USE_BATCH_FACTOR
 #include "batch_factor.h"
 #endif
-#include "microecm.h"
-#include "tinyecm.h"
+#include "microecm_edw.h"
+#include "tinyecm_edw.h"
 
 #ifdef __MINGW32__
 #include <sys/time.h>
@@ -68,7 +68,7 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
     uint32_t max_factor, uint64_t* lcg)
 {
 
-    if (getfactor_tecm(candidate3lp, _1, 0, lcg) > 0)
+    if (getfactor_tecm_edw(candidate3lp, _1, 0, lcg) > 0)
     {
         if ((mpz_sizeinbase(_1, 2) <= 32) && (mpz_get_ui(_1) < max_factor))
         {
@@ -98,7 +98,7 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
             uint64_t f64;
 
             q64 = mpz_get_ui(_2);
-            f64 = getfactor_uecm(q64, 0, lcg);
+            f64 = getfactor_uecm_edw(q64, 0, lcg);
             mpz_set_ui(_3, f64);
 
             if (f64 > 1)
@@ -159,7 +159,7 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
                 uint64_t f64;
 
                 q64 = mpz_get_ui(_1);
-                f64 = getfactor_uecm(q64, 0, lcg);
+                f64 = getfactor_uecm_edw(q64, 0, lcg);
                 mpz_set_ui(_3, f64);
 
 
@@ -522,7 +522,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
             // that we are attempting to factor the potential dlp 
             // residue.
 			dconf->attempted_squfof++;
-            f64 = getfactor_uecm(q64, 0, &dconf->lcg_state); // do_uecm(q64);
+            f64 = getfactor_uecm_edw(q64, 0, &dconf->lcg_state); // do_uecm(q64);
 			
 			if ((f64 > 1) && (f64 != q64) && ((q64 % f64) == 0))
 			{

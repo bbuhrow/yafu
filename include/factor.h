@@ -185,7 +185,7 @@ typedef struct
 // Default 2: stage 1 1.16-1.29x faster than PRAC and ~6.5% more finds per
 // curve than Suyama's (arith/avxecm_edwards_plan.md, parts C and F); with
 // it, -sigma s means the family (iv) multiples m = s, s+1, ...
-#define AVXECM_CURVE_DEFAULT 2
+#define AVXECM_CURVE_DEFAULT 0
 
 typedef struct
 {

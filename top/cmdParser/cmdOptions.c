@@ -1699,6 +1699,7 @@ options_t* initOpt(void)
     options->ext_ecm_xover = 48000;
 #endif
     options->prefer_avxecm_stg2 = 0;
+    options->avxecm_curve = 0;  // Suyama parameterization
     options->B1pm1 = 100000;
     options->B1pp1 = 20000;
     options->B1ecm = 11000;

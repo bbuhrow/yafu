@@ -36,8 +36,8 @@ code to the public domain.
 #ifdef HAVE_GMP_ECM
 #include "ecm.h"
 #endif
-#include "microecm.h"
-#include "tinyecm.h"
+#include "microecm_edw.h"
+#include "tinyecm_edw.h"
 #include "kmpqs/kmpqs.h"
 
 #ifdef __MINGW32__
@@ -2547,7 +2547,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 
 		if (mpz_sizeinbase(in, 2) <= 64) {
 			uint64_t n64 = mpz_get_ui(in);
-			uint64_t f = getfactor_uecm(n64, 1, prng);
+			uint64_t f = getfactor_uecm_edw(n64, 1, prng);
 			if (f > 1)
 			{
 				mpz_init(out[numout]);
@@ -2582,7 +2582,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 			mpz_t* kf;
 			int nf, i;
 
-			if ((getfactor_tecm(in, gmpf, mpz_sizeinbase(in, 2) / 3 - 2, prng) > 0) &&
+			if ((getfactor_tecm_edw(in, gmpf, mpz_sizeinbase(in, 2) / 3 - 2, prng) > 0) &&
 				(mpz_cmp_ui(gmpf, 1) > 0) && (mpz_cmp(gmpf, in) < 0) &&
 				mpz_divisible_p(in, gmpf) && (mpz_probab_prime_p(gmpf, 1) > 0))
 			{
@@ -2648,7 +2648,7 @@ int factor64(uint64_t in, uint64_t* out,
 			break;
 		}
 
-		uint64_t f = getfactor_uecm(in, 1, prng);
+		uint64_t f = getfactor_uecm_edw(in, 1, prng);
 		if (f > 1)
 		{
 			if (prp_uecm(f) == 0)
