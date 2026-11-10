@@ -45,6 +45,10 @@ Public License 2.0, as microecm.c.
 #ifdef USE_AVX2
 #include <immintrin.h>
 #include "edw_tiny_curves.h"
+#include "edw_tiny_v2.h"
+
+/* microecm_edw.c: the parameter set and its v2 levels */
+const edw2_level_t *uedw_level2_pub(uint32_t B1);
 
 #define U4_PD(bits) _mm256_castsi256_pd(_mm256_set1_epi64x((long long)(bits)))
 #define U4_B104 0x4670000000000000ULL       // 2^104
@@ -362,8 +366,20 @@ static void uedw4_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t 
 
     for (i = 0; i < num; i++)
         f[i] = 1;
-    if (num == 0 || !edw_chain_for(B1, &ch) || !uedw_s2table25(B1, &barray, &numb))
+    const edw2_level_t *lv = 0;
+    if (num == 0)
         return;
+    if (uecm_edw_get_params() == 2) {
+        if (!(lv = uedw_level2_pub(B1)))
+            return;
+        ch.ch = lv->ch;
+        ch.len = lv->len;
+        ch.m = lv->m;
+        ch.top = lv->top;
+        ch.tz = lv->tz;
+    } else if (!edw_chain_for(B1, &ch) || !uedw_s2table25(B1, &barray, &numb)) {
+        return;
+    }
     // every lane starts with a valid modulus, so idle lanes compute harmlessly
     for (lane = 0; lane < U4_VL; lane++) {
         nU[lane] = n64[0];
@@ -452,7 +468,8 @@ static void uedw4_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t 
             }
         }
         if (B2 > B1 && msk) {
-            u4v acc = uedw4_stage2(&P, &cv, B1, barray, numb, c);
+            u4v acc = lv ? uedw4_stage2_gen(&P, &cv, lv->s2, lv->s2len, c)
+                : uedw4_stage2(&P, &cv, B1, barray, numb, c);
             u4_store(st, acc);
             for (lane = 0; lane < U4_VL; lane++) {
                 if (msk & (1u << lane)) {
@@ -475,7 +492,8 @@ static void uedw4_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t 
 /* B1 / curves as microecm's uecm_dispatch_x8_list */
 static void uedw4_params(int bits, uint32_t *B1, uint32_t *curves)
 {
-    if (bits <= 40) { *B1 = 27; *curves = 32; }
+    if (uecm_edw_get_params() == 2 && bits <= 36) { *B1 = 20; *curves = 32; }
+    else if (bits <= 40) { *B1 = 27; *curves = 32; }
     else if (bits <= 44) { *B1 = 47; *curves = 32; }
     else if (bits <= 48) { *B1 = 70; *curves = 32; }
     else if (bits <= 52) { *B1 = 85; *curves = 32; }

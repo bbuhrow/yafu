@@ -1092,4 +1092,145 @@ faster than x4, as expected; x4 there is only a fallback.
   high-half shortcut needs care with the carries between digits.
 * Possible x4 refinements: precompute y rho for constant multipliers
   (cuts m's latency); a cheaper add/sub.
-* Then the B1 / B2 study (F5).
+* Then the B1 / B2 study (F5): done next, before Phase 4b (Part I).  Phase
+  4b stays a to-do.
+
+---
+
+# Part I: the B1 / B2 study (F5), 2026-11-09
+
+The question (F5): for an expected N-bit factor, which B1 and which B2
+multiplier minimize the expected time per factor?  First for scalar 64-bit
+microecm_edw (N = 16..32), then carried over to the x8 52-bit, x4, scalar
+128-bit and x8 104-bit versions.
+
+## I1. Method
+
+Tools in `arith/edwards/`:
+
+| file | what |
+|---|---|
+| `b1b2_study.py gen` | exact point orders of the start point for 2000 random primes per N = 16..32 and the first 48 curves of microecm_edw's sequence (5 table curves, then GKL [m]Q from a random m0): 1.6M orders in `b1b2_orders_N.txt` (not committed, regenerable: 4 min on 12 threads) |
+| `b1b2_study.py eval / decomp / plan` | expected time per input with a find, for every (B1, s policy, B2 multiplier), one N-bit factor (`one`) or two (`two`, balanced n = p q) |
+| `s2_tables.py` | the natural D = 60 pairing for any (B1, B2): per giant window A, every baby b with A - b or A + b a prime in (B1, B2].  It matches microecm's tables within 1-8 cross terms |
+| `uedw_time.c`, `uedw_lvlbench.c`, `b1b2_fit.py`, `b1b2_check.py` | cost calibration: microbenchmark, then realistic fixed-level runs and a least-squares fit |
+| `b1b2_emit.py` | writes `factor/gmp-ecm/edw_tiny_v2.h` (chains and stage-2 tables of the chosen levels) |
+| `uedw_oracle2.py`, `UEDW_V2=1 uedw_oracle.py` | exact oracles for the new levels |
+| `uedw_v2bench.c`, `tedw_v2bench.c` | end to end, parameter set 1 vs 2 |
+
+The success model is exact (what the oracles check): with r = ord / gcd(ord,
+s), stage 1 finds p when r = 1, stage 2 when r divides one of the table's
+A - b, A + b.  The s policy (k2, kodd) takes q^e <= k2 B1 for q = 2 and
+q^e <= kodd B1 for odd q; (4, 1) reproduces microecm's s at every level
+exactly.
+
+### Corrections on the way
+
+The first model was wrong in three ways, and its first recommendation (B2 =
+40-60 B1) measured only 0.94-1.06x end to end:
+
+1. **Stage 2 catches more than primes in (B1, B2].**  r is caught whenever
+   it divides a covered A +- b, so extra powers of primes >= 7 (and some
+   composite r) are found anyway; only extra powers of 2, 3, 5 never are
+   (A +- b is coprime to 30).  After the fix the model's curve counts match
+   C within ~2% (`b1b2_check.py`).
+2. **Costs.**  Realistic runs (varying inputs and curves) cost ~1.33x the
+   repeated-input microbenchmark per curve, and a stage-2 cross term costs
+   ~3.3 ns, twice the microbenchmark figure.  The refit (`b1b2_fit.py`) to
+   45 fixed-level configurations has 1.9% rms error: stage 1 1.155 ns per
+   chain M-equivalent; stage 2 410 ns + 3.3 ns per (cross + 3.5 giant
+   steps); GKL curve build 78 ns; per input 80 ns.
+3. **Two factors.**  Balanced inputs have two N-bit factors, so each curve
+   has about twice the chance; cheaper curves win there.  Both cases are
+   modeled (`one`, `two`).
+
+## I2. Findings (calibrated model: `b1b2_decomp_one.txt`, `b1b2_decomp_two.txt`)
+
+* **The legacy B1 values are well placed.**  Choosing among the seven legacy
+  B1 per N gets within ~1% of the best B1 on a fine grid (15..400), except
+  N <= 18, where B1 = 20 is 3-8% better than 27.
+* **B2 = 50 B1 (microecm scalar at B1 >= 125) is too large.**  20-25 B1 is
+  best at every level; at N = 27-32 that alone is worth 5-15%.
+* **B2 = 25 B1 at the small levels is about right** (best 20-30 B1).
+* **More small prime powers in s help by 2-5% everywhere**: policy (8, 2)
+  (2^e <= 8 B1, odd q^e <= 2 B1) or (16, 4); they cost a few chain steps.
+* The optimum is flat: +-30% in B1 or B2 costs only a few %.
+
+## I3. The re-tuned levels (parameter set 2, now the default)
+
+From `b1b2_study.py plan 16 32 two` (balanced inputs, `b1b2_plan_two.txt`);
+the single-factor fit (`b1b2_plan_one.txt`) wants nearly the same per-level
+settings (B2 25-30 B1).
+
+| B1 | s policy | s bits (legacy) | B2 | stage-2 entries |
+|---|---|---|---|---|
+| 20 | (8, 2) | 35 (new level) | 25 B1 = 500 | 68 |
+| 27 | (16, 4) | 45 (39) | 25 B1 | 85 |
+| 47 | (8, 2) | 76 (67) | 25 B1 | 135 |
+| 70 | (8, 2) | 107 (98) | 20 B1 | 153 |
+| 85 | (16, 4) | 136 (125) | 20 B1 | 183 |
+| 125 | (8, 2) | 184 (178) | 25 B1 | 328 |
+| 165 | (8, 2) | 246 (236) | 20 B1 | 339 |
+| 205 | (16, 4) | 323 (300) | 20 B1 | 418 |
+
+Stage 2 uses a generic table format: giant windows A = 30 + 120 j from
+[30]P (difference [-90]P), entry 0 = next window, else a baby b
+(`uedw_stage2_gen`, `uedw8_stage2_gen`, `edw_kern.h` `stage2_gen`).  Each
+version keeps its accumulator rule (break / skip / freeze).
+
+Dispatch:
+* microecm_edw scalar (n bits): <= 36: 20, <= 40: 27, <= 44: 47, <= 48:
+  70, <= 52: 85, <= 56: 125, <= 60: 165, else 205 (legacy: no 20, 125 up to
+  58, 165 up to 62).  The model also wanted 47 for 39-40 bits (+0.6%), but
+  that cost 8-20% when the factor is smaller than half of n, so 27 stays.
+* microecm x8 / x4 lists: B1 = 20 for n <= 36 bits, otherwise legacy.
+* tinyecm_edw (scalar, x8 list, x8 one-n): the legacy level choice.  Its
+  per-curve fixed costs (mpz setup and gcd) differ from microecm's, so the
+  64-bit cost model is not used for its dispatch (a follow-up).
+
+`uecm_edw_set_params(1)` / `tecm_edw_set_params(1)` restore the legacy
+levels (process-wide, for experiments).
+
+## I4. Verification
+
+`b1b2_oracle_run.txt`: every path in both parameter sets against the exact
+oracle (`uedw_oracle.py`, with `UEDW_V2=1` for set 2: the v2 s and an exact
+mod-p replay of the generic stage-2 walk): microecm scalar, x8 (IFMA,
+AVX-512F), x4; tinyecm scalar, x8 list and x8 one-n (IFMA, AVX-512F).
+0 mismatches (Edwards-exception early finds allowed, as before).  The real
+yafu compile commands (from `make -n`, -Wall -Wconversion, AVX-512 IFMA and
+AVX2 configurations): 0 warnings.
+
+## I5. Speed, set 2 vs set 1 (i5-11600K, one core: `b1b2_v2bench.txt`, `b1b2_v2bench_other.txt`)
+
+microecm_edw scalar, 4000 balanced semiprimes per size (unbalanced: p of
+bits/2 - 4 bits, 3000 per size):
+
+| n bits | 32-36 | 38-46 | 48-52 | 54 | 56 | 58 | 60 | 62 | 64 |
+|---|---|---|---|---|---|---|---|---|---|
+| balanced | 1.01-1.06 | 1.03-1.06 | 1.00-1.05 | 1.12 | 1.10 | 1.12 | 1.12 | 1.15 | 1.10 |
+| unbalanced | 1.08-1.12 | 0.96-1.00 | 0.99-1.01 | 1.13 | 1.10 | 1.06 | 1.15 | 1.11 | 1.14 |
+
+(48-52 balanced re-measured with 6000 inputs on two seeds: 1.00-1.02; an
+earlier 0.92 at 50 bits was noise.)
+
+Other versions (balanced n for microecm, tiny_e2e inputs for tinyecm):
+
+| version | speedup |
+|---|---|
+| microecm x8 52-bit list (IFMA), 32-52 bits | 0.98-1.10, typically 1.01-1.04 |
+| microecm x4 list (AVX2 build), 32-52 bits | 0.99-1.06, typically 1.01-1.03 |
+| tinyecm scalar 128, t = 20-32 | 0.98-1.06 (IFMA build 1.01-1.06) |
+| tinyecm x8 104 list, t = 20-32 | 0.99-1.07, typically 1.02-1.03 |
+| tinyecm x8 one-n, t = 20-32 | 0.99-1.05, typically 1.02-1.04 |
+
+Find rates are unchanged within sampling noise.  The big win is microecm
+scalar at n >= 54 bits (its 50 B1 tables); elsewhere B2 was already 25 B1
+and the gain is the s change, a few %.
+
+## I6. Follow-ups
+
+* tinyecm's own dispatch (B1 per target bits): fit a 128-bit cost model
+  (mpz setup and gcd per curve) with the same tools.
+* The x8 / x4 list dispatch per n bits beyond B1 = 20.
+* Phase 4b (tinyecm_edw x4) remains a to-do.

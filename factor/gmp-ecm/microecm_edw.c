@@ -29,6 +29,7 @@ Design and measurements: arith/micro_tiny_edwards_plan.md.  In short:
 #include "microecm_edw.h"
 #include "edw_tiny_chains.h"
 #include "edw_tiny_curves.h"
+#include "edw_tiny_v2.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -887,6 +888,89 @@ static uint64_t uedw_stage2(const uedw_pt *P, const uedw_curve *cv, uint32_t stg
     return acc;
 }
 
+/* parameter set: 1 = the legacy levels (microecm's s, B2 = 25 / 50 B1 and
+   dispatch), 2 = the re-tuned levels of edw_tiny_v2.h (plan doc Part I),
+   the default */
+static int uedw_params = 2;
+
+static const edw2_level_t *uedw_level2(uint32_t B1)
+{
+    int i;
+    for (i = 0; i < EDW2_NLEVELS; i++)
+        if (edw2_levels[i].B1 == B1)
+            return &edw2_levels[i];
+    return 0;
+}
+
+/* stage 2 with a generic table (edw_tiny_v2.h): the same baby steps as
+   uedw_stage2, then giant windows A = 30, 150, 270, ... from [30]Q (with
+   [-90]Q as the difference); entry 0 = next window, else a cross term at
+   A +- b.  Same accumulation rule (stop before a product 0 mod n). */
+static uint64_t uedw_stage2_gen(const uedw_pt *P, const uedw_curve *cv, const uint8_t *s2,
+    int s2len, const uedw_ctx *c)
+{
+    int i, j, k;
+    uedw_pt Pa, Pd, Pad, Pb[18], pt4, pt5, pt6;
+    uint64_t Pbprod[18];
+    const int D = 60;
+
+    Pb[1] = *P;
+    Pbprod[1] = MUL(Pb[1].X, Pb[1].Z);
+    uedw_mdup(P, &Pb[2], cv, c);
+    uedw_uadd(Pb[1], Pb[2], Pb[1], &Pb[3], c);
+    uedw_mdup(&Pb[3], &pt6, cv, c);
+    uedw_uadd(Pb[3], Pb[2], Pb[1], &pt5, c);
+    Pb[3] = pt5;
+    uedw_uadd(pt6, pt5, Pb[1], &Pb[4], c);
+    i = 3; k = 4; j = 5;
+    while ((j + 12) < D) {
+        uedw_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw_uadd(pt6, Pb[1], pt5, &Pb[3], c);
+    i = 1; k = 3; j = 1;
+    while ((j + 12) < D) {
+        uedw_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw_uadd(Pb[9], Pb[10], Pb[2], &Pd, c);                // [60]Q
+    uedw_mdup(&Pb[2], &pt4, cv, c);
+    for (i = 3; i < 18; i++)
+        Pbprod[i] = MUL(Pb[i].X, Pb[i].Z);
+    uedw_uadd(Pb[uedw_map[17]], Pb[uedw_map[13]], pt4, &Pad, c);   // [30]Q
+    uedw_uadd(Pd, Pad, Pad, &Pa, c);                        // [90]Q
+    uedw_uadd(Pa, Pad, Pd, &Pd, c);                         // [120]Q
+
+    uedw_pt cur = Pad, prev = Pa;                           // [30]Q, [90]Q = [-90]Q
+    uint64_t curprod = MUL(cur.X, cur.Z);
+    uint64_t acc = c->one;
+    for (i = 0; i < s2len; i++) {
+        int b = s2[i];
+        if (b == 0) {
+            uedw_pt nx;
+            uedw_uadd(cur, Pd, prev, &nx, c);
+            prev = cur;
+            cur = nx;
+            curprod = MUL(cur.X, cur.Z);
+            continue;
+        }
+        uint64_t tt1 = SUB(cur.X, Pb[uedw_map[b]].X);
+        uint64_t tt2 = ADD(cur.Z, Pb[uedw_map[b]].Z);
+        uint64_t tt3 = MUL(tt1, tt2);
+        tt1 = ADD(tt3, Pbprod[uedw_map[b]]);
+        tt2 = SUB(tt1, curprod);
+        uint64_t tmp = MUL(acc, tt2);
+        if (tmp == 0)
+            break;
+        acc = tmp;
+    }
+    return acc;
+}
+
 /* the B2 = 25 B1 pair tables of the vector stage 2 (also for
    microecm_edw_x4.c); 0 if B1 is not a level */
 int uedw_s2table25(uint32_t B1, const uint8_t **barray, int *numb)
@@ -989,10 +1073,20 @@ static int uedw_curves(uint64_t *f, uint32_t B1, uint32_t B2, uint32_t curves,
 {
     uedw_chain ch;
     uint32_t curve;
+    const edw2_level_t *lv = 0;
     *f = 1;
     *stage = 0;
-    if (!uedw_chain_for(B1, &ch))
+    if (uedw_params == 2) {
+        if (!(lv = uedw_level2(B1)))
+            return 0;
+        ch.ch = lv->ch;
+        ch.len = lv->len;
+        ch.m = lv->m;
+        ch.top = lv->top;
+        ch.tz = lv->tz;
+    } else if (!uedw_chain_for(B1, &ch)) {
         return 0;
+    }
     for (curve = 0; curve < curves; curve++) {
         uedw_curve cv;
         uedw_pt P;
@@ -1003,7 +1097,8 @@ static int uedw_curves(uint64_t *f, uint32_t B1, uint32_t B2, uint32_t curves,
             break;
         }
         if (B2 > B1) {
-            uint64_t acc = uedw_stage2(&P, &cv, B1, c);
+            uint64_t acc = lv ? uedw_stage2_gen(&P, &cv, lv->s2, lv->s2len, c)
+                : uedw_stage2(&P, &cv, B1, c);
             if (uedw_check(acc, c->n, f)) {
                 *stage = 2;
                 break;
@@ -1045,6 +1140,18 @@ static uint64_t uedw_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
         if (targetBits > 58)
             if (uedw_run(&f, 125, 1, &ctx, &src, &nc) > 1) goto done;
     }
+    if (uedw_params == 2) {
+        // re-tuned levels (Part I): balanced n, factor ~ targetBits / 2
+        if (targetBits <= 36) uedw_run(&f, 20, 32, &ctx, &src, &nc);
+        else if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &src, &nc);
+        else if (targetBits <= 44) uedw_run(&f, 47, 32, &ctx, &src, &nc);
+        else if (targetBits <= 48) uedw_run(&f, 70, 32, &ctx, &src, &nc);
+        else if (targetBits <= 52) uedw_run(&f, 85, 32, &ctx, &src, &nc);
+        else if (targetBits <= 56) uedw_run(&f, 125, 32, &ctx, &src, &nc);
+        else if (targetBits <= 60) uedw_run(&f, 165, 42, &ctx, &src, &nc);
+        else uedw_run(&f, 205, 42, &ctx, &src, &nc);
+        goto done;
+    }
     if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &src, &nc);
     else if (targetBits <= 44) uedw_run(&f, 47, 32, &ctx, &src, &nc);
     else if (targetBits <= 48) uedw_run(&f, 70, 32, &ctx, &src, &nc);
@@ -1069,6 +1176,22 @@ static int uedw_bits(uint64_t n)
         n >>= 1;
     }
     return b;
+}
+
+/* research hook: up to `curves` curves of one level (no pre-passes), the
+   curve sequence from *pran as in getfactor_uecm_edw; *ncurves = curves run
+   (the finding one included) */
+uint64_t uecm_edw_level(uint64_t n, uint32_t B1, uint32_t curves, uint64_t *pran, int *ncurves)
+{
+    uedw_ctx ctx;
+    uedw_src src;
+    uint64_t f = 1;
+    int nc = 0;
+    uedw_ctx_init(&ctx, n);
+    uedw_src_init(&src, uedw_lcg_m0(pran));
+    uedw_run(&f, B1, curves, &ctx, &src, &nc);
+    *ncurves = nc;
+    return f;
 }
 
 uint64_t getfactor_uecm_edw(uint64_t q64, int is_arbitrary, uint64_t *pran)
@@ -1135,11 +1258,36 @@ void uecm_edw_stage1_point(uint64_t n, uint32_t id, uint32_t B1, uint64_t out[2]
     uedw_ctx_init(&ctx, n);
     uedw_curve_by_id(id, &cv, &ctx);
     out[0] = out[1] = 0;
-    if (!uedw_chain_for(B1, &ch))
+    if (uedw_params == 2) {
+        const edw2_level_t *lv = uedw_level2(B1);
+        if (!lv)
+            return;
+        ch.ch = lv->ch;
+        ch.len = lv->len;
+        ch.m = lv->m;
+        ch.top = lv->top;
+        ch.tz = lv->tz;
+    } else if (!uedw_chain_for(B1, &ch)) {
         return;
+    }
     uedw_stage1(&cv, &ch, &P, &ctx);
     out[0] = MUL(P.X, 1);
     out[1] = MUL(P.Z, 1);
+}
+
+void uecm_edw_set_params(int v)
+{
+    uedw_params = (v == 2) ? 2 : 1;
+}
+
+int uecm_edw_get_params(void)
+{
+    return uedw_params;
+}
+
+const edw2_level_t *uedw_level2_pub(uint32_t B1)
+{
+    return uedw_level2(B1);
 }
 
 void uecm_edw_set_table(int ntab)
@@ -1514,6 +1662,64 @@ static __m512i uedw8_cross(const uedw_pt8 *R, __m512i Rprod, const uedw_pt8 *Pb,
     return D8(tt1, Rprod);
 }
 
+/* stage 2 with a generic table (edw_tiny_v2.h; as uedw_stage2_gen) */
+static __m512i uedw8_stage2_gen(const uedw_pt8 *P, const uedw_curve8 *cv, const uint8_t *s2,
+    int s2len, const uedw_ctx8 *c)
+{
+    int i, j, k;
+    uedw_pt8 Pa, Pd, Pad, Pb[18], pt4, pt5, pt6;
+    __m512i Pbprod[18];
+    const int D = 60;
+
+    Pb[1] = *P;
+    Pbprod[1] = M8(Pb[1].X, Pb[1].Z);
+    uedw8_mdup(P, &Pb[2], cv, c);
+    uedw8_uadd(Pb[1], Pb[2], Pb[1], &Pb[3], c);
+    uedw8_mdup(&Pb[3], &pt6, cv, c);
+    uedw8_uadd(Pb[3], Pb[2], Pb[1], &pt5, c);
+    Pb[3] = pt5;
+    uedw8_uadd(pt6, pt5, Pb[1], &Pb[4], c);
+    i = 3; k = 4; j = 5;
+    while ((j + 12) < D) {
+        uedw8_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw8_uadd(pt6, Pb[1], pt5, &Pb[3], c);
+    i = 1; k = 3; j = 1;
+    while ((j + 12) < D) {
+        uedw8_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw8_uadd(Pb[9], Pb[10], Pb[2], &Pd, c);
+    uedw8_mdup(&Pb[2], &pt4, cv, c);
+    for (i = 3; i < 18; i++)
+        Pbprod[i] = M8(Pb[i].X, Pb[i].Z);
+    uedw8_uadd(Pb[uedw_map[17]], Pb[uedw_map[13]], pt4, &Pad, c);  // [30]Q
+    uedw8_uadd(Pd, Pad, Pad, &Pa, c);                       // [90]Q
+    uedw8_uadd(Pa, Pad, Pd, &Pd, c);                        // [120]Q
+
+    uedw_pt8 cur = Pad, prev = Pa;
+    __m512i curprod = M8(cur.X, cur.Z);
+    __m512i acc = c->one;
+    for (i = 0; i < s2len; i++) {
+        int b = s2[i];
+        if (b == 0) {
+            uedw_pt8 nx;
+            uedw8_uadd(cur, Pd, prev, &nx, c);
+            prev = cur;
+            cur = nx;
+            curprod = M8(cur.X, cur.Z);
+            continue;
+        }
+        UEDW8_ACC(uedw8_cross(&cur, curprod, &Pb[uedw_map[b]], Pbprod[uedw_map[b]], c));
+    }
+    return acc;
+}
+
 /* microecm's uecm_stage2_x8 (D = 60, B2 = 25 B1) with projective A24 */
 static __m512i uedw8_stage2(const uedw_pt8 *P, const uedw_curve8 *cv, uint32_t stg1_max,
     const uedw_ctx8 *c)
@@ -1650,8 +1856,20 @@ static void uedw8_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t 
 
     for (i = 0; i < num; i++)
         f[i] = 1;
-    if (num == 0 || !uedw_chain_for(B1, &ch))
+    const edw2_level_t *lv = 0;
+    if (num == 0)
         return;
+    if (uedw_params == 2) {
+        if (!(lv = uedw_level2(B1)))
+            return;
+        ch.ch = lv->ch;
+        ch.len = lv->len;
+        ch.m = lv->m;
+        ch.top = lv->top;
+        ch.tz = lv->tz;
+    } else if (!uedw_chain_for(B1, &ch)) {
+        return;
+    }
     // every lane starts with a valid modulus, so idle lanes compute harmlessly
     for (lane = 0; lane < 8; lane++) {
         nA[lane] = n64[0];
@@ -1751,7 +1969,8 @@ static void uedw8_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t 
             }
         }
         if (B2 > B1 && msk) {
-            __m512i acc = uedw8_stage2(&P, &cv, B1, c);
+            __m512i acc = lv ? uedw8_stage2_gen(&P, &cv, lv->s2, lv->s2len, c)
+                : uedw8_stage2(&P, &cv, B1, c);
             _mm512_store_si512(st, acc);
             for (lane = 0; lane < 8; lane++) {
                 if (msk & (1 << lane)) {
@@ -1785,7 +2004,8 @@ static void uedw8_init_consts(void)
 /* B1 / curves as microecm's uecm_dispatch_x8_list */
 static void uedw_x8_params(int bits, uint32_t *B1, uint32_t *curves)
 {
-    if (bits <= 40) { *B1 = 27; *curves = 32; }
+    if (uedw_params == 2 && bits <= 36) { *B1 = 20; *curves = 32; }
+    else if (bits <= 40) { *B1 = 27; *curves = 32; }
     else if (bits <= 44) { *B1 = 47; *curves = 32; }
     else if (bits <= 48) { *B1 = 70; *curves = 32; }
     else if (bits <= 52) { *B1 = 85; *curves = 32; }

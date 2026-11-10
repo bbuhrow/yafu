@@ -51,6 +51,16 @@ void uecm_edw_stage1_point(uint64_t n, uint32_t id, uint32_t B1, uint64_t out[2]
 // How many table curves getfactor_uecm_edw runs before the GKL sequence
 // (default: all; process-wide, for experiments only).
 void uecm_edw_set_table(int ntab);
+// Parameter set (process-wide, for experiments; scalar, x8 and x4): 1 = the
+// legacy levels (microecm's s, B2 and dispatch), 2 (default) = the re-tuned levels of
+// edw_tiny_v2.h (s with more small prime powers, B2 = 20-25 B1, B1 = 20 for
+// n <= 36 bits, shifted thresholds).  uecm_edw_one_curve follows it too.
+void uecm_edw_set_params(int v);
+int uecm_edw_get_params(void);
+// Up to `curves` curves of one level B1 (no pre-passes), the curve sequence
+// from *pran as in getfactor_uecm_edw; *ncurves = curves run.  Follows the
+// parameter set.  Returns the factor or 1.
+uint64_t uecm_edw_level(uint64_t n, uint32_t B1, uint32_t curves, uint64_t *pran, int *ncurves);
 // Built with -DUEDW_STATS: copies and clears the histogram of curves run per
 // input (hist[0..max]; the last bin counts "or more"); returns its size - 1,
 // or -1 without UEDW_STATS.

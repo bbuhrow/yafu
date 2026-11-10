@@ -414,6 +414,69 @@ static EK_UNUSED EK_T EK_FN(stage2)(const EK_FN(pt) *P, const EK_FN(curve) *cv, 
     return acc;
 }
 
+/* stage 2 with a generic table (edw_tiny_v2.h): the same baby steps, then
+   giant windows A = 30, 150, 270, ... from [30]P (with [-90]P as the
+   difference); entry 0 = next window, else a cross term at A +- b, with
+   EK_ACC's accumulation rule */
+static EK_UNUSED EK_T EK_FN(stage2_gen)(const EK_FN(pt) *P, const EK_FN(curve) *cv,
+    const uint8_t *s2, int s2len, const EK_CTX *c)
+{
+    int i, j, k;
+    EK_FN(pt) Pa, Pd, Pad, Pb[18], pt4, pt5, pt6;
+    EK_T Pbprod[18];
+    const int D = 60;
+    EK_ACC_DECL
+
+    Pb[1] = *P;
+    Pbprod[1] = MUL(Pb[1].X, Pb[1].Z);
+    EK_FN(mdup)(P, &Pb[2], cv, c);
+    EK_FN(uadd)(Pb[1], Pb[2], Pb[1], &Pb[3], c);
+    EK_FN(mdup)(&Pb[3], &pt6, cv, c);
+    EK_FN(uadd)(Pb[3], Pb[2], Pb[1], &pt5, c);
+    Pb[3] = pt5;
+    EK_FN(uadd)(pt6, pt5, Pb[1], &Pb[4], c);
+    i = 3; k = 4; j = 5;
+    while ((j + 12) < D) {
+        EK_FN(uadd)(pt6, Pb[k], Pb[i], &Pb[edw_s2map[j + 12]], c);
+        i = k;
+        k = edw_s2map[j + 12];
+        j += 6;
+    }
+    EK_FN(uadd)(pt6, Pb[1], pt5, &Pb[3], c);
+    i = 1; k = 3; j = 1;
+    while ((j + 12) < D) {
+        EK_FN(uadd)(pt6, Pb[k], Pb[i], &Pb[edw_s2map[j + 12]], c);
+        i = k;
+        k = edw_s2map[j + 12];
+        j += 6;
+    }
+    EK_FN(uadd)(Pb[9], Pb[10], Pb[2], &Pd, c);              // [60]P
+    EK_FN(mdup)(&Pb[2], &pt4, cv, c);
+    for (i = 3; i < 18; i++)
+        Pbprod[i] = MUL(Pb[i].X, Pb[i].Z);
+    EK_FN(uadd)(Pb[edw_s2map[17]], Pb[edw_s2map[13]], pt4, &Pad, c);   // [30]P
+    EK_FN(uadd)(Pd, Pad, Pad, &Pa, c);                      // [90]P
+    EK_FN(uadd)(Pa, Pad, Pd, &Pd, c);                       // [120]P
+
+    EK_FN(pt) cur = Pad, prev = Pa;
+    EK_T curprod = MUL(cur.X, cur.Z);
+    EK_T acc = c->one;
+    for (i = 0; i < s2len; i++) {
+        int b = s2[i];
+        if (b == 0) {
+            EK_FN(pt) nx;
+            EK_FN(uadd)(cur, Pd, prev, &nx, c);
+            prev = cur;
+            cur = nx;
+            curprod = MUL(cur.X, cur.Z);
+            continue;
+        }
+        EK_T t_ = EK_FN(cross)(&cur, curprod, &Pb[edw_s2map[b]], Pbprod[edw_s2map[b]], c);
+        EK_ACC(acc, t_)
+    }
+    return acc;
+}
+
 #undef MUL
 #undef SQR
 #undef ADD

@@ -23,6 +23,7 @@ See arith/micro_tiny_edwards_plan.md.
 
 #include "tinyecm_edw.h"
 #include "edw_tiny_curves.h"
+#include "edw_tiny_v2.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -368,6 +369,42 @@ static int tedw_s2table(uint32_t B1, const uint8_t **barray, int *numb)
 }
 
 /* table constant (|v| < 2^63) to Montgomery form */
+/* parameter set: 1 = legacy (microecm's s per level, tinyecm's B2 = 25 B1
+   tables), 2 = the re-tuned levels of edw_tiny_v2.h (more small prime
+   powers in s, generic B2 = 20-25 B1 tables), the default; same level
+   choice either way */
+static int tedw_params = 2;
+
+void tecm_edw_set_params(int v)
+{
+    tedw_params = (v == 2) ? 2 : 1;
+}
+
+/* the chain of level B1, and its stage-2 table: *lv (set 2) or barray */
+static int tedw_level(uint32_t B1, edw_chain_t *ch, const uint8_t **barray, int *numb,
+    const edw2_level_t **lv)
+{
+    int i;
+    *lv = 0;
+    if (tedw_params == 2) {
+        for (i = 0; i < EDW2_NLEVELS; i++) {
+            if (edw2_levels[i].B1 == B1) {
+                *lv = &edw2_levels[i];
+                ch->ch = (*lv)->ch;
+                ch->len = (*lv)->len;
+                ch->m = (*lv)->m;
+                ch->top = (*lv)->top;
+                ch->tz = (*lv)->tz;
+                *barray = 0;
+                *numb = 0;
+                return 1;
+            }
+        }
+        return 0;
+    }
+    return edw_chain_for(B1, ch) && tedw_s2table(B1, barray, numb);
+}
+
 static tedw_u128 tedw_const(int64_t v, const tedw_ctx *c)
 {
     tedw_u128 a;
@@ -454,9 +491,10 @@ static int tedw_curves(const mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_
     edw_chain_t ch;
     const uint8_t *barray;
     int numb;
+    const edw2_level_t *lv;
     uint32_t i;
     *stage = 0;
-    if (!edw_chain_for(B1, &ch) || !tedw_s2table(B1, &barray, &numb))
+    if (!tedw_level(B1, &ch, &barray, &numb, &lv))
         return 0;
     for (i = 0; i < curves; i++) {
         tedw_curve cv;
@@ -468,7 +506,8 @@ static int tedw_curves(const mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_
             return 1;
         }
         if (B2 > B1) {
-            tedw_u128 acc = tedw_stage2(&P, &cv, B1, barray, numb, c);
+            tedw_u128 acc = lv ? tedw_stage2_gen(&P, &cv, lv->s2, lv->s2len, c)
+                : tedw_stage2(&P, &cv, B1, barray, numb, c);
             if (tedw_check(acc, n, f)) {
                 *stage = 2;
                 return 1;
@@ -562,9 +601,12 @@ void tecm_edw_stage1_point(mpz_t n, uint32_t id, uint32_t B1, mpz_t X, mpz_t Z)
     tedw_u128 one;
     tedw_ctx_init(&ctx, n);
     tedw_curve_by_id(id, &cv, &ctx);
+    const uint8_t *barray;
+    int numb;
+    const edw2_level_t *lv;
     mpz_set_ui(X, 0);
     mpz_set_ui(Z, 0);
-    if (!edw_chain_for(B1, &ch))
+    if (!tedw_level(B1, &ch, &barray, &numb, &lv))
         return;
     tedw_stage1(&cv, &ch, &P, &ctx);
     one.lo = 1;
@@ -933,7 +975,8 @@ static uint64_t tedw8_list(const uint64_t *q64, uint64_t *f64, const uint32_t *i
     tedw8_wpt R;
     mpz_t n, f;
 
-    if (num == 0 || !edw_chain_for(B1, &ch) || !tedw_s2table(B1, &barray, &numb))
+    const edw2_level_t *lv;
+    if (num == 0 || !tedw_level(B1, &ch, &barray, &numb, &lv))
         return 0;
     mpz_init(n);
     mpz_init(f);
@@ -1016,7 +1059,8 @@ static uint64_t tedw8_list(const uint64_t *q64, uint64_t *f64, const uint32_t *i
             }
         }
         if (B2 > B1 && msk) {
-            tedw_v acc = tedw8_stage2(&P, &cv, B1, barray, numb, c);
+            tedw_v acc = lv ? tedw8_stage2_gen(&P, &cv, lv->s2, lv->s2len, c)
+                : tedw8_stage2(&P, &cv, B1, barray, numb, c);
             for (lane = 0; lane < 8; lane++) {
                 if ((msk & (1 << lane)) && tedw8_lane_check(&acc, &L, lane, f)) {
                     tedw8_store_factor(f64, idx[lane], f);
@@ -1136,7 +1180,8 @@ static int tedw8_one_rounds(tedw8_one_t *st, const mpz_t n, mpz_t f, uint32_t B1
     const int ntab = EDW_TINY_NCURVES;
     (void)n;
     *done_rounds = 0;
-    if (!edw_chain_for(B1, &ch) || !tedw_s2table(B1, &barray, &numb))
+    const edw2_level_t *lv;
+    if (!tedw_level(B1, &ch, &barray, &numb, &lv))
         return 0;
     for (r = 0; r < rounds; r++) {
         int k8[8];
@@ -1164,7 +1209,8 @@ static int tedw8_one_rounds(tedw8_one_t *st, const mpz_t n, mpz_t f, uint32_t B1
         for (lane = 0; lane < 8; lane++)
             if (tedw8_lane_check(&P.Z, &st->L, lane, f))
                 return 1;
-        tedw_v acc = tedw8_stage2(&P, &cv, B1, barray, numb, c);
+        tedw_v acc = lv ? tedw8_stage2_gen(&P, &cv, lv->s2, lv->s2len, c)
+            : tedw8_stage2(&P, &cv, B1, barray, numb, c);
         for (lane = 0; lane < 8; lane++)
             if (tedw8_lane_check(&acc, &st->L, lane, f))
                 return 1;

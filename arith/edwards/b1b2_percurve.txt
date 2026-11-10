@@ -1,0 +1,15 @@
+N 32 set 1 B1  27:   823713 ns per find   54914 ns per input  curves 43.73  found 0.0667
+N 32 set 1 B1  47:   204565 ns per find   51823 ns per input  curves 30.00  found 0.2533
+N 32 set 1 B1  70:   104314 ns per find   40404 ns per input  curves 17.70  found 0.3873
+N 32 set 1 B1  85:    82283 ns per find   34504 ns per input  curves 12.84  found 0.4193
+N 32 set 1 B1 125:    67571 ns per find   29641 ns per input  curves 6.21  found 0.4387
+N 32 set 1 B1 165:    59818 ns per find   27357 ns per input  curves 4.51  found 0.4573
+N 32 set 1 B1 205:    59018 ns per find   26991 ns per input  curves 3.64  found 0.4573
+N 32 set 2 B1  20:   933521 ns per find   56634 ns per input  curves 44.23  found 0.0607
+N 32 set 2 B1  27:   422091 ns per find   63032 ns per input  curves 37.87  found 0.1493
+N 32 set 2 B1  47:   136443 ns per find   47209 ns per input  curves 21.10  found 0.3460
+N 32 set 2 B1  70:    94177 ns per find   38424 ns per input  curves 12.59  found 0.4080
+N 32 set 2 B1  85:    81034 ns per find   32954 ns per input  curves 9.18  found 0.4067
+N 32 set 2 B1 125:    64526 ns per find   27789 ns per input  curves 6.39  found 0.4307
+N 32 set 2 B1 165:    57923 ns per find   25911 ns per input  curves 4.32  found 0.4473
+N 32 set 2 B1 205:    52887 ns per find   24363 ns per input  curves 3.62  found 0.4607

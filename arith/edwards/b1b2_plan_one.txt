@@ -1,0 +1,18 @@
+mode one levels: 20: pol (8, 2) x30  27: pol (16, 4) x30  47: pol (8, 2) x30  70: pol (8, 2) x25  85: pol (8, 2) x30  125: pol (8, 2) x25  165: pol (8, 2) x25  205: pol (16, 4) x20
+N 16: legacy B1 27 1544 ns | new B1 20 1492 ns  gain 1.035 | best-possible 1.035
+N 17: legacy B1 27 1877 ns | new B1 20 1791 ns  gain 1.048 | best-possible 1.050
+N 18: legacy B1 27 2312 ns | new B1 27 2207 ns  gain 1.048 | best-possible 1.048
+N 19: legacy B1 27 3110 ns | new B1 47 2820 ns  gain 1.103 | best-possible 1.105
+N 20: legacy B1 27 4009 ns | new B1 47 3401 ns  gain 1.179 | best-possible 1.179
+N 21: legacy B1 47 4544 ns | new B1 47 4343 ns  gain 1.046 | best-possible 1.046
+N 22: legacy B1 47 5801 ns | new B1 47 5524 ns  gain 1.050 | best-possible 1.050
+N 23: legacy B1 70 7214 ns | new B1 70 7004 ns  gain 1.030 | best-possible 1.030
+N 24: legacy B1 70 8833 ns | new B1 85 8460 ns  gain 1.044 | best-possible 1.044
+N 25: legacy B1 85 11059 ns | new B1 85 10628 ns  gain 1.041 | best-possible 1.041
+N 26: legacy B1 85 14040 ns | new B1 125 13432 ns  gain 1.045 | best-possible 1.046
+N 27: legacy B1 125 19000 ns | new B1 125 16523 ns  gain 1.150 | best-possible 1.150
+N 28: legacy B1 125 22275 ns | new B1 125 20290 ns  gain 1.098 | best-possible 1.098
+N 29: legacy B1 125 29413 ns | new B1 165 26352 ns  gain 1.116 | best-possible 1.116
+N 30: legacy B1 165 36396 ns | new B1 205 32006 ns  gain 1.137 | best-possible 1.137
+N 31: legacy B1 165 45638 ns | new B1 205 39911 ns  gain 1.143 | best-possible 1.143
+N 32: legacy B1 205 56873 ns | new B1 205 50679 ns  gain 1.122 | best-possible 1.123

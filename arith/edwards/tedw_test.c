@@ -6,6 +6,7 @@
  *   x B1 curves k n_1..   -> total f_1 ..   (x8 list, n < 2^104)
  *   o n B1 curves         -> found rounds f (x8 on one n)
  *   g n target_bits       -> found f        (getfactor_tecm_edw)
+ *   v k                   -> ok             (parameter set 1 / 2)
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -65,6 +66,11 @@ int main(void)
             if (!rd(n) || scanf("%u %u", &B1, &curves) != 2) break;
             int found = tecm_edw_x8_one(n, f, B1, curves, &rounds);
             gmp_printf("%d %d %Zd\n", found, rounds, f);
+        } else if (cmd == 'v') {
+            int v;
+            if (scanf("%d", &v) != 1) break;
+            tecm_edw_set_params(v);
+            printf("ok\n");
         } else if (cmd == 'g') {
             int tb;
             if (!rd(n) || scanf("%d", &tb) != 1) break;

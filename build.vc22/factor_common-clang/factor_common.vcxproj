@@ -196,6 +196,7 @@
     <ClInclude Include="..\..\factor\gmp-ecm\microecm_edw.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_chains.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_curves.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_v2.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm_edw.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\edw_kern.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />

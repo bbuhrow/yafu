@@ -46,6 +46,10 @@ uint64_t tecm_edw_x8_run(uint64_t *q64, uint64_t *f64, uint32_t num, uint32_t B1
 // x8 on one n, curves rounded up to a multiple of 8; returns 1 and the factor
 // in f if found, and the number of curve rounds run in *rounds
 int tecm_edw_x8_one(mpz_t n, mpz_t f, uint32_t B1, uint32_t curves, int *rounds);
+// Parameter set (process-wide, for experiments): 1 = legacy levels, 2 (the
+// default) = the re-tuned levels of edw_tiny_v2.h (same level choice).  All entry points and
+// hooks follow it.
+void tecm_edw_set_params(int v);
 
 #ifdef __cplusplus
 }

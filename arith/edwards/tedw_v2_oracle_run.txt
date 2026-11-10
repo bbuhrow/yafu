@@ -1,0 +1,6 @@
+tiny curves: 0 of 2398 mismatch (0 degenerate skipped, 2 Edwards-exception finds)
+tiny x8: 0 of 2400 mismatch (0 skipped, 0 Edwards-exception finds)
+tiny x8 one-n: 0 of 640 mismatch (0 skipped, 0 earlier correct finds)
+tiny x8: 0 of 2400 mismatch (0 skipped, 0 Edwards-exception finds)
+tiny x8 one-n: 0 of 640 mismatch (0 skipped, 0 earlier correct finds)
+tiny x8: 0 of 700 mismatch (0 skipped, 0 Edwards-exception finds)

@@ -5,6 +5,7 @@
  *   c n m B1 B2    -> stage factor     (one curve; stage 0 / 1 / 2)
  *   s n m B1       -> X Z              (Montgomery image after stage 1)
  *   f n            -> factor           (getfactor_uecm_edw, not arbitrary)
+ *   v k            -> ok               (parameter set 1 / 2)
  * Built with -DUEDW_TEST_X4, the x command runs the AVX2 x4 list instead.
  */
 #include <stdio.h>
@@ -53,6 +54,12 @@ int main(void)
             for (i = 0; i < k; i++)
                 printf(" %" PRIu64, fs[i]);
             printf("\n");
+        } else if (cmd == 'v') {
+            /* v k -> ok   (parameter set: uecm_edw_set_params) */
+            int v;
+            if (scanf("%d", &v) != 1) break;
+            uecm_edw_set_params(v);
+            printf("ok\n");
         } else if (cmd == 'f') {
             uint64_t n;
             if (scanf("%" SCNu64, &n) != 1) break;

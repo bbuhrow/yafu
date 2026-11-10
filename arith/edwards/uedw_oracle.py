@@ -23,11 +23,28 @@ import bs_oracle as bo          # noqa: E402
 import edw_ref as er            # noqa: E402
 import tiny_curves as tcv       # noqa: E402
 
+# UEDW_V2=1: check parameter set 2 (edw_tiny_v2.h: re-tuned s, generic
+# stage-2 tables, plus the B1 = 20 level); the driver gets 'v 2'
+V2 = os.environ.get('UEDW_V2') == '1'
+_V2L = None
+
+
+def v2_level(B1):
+    """(s, generic stage-2 table) of a v2 level"""
+    global _V2L
+    if _V2L is None:
+        import b1b2_emit as em
+        import b1b2_study as st
+        _V2L = {b: (st.scalar(b, pol), em.gen_table(b, m * b)) for b, pol, m in em.LEVELS2}
+    return _V2L[B1]
+
 
 class Driver:
     def __init__(self, path):
         self.p = subprocess.Popen([path], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   universal_newlines=True, bufsize=1)
+        # the parameter set under test (the C default is 2)
+        assert self.ask('v 2' if V2 else 'v 1') == ['ok']
 
     def ask(self, line):
         self.p.stdin.write(line + '\n')
@@ -225,11 +242,18 @@ def predict(p, m, B1, s, x8=False):
         P = (u, v)
     except (er.Find, ValueError, ZeroDivisionError):
         return None
+    if V2:
+        import uedw_oracle2 as o2
+        s, tab = v2_level(B1)
+        R0, _ = bo.x_ladder(s, P[0], A, p)
+        return (R0[1] % p == 0, ([], o2.gen_zero_flags(R0, A, p, tab)))
     R0, _ = bo.x_ladder(s, P[0], A, p)
     return (R0[1] % p == 0, stage2_zero_flags(R0, A, p, B1, x8))
 
 
 LEVELS = [(20, 27), (22, 47), (24, 70), (26, 85), (29, 125), (31, 165), (32, 205)]
+if V2:
+    LEVELS = [(17, 20)] + LEVELS
 
 
 def check_curves(binp, nper=300, seed=1):
@@ -238,7 +262,7 @@ def check_curves(binp, nper=300, seed=1):
     tot = bad = degen = exc = 0
     stats = {}
     for pb, B1 in LEVELS:
-        s, _ = tcv.level_data(B1)
+        s = 0 if V2 else tcv.level_data(B1)[0]
         for _ in range(nper):
             p = rand_prime(rng, pb)
             q = rand_prime(rng, pb + rng.randrange(0, 4))
@@ -296,7 +320,7 @@ def check_x8(binp, nper=200, seed=1):
     bad = tot = skipped = exc = 0
     for pb, B1 in LEVELS:
         curves = 32 if B1 <= 125 else 42
-        s, _ = tcv.level_data(B1)
+        s = 0 if V2 else tcv.level_data(B1)[0]
         ids = x8_sequence(curves)
         ns, exp, used = [], [], 0
         while len(ns) < nper:
@@ -355,6 +379,8 @@ def check_x8(binp, nper=200, seed=1):
 
 
 TLEVELS = [(20, 27), (22, 47), (24, 70), (26, 85), (29, 125), (31, 165), (32, 205)]
+if V2:
+    TLEVELS = [(17, 20)] + TLEVELS
 
 
 def check_tiny_curves(binp, nper=300, seed=1):
@@ -363,7 +389,7 @@ def check_tiny_curves(binp, nper=300, seed=1):
     rng = random.Random(seed)
     tot = bad = degen = exc = 0
     for pb, B1 in TLEVELS:
-        s, _ = tcv.level_data(B1)
+        s = 0 if V2 else tcv.level_data(B1)[0]
         for _ in range(nper):
             p = rand_prime(rng, pb)
             q = rand_prime(rng, rng.choice([2 * pb, 64, 96, 127 - pb]))
@@ -420,7 +446,7 @@ def check_tiny_x8(binp, nper=200, seed=1):
     bad = tot = skipped = exc = 0
     for pb, B1 in TLEVELS:
         curves = 32 if B1 <= 125 else 42
-        s, _ = tcv.level_data(B1)
+        s = 0 if V2 else tcv.level_data(B1)[0]
         ids = x8_sequence(curves)
         ns, exp, used = [], [], 0
         while len(ns) < nper:
@@ -472,7 +498,7 @@ def check_tiny_one(binp, nper=100, seed=1):
     bad = tot = exc = skipped = 0
     for pb, B1 in TLEVELS:
         curves = 32 if B1 <= 125 else 48
-        s, _ = tcv.level_data(B1)
+        s = 0 if V2 else tcv.level_data(B1)[0]
         ntab = len(table_curves())
         nb = 0
         for _ in range(nper):
