@@ -407,7 +407,7 @@ void avxecm_edw_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
     if (verbose > 1)
     {
         printf("\nStage 1 (Edwards, w <= %d (last chunk %d), chunk %d bits) completed at prime %"
-            PRIu64 " with %u point-adds and %u point-doubles\n", e->w, e->wlast, e->chunk,
+            PRIu64 "\nStage 1 computed %u point-adds and %u point-doubles\n", e->w, e->wlast, e->chunk,
             primes[i - 1], e->nadd, e->ndbl);
         fflush(stdout);
     }
