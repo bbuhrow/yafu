@@ -672,3 +672,99 @@ both builds. scalar uecm: 0.98-1.03x, noise.)
   - microecm scalar: unchanged, ~1.3x.
 * Phase 0's Edwards prototypes already used these arithmetic forms, so
   the Edwards stage-1 numbers stand.
+
+---
+
+# Part E: Phase 1, scalar microecm_edw (2026-11-10)
+
+## E1. What was built
+
+`factor/gmp-ecm/microecm_edw.c` / `.h` is a standalone 64-bit scalar
+microecm on Edwards curves. `microecm.c` is untouched by it. It is in the
+Makefile and both VS `factor_common` projects; no caller uses it yet.
+
+* **API:**
+  - `getfactor_uecm_edw(q64, is_arbitrary, pran)`: same contract, B1
+    levels, curve counts, arbitrary pre-passes and B2 as `getfactor_uecm`;
+  - test hooks `uecm_edw_one_curve`, `uecm_edw_curve_params` and
+    `uecm_edw_stage1_point`.
+* **Arithmetic:** microecm's (asm `mulredc`, `addmod`, `submod`, binary
+  gcd), copied with `uedw_` names; portable / MSVC fallbacks.
+* **Curves:** GKL family (iv) without inversions (§C6):
+  - [m]Q on E' in projective coordinates: a mixed addition of Q = (5, 8)
+    per curve, ~10M; a projective doubling for the start;
+  - t = tn/td, then e, x1, y1 as homogeneous polynomials and the Edwards
+    point (X : Y : Z : T) with d = dn/dd, ~36M;
+  - the formulas were checked in Python against `edw_ref.py curve_iv`
+    before coding;
+  - the start m0 is in [2, 257], from the caller's `*pran`, computed once
+    per input (double-and-add) and shared by the arbitrary pre-passes and
+    the main run.
+* **Stage 1:** the `edw_tiny_chains.h` chain on the odd part of s
+  (extended coordinates, cached table scaled by dd), the hand-off (Z + Y :
+  Z - Y), and tz x-only doublings with projective A24 = dd / (dd + dn).
+  The gcd is taken on Z.
+* **Stage 2:** microecm's `uecm_stage2`, D = 60, with the same tables
+  (copied), with the 4-5 doublings using the projective A24.
+
+## E2. Verification
+
+`arith/edwards/uedw_test.c` (stdin driver) and `uedw_oracle.py`:
+
+* `params`: the curve for m = 1..40 mod random 40-64-bit primes, out of
+  Montgomery form, against `edw_ref.py curve_iv`. **0 of 2000 mismatch.**
+* `curves`: one curve per random (n = p q, m) at every level. For each
+  prime the oracle takes:
+  - the exact stage-1 point (x-only ladder by s);
+  - every stage-2 cross term mod p, from an exact Python replay of
+    microecm's stage 2;
+  - then it replays the C accumulator loops. Each loop stops multiplying
+    when a term would make acc 0 mod n.
+
+  That control flow matters, and the first oracle got it wrong. When both
+  primes hit, the earlier term wins. And the `break` in the B1 <= 70
+  pre-step loop leaves only that loop, so the main loop can still find one
+  prime after both hit together. The replay also covers the x-only
+  collapse when a leftover order divides a difference used (r | 30 etc.).
+
+  **0 mismatches in 37122 curves** (two seeds, all seven levels: 1253
+  stage-1 finds, 11436 stage-2 finds, 24433 none). **3 extra stage-1
+  finds** come from exceptional cases of the Edwards formulas: the
+  stage-1 point is (0 : 0) mod that prime, found by the gcd, a correct
+  factor (§A6 of the AVX-ECM plan). The oracle recognizes and reports
+  these.
+
+## E3. Speed
+
+`tiny_e2e.c -DWITH_EDW`: the same 10000 balanced semiprimes per row
+through `getfactor_uecm` (with the Part D code) and `getfactor_uecm_edw`.
+Found rates were 1.0 for both (`getfactor_uecm` missed 0.02% at 58 and 64
+bits). us per input:
+
+| bits | B1 | uecm, IFMA build | uecm_edw | speedup | uecm, AVX-512F build | uecm_edw | speedup |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 40 | 27 | 2.99 | 2.81 | 1.07 | 2.97 | 2.62 | 1.13 |
+| 44 | 47 | 4.03 | 3.63 | 1.11 | 4.16 | 3.96 | 1.05 |
+| 48 | 70 | 6.42 | 5.33 | 1.20 | 7.07 | 5.71 | 1.24 |
+| 52 | 85 | 10.17 | 8.24 | 1.24 | 10.91 | 8.66 | 1.26 |
+| 58 | 125 | 21.28 | 16.96 | 1.25 | 22.40 | 18.22 | 1.23 |
+| 62 | 165 | 33.29 | 26.20 | 1.27 | 34.71 | 26.26 | 1.32 |
+| 64 | 205 | 40.66 | 31.68 | 1.28 | 42.53 | 32.18 | 1.32 |
+
+(The two builds run the same scalar code; the spread between them is run
+to run noise, ~3-5% per row.)
+
+**1.2-1.3x at B1 >= 70, as predicted in C5. Only 1.05-1.13x at B1 =
+27 / 47.** At the small levels the per-input start ([m0]Q by
+double-and-add, up to 8 doublings and additions on E') and the per-curve
+GKL build (~46M) weigh more against a ~300M stage 1. Follow-ups for those
+two levels:
+* a cheaper start (a smaller m0 range, or small precomputed start points);
+* fewer per-curve multiplications in the build (shared powers, smaller
+  constants).
+
+## E4. Next
+
+Phase 2: microecm_edw x8 (AVX-512, n < 2^52), with the same curve
+construction vectorized (one m per lane), the IFMA `madd52lo` reduction,
+and the per-curve cost of the build now gone (no per-lane modinv).

@@ -19,6 +19,9 @@
 #include "gmp.h"
 #include "microecm.h"
 #include "tinyecm.h"
+#ifdef WITH_EDW
+#include "microecm_edw.h"
+#endif
 
 static double now(void)
 {
@@ -74,6 +77,20 @@ int main(int argc, char **argv)
         double t1 = now();
         printf("  %4d %4d  %8.2f  %.4f   hash %016llx\n", ub[k], ublv[k], (t1 - t0) * 1e6 / num,
             (double)ok / num, (unsigned long long)h);
+#ifdef WITH_EDW
+        {
+            /* same inputs, Edwards microecm */
+            int okE = 0;
+            double e0 = now();
+            for (int i = 0; i < num; i++) {
+                uint64_t ff = getfactor_uecm_edw(q[i], 0, &lcg);
+                okE += (ff > 1 && ff < q[i] && q[i] % ff == 0);
+            }
+            double e1 = now();
+            printf("  %4d %4d  %8.2f  %.4f   (uecm_edw)   speedup %.3f\n", ub[k], ublv[k],
+                (e1 - e0) * 1e6 / num, (double)okE / num, (t1 - t0) / (e1 - e0));
+        }
+#endif
         if (ub[k] <= 52) {
             /* same inputs through the x8 list (n < 2^52) */
             t0 = now();

@@ -1,0 +1,964 @@
+/*
+microecm_edw.c: microecm with stage 1 on twisted Edwards curves.
+
+Copyright (c) 2014, Ben Buhrow and (c) 2022, Jeff Hurchalla (the parts
+taken from microecm.c: Montgomery arithmetic, gcd, the x-only stage 2 and
+its pairing tables).  Dual-licensed, at your option, under the FreeBSD
+license or the Mozilla Public License 2.0, exactly as microecm.c; see the
+full license texts there.
+
+Design and measurements: arith/micro_tiny_edwards_plan.md.  In short:
+  - Curves: GKL family (iv), -x^2 + y^2 = 1 + d x^2 y^2, d = -e^4.  The
+    sequence [m]Q on E': y^2 = x^3 - x^2 - 9x + 9, Q = (5, 8), is stepped
+    in projective coordinates mod n (one mixed addition per curve), and
+    t, e, (x1, y1) and d come out as homogeneous polynomials in t = tn/td:
+    no inversion anywhere, d stays a fraction dn/dd.  Family (iv) finds
+    9-14% more factors per curve than Suyama's at microecm's sizes.
+  - Stage 1: the odd part of microecm's scalar s on a precomputed
+    signed-digit chain (edw_tiny_chains.h, from arith/edwards/
+    tiny_chains.py) in extended coordinates (a = -1: doubling 3M + 4S,
+    cached addition 7M).  The doubling's independent products overlap,
+    which beats the latency-bound x-only PRAC chain even though it costs
+    more multiplications.  Then the hand-off to the Montgomery image,
+    (X : Z) = (Z + Y : Z - Y), A24 = dd / (dd + dn), and the power of 2 of
+    s as x-only doublings.
+  - Stage 2: microecm's pairing stage 2 (D = 60, B2 = 25 or 50 B1) with a
+    projective A24 in its few doublings.
+*/
+
+#include "microecm_edw.h"
+#include "edw_tiny_chains.h"
+#include <stdint.h>
+#include <stdlib.h>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+#if defined(_MSC_VER)
+#define UEDW_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define UEDW_INLINE inline __attribute__((always_inline))
+#else
+#define UEDW_INLINE __inline
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define uedw_ctz64 __builtin_ctzll
+#else
+static __inline int uedw_ctz64(uint64_t x)
+{
+    unsigned long i;
+    _BitScanForward64(&i, x);
+    return (int)i;
+}
+#endif
+
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(_MSC_VER)
+#define UEDW_ASM_X86 1
+#endif
+
+/* ---------------------------------------------------------------- arith */
+/* Montgomery multiplication with the positive inverse (Hurchalla), R = 2^64,
+   inputs and outputs in [0, n). */
+static UEDW_INLINE uint64_t uedw_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
+{
+#ifdef UEDW_ASM_X86
+    __uint128_t prod = (__uint128_t)x * y;
+    uint64_t Thi = (uint64_t)(prod >> 64);
+    uint64_t rrax = (uint64_t)(prod);
+    __asm__(
+        "imulq %[inv], %%rax \n\t"
+        "mulq %[n] \n\t"
+        "leaq (%[Thi], %[n]), %%rax \n\t"
+        "subq %%rdx, %%rax \n\t"
+        "subq %%rdx, %[Thi] \n\t"
+        "cmovbq %%rax, %[Thi] \n\t"
+        : [Thi] "+&bcSD"(Thi), "+&a"(rrax)
+        : [n] "r"(n), [inv]"r"(inv)
+        : "rdx", "cc");
+    return Thi;
+#else
+#if defined(_MSC_VER)
+    uint64_t T_hi;
+    uint64_t T_lo = _umul128(x, y, &T_hi);
+    uint64_t m = T_lo * inv;
+    uint64_t mN_hi = __umulh(m, n);
+#else
+    __uint128_t prod = (__uint128_t)x * y;
+    uint64_t T_hi = (uint64_t)(prod >> 64);
+    uint64_t T_lo = (uint64_t)(prod);
+    uint64_t m = T_lo * inv;
+    uint64_t mN_hi = (uint64_t)(((__uint128_t)m * n) >> 64);
+#endif
+    uint64_t tmp = T_hi + n - mN_hi;
+    uint64_t result = T_hi - mN_hi;
+    return (T_hi < mN_hi) ? tmp : result;
+#endif
+}
+
+static UEDW_INLINE uint64_t uedw_submod(uint64_t a, uint64_t b, uint64_t n)
+{
+#ifdef UEDW_ASM_X86
+    __asm__(
+        "xorq %%r8, %%r8 \n\t"
+        "subq %1, %0 \n\t"
+        "cmovc %2, %%r8 \n\t"
+        "addq %%r8, %0 \n\t"
+        : "+r"(a)
+        : "r"(b), "r"(n)
+        : "r8", "cc");
+    return a;
+#else
+    uint64_t r = a - b;
+    return (a < b) ? r + n : r;
+#endif
+}
+
+static UEDW_INLINE uint64_t uedw_addmod(uint64_t x, uint64_t y, uint64_t n)
+{
+#ifdef UEDW_ASM_X86
+    uint64_t t = x - n;
+    x += y;
+    __asm__("add %2, %1\n\t"
+        "cmovc %1, %0\n\t"
+        :"+r" (x), "+&r" (t)
+        : "r" (y)
+        : "cc"
+    );
+    return x;
+#else
+    return (x >= n - y) ? x - (n - y) : x + y;
+#endif
+}
+
+static uint64_t uedw_multiplicative_inverse(uint64_t a)
+{
+    uint64_t x0 = (3 * a) ^ 2;
+    uint64_t y = 1 - a * x0;
+    uint64_t x1 = x0 * (1 + y);
+    y *= y;
+    uint64_t x2 = x1 * (1 + y);
+    y *= y;
+    uint64_t x3 = x2 * (1 + y);
+    y *= y;
+    return x3 * (1 + y);
+}
+
+static uint64_t uedw_bingcd64(uint64_t u, uint64_t v)
+{
+    if (u == 0)
+        return v;
+    if (v != 0) {
+        int j = uedw_ctz64(v);
+        v = (uint64_t)(v >> j);
+        while (1) {
+            uint64_t tmp = u;
+            uint64_t sub1 = (uint64_t)(v - tmp);
+            uint64_t sub2 = (uint64_t)(tmp - v);
+            if (tmp == v)
+                break;
+            u = (tmp >= v) ? v : tmp;
+            v = (tmp >= v) ? sub2 : sub1;
+            j = uedw_ctz64(sub1);
+            v = (uint64_t)(v >> j);
+        }
+    }
+    return u;
+}
+
+/* per-modulus constants, Montgomery form */
+typedef struct {
+    uint64_t n, rho, one, Rsqr;
+    uint64_t c6, c10, c16, c32, c48;
+} uedw_ctx;
+
+#define MUL(a, b) uedw_mulredc((a), (b), c->n, c->rho)
+#define SQR(a) uedw_mulredc((a), (a), c->n, c->rho)
+#define ADD(a, b) uedw_addmod((a), (b), c->n)
+#define SUB(a, b) uedw_submod((a), (b), c->n)
+
+static void uedw_ctx_init(uedw_ctx *c, uint64_t n)
+{
+    c->n = n;
+    c->rho = uedw_multiplicative_inverse(n);
+    c->one = ((uint64_t)0 - n) % n;            // R mod n
+    uint64_t c2 = ADD(c->one, c->one);
+    uint64_t c4 = ADD(c2, c2);
+    uint64_t c8 = ADD(c4, c4);
+    c->c16 = ADD(c8, c8);
+    c->c32 = ADD(c->c16, c->c16);
+    c->c48 = ADD(c->c32, c->c16);
+    c->c6 = ADD(c4, c2);
+    c->c10 = ADD(c8, c2);
+    uint64_t t = SQR(c->c16);                   // R 2^8
+    t = SQR(t);                                 // R 2^16
+    t = SQR(t);                                 // R 2^32
+    c->Rsqr = SQR(t);                           // R 2^64 = R^2
+}
+
+/* --------------------------------------------- GKL family (iv), mod n */
+/* E': y^2 = x^3 - x^2 - 9x + 9, projective (X : Y : Z), Montgomery form */
+typedef struct { uint64_t X, Y, Z; } uedw_wpt;
+
+/* R + Q, Q = (5, 8) affine, R != +-Q.  lambda = u/v with u = 8Z - Y,
+   v = 5Z - X; A = u^2 Z - v^2 (X + (a2 + 5) Z), a2 + 5 = 4;
+   X3 = v A, Y3 = u (X v^2 - A) - Y v^3, Z3 = v^3 Z. */
+static void uedw_w_addq(uedw_wpt *R, const uedw_ctx *c)
+{
+    uint64_t X = R->X, Y = R->Y, Z = R->Z;
+    uint64_t z2 = ADD(Z, Z);
+    uint64_t z4 = ADD(z2, z2);
+    uint64_t u = SUB(ADD(z4, z4), Y);
+    uint64_t v = SUB(ADD(z4, Z), X);
+    uint64_t u2 = SQR(u);
+    uint64_t v2 = SQR(v);
+    uint64_t v3 = MUL(v2, v);
+    uint64_t w1 = MUL(v2, X);
+    uint64_t w2 = MUL(v2, Z);
+    w2 = ADD(w2, w2);
+    w2 = ADD(w2, w2);
+    uint64_t A = SUB(SUB(MUL(u2, Z), w1), w2);
+    R->X = MUL(v, A);
+    R->Y = SUB(MUL(u, SUB(w1, A)), MUL(Y, v3));
+    R->Z = MUL(v3, Z);
+}
+
+/* 2R.  lambda = w/s with w = 3X^2 - 2XZ - 9Z^2, s = 2YZ;
+   A = w^2 Z - s^2 (2X - Z); X3 = s A, Y3 = w (X s^2 - A) - Y s^3,
+   Z3 = s^3 Z. */
+static void uedw_w_dbl(uedw_wpt *R, const uedw_ctx *c)
+{
+    uint64_t X = R->X, Y = R->Y, Z = R->Z;
+    uint64_t X2 = SQR(X), Z2 = SQR(Z), XZ = MUL(X, Z);
+    uint64_t w = ADD(ADD(X2, X2), X2);
+    w = SUB(w, ADD(XZ, XZ));
+    uint64_t z8 = ADD(Z2, Z2);
+    z8 = ADD(z8, z8);
+    z8 = ADD(z8, z8);
+    w = SUB(w, ADD(z8, Z2));
+    uint64_t s = MUL(Y, Z);
+    s = ADD(s, s);
+    uint64_t s2 = SQR(s);
+    uint64_t s3 = MUL(s2, s);
+    uint64_t A = SUB(MUL(SQR(w), Z), MUL(s2, SUB(ADD(X, X), Z)));
+    uint64_t Xs2 = MUL(X, s2);
+    R->X = MUL(s, A);
+    R->Y = SUB(MUL(w, SUB(Xs2, A)), MUL(Y, s3));
+    R->Z = MUL(s3, Z);
+}
+
+/* [m]Q, m >= 1 */
+static void uedw_w_start(uedw_wpt *R, uint32_t m, const uedw_ctx *c)
+{
+    uint64_t c4 = ADD(ADD(c->one, c->one), ADD(c->one, c->one));
+    R->X = ADD(c4, c->one);                     // 5
+    R->Y = ADD(c4, c4);                         // 8
+    R->Z = c->one;
+    int top = 31;
+    while (top > 0 && !((m >> top) & 1))
+        top--;
+    for (int i = top - 1; i >= 0; i--) {
+        uedw_w_dbl(R, c);
+        if ((m >> i) & 1)
+            uedw_w_addq(R, c);
+    }
+}
+
+typedef struct { uint64_t X, Y, Z, T; } uedw_ept;
+typedef struct { uint64_t YmX, YpX, T2d, Z2; } uedw_cached;
+typedef struct {
+    uedw_ept P;                                 // start point, extended
+    uint64_t dn2, dd, dd2;                      // 2 dn, dd, 2 dd (d = dn/dd)
+    uint64_t a24n, a24d;                        // A24 = dd / (dd + dn)
+} uedw_curve;
+
+/* The family (iv) curve of the E' point R (GKL Thm 3.5, j = 4):
+   t = (4x + 4)/(y - 4) = tn/td,
+   e = t(t + 4)/(t^2 - 4),
+   x1 = 2(t + 1)(t - 2)(t + 2) / (t (t + 4)(t^2 + 2t + 4)),
+   y1 = (t^6 + 6t^5 + 10t^4 - 16t^3 - 48t^2 - 32t - 32) /
+        (t (t + 4)(t^4 + 2t^3 + 2t^2 + 8t + 16)),
+   all homogenized in (a, b) = (tn, td); d = -e^4; the start point in
+   extended coordinates (x1n y1d : y1n x1d : x1d y1d : x1n y1n).
+   Checked against arith/edwards/edw_ref.py curve_iv for m = 2..39. */
+static void uedw_gkl_curve(const uedw_wpt *R, uedw_curve *cv, const uedw_ctx *c)
+{
+    uint64_t t = ADD(R->X, R->Z);
+    t = ADD(t, t);
+    uint64_t a = ADD(t, t);                     // 4 (X + Z)
+    uint64_t z4 = ADD(R->Z, R->Z);
+    z4 = ADD(z4, z4);
+    uint64_t b = SUB(R->Y, z4);                 // Y - 4 Z
+    uint64_t a2 = SQR(a), b2 = SQR(b), ab = MUL(a, b);
+
+    uint64_t b2x = ADD(b, b);
+    uint64_t xn = MUL(MUL(SUB(a, b2x), ADD(a, b2x)), ADD(a, b));
+    xn = MUL(xn, b);
+    xn = ADD(xn, xn);
+    uint64_t aa4 = MUL(a, ADD(a, ADD(b2x, b2x)));     // a (a + 4b)
+    uint64_t b2_4 = ADD(b2, b2);
+    b2_4 = ADD(b2_4, b2_4);
+    uint64_t xd = MUL(aa4, ADD(ADD(a2, ADD(ab, ab)), b2_4));
+
+    uint64_t t1 = SQR(a2), t2 = MUL(a2, ab), t3 = MUL(a2, b2), t4 = MUL(ab, b2), t5 = SQR(b2);
+    uint64_t q = ADD(t2, t3);
+    q = ADD(t1, ADD(q, q));
+    uint64_t r = ADD(t4, ADD(t5, t5));          // (t4 + 2 t5) * 8
+    r = ADD(r, r);
+    r = ADD(r, r);
+    r = ADD(r, r);
+    uint64_t yd = MUL(aa4, ADD(q, r));
+
+    uint64_t b3 = MUL(b2, b), b4 = SQR(b2), b5 = MUL(b4, b), b6 = SQR(b3);
+    uint64_t h = ADD(a, MUL(b, c->c6));
+    h = ADD(MUL(h, a), MUL(b2, c->c10));
+    h = SUB(MUL(h, a), MUL(b3, c->c16));
+    h = SUB(MUL(h, a), MUL(b4, c->c48));
+    h = SUB(MUL(h, a), MUL(b5, c->c32));
+    uint64_t yn = SUB(MUL(h, a), MUL(b6, c->c32));
+
+    uint64_t en2 = SQR(aa4), ed = SUB(a2, b2_4), ed2 = SQR(ed);
+    uint64_t dn = SUB(0, SQR(en2));
+    uint64_t dd = SQR(ed2);
+
+    cv->P.X = MUL(xn, yd);
+    cv->P.Y = MUL(yn, xd);
+    cv->P.Z = MUL(xd, yd);
+    cv->P.T = MUL(xn, yn);
+    cv->dn2 = ADD(dn, dn);
+    cv->dd = dd;
+    cv->dd2 = ADD(dd, dd);
+    cv->a24n = dd;
+    cv->a24d = ADD(dd, dn);
+}
+
+/* ------------------------------------------------- Edwards arithmetic */
+/* doubling, a = -1, signs folded: 3M + 4S (+1M for T) */
+static UEDW_INLINE void uedw_dbl(uedw_ept *R, const uedw_ept *P, int want_t, const uedw_ctx *c)
+{
+    uint64_t A = SQR(P->X);
+    uint64_t B = SQR(P->Y);
+    uint64_t C = SQR(P->Z);
+    uint64_t S = SQR(ADD(P->X, P->Y));
+    C = ADD(C, C);
+    uint64_t H = ADD(A, B);
+    uint64_t E = SUB(H, S);
+    uint64_t G = SUB(A, B);
+    uint64_t F = ADD(C, G);
+    R->X = MUL(E, F);
+    R->Y = MUL(G, H);
+    R->Z = MUL(F, G);
+    if (want_t)
+        R->T = MUL(E, H);
+}
+
+/* P +- Q with Q cached (unified add-2008-hwcd-3): 7M (+1M for T) */
+static UEDW_INLINE void uedw_add(uedw_ept *R, const uedw_ept *P, const uedw_cached *Q,
+    int neg, int want_t, const uedw_ctx *c)
+{
+    uint64_t A = MUL(SUB(P->Y, P->X), neg ? Q->YpX : Q->YmX);
+    uint64_t B = MUL(ADD(P->Y, P->X), neg ? Q->YmX : Q->YpX);
+    uint64_t C = MUL(P->T, Q->T2d);
+    uint64_t D = MUL(P->Z, Q->Z2);
+    uint64_t E = SUB(B, A);
+    uint64_t H = ADD(B, A);
+    uint64_t F = neg ? ADD(D, C) : SUB(D, C);
+    uint64_t G = neg ? SUB(D, C) : ADD(D, C);
+    R->X = MUL(E, F);
+    R->Y = MUL(G, H);
+    R->Z = MUL(F, G);
+    if (want_t)
+        R->T = MUL(E, H);
+}
+
+/* cached form, scaled by dd so that d = dn/dd needs no inversion: 4M */
+static UEDW_INLINE void uedw_cache(uedw_cached *q, const uedw_ept *P, const uedw_curve *cv,
+    const uedw_ctx *c)
+{
+    q->YmX = MUL(SUB(P->Y, P->X), cv->dd);
+    q->YpX = MUL(ADD(P->Y, P->X), cv->dd);
+    q->T2d = MUL(P->T, cv->dn2);
+    q->Z2 = MUL(P->Z, cv->dd2);
+}
+
+/* ------------------------------------------- Montgomery x-only (stage 2) */
+typedef struct { uint64_t X, Z; } uedw_pt;
+
+/* 2 P with projective A24 = a24n / a24d: 2S + 4M */
+static UEDW_INLINE void uedw_mdup(const uedw_pt *P, uedw_pt *R, const uedw_curve *cv,
+    const uedw_ctx *c)
+{
+    uint64_t U = SQR(SUB(P->X, P->Z));
+    uint64_t V = SQR(ADD(P->X, P->Z));
+    uint64_t w = SUB(V, U);
+    uint64_t Ub = MUL(U, cv->a24d);
+    R->X = MUL(Ub, V);
+    R->Z = MUL(w, ADD(Ub, MUL(w, cv->a24n)));
+}
+
+/* differential addition P1 + P2 given Pin = P1 - P2 (microecm's uecm_uadd) */
+static UEDW_INLINE void uedw_uadd(const uedw_pt P1, const uedw_pt P2, const uedw_pt Pin,
+    uedw_pt *Pout, const uedw_ctx *c)
+{
+    uint64_t diff1 = SUB(P1.X, P1.Z);
+    uint64_t sum1 = ADD(P1.X, P1.Z);
+    uint64_t diff2 = SUB(P2.X, P2.Z);
+    uint64_t sum2 = ADD(P2.X, P2.Z);
+    uint64_t tt1 = MUL(diff1, sum2);
+    uint64_t tt2 = MUL(sum1, diff2);
+    uint64_t tt3 = ADD(tt1, tt2);
+    uint64_t tt4 = SUB(tt1, tt2);
+    tt1 = SQR(tt3);
+    tt2 = SQR(tt4);
+    uint64_t tmpx = MUL(tt1, Pin.Z);
+    uint64_t tmpz = MUL(tt2, Pin.X);
+    Pout->X = tmpx;
+    Pout->Z = tmpz;
+}
+
+/* ------------------------------------------------------------ stage 1 */
+typedef struct {
+    const int8_t *ch;
+    int len, m, top, tz;
+} uedw_chain;
+
+static int uedw_chain_for(uint32_t B1, uedw_chain *c)
+{
+#define UEDW_CH(b) case b: c->ch = edw_chain_##b; c->len = EDW_CHAIN_##b##_LEN; \
+    c->m = EDW_CHAIN_##b##_M; c->top = EDW_CHAIN_##b##_TOP; c->tz = EDW_CHAIN_##b##_TZ; return 1;
+    switch (B1) {
+        UEDW_CH(27) UEDW_CH(47) UEDW_CH(70) UEDW_CH(85) UEDW_CH(125) UEDW_CH(165) UEDW_CH(205)
+    default:
+        return 0;
+    }
+#undef UEDW_CH
+}
+
+/* [s]P for microecm's stage-1 scalar s at this B1; returns the Montgomery
+   image (X : Z) of the result. */
+static void uedw_stage1(const uedw_curve *cv, const uedw_chain *ch, uedw_pt *Pm,
+    const uedw_ctx *c)
+{
+    uedw_cached tab[16];
+    uedw_ept ext[16];
+    int k, i;
+    ext[0] = cv->P;
+    uedw_cache(&tab[0], &ext[0], cv, c);
+    if (ch->m > 1) {
+        uedw_ept P2;
+        uedw_cached c2;
+        uedw_dbl(&P2, &cv->P, 1, c);
+        uedw_cache(&c2, &P2, cv, c);
+        for (k = 1; k <= (ch->m - 1) / 2; k++) {
+            uedw_add(&ext[k], &ext[k - 1], &c2, 0, 1, c);
+            uedw_cache(&tab[k], &ext[k], cv, c);
+        }
+    }
+    uedw_ept R = ext[(ch->top - 1) / 2];
+    for (i = 0; i < ch->len; i++) {
+        int dg = ch->ch[i];
+        if (dg == 0) {
+            // T is needed only when an addition follows
+            int t = (i + 1 < ch->len) && (ch->ch[i + 1] != 0);
+            uedw_dbl(&R, &R, t, c);
+        } else if (dg > 0) {
+            uedw_add(&R, &R, &tab[(dg - 1) >> 1], 0, 0, c);
+        } else {
+            uedw_add(&R, &R, &tab[(-dg - 1) >> 1], 1, 0, c);
+        }
+    }
+    // Montgomery image: u = (1 + y)/(1 - y), then the power of 2 in s
+    Pm->X = ADD(R.Z, R.Y);
+    Pm->Z = SUB(R.Z, R.Y);
+    for (i = 0; i < ch->tz; i++)
+        uedw_mdup(Pm, Pm, cv, c);
+}
+
+/* ------------------------------------------------------------ stage 2 */
+static const int uedw_map[60] = {
+    0, 1, 2, 0, 0, 0, 0, 3, 0, 0,
+    0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
+    0, 0, 0, 8, 0, 0, 0, 0, 0, 9,
+    0, 10, 0, 0, 0, 0, 0, 11, 0, 0,
+    0, 12, 0, 13, 0, 0, 0, 14, 0, 15,
+    0, 0, 0, 16, 0, 0, 0, 0, 0, 17 };
+
+/* microecm.c's pre-paired stage-2 sequences (B2 = 25 B1; 50 B1 at B1 >= 125) */
+static const int uedw_numb1_27 = 76;
+static const uint8_t uedw_b1_27[76] = {
+1,7,13,17,23,29,31,41,43,47,49,0,59,47,43,41,
+37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,
+23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,
+11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,
+11,1,47,0,59,49,41,31,23,17,11,7 };
+static const int uedw_numb1_47 = 121;
+static const uint8_t uedw_b1_47[121] = {
+1,7,13,17,23,29,31,41,43,47,49,0,59,47,43,41,
+37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,
+23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,
+11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,
+11,1,47,0,59,49,41,31,23,17,11,7,1,19,37,47,
+0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,
+37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,
+19,17,13,7,1,43,53,0,59 };
+static const int uedw_numb1_70 = 175;
+static const uint8_t uedw_b1_70[175] = {
+31,41,43,47,49,0,59,47,43,41,37,31,29,19,13,7,
+1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
+29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,
+0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,
+41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,
+31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,
+29,31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,
+53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,
+53,49,47,43,31,29,23,11,17,0,47,43,41,37,31,23,
+19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,
+7,17,29,0,53,47,43,41,17,13,11,1,23,31,37 };
+static const int uedw_numb1_85 = 225;
+static const uint8_t uedw_b1_85[225] = {
+    1,53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,
+    31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,
+    0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,
+    31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,
+    29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,
+    17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,
+    43,41,31,17,7,1,11,13,19,29 };
+static const int uedw_numb1_125_x50 = 645;
+static const uint8_t uedw_b1_125_x50[645] = {
+    23,19,13,11,1,7,17,29,31,41,43,47,49,0,59,47,
+    43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,
+    37,31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,
+    23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,
+    17,13,11,1,47,0,59,49,41,31,23,17,11,7,1,19,
+    37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,
+    49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,47,
+    41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,
+    13,7,1,19,47,53,0,59,53,49,47,43,31,29,23,11,
+    17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,
+    59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,
+    17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,
+    1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,
+    53,0,59,53,43,41,31,17,7,1,11,13,19,29,0,59,
+    53,49,47,37,29,11,13,17,23,31,0,59,43,41,37,29,
+    23,17,13,1,31,47,0,59,53,49,47,41,37,31,19,13,
+    7,11,17,29,43,0,47,29,19,11,7,1,41,43,59,0,
+    53,49,37,23,13,11,7,1,17,19,29,41,43,59,0,59,
+    49,41,37,23,13,1,7,11,29,43,47,53,0,59,53,49,
+    31,23,13,7,1,17,29,43,47,0,59,31,29,19,11,7,
+    37,49,53,0,41,31,29,13,17,19,37,53,59,0,53,49,
+    41,19,17,13,11,1,29,31,37,43,59,0,59,47,43,31,
+    29,19,17,1,23,0,53,49,47,43,41,19,11,1,7,17,
+    23,29,31,37,0,59,49,47,37,23,17,13,7,1,29,41,
+    43,0,59,53,49,41,31,23,17,11,19,29,43,47,0,49,
+    47,37,23,19,17,7,11,41,53,59,0,59,47,43,23,1,
+    11,13,17,29,31,37,0,59,53,37,31,19,17,11,1,23,
+    29,43,47,49,0,53,29,19,13,11,1,23,31,41,43,59,
+    0,53,23,13,11,1,7,41,47,59,0,49,47,29,23,19,
+    13,7,11,37,43,53,0,43,41,29,23,7,1,13,31,47,
+    49,53,59,0,59,53,47,37,31,19,7,11,13,23,41,49,
+    0,47,43,41,37,31,29,17,13,1,59,0,47,41,31,19,
+    17,13,7,1,23,37,43,49,53,59,0,59,49,47,31,19,
+    11,7,17,29,37,43,0,43,37,23,19,11,1,7,41,47,
+    0,49,37,31,29,13,7,1,23,41,0,49,43,37,31,23,
+    17,13,11,1,7,19,41,47,53,0,49,47,43,31,29,23,
+    19,7,13,41,0,47,31,29,23,19,17,13,11,1,41,0,
+    53,49,47,41,11,7,1,17,23,31,37,59,0,59,53,49,
+    43,41,31,29,13,7,17,0,49,43,23,19,1,7,13,17,
+    37,59,0,59,49,37,29,19,17,7,1,13,23,47,53,0,
+    59,53,49,41,23 };
+static const int uedw_numb1_165_x50 = 830;
+static const uint8_t uedw_b1_165_x50[830] = {
+    13,7,1,11,17,19,31,43,47,49,53,59,0,59,49,43,
+    37,31,29,23,19,17,7,11,13,47,53,0,53,47,41,37,
+    31,23,19,11,1,13,29,43,59,0,53,49,41,37,31,19,
+    17,1,7,23,29,47,59,0,59,53,47,43,41,29,19,17,
+    13,7,1,23,31,49,0,53,47,41,37,29,23,19,11,7,
+    17,31,43,49,59,0,47,43,41,37,23,19,17,13,7,11,
+    29,53,0,53,49,43,37,29,23,11,7,1,13,19,31,41,
+    0,53,49,47,43,37,31,23,17,11,13,41,0,59,47,43,
+    37,31,29,23,11,1,17,19,41,0,59,53,19,13,7,1,
+    29,43,47,49,0,53,49,47,41,29,19,17,13,11,7,1,
+    23,31,43,59,0,53,49,41,37,23,19,13,11,7,1,17,
+    43,47,0,47,43,41,31,19,17,7,1,13,37,49,0,59,
+    49,37,29,13,1,7,11,17,19,41,47,53,0,49,47,31,
+    29,7,1,13,17,19,23,37,59,0,47,37,31,19,17,13,
+    11,1,29,41,43,53,0,59,41,17,13,7,1,19,23,31,
+    47,49,53,0,59,53,47,43,31,29,7,1,11,17,37,41,
+    49,0,49,43,37,23,19,13,1,7,17,0,59,49,41,37,
+    31,29,23,1,11,13,53,0,53,43,41,37,29,23,17,13,
+    11,7,1,19,31,49,0,53,43,31,29,23,19,17,1,13,
+    37,41,59,0,53,43,37,31,23,13,1,17,29,59,0,59,
+    49,41,37,23,19,11,1,7,29,0,59,43,17,13,11,1,
+    7,23,29,37,41,49,0,49,47,43,41,29,1,7,13,19,
+    23,31,59,0,59,49,47,31,29,13,7,37,41,43,0,49,
+    41,29,23,13,11,7,1,17,19,31,43,53,0,53,47,43,
+    37,29,23,17,1,11,13,31,41,49,59,0,53,47,41,19,
+    13,11,1,17,23,43,0,53,49,47,37,23,19,11,7,17,
+    29,31,43,0,53,31,19,17,13,7,1,29,37,59,0,49,
+    47,41,29,13,11,7,1,17,19,37,0,59,49,43,41,31,
+    29,19,17,7,1,11,13,23,37,0,53,43,41,31,23,17,
+    7,11,29,0,59,53,49,43,37,19,17,7,13,23,47,0,
+    59,53,37,29,23,17,1,19,31,43,0,49,37,19,17,11,
+    7,43,47,53,59,0,59,47,43,29,1,11,17,49,0,49,
+    47,43,37,29,23,13,11,7,19,31,41,59,0,49,41,23,
+    19,13,1,7,47,53,0,53,49,41,31,23,11,7,13,17,
+    59,0,59,43,37,31,17,7,11,41,47,53,0,53,47,43,
+    41,29,23,19,17,11,59,0,59,53,49,23,17,11,7,1,
+    43,0,59,53,49,47,43,41,31,17,11,7,1,37,0,41,
+    37,29,19,13,7,1,23,31,47,49,59,0,59,43,37,17,
+    13,1,41,47,0,53,49,31,23,17,13,7,19,29,41,0,
+    59,49,47,37,29,17,7,19,23,31,41,0,53,43,37,31,
+    29,23,13,1,11,17,59,0,59,53,47,41,31,23,1,7,
+    29,49,0,59,49,19,11,7,13,23,29,31,37,41,0,53,
+    41,23,7,1,13,19,29,31,43,49,59,0,47,43,19,17,
+    1,11,13,23,49,53,0,59,43,37,31,29,17,1,7,11,
+    47,49,0,59,53,49,43,37,29,23,19,7,1,0,37,31,
+    19,13,11,47,53,0,53,49,47,41,31,23,17,13,7,37,
+    0,59,49,47,31,29,11,13,37,53,0,49,43,41,23,19,
+    13,11,1,7,17,29,37,47,59,0,59,47,43,37,31,29,
+    17,13,1,19,23,49,53,0,59,53,49,41,37,23,17,13,
+    1,19,0,43,37,31,19,7,13,17,23,41,47,59,0,53,
+    47,43,31,29,17,13,37,59,0,47,41,31,19,13,11,7,
+    1,17,23,0,59,53,49,41,29,11,1,13,17,23 };
+static const int uedw_numb1_205_x50 = 1013;
+static const uint8_t uedw_b1_205_x50[1013] = {
+    1,13,17,19,23,29,31,41,47,53,59,0,59,53,49,47,
+    37,23,19,17,13,1,7,29,43,0,53,49,41,31,29,19,
+    17,11,7,1,13,37,59,0,49,47,29,23,13,7,1,17,
+    31,37,43,0,59,49,47,43,37,31,29,17,13,7,1,11,
+    19,53,0,59,53,49,41,37,23,13,1,11,17,19,29,43,
+    47,0,53,49,47,43,23,19,11,1,7,17,37,41,0,59,
+    53,41,37,31,29,19,17,11,1,13,43,47,0,53,47,41,
+    19,17,7,1,11,23,31,43,59,0,59,53,41,31,13,11,
+    7,1,17,29,37,0,49,43,37,29,11,1,13,17,19,23,
+    41,0,59,49,47,43,41,37,31,19,7,1,13,23,29,53,
+    0,53,49,43,41,37,31,29,23,13,7,17,19,47,59,0,
+    49,47,37,29,23,17,11,7,13,19,31,41,53,0,59,43,
+    29,23,19,17,13,11,1,41,0,59,37,31,23,17,13,11,
+    7,1,19,29,43,53,0,49,47,43,41,31,19,17,1,7,
+    11,13,23,0,47,43,37,29,13,11,7,1,17,19,23,31,
+    59,0,59,37,31,29,23,19,13,1,7,11,41,47,53,0,
+    53,49,43,31,23,17,13,41,59,0,59,53,31,19,17,1,
+    7,11,23,37,47,49,0,59,53,47,43,41,37,31,23,19,
+    17,11,1,0,59,53,49,47,31,17,13,7,1,11,29,37,
+    0,53,43,31,17,13,7,1,29,41,49,0,53,49,41,29,
+    23,11,7,1,19,31,47,0,47,43,41,29,23,19,7,1,
+    11,49,0,59,31,29,23,17,11,7,1,13,41,43,0,59,
+    43,37,17,1,7,11,13,19,41,49,0,59,53,43,41,37,
+    31,29,23,13,11,1,47,0,59,53,47,31,19,17,13,1,
+    7,11,29,37,43,49,0,49,43,41,31,17,13,7,11,23,
+    37,53,0,53,49,41,23,19,13,11,7,1,17,37,59,0,
+    49,47,43,37,31,29,23,1,7,41,0,59,43,41,37,31,
+    17,13,11,7,47,49,0,59,49,47,37,31,29,19,17,7,
+    1,0,53,47,37,19,13,1,11,31,41,0,49,47,37,23,
+    17,13,11,7,19,31,53,0,59,53,47,29,13,11,7,1,
+    23,41,0,49,47,41,37,19,11,13,17,23,29,31,43,0,
+    59,29,19,13,1,41,43,47,53,0,59,53,43,41,37,23,
+    17,11,7,1,13,29,49,0,53,49,43,31,29,23,17,11,
+    37,41,59,0,53,41,23,19,17,13,11,29,31,47,59,0,
+    47,37,23,19,11,17,29,43,49,0,59,53,49,47,41,19,
+    13,11,7,17,29,31,37,0,53,47,41,37,29,19,13,31,
+    43,49,59,0,47,41,37,29,19,13,7,11,49,53,0,59,
+    49,43,37,29,23,11,7,1,17,19,31,47,53,0,47,43,
+    31,17,11,37,41,59,0,53,47,43,37,23,17,11,1,31,
+    41,0,59,47,37,13,11,7,1,19,53,0,59,53,43,31,
+    29,19,13,7,1,23,37,49,0,53,29,23,1,19,31,41,
+    0,49,41,23,19,17,7,1,11,29,37,0,53,37,31,29,
+    17,11,1,13,19,43,47,0,49,47,31,29,19,17,7,13,
+    23,53,59,0,59,47,31,23,19,13,17,29,37,41,53,0,
+    59,53,49,37,31,23,11,7,19,29,0,49,43,41,19,11,
+    7,17,23,37,59,0,53,47,43,37,7,17,19,31,41,59,
+    0,59,41,17,1,7,23,47,49,0,53,49,43,41,31,23,
+    13,7,1,11,17,19,29,47,59,0,59,47,43,29,11,7,
+    1,19,23,31,37,41,49,53,0,53,47,43,29,17,13,11,
+    19,23,59,0,49,37,23,17,13,11,7,29,43,47,59,0,
+    59,47,17,1,7,29,43,49,0,49,43,41,37,29,19,13,
+    7,17,31,0,59,41,31,29,19,17,13,7,23,37,43,47,
+    0,59,53,41,17,7,1,19,49,0,59,47,43,29,23,11,
+    31,37,49,53,0,47,37,29,13,11,1,17,19,31,53,59,
+    0,53,49,41,37,31,23,17,11,1,7,0,47,43,31,29,
+    19,13,11,1,17,37,0,47,41,37,29,19,7,1,31,43,
+    59,0,49,47,41,31,23,1,13,19,37,43,0,59,53,49,
+    37,29,23,11,7,1,17,31,47,0,53,49,47,37,19,11,
+    7,13,41,0,59,53,47,37,31,29,19,17,13,11,23,41,
+    0,59,49,37,31,23,19,17,43,53,0,59,47,41,29,13,
+    11,1,7,31,43,49,53,0,43,41,29,23,19,7,1,47,
+    49,0,59,47,43,29,23,7,1,11,19,37,0,43,41,13,
+    11,17,19,29,49,53,0,59,37,31,29,19,11,7,1,23,
+    41,53,0,47,43 };
+
+/* microecm's uecm_stage2 (D = 60) with projective A24 */
+static uint64_t uedw_stage2(const uedw_pt *P, const uedw_curve *cv, uint32_t stg1_max,
+    const uedw_ctx *c)
+{
+    int b;
+    int i, j, k;
+    uedw_pt Pa, Pd, Pad, Pb[18], pt4, pt5, pt6;
+    uint64_t Pbprod[18];
+    const uint8_t *barray = 0;
+    int numb = 0;
+    const int D = 60;
+
+    Pb[1] = *P;
+    Pbprod[1] = MUL(Pb[1].X, Pb[1].Z);
+    uedw_mdup(P, &Pb[2], cv, c);                            // [2]Q
+    uedw_uadd(Pb[1], Pb[2], Pb[1], &Pb[3], c);              // [3]Q, temporary
+    uedw_mdup(&Pb[3], &pt6, cv, c);                         // [6]Q
+    uedw_uadd(Pb[3], Pb[2], Pb[1], &pt5, c);                // [5]Q
+    Pb[3] = pt5;
+    uedw_uadd(pt6, pt5, Pb[1], &Pb[4], c);                  // [11]Q
+
+    i = 3; k = 4; j = 5;
+    while ((j + 12) < D) {
+        uedw_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);   // [j+12]Q
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw_uadd(pt6, Pb[1], pt5, &Pb[3], c);                  // [7]Q
+    i = 1; k = 3; j = 1;
+    while ((j + 12) < D) {
+        uedw_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw_uadd(Pb[9], Pb[10], Pb[2], &Pd, c);                // [60]Q
+    uedw_mdup(&Pb[2], &pt4, cv, c);                         // [4]Q
+    for (i = 3; i < 18; i++)
+        Pbprod[i] = MUL(Pb[i].X, Pb[i].Z);
+
+    uedw_uadd(Pb[uedw_map[17]], Pb[uedw_map[13]], pt4, &Pad, c);   // [30]Q
+    uedw_uadd(Pd, Pad, Pad, &Pa, c);                        // [90]Q
+    uedw_pt pt90 = Pa;
+    uedw_pt pt60 = Pd;
+    uedw_uadd(Pa, Pad, Pd, &Pd, c);                         // [120]Q
+    uedw_uadd(Pd, Pad, Pa, &Pa, c);                         // [150]Q
+
+    uint64_t acc = c->one;
+
+    if (stg1_max < 70) {
+        static const int steps27[16] = { 59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
+        static const int steps47[15] = { 43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
+        const int *steps = (stg1_max == 27) ? steps27 : steps47;
+        int numsteps = (stg1_max == 27) ? 16 : 15;
+        uint64_t pt90prod = MUL(pt90.X, pt90.Z);
+        for (i = 0; i < numsteps; i++) {
+            b = steps[i];
+            uint64_t tt1 = SUB(pt90.X, Pb[uedw_map[b]].X);
+            uint64_t tt2 = ADD(pt90.Z, Pb[uedw_map[b]].Z);
+            uint64_t tt3 = MUL(tt1, tt2);
+            tt1 = ADD(tt3, Pbprod[uedw_map[b]]);
+            tt2 = SUB(tt1, pt90prod);
+            uint64_t tmp = MUL(acc, tt2);
+            if (tmp == 0)
+                break;
+            acc = tmp;
+        }
+    } else if (stg1_max == 70) {
+        static const int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+        uint64_t pdprod = MUL(Pd.X, Pd.Z);
+        for (i = 0; i < 15; i++) {
+            b = steps[i];
+            uint64_t tt1 = SUB(Pd.X, Pb[uedw_map[b]].X);
+            uint64_t tt2 = ADD(Pd.Z, Pb[uedw_map[b]].Z);
+            uint64_t tt3 = MUL(tt1, tt2);
+            tt1 = ADD(tt3, Pbprod[uedw_map[b]]);
+            tt2 = SUB(tt1, pdprod);
+            uint64_t tmp = MUL(acc, tt2);
+            if (tmp == 0)
+                break;
+            acc = tmp;
+        }
+    } else if (stg1_max == 165) {
+        uedw_mdup(&pt90, &Pa, cv, c);                       // [180]Q
+        Pad = pt60;
+    } else if (stg1_max == 205) {
+        uedw_uadd(Pd, pt90, Pad, &Pa, c);                   // [210]Q
+        Pad = pt90;
+    }
+
+    uint64_t Paprod = MUL(Pa.X, Pa.Z);
+
+    switch (stg1_max) {
+    case 27: barray = uedw_b1_27; numb = uedw_numb1_27; break;
+    case 47: barray = uedw_b1_47; numb = uedw_numb1_47; break;
+    case 70: barray = uedw_b1_70; numb = uedw_numb1_70; break;
+    case 85: barray = uedw_b1_85; numb = uedw_numb1_85; break;
+    case 125: barray = uedw_b1_125_x50; numb = uedw_numb1_125_x50; break;
+    case 165: barray = uedw_b1_165_x50; numb = uedw_numb1_165_x50; break;
+    case 205: barray = uedw_b1_205_x50; numb = uedw_numb1_205_x50; break;
+    default: return acc;
+    }
+
+    for (i = 0; i < numb; i++) {
+        if (barray[i] == 0) {
+            // giant step
+            uedw_pt point = Pa;
+            uedw_uadd(Pa, Pd, Pad, &Pa, c);
+            Pad = point;
+            Paprod = MUL(Pa.X, Pa.Z);
+            i++;
+        }
+        // XrZd - XdZr = (Xr - Xd)(Zr + Zd) + XdZd - XrZr
+        b = barray[i];
+        uint64_t tt1 = SUB(Pa.X, Pb[uedw_map[b]].X);
+        uint64_t tt2 = ADD(Pa.Z, Pb[uedw_map[b]].Z);
+        uint64_t tt3 = MUL(tt1, tt2);
+        tt1 = ADD(tt3, Pbprod[uedw_map[b]]);
+        tt2 = SUB(tt1, Paprod);
+        uint64_t tmp = MUL(acc, tt2);
+        if (tmp == 0)
+            break;
+        acc = tmp;
+    }
+    return acc;
+}
+
+/* ------------------------------------------------------------- driver */
+static int uedw_check(uint64_t x, uint64_t n, uint64_t *f)
+{
+    uint64_t g = uedw_bingcd64(n, x);
+    if (g > 1 && g != n) {
+        *f = g;
+        return 1;
+    }
+    return 0;
+}
+
+/* run curves on the sequence R, R + Q, ...; returns the number of curves
+   run; *f = factor or 1; *stage = stage of the find */
+static int uedw_curves(uint64_t *f, uint32_t B1, uint32_t B2, uint32_t curves,
+    const uedw_ctx *c, uedw_wpt *R, int *stage)
+{
+    uedw_chain ch;
+    uint32_t curve;
+    *f = 1;
+    *stage = 0;
+    if (!uedw_chain_for(B1, &ch))
+        return 0;
+    for (curve = 0; curve < curves; curve++) {
+        uedw_curve cv;
+        uedw_pt P;
+        uedw_gkl_curve(R, &cv, c);
+        uedw_w_addq(R, c);                      // the next curve's point
+        uedw_stage1(&cv, &ch, &P, c);
+        if (uedw_check(P.Z, c->n, f)) {
+            *stage = 1;
+            break;
+        }
+        if (B2 > B1) {
+            uint64_t acc = uedw_stage2(&P, &cv, B1, c);
+            if (uedw_check(acc, c->n, f)) {
+                *stage = 2;
+                break;
+            }
+        }
+    }
+    return (int)curve;
+}
+
+static uint64_t uedw_run(uint64_t *f, uint32_t B1, uint32_t curves, const uedw_ctx *c,
+    uedw_wpt *R)
+{
+    int stage;
+    uedw_curves(f, B1, 25 * B1, curves, c, R, &stage);
+    return *f;
+}
+
+static uint32_t uedw_lcg_m0(uint64_t *pran)
+{
+    // start of the curve sequence: m0 in [2, 257] from the caller's LCG
+    *pran = 6364136223846793005ULL * (*pran) + 1442695040888963407ULL;
+    return 2 + (uint32_t)((*pran >> 40) & 0xff);
+}
+
+static uint64_t uedw_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_t *pran)
+{
+    uedw_ctx ctx;
+    uedw_wpt R;
+    uint64_t f = 1;
+    uedw_ctx_init(&ctx, n);
+    uedw_w_start(&R, uedw_lcg_m0(pran), &ctx);
+
+    if (arbitrary) {
+        // fast attempts at possible small factors
+        if (uedw_run(&f, 47, 1, &ctx, &R) > 1) return f;
+        if (uedw_run(&f, 70, 1, &ctx, &R) > 1) return f;
+        if (targetBits > 58)
+            if (uedw_run(&f, 125, 1, &ctx, &R) > 1) return f;
+    }
+    if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &R);
+    else if (targetBits <= 44) uedw_run(&f, 47, 32, &ctx, &R);
+    else if (targetBits <= 48) uedw_run(&f, 70, 32, &ctx, &R);
+    else if (targetBits <= 52) uedw_run(&f, 85, 32, &ctx, &R);
+    else if (targetBits <= 58) uedw_run(&f, 125, 32, &ctx, &R);
+    else if (targetBits <= 62) uedw_run(&f, 165, 42, &ctx, &R);
+    else uedw_run(&f, 205, 42, &ctx, &R);
+    return f;
+}
+
+static int uedw_bits(uint64_t n)
+{
+    int b = 0;
+    while (n) {
+        b++;
+        n >>= 1;
+    }
+    return b;
+}
+
+uint64_t getfactor_uecm_edw(uint64_t q64, int is_arbitrary, uint64_t *pran)
+{
+    if (q64 % 2 == 0)
+        return 2;
+    return uedw_dispatch(q64, uedw_bits(q64), is_arbitrary, pran);
+}
+
+uint64_t uecm_edw_one_curve(uint64_t n, uint32_t m, uint32_t B1, uint32_t B2, int *stage)
+{
+    uedw_ctx ctx;
+    uedw_wpt R;
+    uint64_t f = 1;
+    uedw_ctx_init(&ctx, n);
+    uedw_w_start(&R, m, &ctx);
+    uedw_curves(&f, B1, B2, 1, &ctx, &R, stage);
+    return f;
+}
+
+void uecm_edw_curve_params(uint64_t n, uint32_t m, uint64_t out[6])
+{
+    uedw_ctx ctx;
+    uedw_wpt R;
+    uedw_curve cv;
+    const uedw_ctx *c = &ctx;
+    uedw_ctx_init(&ctx, n);
+    uedw_w_start(&R, m, &ctx);
+    uedw_gkl_curve(&R, &cv, &ctx);
+    // out of Montgomery form: x R / R
+    out[0] = MUL(cv.P.X, 1);
+    out[1] = MUL(cv.P.Y, 1);
+    out[2] = MUL(cv.P.Z, 1);
+    out[3] = MUL(cv.P.T, 1);
+    out[4] = MUL(SUB(cv.a24d, cv.dd), 1);       // dn
+    out[5] = MUL(cv.dd, 1);
+}
+
+void uecm_edw_stage1_point(uint64_t n, uint32_t m, uint32_t B1, uint64_t out[2])
+{
+    uedw_ctx ctx;
+    uedw_wpt R;
+    uedw_curve cv;
+    uedw_chain ch;
+    uedw_pt P;
+    const uedw_ctx *c = &ctx;
+    uedw_ctx_init(&ctx, n);
+    uedw_w_start(&R, m, &ctx);
+    uedw_gkl_curve(&R, &cv, &ctx);
+    out[0] = out[1] = 0;
+    if (!uedw_chain_for(B1, &ch))
+        return;
+    uedw_stage1(&cv, &ch, &P, &ctx);
+    out[0] = MUL(P.X, 1);
+    out[1] = MUL(P.Z, 1);
+}
