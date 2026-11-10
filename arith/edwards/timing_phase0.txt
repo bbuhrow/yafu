@@ -1,0 +1,68 @@
+64-bit n, 40000 curves per point; ns per curve (stage 1 only)
+  B1 | PRAC x1  PRAC x2 | Edw x1   Edw x2 | x1 ratio  x2 ratio | Suyama build  Edw load
+  [stage 2: 644 ns]  27 |     495      402 |     438      388 |    1.132     1.037 |      236           7
+  [stage 2: 813 ns]  47 |     883      744 |     734      647 |    1.203     1.150 |
+  [stage 2: 1033 ns]  70 |    1286     1009 |    1058      935 |    1.216     1.079 |
+  [stage 2: 1176 ns]  85 |    1667     1307 |    1346     1209 |    1.239     1.081 |
+  [stage 2: 2868 ns] 125 |    2408     1940 |    1856     1649 |    1.297     1.177 |
+  [stage 2: 3648 ns] 165 |    3271     2667 |    2495     2232 |    1.311     1.195 |
+  [stage 2: 4416 ns] 205 |    4213     3458 |    3133     2803 |    1.345     1.234 |
+50-bit n, 40000 curves per point; ns per curve (stage 1 only)
+  B1 | PRAC x1  PRAC x2 | Edw x1   Edw x2 | x1 ratio  x2 ratio | Suyama build  Edw load
+  [stage 2: 640 ns]  27 |     484      398 |     431      382 |    1.123     1.041 |      189           7
+  [stage 2: 819 ns]  47 |     871      731 |     730      654 |    1.193     1.117 |
+  [stage 2: 1031 ns]  70 |    1286     1007 |    1055      939 |    1.218     1.072 |
+  [stage 2: 1176 ns]  85 |    1664     1310 |    1353     1210 |    1.230     1.083 |
+  [stage 2: 2882 ns] 125 |    2432     1957 |    1862     1655 |    1.306     1.182 |
+  [stage 2: 3635 ns] 165 |    3278     2681 |    2496     2231 |    1.313     1.202 |
+  [stage 2: 4369 ns] 205 |    4206     3472 |    3129     2809 |    1.344     1.236 |
+== tb8_ifma
+50-bit n; ns per vector of 8 curves (stage 1)
+  B1 |    PRAC     Edw   ratio | build: Suyama x8  Edw load x8
+  [stage 2: 1372 ns]  27 |    1165     926   1.259 |     1382              9
+  [stage 2: 1701 ns]  47 |    2073    1573   1.318 |
+  [stage 2: 2125 ns]  70 |    3063    2270   1.349 |
+  [stage 2: 2409 ns]  85 |    3930    2893   1.358 |
+  [stage 2: 3134 ns] 125 |    5636    3973   1.419 |
+  [stage 2: 4071 ns] 165 |    7598    5350   1.420 |
+  [stage 2: 4644 ns] 205 |    9730    6705   1.451 |
+== tb8_ifma_m52
+50-bit n; ns per vector of 8 curves (stage 1)
+  B1 |    PRAC     Edw   ratio | build: Suyama x8  Edw load x8
+  [stage 2: 902 ns]  27 |     765     625   1.226 |     1349              6
+  [stage 2: 1129 ns]  47 |    1357    1075   1.263 |
+  [stage 2: 1413 ns]  70 |    1997    1544   1.294 |
+  [stage 2: 1629 ns]  85 |    2566    1962   1.308 |
+  [stage 2: 2110 ns] 125 |    3670    2691   1.364 |
+  [stage 2: 2744 ns] 165 |    4928    3597   1.370 |
+  [stage 2: 3138 ns] 205 |    6300    4517   1.395 |
+== tb8_f
+50-bit n; ns per vector of 8 curves (stage 1)
+  B1 |    PRAC     Edw   ratio | build: Suyama x8  Edw load x8
+  [stage 2: 2104 ns]  27 |    1746    1346   1.297 |     1492             15
+  [stage 2: 2602 ns]  47 |    3113    2273   1.369 |
+  [stage 2: 3277 ns]  70 |    4606    3272   1.408 |
+  [stage 2: 3721 ns]  85 |    5956    4173   1.427 |
+  [stage 2: 4920 ns] 125 |    8494    5726   1.483 |
+  [stage 2: 6357 ns] 165 |   11354    7669   1.481 |
+  [stage 2: 7237 ns] 205 |   14620    9608   1.522 |
+== tiny_bench128
+100-bit n; ns per curve (stage 1)
+  B1 |    PRAC     Edw   ratio | build: Suyama  Edw load
+  [stage 2: 4322 ns]  27 |    2836    3259   0.870 |     1448     681
+  [stage 2: 5626 ns]  47 |    5226    5531   0.945 |
+  [stage 2: 7171 ns]  70 |    7905    8081   0.978 |
+  [stage 2: 8254 ns]  85 |   10237   10353   0.989 |
+  [stage 2: 10992 ns] 125 |   14730   14160   1.040 |
+  [stage 2: 14061 ns] 165 |   19933   19119   1.043 |
+  [stage 2: 16723 ns] 205 |   25546   24212   1.055 |
+== tiny_bench128 inline
+100-bit n; ns per curve (stage 1)
+  B1 |    PRAC     Edw   ratio | build: Suyama  Edw load
+  27 |    2313    2778   0.833 |     1396     669
+  47 |    4375    4767   0.918 |
+  70 |    6742    6909   0.976 |
+  85 |    8551    8841   0.967 |
+ 125 |   12361   12057   1.025 |
+ 165 |   16560   16424   1.008 |
+ 205 |   21179   20404   1.038 |
