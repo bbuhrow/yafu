@@ -21,7 +21,7 @@ code to the public domain.
 #include "qs.h"
 #include "qs_impl.h"
 #include "ytools.h"
-#include "tinyecm.h"
+#include "tinyecm_edw.h"
 #include "../kmpqs/kmpqs.h"
 
 int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG, int knmod8)
@@ -133,7 +133,9 @@ static int siqs_try_kmpqs(fact_obj_t* fobj)
 	{
 		mpz_mul(prod, prod, f[i]);
 		if (!is_mpz_prp(f[i], fobj->NUM_WITNESSES))
+		{
 			ok = 0;
+		}
 	}
 	if (mpz_cmp(prod, fobj->qs_obj.gmp_n) != 0)
 		ok = 0;
@@ -331,7 +333,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			}
 		}
 
-		if ((i == 0) || (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0))
+		if (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0)
 		{
 			// didn't find anything or not completely factored (rare).  
 			// try a different method.
@@ -354,8 +356,11 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 			int ecm_tries = 0;
 			do
 			{
-				found = getfactor_tecm(fobj->qs_obj.gmp_n, f1, 0, &lcg);
+				found = getfactor_tecm_edw(fobj->qs_obj.gmp_n, f1, 0, &lcg);
 				mpz_tdiv_r(f2, fobj->qs_obj.gmp_n, f1);
+
+				if (mpz_cmp_ui(f2, 0) != 0)
+					found = 0;
 
 				if (found)
 				{
@@ -395,9 +400,14 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 
 							mpz_set_ui(fobj->qs_obj.gmp_n, 1);
 						}
+						else
+						{
+							// still > 1 and composite, keep going.
+							found = 0;
+						}
 					}
 				}
-			} while (!found && (++ecm_tries < 100));
+			} while (!found && (++ecm_tries < 10));
 
 			if (!found)
 			{
@@ -421,7 +431,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj)
 
 				mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
 				fobj->div_obj.print = 0;
-				fobj->div_obj.limit = 100000;
+				fobj->div_obj.limit = 10000000;
 				zTrial(fobj);
 				mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
 

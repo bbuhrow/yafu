@@ -199,22 +199,34 @@ static uint32_t total_curves_run = 0;
 
 void u128_to_mpz(uint64_t *in, mpz_t out)
 {
-	mpz_set_ui(out, in[1]);
-	mpz_mul_2exp(out, out, 64);
-	mpz_add_ui(out, out, in[0]);
+	mpz_set_ui(out, in[1] >> 32);
+	mpz_mul_2exp(out, out, 32);
+	mpz_add_ui(out, out, in[1] & 0xffffffff);
+	mpz_mul_2exp(out, out, 32);
+	mpz_add_ui(out, out, in[0] >> 32);
+	mpz_mul_2exp(out, out, 32);
+	mpz_add_ui(out, out, in[0] & 0xffffffff);
 	return;
 }
 
 void mpz_to_u128(mpz_t in, uint64_t *out)
 {
     out[0] = mpz_get_ui(in);
-    mpz_tdiv_q_2exp(in, in, 64);
-    out[1] = mpz_get_ui(in);
+    mpz_tdiv_q_2exp(in, in, 32);
+    out[0] |= (uint64_t)mpz_get_ui(in) << 32;
+	mpz_tdiv_q_2exp(in, in, 32);
+
+	out[1] = mpz_get_ui(in);
+	mpz_tdiv_q_2exp(in, in, 32);
+	out[1] |= (uint64_t)mpz_get_ui(in) << 32;
 
     // restore input
-    mpz_mul_2exp(in, in, 64);
-    mpz_add_ui(in, in, out[0]);
-
+    mpz_mul_2exp(in, in, 32);
+    mpz_add_ui(in, in, out[1] & 0xffffffff);
+	mpz_mul_2exp(in, in, 32);
+	mpz_add_ui(in, in, out[0] >> 32);
+	mpz_mul_2exp(in, in, 32);
+	mpz_add_ui(in, in, out[0] & 0xffffffff);
 	return;
 }
 
@@ -4579,19 +4591,31 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 	int i;
 	for (i = 0; i < 8; i++)
 	{
-		mpz_set_ui(n, N->data[1][i]);
-		mpz_mul_2exp(n, n, 52);
-		mpz_add_ui(n, n, N->data[0][i]);
+		mpz_set_ui(n, (N->data[1][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(n, n, 32);
+		mpz_add_ui(n, n, N->data[1][i] & 0xffffffff);
+		mpz_mul_2exp(n, n, 20);
+		mpz_add_ui(n, n, (N->data[0][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(n, n, 32);
+		mpz_add_ui(n, n, N->data[0][i] & 0xffffffff);
 
-		mpz_set_ui(m, x->data[1][i]);
-		mpz_mul_2exp(m, m, 52);
-		mpz_add_ui(m, m, x->data[0][i]);
+		mpz_set_ui(m, (x->data[1][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(m, m, 32);
+		mpz_add_ui(m, m, x->data[1][i] & 0xffffffff);
+		mpz_mul_2exp(m, m, 20);
+		mpz_add_ui(m, m, (x->data[0][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(m, m, 32);
+		mpz_add_ui(m, m, x->data[0][i] & 0xffffffff);
 
 		mpz_mul_2exp(m, m, 104);
 		mpz_mod(m, m, n);
-		x->data[0][i] = mpz_get_ui(m) & 0x000fffffffffffff;
-		mpz_tdiv_q_2exp(m, m, 52);
-		x->data[1][i] = mpz_get_ui(m) & 0x000fffffffffffff;
+		x->data[0][i] = mpz_get_ui(m) & 0xffffffff;
+		mpz_tdiv_q_2exp(m, m, 32);
+		x->data[0][i] |= (mpz_get_ui(m) & 0xfffff) << 32;
+		mpz_tdiv_q_2exp(m, m, 20);
+		x->data[1][i] = mpz_get_ui(m) & 0xffffffff;
+		mpz_tdiv_q_2exp(m, m, 32);
+		x->data[1][i] |= (mpz_get_ui(m) & 0xfffff) << 32;
 	}
 
 	mpz_clear(m);
@@ -4602,21 +4626,34 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 
 void u104_to_mpz(vec_u104_t* x, int lane, mpz_t gx)
 {
-	mpz_set_ui(gx, x->data[1][lane]);
-	mpz_mul_2exp(gx, gx, 52);
-	mpz_add_ui(gx, gx, x->data[0][lane]);
+	mpz_set_ui(gx, (x->data[1][lane] >> 32) & 0xfffff);
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[1][lane] & 0xffffffff);
+	mpz_mul_2exp(gx, gx, 20);
+	mpz_add_ui(gx, gx, (x->data[0][lane] >> 32) & 0xfffff);
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[0][lane] & 0xffffffff);
 	return;
 }
 
 void mpz_to_u104(mpz_t gx, vec_u104_t* x, int lane)
 {
-	x->data[0][lane] = mpz_get_ui(gx) & 0x000fffffffffffff;
-	mpz_tdiv_q_2exp(gx, gx, 52);
-	x->data[1][lane] = mpz_get_ui(gx) & 0x000fffffffffffff;
+	x->data[0][lane] = mpz_get_ui(gx) & 0xffffffff;
+	mpz_tdiv_q_2exp(gx, gx, 32);
+	x->data[0][lane] |= (mpz_get_ui(gx) & 0xfffff) << 32;
+	mpz_tdiv_q_2exp(gx, gx, 20);
+	x->data[1][lane] = mpz_get_ui(gx) & 0xffffffff;
+	mpz_tdiv_q_2exp(gx, gx, 32);
+	x->data[1][lane] |= (mpz_get_ui(gx) & 0xfffff) << 32;
 
-	// restore input
-	mpz_mul_2exp(gx, gx, 52);
-	mpz_add_ui(gx, gx, x->data[0][lane]);
+	// restore input - still holds the highest 20 bits
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[1][lane] & 0xffffffff);
+	mpz_mul_2exp(gx, gx, 20);
+	mpz_add_ui(gx, gx, (x->data[0][lane] >> 32) & 0xfffff);
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[0][lane] & 0xffffffff);
+
 	return;
 }
 

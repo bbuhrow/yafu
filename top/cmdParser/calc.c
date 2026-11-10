@@ -193,7 +193,7 @@ static int function_nargs[NUM_FUNC] = {
     3, 2, 2, 1, 1, 
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
-    2, 4, 0, 3, 2,
+    2, 4, 0, 3, 1,
     1, 0, 0, 0};
 
 
@@ -3544,7 +3544,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // run special tests.  previously had just dropped these
         // into driver.c 
         
-        test_dlp_composites();
+        test_dlp_composites(mpz_get_ui(operands[0]));
 
 #if 0
         if (0)

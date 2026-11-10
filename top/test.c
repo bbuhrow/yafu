@@ -21,7 +21,9 @@ code to the public domain.
 #include <inttypes.h>
 #include "yafu.h"
 #include "microecm.h"
+#include "microecm_edw.h"
 #include "tinyecm.h"
+#include "tinyecm_edw.h"
 #include "arith.h"
 #include "ytools.h"
 #include "qs.h"
@@ -213,12 +215,12 @@ int test_kmpqs(mpz_t* inputs, int num_inputs)
 	return correct;
 }
 
-void test_dlp_composites(void)
+void test_dlp_composites(int testnum)
 {
 	FILE *in;
 	uint64_t *comp, f64;
 	uint32_t *f1, *f2;
-	uint64_t* f64a, *f64b;
+	uint64_t* f64a, *f64b, *outf;
 	uint32_t bits, totBits, minBits, maxBits;
 	double t_time;
 	clock_t start, stop;
@@ -233,82 +235,31 @@ void test_dlp_composites(void)
     uint64_t lcg_state = 0xdeadbeef0badcafe;
 	uint64_t lcg = 42;
 
-	uint64_t testLehman[29] = {
-		5640012124823LL,
-		7336014366011LL,
-		19699548984827LL,
-		52199161732031LL,
-		73891306919159LL,
-		112454098638991LL,
-
-		32427229648727LL,
-		87008511088033LL,
-		92295512906873LL,
-		338719143795073LL,
-		346425669865991LL,
-		1058244082458461LL,
-		1773019201473077LL,
-		6150742154616377LL,
-
-		44843649362329LL,
-		67954151927287LL,
-		134170056884573LL,
-		198589283218993LL,
-		737091621253457LL,
-		1112268234497993LL,
-		2986396307326613LL,
-
-		26275638086419LL,
-		62246008190941LL,
-		209195243701823LL,
-		290236682491211LL,
-		485069046631849LL,
-		1239671094365611LL,
-		2815471543494793LL,
-		5682546780292609LL
-	};
-
 	fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj2);
 
 	mpz_init(gmptmp);
 	comp = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
+	outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f64a = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 	f64b = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
-	uint64_t* outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
 
-    goto tinyqs_marker;
-    //goto spfermat_marker;
-    //goto tinyecm_104_list_marker;
-	//goto tinyecm_128_marker;
-	//goto microecm_marker;
-	//goto uecm_52_list_marker;
-	//goto brent_marker;
-	//goto mpqs_marker;
-
-	
-	for (i = 0; i < 29; i++)
+	switch (testnum)
 	{
-		f1[i] = spbrent(testLehman[i], 1, 8192);
-		f2[i] = testLehman[i] / f1[i];
+	case 0: goto tinyqs_marker;
+	case 1: goto kmpqs_marker;
+	case 2: goto tinyecm_104_list_marker;
+	case 3: goto tinyecm_128_marker;
+	case 4: goto microecm_marker;
+	case 5: goto uecm_52_list_marker;
+	case 6: goto brent_marker;
+	case 7: goto mpqs_marker;
+	case 8: goto microecm_edw_marker;
+	case 9: goto tinyecm_104_edw_list_marker;
+	case 10: goto tinyecm_128_edw_marker;
 	}
-
-	correct = 0;
-	k = 0;
-	for (i = 0; i < 29; i++)
-	{
-		f64 = LehmanFactor(testLehman[i], 3.5, 0, 0.1);
-		printf("input %"PRIu64" returned factor %"PRIu64", actual factors %u and %u (%"PRIu64")\n", 
-			testLehman[i], f64, f1[i], f2[i], (uint64_t)f1[i] * (uint64_t)f2[i]);
-		if ((f64 == f1[i]) || (f64 == f2[i]))
-		{
-			correct++;
-		}
-	}
-
-	printf("Lehman got %d of %d correct of testvector inputs\n", correct, 29);
 
 brent_marker:
 
@@ -391,8 +342,6 @@ brent_marker:
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
 	}
 
-	goto done;
-
 	// spbrent test
     // msvc max of 62 bits
     for (nf = 0; nf < num_files; nf++)
@@ -466,8 +415,6 @@ brent_marker:
         printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
     }
 
-	goto done;
-
 	// sequential squfof test
 	for (nf = 0; nf < 5; nf++)
 	{
@@ -535,7 +482,6 @@ brent_marker:
 		printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
 	}
-
 
 	goto done;
 
@@ -621,6 +567,39 @@ tinyqs_marker:
 			}
         }
 
+        mpz_clear(gmp_comp);
+    }   
+
+	goto done;
+
+kmpqs_marker:
+
+	i = 0;
+	strcpy(filenames[i++], "semiprimes_32bit.dat");
+	strcpy(filenames[i++], "semiprimes_40bit.dat");
+	strcpy(filenames[i++], "semiprimes_46bit.dat");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_52bit.dat");
+	strcpy(filenames[i++], "semiprimes_54bit.dat");
+	strcpy(filenames[i++], "semiprimes_56bit.dat");
+	strcpy(filenames[i++], "semiprimes_58bit.dat");
+	strcpy(filenames[i++], "semiprimes_60bit.dat");
+	strcpy(filenames[i++], "semiprimes_64bit.dat");
+	//strcpy(filenames[i++], "semiprimes_70bit.dat");
+	//strcpy(filenames[i++], "semiprimes_80bit.dat");
+	//strcpy(filenames[i++], "semiprimes_90bit.dat");
+	//strcpy(filenames[i++], "semiprimes_100bit.dat");
+	//strcpy(filenames[i++], "semiprimes_110bit.dat");
+	//strcpy(filenames[i++], "semiprimes_120bit.dat");
+	//strcpy(filenames[i++], "pseudoprimes_125bit.dat");
+	num_files = i;
+	num = 100000;
+
+	// kmpqs test
+	{
+		mpz_t gmp_comp;
+		mpz_init(gmp_comp);
+
 		for (nf = 0; nf < num_files; nf++)
 		{
 			uint64_t known1, known2;
@@ -675,308 +654,19 @@ tinyqs_marker:
 			}
 		}
 
-        mpz_clear(gmp_comp);
-    }   
+		mpz_clear(gmp_comp);
+	}
 
 	goto done;
-
-    i = 0;
-    strcpy(filenames[i++], "pseudoprimes_48bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_51bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_63bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_70bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_80bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_90bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_100bit.dat");
-    num_files = 8;
-    num = 10000;
-
-	// arbitrary precision rho test
-    for (nf = 0; nf < 0; nf++)
-    {
-        mpz_t gmp_comp;
-        char buf[1024];
-        in = fopen(filenames[nf], "r");
-
-        mpz_init(gmp_comp);
-
-        gettimeofday(&gstart, NULL);
-
-        correct = 0;
-        k = 0;
-        for (i = 0; i < num; i++)
-        {
-            int p;
-
-            fgets(buf, 1024, in);
-            gmp_sscanf(buf, "%Zd", gmp_comp);            
-            mpz_set(fobj2->rho_obj.gmp_n, gmp_comp);
-            fobj2->rho_obj.iterations = 8192;
-            
-            for (p = 0; p < 3; p++)
-            {
-                fobj2->rho_obj.curr_poly = p;
-                mbrent(fobj2);
-
-                if (mpz_cmp_ui(fobj2->rho_obj.gmp_f, 1) > 0)
-                {
-                    correct++;
-                    if (p > 0)
-                        k++;
-                    break;
-                }
-            }
-
-            clear_factor_list(fobj2->factors);
-        }
-
-        fclose(in);
-
-        gettimeofday(&gstop, NULL);
-        t_time = ytools_difftime(&gstart, &gstop);
-
-        printf("mbrent got %d of %d correct in %2.2f sec (%d with backup polynomial)\n", 
-            correct, num, t_time, k);
-        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
-        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
-
-        mpz_clear(gmp_comp);
-    }
-
-    i = 0;
-    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_63bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_70bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_80bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_90bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_100bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_110bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_120bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_125bit.dat");
-    num_files = 11;
-    num = 10000;
-
-	// gmp-ecm test
-#ifdef HAVE_GMP_ECM
-    for (nf = 0; nf < 0; nf++)
-    {
-        mpz_t gmp_comp;
-        char buf[1024];
-
-        ecm_params my_ecm_params;
-        int curves;
-        int B1;
-        
-        ecm_init(my_ecm_params);
-
-        switch (nf)
-        {
-        case 0:
-			// 55 bit
-            B1 = 100;
-            curves = 20;
-            break;
-        case 1:
-			// 60 bit
-            B1 = 200;
-            curves = 20;
-            break;
-        case 2:
-        case 3:
-			// 64 bit
-            B1 = 400;
-            curves = 50;
-            break;
-        case 4:
-			// 70 bit
-            B1 = 600;
-            curves = 50;
-            break;
-        case 5:
-			// 80 bit
-            B1 = 800;
-            curves = 50;
-            break;
-        case 6:
-			// 90 bit
-            B1 = 1000;
-            curves = 50;
-            break;
-        case 7:
-            B1 = 1200;
-            curves = 50;
-            break;
-        case 8:
-            B1 = 1400;
-            curves = 50;
-            break;
-        default:
-            B1 = 2000;
-            curves = 50;
-            break;
-        }
-
-        in = fopen(filenames[nf], "r");
-
-        mpz_init(gmp_comp);
-
-        gettimeofday(&gstart, NULL);
-
-        correct = 0;
-        k = 0;
-        for (i = 0; i < num; i++)
-        {
-            int p;
-			uint64_t f1, f2;
-
-            fgets(buf, 1024, in);
-            gmp_sscanf(buf, "%Zd,%"PRIu64",%"PRIu64"", gmp_comp, &f1, &f2);
-            
-            for (k = 0; k < curves; k++)
-            {
-                uint64_t sigma;
-                while ((sigma = lcg_rand_64(&lcg_state)) < 6);
-                my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
-				//mpz_set_ui(my_ecm_params->B2, 0);
-                mpz_set_ui(my_ecm_params->x, (unsigned long)0);
-                mpz_set_ui(my_ecm_params->sigma, sigma);
-                my_ecm_params->method = ECM_ECM;
-                ecm_factor(fobj2->ecm_obj.gmp_f, gmp_comp, B1, my_ecm_params);
-                //if ((mpz_cmp_ui(fobj2->ecm_obj.gmp_f, 1) > 0) &&
-                //    (mpz_cmp(fobj2->ecm_obj.gmp_f, gmp_comp) < 0))
-				if ((mpz_cmp_ui(fobj2->ecm_obj.gmp_f, f1) == 0) ||
-					(mpz_cmp_ui(fobj2->ecm_obj.gmp_f, f2) == 0))
-                {
-                    correct++;
-                    break;
-                }
-            }
-        }
-
-        fclose(in);
-
-        gettimeofday(&gstop, NULL);
-        t_time = ytools_difftime(&gstart, &gstop);
-
-        printf("ecm got %d of %d correct in %2.2f sec\n",
-            correct, num, t_time);
-        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
-        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
-
-        mpz_clear(gmp_comp);
-    }
-#endif
-
-spfermat_marker:
-    i = 0;
-    strcpy(filenames[i++], "pseudoprimes_32bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_34bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_36bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_38bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_40bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_42bit.dat");		// 70
-    strcpy(filenames[i++], "pseudoprimes_44bit.dat");		// 70
-    strcpy(filenames[i++], "pseudoprimes_46bit.dat");		// 70
-    strcpy(filenames[i++], "pseudoprimes_48bit.dat");		// 70
-    strcpy(filenames[i++], "pseudoprimes_50bit.dat");		// 70
-
-    for (nf = 0; nf < 6; nf++)
-    {
-        uint32_t iterations = 1000000;
-
-        in = fopen(filenames[nf], "r");
-
-        start = clock();
-        i = 0;
-        totBits = 0;
-        minBits = 999;
-        maxBits = 0;
-        //read in everything
-        while (!feof(in))
-        {
-            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-            mpz_set_ui(gmptmp, comp[i]);
-            j = mpz_sizeinbase(gmptmp, 2);
-            totBits += j;
-            if ((uint32_t)j > maxBits)
-                maxBits = j;
-            if ((uint32_t)j < minBits && j != 0)
-                minBits = j;
-            i++;
-        }
-        num = i;
-        num = 100000;
-        fclose(in);
-        stop = clock();
-        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
-        printf("data read in %2.4f sec\n", t_time);
-        printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
-        printf("minimum bits of input numbers = %d\n", minBits);
-        printf("maximum bits of input numbers = %d\n", maxBits);
-
-        gettimeofday(&gstart, NULL);
-
-        correct = 0;
-        k = 0;
-        for (i = 0; i < num; i++)
-        //for (i = 0; i < 1000; i++)
-        {
-            f64 = spfermat(iterations, 1, comp[i]);
-            if ((f64 == f1[i]) || (f64 == f2[i]))
-            {
-                correct++;
-                continue;
-            }
-            f64 = spfermat(iterations, 3, comp[i]);
-            if ((f64 == f1[i]) || (f64 == f2[i]))
-            {
-                correct++;
-                continue;
-            }
-            f64 = spfermat(iterations, 5, comp[i]);
-            if ((f64 == f1[i]) || (f64 == f2[i]))
-            {
-                correct++;
-                continue;
-            }
-            f64 = spfermat(iterations, 7, comp[i]);
-            if ((f64 == f1[i]) || (f64 == f2[i]))
-            {
-                correct++;
-                continue;
-            }
-            f64 = spfermat(iterations, 11, comp[i]);
-            if ((f64 == f1[i]) || (f64 == f2[i]))
-            {
-                correct++;
-                continue;
-            }
-            f64 = spfermat(iterations, 15, comp[i]);
-            if ((f64 == f1[i]) || (f64 == f2[i]))
-            {
-                correct++;
-                continue;
-            }
-        }
-
-        gettimeofday(&gstop, NULL);
-        t_time = ytools_difftime(&gstart, &gstop);
-
-        printf("Fermat got %d of %d correct in %2.2f sec\n", correct, num, t_time);
-        printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num);
-        printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
-    }
 
 tinyecm_104_list_marker:
 	i = 0;
 	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_60bit.dat");
+	strcpy(filenames[i++], "semiprimes_64bit.dat");
     strcpy(filenames[i++], "semiprimes_70bit.dat");
 	strcpy(filenames[i++], "semiprimes_80bit.dat");
 	strcpy(filenames[i++], "semiprimes_90bit.dat");
@@ -1007,22 +697,22 @@ tinyecm_104_list_marker:
 		for (i = 0; i < num; i++)
 		{
 			fgets(buf, 1024, in);
-#ifdef _MSC_VER
-			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
-				gmp_comp, &known1, &known2);
-#else
+
 			gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
 				gmp_comp, &known1, &known2);
-#endif
 
 			bits = mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;
 
-			comp[2 * i + 0] = mpz_get_ui(gmp_comp) & 0xfffffffffffffull;
-			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 52);
-			comp[2 * i + 1] = mpz_get_ui(gmp_comp) & 0xfffffffffffffull;
+			comp[2 * i + 0] = mpz_get_ui(gmp_comp) & 0xffffffff;
+			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 32);
+			comp[2 * i + 0] |= (uint64_t)(mpz_get_ui(gmp_comp) & 0xfffff) << 32;
+			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 20);
+			comp[2 * i + 1] = mpz_get_ui(gmp_comp) & 0xffffffff;
+			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 32);
+			comp[2 * i + 1] |= (uint64_t)(mpz_get_ui(gmp_comp) & 0xfffff) << 32;
 
 			f64a[i] = known1;
 			f64b[i] = known2;
@@ -1059,11 +749,103 @@ tinyecm_104_list_marker:
 
 	goto done;
 
+tinyecm_104_edw_list_marker:
+	i = 0;
+	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_60bit.dat");
+	strcpy(filenames[i++], "semiprimes_64bit.dat");
+	strcpy(filenames[i++], "semiprimes_70bit.dat");
+	strcpy(filenames[i++], "semiprimes_80bit.dat");
+	strcpy(filenames[i++], "semiprimes_90bit.dat");
+	strcpy(filenames[i++], "semiprimes_100bit.dat");
+	num_files = i;
+
+	// tinyecm_104_list test
+	for (nf = 0; nf < num_files; nf++)
+	{
+		mpz_t gmp_comp, gmp_f;
+		char buf[1024];
+		int curves;
+		int B1;
+		uint64_t known1, known2, known3;
+
+		in = fopen(filenames[nf], "r");
+		printf("testing file: %s\n", filenames[nf]);
+
+		mpz_init(gmp_comp);
+		mpz_init(gmp_f);
+
+		gettimeofday(&gstart, NULL);
+
+		num = 10000;
+		totBits = 0;
+		minBits = 99999;
+		maxBits = 0;
+		for (i = 0; i < num; i++)
+		{
+			fgets(buf, 1024, in);
+			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
+				gmp_comp, &known1, &known2);
+
+			bits = mpz_sizeinbase(gmp_comp, 2);
+			totBits += bits;
+			if (bits < minBits) minBits = bits;
+			if (bits > maxBits) maxBits = bits;
+
+			comp[2 * i + 0] = mpz_get_ui(gmp_comp) & 0xffffffff;
+			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 32);
+			comp[2 * i + 0] |= (uint64_t)(mpz_get_ui(gmp_comp) & 0xfffff) << 32;
+			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 20);
+			comp[2 * i + 1] = mpz_get_ui(gmp_comp) & 0xffffffff;
+			mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 32);
+			comp[2 * i + 1] |= (uint64_t)(mpz_get_ui(gmp_comp) & 0xfffff) << 32;
+
+			f64a[i] = known1;
+			f64b[i] = known2;
+		}
+
+		printf("average bits of input numbers: %1.2f\n", (double)totBits / (double)num);
+		printf("minimum bits of input numbers: %u\n", minBits);
+		printf("maximum bits of input numbers: %u\n", maxBits);
+		printf("commencing getfactor_tecm_x8_list test\n");
+
+		getfactor_tecm_edw_x8_list(comp, outf, maxBits / 2, num, &lcg);
+
+		correct = 0;
+		for (j = 0; j < num; j++)
+		{
+			if ((outf[j * 2 + 0] == f64a[j]) ||
+				(outf[j * 2 + 0] == f64b[j]))
+			{
+				correct++;
+			}
+
+		}
+
+		gettimeofday(&gstop, NULL);
+		t_time = ytools_difftime(&gstart, &gstop);
+
+		printf("tinyecm got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+		printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num);
+		printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+
+		mpz_clear(gmp_comp);
+		mpz_clear(gmp_f);
+	}
+
+	goto done;
+
 tinyecm_128_marker:
 	i = 0;
 	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_60bit.dat");
+	strcpy(filenames[i++], "semiprimes_64bit.dat");
 	strcpy(filenames[i++], "semiprimes_70bit.dat");
 	strcpy(filenames[i++], "semiprimes_80bit.dat");
 	strcpy(filenames[i++], "semiprimes_90bit.dat");
@@ -1096,13 +878,8 @@ tinyecm_128_marker:
 		for (i = 0; i < num; i++)
 		{
 			fgets(buf, 1024, in);
-#ifdef _MSC_VER
 			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 				gmp_comp, &known1, &known2);
-#else
-			gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
-				gmp_comp, &known1, &known2);
-#endif
 
 			bits = mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
@@ -1111,8 +888,12 @@ tinyecm_128_marker:
 
 			getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
 
-			if ((mpz_get_ui(gmp_f) == known1) ||
-				(mpz_get_ui(gmp_f) == known2))
+			known3 = mpz_get_ui(gmp_f) & 0xffffffff;
+			mpz_tdiv_q_2exp(gmp_f, gmp_f, 32);
+			known3 |= (uint64_t)mpz_get_ui(gmp_f) << 32;
+
+			if ((known3 == known1) ||
+				(known3 == known2))
 			{
 				correct++;
 			}
@@ -1122,6 +903,84 @@ tinyecm_128_marker:
 		printf("minimum bits of input numbers: %u\n", minBits);
 		printf("maximum bits of input numbers: %u\n", maxBits);
 		
+		gettimeofday(&gstop, NULL);
+		t_time = ytools_difftime(&gstart, &gstop);
+
+		printf("tinyecm got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+		printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num);
+		printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+
+		mpz_clear(gmp_comp);
+		mpz_clear(gmp_f);
+	}
+
+	goto done;
+
+tinyecm_128_edw_marker:
+	i = 0;
+	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_60bit.dat");
+	strcpy(filenames[i++], "semiprimes_64bit.dat");
+	strcpy(filenames[i++], "semiprimes_70bit.dat");
+	strcpy(filenames[i++], "semiprimes_80bit.dat");
+	strcpy(filenames[i++], "semiprimes_90bit.dat");
+	strcpy(filenames[i++], "semiprimes_100bit.dat");
+	num_files = i;
+
+	// tinyecm_128 test
+	for (nf = 0; nf < num_files; nf++)
+	{
+		mpz_t gmp_comp, gmp_f;
+		char buf[1024];
+		int curves;
+		int B1;
+		uint64_t known1, known2, known3;
+
+		in = fopen(filenames[nf], "r");
+		printf("testing file: %s\n", filenames[nf]);
+
+		mpz_init(gmp_comp);
+		mpz_init(gmp_f);
+
+		gettimeofday(&gstart, NULL);
+
+		num = 10000;
+		totBits = 0;
+		minBits = 99999;
+		maxBits = 0;
+		correct = 0;
+		printf("commencing getfactor_tecm test\n");
+		for (i = 0; i < num; i++)
+		{
+			fgets(buf, 1024, in);
+			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
+				gmp_comp, &known1, &known2);
+
+			bits = mpz_sizeinbase(gmp_comp, 2);
+			totBits += bits;
+			if (bits < minBits) minBits = bits;
+			if (bits > maxBits) maxBits = bits;
+
+			getfactor_tecm_edw(gmp_comp, gmp_f, 0, &lcg);
+
+			known3 = mpz_get_ui(gmp_f) & 0xffffffff;
+			mpz_tdiv_q_2exp(gmp_f, gmp_f, 32);
+			known3 |= (uint64_t)mpz_get_ui(gmp_f) << 32;
+
+			if ((known3 == known1) ||
+				(known3 == known2))
+			{
+				correct++;
+			}
+		}
+
+		printf("average bits of input numbers: %1.2f\n", (double)totBits / (double)num);
+		printf("minimum bits of input numbers: %u\n", minBits);
+		printf("maximum bits of input numbers: %u\n", maxBits);
+
 		gettimeofday(&gstop, NULL);
 		t_time = ytools_difftime(&gstart, &gstop);
 
@@ -1295,6 +1154,97 @@ microecm_marker:
 		for (i = 0; i < num; i++)
 		{
 			uint64_t result = getfactor_uecm(comp[i], 0, &lcg);
+
+			if ((result == f1[i]) || (result == f2[i]))
+			{
+				correct++;
+			}
+		}
+
+		gettimeofday(&gstop, NULL);
+		t_time = ytools_difftime(&gstart, &gstop);
+
+		printf("microecm got %d of %d correct in %2.2f sec\n",
+			correct, num, t_time);
+		printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num);
+		printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+
+		mpz_clear(gmp_comp);
+		mpz_clear(gmp_f);
+	}
+	goto done;
+
+microecm_edw_marker:
+	i = 0;
+	strcpy(filenames[i++], "semiprimes_32bit.dat");
+	strcpy(filenames[i++], "semiprimes_34bit.dat");
+	strcpy(filenames[i++], "semiprimes_36bit.dat");
+	strcpy(filenames[i++], "semiprimes_38bit.dat");
+	strcpy(filenames[i++], "semiprimes_40bit.dat");
+	strcpy(filenames[i++], "semiprimes_42bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_44bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_46bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_48bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_50bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_52bit.dat");		// 85
+	strcpy(filenames[i++], "semiprimes_54bit.dat");       // 85
+	strcpy(filenames[i++], "semiprimes_56bit.dat");		// 125
+	strcpy(filenames[i++], "semiprimes_58bit.dat");		// 125
+	strcpy(filenames[i++], "semiprimes_60bit.dat");		// 165
+	strcpy(filenames[i++], "semiprimes_62bit.dat");		// 165
+	strcpy(filenames[i++], "semiprimes_64bit.dat");		// 205
+
+	num_files = i;
+	num = 100000;
+
+	lcg = 42;
+
+	// uecm test
+	for (nf = 0; nf < num_files; nf++)
+	{
+		mpz_t gmp_comp, gmp_f;
+		char buf[1024];
+		int curves;
+		int B1;
+		uint64_t known1, known2, known3;
+
+		in = fopen(filenames[nf], "r");
+		printf("testing file: %s\n", filenames[nf]);
+
+		mpz_init(gmp_comp);
+		mpz_init(gmp_f);
+
+		gettimeofday(&gstart, NULL);
+
+		correct = 0;
+		k = 0;
+
+		totBits = 0;
+		minBits = 999;
+		maxBits = 0;
+		i = 0;
+		while (!feof(in))
+		{
+			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+			mpz_set_ui(gmptmp, comp[i]);
+
+			j = mpz_sizeinbase(gmptmp, 2);
+			totBits += j;
+			if ((uint32_t)j > maxBits)
+				maxBits = j;
+			if ((uint32_t)j < minBits && j != 0)
+				minBits = j;
+			i++;
+		}
+		printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+		printf("minimum bits of input numbers = %d\n", minBits);
+		printf("maximum bits of input numbers = %d\n", maxBits);
+
+		fclose(in);
+
+		for (i = 0; i < num; i++)
+		{
+			uint64_t result = getfactor_uecm_edw(comp[i], 0, &lcg);
 
 			if ((result == f1[i]) || (result == f2[i]))
 			{
