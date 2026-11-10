@@ -590,3 +590,85 @@ estimated as ~50 multiplications per curve, ~0.5 us per vector on IFMA and
 
 Of the IFMA gain, the IFMA multiply alone (keeping PRAC and the Suyama
 build) is ~1.4x at B1 = 85.
+
+---
+
+# Part D: optimization pass of the existing microecm / tinyecm (2026-11-10)
+
+Before Phase 1, the arithmetic improvements Phase 0 found went into the
+existing files directly. Same curves, same chains, same results.
+
+| file | change |
+|---|---|
+| `microecm.c` x8 | m = T_lo * invN mod 2^52 with `madd52lo` (IFMA) instead of `vpmullq` + mask, in `uecm_mulredc_x8` and `uecm_sqrredc_x8` |
+| `microecm.c` scalar | the gcc inline-asm `uecm_mulredc` / `uecm_sqrredc` are used on any x86-64 gcc / clang except clang-cl. They required `__unix__`, so MinGW / MSYS2 builds used `uecm_mulredc_alt`, ~5% slower in stage 1 and 5-10% in stage 2 (measured on Linux by forcing that path) |
+| `tinyecm.c` x8 | with IFMA, `tecm_mulredc104_x8` does all its 52x52 products with `madd52lo/hi` (19 instructions) instead of FP `fmadd_round` pairs; the FP version stays for AVX-512F |
+| `tinyecm.c` x8 build | R^2 mod n per lane in `monty104_x8_t.rsqr`; Montgomery conversions are mulredcs by R^2 instead of mpz per lane; one `mpz_invert` per lane, no mpz products or conversions after it |
+| `tinyecm.c` scalar | inline `__int128` CIOS `mulmod128` / `sqrmod128` / `addmod128` / `submod128` (where `__SIZEOF_INT128__`; MSVC keeps monty.c; `-DTECM_NO_INLINE128` forces it), replacing out-of-line calls into monty.c |
+| `tinyecm.c` scalar build | R^2 in the work struct, conversions by mulmod; one `mpz_invert` |
+| `monty.c` | bug fix: the asm `addmod128` clobbered its 2nd operand when the output aliased it (`arith/limb2.c` has the same code but isn't built) |
+
+Tried and dropped: `vpmuludq` pieces for the AVX-512F m (no change).
+
+**Verification:**
+* The Phase 0 exact checks pass for all four benches on IFMA and
+  AVX-512F builds.
+* `tiny_e2e.c` hashes every factor returned through the four public
+  entry points (18 rows, same seeds). The hashes are identical before and
+  after on both builds, so results are unchanged to the bit.
+
+**Benchmarks** (Rocket Lake, 1 thread, `taskset`, WSL gcc 11.4; the
+"before" binaries are built from the previous commit by
+`arith/edwards/tiny_build.sh`; raw output in the session scratchpad):
+
+Stage level, ns, before -> after:
+
+| B1 | x8 52-bit IFMA stage 1 | stage 2 | x8 104-bit IFMA stage 1 | stage 2 | scalar128 stage 1 | stage 2 |
+|---:|---|---|---|---|---|---|
+| 27 | 1151 -> 775 (1.49x) | 1358 -> 896 (1.52x) | 5640 -> 3889 (1.45x) | 8326 -> 5759 (1.45x) | 2896 -> 2290 (1.26x) | 4316 -> 4032 (1.07x) |
+| 47 | 2086 -> 1345 (1.55x) | 1699 -> 1128 (1.51x) | 10423 -> 7208 (1.45x) | 10883 -> 7697 (1.41x) | 5382 -> 4275 (1.26x) | 6045 -> 5299 (1.14x) |
+| 70 | 3061 -> 2002 (1.53x) | 2123 -> 1416 (1.50x) | 14462 -> 9596 (1.51x) | 13907 -> 9837 (1.41x) | 7931 -> 6278 (1.26x) | 7244 -> 6857 (1.06x) |
+| 85 | 3955 -> 2546 (1.55x) | 2417 -> 1601 (1.51x) | 18681 -> 12100 (1.54x) | 15978 -> 11363 (1.41x) | 10208 -> 8266 (1.23x) | 8150 -> 7763 (1.05x) |
+| 125 | 5647 -> 3666 (1.54x) | 3147 -> 2129 (1.48x) | 27696 -> 18498 (1.50x) | 21548 -> 15227 (1.42x) | 14773 -> 12029 (1.23x) | 10989 -> 10533 (1.04x) |
+| 165 | 7579 -> 4940 (1.53x) | 4055 -> 2738 (1.48x) | 38355 -> 25453 (1.51x) | 27710 -> 19762 (1.40x) | 20081 -> 16084 (1.25x) | 14114 -> 13706 (1.03x) |
+| 205 | 9773 -> 6295 (1.55x) | 4788 -> 3127 (1.53x) | 49168 -> 33286 (1.48x) | 32678 -> 23262 (1.40x) | 25970 -> 20624 (1.26x) | 16621 -> 15970 (1.04x) |
+
+Curve builds:
+* x8 104-bit: 7652 -> 479 ns per 8 curves IFMA (16x); 7834 -> 661 ns
+  AVX-512F (12x).
+* scalar128: 1418 -> 163 ns (8.7x).
+
+Unchanged within noise (±2%): scalar64 on Linux (no code change there),
+and the AVX-512F stage-level numbers except the x8 104-bit build.
+
+End to end through the public entry points, us per input (10000 random
+inputs per row; uecm: balanced semiprimes; tecm: p of t bits times q of
+2t bits, target t). Found rates are identical before and after.
+
+| level | uecm x8 list, IFMA | tecm scalar, IFMA | tecm x8 list, IFMA | tecm x8 list, AVX-512F |
+|---|---|---|---|---|
+| B1 27 (40-bit / t = 20) | 1.23 -> 0.97 (1.27x) | 30.4 -> 26.0 (1.17x) | 9.99 -> 6.51 (1.53x) | 10.28 -> 8.98 (1.14x) |
+| B1 47 (44 / 22) | 1.64 -> 1.26 (1.30x) | 47.4 -> 41.9 (1.13x) | 15.46 -> 10.18 (1.52x) | 15.99 -> 14.15 (1.13x) |
+| B1 70 (48 / 24) | 2.49 -> 1.81 (1.38x) | 87.9 -> 66.1 (1.33x)* | 22.84 -> 15.10 (1.51x) | 23.60 -> 21.45 (1.10x) |
+| B1 85 (52 / 26) | 3.73 -> 2.70 (1.38x) | 126.2 -> 104.7 (1.20x) | 34.18 -> 22.62 (1.51x) | 35.97 -> 33.21 (1.08x) |
+| B1 125 (t = 29) | | 252.0 -> 208.9 (1.21x) | 67.68 -> 44.01 (1.54x) | 68.23 -> 65.18 (1.05x) |
+| B1 165 (t = 31) | | 404.5 -> 331.9 (1.22x) | 116.74 -> 70.67 (1.65x) | 107.86 -> 102.65 (1.05x) |
+| B1 205 (t = 32) | | 488.8 -> 407.8 (1.20x) | 123.91 -> 85.72 (1.45x) | 130.15 -> 125.70 (1.04x) |
+
+(* the 87.9 before is a noisy run; the AVX-512F build's scalar tecm, same
+code, went 76.6 -> 66.8, 1.15x. In general scalar tecm is 1.13-1.22x on
+both builds. scalar uecm: 0.98-1.03x, noise.)
+
+**Effect on the Edwards plan:**
+* The incumbents are now faster, so Part C5's per-factor gains shrink to
+  the Edwards-only part. Against the optimized code (same method as C5:
+  build + stage 1 + stage 2, times yield):
+  - microecm x8 IFMA: ~1.55x (B1 = 205) to ~2.0x (B1 = 27). Its Suyama
+    build (8 scalar modinv, 1351 ns) is untouched and is now larger than
+    the whole stage 1 at B1 = 27.
+  - tinyecm x8 IFMA: ~1.2-1.4x.
+  - tinyecm scalar: ~1.05-1.1x. Its build is now cheap, so this is mostly
+    yield.
+  - microecm scalar: unchanged, ~1.3x.
+* Phase 0's Edwards prototypes already used these arithmetic forms, so
+  the Edwards stage-1 numbers stand.
