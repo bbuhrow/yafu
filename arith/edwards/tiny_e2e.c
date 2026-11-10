@@ -104,6 +104,18 @@ int main(int argc, char **argv)
             }
             printf("  %4d %4d  %8.2f  %.4f   hash %016llx (uecm x8 list)\n", ub[k], ublv[k],
                 (t1 - t0) * 1e6 / num, (double)ok / num, (unsigned long long)h);
+#ifdef WITH_EDW
+            {
+                double e0 = now();
+                getfactor_uecm_edw_x8_list(q, f, num, &lcg);
+                double e1 = now();
+                int okE = 0;
+                for (int i = 0; i < num; i++)
+                    okE += (f[i] > 1 && f[i] < q[i] && q[i] % f[i] == 0);
+                printf("  %4d %4d  %8.2f  %.4f   (uecm_edw x8 list)   speedup %.3f\n", ub[k],
+                    ublv[k], (e1 - e0) * 1e6 / num, (double)okE / num, (t1 - t0) / (e1 - e0));
+            }
+#endif
         }
     }
 

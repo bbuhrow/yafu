@@ -31,8 +31,17 @@ Design and measurements: arith/micro_tiny_edwards_plan.md.  In short:
 #include "edw_tiny_curves.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #if defined(_MSC_VER)
 #include <intrin.h>
+#endif
+
+#ifndef ALIGNED_MEM
+#if defined(_MSC_VER)
+#define ALIGNED_MEM __declspec(align(64))
+#else
+#define ALIGNED_MEM __attribute__((aligned(64)))
+#endif
 #endif
 
 #if defined(_MSC_VER)
@@ -688,6 +697,68 @@ static const uint8_t uedw_b1_205_x50[1013] = {
     11,17,19,29,49,53,0,59,37,31,29,19,11,7,1,23,
     41,53,0,47,43 };
 
+#ifdef USE_AVX512F
+/* the B2 = 25 B1 sequences at B1 >= 125, used by the x8 stage 2 (as microecm's) */
+static const int uedw_numb1_125 = 319;
+static const uint8_t uedw_b1_125[319] = {
+    23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
+    29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,
+    17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,
+    47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,29,23,11,17,0,47,
+    43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,17,13,11,1,23,31,
+    37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,43,41,31,17,7,1,
+    11,13,19,29,0,59,53,49,47,37,29,11,13,17,23,31,0,59,43,41,37,29,23,17,13,1,31,47,0,59,53,49,47,41,37,
+    31,19,13,7,11,17,29,43,0,47,29,19,11,7,1,41,43,59,0,53,49,37,23,13,11,7,1,17,19,29,41,43,59,0,59,49,
+    41,37,23,13,1,7,11,29,43,47,53,0,59,53,49,31,23,13,7,1,17,29,43,47,0,59,31,29,19,11,7,37,49,53 };
+static const int uedw_numb1_165 = 435;
+static const uint8_t uedw_b1_165[435] = {
+    13,7,1,11,17,19,31,43,47,49,53,59,0,59,49,43,
+    37,31,29,23,19,17,7,11,13,47,53,0,53,47,41,37,
+    31,23,19,11,1,13,29,43,59,0,53,49,41,37,31,19,
+    17,1,7,23,29,47,59,0,59,53,47,43,41,29,19,17,
+    13,7,1,23,31,49,0,53,47,41,37,29,23,19,11,7,
+    17,31,43,49,59,0,47,43,41,37,23,19,17,13,7,11,
+    29,53,0,53,49,43,37,29,23,11,7,1,13,19,31,41,
+    0,53,49,47,43,37,31,23,17,11,13,41,0,59,47,43,
+    37,31,29,23,11,1,17,19,41,0,59,53,19,13,7,1,
+    29,43,47,49,0,53,49,47,41,29,19,17,13,11,7,1,
+    23,31,43,59,0,53,49,41,37,23,19,13,11,7,1,17,
+    43,47,0,47,43,41,31,19,17,7,1,13,37,49,0,59,
+    49,37,29,13,1,7,11,17,19,41,47,53,0,49,47,31,
+    29,7,1,13,17,19,23,37,59,0,47,37,31,19,17,13,
+    11,1,29,41,43,53,0,59,41,17,13,7,1,19,23,31,
+    47,49,53,0,59,53,47,43,31,29,7,1,11,17,37,41,
+    49,0,49,43,37,23,19,13,1,7,17,0,59,49,41,37,
+    31,29,23,1,11,13,53,0,53,43,41,37,29,23,17,13,
+    11,7,1,19,31,49,0,53,43,31,29,23,19,17,1,13,
+    37,41,59,0,53,43,37,31,23,13,1,17,29,59,0,59,
+    49,41,37,23,19,11,1,7,29,0,59,43,17,13,11,1,
+    7,23,29,37,41,49,0,49,47,43,41,29,1,7,13,19,
+    23,31,59,0,59,49,47,31,29,13,7,37,41,43,0,49,
+    41,29,23,13,11,7,1,17,19,31,43,53,0,53,47,43,
+    37,29,23,17,1,11,13,31,41,49,59,0,53,47,41,19,
+    13,11,1,17,23,43,0,53,49,47,37,23,19,11,7,17,
+    29,31,43,0,53,31,19,17,13,7,1,29,37,59,0,49,
+    47,41,29 };
+static const int uedw_numb1_205 = 511;
+static const uint8_t uedw_b1_205[511] = {
+    1,23,41,0,59,53,49,47,37,23,19,17,13,1,7,29,43,0,53,49,41,31,29,19,17,11,7,1,13,37,59,0,49,47,29,23,
+    13,7,1,17,31,37,43,0,59,49,47,43,37,31,29,17,13,7,1,11,19,53,0,59,53,49,41,37,23,13,1,11,17,19,29,43,
+    47,0,53,49,47,43,23,19,11,1,7,17,37,41,0,59,53,41,37,31,29,19,17,11,1,13,43,47,0,53,47,41,19,17,7,1,
+    11,23,31,43,59,0,59,53,41,31,13,11,7,1,17,29,37,0,49,43,37,29,11,1,13,17,19,23,41,0,59,49,47,43,41,37,
+    31,19,7,1,13,23,29,53,0,53,49,43,41,37,31,29,23,13,7,17,19,47,59,0,49,47,37,29,23,17,11,7,13,19,31,41,
+    53,0,59,43,29,23,19,17,13,11,1,41,0,59,37,31,23,17,13,11,7,1,19,29,43,53,0,49,47,43,41,31,19,17,1,7,11,
+    13,23,0,47,43,37,29,13,11,7,1,17,19,23,31,59,0,59,37,31,29,23,19,13,1,7,11,41,47,53,0,53,49,43,31,23,
+    17,13,41,59,0,59,53,31,19,17,1,7,11,23,37,47,49,0,59,53,47,43,41,37,31,23,19,17,11,1,0,59,53,49,47,31,
+    17,13,7,1,11,29,37,0,53,43,31,17,13,7,1,29,41,49,0,53,49,41,29,23,11,7,1,19,31,47,0,47,43,41,29,23,19,
+    7,1,11,49,0,59,31,29,23,17,11,7,1,13,41,43,0,59,43,37,17,1,7,11,13,19,41,49,0,59,53,43,41,37,31,29,23,
+    13,11,1,47,0,59,53,47,31,19,17,13,1,7,11,29,37,43,49,0,49,43,41,31,17,13,7,11,23,37,53,0,53,49,41,23,
+    19,13,11,7,1,17,37,59,0,49,47,43,37,31,29,23,1,7,41,0,59,43,41,37,31,17,13,11,7,47,49,0,59,49,47,37,31,
+    29,19,17,7,1,0,53,47,37,19,13,1,11,31,41,0,49,47,37,23,17,13,11,7,19,31,53,0,59,53,47,29,13,11,7,1,23,
+    41,0,49,47,41,37,19,11,13,17,23,29,31,43,0,59,29,19,13,1,41,43,47,53,0,59,53,43,41,37,23,17,11,7,1,13,
+    29,49 };
+#endif
+
 /* microecm's uecm_stage2 (D = 60) with projective A24 */
 static uint64_t uedw_stage2(const uedw_pt *P, const uedw_curve *cv, uint32_t stg1_max,
     const uedw_ctx *c)
@@ -1068,5 +1139,669 @@ int uecm_edw_hist(uint64_t *hist, int max)
     (void)hist;
     (void)max;
     return -1;
+#endif
+}
+
+/* ======================================================================
+   x8: AVX-512, 8 inputs n < 2^52 at a time (one per lane), R = 2^52.
+   The same curves, chains and stage 2 as the scalar code, vectorized:
+   - per lane, the curve sequence is the table curves, then GKL [m]Q for
+     m = 3, 4, ... (a fixed start: [3]Q is a small constant, so no lane
+     needs a scalar multiplication on E');
+   - table constants are loaded per lane as two 52-bit digits,
+     a0 R^2 / R + a1 R^3 / R;
+   - stage 2 is microecm's uecm_stage2_x8 (B2 = 25 B1 tables at every
+     level; a lane's accumulator skips products that would be 0 mod n).
+   ====================================================================== */
+#ifdef USE_AVX512F
+#include <immintrin.h>
+
+typedef __m512i uedw_v8;
+
+#ifndef IFMA
+static __m512d uedw8_dbias;
+static __m512i uedw8_vbias1;
+static __m512i uedw8_vbias2;
+#endif
+
+#ifdef IFMA
+static UEDW_INLINE __m512i uedw8_mul52lo(__m512i b, __m512i c)
+{
+    return _mm512_madd52lo_epu64(_mm512_setzero_si512(), c, b);
+}
+static UEDW_INLINE __m512i uedw8_mul52hi(__m512i b, __m512i c)
+{
+    return _mm512_madd52hi_epu64(_mm512_setzero_si512(), c, b);
+}
+static UEDW_INLINE void uedw8_mul52lohi(__m512i b, __m512i c, __m512i *l, __m512i *h)
+{
+    *l = _mm512_madd52lo_epu64(_mm512_setzero_si512(), c, b);
+    *h = _mm512_madd52hi_epu64(_mm512_setzero_si512(), c, b);
+}
+#else
+static UEDW_INLINE __m512i uedw8_mul52lo(__m512i b, __m512i c)
+{
+    return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
+}
+static UEDW_INLINE __m512i uedw8_mul52hi(__m512i b, __m512i c)
+{
+    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
+    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
+    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, uedw8_dbias,
+        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    return _mm512_sub_epi64(_mm512_castpd_si512(prod1_ld), uedw8_vbias1);
+}
+static UEDW_INLINE void uedw8_mul52lohi(__m512i b, __m512i c, __m512i *l, __m512i *h)
+{
+    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
+    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
+    __m512d prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, uedw8_dbias,
+        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    *h = _mm512_sub_epi64(_mm512_castpd_si512(prod1_hd), uedw8_vbias1);
+    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(uedw8_vbias2), prod1_hd);
+    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd,
+        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    *l = _mm512_castpd_si512(prod1_ld);
+}
+#endif
+
+/* Montgomery multiplication, R = 2^52, positive inverse; inputs in [0, n) */
+static UEDW_INLINE __m512i uedw8_mulredc(__m512i x, __m512i y, __m512i N, __m512i invN)
+{
+    __m512i T_hi, T_lo;
+    uedw8_mul52lohi(x, y, &T_lo, &T_hi);
+    __m512i m = uedw8_mul52lo(T_lo, invN);
+    __m512i mN_hi = uedw8_mul52hi(m, N);
+    __m512i tmp = _mm512_sub_epi64(_mm512_add_epi64(T_hi, N), mN_hi);
+    __m512i result = _mm512_sub_epi64(T_hi, mN_hi);
+    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);
+    return _mm512_mask_mov_epi64(result, msk, tmp);
+}
+static UEDW_INLINE __m512i uedw8_addmod(__m512i x, __m512i y, __m512i N)
+{
+    __m512i t = _mm512_add_epi64(x, y);
+    __mmask8 m = _mm512_cmpge_epu64_mask(t, N);
+    return _mm512_mask_sub_epi64(t, m, t, N);
+}
+static UEDW_INLINE __m512i uedw8_submod(__m512i x, __m512i y, __m512i N)
+{
+    __m512i t = _mm512_sub_epi64(x, y);
+    __mmask8 m = _mm512_cmpgt_epu64_mask(y, x);
+    return _mm512_mask_add_epi64(t, m, t, N);
+}
+
+typedef struct {
+    uedw_v8 n, rho, one, Rsqr, R3;
+    uedw_v8 c6, c10, c16, c32, c48;
+} uedw_ctx8;
+
+#define M8(a, b) uedw8_mulredc((a), (b), c->n, c->rho)
+#define S8(a) uedw8_mulredc((a), (a), c->n, c->rho)
+#define A8(a, b) uedw8_addmod((a), (b), c->n)
+#define D8(a, b) uedw8_submod((a), (b), c->n)
+#define Z8 _mm512_setzero_si512()
+
+/* the derived constants, from n, rho, one and Rsqr */
+static void uedw8_ctx_finish(uedw_ctx8 *c)
+{
+    __m512i c2 = A8(c->one, c->one);
+    __m512i c4 = A8(c2, c2);
+    __m512i c8 = A8(c4, c4);
+    c->c16 = A8(c8, c8);
+    c->c32 = A8(c->c16, c->c16);
+    c->c48 = A8(c->c32, c->c16);
+    c->c6 = A8(c4, c2);
+    c->c10 = A8(c8, c2);
+    c->R3 = M8(c->Rsqr, c->Rsqr);               // R^3 mod n
+}
+
+/* a signed constant < 2^63 per lane, to Montgomery form */
+static __m512i uedw8_const(const int64_t *v, const uedw_ctx8 *c)
+{
+    ALIGNED_MEM uint64_t lo[8], hi[8];
+    __mmask8 neg = 0;
+    int i;
+    for (i = 0; i < 8; i++) {
+        uint64_t a = (v[i] < 0) ? (uint64_t)0 - (uint64_t)v[i] : (uint64_t)v[i];
+        lo[i] = a & 0x000fffffffffffffULL;
+        hi[i] = a >> 52;
+        if (v[i] < 0) neg |= (__mmask8)(1 << i);
+    }
+    __m512i r = A8(M8(_mm512_load_si512(lo), c->Rsqr), M8(_mm512_load_si512(hi), c->R3));
+    return _mm512_mask_mov_epi64(r, neg, D8(Z8, r));
+}
+
+typedef struct { uedw_v8 X, Y, Z; } uedw_wpt8;
+typedef struct { uedw_v8 X, Y, Z, T; } uedw_ept8;
+typedef struct { uedw_v8 YmX, YpX, T2d, Z2; } uedw_cached8;
+typedef struct {
+    uedw_ept8 P;
+    uedw_v8 dn2, dd, dd2, a24n, a24d;
+} uedw_curve8;
+typedef struct { uedw_v8 X, Z; } uedw_pt8;
+
+static void uedw8_w_addq(uedw_wpt8 *R, const uedw_ctx8 *c)
+{
+    __m512i X = R->X, Y = R->Y, Z = R->Z;
+    __m512i z2 = A8(Z, Z);
+    __m512i z4 = A8(z2, z2);
+    __m512i u = D8(A8(z4, z4), Y);
+    __m512i v = D8(A8(z4, Z), X);
+    __m512i u2 = S8(u);
+    __m512i v2 = S8(v);
+    __m512i v3 = M8(v2, v);
+    __m512i w1 = M8(v2, X);
+    __m512i w2 = M8(v2, Z);
+    w2 = A8(w2, w2);
+    w2 = A8(w2, w2);
+    __m512i A = D8(D8(M8(u2, Z), w1), w2);
+    R->X = M8(v, A);
+    R->Y = D8(M8(u, D8(w1, A)), M8(Y, v3));
+    R->Z = M8(v3, Z);
+}
+
+static void uedw8_gkl_curve(const uedw_wpt8 *R, uedw_curve8 *cv, const uedw_ctx8 *c)
+{
+    __m512i t = A8(R->X, R->Z);
+    t = A8(t, t);
+    __m512i a = A8(t, t);
+    __m512i z4 = A8(R->Z, R->Z);
+    z4 = A8(z4, z4);
+    __m512i b = D8(R->Y, z4);
+    __m512i a2 = S8(a), b2 = S8(b), ab = M8(a, b);
+    __m512i b2x = A8(b, b);
+    __m512i xn = M8(M8(D8(a, b2x), A8(a, b2x)), A8(a, b));
+    xn = M8(xn, b);
+    xn = A8(xn, xn);
+    __m512i aa4 = M8(a, A8(a, A8(b2x, b2x)));
+    __m512i b2_4 = A8(b2, b2);
+    b2_4 = A8(b2_4, b2_4);
+    __m512i xd = M8(aa4, A8(A8(a2, A8(ab, ab)), b2_4));
+    __m512i t1 = S8(a2), t2 = M8(a2, ab), t3 = M8(a2, b2), t4 = M8(ab, b2), t5 = S8(b2);
+    __m512i q = A8(t2, t3);
+    q = A8(t1, A8(q, q));
+    __m512i r = A8(t4, A8(t5, t5));
+    r = A8(r, r);
+    r = A8(r, r);
+    r = A8(r, r);
+    __m512i yd = M8(aa4, A8(q, r));
+    __m512i b3 = M8(b2, b), b4 = S8(b2), b5 = M8(b4, b), b6 = S8(b3);
+    __m512i h = A8(a, M8(b, c->c6));
+    h = A8(M8(h, a), M8(b2, c->c10));
+    h = D8(M8(h, a), M8(b3, c->c16));
+    h = D8(M8(h, a), M8(b4, c->c48));
+    h = D8(M8(h, a), M8(b5, c->c32));
+    __m512i yn = D8(M8(h, a), M8(b6, c->c32));
+    __m512i en2 = S8(aa4), ed = D8(a2, b2_4), ed2 = S8(ed);
+    __m512i dn = D8(Z8, S8(en2));
+    __m512i dd = S8(ed2);
+    cv->P.X = M8(xn, yd);
+    cv->P.Y = M8(yn, xd);
+    cv->P.Z = M8(xd, yd);
+    cv->P.T = M8(xn, yn);
+    cv->dn2 = A8(dn, dn);
+    cv->dd = dd;
+    cv->dd2 = A8(dd, dd);
+    cv->a24n = dd;
+    cv->a24d = A8(dd, dn);
+}
+
+/* table curve k[lane] in every lane */
+static void uedw8_table_curve(const int *k, uedw_curve8 *cv, const uedw_ctx8 *c)
+{
+    int64_t v[8];
+    __m512i w[6];
+    int i, j;
+    for (j = 0; j < 6; j++) {
+        for (i = 0; i < 8; i++)
+            v[i] = edw_tiny_curves[k[i]][j];
+        w[j] = uedw8_const(v, c);
+    }
+    cv->P.X = w[0];
+    cv->P.Y = w[1];
+    cv->P.Z = w[2];
+    cv->P.T = w[3];
+    cv->dn2 = A8(w[4], w[4]);
+    cv->dd = w[5];
+    cv->dd2 = A8(w[5], w[5]);
+    cv->a24n = w[5];
+    cv->a24d = A8(w[5], w[4]);
+}
+
+static UEDW_INLINE void uedw8_dbl(uedw_ept8 *R, const uedw_ept8 *P, int want_t, const uedw_ctx8 *c)
+{
+    __m512i A = S8(P->X);
+    __m512i B = S8(P->Y);
+    __m512i C = S8(P->Z);
+    __m512i S = S8(A8(P->X, P->Y));
+    C = A8(C, C);
+    __m512i H = A8(A, B);
+    __m512i E = D8(H, S);
+    __m512i G = D8(A, B);
+    __m512i F = A8(C, G);
+    R->X = M8(E, F);
+    R->Y = M8(G, H);
+    R->Z = M8(F, G);
+    if (want_t)
+        R->T = M8(E, H);
+}
+
+static UEDW_INLINE void uedw8_add(uedw_ept8 *R, const uedw_ept8 *P, const uedw_cached8 *Q,
+    int neg, int want_t, const uedw_ctx8 *c)
+{
+    __m512i A = M8(D8(P->Y, P->X), neg ? Q->YpX : Q->YmX);
+    __m512i B = M8(A8(P->Y, P->X), neg ? Q->YmX : Q->YpX);
+    __m512i C = M8(P->T, Q->T2d);
+    __m512i D = M8(P->Z, Q->Z2);
+    __m512i E = D8(B, A);
+    __m512i H = A8(B, A);
+    __m512i F = neg ? A8(D, C) : D8(D, C);
+    __m512i G = neg ? D8(D, C) : A8(D, C);
+    R->X = M8(E, F);
+    R->Y = M8(G, H);
+    R->Z = M8(F, G);
+    if (want_t)
+        R->T = M8(E, H);
+}
+
+static UEDW_INLINE void uedw8_cache(uedw_cached8 *q, const uedw_ept8 *P, const uedw_curve8 *cv,
+    const uedw_ctx8 *c)
+{
+    q->YmX = M8(D8(P->Y, P->X), cv->dd);
+    q->YpX = M8(A8(P->Y, P->X), cv->dd);
+    q->T2d = M8(P->T, cv->dn2);
+    q->Z2 = M8(P->Z, cv->dd2);
+}
+
+static UEDW_INLINE void uedw8_mdup(const uedw_pt8 *P, uedw_pt8 *R, const uedw_curve8 *cv,
+    const uedw_ctx8 *c)
+{
+    __m512i U = S8(D8(P->X, P->Z));
+    __m512i V = S8(A8(P->X, P->Z));
+    __m512i w = D8(V, U);
+    __m512i Ub = M8(U, cv->a24d);
+    R->X = M8(Ub, V);
+    R->Z = M8(w, A8(Ub, M8(w, cv->a24n)));
+}
+
+static UEDW_INLINE void uedw8_uadd(const uedw_pt8 P1, const uedw_pt8 P2, const uedw_pt8 Pin,
+    uedw_pt8 *Pout, const uedw_ctx8 *c)
+{
+    __m512i diff1 = D8(P1.X, P1.Z);
+    __m512i sum1 = A8(P1.X, P1.Z);
+    __m512i diff2 = D8(P2.X, P2.Z);
+    __m512i sum2 = A8(P2.X, P2.Z);
+    __m512i tt1 = M8(diff1, sum2);
+    __m512i tt2 = M8(sum1, diff2);
+    __m512i tt3 = A8(tt1, tt2);
+    __m512i tt4 = D8(tt1, tt2);
+    tt1 = S8(tt3);
+    tt2 = S8(tt4);
+    __m512i tmpx = M8(tt1, Pin.Z);
+    __m512i tmpz = M8(tt2, Pin.X);
+    Pout->X = tmpx;
+    Pout->Z = tmpz;
+}
+
+static void uedw8_stage1(const uedw_curve8 *cv, const uedw_chain *ch, uedw_pt8 *Pm,
+    const uedw_ctx8 *c)
+{
+    uedw_cached8 tab[16];
+    uedw_ept8 ext[16];
+    int k, i;
+    ext[0] = cv->P;
+    uedw8_cache(&tab[0], &ext[0], cv, c);
+    if (ch->m > 1) {
+        uedw_ept8 P2;
+        uedw_cached8 c2;
+        uedw8_dbl(&P2, &cv->P, 1, c);
+        uedw8_cache(&c2, &P2, cv, c);
+        for (k = 1; k <= (ch->m - 1) / 2; k++) {
+            uedw8_add(&ext[k], &ext[k - 1], &c2, 0, 1, c);
+            uedw8_cache(&tab[k], &ext[k], cv, c);
+        }
+    }
+    uedw_ept8 R = ext[(ch->top - 1) / 2];
+    for (i = 0; i < ch->len; i++) {
+        int dg = ch->ch[i];
+        if (dg == 0) {
+            int t = (i + 1 < ch->len) && (ch->ch[i + 1] != 0);
+            uedw8_dbl(&R, &R, t, c);
+        } else if (dg > 0) {
+            uedw8_add(&R, &R, &tab[(dg - 1) >> 1], 0, 0, c);
+        } else {
+            uedw8_add(&R, &R, &tab[(-dg - 1) >> 1], 1, 0, c);
+        }
+    }
+    Pm->X = A8(R.Z, R.Y);
+    Pm->Z = D8(R.Z, R.Y);
+    for (i = 0; i < ch->tz; i++)
+        uedw8_mdup(Pm, Pm, cv, c);
+}
+
+/* acc *= t, skipping lanes where the product would be 0 mod n */
+#define UEDW8_ACC(t) do { __m512i tmp_ = M8(acc, (t)); \
+    acc = _mm512_mask_mov_epi64(acc, _mm512_cmpneq_epu64_mask(tmp_, Z8), tmp_); } while (0)
+
+static __m512i uedw8_cross(const uedw_pt8 *R, __m512i Rprod, const uedw_pt8 *Pb,
+    __m512i Pbprod, const uedw_ctx8 *c)
+{
+    __m512i tt1 = D8(R->X, Pb->X);
+    __m512i tt2 = A8(R->Z, Pb->Z);
+    __m512i tt3 = M8(tt1, tt2);
+    tt1 = A8(tt3, Pbprod);
+    return D8(tt1, Rprod);
+}
+
+/* microecm's uecm_stage2_x8 (D = 60, B2 = 25 B1) with projective A24 */
+static __m512i uedw8_stage2(const uedw_pt8 *P, const uedw_curve8 *cv, uint32_t stg1_max,
+    const uedw_ctx8 *c)
+{
+    int b, i, j, k;
+    uedw_pt8 Pa, Pd, Pad, Pb[18], pt4, pt5, pt6;
+    __m512i Pbprod[18];
+    const uint8_t *barray = 0;
+    int numb = 0;
+    const int D = 60;
+
+    Pb[1] = *P;
+    Pbprod[1] = M8(Pb[1].X, Pb[1].Z);
+    uedw8_mdup(P, &Pb[2], cv, c);
+    uedw8_uadd(Pb[1], Pb[2], Pb[1], &Pb[3], c);
+    uedw8_mdup(&Pb[3], &pt6, cv, c);
+    uedw8_uadd(Pb[3], Pb[2], Pb[1], &pt5, c);
+    Pb[3] = pt5;
+    uedw8_uadd(pt6, pt5, Pb[1], &Pb[4], c);
+    i = 3; k = 4; j = 5;
+    while ((j + 12) < D) {
+        uedw8_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw8_uadd(pt6, Pb[1], pt5, &Pb[3], c);
+    i = 1; k = 3; j = 1;
+    while ((j + 12) < D) {
+        uedw8_uadd(pt6, Pb[k], Pb[i], &Pb[uedw_map[j + 12]], c);
+        i = k;
+        k = uedw_map[j + 12];
+        j += 6;
+    }
+    uedw8_uadd(Pb[9], Pb[10], Pb[2], &Pd, c);
+    uedw8_mdup(&Pb[2], &pt4, cv, c);
+    for (i = 3; i < 18; i++)
+        Pbprod[i] = M8(Pb[i].X, Pb[i].Z);
+    uedw8_uadd(Pb[uedw_map[17]], Pb[uedw_map[13]], pt4, &Pad, c);
+    uedw8_uadd(Pd, Pad, Pad, &Pa, c);
+    uedw_pt8 pt90 = Pa;
+    uedw_pt8 pt60 = Pd;
+    uedw8_uadd(Pa, Pad, Pd, &Pd, c);
+    uedw8_uadd(Pd, Pad, Pa, &Pa, c);
+
+    __m512i acc = c->one;
+    if (stg1_max < 70) {
+        static const int steps27[16] = { 59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
+        static const int steps47[15] = { 43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
+        const int *steps = (stg1_max == 27) ? steps27 : steps47;
+        int numsteps = (stg1_max == 27) ? 16 : 15;
+        __m512i pt90prod = M8(pt90.X, pt90.Z);
+        for (i = 0; i < numsteps; i++) {
+            b = steps[i];
+            UEDW8_ACC(uedw8_cross(&pt90, pt90prod, &Pb[uedw_map[b]], Pbprod[uedw_map[b]], c));
+        }
+    } else if (stg1_max == 70) {
+        static const int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+        __m512i pdprod = M8(Pd.X, Pd.Z);
+        for (i = 0; i < 15; i++) {
+            b = steps[i];
+            UEDW8_ACC(uedw8_cross(&Pd, pdprod, &Pb[uedw_map[b]], Pbprod[uedw_map[b]], c));
+        }
+    } else if (stg1_max == 165) {
+        uedw8_mdup(&pt90, &Pa, cv, c);
+        Pad = pt60;
+    } else if (stg1_max == 205) {
+        uedw8_uadd(Pd, pt90, Pad, &Pa, c);
+        Pad = pt90;
+    }
+    __m512i Paprod = M8(Pa.X, Pa.Z);
+    switch (stg1_max) {
+    case 27: barray = uedw_b1_27; numb = uedw_numb1_27; break;
+    case 47: barray = uedw_b1_47; numb = uedw_numb1_47; break;
+    case 70: barray = uedw_b1_70; numb = uedw_numb1_70; break;
+    case 85: barray = uedw_b1_85; numb = uedw_numb1_85; break;
+    case 125: barray = uedw_b1_125; numb = uedw_numb1_125; break;
+    case 165: barray = uedw_b1_165; numb = uedw_numb1_165; break;
+    case 205: barray = uedw_b1_205; numb = uedw_numb1_205; break;
+    default: return acc;
+    }
+    for (i = 0; i < numb; i++) {
+        if (barray[i] == 0) {
+            uedw_pt8 point = Pa;
+            uedw8_uadd(Pa, Pd, Pad, &Pa, c);
+            Pad = point;
+            Paprod = M8(Pa.X, Pa.Z);
+            i++;
+        }
+        b = barray[i];
+        UEDW8_ACC(uedw8_cross(&Pa, Paprod, &Pb[uedw_map[b]], Pbprod[uedw_map[b]], c));
+    }
+    return acc;
+}
+
+static uint64_t uedw8_mulmod_plain(uint64_t a, uint64_t b, uint64_t n)
+{
+#if defined(__SIZEOF_INT128__)
+    return (uint64_t)(((unsigned __int128)a * b) % n);
+#else
+    // n < 2^52: double-and-add, sums stay below 2^53
+    uint64_t r = 0, x = a % n;
+    uint64_t y = b % n;
+    while (y) {
+        if (y & 1) r = (r + x) % n;
+        x = (x + x) % n;
+        y >>= 1;
+    }
+    return r;
+#endif
+}
+
+static uint64_t uedw8_inverse52(uint64_t a)
+{
+    return uedw_multiplicative_inverse(a) & 0x000fffffffffffffULL;
+}
+
+/* ECM on n[0..num-1] (all < 2^52), 8 at a time; f[i] = factor or 1.
+   *ncurves (if not 0) gets the total number of curves run. */
+static void uedw8_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t B1,
+    uint32_t B2, uint32_t curves, uint64_t *ncurves)
+{
+    ALIGNED_MEM uint64_t nA[8], rhoA[8], oneA[8], RsqA[8], st[8];
+    int kcur[8], idx[8], k8[8];
+    uint8_t msk = 0;
+    uint32_t j = 0, i;
+    int lane;
+    uedw_chain ch;
+    uedw_ctx8 ctx;
+    const uedw_ctx8 *c = &ctx;
+    uedw_wpt8 R;
+    uint64_t total = 0;
+    const int ntab = EDW_TINY_NCURVES;
+
+    for (i = 0; i < num; i++)
+        f[i] = 1;
+    if (num == 0 || !uedw_chain_for(B1, &ch))
+        return;
+    // every lane starts with a valid modulus, so idle lanes compute harmlessly
+    for (lane = 0; lane < 8; lane++) {
+        nA[lane] = n64[0];
+        rhoA[lane] = uedw8_inverse52(n64[0]);
+        oneA[lane] = (1ULL << 52) % n64[0];
+        RsqA[lane] = uedw8_mulmod_plain(oneA[lane], oneA[lane], n64[0]);
+        kcur[lane] = 0;
+        idx[lane] = 0;
+    }
+    memset(&R, 0, sizeof(R));
+
+    while (1) {
+        uint8_t lmsk = 0;
+        for (lane = 0; lane < 8; lane++) {
+            if (!(msk & (1 << lane)) && j < num) {
+                uint64_t n = n64[j];
+                nA[lane] = n;
+                rhoA[lane] = uedw8_inverse52(n);
+                oneA[lane] = (1ULL << 52) % n;
+                RsqA[lane] = uedw8_mulmod_plain(oneA[lane], oneA[lane], n);
+                kcur[lane] = 0;
+                idx[lane] = (int)j;
+                lmsk |= (uint8_t)(1 << lane);
+                j++;
+            }
+        }
+        msk |= lmsk;
+        if (msk == 0)
+            break;
+        if (lmsk) {
+            ctx.n = _mm512_load_si512(nA);
+            ctx.rho = _mm512_load_si512(rhoA);
+            ctx.one = _mm512_load_si512(oneA);
+            ctx.Rsqr = _mm512_load_si512(RsqA);
+            uedw8_ctx_finish(&ctx);
+        }
+
+        // this round's curve in every lane: table curves, then GKL m = 3, 4, ...
+        uint8_t tabm = 0, newm = 0;
+        for (lane = 0; lane < 8; lane++) {
+            k8[lane] = (kcur[lane] < ntab) ? kcur[lane] : 0;
+            if (kcur[lane] < ntab) tabm |= (uint8_t)(1 << lane);
+            if (kcur[lane] == ntab) newm |= (uint8_t)(1 << lane);
+        }
+        uedw_curve8 cv, cvg;
+        if (tabm)
+            uedw8_table_curve(k8, &cv, c);
+        if ((uint8_t)~tabm) {
+            if (newm) {
+                // [3]Q = (1205/49, -40664/343) = (413315 : -1992536 : 16807)
+                int64_t q3[3][8];
+                for (lane = 0; lane < 8; lane++) {
+                    q3[0][lane] = 413315;
+                    q3[1][lane] = -1992536;
+                    q3[2][lane] = 16807;
+                }
+                R.X = _mm512_mask_mov_epi64(R.X, newm, uedw8_const(q3[0], c));
+                R.Y = _mm512_mask_mov_epi64(R.Y, newm, uedw8_const(q3[1], c));
+                R.Z = _mm512_mask_mov_epi64(R.Z, newm, uedw8_const(q3[2], c));
+            }
+            uedw8_gkl_curve(&R, &cvg, c);
+            uedw_wpt8 R2 = R;
+            uedw8_w_addq(&R2, c);
+            __mmask8 gm = (__mmask8)(uint8_t)~tabm;
+            R.X = _mm512_mask_mov_epi64(R.X, gm, R2.X);
+            R.Y = _mm512_mask_mov_epi64(R.Y, gm, R2.Y);
+            R.Z = _mm512_mask_mov_epi64(R.Z, gm, R2.Z);
+            if (!tabm) {
+                cv = cvg;
+            } else {
+                __mmask8 m = gm;
+                cv.P.X = _mm512_mask_mov_epi64(cv.P.X, m, cvg.P.X);
+                cv.P.Y = _mm512_mask_mov_epi64(cv.P.Y, m, cvg.P.Y);
+                cv.P.Z = _mm512_mask_mov_epi64(cv.P.Z, m, cvg.P.Z);
+                cv.P.T = _mm512_mask_mov_epi64(cv.P.T, m, cvg.P.T);
+                cv.dn2 = _mm512_mask_mov_epi64(cv.dn2, m, cvg.dn2);
+                cv.dd = _mm512_mask_mov_epi64(cv.dd, m, cvg.dd);
+                cv.dd2 = _mm512_mask_mov_epi64(cv.dd2, m, cvg.dd2);
+                cv.a24n = _mm512_mask_mov_epi64(cv.a24n, m, cvg.a24n);
+                cv.a24d = _mm512_mask_mov_epi64(cv.a24d, m, cvg.a24d);
+            }
+        }
+        for (lane = 0; lane < 8; lane++)
+            kcur[lane]++;
+
+        uedw_pt8 P;
+        uedw8_stage1(&cv, &ch, &P, c);
+        _mm512_store_si512(st, P.Z);
+        for (lane = 0; lane < 8; lane++) {
+            if (msk & (1 << lane)) {
+                total++;
+                uint64_t g = uedw_bingcd64(nA[lane], st[lane]);
+                if (g > 1 && g != nA[lane]) {
+                    f[idx[lane]] = g;
+                    msk &= (uint8_t)~(1 << lane);
+                }
+            }
+        }
+        if (B2 > B1 && msk) {
+            __m512i acc = uedw8_stage2(&P, &cv, B1, c);
+            _mm512_store_si512(st, acc);
+            for (lane = 0; lane < 8; lane++) {
+                if (msk & (1 << lane)) {
+                    uint64_t g = uedw_bingcd64(nA[lane], st[lane]);
+                    if (g > 1 && g != nA[lane]) {
+                        f[idx[lane]] = g;
+                        msk &= (uint8_t)~(1 << lane);
+                    }
+                }
+            }
+        }
+        for (lane = 0; lane < 8; lane++)
+            if (kcur[lane] >= (int)curves)
+                msk &= (uint8_t)~(1 << lane);
+    }
+    if (ncurves)
+        *ncurves = total;
+}
+
+static void uedw8_init_consts(void)
+{
+#ifndef IFMA
+    uedw8_dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+    uedw8_vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);
+    uedw8_vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);
+#endif
+}
+#endif /* USE_AVX512F */
+
+#ifdef USE_AVX512F
+/* B1 / curves as microecm's uecm_dispatch_x8_list */
+static void uedw_x8_params(int bits, uint32_t *B1, uint32_t *curves)
+{
+    if (bits <= 40) { *B1 = 27; *curves = 32; }
+    else if (bits <= 44) { *B1 = 47; *curves = 32; }
+    else if (bits <= 48) { *B1 = 70; *curves = 32; }
+    else if (bits <= 52) { *B1 = 85; *curves = 32; }
+    else if (bits <= 58) { *B1 = 125; *curves = 32; }
+    else if (bits <= 62) { *B1 = 165; *curves = 42; }
+    else { *B1 = 205; *curves = 42; }
+}
+#endif
+
+void getfactor_uecm_edw_x8_list(uint64_t *q64, uint64_t *f64, uint32_t num_in, uint64_t *pran)
+{
+    uint32_t i;
+    if (num_in == 0)
+        return;
+#ifdef USE_AVX512F
+    int bits = uedw_bits(q64[0]);               // all inputs about the same size
+    if (bits <= 52) {
+        uint32_t B1, curves;
+        uedw8_init_consts();
+        uedw_x8_params(bits, &B1, &curves);
+        uedw8_list(q64, f64, num_in, B1, 25 * B1, curves, 0);
+        return;
+    }
+#endif
+    for (i = 0; i < num_in; i++)
+        f64[i] = getfactor_uecm_edw(q64[i], 0, pran);
+}
+
+uint64_t uecm_edw_x8_run(uint64_t *q64, uint64_t *f64, uint32_t num, uint32_t B1, uint32_t curves)
+{
+#ifdef USE_AVX512F
+    uint64_t total = 0;
+    uedw8_init_consts();
+    uedw8_list(q64, f64, num, B1, 25 * B1, curves, &total);
+    return total;
+#else
+    (void)q64; (void)f64; (void)num; (void)B1; (void)curves;
+    return 0;
 #endif
 }

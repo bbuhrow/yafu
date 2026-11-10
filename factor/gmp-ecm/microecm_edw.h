@@ -27,6 +27,14 @@ extern "C" {
 // is_arbitrary and *pran as for getfactor_uecm.
 uint64_t getfactor_uecm_edw(uint64_t q64, int is_arbitrary, uint64_t *pran);
 
+// ECM on a list of inputs of about the same size, 8 at a time with AVX-512
+// (n < 2^52; otherwise, or without USE_AVX512F, one at a time with
+// getfactor_uecm_edw).  f64[i] = a factor of q64[i], or 1.  B1 / curves by
+// the size of q64[0], as getfactor_uecm_x8_list.  The x8 curve sequence per
+// input is fixed (table curves, then GKL m = 3, 4, ...); *pran is used only
+// by the scalar fallback.
+void getfactor_uecm_edw_x8_list(uint64_t *q64, uint64_t *f64, uint32_t num_in, uint64_t *pran);
+
 // test / research hooks
 // A curve id >= 1 is GKL's [m]Q curve, m = id; UECM_EDW_TABLE | i is curve i
 // of the small-constant table (edw_tiny_curves.h).
@@ -47,6 +55,9 @@ void uecm_edw_set_table(int ntab);
 // input (hist[0..max]; the last bin counts "or more"); returns its size - 1,
 // or -1 without UEDW_STATS.
 int uecm_edw_hist(uint64_t *hist, int max);
+// x8 list at a given B1 and curve count (B2 = 25 B1); returns the number of
+// curves run (0 without USE_AVX512F).
+uint64_t uecm_edw_x8_run(uint64_t *q64, uint64_t *f64, uint32_t num, uint32_t B1, uint32_t curves);
 
 #ifdef __cplusplus
 }

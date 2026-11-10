@@ -36,6 +36,18 @@ int main(void)
             if (scanf("%" SCNu64 " %u %u", &n, &m, &B1) != 3) break;
             uecm_edw_stage1_point(n, m, B1, out);
             printf("%" PRIu64 " %" PRIu64 "\n", out[0], out[1]);
+        } else if (cmd == 'x') {
+            /* x B1 curves k n_1 .. n_k -> curves_run f_1 .. f_k (x8 list) */
+            static uint64_t qs[100000], fs[100000];
+            uint32_t B1, curves, k, i;
+            if (scanf("%u %u %u", &B1, &curves, &k) != 3 || k > 100000) break;
+            for (i = 0; i < k; i++)
+                if (scanf("%" SCNu64, &qs[i]) != 1) return 1;
+            uint64_t tot = uecm_edw_x8_run(qs, fs, k, B1, curves);
+            printf("%" PRIu64, tot);
+            for (i = 0; i < k; i++)
+                printf(" %" PRIu64, fs[i]);
+            printf("\n");
         } else if (cmd == 'f') {
             uint64_t n;
             if (scanf("%" SCNu64, &n) != 1) break;

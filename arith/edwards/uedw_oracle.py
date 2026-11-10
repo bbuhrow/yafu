@@ -96,18 +96,22 @@ MAP = [0, 1, 2, 0, 0, 0, 0, 3, 0, 0, 0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
 _BARRAY = {}
 
 
-def barray(B1):
-    if B1 not in _BARRAY:
+def barray(B1, x8=False):
+    """the pairing sequence: the scalar code uses B2 = 50 B1 tables at B1 >=
+    125, the x8 code the B2 = 25 B1 ones"""
+    if (B1, x8) not in _BARRAY:
         src = open(os.path.join(tcv.tc.SRC, 'microecm.c')).read()
         name = {27: 'b1_27', 47: 'b1_47', 70: 'b1_70', 85: 'b1_85', 125: 'b1_125_x50',
                 165: 'b1_165_x50', 205: 'b1_205_x50'}[B1]
+        if x8:
+            name = name.replace('_x50', '')
         i0 = src.index('uint8_t %s[' % name)
         body = src[src.index('{', i0) + 1:src.index('}', i0)]
-        _BARRAY[B1] = [int(v) for v in body.split(',') if v.strip()]
-    return _BARRAY[B1]
+        _BARRAY[(B1, x8)] = [int(v) for v in body.split(',') if v.strip()]
+    return _BARRAY[(B1, x8)]
 
 
-def stage2_zero_flags(P0, A, p, B1):
+def stage2_zero_flags(P0, A, p, B1, x8=False):
     """microecm's x-only stage 2, exactly, mod p from the stage-1 point P0 =
     (X, Z): for every cross term, whether it is 0 mod p, as two lists (the
     B1 <= 70 pre-steps, and the main pairing loop)."""
@@ -171,7 +175,7 @@ def stage2_zero_flags(P0, A, p, B1):
     elif B1 == 205:
         Pa = uadd(Pd, pt90, Pad)
         Pad = pt90
-    ba = barray(B1)
+    ba = barray(B1, x8)
     i = 0
     while i < len(ba):
         if ba[i] == 0:
@@ -184,15 +188,18 @@ def stage2_zero_flags(P0, A, p, B1):
     return pre, main
 
 
-def stage2_outcome(fp, fq):
-    """replay the C accumulator loops (each breaks when a term would make acc
-    0 mod n = p q, keeping acc) on the zero flags of p and q; returns which
-    prime acc is 0 mod: 'p', 'q' or None"""
+def stage2_outcome(fp, fq, x8=False):
+    """replay the C accumulator loops on the zero flags of p and q; returns
+    which prime acc is 0 mod: 'p', 'q' or None.  Scalar: a loop breaks when
+    a term would make acc 0 mod n = p q (keeping acc).  x8: such a term is
+    skipped and the loop goes on."""
     zp = zq = False
     for k in (0, 1):
         for a, b in zip(fp[k], fq[k]):
             np_, nq = zp or a, zq or b
             if np_ and nq:
+                if x8:
+                    continue
                 break
             zp, zq = np_, nq
     if zp != zq:
@@ -200,7 +207,7 @@ def stage2_outcome(fp, fq):
     return None
 
 
-def predict(p, m, B1, s):
+def predict(p, m, B1, s, x8=False):
     """(stage-1 found, stage-2 zero flags) mod p, or None if the curve build
     is degenerate mod p"""
     try:
@@ -212,7 +219,7 @@ def predict(p, m, B1, s):
     except (er.Find, ValueError, ZeroDivisionError):
         return None
     R0, _ = bo.x_ladder(s, P[0], A, p)
-    return (R0[1] % p == 0, stage2_zero_flags(R0, A, p, B1))
+    return (R0[1] % p == 0, stage2_zero_flags(R0, A, p, B1, x8))
 
 
 LEVELS = [(20, 27), (22, 47), (24, 70), (26, 85), (29, 125), (31, 165), (32, 205)]
@@ -268,10 +275,85 @@ def check_curves(binp, nper=300, seed=1):
     return bad
 
 
+def x8_sequence(curves):
+    """the x8 curve ids: table curves, then GKL m = 3, 4, ..."""
+    ntab = len(table_curves())
+    return [TABLE | i for i in range(ntab)] + list(range(3, 3 + max(0, curves - ntab)))
+
+
+def check_x8(binp, nper=200, seed=1):
+    """the x8 list driver: per input, the first curve of the x8 sequence that
+    finds a prime (x8 stage-2 semantics) and the total curves run"""
+    d = Driver(binp)
+    rng = random.Random(seed)
+    bad = tot = skipped = exc = 0
+    for pb, B1 in LEVELS:
+        curves = 32 if B1 <= 125 else 42
+        s, _ = tcv.level_data(B1)
+        ids = x8_sequence(curves)
+        ns, exp, used = [], [], 0
+        while len(ns) < nper:
+            p = rand_prime(rng, pb)
+            q = rand_prime(rng, min(pb + rng.randrange(0, 4), 51 - pb))
+            if p == q:
+                continue
+            ns.append(p * q)
+            e, k = None, 0
+            for k, cid in enumerate(ids):
+                sp, sq = predict(p, cid, B1, s, True), predict(q, cid, B1, s, True)
+                if sp is None or sq is None:
+                    e = 'skip'
+                    break
+                if sp[0] != sq[0]:
+                    e = p if sp[0] else q
+                    break
+                w = stage2_outcome(sp[1], sq[1], True)
+                if w:
+                    e = p if w == 'p' else q
+                    break
+            if e is None:
+                e, k = 1, curves - 1
+            exp.append(e)
+            used += k + 1
+        out = [int(v) for v in d.ask('x %d %d %d %s' % (B1, curves, len(ns), ' '.join(map(str, ns))))]
+        total, fs = out[0], out[1:]
+        nb = 0
+        for n, e, f in zip(ns, exp, fs):
+            if e == 'skip':
+                skipped += 1
+                continue
+            tot += 1
+            if f != e and f > 1 and n % f == 0:
+                # an Edwards exception: some curve's stage-1 point is (0 : 0)
+                # mod f, a correct early find
+                hit = False
+                for cid in ids:
+                    X, Z = (int(v) for v in d.ask('s %d %d %d' % (n, cid, B1)))
+                    if X % f == 0 and Z % f == 0:
+                        hit = True
+                        break
+                if hit:
+                    exc += 1
+                    continue
+            if f != e:
+                nb += 1
+                if nb <= 4:
+                    print('  mismatch B1 %d n %d: got %d expected %d' % (B1, n, f, e))
+        bad += nb
+        print('x8 B1 %3d: %d inputs, %d mismatches; curves run %d, predicted %d%s' % (
+            B1, len(ns), nb, total, used, '' if total == used else '  (differs)'))
+    print('x8: %d of %d mismatch (%d with a degenerate curve skipped, %d correct early finds '
+          'from Edwards exceptions; curve totals can differ by those)' % (bad, tot, skipped, exc))
+    return bad
+
+
 if __name__ == '__main__':
     cmd, binp = sys.argv[1], sys.argv[2]
     if cmd == 'params':
         sys.exit(check_params(binp, int(sys.argv[3]) if len(sys.argv) > 3 else 20) != 0)
+    elif cmd == 'x8':
+        sys.exit(check_x8(binp, int(sys.argv[3]) if len(sys.argv) > 3 else 200,
+                          int(sys.argv[4]) if len(sys.argv) > 4 else 1) != 0)
     elif cmd == 'curves':
         sys.exit(check_curves(binp, int(sys.argv[3]) if len(sys.argv) > 3 else 300,
                               int(sys.argv[4]) if len(sys.argv) > 4 else 1) != 0)

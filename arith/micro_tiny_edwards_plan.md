@@ -825,9 +825,73 @@ at every level. More small curves (the a = +1 Z/12 and Z/2 x Z/8 tables)
 would only help the few inputs needing more than 5 curves, and would need
 the a = +1 addition. Not pursued.
 
-## E5. Next
+---
 
-Phase 2: microecm_edw x8 (AVX-512, n < 2^52):
-* the same curve source per lane (table curves, then GKL), vectorized;
-* the IFMA `madd52lo` reduction;
-* no per-lane modinv in the build.
+# Part F: Phase 2, microecm_edw x8 (2026-11-10)
+
+## F1. What was built
+
+In `microecm_edw.c`, under `USE_AVX512F`:
+`getfactor_uecm_edw_x8_list(q64, f64, num, pran)`, plus the test hook
+`uecm_edw_x8_run`. Eight inputs (n < 2^52) at a time, one per lane, with
+lane refills, as `getfactor_uecm_x8_list` does. It uses that function's
+B1 / curve-count table.
+
+* **Arithmetic:** R = 2^52, microecm's x8 Montgomery multiply. With IFMA
+  m comes from `madd52lo`; AVX-512F uses the FP52 path.
+* **Curves per lane:** the 5 table curves, then GKL m = 3, 4, ...
+  - The start [3]Q = (1205/49, -40664/343) = (413315 : -1992536 : 16807)
+    is a constant, so no lane needs a scalar multiplication on E'. The
+    price is that the x8 sequence is the same for every input (no `*pran`
+    randomization).
+  - Table constants (up to 59 bits) load per lane as two 52-bit digits:
+    a0 R^2/R + a1 R^3/R.
+  - A vector with any lane past the table builds GKL curves for all lanes
+    and blends.
+* **Stage 1:** the scalar code's chains and formulas, vectorized.
+* **Stage 2:** microecm's `uecm_stage2_x8`, with projective A24. Two
+  differences from the scalar stage 2 are kept as they are:
+  - it uses the B2 = 25 B1 tables at B1 >= 125;
+  - a lane's accumulator *skips* a product that would be 0 mod n instead
+    of breaking out of the loop.
+
+## F2. Verification
+
+`uedw_oracle.py x8` predicts, for each input, the first curve of the x8
+sequence that finds a prime and which prime, under the x8 stage-2
+semantics, plus the total number of curves the list runs. It feeds the
+`x` command of `uedw_test` (built with `USE_AVX512F`).
+
+| build | inputs | wrong factors | curve totals |
+|---|---:|---:|---|
+| IFMA | 21000 + 1400 | 0 | equal at every level but 2, off by 2 |
+| AVX-512F | 21000 | 0 | equal at every level but 2, off by 1-2 |
+
+* The input that found the *other* prime (IFMA, B1 = 27) is an Edwards
+  exception: the first table curve's stage-1 point is (0 : 0) mod that
+  prime. The oracle now checks for that and counts such finds separately.
+* The curve totals differ by the same effect: a correct find a curve or
+  two early.
+
+## F3. Speed
+
+`tiny_e2e.c -DWITH_EDW`: 20000 balanced semiprimes per row; us per input:
+
+| bits | B1 | x8 list, IFMA | x8 edw, IFMA | speedup | x8 list, AVX-512F | x8 edw, AVX-512F | speedup |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 40 | 27 | 0.97 | 0.58 | **1.66** | 1.56 | 1.05 | **1.48** |
+| 44 | 47 | 1.27 | 0.79 | **1.60** | 2.26 | 1.55 | **1.46** |
+| 48 | 70 | 1.87 | 1.19 | **1.57** | 3.44 | 2.30 | **1.49** |
+| 52 | 85 | 2.75 | 1.77 | **1.56** | 5.01 | 3.50 | **1.43** |
+
+* These are against the Part D (optimized) x8 code.
+* Against the x8 code before Part D: IFMA 1.23 -> 0.58 us at 40 bits
+  (2.1x) and 3.73 -> 1.77 us at 52 bits (2.1x).
+* The same run measured scalar microecm_edw at 1.17-1.33x over
+  `getfactor_uecm`.
+
+## F4. Next
+
+* Phase 3: tinyecm_edw, scalar 128-bit and x8 104-bit.
+* Phase 4: AVX2 x4.
+* Integration into callers is not done yet (Phase 7).
