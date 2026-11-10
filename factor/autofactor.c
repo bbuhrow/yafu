@@ -36,6 +36,7 @@ code to the public domain.
 #ifdef HAVE_GMP_ECM
 #include "ecm.h"
 #endif
+#include "microecm.h"
 #include "microecm_edw.h"
 #include "tinyecm_edw.h"
 #include "kmpqs/kmpqs.h"
