@@ -1124,6 +1124,13 @@ static uint32_t uedw_lcg_m0(uint64_t *pran)
     return 3 + (uint32_t)((*pran >> 40) & 0xff);
 }
 
+/* the P-1 pre-pass of uedw_dispatch (parameter set 2 only); compile with
+   UEDW_NO_PM1 to build without micropm1.c */
+static int uedw_pm1 = 1;
+#ifndef UEDW_NO_PM1
+uint64_t getfactor_upm1(uint64_t q64, uint32_t b1);     // micropm1.c
+#endif
+
 static uint64_t uedw_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_t *pran)
 {
     uedw_ctx ctx;
@@ -1141,15 +1148,31 @@ static uint64_t uedw_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
             if (uedw_run(&f, 125, 1, &ctx, &src, &nc) > 1) goto done;
     }
     if (uedw_params == 2) {
-        // re-tuned levels (Part I): balanced n, factor ~ targetBits / 2
+#ifndef UEDW_NO_PM1
+        // P-1 pre-pass (micropm1, B1 = 333, B2 = 25 B1): it finds 16-34% of
+        // balanced n at 56-64 bits for ~3.7 us, a 2-3% saving per input
+        // over ECM alone; break-even at 48-52 bits (arith/tinyrho/pm1_eval.c).
+        // A larger B2 loses (stage 2 costs ~1 mulmod per prime).
+        if (uedw_pm1 && targetBits > 54) {
+            f = getfactor_upm1(n, 333);
+            if (f > 1) goto done;
+            f = 1;
+        }
+#endif
+        // re-tuned levels (Part I): balanced n, factor ~ targetBits / 2.
+        // Curve caps: the re-tuned levels trade per-curve success for
+        // cheaper curves (64 bits: 0.19 vs legacy 0.24 per curve), so the
+        // legacy caps of 32 / 42 left 1.5e-4 of 64-bit inputs unfactored.
+        // The caps below give ~1e-7 at every size (uedw_tail.c); the extra
+        // curves only run on inputs that would otherwise fail.
         if (targetBits <= 36) uedw_run(&f, 20, 32, &ctx, &src, &nc);
         else if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &src, &nc);
         else if (targetBits <= 44) uedw_run(&f, 47, 32, &ctx, &src, &nc);
         else if (targetBits <= 48) uedw_run(&f, 70, 32, &ctx, &src, &nc);
         else if (targetBits <= 52) uedw_run(&f, 85, 32, &ctx, &src, &nc);
-        else if (targetBits <= 56) uedw_run(&f, 125, 32, &ctx, &src, &nc);
-        else if (targetBits <= 60) uedw_run(&f, 165, 42, &ctx, &src, &nc);
-        else uedw_run(&f, 205, 42, &ctx, &src, &nc);
+        else if (targetBits <= 56) uedw_run(&f, 125, 48, &ctx, &src, &nc);
+        else if (targetBits <= 60) uedw_run(&f, 165, 80, &ctx, &src, &nc);
+        else uedw_run(&f, 205, 80, &ctx, &src, &nc);
         goto done;
     }
     if (targetBits <= 40) uedw_run(&f, 27, 32, &ctx, &src, &nc);
@@ -1283,6 +1306,11 @@ void uecm_edw_set_params(int v)
 int uecm_edw_get_params(void)
 {
     return uedw_params;
+}
+
+void uecm_edw_set_pm1(int on)
+{
+    uedw_pm1 = on ? 1 : 0;
 }
 
 const edw2_level_t *uedw_level2_pub(uint32_t B1)

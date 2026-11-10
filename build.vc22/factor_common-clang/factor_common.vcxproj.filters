@@ -54,6 +54,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm_edw.c">
       <Filter>Source Files\small_factor</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyrho.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c">
       <Filter>Source Files\small_factor</Filter>
     </ClCompile>
@@ -132,6 +135,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm_edw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\gmp-ecm\tinyrho.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\factor\gmp-ecm\edw_kern.h">

@@ -19,7 +19,7 @@ for isa in avx2 ifma f; do
         f)    D="-O2 -march=native -DUSE_AVX2 -DUSE_BMI2 -DUSE_AVX512F";;
     esac
     O=$OUT/o_$isa; mkdir -p $O
-    for src in microecm tinyecm microecm_edw tinyecm_edw; do
+    for src in microecm micropm1 tinyecm microecm_edw tinyecm_edw; do
         gcc $D $INC -c $S/$src.c -o $O/$src.o
     done
     gcc $D -mfma $X4FLAGS $INC -c $S/microecm_edw_x4.c -o $O/microecm_edw_x4.o

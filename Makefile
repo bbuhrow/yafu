@@ -911,6 +911,7 @@ COMMON_SRCS = \
     factor/gmp-ecm/microecm_edw.c \
     factor/gmp-ecm/microecm_edw_x4.c \
     factor/gmp-ecm/tinyecm_edw.c \
+    factor/gmp-ecm/tinyrho.c \
     ytools/threadpool.c \
     ytools/ytools.c \
     ysieve/presieve.c \

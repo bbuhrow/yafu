@@ -57,6 +57,11 @@ void uecm_edw_set_table(int ntab);
 // n <= 36 bits, shifted thresholds).  uecm_edw_one_curve follows it too.
 void uecm_edw_set_params(int v);
 int uecm_edw_get_params(void);
+// The P-1 pre-pass of getfactor_uecm_edw (parameter set 2, n > 54 bits:
+// micropm1 with B1 = 333 before the curves): 1 = on (default), 0 = off.
+// Process-wide, for experiments.  Builds with UEDW_NO_PM1 have no pre-pass
+// (and need no micropm1.c).
+void uecm_edw_set_pm1(int on);
 // Up to `curves` curves of one level B1 (no pre-passes), the curve sequence
 // from *pran as in getfactor_uecm_edw; *ncurves = curves run.  Follows the
 // parameter set.  Returns the factor or 1.
