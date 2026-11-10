@@ -988,3 +988,46 @@ Regressions: curve 1 and Suyama both match their oracles.
   - a dual-product kernel (the doubling's independent squarings and
     products in pairs; helps <= 7 words);
   - Bos-Kleinjung chains for tiny B1 (plan Phase 7).
+
+---
+
+# Part G: group order calculator (2026-11-09)
+
+`arith/edwards/edw_ref.py order fam m p [B1 [B2]] [curve=N] [gp]` reports
+the group order for a yafu curve modulo a found prime factor p. It plays
+the role of PARI's `ellinit` / `ellcard` for the curves AVX-ECM uses:
+* Suyama: `-avxecm_curve 0`, m = sigma.
+* Family (iv): `-avxecm_curve 1` and `2`, m = the sigma yafu reports.
+
+What it prints:
+* #E and the order of the starting point, both factored, with the torsion
+  check (12 | #E for Suyama, 16 | #E for family (iv)).
+* The smallest B1 for a stage-1 find. yafu's stage 1 contains q^e exactly
+  when q^e < B1.
+* The B1 / B2 pair for a stage-2 find. Stage 2 can cover only the largest
+  prime, and only if it divides ord P once and exceeds every other prime
+  power.
+* With B1 (and B2) given: whether those bounds find p. A leftover prime
+  below B1 is reported as "not by design"; the FFT stage 2 can still meet
+  it by a coincidence mod r, which `lanes` decides exactly.
+
+How it computes:
+* **The right curve.** It counts on the curve the starting point lies on:
+  - Suyama: g y^2 = x^3 + A x^2 + x with g = x0^3 + A x0^2 + x0, i.e.
+    Y^2 = X^3 + gA X^2 + g^2 X;
+  - family (iv): the Montgomery image B v^2 = u^3 + A u^2 + u, i.e.
+    Y^2 = X^3 + (A/B) X^2 + X/B^2.
+  The twist would have the other order (2p + 2 - #E).
+* **Up to 80-bit p, in Python:**
+  - a direct count below 2^20;
+  - otherwise the lcm of random point orders (BSGS, ~p^(1/4) steps);
+  - if several multiples of that lcm lie in the Hasse interval, the twist
+    decides (Mestre).
+* **Above 80 bits, or with `gp`:** a PARI/GP script (`ellmul` for [m]Q,
+  `ellinit`, `ellcard` (SEA), `ellorder`, the same B1/B2 report, and a
+  2 GB `parisizemax`). Run it with `gp -q`.
+
+Verified with PARI 2.15 (cypari2): the gp script and the Python BSGS agree
+on #E and ord P for 60 random (family, m, p) with p of 30-70 bits. A
+200-bit p takes 1.3 s in PARI. The Python output matches the GMP-ECM resume
+check of D2: on lanes 1, 4 and 5 the remaining order is a prime <= B2.

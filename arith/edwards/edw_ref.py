@@ -13,6 +13,15 @@ Phase 0 reference for AVX-ECM stage 1 on a = -1 twisted Edwards curves
       the Montgomery image through PRAC)
   python edw_ref.py yield bits B1 B2 ncurves [seed]
       paired yield comparison of the curve families on random primes
+  python edw_ref.py order fam m p [B1 [B2]] [curve=N] [gp]
+      group order calculator for a yafu curve mod a prime factor p: #E, the
+      order of the starting point (both factored) and the B1 / B2 yafu needs;
+      with B1 (and B2) also whether those bounds find p.  fam: suyama
+      (-avxecm_curve 0; m = sigma) | iv (-avxecm_curve 1 and 2; m = the
+      reported sigma); curve=2 (default) counts a stage-1 point of order 2
+      as found (the Edwards stage 1).  BSGS in Python up to 80-bit p; for
+      larger p, or with "gp", prints a PARI/GP script (ellcard / ellorder)
+      instead, e.g.  python edw_ref.py order iv 12345 <p> gp > o.gp; gp -q o.gp
 
 Curve families ("m" plays the role of sigma):
   suyama  yafu's Montgomery curves from sigma = m
@@ -548,6 +557,197 @@ def legendre(a, p):
     return 1 if pow(a, (p - 1) // 2, p) == 1 else -1
 
 
+# ---------------------------------------------------------------------------
+# group order calculator: #E(F_p) and the order of the starting point for a
+# yafu curve (suyama: -avxecm_curve 0, sigma; iv: curves 1 and 2, m), and
+# the B1 / B2 yafu needs to find p with it.  BSGS in Python for p up to
+# ORDER_MAX_BITS; beyond that (or with "gp") a PARI/GP script to run.
+# ---------------------------------------------------------------------------
+ORDER_MAX_BITS = 80
+
+
+def sqrt_mod(a, p):
+    """a square root of a mod the odd prime p (Tonelli-Shanks), or None"""
+    a %= p
+    if a == 0:
+        return 0
+    if pow(a, (p - 1) // 2, p) != 1:
+        return None
+    if p % 4 == 3:
+        return pow(a, (p + 1) // 4, p)
+    q, s = p - 1, 0
+    while q % 2 == 0:
+        q //= 2
+        s += 1
+    z = 2
+    while pow(z, (p - 1) // 2, p) != p - 1:
+        z += 1
+    m, c, t, r = s, pow(z, q, p), pow(a, q, p), pow(a, (q + 1) // 2, p)
+    while t != 1:
+        i, tt = 0, t
+        while tt != 1:
+            tt = tt * tt % p
+            i += 1
+        b = pow(c, 1 << (m - i - 1), p)
+        m, c, t, r = i, b * b % p, t * b * b % p, r * b % p
+    return r
+
+
+def _random_point(A, g, p, rng):
+    """a random affine point on g y^2 = x^3 + A x^2 + x"""
+    while True:
+        x = rng.randrange(1, p)
+        y = sqrt_mod((x ** 3 + A * x * x + x) * inv(g, p), p)
+        if y:
+            return (x, y)
+
+
+def _exponent_multiples(A, g, p, rng, npts=12):
+    """multiples of the lcm of npts random point orders in the Hasse
+    interval (the candidates for #E)"""
+    lo = p + 1 - 2 * math.isqrt(p) - 2
+    hi = p + 1 + 2 * math.isqrt(p) + 2
+    L, c = 1, []
+    for _ in range(npts):
+        L = math.lcm(L, bo.point_order(_random_point(A, g, p, rng), A, g, p))
+        c = list(range((lo + L - 1) // L * L, hi + 1, L))
+        if len(c) == 1:
+            break
+    return c
+
+
+def curve_card(A, g, p, seed=1):
+    """#E(F_p) of g y^2 = x^3 + A x^2 + x (the curve the starting point lies
+    on).  Direct count for small p; else the exponent from random point
+    orders, and if that leaves several multiples in the Hasse interval, the
+    twist (#E + #E' = 2p + 2) decides (Mestre)."""
+    if p < (1 << 20):
+        chi_g = legendre(g, p)
+        return 1 + sum(1 + chi_g * legendre(x ** 3 + A * x * x + x, p) for x in range(p))
+    rng = random.Random(seed)
+    c = _exponent_multiples(A, g, p, rng)
+    if len(c) == 1:
+        return c[0]
+    nr = 2
+    while legendre(nr, p) != -1:
+        nr += 1
+    ct = set(_exponent_multiples(A, g * nr % p, p, rng))
+    both = [n for n in c if 2 * p + 2 - n in ct]
+    if len(both) != 1:
+        raise ValueError('group order not determined: candidates %s' % both)
+    return both[0]
+
+
+def _fmt_factors(n):
+    f = bo.factor(n)
+    return ' * '.join('%d^%d' % (q, e) if e > 1 else '%d' % q for q, e in sorted(f.items()))
+
+
+def order_report(fam, m, p, B1=None, B2=None, curve=2):
+    """print #E, ord P, and the B1 / B2 yafu needs to find p"""
+    if not bo.is_prime(p):
+        raise ValueError('p must be prime')
+    print('curve: %s, %s = %d, p = %d (%d bits)' % (
+        'Suyama' if fam == 'suyama' else 'Edwards family (iv)',
+        'sigma' if fam == 'suyama' else 'm', m, p, p.bit_length()))
+    try:
+        A, g, P = curve_point(fam, m, p)
+    except Find:
+        print('the curve build finds p (a denominator is 0 mod p): stage-0 find')
+        return
+    n = curve_card(A, g, p)
+    r0 = bo.point_order(P, A, g, p)
+    tors = 12 if fam == 'suyama' else 16
+    print('#E    = %d = %s%s' % (n, _fmt_factors(n),
+                                 '' if n % tors == 0 else '  (WARNING: not divisible by %d)' % tors))
+    print('ord P = %d = %s' % (r0, _fmt_factors(r0)))
+
+    # yafu's stage 1 has q^j < B1 for every prime q (2^k < B1 included), so
+    # q^e | s iff q^e < B1
+    f = sorted(bo.factor(r0).items())
+    pp = [q ** e for q, e in f]
+    print('stage 1 alone finds p for B1 > %d' % max(pp))
+    # stage 2 covers one prime in (B1, B2]: the largest prime q of ord P, if
+    # it divides ord P once and exceeds every other prime power
+    q = f[-1][0]
+    rest = max(pp[:-1]) if len(f) > 1 else 1
+    if f[-1][1] == 1 and rest < q:
+        print('with stage 2: B1 > %d and B2 >= %d (the largest prime of ord P)' % (rest, q))
+    else:
+        print('with stage 2: no help (the largest prime %s)' % (
+            'divides ord P more than once' if f[-1][1] > 1 else
+            'is below another prime power of ord P'))
+
+    if B1 is not None:
+        r = 1
+        for q, e in f:
+            j = 0
+            while q ** (j + 1) < B1:
+                j += 1
+            r *= q ** max(0, e - j)
+        s1 = (r == 1) or (r == 2 and fam != 'suyama' and curve == 2)
+        s2 = (not s1) and B2 is not None and bo.is_prime(r) and B1 < r <= B2
+        if s1:
+            verdict = 'found in stage 1'
+        elif s2:
+            verdict = 'found in stage 2'
+        elif bo.is_prime(r) and r < B1:
+            verdict = ('not found by design: the prime left over is below B1 (the FFT '
+                       'stage 2 may still meet it by a coincidence mod r; '
+                       'edw_ref.py lanes decides exactly)')
+        else:
+            verdict = 'not found'
+        print('at B1 = %d%s: order left after stage 1 = %d -> %s' % (
+            B1, '' if B2 is None else ', B2 = %d' % B2, r, verdict))
+        print('  (plain stage 2; Brent-Suyama can find more, and the x-only PRAC '
+              'stage 1 of curves 0/1 can make extra lucky finds)')
+
+
+def gp_script(fam, m, p):
+    """a PARI/GP script computing #E and ord P for a yafu curve mod p"""
+    hdr = ['\\\\ AVX-ECM curve %s %s = %d mod p (arith/edwards/edw_ref.py order)'
+           % ('Suyama' if fam == 'suyama' else 'Edwards family (iv)',
+              'sigma' if fam == 'suyama' else 'm', m),
+           'default(parisizemax, 2^31);  \\\\ SEA point counting needs a large stack',
+           'p = %d; m = %d;' % (p, m)]
+    if fam == 'suyama':
+        body = [
+            's = Mod(m, p); u = s^2 - 5; v = 4*s;',
+            'x0 = u^3/v^3; A = (v - u)^3*(3*u + v)/(4*u^3*v) - 2;',
+            '\\\\ the point (x0, 1) is on g y^2 = x^3 + A x^2 + x; with X = g x,',
+            '\\\\ Y = g^2 y that is Y^2 = X^3 + g A X^2 + g^2 X',
+            'g = x0^3 + A*x0^2 + x0;',
+            'E = ellinit([0, g*A, 0, g^2, 0]); P = [g*x0, g^2];',
+            'tors = 12;']
+    else:
+        body = [
+            'W = ellinit([0, -1, 0, -9, 9], p); Q = ellmul(W, [Mod(5, p), Mod(8, p)], m);',
+            'x = Q[1]; y = Q[2]; t = (4*x + 4)/(y - 4);',
+            'e = (t^2 + 4*t)/(t^2 - 4);',
+            'x1 = (2*t^3 + 2*t^2 - 8*t - 8)/(t^4 + 6*t^3 + 12*t^2 + 16*t);',
+            'y1 = (t^6 + 6*t^5 + 10*t^4 - 16*t^3 - 48*t^2 - 32*t - 32)/(t^6 + 6*t^5 + 10*t^4 + 16*t^3 + 48*t^2 + 64*t);',
+            '\\\\ -x^2 + y^2 = 1 + d x^2 y^2, d = -e^4; Montgomery image B v^2 = u^3 + A u^2 + u,',
+            '\\\\ u = (1+y)/(1-y), v = u/x; with X = u/B, Y = v/B: Y^2 = X^3 + (A/B) X^2 + X/B^2',
+            'd = -e^4; A = 2*(d - 1)/(-1 - d); B = 4/(-1 - d);',
+            'u = (1 + y1)/(1 - y1); v = u/x1;',
+            'E = ellinit([0, A/B, 0, 1/B^2, 0]); P = [u/B, v/B];',
+            'tors = 16;']
+    tail = [
+        'n = ellcard(E); o = ellorder(E, P, n);',
+        'print("#E    = ", n, " = ", factor(n), if (n % tors, "  (WARNING: not divisible by ", ""), if (n % tors, tors, ""));',
+        'print("ord P = ", o, " = ", factor(o));',
+        '\\\\ yafu stage 1 has q^j < B1 for every prime q: q^e | s iff q^e < B1',
+        'f = factor(o); k = #f~; pp = vector(k, i, f[i,1]^f[i,2]);',
+        'print("stage 1 alone finds p for B1 > ", vecmax(pp));',
+        '\\\\ stage 2 covers one prime in (B1, B2]: the largest prime of ord P, if it',
+        '\\\\ divides ord P once and exceeds every other prime power',
+        'rest = if (k > 1, vecmax(vector(k-1, i, pp[i])), 1);',
+        'if (f[k,2] == 1 && rest < f[k,1], print("with stage 2: B1 > ", rest, " and B2 >= ", f[k,1]), '
+        'print("with stage 2: no help (the largest prime ", if (f[k,2] > 1, "divides ord P more than once", '
+        '"is below another prime power of ord P"), ")"));']
+    return '\n'.join(hdr + body + tail) + '\n'
+
+
 if __name__ == '__main__':
     cmd = sys.argv[1]
     if cmd == 'selftest':
@@ -558,3 +758,19 @@ if __name__ == '__main__':
     elif cmd == 'yield':
         a = [int(v) for v in sys.argv[2:]]
         yield_cmp(*a)
+    elif cmd == 'order':
+        # order fam m p [B1 [B2]] [curve=N] [gp]
+        args = [a for a in sys.argv[2:] if a != 'gp' and not a.startswith('curve=')]
+        crv = [int(a[6:]) for a in sys.argv[2:] if a.startswith('curve=')]
+        fam, m, p = args[0], int(args[1]), int(args[2])
+        B = [int(float(a)) for a in args[3:5]]
+        if fam not in ('suyama', 'iv'):
+            raise SystemExit('fam must be suyama or iv')
+        if ('gp' in sys.argv[2:]) or (p.bit_length() > ORDER_MAX_BITS):
+            if p.bit_length() > ORDER_MAX_BITS:
+                print('\\\\ p has %d bits (> %d): BSGS in Python is too slow; run this in gp'
+                      % (p.bit_length(), ORDER_MAX_BITS))
+            sys.stdout.write(gp_script(fam, m, p))
+        else:
+            order_report(fam, m, p, *(B + [None] * (2 - len(B))),
+                         curve=crv[0] if crv else 2)
