@@ -1,0 +1,18 @@
+== IFMA
+x8 B1  27: 3000 inputs, 0 mismatches; curves run 6788, predicted 6790  (differs)
+x8 B1  47: 3000 inputs, 0 mismatches; curves run 6921, predicted 6921
+x8 B1  70: 3000 inputs, 0 mismatches; curves run 7858, predicted 7858
+x8 B1  85: 3000 inputs, 0 mismatches; curves run 7733, predicted 7733
+x8 B1 125: 3000 inputs, 0 mismatches; curves run 4986, predicted 4986
+x8 B1 165: 3000 inputs, 0 mismatches; curves run 3895, predicted 3897  (differs)
+x8 B1 205: 3000 inputs, 0 mismatches; curves run 3595, predicted 3595
+x8: 0 of 21000 mismatch (0 with a degenerate curve skipped, 1 correct early finds from Edwards exceptions; curve totals can differ by those)
+== AVX-512F
+x8 B1  27: 3000 inputs, 0 mismatches; curves run 6725, predicted 6725
+x8 B1  47: 3000 inputs, 0 mismatches; curves run 6917, predicted 6917
+x8 B1  70: 3000 inputs, 0 mismatches; curves run 7967, predicted 7967
+x8 B1  85: 3000 inputs, 0 mismatches; curves run 7907, predicted 7909  (differs)
+x8 B1 125: 3000 inputs, 0 mismatches; curves run 5157, predicted 5157
+x8 B1 165: 3000 inputs, 0 mismatches; curves run 3965, predicted 3966  (differs)
+x8 B1 205: 3000 inputs, 0 mismatches; curves run 3593, predicted 3593
+x8: 0 of 21000 mismatch (0 with a degenerate curve skipped, 0 correct early finds from Edwards exceptions; curve totals can differ by those)

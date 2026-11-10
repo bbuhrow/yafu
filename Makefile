@@ -908,6 +908,10 @@ COMMON_SRCS = \
     factor/gmp-ecm/tinyecm.c \
     factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c \
+    factor/gmp-ecm/microecm_edw.c \
+    factor/gmp-ecm/microecm_edw_x4.c \
+    factor/gmp-ecm/tinyecm_edw.c \
+    factor/gmp-ecm/tinyrho.c \
     ytools/threadpool.c \
     ytools/ytools.c \
     ysieve/presieve.c \
@@ -967,7 +971,8 @@ ECM_SRCS = \
     arith/vecpoly/vp_setup.c \
     arith/vecpoly/vp_kern.c \
     arith/vecpoly/vp_poly.c \
-    factor/avx-ecm/avxecm_stage2fft.c
+    factor/avx-ecm/avxecm_stage2fft.c \
+    factor/avx-ecm/avxecm_edwards.c
 
 # FP-emulated vector kernels: the AVX2 versions switch MXCSR to round toward
 # zero around each call, so the compiler must keep the FP ops in order
@@ -979,6 +984,12 @@ FP_KERNEL_OBJS = arith/vecmont/vecarith52_tmpl$(OBJ_EXT) arith/rns/rns_yaob_avx2
 $(FP_KERNEL_OBJS): CFLAGS += -frounding-math
 ifeq ($(USE_AVX2),1)
 $(FP_KERNEL_OBJS): CFLAGS += -mfma
+endif
+# The Edwards micro/tinyecm AVX2 files use FMA with the default rounding
+# (no MXCSR change), so they need -mfma only.
+EDW_X4_OBJS = factor/gmp-ecm/microecm_edw_x4$(OBJ_EXT)
+ifeq ($(USE_AVX2),1)
+$(EDW_X4_OBJS): CFLAGS += -mfma
 endif
 
 

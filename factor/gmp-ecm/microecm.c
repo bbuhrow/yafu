@@ -538,7 +538,9 @@ static uint64_t uecm_bingcd64(uint64_t u, uint64_t v)
 // full strength mul/sqr redc
 MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
 {
-#if defined(__unix__) && defined(__x86_64__)
+// gcc-style asm on any x86-64 gcc / clang except clang-cl; it used to
+// need __unix__, so MinGW took the ~5% slower uecm_mulredc_alt path
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(_MSC_VER)
     // On Intel Skylake: 9 cycles latency, 7 fused uops.
     __uint128_t prod = (__uint128_t)x * y;
     uint64_t Thi = (uint64_t)(prod >> 64);
@@ -562,7 +564,9 @@ MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint
 }
 MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc(uint64_t x, uint64_t n, uint64_t inv)
 {
-#if defined(__unix__) && defined(__x86_64__)
+// gcc-style asm on any x86-64 gcc / clang except clang-cl; it used to
+// need __unix__, so MinGW took the ~5% slower uecm_mulredc_alt path
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(_MSC_VER)
     // On Intel Skylake: 9 cycles latency, 7 fused uops.
     __uint128_t prod = (__uint128_t)x * x;
     uint64_t Thi = (uint64_t)(prod >> 64);
@@ -747,7 +751,9 @@ MICRO_ECM_FORCE_INLINE static __m512i uecm_mulredc_x8(__m512i x, __m512i y, __m5
     __m512i T_hi; // = uecm_mul52hi(x, y, dbias, vbias1);
     __m512i T_lo; // = uecm_mul52lo(x, y);
     uecm_mul52lohi(x, y, &T_lo, &T_hi);
-    __m512i m = _mm512_and_si512(_mm512_mullo_epi64(T_lo, invN), lo52mask);
+    // low 52 bits of T_lo * invN: one madd52lo with IFMA (vpmullq is 3 uops,
+    // ~15 cycles latency on the critical path); mullo & mask otherwise
+    __m512i m = uecm_mul52lo(T_lo, invN);
     __m512i mN_hi = uecm_mul52hi(m, N);
     __m512i tmp = uecm_add64(T_hi, N);
     tmp = uecm_sub64(tmp, mN_hi);
@@ -761,7 +767,9 @@ MICRO_ECM_FORCE_INLINE static __m512i uecm_sqrredc_x8(__m512i x, __m512i N, __m5
     __m512i T_hi; // = uecm_mul52hi(x, y, dbias, vbias1);
     __m512i T_lo; // = uecm_mul52lo(x, y);
     uecm_mul52lohi(x, x, &T_lo, &T_hi);
-    __m512i m = _mm512_and_si512(_mm512_mullo_epi64(T_lo, invN), lo52mask);
+    // low 52 bits of T_lo * invN: one madd52lo with IFMA (vpmullq is 3 uops,
+    // ~15 cycles latency on the critical path); mullo & mask otherwise
+    __m512i m = uecm_mul52lo(T_lo, invN);
     __m512i mN_hi = uecm_mul52hi(m, N);
     __m512i tmp = uecm_add64(T_hi, N);
     tmp = uecm_sub64(tmp, mN_hi);

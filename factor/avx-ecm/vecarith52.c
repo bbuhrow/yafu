@@ -244,12 +244,31 @@ void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
         avec = _mm512_load_epi64(c->data + i * VECLEN_I);
         nvec = _mm512_load_epi64(mdata->n->data + i * VECLEN_I);
         //cvec = _mm512_mask_adc_epi52(avec, mask, carry, nvec, &carry);
-    
+
         __m512i t = _mm512_mask_add_epi64(avec, mask, avec, nvec);
         t = _mm512_mask_add_epi64(avec, mask, t, _mm512_maskz_set1_epi64(carry, 1));
         carry = _mm512_mask_cmpgt_epu64_mask(mask, t, lomask);
         cvec = _mm512_and_epi64(t, lomask);
-    
+
+        _mm512_store_epi64(c->data + i * VECLEN_I, cvec);
+    }
+
+    // still negative: a third n, so b may be up to a + 3n.  The Edwards
+    // doubling (avxecm_edwards.c) subtracts the square of a lazy sum, which
+    // can exceed 2n (arith/avxecm_edwards_plan.md, part E); the x-only
+    // arithmetic never gets here.
+    mask = (~carry) & mask;
+    carry = 0;
+    for (i = 0; (i < NWORDS) && (mask > 0); i++)
+    {
+        avec = _mm512_load_epi64(c->data + i * VECLEN_I);
+        nvec = _mm512_load_epi64(mdata->n->data + i * VECLEN_I);
+
+        __m512i t = _mm512_mask_add_epi64(avec, mask, avec, nvec);
+        t = _mm512_mask_add_epi64(avec, mask, t, _mm512_maskz_set1_epi64(carry, 1));
+        carry = _mm512_mask_cmpgt_epu64_mask(mask, t, lomask);
+        cvec = _mm512_and_epi64(t, lomask);
+
         _mm512_store_epi64(c->data + i * VECLEN_I, cvec);
     }
     return;

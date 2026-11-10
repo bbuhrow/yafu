@@ -878,6 +878,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         tdata[i].MAXBITS = maxbits;
         tdata[i].NBLOCKS = nblocks;
         tdata[i].NWORDS = nwords;
+        tdata[i].curve_type = fobj->ecm_obj.avx_curve;
         
         if (i == 0)
         {
@@ -955,7 +956,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             if (bs == AVXECM_BS_DEFAULT)
                 bs = auto_b2 ? AVXECM_BS_AUTO : 0;
             s2 = avxecm_s2fft_setup(M, tdata[0].STAGE1_MAX, tdata[0].STAGE2_MAX,
-                (int)threads, (double)fobj->ecm_obj.avx_stg2_mem, auto_b2, bs, verbose);
+                (int)threads, (double)fobj->ecm_obj.avx_stg2_mem, auto_b2, bs,
+                fobj->ecm_obj.avx_curve == AVXECM_CURVE_EDW4X, verbose);
             mpz_clear(M);
             if (s2 != NULL)
             {
@@ -974,6 +976,14 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
 	gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
+
+    if ((verbose > 0) && (fobj->ecm_obj.avx_curve != AVXECM_CURVE_SUYAMA))
+    {
+        printf("ecm: twisted Edwards curve [sigma](5,8) on a = -1 family (iv)\n"
+            "ecm: using %s arithmetic in stage 1\n",
+            (fobj->ecm_obj.avx_curve == AVXECM_CURVE_EDW4X) ?
+            "Edwards extended-coordinate" : "X-coord-only Montgomery differential");
+    }
 
     if (verbose > 1)
     {

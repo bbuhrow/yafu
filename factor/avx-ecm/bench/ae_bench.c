@@ -6,6 +6,9 @@
  *     -p  include powm timing            -w  word counts to run
  *     -neg  negative self-test: a corrupting kernel must FAIL
  *     -a  add/sub-mod range test on AMM outputs
+ *     -e  curve-operation costs (Montgomery PRAC steps vs Edwards a = -1)
+ *     -ed Edwards stage-1 operation chains vs GMP (add/sub range audit);
+ *         -steps n chain length (default 3000), -spare k one spare-bit count
  *     -spare k  N has 52*S - k bits (default: k = 1 and a mid-size N)
  *
  * Kernels compared per word count S:
@@ -635,6 +638,473 @@ static void make_N(mpz_t N, int bits, gmp_randstate_t rs);
 #define vecsubmod52 vecsubmod52_avx2
 #endif
 
+// ---------------------------------------------------------------------------
+// -e: curve-operation costs for the Edwards stage-1 model
+// (arith/edwards/edw_model.py).  Times the template mul/sqr, add/sub, and
+// composed point operations built from them exactly as curve code calls
+// them (one kernel call per field operation):
+//   mont_add  PRAC differential add incl. the caller's sum/diff of 2 points:
+//             4M + 2S + 6 add/sub                  (vec_add in avxecm.c)
+//   mont_dup  3M + 2S + 4 add/sub                  (vec_duplicate + its caller)
+//   edw_dbl   a = -1 extended doubling, no T:      3M + 4S + 6 add/sub
+//   edw_dblt  the same with T:                     4M + 4S + 6 add/sub
+//   edw_add   cached addition, no T3:              7M + 6 add/sub
+// ns per 8-lane call, min of 7 trials.
+// ---------------------------------------------------------------------------
+static void time_ecm_ops(ae_t *ae, gmp_randstate_t rs)
+{
+    int S = ae->words, l, i, k, tr, reps;
+    vec_bignum_t *v[24];
+    mpz_t t;
+    double t0, el, best[9];
+    vec_monty_t *md = ae->md;
+    vec_bignum_t *n = ae->n, *s = ae->s;
+
+    mpz_init(t);
+    for (k = 0; k < 24; k++)
+    {
+        v[k] = vecInit(S);
+        for (l = 0; l < VECLEN; l++)
+        {
+            mpz_urandomm(t, rs, ae->N);
+            vec_insert(v[k], t, l, S);
+        }
+    }
+    // point 1 = v0..v3 (X Y Z T), cached point 2 = v4..v7, results
+    // v8..v11, temporaries v12..v23
+#define X1 v[0]
+#define Y1 v[1]
+#define Z1 v[2]
+#define T1 v[3]
+#define C0 v[4]
+#define C1 v[5]
+#define C2 v[6]
+#define C3 v[7]
+#define X3 v[8]
+#define Y3 v[9]
+#define Z3 v[10]
+#define T3 v[11]
+#define tA v[12]
+#define tB v[13]
+#define tC v[14]
+#define tD v[15]
+#define tE v[16]
+#define tF v[17]
+#define tG v[18]
+#define tH v[19]
+#define u1 v[20]
+#define u2 v[21]
+#define u3 v[22]
+#define u4 v[23]
+
+    reps = S > 40 ? 300 : 3000;
+    for (k = 0; k < 9; k++)
+        best[k] = 1e9;
+    t0 = now_sec();
+    while (now_sec() - t0 < 0.2)            // warm up
+        ae->mul(X1, Y1, X3, n, s, md);
+    for (tr = 0; tr < 7; tr++)
+    {
+        for (k = 0; k < 9; k++)
+        {
+            t0 = now_sec();
+            for (i = 0; i < reps; i++)
+            {
+                switch (k)
+                {
+                case 0: ae->mul(X1, Y1, X3, n, s, md); break;
+                case 1: ae->sqr(X1, X3, n, s, md); break;
+                case 2: vecaddmod52(X1, Y1, X3, md); break;
+                case 3: vecsubmod52(X1, Y1, X3, md); break;
+                case 4:     // PRAC: sum/diff of two points, then vec_add
+                    vecsubmod52(X1, Z1, tA, md); vecaddmod52(X1, Z1, tB, md);
+                    vecsubmod52(Y1, T1, tC, md); vecaddmod52(Y1, T1, tD, md);
+                    ae->mul(tA, tD, u1, n, s, md);
+                    ae->mul(tB, tC, u2, n, s, md);
+                    vecsubmod52(u1, u2, u4, md); vecaddmod52(u1, u2, u3, md);
+                    ae->sqr(u3, u1, n, s, md);
+                    ae->sqr(u4, u2, n, s, md);
+                    ae->mul(u1, C2, X3, n, s, md);
+                    ae->mul(u2, C0, Z3, n, s, md);
+                    break;
+                case 5:     // PRAC doubling (the caller's sum/diff included)
+                    vecsubmod52(X1, Z1, tA, md); vecaddmod52(X1, Z1, tB, md);
+                    ae->sqr(tA, u1, n, s, md);
+                    ae->sqr(tB, u2, n, s, md);
+                    ae->mul(u1, u2, X3, n, s, md);
+                    vecsubmod52(u2, u1, u3, md);
+                    ae->mul(u3, C3, u4, n, s, md);
+                    vecaddmod52(u4, u1, u4, md);
+                    ae->mul(u4, u3, Z3, n, s, md);
+                    break;
+                case 6:
+                case 7:     // a = -1 doubling with the signs folded:
+                            // E' = -E, F' = -F, G' = -G, H' = -H give the
+                            // same X3 = E F, Y3 = G H, Z3 = F G, T3 = E H
+                    ae->sqr(X1, tA, n, s, md);              // A = X^2
+                    ae->sqr(Y1, tB, n, s, md);              // B = Y^2
+                    ae->sqr(Z1, tC, n, s, md);
+                    vecaddmod52(tC, tC, tC, md);            // C = 2 Z^2
+                    vecaddmod52(X1, Y1, u1, md);
+                    ae->sqr(u1, u2, n, s, md);              // (X+Y)^2
+                    vecaddmod52(tA, tB, tH, md);            // H' = A + B
+                    vecsubmod52(tH, u2, tE, md);            // E' = H' - (X+Y)^2
+                    vecsubmod52(tA, tB, tG, md);            // G' = A - B
+                    vecaddmod52(tC, tG, tF, md);            // F' = C + G'
+                    ae->mul(tE, tF, X3, n, s, md);
+                    ae->mul(tG, tH, Y3, n, s, md);
+                    ae->mul(tF, tG, Z3, n, s, md);
+                    if (k == 7)
+                        ae->mul(tE, tH, T3, n, s, md);
+                    break;
+                case 8:     // P + cached (Y2-X2, Y2+X2, 2d T2, 2 Z2), no T3
+                    vecsubmod52(Y1, X1, u1, md);
+                    vecaddmod52(Y1, X1, u2, md);
+                    ae->mul(u1, C0, tA, n, s, md);
+                    ae->mul(u2, C1, tB, n, s, md);
+                    ae->mul(T1, C2, tC, n, s, md);
+                    ae->mul(Z1, C3, tD, n, s, md);
+                    vecsubmod52(tB, tA, tE, md);
+                    vecsubmod52(tD, tC, tF, md);
+                    vecaddmod52(tD, tC, tG, md);
+                    vecaddmod52(tB, tA, tH, md);
+                    ae->mul(tE, tF, X3, n, s, md);
+                    ae->mul(tG, tH, Y3, n, s, md);
+                    ae->mul(tF, tG, Z3, n, s, md);
+                    break;
+                }
+            }
+            el = (now_sec() - t0) / reps;
+            if (el < best[k])
+                best[k] = el;
+        }
+    }
+    printf(" %2d %5d", S, S * DIGITBITS);
+    for (k = 0; k < 9; k++)
+        printf(" %9.1f", best[k] * 1e9);
+    printf("\n");
+    fflush(stdout);
+#undef X1
+#undef Y1
+#undef Z1
+#undef T1
+#undef C0
+#undef C1
+#undef C2
+#undef C3
+#undef X3
+#undef Y3
+#undef Z3
+#undef T3
+#undef tA
+#undef tB
+#undef tC
+#undef tD
+#undef tE
+#undef tF
+#undef tG
+#undef tH
+#undef u1
+#undef u2
+#undef u3
+#undef u4
+    for (k = 0; k < 24; k++)
+        vecFree(v[k]);
+    mpz_clear(t);
+}
+
+// ---------------------------------------------------------------------------
+// -ed: the Edwards stage-1 operation sequences (factor/avx-ecm/
+// avxecm_edwards.c: edw_dbl, edw_add, edw_cache) on random data in long
+// dependent chains, checked lane by lane against GMP (Montgomery products
+// a b R^-1 mod N, add/sub mod N).  Reports wrong lanes and the largest
+// value (in units of N) that entered a product and that was a subtrahend --
+// the add/sub range audit of arith/avxecm_edwards_plan.md, part E.
+// ---------------------------------------------------------------------------
+typedef struct
+{
+    vec_bignum_t *v;
+    mpz_t r[VECLEN];
+} ev_t;
+
+typedef struct
+{
+    ae_t *ae;
+    mpz_t t, u;
+    double maxmul, maxsub;      // largest product input / subtrahend, in N
+    long nchk, nbad;
+} ectx_t;
+
+static double ev_maxN(ectx_t *c, ev_t *a)
+{
+    double m = 0;
+    int l;
+    for (l = 0; l < VECLEN; l++)
+    {
+        double q;
+        vec_extract(c->t, a->v, l, c->ae->words);
+        mpz_mul_2exp(c->t, c->t, 20);       // value / N to 2^-20 (no double overflow)
+        mpz_tdiv_q(c->t, c->t, c->ae->N);
+        q = mpz_get_d(c->t) / 1048576.0;
+        if (q > m)
+            m = q;
+    }
+    return m;
+}
+
+static void ev_mul(ectx_t *c, ev_t *a, ev_t *b, ev_t *o)
+{
+    ae_t *ae = c->ae;
+    int l;
+    double m = ev_maxN(c, a), m2 = ev_maxN(c, b);
+    if (m2 > m) m = m2;
+    if (m > c->maxmul) c->maxmul = m;
+    for (l = 0; l < VECLEN; l++)
+    {
+        mpz_mul(c->u, a->r[l], b->r[l]);
+        mpz_mul(c->u, c->u, ae->Rinv);
+        mpz_mod(o->r[l], c->u, ae->N);
+    }
+    if (a == b)
+        ae->sqr(a->v, o->v, ae->n, ae->s, ae->md);
+    else
+        ae->mul(a->v, b->v, o->v, ae->n, ae->s, ae->md);
+}
+
+static void ev_add(ectx_t *c, ev_t *a, ev_t *b, ev_t *o)
+{
+    int l;
+    for (l = 0; l < VECLEN; l++)
+    {
+        mpz_add(c->u, a->r[l], b->r[l]);
+        mpz_mod(o->r[l], c->u, c->ae->N);
+    }
+    vecaddmod52(a->v, b->v, o->v, c->ae->md);
+}
+
+static void ev_sub(ectx_t *c, ev_t *a, ev_t *b, ev_t *o)
+{
+    int l;
+    double m = ev_maxN(c, b);
+    if (m > c->maxsub) c->maxsub = m;
+    for (l = 0; l < VECLEN; l++)
+    {
+        mpz_sub(c->u, a->r[l], b->r[l]);
+        mpz_mod(o->r[l], c->u, c->ae->N);
+    }
+    vecsubmod52(a->v, b->v, o->v, c->ae->md);
+}
+
+static void ev_check(ectx_t *c, ev_t *a)
+{
+    int l;
+    for (l = 0; l < VECLEN; l++)
+    {
+        vec_extract(c->t, a->v, l, c->ae->words);
+        mpz_mod(c->t, c->t, c->ae->N);
+        c->nchk++;
+        if (mpz_cmp(c->t, a->r[l]) != 0)
+            c->nbad++;
+    }
+}
+
+static void ev_init(ectx_t *c, ev_t *a, gmp_randstate_t rs)
+{
+    int l;
+    a->v = vecInit(c->ae->words);
+    for (l = 0; l < VECLEN; l++)
+    {
+        mpz_init(a->r[l]);
+        mpz_urandomm(a->r[l], rs, c->ae->N);
+        vec_insert(a->v, a->r[l], l, c->ae->words);
+    }
+}
+
+static void ev_copy(ev_t *a, ev_t *o)
+{
+    int l;
+    vecCopy(a->v, o->v);
+    for (l = 0; l < VECLEN; l++)
+        mpz_set(o->r[l], a->r[l]);
+}
+
+static void ev_free(ev_t *a)
+{
+    int l;
+    vecFree(a->v);
+    for (l = 0; l < VECLEN; l++)
+        mpz_clear(a->r[l]);
+}
+
+// the operation sequences of avxecm_edwards.c (P = X Y Z T, cached = 4)
+static void ed_dbl(ectx_t *c, ev_t *P, ev_t *tp, int want_t)
+{
+    ev_t *A = &tp[0], *B = &tp[1], *C = &tp[2], *S = &tp[3], *E = &tp[4];
+    ev_t *F = &tp[5], *G = &tp[6], *H = &tp[7], *u = &tp[8], *zz = &tp[9];
+    ev_mul(c, &P[0], &P[0], A);
+    ev_mul(c, &P[1], &P[1], B);
+    ev_mul(c, &P[2], &P[2], zz);
+    ev_add(c, zz, zz, C);
+    ev_add(c, &P[0], &P[1], u);
+    ev_mul(c, u, u, S);
+    ev_add(c, A, B, H);
+    ev_sub(c, H, S, E);
+    ev_sub(c, A, B, G);
+    ev_add(c, C, G, F);
+    ev_mul(c, E, F, &P[0]);
+    ev_mul(c, G, H, &P[1]);
+    ev_mul(c, F, G, &P[2]);
+    if (want_t)
+        ev_mul(c, E, H, &P[3]);
+}
+
+static void ed_add(ectx_t *c, ev_t *P, ev_t *Q, int neg, ev_t *tp, int want_t)
+{
+    ev_t *A = &tp[0], *B = &tp[1], *C = &tp[2], *D = &tp[3], *E = &tp[4];
+    ev_t *F = &tp[5], *G = &tp[6], *H = &tp[7], *u = &tp[8], *v = &tp[9];
+    ev_sub(c, &P[1], &P[0], u);
+    ev_add(c, &P[1], &P[0], v);
+    ev_mul(c, u, neg ? &Q[1] : &Q[0], A);
+    ev_mul(c, v, neg ? &Q[0] : &Q[1], B);
+    ev_mul(c, &P[3], &Q[2], C);
+    ev_mul(c, &P[2], &Q[3], D);
+    ev_sub(c, B, A, E);
+    ev_add(c, B, A, H);
+    if (neg)
+    {
+        ev_add(c, D, C, F);
+        ev_sub(c, D, C, G);
+    }
+    else
+    {
+        ev_sub(c, D, C, F);
+        ev_add(c, D, C, G);
+    }
+    ev_mul(c, E, F, &P[0]);
+    ev_mul(c, G, H, &P[1]);
+    ev_mul(c, F, G, &P[2]);
+    if (want_t)
+        ev_mul(c, E, H, &P[3]);
+}
+
+static void ed_cache(ectx_t *c, ev_t *P, ev_t *d2, ev_t *Q)
+{
+    ev_sub(c, &P[1], &P[0], &Q[0]);
+    ev_add(c, &P[1], &P[0], &Q[1]);
+    ev_mul(c, &P[3], d2, &Q[2]);
+    ev_add(c, &P[2], &P[2], &Q[3]);
+}
+
+static void test_edwards_chain(int S, int spare, int steps, gmp_randstate_t rs)
+{
+    ae_t ae;
+    ectx_t c;
+    mpz_t N;
+    ev_t P[4], tab[8][4], d2, tp[10];
+    int i, j, k;
+
+    mpz_init(N);
+    make_N(N, S * DIGITBITS - spare, rs);
+    ae_init(&ae, N, S);
+    if (!pick_new(&ae))
+    {
+        ae_free(&ae);
+        mpz_clear(N);
+        return;
+    }
+    memset(&c, 0, sizeof(c));
+    c.ae = &ae;
+    mpz_init(c.t);
+    mpz_init(c.u);
+
+    // direct check of the submod range: b - a in (2N, 3N), which needs the
+    // third +N pass (b < R as long as 3N + a < R, i.e. >= 2 spare bits)
+    if (spare >= 2)
+    {
+        ev_t a, b, o;
+        int l, r;
+        ev_init(&c, &a, rs);
+        ev_init(&c, &b, rs);
+        ev_init(&c, &o, rs);
+        for (r = 0; r < 200; r++)
+        {
+            for (l = 0; l < VECLEN; l++)
+            {
+                mpz_urandomm(a.r[l], rs, ae.N);
+                mpz_tdiv_q_2exp(a.r[l], a.r[l], 2);         // a < N/4
+                mpz_urandomm(b.r[l], rs, ae.N);
+                mpz_addmul_ui(b.r[l], ae.N, 2);
+                mpz_add(b.r[l], b.r[l], a.r[l]);            // b = a + 2N + [0, N)
+                vec_insert(a.v, a.r[l], l, S);
+                vec_insert(b.v, b.r[l], l, S);
+            }
+            ev_sub(&c, &a, &b, &o);
+            ev_check(&c, &o);
+        }
+        c.maxsub = 0;
+        ev_free(&a);
+        ev_free(&b);
+        ev_free(&o);
+    }
+
+    // random point coordinates and constants (< N, as the curve build makes
+    // them); the arithmetic is checked mod N, so they need not be on a curve
+    for (j = 0; j < 4; j++)
+        ev_init(&c, &P[j], rs);
+    ev_init(&c, &d2, rs);
+    for (i = 0; i < 10; i++)
+        ev_init(&c, &tp[i], rs);
+    for (i = 0; i < 8; i++)
+        for (j = 0; j < 4; j++)
+            ev_init(&c, &tab[i][j], rs);
+
+    // table from the running point, as edw_mul_chunk builds it
+    for (i = 0; i < 8; i++)
+    {
+        ed_dbl(&c, P, tp, 1);
+        ed_cache(&c, P, &d2, tab[i]);
+    }
+    // then a wNAF-like chain: doublings, sometimes followed by an addition
+    // of a random table entry with a random sign; T only before an addition
+    for (k = 0; k < steps; k++)
+    {
+        int add = (gmp_urandomb_ui(rs, 3) == 0);
+        ed_dbl(&c, P, tp, add);
+        if (add)
+            ed_add(&c, P, tab[gmp_urandomb_ui(rs, 3)], (int)gmp_urandomb_ui(rs, 1), tp,
+                (k % 97) == 0);
+        if ((k % 97) == 0)
+        {
+            // refresh one table entry from the running point (needs T)
+            if (!add)
+                ed_dbl(&c, P, tp, 1);
+            ed_cache(&c, P, &d2, tab[gmp_urandomb_ui(rs, 3)]);
+        }
+        if ((k % 50) == 0)
+            for (j = 0; j < 3; j++)
+                ev_check(&c, &P[j]);
+    }
+    for (j = 0; j < 3; j++)
+        ev_check(&c, &P[j]);
+
+    printf("  S=%2d spare=%2d: %ld/%ld lane values wrong; max product input %.3f N, "
+        "max subtrahend %.3f N\n", S, spare, c.nbad, c.nchk, c.maxmul, c.maxsub);
+    fflush(stdout);
+
+    for (j = 0; j < 4; j++)
+        ev_free(&P[j]);
+    ev_free(&d2);
+    for (i = 0; i < 10; i++)
+        ev_free(&tp[i]);
+    for (i = 0; i < 8; i++)
+        for (j = 0; j < 4; j++)
+            ev_free(&tab[i][j]);
+    mpz_clear(c.t);
+    mpz_clear(c.u);
+    ae_free(&ae);
+    mpz_clear(N);
+}
+
 // vecaddmod52 / vecsubmod52 on AMM-product outputs (as ECM feeds them):
 // count lanes where the result is not == a+-b mod N, or not < R
 static void test_addsub(int S, gmp_randstate_t rs)
@@ -714,6 +1184,7 @@ int main(int argc, char **argv)
     int def_words[] = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20,
         22, 24, 28, 30, 32, 36, 40, 48, 60, 80 };
     int words[64], nw = 0, w, i, do_test = 1, do_bench = 1, do_powm = 0, do_addsub = 0, do_neg = 0;
+    int do_ecmops = 0, do_edchain = 0, edsteps = 3000;
     int spare = -1;
     unsigned long seed = (unsigned long)time(NULL);
     gmp_randstate_t rs;
@@ -734,6 +1205,12 @@ int main(int argc, char **argv)
             do_neg = 1, do_bench = 0;
         else if (!strcmp(argv[i], "-a"))
             do_addsub = 1, do_test = do_bench = 0;
+        else if (!strcmp(argv[i], "-e"))
+            do_ecmops = 1, do_test = do_bench = 0;
+        else if (!strcmp(argv[i], "-ed"))
+            do_edchain = 1, do_test = do_bench = 0;
+        else if (!strcmp(argv[i], "-steps") && i + 1 < argc)
+            edsteps = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-spare") && i + 1 < argc)
             spare = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-w") && i + 1 < argc)
@@ -761,6 +1238,34 @@ int main(int argc, char **argv)
 #else
     printf("seed %lu; no IFMA: FMA-calibrated cycle %.4f ns (%.2f GHz); template = FP-emulated\n", seed, cyc, 1.0 / cyc);
 #endif
+
+    if (do_ecmops)
+    {
+        printf("curve-operation costs, ns per 8-lane call (template core, N with 3 spare bits)\n");
+        printf("  S  bits       mul       sqr       add       sub  mont_add  mont_dup   edw_dbl  edw_dblt   edw_add\n");
+        for (w = 0; w < nw; w++)
+        {
+            ae_t ae;
+            mpz_t N;
+            mpz_init(N);
+            make_N(N, words[w] * DIGITBITS - 3, rs);
+            ae_init(&ae, N, words[w]);
+            if (pick_new(&ae))
+                time_ecm_ops(&ae, rs);
+            ae_free(&ae);
+            mpz_clear(N);
+        }
+    }
+
+    if (do_edchain)
+    {
+        int spares[] = { 1, 2, 3, 4, 8, 26 }, si;
+        printf("Edwards stage-1 operation chains vs GMP (%d steps, 8 lanes)\n", edsteps);
+        for (w = 0; w < nw; w++)
+            for (si = 0; si < 6; si++)
+                if ((spare < 0) || (spares[si] == spare))
+                    test_edwards_chain(words[w], spares[si], edsteps, rs);
+    }
 
     if (do_addsub)
     {

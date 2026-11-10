@@ -25,9 +25,11 @@ typedef struct avxecm_s2fft_s avxecm_s2fft_t;
 // the factor size B1 is usually chosen for).  bs: Brent-Suyama polynomial
 // (0 off, S > 1 x^S, S < -1 Dickson D_|S|(x, -1); design doc section 14;
 // AVXECM_BS_AUTO: the least predicted time per factor among plain, D_3,
-// D_6 and D_12).
+// D_6 and D_12).  edw_stage1: stage 1 is the Edwards stage 1 (curve type 2),
+// which is cheaper per unit of B1 than PRAC (the automatic B2 balances
+// against the predicted stage-1 time).
 avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
-    int threads, double mem_mb, int auto_b2, int bs, int verbose);
+    int threads, double mem_mb, int auto_b2, int bs, int edw_stage1, int verbose);
 uint64_t avxecm_s2fft_B2(avxecm_s2fft_t *s);
 void avxecm_s2fft_free(avxecm_s2fft_t *s);
 

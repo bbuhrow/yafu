@@ -158,6 +158,10 @@
     <ClCompile Include="..\..\factor\batch_factor.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw_x4.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm_edw.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyrho.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\micropm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
     <ClCompile Include="..\..\factor\rho.c" />
@@ -171,6 +175,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\gmp-ecm\microecm.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\microecm_edw.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_chains.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_curves.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_tiny_v2.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\tinyecm_edw.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\tinyrho.h" />
+    <ClInclude Include="..\..\factor\gmp-ecm\edw_kern.h" />
     <ClInclude Include="..\..\factor\gmp-ecm\tinyecm.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\batch_factor.h" />

@@ -1,0 +1,17 @@
+N 16 (one): legacy dispatch B1 27 1544 | best legacy level 27 1.000 | +mult x25 1.000 | +pol (16, 4) x25 1.019 | legacy B1s free 27 (16, 4) x25 1.019 | best 20 (8, 2) x30 1.035
+N 17 (one): legacy dispatch B1 27 1877 | best legacy level 27 1.000 | +mult x25 1.000 | +pol (16, 4) x25 1.045 | legacy B1s free 27 (16, 4) x25 1.045 | best 20 (8, 2) x25 1.050
+N 18 (one): legacy dispatch B1 27 2312 | best legacy level 27 1.000 | +mult x25 1.000 | +pol (16, 4) x30 1.048 | legacy B1s free 27 (16, 4) x30 1.048 | best 25 (16, 4) x25 1.048
+N 19 (one): legacy dispatch B1 27 3110 | best legacy level 47 1.081 | +mult x50 1.015 | +pol (16, 4) x25 1.066 | legacy B1s free 47 (8, 2) x25 1.105 | best 40 (8, 2) x30 1.117
+N 20 (one): legacy dispatch B1 27 4009 | best legacy level 47 1.132 | +mult x40 1.017 | +pol (16, 4) x40 1.103 | legacy B1s free 47 (8, 2) x30 1.179 | best 50 (8, 2) x30 1.182
+N 21 (one): legacy dispatch B1 47 4544 | best legacy level 70 1.008 | +mult x30 1.010 | +pol (8, 2) x30 1.046 | legacy B1s free 47 (8, 2) x30 1.046 | best 50 (8, 2) x25 1.049
+N 22 (one): legacy dispatch B1 47 5801 | best legacy level 70 1.022 | +mult x30 1.010 | +pol (8, 2) x30 1.050 | legacy B1s free 47 (8, 2) x30 1.050 | best 65 (8, 2) x25 1.056
+N 23 (one): legacy dispatch B1 70 7214 | best legacy level 85 1.012 | +mult x25 1.000 | +pol (8, 2) x25 1.030 | legacy B1s free 70 (8, 2) x25 1.030 | best 75 (8, 2) x25 1.033
+N 24 (one): legacy dispatch B1 70 8833 | best legacy level 85 1.023 | +mult x25 1.000 | +pol (8, 2) x25 1.029 | legacy B1s free 85 (8, 2) x30 1.044 | best 75 (8, 2) x25 1.052
+N 25 (one): legacy dispatch B1 85 11059 | best legacy level 85 1.000 | +mult x30 1.006 | +pol (8, 2) x30 1.041 | legacy B1s free 85 (8, 2) x30 1.041 | best 100 (8, 2) x25 1.054
+N 26 (one): legacy dispatch B1 85 14040 | best legacy level 85 1.000 | +mult x25 1.000 | +pol (16, 4) x25 1.035 | legacy B1s free 125 (8, 2) x20 1.046 | best 125 (8, 2) x20 1.046
+N 27 (one): legacy dispatch B1 125 19000 | best legacy level 85 1.031 | +mult x25 1.128 | +pol (8, 2) x25 1.150 | legacy B1s free 125 (8, 2) x25 1.150 | best 140 (8, 2) x25 1.154
+N 28 (one): legacy dispatch B1 125 22275 | best legacy level 125 1.000 | +mult x25 1.074 | +pol (8, 2) x25 1.098 | legacy B1s free 125 (8, 2) x25 1.098 | best 140 (8, 2) x25 1.108
+N 29 (one): legacy dispatch B1 125 29413 | best legacy level 165 1.003 | +mult x30 1.061 | +pol (16, 4) x30 1.081 | legacy B1s free 165 (8, 2) x25 1.116 | best 165 (8, 2) x25 1.116
+N 30 (one): legacy dispatch B1 165 36396 | best legacy level 205 1.003 | +mult x20 1.086 | +pol (16, 4) x25 1.109 | legacy B1s free 205 (16, 4) x20 1.137 | best 205 (16, 4) x20 1.137
+N 31 (one): legacy dispatch B1 165 45638 | best legacy level 205 1.037 | +mult x25 1.057 | +pol (16, 4) x25 1.098 | legacy B1s free 205 (16, 4) x20 1.143 | best 205 (16, 4) x20 1.143
+N 32 (one): legacy dispatch B1 205 56873 | best legacy level 205 1.000 | +mult x20 1.079 | +pol (16, 4) x25 1.123 | legacy B1s free 205 (16, 4) x25 1.123 | best 350 (8, 2) x20 1.128

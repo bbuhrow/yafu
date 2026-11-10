@@ -1356,6 +1356,8 @@ void addmod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 {
 #if defined(GCC_ASM64X)
     // requires GCC_ASM64 syntax
+	// read b before writing w: w may alias b (it used to be clobbered first)
+	uint64_t b0 = b[0], b1 = b[1];
 	w[1] = a[1];
 	w[0] = a[0];
 	ASM_G(
@@ -1370,7 +1372,7 @@ void addmod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 		"cmovc %%r8, %0 \n\t"
 		"cmovc %%r9, %1 \n\t"
 		: "+r"(w[0]), "+r"(w[1])
-		: "r"(b[0]), "r"(b[1]), "r"(n[0]), "r"(n[1])
+		: "r"(b0), "r"(b1), "r"(n[0]), "r"(n[1])
 		: "r8", "r9", "cc", "memory");
 
 #else

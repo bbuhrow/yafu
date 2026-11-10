@@ -1185,7 +1185,51 @@ typedef struct
     uint32_t NBLOCKS;
     uint32_t MAXBITS;
 
+    struct avxecm_edw_s *edw;       // Edwards stage 1 (curve type 2), else NULL
+
 } ecm_work;
+
+// ---------------------------------------------------------------------------
+// a = -1 twisted Edwards stage 1 (avxecm_edwards.c, -avxecm_curve 2)
+// ---------------------------------------------------------------------------
+typedef struct
+{
+    vec_bignum_t *X, *Y, *Z, *T;    // extended: x = X/Z, y = Y/Z, T = XY/Z
+} edw_pt;
+
+typedef struct
+{
+    vec_bignum_t *ymx, *ypx, *t2d, *z2;     // cached: Y-X, Y+X, 2d T, 2Z
+} edw_cpt;
+
+#define AVXECM_EDW_NTMP 12
+
+typedef struct avxecm_edw_s
+{
+    edw_pt R;                       // the stage-1 point (curve build sets it)
+    vec_bignum_t *d2;               // 2d per lane
+    edw_cpt *tab;                   // cached odd multiples (2i+1) R, i < ntab
+    int ntab;
+    int w;                          // largest signed-window width (ntab = 2^(w-2)
+                                    // table points allocated); each chunk uses
+                                    // the best width <= w for its length
+    int wfixed;                     // AVXECM_EDW_CFG: always use w
+    int wlast;                      // width used by the last chunk
+    edw_pt P2;                      // table build: 2R
+    edw_cpt c2;
+    vec_bignum_t *t[AVXECM_EDW_NTMP];   // temporaries
+    int16_t *dig;                   // signed digits of one scalar chunk
+                                    // (|digit| < 2^(w-1): 16 bits for w <= 15)
+    int diglen;
+    int chunk;                      // scalar chunk length in bits
+    int prefetch;                   // prefetch the next table entry
+    uint32_t ndbl, nadd;            // operation counts (stage 1)
+} avxecm_edw_t;
+
+void avxecm_edw_alloc(ecm_work *work, uint32_t words);
+void avxecm_edw_free(ecm_work *work);
+void avxecm_edw_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
+    uint64_t b1, uint64_t *primes, uint64_t nump, int verbose);
 
 // a wrapper for found factors and information about
 // how and where they were found.
@@ -1239,7 +1283,16 @@ typedef struct
     uint32_t PRIME_RANGE;
     int DO_STAGE2;
     struct avxecm_s2fft_s *s2fft;   // FFT stage 2 (shared; NULL: pairing)
+    int curve_type;                 // AVXECM_CURVE_*
 } thread_data_t;
+
+// curve families (option avxecm_curve, ecm_obj.avx_curve)
+#define AVXECM_CURVE_SUYAMA 0       // Montgomery, Suyama's sigma
+#define AVXECM_CURVE_EDW4   1       // a = -1 twisted Edwards, Gelin-Kleinjung-
+                                    // Lenstra family (iv); sigma = multiple m;
+                                    // x-only PRAC on its Montgomery image
+#define AVXECM_CURVE_EDW4X  2       // the same curves, Edwards extended-
+                                    // coordinate stage 1 (avxecm_edwards.c)
 
 void vececm(thread_data_t *tdata);
 int avxecm_s2fft_run(struct avxecm_s2fft_s *s, int tid, vec_monty_t *mdata,

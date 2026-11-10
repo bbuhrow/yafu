@@ -1,0 +1,17 @@
+params: 0 of 1350 mismatch
+curves: 0 of 18536 mismatch (1 degenerate builds skipped, 1 extra stage-1 finds from Edwards exceptions)
+  B1  27: expected stage 1  102, stage 2 1249, none 1647
+  B1  47: expected stage 1  126, stage 2 1179, none 1695
+  B1  70: expected stage 1  133, stage 2  999, none 1868
+  B1  85: expected stage 1   99, stage 2  798, none 2103
+  B1 125: expected stage 1   73, stage 2  742, none 2185
+  B1 165: expected stage 1   61, stage 2  497, none 1959
+  B1 205: expected stage 1   29, stage 2  238, none  754
+curves: 0 of 18597 mismatch (0 degenerate builds skipped, 0 extra stage-1 finds from Edwards exceptions)
+  B1  27: expected stage 1  112, stage 2 1270, none 1618
+  B1  47: expected stage 1  146, stage 2 1160, none 1694
+  B1  70: expected stage 1  140, stage 2  951, none 1909
+  B1  85: expected stage 1  102, stage 2  790, none 2108
+  B1 125: expected stage 1   62, stage 2  693, none 2245
+  B1 165: expected stage 1   47, stage 2  536, none 1937
+  B1 205: expected stage 1   29, stage 2  224, none  824

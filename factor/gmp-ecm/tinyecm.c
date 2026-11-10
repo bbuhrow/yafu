@@ -35,6 +35,77 @@ either expressed or implied, of the FreeBSD Project.
 #include "ytools.h"
 #include "arith.h"
 
+/* Inline 128-bit Montgomery arithmetic for the scalar tinyecm code.
+   monty.c's mulmod128 / sqrmod128 / addmod128 / submod128 are out-of-line
+   calls (and its asm addmod128 is wrong when w aliases the 2nd operand);
+   inlining them lets the compiler and the core overlap the independent
+   products of a curve operation.  Same results (R = 2^128, mdata->rho =
+   -1/n mod 2^64).  Define TECM_NO_INLINE128 to use monty.c instead. */
+#if defined(__SIZEOF_INT128__) && !defined(TECM_NO_INLINE128)
+#define TECM_INLINE128 1
+typedef unsigned __int128 tecm_u128;
+#define TECM_FINL static inline __attribute__((always_inline))
+
+TECM_FINL void tecm_mulmod128(uint64_t* u, uint64_t* v, uint64_t* w, monty128_t* md)
+{
+	// CIOS, two words
+	uint64_t n0 = md->n[0], n1 = md->n[1], rho = md->rho;
+	uint64_t u0 = u[0], u1 = u[1], v0 = v[0], v1 = v[1];
+	tecm_u128 t;
+	uint64_t t0, t1, t2, c, m;
+	t = (tecm_u128)u0 * v0; t0 = (uint64_t)t; c = (uint64_t)(t >> 64);
+	t = (tecm_u128)u0 * v1 + c; t1 = (uint64_t)t; t2 = (uint64_t)(t >> 64);
+	m = t0 * rho;
+	t = (tecm_u128)m * n0 + t0; c = (uint64_t)(t >> 64);
+	t = (tecm_u128)m * n1 + t1 + c; t0 = (uint64_t)t; c = (uint64_t)(t >> 64);
+	t = (tecm_u128)t2 + c; t1 = (uint64_t)t; t2 = (uint64_t)(t >> 64);
+	t = (tecm_u128)u1 * v0 + t0; t0 = (uint64_t)t; c = (uint64_t)(t >> 64);
+	t = (tecm_u128)u1 * v1 + t1 + c; t1 = (uint64_t)t; c = (uint64_t)(t >> 64);
+	t2 += c;
+	m = t0 * rho;
+	t = (tecm_u128)m * n0 + t0; c = (uint64_t)(t >> 64);
+	t = (tecm_u128)m * n1 + t1 + c; t0 = (uint64_t)t; c = (uint64_t)(t >> 64);
+	t = (tecm_u128)t2 + c; t1 = (uint64_t)t; t2 = (uint64_t)(t >> 64);
+	tecm_u128 r = ((tecm_u128)t1 << 64) | t0;
+	tecm_u128 nn = ((tecm_u128)n1 << 64) | n0;
+	if (t2 || (r >= nn)) r -= nn;
+	w[0] = (uint64_t)r;
+	w[1] = (uint64_t)(r >> 64);
+}
+
+TECM_FINL void tecm_sqrmod128(uint64_t* u, uint64_t* w, monty128_t* md)
+{
+	tecm_mulmod128(u, u, w, md);
+}
+
+TECM_FINL void tecm_addmod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
+{
+	tecm_u128 x = ((tecm_u128)a[1] << 64) | a[0];
+	tecm_u128 y = ((tecm_u128)b[1] << 64) | b[0];
+	tecm_u128 nn = ((tecm_u128)n[1] << 64) | n[0];
+	tecm_u128 s = x + y;
+	if ((s < x) || (s >= nn)) s -= nn;
+	w[0] = (uint64_t)s;
+	w[1] = (uint64_t)(s >> 64);
+}
+
+TECM_FINL void tecm_submod128(uint64_t* a, uint64_t* b, uint64_t* w, uint64_t* n)
+{
+	tecm_u128 x = ((tecm_u128)a[1] << 64) | a[0];
+	tecm_u128 y = ((tecm_u128)b[1] << 64) | b[0];
+	tecm_u128 nn = ((tecm_u128)n[1] << 64) | n[0];
+	tecm_u128 s = x - y;
+	if (x < y) s += nn;
+	w[0] = (uint64_t)s;
+	w[1] = (uint64_t)(s >> 64);
+}
+
+#define mulmod128 tecm_mulmod128
+#define sqrmod128 tecm_sqrmod128
+#define addmod128 tecm_addmod128
+#define submod128 tecm_submod128
+#endif
+
 #define D 120
 
 
@@ -96,6 +167,7 @@ typedef struct
 
 	uint32_t stg1_max;
 	uint32_t stg2_max;
+	base_t Rsqr[base_digits];		// R^2 mod n, R = 2^128
 
 } tinyecm_work;
 
@@ -127,22 +199,34 @@ static uint32_t total_curves_run = 0;
 
 void u128_to_mpz(uint64_t *in, mpz_t out)
 {
-	mpz_set_ui(out, in[1]);
-	mpz_mul_2exp(out, out, 64);
-	mpz_add_ui(out, out, in[0]);
+	mpz_set_ui(out, in[1] >> 32);
+	mpz_mul_2exp(out, out, 32);
+	mpz_add_ui(out, out, in[1] & 0xffffffff);
+	mpz_mul_2exp(out, out, 32);
+	mpz_add_ui(out, out, in[0] >> 32);
+	mpz_mul_2exp(out, out, 32);
+	mpz_add_ui(out, out, in[0] & 0xffffffff);
 	return;
 }
 
 void mpz_to_u128(mpz_t in, uint64_t *out)
 {
     out[0] = mpz_get_ui(in);
-    mpz_tdiv_q_2exp(in, in, 64);
-    out[1] = mpz_get_ui(in);
+    mpz_tdiv_q_2exp(in, in, 32);
+    out[0] |= (uint64_t)mpz_get_ui(in) << 32;
+	mpz_tdiv_q_2exp(in, in, 32);
+
+	out[1] = mpz_get_ui(in);
+	mpz_tdiv_q_2exp(in, in, 32);
+	out[1] |= (uint64_t)mpz_get_ui(in) << 32;
 
     // restore input
-    mpz_mul_2exp(in, in, 64);
-    mpz_add_ui(in, in, out[0]);
-
+    mpz_mul_2exp(in, in, 32);
+    mpz_add_ui(in, in, out[1] & 0xffffffff);
+	mpz_mul_2exp(in, in, 32);
+	mpz_add_ui(in, in, out[0] >> 32);
+	mpz_mul_2exp(in, in, 32);
+	mpz_add_ui(in, in, out[0] & 0xffffffff);
 	return;
 }
 
@@ -1325,14 +1409,14 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	u[0] = sigma;
 	u[1] = 0;
-	to_monty128(mdata, u);
+	mulmod128(u, work->Rsqr, u, mdata);	// to Montgomery form
 	
 	if (verbose)
 		printf("monty(sigma) = %016lx%016lx\n", u[1], u[0]);
 
 	t1[0] = 4;
 	t1[1] = 0;
-	to_monty128(mdata, t1);
+	mulmod128(t1, work->Rsqr, t1, mdata);	// to Montgomery form
 
 	if (verbose)
 		printf("monty(4) = %016lx%016lx\n", t1[1], t1[0]);
@@ -1345,7 +1429,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	sqrmod128(u, u, mdata);
 	t1[0] = 5;
 	t1[1] = 0;
-	to_monty128(mdata, t1);
+	mulmod128(t1, work->Rsqr, t1, mdata);	// to Montgomery form
 	submod128(u, t1, u, mdata->n);		// u = sigma^2 - 5
 
 	if (verbose)
@@ -1373,7 +1457,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	t1[0] = 3;
 	t1[1] = 0;
-	to_monty128(mdata, t1);
+	mulmod128(t1, work->Rsqr, t1, mdata);	// to Montgomery form
 	mulmod128(t1, u, t2, mdata);		// 3u
 	addmod128(t2, v, t3, mdata->n);		// 3u + v
 
@@ -1387,7 +1471,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	t2[0] = 16;
 	t2[1] = 0;
-	to_monty128(mdata, t2);
+	mulmod128(t2, work->Rsqr, t2, mdata);	// to Montgomery form
 	mulmod128(P->X, t2, t3, mdata);	// 16*u^3
 	mulmod128(t3, v, t4, mdata);		// 16*u^3*v
 
@@ -1399,39 +1483,20 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	t2[0] = 1;
 	t2[1] = 0;
 	mulmod128(t4, t2, t4, mdata);	// take t4 out of monty rep
-	mulmod128(t1, t2, t1, mdata);	// take t1 out of monty rep
 
 	u128_to_mpz(t4, gmpt);
 	u128_to_mpz(n, gmpn);
-	mpz_invert(gmpt, gmpt, gmpn);		// gmpt = t4^-1 mod n
-	
+	if (!mpz_invert(gmpt, gmpt, gmpn))		// gmpt = t4^-1 mod n
+		mpz_set_ui(gmpt, 0);
 	mpz_to_u128(gmpt, t3);
-	
+
 	if (verbose)
 		printf("1/16*u^3*v = %016lx%016lx\n", t3[1], t3[0]);
 
-	u128_to_mpz(t1, gmpn);
-	mpz_mul(gmpt, gmpt, gmpn);			// gmpt = t1 * t4 
-	u128_to_mpz(n, gmpn);
-	mpz_tdiv_r(gmpt, gmpt, gmpn);		// gmpt = t1 * t4 % n
-	mpz_to_u128(gmpt, work->s);
-	to_monty128(mdata, work->s);
-
-	u128_to_mpz(t4, gmpn);
-	u128_to_mpz(t3, gmpt);
-	mpz_mul(gmpt, gmpt, gmpn);
-	u128_to_mpz(n, gmpn);
-	mpz_tdiv_r(gmpt, gmpt, gmpn);
-
-	//if (mpz_cmp_ui(gmpt, 1) != 0)
-	//{
-	//	gmp_printf("inversion produced result %Zd from %Zd\n", gmpt, gmpn);
-	//	//exit(1);
-	//}
-
-	
-	// t1 = b = (v - u)^3 * (3*u + v) / 16u^3v
-	//mulmod128(t3, t1, work->s, s, mdata);
+	// s = (v - u)^3 * (3*u + v) / 16u^3v: (t1 R) * t4^-1 / R, then to
+	// Montgomery form with R^2 (no mpz products or conversions)
+	mulmod128(t1, t3, work->s, mdata);
+	mulmod128(work->s, work->Rsqr, work->s, mdata);
 
 	mpz_clear(gmpt);
 	mpz_clear(gmpn);
@@ -1461,6 +1526,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 	tinyecm_work_init(&work);
 	monty128_init(&mdata, n128);
 	copy128(n128, work.n);
+	copy128(mdata.one, work.Rsqr);
+	to_monty128(&mdata, work.Rsqr);		// (R mod n) * R = R^2 mod n
 	work.stg1_max = B1;
 	work.stg2_max = B2;
 
@@ -2814,6 +2881,7 @@ typedef struct
 	vec_u104_t mtmp3;
 	vec_u104_t mtmp4;
 	vec_u104_t rho;
+	vec_u104_t rsqr;		// R^2 mod n, R = 2^104
 } monty104_x8_t;
 
 #define GCC_VERSION (__GNUC__ * 10000 \
@@ -2882,6 +2950,59 @@ __inline static void tecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h
 
 #endif
 
+#ifdef IFMA
+// 104-bit Montgomery multiply with every 52x52 product done by
+// madd52lo / madd52hi (19 IFMA instructions): ~1.5x faster than the FP
+// fmadd_round products below, bit-identical results.
+#define TECM_LO52(a, b, c) _mm512_madd52lo_epu64((a), (b), (c))
+#define TECM_HI52(a, b, c) _mm512_madd52hi_epu64((a), (b), (c))
+__inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t* y, vec_u104_t* N, vec_u104_t* invN)
+{
+	// invN is the positive inverse of N mod 2^104
+	__m512i z = _mm512_setzero_si512();
+	__m512i lomask52 = _mm512_set1_epi64(0x000fffffffffffffULL);
+	__m512i x0 = _mm512_load_si512(x->data[0]);
+	__m512i x1 = _mm512_load_si512(x->data[1]);
+	__m512i y0 = _mm512_load_si512(y->data[0]);
+	__m512i y1 = _mm512_load_si512(y->data[1]);
+	__m512i invN0 = _mm512_load_si512(invN->data[0]);
+	__m512i invN1 = _mm512_load_si512(invN->data[1]);
+	__m512i N0 = _mm512_load_si512(N->data[0]);
+	__m512i N1 = _mm512_load_si512(N->data[1]);
+
+	// T = x * y
+	__m512i T0 = TECM_LO52(z, x0, y0);
+	__m512i T1 = TECM_LO52(TECM_LO52(TECM_HI52(z, x0, y0), x0, y1), x1, y0);
+	__m512i T2 = TECM_LO52(TECM_HI52(TECM_HI52(z, x0, y1), x1, y0), x1, y1);
+	__m512i T3 = TECM_HI52(z, x1, y1);
+	carryprop(T1, T2, lomask52);
+	carryprop(T2, T3, lomask52);
+
+	// m = (T mod 2^104) * invN mod 2^104
+	__m512i m0 = TECM_LO52(z, T0, invN0);
+	__m512i m1 = TECM_LO52(TECM_LO52(TECM_HI52(z, T0, invN0), T0, invN1), T1, invN0);
+	m1 = _mm512_and_si512(m1, lomask52);
+
+	// m * N: the low half equals T's low half, so only its carry matters
+	__m512i mN1 = TECM_LO52(TECM_LO52(TECM_HI52(z, m0, N0), m0, N1), m1, N0);
+	__m512i mN2 = TECM_LO52(TECM_HI52(TECM_HI52(z, m0, N1), m1, N0), m1, N1);
+	__m512i mN3 = TECM_HI52(z, m1, N1);
+	carryprop(mN1, mN2, lomask52);
+	carryprop(mN2, mN3, lomask52);
+
+	// result is (T - mN) >> 104, plus N if T_hi < mN_hi
+	__mmask8 msk = _mm512_cmplt_epu64_mask(T3, mN3);
+	msk |= _mm512_cmpeq_epu64_mask(T3, mN3) & _mm512_cmplt_epu64_mask(T2, mN2);
+	__mmask8 bmsk;
+	T2 = _mm512_subsetc_epi52(T2, mN2, &bmsk);
+	T3 = _mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
+	T2 = _mm512_mask_addsetc_epi52(T2, msk, T2, N0, &bmsk);
+	T3 = _mm512_mask_adc_epi52(T3, msk, bmsk, N1, &bmsk);
+	_mm512_store_si512(p->data[0], _mm512_and_epi64(T2, lo52mask));
+	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
+	return;
+}
+#else
 __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t* y, vec_u104_t* N, vec_u104_t* invN)
 {
 	// invN is the positive variant = 0 - nhat (the standard negative inverse)
@@ -3049,6 +3170,7 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 	_mm512_store_si512(p->data[1], _mm512_and_epi64(T3, lo52mask));
 	return;
 }
+#endif
 __inline static void tecm_sqrredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t* N, vec_u104_t* invN)
 {
 	tecm_mulredc104_x8(p, x, x, N, invN);
@@ -4469,19 +4591,31 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 	int i;
 	for (i = 0; i < 8; i++)
 	{
-		mpz_set_ui(n, N->data[1][i]);
-		mpz_mul_2exp(n, n, 52);
-		mpz_add_ui(n, n, N->data[0][i]);
+		mpz_set_ui(n, (N->data[1][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(n, n, 32);
+		mpz_add_ui(n, n, N->data[1][i] & 0xffffffff);
+		mpz_mul_2exp(n, n, 20);
+		mpz_add_ui(n, n, (N->data[0][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(n, n, 32);
+		mpz_add_ui(n, n, N->data[0][i] & 0xffffffff);
 
-		mpz_set_ui(m, x->data[1][i]);
-		mpz_mul_2exp(m, m, 52);
-		mpz_add_ui(m, m, x->data[0][i]);
+		mpz_set_ui(m, (x->data[1][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(m, m, 32);
+		mpz_add_ui(m, m, x->data[1][i] & 0xffffffff);
+		mpz_mul_2exp(m, m, 20);
+		mpz_add_ui(m, m, (x->data[0][i] >> 32) & 0xfffff);
+		mpz_mul_2exp(m, m, 32);
+		mpz_add_ui(m, m, x->data[0][i] & 0xffffffff);
 
 		mpz_mul_2exp(m, m, 104);
 		mpz_mod(m, m, n);
-		x->data[0][i] = mpz_get_ui(m) & 0x000fffffffffffff;
-		mpz_tdiv_q_2exp(m, m, 52);
-		x->data[1][i] = mpz_get_ui(m) & 0x000fffffffffffff;
+		x->data[0][i] = mpz_get_ui(m) & 0xffffffff;
+		mpz_tdiv_q_2exp(m, m, 32);
+		x->data[0][i] |= (mpz_get_ui(m) & 0xfffff) << 32;
+		mpz_tdiv_q_2exp(m, m, 20);
+		x->data[1][i] = mpz_get_ui(m) & 0xffffffff;
+		mpz_tdiv_q_2exp(m, m, 32);
+		x->data[1][i] |= (mpz_get_ui(m) & 0xfffff) << 32;
 	}
 
 	mpz_clear(m);
@@ -4492,21 +4626,34 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 
 void u104_to_mpz(vec_u104_t* x, int lane, mpz_t gx)
 {
-	mpz_set_ui(gx, x->data[1][lane]);
-	mpz_mul_2exp(gx, gx, 52);
-	mpz_add_ui(gx, gx, x->data[0][lane]);
+	mpz_set_ui(gx, (x->data[1][lane] >> 32) & 0xfffff);
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[1][lane] & 0xffffffff);
+	mpz_mul_2exp(gx, gx, 20);
+	mpz_add_ui(gx, gx, (x->data[0][lane] >> 32) & 0xfffff);
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[0][lane] & 0xffffffff);
 	return;
 }
 
 void mpz_to_u104(mpz_t gx, vec_u104_t* x, int lane)
 {
-	x->data[0][lane] = mpz_get_ui(gx) & 0x000fffffffffffff;
-	mpz_tdiv_q_2exp(gx, gx, 52);
-	x->data[1][lane] = mpz_get_ui(gx) & 0x000fffffffffffff;
+	x->data[0][lane] = mpz_get_ui(gx) & 0xffffffff;
+	mpz_tdiv_q_2exp(gx, gx, 32);
+	x->data[0][lane] |= (mpz_get_ui(gx) & 0xfffff) << 32;
+	mpz_tdiv_q_2exp(gx, gx, 20);
+	x->data[1][lane] = mpz_get_ui(gx) & 0xffffffff;
+	mpz_tdiv_q_2exp(gx, gx, 32);
+	x->data[1][lane] |= (mpz_get_ui(gx) & 0xfffff) << 32;
 
-	// restore input
-	mpz_mul_2exp(gx, gx, 52);
-	mpz_add_ui(gx, gx, x->data[0][lane]);
+	// restore input - still holds the highest 20 bits
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[1][lane] & 0xffffffff);
+	mpz_mul_2exp(gx, gx, 20);
+	mpz_add_ui(gx, gx, (x->data[0][lane] >> 32) & 0xfffff);
+	mpz_mul_2exp(gx, gx, 32);
+	mpz_add_ui(gx, gx, x->data[0][lane] & 0xffffffff);
+
 	return;
 }
 
@@ -4541,11 +4688,12 @@ void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 		t5.data[1][i] = 0;
 	}
 
-	to_monty104_x8(&sigma, n);
-	to_monty104_x8(&t1, n);
-	to_monty104_x8(&t2, n);
-	to_monty104_x8(&t3, n);
-	to_monty104_x8(&t5, n);
+	// to Montgomery form: x * R^2 / R (was an mpz conversion per lane)
+	tecm_mulredc104_x8(&sigma, &sigma, &mdata->rsqr, n, rho);
+	tecm_mulredc104_x8(&t1, &t1, &mdata->rsqr, n, rho);
+	tecm_mulredc104_x8(&t2, &t2, &mdata->rsqr, n, rho);
+	tecm_mulredc104_x8(&t3, &t3, &mdata->rsqr, n, rho);
+	tecm_mulredc104_x8(&t5, &t5, &mdata->rsqr, n, rho);
 
 	verbose = 0;
 
@@ -4590,21 +4738,19 @@ void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 	_mm512_store_si512(t2.data[0], _mm512_set1_epi64(1));
 	_mm512_store_si512(t2.data[1], _mm512_set1_epi64(0));
 	tecm_mulredc104_x8(&t4, &t2, &t4, n, rho);	// take t4 out of monty rep
-	tecm_mulredc104_x8(&t1, &t2, &t1, n, rho);	// take t1 out of monty rep
 
 	for (i = 0; i < 8; i++)
 	{
 		u104_to_mpz(&t4, i, gmpt);
 		u104_to_mpz(n, i, gmpn);
-		mpz_invert(gmpt, gmpt, gmpn);		// gmpt = t4^-1 mod n
-		u104_to_mpz(&t1, i, gmpn);
-		mpz_mul(gmpt, gmpt, gmpn);			// gmpt = t1 * t4 
-		u104_to_mpz(n, i, gmpn);
-		mpz_tdiv_r(gmpt, gmpt, gmpn);		// gmpt = t1 * t4 % n
-		mpz_to_u104(gmpt, &work->s, i);
+		if (!mpz_invert(gmpt, gmpt, gmpn))		// gmpt = t4^-1 mod n
+			mpz_set_ui(gmpt, 0);
+		mpz_to_u104(gmpt, &t3, i);
 	}
 
-	to_monty104_x8(&work->s, n);
+	// s = t1 / t4: (t1 R) * t4^-1 / R = t1 / t4, then to Montgomery form
+	tecm_mulredc104_x8(&work->s, &t1, &t3, n, rho);
+	tecm_mulredc104_x8(&work->s, &work->s, &mdata->rsqr, n, rho);
 
 	mpz_clear(gmpt);
 	mpz_clear(gmpn);
@@ -4662,6 +4808,9 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 
 				mpz_mod(gT, gR, gN);
 				mpz_to_u104(gT, &mdata.one, i);
+				mpz_mul(gT, gT, gT);
+				mpz_mod(gT, gT, gN);
+				mpz_to_u104(gT, &mdata.rsqr, i);
 
 				mpz_invert(gN, gN, gR);
 				mpz_to_u104(gN, &mdata.rho, i);
@@ -4836,7 +4985,16 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 	mpz_add_ui(gN, gN, n[0]);
 
 	mpz_mod(gT, gR, gN);
+	mpz_mul(gR, gT, gT);
+	mpz_mod(gR, gR, gN);			// R^2 mod n
 
+	for (i = 0; i < 8; i++)
+	{
+		mpz_to_u104(gR, &mdata.rsqr, i);
+	}
+
+	mpz_set_ui(gR, 1);
+	mpz_mul_2exp(gR, gR, 104);
 	mpz_invert(gN, gN, gR);
 
 	for (i = 0; i < 8; i++)

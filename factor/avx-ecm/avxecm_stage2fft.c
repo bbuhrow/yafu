@@ -117,20 +117,22 @@ static uint32_t s2_gcd(uint32_t a, uint32_t b)
 // (n = 4..40 words, t = 8..13) and yafu stage 1 / stage 2 timings.
 //   tc = a t + b + c t^2 / n: G's product tree, mulmods per root
 //   mm, mi, ev: H G mod F, 1/F (+ stored transforms), evaluation, per tree
-//   c1: stage 1 mulmods per unit of B1; scale: s2_cost vs measured stage 2
+//   c1: stage 1 mulmods per unit of B1 (PRAC, curve types 0/1); c1e the same
+//   for the Edwards stage 1 (curve type 2, arith/avxecm_edwards_plan.md F);
+//   scale: s2_cost vs measured stage 2
 typedef struct
 {
     double a, b, c;
     double mm, mm_lean, mi, mi_lean, ev, ev_lean;
-    double c1, scale;
+    double c1, c1e, scale;
 } s2_model_t;
 
 #if defined(USE_AVX512IFMA) || defined(IFMA)
-static const s2_model_t s2m = { 6.819, -36.97, 3.336, 0.817, 0.939, 0.785, 0.566, 1.842, 1.906, 15.5, 0.90 };
+static const s2_model_t s2m = { 6.819, -36.97, 3.336, 0.817, 0.939, 0.785, 0.566, 1.842, 1.906, 15.5, 12.0, 0.90 };
 #elif defined(USE_AVX512F)
-static const s2_model_t s2m = { 3.445, -7.58, 2.687, 0.721, 0.837, 0.762, 0.549, 1.916, 1.870, 14.2, 0.92 };
+static const s2_model_t s2m = { 3.445, -7.58, 2.687, 0.721, 0.837, 0.762, 0.549, 1.916, 1.870, 14.2, 11.4, 0.92 };
 #else
-static const s2_model_t s2m = { 4.219, -14.68, 1.402, 0.669, 0.734, 0.679, 0.492, 1.828, 1.808, 14.5, 1.0 };
+static const s2_model_t s2m = { 4.219, -14.68, 1.402, 0.669, 0.734, 0.679, 0.492, 1.828, 1.808, 14.5, 11.9, 1.0 };
 #endif
 
 // G's product tree (from dF = 2^t roots), in template mulmods per root
@@ -269,9 +271,11 @@ static double s2_cost(int t, int n, int k, int lean, double blocks, int bs, uint
 // Choose (t, k, lean, blocks) for the least predicted time per factor,
 // (T1 + T2) / P(B1, B2), at the factor size B1 is usually chosen for.
 // T1 is predicted (stage 2 is set up before stage 1 runs): S2_C1 template
-// mulmods per unit of B1 (per ISA, s2m.c1).
+// mulmods per unit of B1 (per ISA and stage-1 arithmetic: s2m.c1 or s2m.c1e,
+// chosen by avxecm_s2fft_setup).
 
-#define S2_C1           s2m.c1
+static double s2_c1 = 0;
+#define S2_C1           s2_c1
 #define S2_COST_SCALE   s2m.scale
 #define S2_RHO_H        0.001
 #define S2_RHO_MAX      40.0
@@ -533,7 +537,7 @@ static int s2_auto_bs(int n, uint64_t B1, uint64_t B2, int threads, double cap, 
 // shared read-only by all threads.  Per-thread state is allocated lazily
 // by the first avxecm_s2fft_run of each thread.
 avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
-    int threads, double mem_mb, int auto_b2, int bs, int verbose)
+    int threads, double mem_mb, int auto_b2, int bs, int edw_stage1, int verbose)
 {
     avxecm_s2fft_t *s;
     int n, t, bt = 0, bk = 1, bl = 0, bs_auto = (bs == AVXECM_BS_AUTO);
@@ -544,6 +548,7 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
 
     if (mpz_even_p(N))
         return NULL;
+    s2_c1 = edw_stage1 ? s2m.c1e : s2m.c1;
     if (threads < 1) threads = 1;
     // Brent-Suyama: |S| <= 1 is the plain stage 2; |S| <= 32
     if (!bs_auto)
@@ -1589,7 +1594,7 @@ int avxecm_s2fft_run(avxecm_s2fft_t *s, int tid, vec_monty_t *mdata, ecm_work *w
 #else
 
 avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
-    int threads, double mem_mb, int auto_b2, int bs, int verbose)
+    int threads, double mem_mb, int auto_b2, int bs, int edw_stage1, int verbose)
 {
     return NULL;
 }

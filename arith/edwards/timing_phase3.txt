@@ -1,0 +1,30 @@
+ifma 256 1000000 prac 0.4898 edw 0.3786 ratio 1.293
+ifma 413 1000000 prac 1.0102 edw 0.7989 ratio 1.264
+ifma 700 1000000 prac 2.5676 edw 2.0235 ratio 1.268
+ifma 1037 1000000 prac 4.8784 edw 3.9282 ratio 1.241
+ifma 1500 250000 prac 2.3287 edw 1.9806 ratio 1.175
+ifma 2048 250000 prac 3.2882 edw 2.8337 ratio 1.160
+ifma 413 50000 prac 0.0503 edw 0.0406 ratio 1.238
+ifma 1037 50000 prac 0.2423 edw 0.1968 ratio 1.231
+ifma 413 11000 prac 0.0114 edw 0.0089 ratio 1.280
+f 256 1000000 prac 0.8265 edw 0.6708 ratio 1.232
+f 413 1000000 prac 1.5906 edw 1.2935 ratio 1.229
+f 700 1000000 prac 4.4936 edw 3.5951 ratio 1.249
+f 1037 1000000 prac 9.0615 edw 7.3016 ratio 1.241
+f 1500 250000 prac 3.8963 edw 3.2385 ratio 1.203
+f 2048 250000 prac 5.8322 edw 4.9981 ratio 1.166
+f 413 50000 prac 0.0794 edw 0.0656 ratio 1.210
+f 1037 50000 prac 0.4496 edw 0.3662 ratio 1.227
+f 413 11000 prac 0.0178 edw 0.0146 ratio 1.219
+avx2 256 1000000 prac 1.5696 edw 1.3011 ratio 1.206
+avx2 413 1000000 prac 3.1890 edw 2.6091 ratio 1.222
+avx2 700 1000000 prac 8.1211 edw 6.8043 ratio 1.193
+avx2 1037 1000000 prac 14.2871 edw 11.9431 ratio 1.196
+avx2 1500 250000 prac 6.6285 edw 5.5861 ratio 1.186
+avx2 2048 250000 prac 9.7599 edw 8.3390 ratio 1.170
+avx2 413 50000 prac 0.1590 edw 0.1321 ratio 1.203
+avx2 1037 50000 prac 0.7070 edw 0.5988 ratio 1.180
+avx2 413 11000 prac 0.0356 edw 0.0298 ratio 1.194
+ifma 6 threads 1037 B1 1e6 curve 0 cfg x: stage 1 6.9315
+ifma 6 threads 1037 B1 1e6 curve 2 cfg 0,0,1: stage 1 5.5777
+ifma 6 threads 1037 B1 1e6 curve 2 cfg 0,0,0: stage 1 5.6332

@@ -88,7 +88,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
     "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV", "siqsMid",
     "siqsLarge", "siqsKernel", "siqsSparseKernel", "siqsLPisa", "noneon",
-    "avxecm_rns_bits", "avxecm_stg2", "avxecm_stg2mem", "avxecm_bs" };
+    "avxecm_rns_bits", "avxecm_stg2", "avxecm_stg2mem", "avxecm_bs", "avxecm_curve" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -237,7 +237,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): AVX-ECM: use RNS arithmetic for inputs of at least this many bits (0 = never; ecmtune() measures it)",
     "(Integer < 32-bit): AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
     "(Floating point)   : AVX-ECM FFT stage 2: memory limit per thread in MB",
-    "(String)           : AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)"
+    "(String)           : AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)",
+    "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv) (sigma = multiple m), x-only / Edwards stage 1 (default 2)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -275,7 +276,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,         // nfs_stage1_args, cuda_sieve, cuda_dev
     1,1,1,1,1,     // siqsSPV, siqsMid, siqsLarge, siqsKernel, siqsSparseKernel
     1, 0,          // siqsLPisa, noneon
-    1, 1, 1, 1     // avxecm_rns_bits, avxecm_stg2, avxecm_stg2mem, avxecm_bs
+    1, 1, 1, 1, 1  // avxecm_rns_bits, avxecm_stg2, avxecm_stg2mem, avxecm_bs, avxecm_curve
 };
 
 // command line option aliases, specified by '--'
@@ -310,7 +311,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", ""
+    "", "", "", "", ""
 };
 
 
@@ -1445,6 +1446,17 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
         options->avxecm_bs = (v <= 1) ? 0 : sgn * v;
     }
+    else if (strcmp(opt, OptionArray[144]) == 0)
+    {
+        // argument "avxecm_curve": 0 Suyama, 1 Edwards family (iv) on the
+        // x-only arithmetic, 2 the same curves with the Edwards stage 1
+        options->avxecm_curve = (int)strtol(arg, NULL, 10);
+        if ((options->avxecm_curve < 0) || (options->avxecm_curve > 2))
+        {
+            printf("*** avxecm_curve must be 0 (Suyama), 1 or 2 (Edwards family (iv)); ignoring ***\n");
+            options->avxecm_curve = -1;
+        }
+    }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {
         //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
@@ -1642,6 +1654,7 @@ options_t* initOpt(void)
     options->avxecm_stg2 = -1;
     options->avxecm_stg2mem = -1;
     options->avxecm_bs = 65;            // not given (AVXECM_BS_DEFAULT)
+    options->avxecm_curve = -1;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;
