@@ -97,15 +97,19 @@ _BARRAY = {}
 
 
 def barray(B1, x8=False):
-    """the pairing sequence: the scalar code uses B2 = 50 B1 tables at B1 >=
-    125, the x8 code the B2 = 25 B1 ones"""
+    """the pairing sequence.  x8 = False: microecm scalar (B2 = 50 B1 tables
+    at B1 >= 125); True: microecm x8 (B2 = 25 B1); 'tiny': tinyecm's own
+    B2 = 25 B1 tables (scalar and x8)"""
     if (B1, x8) not in _BARRAY:
-        src = open(os.path.join(tcv.tc.SRC, 'microecm.c')).read()
+        src = open(os.path.join(tcv.tc.SRC, 'tinyecm.c' if x8 == 'tiny' else 'microecm.c')).read()
         name = {27: 'b1_27', 47: 'b1_47', 70: 'b1_70', 85: 'b1_85', 125: 'b1_125_x50',
                 165: 'b1_165_x50', 205: 'b1_205_x50'}[B1]
         if x8:
             name = name.replace('_x50', '')
-        i0 = src.index('uint8_t %s[' % name)
+        if x8 == 'tiny':
+            i0 = src.index('static const uint8_t %s[' % name)
+        else:
+            i0 = src.index('uint8_t %s[' % name)
         body = src[src.index('{', i0) + 1:src.index('}', i0)]
         _BARRAY[(B1, x8)] = [int(v) for v in body.split(',') if v.strip()]
     return _BARRAY[(B1, x8)]
@@ -188,16 +192,19 @@ def stage2_zero_flags(P0, A, p, B1, x8=False):
     return pre, main
 
 
-def stage2_outcome(fp, fq, x8=False):
+def stage2_outcome(fp, fq, x8=False, freeze=False):
     """replay the C accumulator loops on the zero flags of p and q; returns
     which prime acc is 0 mod: 'p', 'q' or None.  Scalar: a loop breaks when
     a term would make acc 0 mod n = p q (keeping acc).  x8: such a term is
-    skipped and the loop goes on."""
+    skipped and the loop goes on.  freeze (tinyecm x8): such a term stops
+    all further accumulation."""
     zp = zq = False
     for k in (0, 1):
         for a, b in zip(fp[k], fq[k]):
             np_, nq = zp or a, zq or b
             if np_ and nq:
+                if freeze:
+                    return ('p' if zp else 'q') if zp != zq else None
                 if x8:
                     continue
                 break
@@ -347,10 +354,188 @@ def check_x8(binp, nper=200, seed=1):
     return bad
 
 
+TLEVELS = [(20, 27), (22, 47), (24, 70), (26, 85), (29, 125), (31, 165), (32, 205)]
+
+
+def check_tiny_curves(binp, nper=300, seed=1):
+    """tinyecm_edw scalar: one curve per (n = p q, id), n up to ~128 bits"""
+    d = Driver(binp)
+    rng = random.Random(seed)
+    tot = bad = degen = exc = 0
+    for pb, B1 in TLEVELS:
+        s, _ = tcv.level_data(B1)
+        for _ in range(nper):
+            p = rand_prime(rng, pb)
+            q = rand_prime(rng, rng.choice([2 * pb, 64, 96, 127 - pb]))
+            n = p * q
+            if n.bit_length() > 128:
+                continue
+            m = rng.randrange(1, 400)
+            if rng.random() < 0.3:
+                m = TABLE | rng.randrange(len(table_curves()))
+            sp, sq = predict(p, m, B1, s, 'tiny'), predict(q, m, B1, s, 'tiny')
+            st, f = (int(v) for v in d.ask('c %d %d %d %d' % (n, m, B1, 25 * B1)))
+            if sp is None or sq is None:
+                degen += 1
+                continue
+            if sp[0] != sq[0]:
+                exp = (1, p if sp[0] else q)
+            else:
+                w = stage2_outcome(sp[1], sq[1])
+                exp = (2, p) if w == 'p' else (2, q) if w == 'q' else (0, 1)
+            ok = (st, f) == exp
+            if not ok and st == 1 and f in (p, q):
+                X, Z = (int(v) for v in d.ask('s %d %d %d' % (n, m, B1)))
+                if X % f == 0 and Z % f == 0:
+                    exc += 1
+                    continue
+            bad += not ok
+            tot += 1
+            if not ok and bad <= 8:
+                print('mismatch B1 %d p %d q %d id %x: got stage %d f %d, expected %s'
+                      % (B1, p, q, m, st, f, exp))
+    print('tiny curves: %d of %d mismatch (%d degenerate skipped, %d Edwards-exception finds)'
+          % (bad, tot, degen, exc))
+    return bad
+
+
+def _first_find(p, q, ids, B1, s, kind, freeze):
+    """index of the first curve id that finds a prime, and the prime"""
+    for k, cid in enumerate(ids):
+        sp, sq = predict(p, cid, B1, s, kind), predict(q, cid, B1, s, kind)
+        if sp is None or sq is None:
+            return 'skip', k
+        if sp[0] != sq[0]:
+            return (p if sp[0] else q), k
+        w = stage2_outcome(sp[1], sq[1], True, freeze)
+        if w:
+            return (p if w == 'p' else q), k
+    return 1, len(ids) - 1
+
+
+def check_tiny_x8(binp, nper=200, seed=1):
+    """tinyecm_edw x8 list (n < 2^104): first finding curve per input"""
+    d = Driver(binp)
+    rng = random.Random(seed)
+    bad = tot = skipped = exc = 0
+    for pb, B1 in TLEVELS:
+        curves = 32 if B1 <= 125 else 42
+        s, _ = tcv.level_data(B1)
+        ids = x8_sequence(curves)
+        ns, exp, used = [], [], 0
+        while len(ns) < nper:
+            p = rand_prime(rng, pb)
+            q = rand_prime(rng, rng.choice([2 * pb, 64, 103 - pb]))
+            if (p * q).bit_length() > 104:
+                continue
+            ns.append((p, q))
+            e, k = _first_find(p, q, ids, B1, s, 'tiny', True)
+            exp.append(e)
+            used += k + 1
+        out = [int(v) for v in d.ask('x %d %d %d %s' % (B1, curves, len(ns),
+                                                       ' '.join(str(p * q) for p, q in ns)))]
+        total, fs = out[0], out[1:]
+        nb = 0
+        for (p, q), e, f in zip(ns, exp, fs):
+            if e == 'skip':
+                skipped += 1
+                continue
+            tot += 1
+            if f != e and f in (p, q):
+                hit = False
+                for cid in ids:
+                    X, Z = (int(v) for v in d.ask('s %d %d %d' % (p * q, cid, B1)))
+                    if X % f == 0 and Z % f == 0:
+                        hit = True
+                        break
+                if hit:
+                    exc += 1
+                    continue
+            if f != e:
+                nb += 1
+                if nb <= 4:
+                    print('  mismatch B1 %d n %d: got %d expected %d' % (B1, p * q, f, e))
+        bad += nb
+        print('tiny x8 B1 %3d: %d inputs, %d mismatches; curves run %d, predicted %d' % (
+            B1, len(ns), nb, total, used))
+    print('tiny x8: %d of %d mismatch (%d skipped, %d Edwards-exception finds)'
+          % (bad, tot, skipped, exc))
+    return bad
+
+
+def check_tiny_one(binp, nper=100, seed=1):
+    """tinyecm_edw x8 on one n: lane i of round r runs curve 8 r + i (table
+    curves, then GKL m = id - 2); the first lane in order with a stage-1
+    find, else with a stage-2 find, ends it"""
+    d = Driver(binp)
+    rng = random.Random(seed)
+    bad = tot = exc = skipped = 0
+    for pb, B1 in TLEVELS:
+        curves = 32 if B1 <= 125 else 48
+        s, _ = tcv.level_data(B1)
+        ntab = len(table_curves())
+        nb = 0
+        for _ in range(nper):
+            p = rand_prime(rng, pb)
+            q = rand_prime(rng, rng.choice([2 * pb, 64, 103 - pb]))
+            n = p * q
+            if n.bit_length() > 104:
+                continue
+            e, rounds = 1, (curves + 7) // 8
+            skip = False
+            for r in range((curves + 7) // 8):
+                preds = []
+                for lane in range(8):
+                    cid = 8 * r + lane
+                    cid = (TABLE | cid) if cid < ntab else cid - 2
+                    sp, sq = predict(p, cid, B1, s, 'tiny'), predict(q, cid, B1, s, 'tiny')
+                    if sp is None or sq is None:
+                        skip = True
+                    preds.append((sp, sq))
+                if skip:
+                    break
+                for sp, sq in preds:
+                    if sp[0] != sq[0]:
+                        e = p if sp[0] else q
+                        break
+                if e == 1:
+                    for sp, sq in preds:
+                        w = stage2_outcome(sp[1], sq[1], True, True)
+                        if w:
+                            e = p if w == 'p' else q
+                            break
+                if e != 1:
+                    rounds = r + 1
+                    break
+            if skip:
+                skipped += 1
+                continue
+            found, rr, f = (int(v) for v in d.ask('o %d %d %d' % (n, B1, curves)))
+            tot += 1
+            ok = (f == e) and (rr == rounds)
+            if not ok and f in (p, q) and rr <= rounds:
+                exc += 1            # an earlier (exception) find
+                continue
+            if not ok:
+                nb += 1
+                if nb <= 4:
+                    print('  mismatch B1 %d n %d: got %d (round %d) expected %d (round %d)'
+                          % (B1, n, f, rr, e, rounds))
+        bad += nb
+        print('tiny x8 one-n B1 %3d: %d mismatches' % (B1, nb))
+    print('tiny x8 one-n: %d of %d mismatch (%d skipped, %d earlier correct finds)'
+          % (bad, tot, skipped, exc))
+    return bad
+
+
 if __name__ == '__main__':
     cmd, binp = sys.argv[1], sys.argv[2]
     if cmd == 'params':
         sys.exit(check_params(binp, int(sys.argv[3]) if len(sys.argv) > 3 else 20) != 0)
+    elif cmd in ('tcurves', 'tx8', 'tone'):
+        fn = {'tcurves': check_tiny_curves, 'tx8': check_tiny_x8, 'tone': check_tiny_one}[cmd]
+        sys.exit(fn(binp, int(sys.argv[3]) if len(sys.argv) > 3 else 200,
+                    int(sys.argv[4]) if len(sys.argv) > 4 else 1) != 0)
     elif cmd == 'x8':
         sys.exit(check_x8(binp, int(sys.argv[3]) if len(sys.argv) > 3 else 200,
                           int(sys.argv[4]) if len(sys.argv) > 4 else 1) != 0)

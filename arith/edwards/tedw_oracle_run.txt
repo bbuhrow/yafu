@@ -1,0 +1,8 @@
+== scalar
+tiny curves: 0 of 13999 mismatch (1 degenerate skipped, 0 Edwards-exception finds)
+== tedw_test8
+tiny x8: 0 of 14000 mismatch (0 skipped, 0 Edwards-exception finds)
+tiny x8 one-n: 0 of 2800 mismatch (0 skipped, 0 earlier correct finds)
+== tedw_test8f
+tiny x8: 0 of 14000 mismatch (0 skipped, 0 Edwards-exception finds)
+tiny x8 one-n: 0 of 2800 mismatch (0 skipped, 0 earlier correct finds)

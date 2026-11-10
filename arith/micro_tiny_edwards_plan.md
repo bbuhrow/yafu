@@ -894,4 +894,128 @@ semantics, plus the total number of curves the list runs. It feeds the
 
 * Phase 3: tinyecm_edw, scalar 128-bit and x8 104-bit.
 * Phase 4: AVX2 x4.
-* Integration into callers is not done yet (Phase 7).
+* Integration into callers: the user will do it later.
+
+## F5. To do at the end of this effort: B1 / B2 choices (user request, 2026-11-10)
+
+The levels B1 = 27, 47, 70, 85, 125, 165, 205 and the stage-2 multipliers
+B2 = 25 B1 / 50 B1 are legacy values that were found to work well. They
+were never optimized systematically for a given factor size. Investigate
+and optimize:
+
+* **The question:** for an expected N-bit factor, which B1 minimizes the
+  expected time per factor, statistically? N = 16..32 for scalar 64-bit
+  microecm_edw, and the corresponding ranges for tinyecm_edw and the x8 /
+  x4 versions.
+* **The same for the B2 multiplier.** 25 and 50 may not be best; the
+  stage-2 cost per pair is cheaper relative to stage 1 now.
+* **Method:**
+  - exact success probability per curve from the yield model
+    (`tiny_curves.py`: exact ord P, s, pairing coverage), for family (iv)
+    including the table curves;
+  - measured cost per curve per B1 / B2 from the C code;
+  - minimize cost / P(success), or the full curve-count distribution with
+    the per-input start costs;
+  - check against end-to-end runs.
+* **New B1 values need new chains and stage-2 tables:**
+  - chains: `tiny_chains.py` builds them for any s;
+  - stage-2 pair tables: generate them, or replace the precomputed tables
+    with a small generator.
+* Also revisit the dispatch thresholds (target bits -> level) and the curve
+  counts.
+
+---
+
+# Part G: Phase 3, tinyecm_edw (2026-11-10)
+
+## G1. What was built
+
+* **`factor/gmp-ecm/edw_kern.h`:** the curve code, written once against a
+  small arithmetic interface (value type, mul / sqr / add / sub macros, a
+  context, and the stage-2 accumulation rule) and included once per
+  arithmetic type. It holds:
+  - E' steps: + Q, doubling, general projective addition;
+  - the GKL curve build;
+  - the Edwards doubling, addition and cached form;
+  - the chain walker with the hand-off and the x-only power-of-2 tail;
+  - the x-only stage 2.
+* **`factor/gmp-ecm/tinyecm_edw.c` / `.h`** instantiate it twice.
+
+**Scalar, 128-bit:**
+* `getfactor_tecm_edw`: portable 2-word CIOS (`__int128` or `_umul128`),
+  R = 2^128.
+* The modular corrections are branch-free. With branches, inputs above
+  2^64 ran 30% slower: the conditional subtractions mispredict once n's
+  high word is nonzero.
+* tinyecm's dispatch, curve counts and its own B2 = 25 B1 tables (its
+  b1_165 has 425 entries, microecm's 435).
+* Stage 2: a product that would make acc 0 mod n ends that loop.
+* The curve source per input is the same as microecm_edw: 5 table curves,
+  then GKL from a random m0.
+
+**x8, 104-bit (AVX-512):**
+* Two 52-bit digits, R = 2^104. With IFMA, all products are `madd52lo/hi`;
+  AVX-512F uses the FP52 path. The carry helpers come from `monty.h`.
+* `getfactor_tecm_edw_x8_list` (8 inputs, one per lane): table curves,
+  then GKL m = 3, 4, ... from the constant [3]Q. With target_bits = 0 the
+  pre-passes run first, and only unfactored inputs go on to the main pass
+  (the old code reran every input).
+* `getfactor_tecm_edw_x8` (one n, 8 curves per round): lane i of round r
+  runs curve 8r + i (table, then GKL m = id - 2).
+  - Each lane starts its [m]Q lazily from a running [k]Q and steps it by
+    [8]Q (a doubling for the lane at m = 8).
+  - The modulus is set up once with mpz and copied to all lanes.
+  - The first version did 8 mpz setups and an eager 14-step start; it was
+    0.74-0.95x at small t.
+* Stage 2 keeps tinyecm x8's rule: a product that would make acc 0 mod n
+  freezes that lane for the rest of stage 2.
+
+## G2. Verification
+
+`arith/edwards/tedw_test.c` (driver) and `uedw_oracle.py`. The oracle's
+stage-2 replay now has three rules (scalar break, microecm x8 skip,
+tinyecm x8 freeze) and reads either file's tables.
+
+| check | what | result |
+|---|---|---|
+| `tcurves` | scalar, one curve per (n = p q, id), n up to 128 bits | 0 mismatches in 2100 + 1050 + 13999 (`tedw_oracle_run.txt`) |
+| `tx8` | x8 list: first finding curve and prime per input, total curves run | 0 of 2100 + 14000 on IFMA and AVX-512F; curve totals equal |
+| `tone` | x8 single n: first (round, lane) that finds, and the prime | 0 of 420 + 2800 on IFMA and AVX-512F (also after the lazy-start rewrite) |
+
+## G3. Speed
+
+`tiny_e2e.c -DWITH_EDW`, 8000 inputs per row (the single-n rows: 2000).
+Inputs: p of t bits times q of 2t bits, target t. us per input, old ->
+new (speedup):
+
+| t | B1 | scalar (IFMA build) | x8 list, IFMA | x8 single n, IFMA | x8 list, AVX-512F | x8 single n, AVX-512F |
+|---:|---:|---|---|---|---|---|
+| 20 | 70 / 27 | 26.3 -> 24.6 (1.07) | 6.56 -> 5.76 (1.14) | 13.5 -> 13.5 (1.00) | 9.05 -> 8.97 (1.01) | 18.9 -> 19.1 (0.99) |
+| 22 | 70 / 47 | 40.3 -> 35.8 (1.13) | 10.3 -> 7.98 (1.29) | 20.4 -> 17.2 (1.19) | 14.2 -> 12.0 (1.18) | 28.3 -> 26.1 (1.08) |
+| 24 | 70 | 67.1 -> 58.6 (1.15) | 14.9 -> 12.6 (1.18) | 27.3 -> 23.4 (1.17) | 21.3 -> 18.8 (1.13) | 39.1 -> 35.9 (1.09) |
+| 26 | 85 | 104 -> 93.8 (1.11) | 23.3 -> 17.9 (1.30) | 36.3 -> 30.9 (1.18) | 33.3 -> 27.7 (1.20) | 52.2 -> 46.7 (1.12) |
+| 29 | 125 | 209 -> 183 (1.14) | 44.1 -> 32.8 (1.34) | 61.9 -> 48.4 (1.28) | 64.0 -> 52.0 (1.23) | 88.8 -> 75.4 (1.18) |
+| 31 | 165 | 330 -> 305 (1.08) | 69.0 -> 53.2 (1.30) | 93.0 -> 72.6 (1.28) | 101 -> 82.8 (1.22) | 135 -> 112 (1.20) |
+| 32 | 205 | 404 -> 362 (1.12) | 85.6 -> 62.4 (1.37) | 112 -> 86.6 (1.29) | 126 -> 99.7 (1.27) | 162 -> 135 (1.20) |
+
+* The B1 column gives the scalar level / x8 level where they differ; the
+  dispatches use different thresholds.
+* All against the Part D (already optimized) tinyecm.
+* Find rates are equal or higher everywhere (e.g. t = 32 x8 list 0.9825 ->
+  0.9906).
+* The scalar build ran the same code on both ISAs (1.07-1.15x on the
+  AVX-512F build too).
+* As Phase 0 predicted, the scalar gain is mostly yield: the Edwards stage
+  1 is about even with PRAC at 128 bits.
+* The x8 versions gain more, from Edwards' ILP with the fast IFMA
+  multiply.
+* The smallest level (t = 20) is dominated by the per-input setup; it is
+  about even.
+
+## G4. Next
+
+* Phase 4: AVX2 x4. Add an FP52 arithmetic type to edw_kern.h: 52-bit for
+  microecm, 104-bit for tinyecm.
+* Possibly move microecm_edw onto edw_kern.h too (it has the same code
+  written out).
+* Then the B1 / B2 study (F5).

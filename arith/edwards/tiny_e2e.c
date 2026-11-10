@@ -21,6 +21,7 @@
 #include "tinyecm.h"
 #ifdef WITH_EDW
 #include "microecm_edw.h"
+#include "tinyecm_edw.h"
 #endif
 
 static double now(void)
@@ -159,6 +160,45 @@ int main(int argc, char **argv)
         printf("  %2d  %4d     %8.2f  %.4f  | %8.2f  %.4f   hash %016llx %016llx\n", t, 3 * t,
             ts, fs, (t1 - t0) * 1e6 / num, (double)ok / num,
             (unsigned long long)hs, (unsigned long long)h8);
+#ifdef WITH_EDW
+        {
+            double tl = (t1 - t0) * 1e6 / num;
+            int okE = 0, ok8 = 0, ok1 = 0, okO = 0;
+            int n1 = num / 4;           /* the single-n x8 versions are slower per input */
+            double e0 = now();
+            for (int i = 0; i < num; i++)
+                if (getfactor_tecm_edw(nn[i], gf, t, &lcg) && mpz_divisible_p(nn[i], gf) &&
+                    mpz_cmp_ui(gf, 1) > 0 && mpz_cmp(gf, nn[i]) < 0)
+                    okE++;
+            double e1 = now();
+            getfactor_tecm_edw_x8_list(q, f, t, num, &lcg);
+            double e2 = now();
+            for (int i = 0; i < num; i++) {
+                mpz_set_ui(gf, f[2 * i + 1]);
+                mpz_mul_2exp(gf, gf, 64);
+                mpz_add_ui(gf, gf, f[2 * i]);
+                if (mpz_cmp_ui(gf, 1) > 0 && mpz_cmp(gf, nn[i]) < 0 && mpz_divisible_p(nn[i], gf))
+                    ok8++;
+            }
+            double o0 = now();
+            for (int i = 0; i < n1; i++)
+                if (getfactor_tecm_x8(nn[i], gf, t, &lcg) && mpz_divisible_p(nn[i], gf) &&
+                    mpz_cmp_ui(gf, 1) > 0 && mpz_cmp(gf, nn[i]) < 0)
+                    okO++;
+            double o1 = now();
+            for (int i = 0; i < n1; i++)
+                if (getfactor_tecm_edw_x8(nn[i], gf, t, &lcg) && mpz_divisible_p(nn[i], gf) &&
+                    mpz_cmp_ui(gf, 1) > 0 && mpz_cmp(gf, nn[i]) < 0)
+                    ok1++;
+            double o2 = now();
+            printf("      edw: scalar %8.2f %.4f (%.3fx) | x8 list %8.2f %.4f (%.3fx) | "
+                "x8 one-n: tecm %8.2f %.4f, edw %8.2f %.4f (%.3fx)\n",
+                (e1 - e0) * 1e6 / num, (double)okE / num, ts / ((e1 - e0) * 1e6 / num),
+                (e2 - e1) * 1e6 / num, (double)ok8 / num, tl / ((e2 - e1) * 1e6 / num),
+                (o1 - o0) * 1e6 / n1, (double)okO / n1, (o2 - o1) * 1e6 / n1, (double)ok1 / n1,
+                (o1 - o0) / (o2 - o1));
+        }
+#endif
     }
     return 0;
 }
