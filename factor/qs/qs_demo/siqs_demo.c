@@ -49,6 +49,19 @@ int exp_is_open(char *line, int firstline);
 int check_expression(options_t *options);
 void options_to_factobj(fact_obj_t* fobj, options_t* options);
 
+// stubs for functions exposed by common.lib
+uint32_t factor_gnfs(msieve_obj* obj, mp_t* input_n,
+    factor_list_t* factor_list) {
+
+    return 0;
+}
+
+uint32_t factor_mpqs(msieve_obj* obj, mp_t* n,
+    factor_list_t* factor_list) {
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	UNUSED_VAR char *input_exp, *ptr, *indup, *input_line;

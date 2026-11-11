@@ -29,13 +29,14 @@ code to the public domain.
 
 #include <stdint.h>
 #include <gmp.h>
+#include "gmp_u64.h"	// 64-bit-safe mpz_*_u64 wrappers (LLP64 Windows + GMP)
 
 #ifdef _MSC_VER
 #include <Windows.h>
 #endif
 
 #ifdef __MINGW32__
-#include <Windows.h>
+//#include <Windows.h>
 #endif
 
 // a structure to hold a bunch of configuration info
@@ -71,7 +72,7 @@ typedef struct
     char HAS_SSE41;
     char HAS_AVX;
     char HAS_AVX2;
-#if defined(WIN32)
+#if defined(WIN32) && !defined(__MINGW32__)
     char sysname[MAX_COMPUTERNAME_LENGTH + 1];
     int sysname_sz;
 #else

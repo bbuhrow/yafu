@@ -818,7 +818,7 @@ void reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 
 	for (i = 0; i < fftlen; i++)
 	{
-		mpz_set_si(t, ci[i]);
+		mpz_set_s64(t, ci[i]);
 		mpz_mul_2exp(t, t, bits_per_word * i);
 		mpz_add(c, c, t);
 	}

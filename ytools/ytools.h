@@ -41,7 +41,7 @@ extern "C" {
 #include <stdarg.h>     // va_start, va_end, va_list, ...
 #include <errno.h>      // strerror, errno ...
 
-#if defined(WIN32) || defined(_WIN64) 
+#if (defined(WIN32) || defined(_WIN64)) && !defined(__MINGW32__)
 #define WIN32_LEAN_AND_MEAN
 
 #if defined(__clang__)
@@ -57,7 +57,7 @@ extern "C" {
 #endif
 
 #ifdef __MINGW32__
-#include <Windows.h>
+//#include <Windows.h>
 #endif
 
 
@@ -150,11 +150,17 @@ extern "C" {
 // Place between 'static' and the return type:
 //     static UNUSED_FUNC uint64_t my_helper(uint64_t x) { ... }
 
-#if defined(_MSC_VER)
+// (arith/limb/mp_platform.h defines the same two macros, identically, so the
+// limb library does not depend on this header; whichever is included first
+// wins.)
+#if defined(UNUSED_VAR) && defined(UNUSED_FUNC)
+// already defined by mp_platform.h
+#elif defined(_MSC_VER) && !defined(__clang__)
 // __pragma(warning(suppress:N)) silences warning N on the immediately
 // following line only -- safe for per-variable use.
 // 4101 = unreferenced local variable
 // 4100 = unreferenced formal parameter
+// (clang-cl ignores this pragma, so it takes the attribute branch below.)
 #define UNUSED_VAR __pragma(warning(suppress: 4100 4101))
 // 4505 = unreferenced local function removed.
 // MSVC has no per-symbol attribute equivalent, so UNUSED_FUNC is empty here.
@@ -258,7 +264,7 @@ double ytools_difftime(struct timeval* start, struct timeval* end);
         uint32_t L1cache;
         uint32_t L2cache;
 
-#if defined(WIN32)
+#if defined(WIN32) && !defined(__MINGW32__)
         char sysname[MAX_COMPUTERNAME_LENGTH + 1];
         int sysname_sz;
 #else

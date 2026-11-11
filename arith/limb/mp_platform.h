@@ -5,15 +5,17 @@ Shared platform / detection / intrinsic-polyfill layer for the YAFU limb
 arithmetic. limb1.{h,c}, limb2.{h,c}, microecm.c and micropm1.c include
 this and nothing else for compiler / OS / ISA concerns.
 
-Layering:
-  common.h       - assembler-syntax detection (ASM_G / ASM_M, GCC_ASM64X,
-                   the A/X guards).  Papadopoulos / Gladman lineage, shared
-                   across the wider YAFU tree.  We build ON TOP of it and do
-                   not absorb it.
-  mp_platform.h  - this file: ISA-feature normalization, inline/unused
-                   attribute macros, and ONE copy of every intrinsic polyfill
-                   (_umul128, __umulh, _addcarry_u64, _subborrow_u64/_u32,
-                   _udiv128, the {trail,lead}_zcnt / reset_lsb family).
+Self-contained: includes only <stdint.h> and the compiler's own intrinsic
+headers.  It depends on nothing else in YAFU, so the arith/limb directory
+can be copied into another project as-is.
+
+Contents:
+  - target / compiler / ISA-feature normalization (MP_ARCH_*, MP_USE_*,
+    MP_HAS_GNU_ASM_X64)
+  - inline / unused attribute macros
+  - ONE copy of every intrinsic polyfill: _umul128, __umulh, _udiv128,
+    _addcarry_u64/_u32, _subborrow_u64/_u32, the {trail,lead}_zcnt /
+    reset_lsb family, popcount.
 
 This replaces the per-file #if ladders that were re-derived (and had drifted)
 in arith.h, arith.c, monty.h, monty.c, microecm.c and micropm1.c.
@@ -23,20 +25,81 @@ in arith.h, arith.c, monty.h, monty.c, microecm.c and micropm1.c.
 #define MP_PLATFORM_H
 
 #include <stdint.h>
-#include "common.h"
+
+/* -------- target architecture -------- */
+#if defined(__x86_64__) || defined(_M_X64)
+  #define MP_ARCH_X64 1
+#else
+  #define MP_ARCH_X64 0
+#endif
+#if defined(__aarch64__) || defined(_M_ARM64)
+  #define MP_ARCH_ARM64 1
+#else
+  #define MP_ARCH_ARM64 0
+#endif
 
 /* -------- vendor intrinsics: pulled in once, here -------- */
 #if defined(_MSC_VER)
   #include <intrin.h>
-  #if !defined(_M_ARM64)
+  #if MP_ARCH_X64
     #include <immintrin.h>
+    #if !defined(__clang__)
+      #pragma intrinsic(_umul128)
+      #pragma intrinsic(_udiv128)
+    #endif
   #endif
-  #if !defined(__clang__)
-    #pragma intrinsic(_umul128)
-    #pragma intrinsic(_udiv128)
-  #endif
-#elif !defined(__aarch64__)
+#elif MP_ARCH_X64 || defined(__i386__)
   #include <immintrin.h>
+#endif
+
+/* -------- ISA feature selection --------
+   One MP_USE_* flag per feature the limb code cares about.  Each is on when
+   the host project asks for it explicitly (YAFU's -DUSE_BMI2 / -DUSE_AVX2 /
+   -DUSE_AVX512F / -DIFMA build flags) or when the compiler has the feature
+   enabled (-mbmi2, -march=..., /arch:AVX512, ...), so the library works both
+   inside YAFU and dropped into another project with no -D flags at all.
+   Define MP_NO_AUTO_ISA to disable the compiler-macro detection and rely on
+   the explicit flags only.
+
+   If the host passes ANY of the explicit flags, auto-detection turns itself
+   off: a project that selects its ISA with -D flags has code of its own
+   gated on those same flags, and the library must not quietly pick a
+   different path than its caller (e.g. -march=native -DUSE_AVX512F without
+   -DIFMA on an IFMA machine means "build the non-IFMA path"). */
+#if !defined(MP_NO_AUTO_ISA) && (defined(USE_SSE41) || defined(USE_AVX2) \
+    || defined(USE_BMI2) || defined(USE_AVX512F) || defined(IFMA) || defined(TARGET_KNL))
+  #define MP_NO_AUTO_ISA
+#endif
+#if !MP_ARCH_X64
+  #define MP_USE_BMI2    0
+  #define MP_USE_AVX2    0
+  #define MP_USE_AVX512F 0
+  #define MP_USE_IFMA    0
+#else
+  #if defined(USE_BMI2) || defined(TARGET_KNL) || defined(USE_AVX512F) \
+      || (!defined(MP_NO_AUTO_ISA) && defined(__BMI__) && defined(__BMI2__))
+    #define MP_USE_BMI2 1
+  #else
+    #define MP_USE_BMI2 0
+  #endif
+  #if defined(USE_AVX2) || defined(USE_AVX512F) \
+      || (!defined(MP_NO_AUTO_ISA) && defined(__AVX2__))
+    #define MP_USE_AVX2 1
+  #else
+    #define MP_USE_AVX2 0
+  #endif
+  #if defined(USE_AVX512F) \
+      || (!defined(MP_NO_AUTO_ISA) && defined(__AVX512F__) && defined(__AVX512DQ__))
+    #define MP_USE_AVX512F 1
+  #else
+    #define MP_USE_AVX512F 0
+  #endif
+  #if MP_USE_AVX512F && (defined(IFMA) \
+      || (!defined(MP_NO_AUTO_ISA) && defined(__AVX512IFMA__)))
+    #define MP_USE_IFMA 1
+  #else
+    #define MP_USE_IFMA 0
+  #endif
 #endif
 
 
@@ -53,28 +116,23 @@ in arith.h, arith.c, monty.h, monty.c, microecm.c and micropm1.c.
 #endif
 
 /* GNU-style inline asm usable for x86-64?
-   common.h already sets GCC_ASM64X for gcc/clang/icc on unix-x64, for mingw,
-   and for icc/clang on win-x64.  __MINGW64__ is folded in to match the
-   historical monty.h gate.  ASM_ARITH_DEBUG forces the portable path so the
-   two code paths can be A/B compared. */
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG) \
-    && (defined(__x86_64__) || defined(_M_X64))
+   True for gcc, mingw, clang (including clang-cl) and both Intel compilers on
+   x86-64; false for native MSVC and for every non-x86 target.  This is the
+   same set YAFU's common.h calls GCC_ASM64X (plus __MINGW64__, which the old
+   monty.h gate added), derived here directly from compiler macros so this
+   header needs nothing from the host project.  ASM_ARITH_DEBUG forces the
+   portable path so the two code paths can be A/B compared. */
+#if MP_ARCH_X64 && !defined(ASM_ARITH_DEBUG) \
+    && (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER) \
+        || defined(__INTEL_LLVM_COMPILER))
   #define MP_HAS_GNU_ASM_X64 1
 #else
   #define MP_HAS_GNU_ASM_X64 0
 #endif
 
-/* INLINE_ASM was previously #define'd =1 locally in monty.c -- and, because it
-   was defined *after* the my_ctz/my_clz functions, the BMI1 asm paths in those
-   functions were never actually reached.  Centralizing it here (this header is
-   included first) makes INLINE_ASM consistent everywhere.
-   NOTE: this ACTIVATES the previously-dead BMI1 ctz/clz asm paths -- a real
-   codegen change.  Leave MP_ENABLE_LEGACY_INLINE_ASM undefined to keep the
-   historical (portable-builtin) behavior for those functions until you have
-   re-benchmarked them. */
-#ifndef INLINE_ASM
-  #define INLINE_ASM MP_HAS_GNU_ASM_X64
-#endif
+/* Note: this header deliberately does NOT define a generic INLINE_ASM macro.
+   Other YAFU files test that name with their own meaning, and a library
+   header must not change what they compile. */
 
 
 /* ======================================================================
@@ -106,7 +164,7 @@ in arith.h, arith.c, monty.h, monty.c, microecm.c and micropm1.c.
    (before ytools.h is edited) an identical macro redefinition is legal and
    silent in C regardless of include order.  The #ifndef guards additionally
    let a ytools.h-first TU win without a diagnostic. */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)   /* clang-cl takes the attribute form */
   /* 4100 = unref formal parameter, 4101 = unref local variable */
   #ifndef UNUSED_VAR
     #define UNUSED_VAR __pragma(warning(suppress: 4100 4101))
@@ -146,7 +204,7 @@ typedef unsigned char mp_carry_t;
    3. Bit scan / reset : Make every path a value-returning inline
    ====================================================================== */
 
-#if defined(USE_BMI2) || defined(TARGET_KNL) || defined(USE_AVX512F)
+#if MP_USE_BMI2
     /* BMI branch (where _blsr_u64/_blsr_u32 are available) */
     MP_FORCE_INLINE uint64_t _reset_lsb64(uint64_t x) { return _blsr_u64(x); }
     MP_FORCE_INLINE uint32_t _reset_lsb(uint32_t x) { return _blsr_u32(x); }
@@ -157,7 +215,7 @@ typedef unsigned char mp_carry_t;
 #endif
 
 #if defined(__INTEL_COMPILER)
-  #if defined(USE_BMI2) || defined(TARGET_KNL) || defined(USE_AVX512F)
+  #if MP_USE_BMI2
     #define _lead_zcnt64  __lzcnt64
     #define _trail_zcnt   _tzcnt_u32
     #define _trail_zcnt64 _tzcnt_u64
@@ -252,7 +310,53 @@ MP_FORCE_INLINE uint64_t _trail_full_zcnt(uint64_t n) {
    MSVC gets these from <intrin.h>.  Everything else is defined once here.
    ====================================================================== */
 
-#if !defined(_MSC_VER)
+/* Software 128/64 -> 64 divide: Knuth algorithm D specialised to a two-digit
+   quotient in base 2^32 (Hacker's Delight "divlu").  Contract as for _udiv128:
+   d != 0 and hi < d.  This is the _udiv128 of targets with neither a hardware
+   128/64 divide nor __int128 (MSVC on ARM64); it is defined everywhere so it
+   can be tested everywhere.  Not force-inlined -- it is big. */
+static UNUSED_FUNC uint64_t mp_udiv128_soft(uint64_t hi, uint64_t lo, uint64_t d,
+                                         uint64_t *rem) {
+    const uint64_t b = (uint64_t)1 << 32;
+    uint64_t un32, un10, un1, un0, vn1, vn0, q1, q0, rhat;
+    int s = 0;
+    while (!(d >> 63)) { d <<= 1; s++; }        /* normalize divisor */
+    vn1 = d >> 32;
+    vn0 = d & 0xffffffffULL;
+    un32 = s ? ((hi << s) | (lo >> (64 - s))) : hi;
+    un10 = lo << s;
+    un1 = un10 >> 32;
+    un0 = un10 & 0xffffffffULL;
+    q1 = un32 / vn1;
+    rhat = un32 - q1 * vn1;
+    while (q1 >= b || q1 * vn0 > b * rhat + un1) {
+        q1--; rhat += vn1;
+        if (rhat >= b) break;
+    }
+    un32 = un32 * b + un1 - q1 * d;              /* mod 2^64 on purpose */
+    q0 = un32 / vn1;
+    rhat = un32 - q0 * vn1;
+    while (q0 >= b || q0 * vn0 > b * rhat + un0) {
+        q0--; rhat += vn1;
+        if (rhat >= b) break;
+    }
+    *rem = (un32 * b + un0 - q0 * d) >> s;
+    return q1 * b + q0;
+}
+
+#if !(defined(_MSC_VER) && MP_ARCH_X64)
+
+  #if defined(__MINGW32__)
+    /* mingw-w64's <windows.h> (winnt.h -> psdk_inc/intrin-impl.h) declares
+       __umulh and declares+defines _umul128 with external linkage, which
+       collides with our static versions.  Route ours through private names so
+       either include order works, and tell intrin-impl.h its _umul128 already
+       exists so a later <windows.h> doesn't define it again.  (mingw has no
+       __umulh body at all, so we can't just defer to theirs.) */
+    #define _umul128 mp_umul128
+    #define __umulh  mp_umulh
+    #define __INTRINSIC_DEFINED__umul128
+  #endif
 
   /* --- 64x64 -> 128 multiply --- */
   #if defined(HAS_UINT128)
@@ -272,9 +376,16 @@ MP_FORCE_INLINE uint64_t _trail_full_zcnt(uint64_t n) {
     MP_FORCE_INLINE uint64_t __umulh(uint64_t x, uint64_t y) {
         uint64_t hi; (void)_umul128(x, y, &hi); return hi;
     }
+  #elif defined(_MSC_VER) && MP_ARCH_ARM64
+    /* MSVC on ARM64: <intrin.h> has __umulh (one UMULH instruction) but no
+       _umul128, so build the latter from it. */
+    MP_FORCE_INLINE uint64_t _umul128(uint64_t x, uint64_t y, uint64_t *hi) {
+        *hi = __umulh(x, y);
+        return x * y;
+    }
   #else
-    /* portable 32x32 schoolbook -- only reached on a non-x64 target with no
-       __int128, which is outside the current support matrix. */
+    /* portable 32x32 schoolbook -- only reached on a target with neither
+       __int128 nor a 64x64->128 intrinsic. */
     MP_FORCE_INLINE uint64_t _umul128(uint64_t x, uint64_t y, uint64_t *hi) {
         uint64_t xl = (uint32_t)x, xh = x >> 32, yl = (uint32_t)y, yh = y >> 32;
         uint64_t ll = xl * yl, lh = xl * yh, hl = xh * yl, hh = xh * yh;
@@ -319,14 +430,35 @@ MP_FORCE_INLINE uint64_t _trail_full_zcnt(uint64_t n) {
         return (uint64_t)(n / d);
     }
   #else
-    /* No hardware path: unreachable on the current support matrix (every
-       target has either MSVC intrinsics or __int128).  If a non-x86
-       no-__int128 target is ever added, provide a software _udiv128 here,
-       e.g. built on the Knuth uint128_div() that lives in limb2.c. */
-    uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem);
+    /* no hardware or __int128 path (MSVC on ARM64, or an unknown compiler) */
+    #define _udiv128 mp_udiv128_soft
   #endif
 
-#endif /* !_MSC_VER */
+#endif /* !(_MSC_VER && x64) */
+
+/* clang-cl on x64: its <intrin.h> supplies _umul128 and __umulh but not
+   _udiv128 (verified missing in the LLVM shipped with VS 2022), so calling it
+   is an implicit-declaration error.  Supply the divq form under our own name
+   and route _udiv128 to it; if a later clang-cl grows a real _udiv128 the
+   macro simply shadows it, which is harmless. */
+#if defined(_MSC_VER) && (defined(__clang__) || defined(__INTEL_COMPILER)) \
+    && MP_ARCH_X64      /* clang-cl, icx-cl, and classic Intel icl */
+  MP_FORCE_INLINE uint64_t mp_udiv128_clangcl(uint64_t hi, uint64_t lo, uint64_t d,
+                                              uint64_t *rem) {
+  #if MP_HAS_GNU_ASM_X64
+      uint64_t q, r;
+      __asm__("divq %[d]"
+              : "=a"(q), "=d"(r)
+              : "a"(lo), "d"(hi), [d]"rm"(d)
+              : "cc");
+      *rem = r; return q;
+  #else     /* ASM_ARITH_DEBUG */
+      return mp_udiv128_soft(hi, lo, d, rem);
+  #endif
+  }
+  #undef _udiv128
+  #define _udiv128 mp_udiv128_clangcl
+#endif
 
 /* ======================================================================
  5. Add-with-carry / subtract-with-borrow
@@ -615,13 +747,56 @@ MP_FORCE_INLINE uint64_t _trail_full_zcnt(uint64_t n) {
    platform has no native intrinsic of that name -- otherwise we would shadow
    (and conflict with) the real one. */
 #if !MP_HAS_NATIVE_ADDCARRY
-  /* portable_carry.h (stopgap) may have defined these already. */
+  /* 32-bit add-with-carry: one definition for every non-native tier (a
+     64-bit add is the best any of them can do). */
+  MP_FORCE_INLINE mp_carry_t mp_addcarry_u32(mp_carry_t c_in, uint32_t a,
+                                             uint32_t b, uint32_t *out) {
+      uint64_t s = (uint64_t)a + (uint64_t)b + (uint64_t)c_in;
+      *out = (uint32_t)s;
+      return (mp_carry_t)(s >> 32);
+  }
+
   #undef _addcarry_u64
+  #undef _addcarry_u32
   #undef _subborrow_u64
   #undef _subborrow_u32
   #define _addcarry_u64  mp_addcarry_u64
+  #define _addcarry_u32  mp_addcarry_u32
   #define _subborrow_u64 mp_subborrow_u64
   #define _subborrow_u32 mp_subborrow_u32
+#endif
+
+
+/* ======================================================================
+   6. Population count
+   ====================================================================== */
+#if (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER) \
+     || defined(__INTEL_LLVM_COMPILER)) \
+    && !(defined(_MSC_VER) && defined(__INTEL_COMPILER))  /* icl on Windows has no __builtin_popcount */
+  MP_FORCE_INLINE uint32_t mp_popcount64(uint64_t x) {
+      return (uint32_t)__builtin_popcountll(x);
+  }
+  MP_FORCE_INLINE uint32_t mp_popcount32(uint32_t x) {
+      return (uint32_t)__builtin_popcount(x);
+  }
+#elif defined(_MSC_VER) && MP_ARCH_X64
+  /* popcnt is not baseline x86-64, but every CPU this code targets has it */
+  MP_FORCE_INLINE uint32_t mp_popcount64(uint64_t x) {
+      return (uint32_t)__popcnt64(x);
+  }
+  MP_FORCE_INLINE uint32_t mp_popcount32(uint32_t x) {
+      return (uint32_t)__popcnt(x);
+  }
+#else
+  MP_FORCE_INLINE uint32_t mp_popcount64(uint64_t x) {
+      x = x - ((x >> 1) & 0x5555555555555555ULL);
+      x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+      x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0fULL;
+      return (uint32_t)((x * 0x0101010101010101ULL) >> 56);
+  }
+  MP_FORCE_INLINE uint32_t mp_popcount32(uint32_t x) {
+      return mp_popcount64((uint64_t)x);
+  }
 #endif
 
 #endif /* MP_PLATFORM_H */

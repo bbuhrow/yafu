@@ -4802,9 +4802,9 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 			if (((msk & (1 << i)) == 0) && (j < num_in))
 			{
 				// compute things we need for this new n.
-				mpz_set_ui(gN, n[j * 2 + 1]);
+				mpz_set_u64(gN, n[j * 2 + 1]);
 				mpz_mul_2exp(gN, gN, 52);
-				mpz_add_ui(gN, gN, n[j * 2 + 0]);
+				mpz_add_u64(gN, gN, n[j * 2 + 0]);
 
 				mpz_mod(gT, gR, gN);
 				mpz_to_u104(gT, &mdata.one, i);
@@ -4980,9 +4980,9 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 	mpz_set_ui(gR, 1);
 	mpz_mul_2exp(gR, gR, 104);
 
-	mpz_set_ui(gN, n[1]);
+	mpz_set_u64(gN, n[1]);
 	mpz_mul_2exp(gN, gN, 52);
-	mpz_add_ui(gN, gN, n[0]);
+	mpz_add_u64(gN, gN, n[0]);
 
 	mpz_mod(gT, gR, gN);
 	mpz_mul(gR, gT, gT);
@@ -5311,7 +5311,7 @@ int u104_euler_list(uint64_t *n, uint32_t num)
 
 */
 
-void tecm_testmath()
+void tecm_testmath(void)
 {
 	int num = 1000000;
 	int bits = 32;
@@ -5508,9 +5508,9 @@ int tecm_dispatch_x8(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
 	uint64_t n[2];
 	uint64_t f[2];
 
-	n[0] = mpz_get_ui(gn) & 0x000fffffffffffffull;
+	n[0] = mpz_get_u64(gn) & 0x000fffffffffffffull;
 	mpz_tdiv_q_2exp(gf, gn, 52);
-	n[1] = mpz_get_ui(gf) & 0x000fffffffffffffull;
+	n[1] = mpz_get_u64(gf) & 0x000fffffffffffffull;
 
 	mpz_set_ui(gf, 1);
 
@@ -5577,9 +5577,9 @@ int tecm_dispatch_x8(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
 		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
 	}
 
-	mpz_set_ui(gf, f[1]);
+	mpz_set_u64(gf, f[1]);
 	mpz_mul_2exp(gf, gf, 64);
-	mpz_add_ui(gf, gf, f[0]);
+	mpz_add_u64(gf, gf, f[0]);
 
 	if (mpz_get_ui(gf) > 1)
 		return 1;

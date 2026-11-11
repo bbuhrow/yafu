@@ -1785,7 +1785,7 @@ void array_mul(uint64_t *primes, uint64_t b1, int num_p, mpz_t piprimes)
 		} while ((c * q) < stg1);
 
 		mpz_init(p[i]);
-		mpz_set_ui(p[i], q);
+		mpz_set_u64(p[i], q);
 	}
 
 	if (num_p & 1)
@@ -3182,7 +3182,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
 #endif
 
     // v = 4*sigma
-    mpz_set_ui(v, work->sigma);
+    mpz_set_64(v, work->sigma);
     mpz_mul_2exp(v, v, 2);
 
 #ifdef PRINT_DEBUG
@@ -3190,7 +3190,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
 #endif
 
     // u = sigma^2 - 5
-    mpz_set_ui(u, work->sigma);
+    mpz_set_64(u, work->sigma);
     mpz_mul(u, u, u);
     mpz_sub_ui(u, u, 5);
 
@@ -3706,7 +3706,7 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
 #endif
 
     // v = sigma^2
-    mpz_set_ui(v, work->sigma);
+    mpz_set_64(v, work->sigma);
     mpz_mul(v, v, v);
 
     /* A=4*d-2 with d = sigma^2/2^GMP_NUMB_BITS*/
@@ -5244,7 +5244,7 @@ unsigned int compute_s(mpz_t s, uint64_t * primes, uint64_t B1)
         while (pp <= maxpp)
             pp *= qi;
 
-        mpz_set_ui(ppz, pp);
+        mpz_set_64(ppz, pp);
 
         if ((i & 1) == 0)
             mpz_set(acc[0], ppz);

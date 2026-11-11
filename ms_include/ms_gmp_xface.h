@@ -19,12 +19,10 @@ $Id: gmp_xface.h 1033 2020-09-04 16:43:27Z jasonp_sf $
 #include <gmp.h>
 #include <mp.h>
 
-#ifdef __MINGW32__
-#include "mpz-ull.h"
-#else
-#define mpz_set_ull mpz_set_ui
-#define mpz_get_ull mpz_get_ui
-#endif
+// 64-bit-safe on LLP64 (MinGW + GMP), where unsigned long is 32 bits
+#include "gmp_u64.h"
+#define mpz_set_ull mpz_set_u64
+#define mpz_get_ull mpz_get_u64
 
 #ifdef __cplusplus
 extern "C" {

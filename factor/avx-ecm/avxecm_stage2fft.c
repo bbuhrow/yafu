@@ -47,8 +47,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * points, finite differences); avxecm_s2fft_run, the per-thread driver.
  */
 
-#include <sys/time.h>	//for gettimeofday using gcc
+#include "ytools.h"	//for gettimeofday using gcc
 #include "avx_ecm.h"
+#include "arith.h"
 #include "avxecm_stage2fft.h"
 #include "../../arith/vecpoly/vecpoly.h"
 #include <math.h>
@@ -927,9 +928,10 @@ static void s2_findiff(int S, int deg, mpz_t *out, uint64_t i0, uint64_t delta)
     mpz_init(d);
     for (t = 0; t <= deg; t++)
     {
-        mpz_set_ui(d, (unsigned long)delta);
+        mpz_set_64(d, delta);
         mpz_mul_ui(d, d, (unsigned long)t);
-        mpz_add_ui(x, d, (unsigned long)i0);
+        mpz_set_64(x, i0);
+        mpz_add(x, x, d);
         s2_fpoly(S, out[t], x);
     }
     for (e = 1; e <= deg; e++)

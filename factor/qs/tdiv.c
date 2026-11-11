@@ -70,7 +70,7 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
 
     if (getfactor_tecm_edw(candidate3lp, _1, 0, lcg) > 0)
     {
-        if ((mpz_sizeinbase(_1, 2) <= 32) && (mpz_get_ui(_1) < max_factor))
+        if ((mpz_sizeinbase(_1, 2) <= 32) && (mpz_get_u64(_1) < max_factor))
         {
             mpz_tdiv_q(_2, candidate3lp, _1);
 
@@ -84,7 +84,7 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
             // a cheaper method.
             if (mpz_probab_prime_p(_2, 1) > 0)
             {
-                if ((mpz_sizeinbase(_2, 2) <= 32) && (mpz_get_ui(_2) < max_factor))
+                if ((mpz_sizeinbase(_2, 2) <= 32) && (mpz_get_u64(_2) < max_factor))
                     return 2;
                 else
                     return 0;
@@ -97,18 +97,18 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
             uint64_t q64;
             uint64_t f64;
 
-            q64 = mpz_get_ui(_2);
+            q64 = mpz_get_u64(_2);
             f64 = getfactor_uecm_edw(q64, 0, lcg);
-            mpz_set_ui(_3, f64);
+            mpz_set_u64(_3, f64);
 
             if (f64 > 1)
             {
-                mpz_tdiv_q_ui(_2, _2, f64);
+                mpz_tdiv_q_u64(_2, _2, f64);
 
-                if (mpz_get_ui(_2) > max_factor) {
+                if (mpz_get_u64(_2) > max_factor) {
                     return 0;
                 }
-                if (mpz_get_ui(_3) > max_factor) {
+                if (mpz_get_u64(_3) > max_factor) {
                     return 0;
                 }
                 if (mpz_probab_prime_p(_1, 1) == 0)
@@ -158,19 +158,19 @@ int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
                 uint64_t q64;
                 uint64_t f64;
 
-                q64 = mpz_get_ui(_1);
+                q64 = mpz_get_u64(_1);
                 f64 = getfactor_uecm_edw(q64, 0, lcg);
-                mpz_set_ui(_3, f64);
+                mpz_set_u64(_3, f64);
 
 
                 if (f64 > 1)
                 {
-                    mpz_tdiv_q_ui(_1, _1, f64);
+                    mpz_tdiv_q_u64(_1, _1, f64);
 
-                    if (mpz_get_ui(_1) > max_factor) {
+                    if (mpz_get_u64(_1) > max_factor) {
                         return 0;
                     }
-                    if (mpz_get_ui(_3) > max_factor) {
+                    if (mpz_get_u64(_3) > max_factor) {
                         return 0;
                     }
                     if (mpz_probab_prime_p(_1, 1) == 0)
@@ -310,12 +310,12 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
-		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
+		(mpz_cmp_u64(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
         // save this slp (single large prime)
 		uint64_t large_prime[4];
 		
-		large_prime[0] = mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
+		large_prime[0] = mpz_get_u64(dconf->Qvals[report_num]); //Q->val[0];
 		//if (dconf->num_alp == 1)
         //    large_prime[1] = dconf->curr_poly->qlisort[dconf->curr_poly->s - 1];
         //else

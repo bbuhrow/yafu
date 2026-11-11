@@ -127,7 +127,7 @@ void mpz_to_bignum32(uint32_t* bignum, mpz_t gmp_in)
 
 	for (i = 0; i < BIGWORDS32; i++)
 	{
-		bignum[i] = mpz_get_ui(t) & 0xffffffff;
+		bignum[i] = mpz_get_u64(t) & 0xffffffff;
 		mpz_tdiv_q_2exp(t, t, 32);
 	}
 
@@ -189,18 +189,18 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 		if (bits2 <= 64)
 		{
 			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
-			uint64_t cofactor = mpz_get_ui(zc);
+			uint64_t cofactor = mpz_get_u64(zc);
 			//if (prp_uecm(cofactor) == 0)
 			if (mpz_probab_prime_p(zc, 1) == 0)
 			{
 				// record the factor we found
 				if (t->first_side == 0)
 				{
-					c->lp_a[0] = mpz_get_ui(zf);
+					c->lp_a[0] = mpz_get_u64(zf);
 				}
 				else
 				{
-					c->lp_r[0] = mpz_get_ui(zf);
+					c->lp_r[0] = mpz_get_u64(zf);
 				}
 				// and load the cofactor for further factorization
 				t->modulus_in[num2lp_retest] = cofactor;
@@ -212,12 +212,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 				// we just factored a 2LP larger than 64 bits.
 				if (t->first_side == 0)
 				{
-					c->lp_a[0] = mpz_get_ui(zf);
+					c->lp_a[0] = mpz_get_u64(zf);
 					c->lp_a[1] = cofactor;
 				}
 				else
 				{
-					c->lp_r[0] = mpz_get_ui(zf);
+					c->lp_r[0] = mpz_get_u64(zf);
 					c->lp_r[1] = cofactor;
 				}
 				c->success |= 0x0f;
@@ -240,15 +240,15 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 					cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
 					if (t->first_side == 0)
 					{
-						c->lp_a[0] = mpz_get_ui(zf);
-						c->lp_a[1] = mpz_get_ui(flist[0]);
-						c->lp_a[2] = mpz_get_ui(flist[1]);
+						c->lp_a[0] = mpz_get_u64(zf);
+						c->lp_a[1] = mpz_get_u64(flist[0]);
+						c->lp_a[2] = mpz_get_u64(flist[1]);
 					}
 					else
 					{
-						c->lp_r[0] = mpz_get_ui(zf);
-						c->lp_r[1] = mpz_get_ui(flist[0]);
-						c->lp_r[2] = mpz_get_ui(flist[1]);
+						c->lp_r[0] = mpz_get_u64(zf);
+						c->lp_r[1] = mpz_get_u64(flist[0]);
+						c->lp_r[2] = mpz_get_u64(flist[1]);
 					}
 					c->success |= 0x0f;
 				}
@@ -269,18 +269,18 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 		if (bits1 <= 64)
 		{
 			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
-			uint64_t cofactor = mpz_get_ui(zf);
+			uint64_t cofactor = mpz_get_u64(zf);
 			//if (prp_uecm(cofactor) == 0)
 			if (mpz_probab_prime_p(zf, 1) == 0)
 			{
 				// record the factor we found
 				if (t->first_side == 0)
 				{
-					c->lp_a[0] = mpz_get_ui(zc);
+					c->lp_a[0] = mpz_get_u64(zc);
 				}
 				else
 				{
-					c->lp_r[0] = mpz_get_ui(zc);
+					c->lp_r[0] = mpz_get_u64(zc);
 				}
 
 				// and load the cofactor for further factorization
@@ -293,12 +293,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 				// we just factored a 2LP larger than 64 bits.
 				if (t->first_side == 0)
 				{
-					c->lp_a[0] = mpz_get_ui(zc);
+					c->lp_a[0] = mpz_get_u64(zc);
 					c->lp_a[1] = cofactor;
 				}
 				else
 				{
-					c->lp_r[0] = mpz_get_ui(zc);
+					c->lp_r[0] = mpz_get_u64(zc);
 					c->lp_r[1] = cofactor;
 				}
 				c->success |= 0x0f;
@@ -321,15 +321,15 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 					(*mpqs_success)++;
 					if (t->first_side == 0)
 					{
-						c->lp_a[0] = mpz_get_ui(zc);
-						c->lp_a[1] = mpz_get_ui(flist[0]);
-						c->lp_a[2] = mpz_get_ui(flist[1]);
+						c->lp_a[0] = mpz_get_u64(zc);
+						c->lp_a[1] = mpz_get_u64(flist[0]);
+						c->lp_a[2] = mpz_get_u64(flist[1]);
 					}
 					else
 					{
-						c->lp_r[0] = mpz_get_ui(zc);
-						c->lp_r[1] = mpz_get_ui(flist[0]);
-						c->lp_r[2] = mpz_get_ui(flist[1]);
+						c->lp_r[0] = mpz_get_u64(zc);
+						c->lp_r[1] = mpz_get_u64(flist[0]);
+						c->lp_r[2] = mpz_get_u64(flist[1]);
 					}
 					c->success |= 0x0f;
 				}
@@ -369,7 +369,7 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 		{
 			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
 			//uint64_t cofactor = mpz_get_ull(zc);
-			uint64_t cofactor = mpz_get_ui(zc);
+			uint64_t cofactor = mpz_get_u64(zc);
 
 			// check if cofactor is composite and small enough to
 			// possibly yield 2 correctly-sized primes
@@ -380,12 +380,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 				if (t->first_side == 0)
 				{
 					//c->lp_a[0] = mpz_get_ull(zf);
-					c->lp_a[0] = mpz_get_ui(zf);
+					c->lp_a[0] = mpz_get_u64(zf);
 				}
 				else
 				{
 					//c->lp_r[0] = mpz_get_ull(zf);
-					c->lp_r[0] = mpz_get_ui(zf);
+					c->lp_r[0] = mpz_get_u64(zf);
 				}
 				// and load the cofactor for further factorization
 				t->modulus_in[num2lp_retest] = cofactor;
@@ -403,13 +403,13 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 				if (t->first_side == 0)
 				{
 					//c->lp_a[0] = mpz_get_ull(zf);
-					c->lp_a[0] = mpz_get_ui(zf);
+					c->lp_a[0] = mpz_get_u64(zf);
 					c->lp_a[1] = cofactor;
 				}
 				else
 				{
 					//c->lp_r[0] = mpz_get_ull(zf);
-					c->lp_r[0] = mpz_get_ui(zf);
+					c->lp_r[0] = mpz_get_u64(zf);
 					c->lp_r[1] = cofactor;
 				}
 				c->success |= 0x0f;
@@ -439,18 +439,18 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 						//c->lp_a[0] = mpz_get_ull(zf);
 						//c->lp_a[1] = mpz_get_ull(flist[0]);
 						//c->lp_a[2] = mpz_get_ull(flist[1]);
-						c->lp_a[0] = mpz_get_ui(zf);
-						c->lp_a[1] = mpz_get_ui(flist[0]);
-						c->lp_a[2] = mpz_get_ui(flist[1]);
+						c->lp_a[0] = mpz_get_u64(zf);
+						c->lp_a[1] = mpz_get_u64(flist[0]);
+						c->lp_a[2] = mpz_get_u64(flist[1]);
 					}
 					else
 					{
 						//c->lp_r[0] = mpz_get_ull(zf);
 						//c->lp_r[1] = mpz_get_ull(flist[0]);
 						//c->lp_r[2] = mpz_get_ull(flist[1]);
-						c->lp_r[0] = mpz_get_ui(zf);
-						c->lp_r[1] = mpz_get_ui(flist[0]);
-						c->lp_r[2] = mpz_get_ui(flist[1]);
+						c->lp_r[0] = mpz_get_u64(zf);
+						c->lp_r[1] = mpz_get_u64(flist[0]);
+						c->lp_r[2] = mpz_get_u64(flist[1]);
 					}
 					c->success |= 0x0f;
 				}
@@ -479,7 +479,7 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 		{
 			cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
 			//uint64_t cofactor = mpz_get_ull(zf);
-			uint64_t cofactor = mpz_get_ui(zf);
+			uint64_t cofactor = mpz_get_u64(zf);
 
 			// check if cofactor is composite and small enough to
 			// possibly yield 2 correctly-sized primes
@@ -490,12 +490,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 				if (t->first_side == 0)
 				{
 					//c->lp_a[0] = mpz_get_ull(zc);
-					c->lp_a[0] = mpz_get_ui(zc);
+					c->lp_a[0] = mpz_get_u64(zc);
 				}
 				else
 				{
 					//c->lp_r[0] = mpz_get_ull(zc);
-					c->lp_r[0] = mpz_get_ui(zc);
+					c->lp_r[0] = mpz_get_u64(zc);
 				}
 
 				// and load the cofactor for further factorization
@@ -514,13 +514,13 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 				if (t->first_side == 0)
 				{
 					//c->lp_a[0] = mpz_get_ull(zc);
-					c->lp_a[0] = mpz_get_ui(zc);
+					c->lp_a[0] = mpz_get_u64(zc);
 					c->lp_a[1] = cofactor;
 				}
 				else
 				{
 					//c->lp_r[0] = mpz_get_ull(zc);
-					c->lp_r[0] = mpz_get_ui(zc);
+					c->lp_r[0] = mpz_get_u64(zc);
 					c->lp_r[1] = cofactor;
 				}
 				c->success |= 0x0f;
@@ -551,18 +551,18 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
 						//c->lp_a[0] = mpz_get_ull(zc);
 						//c->lp_a[1] = mpz_get_ull(flist[0]);
 						//c->lp_a[2] = mpz_get_ull(flist[1]);
-						c->lp_a[0] = mpz_get_ui(zc);
-						c->lp_a[1] = mpz_get_ui(flist[0]);
-						c->lp_a[2] = mpz_get_ui(flist[1]);
+						c->lp_a[0] = mpz_get_u64(zc);
+						c->lp_a[1] = mpz_get_u64(flist[0]);
+						c->lp_a[2] = mpz_get_u64(flist[1]);
 					}
 					else
 					{
 						//c->lp_r[0] = mpz_get_ull(zc);
 						//c->lp_r[1] = mpz_get_ull(flist[0]);
 						//c->lp_r[2] = mpz_get_ull(flist[1]);
-						c->lp_r[0] = mpz_get_ui(zc);
-						c->lp_r[1] = mpz_get_ui(flist[0]);
-						c->lp_r[2] = mpz_get_ui(flist[1]);
+						c->lp_r[0] = mpz_get_u64(zc);
+						c->lp_r[1] = mpz_get_u64(flist[0]);
+						c->lp_r[2] = mpz_get_u64(flist[1]);
 					}
 					c->success |= 0x0f;
 				}

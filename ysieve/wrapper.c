@@ -85,7 +85,7 @@ void compute_prps_work_fcn(void *vptr)
 
 #if USE_AVX512F
 	// if we have avx512 functions
-	mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[t->stopid - t->startid - 1]);
+	mpz_add_u64(t->tmpz, t->offset, t->ddata.primes[t->stopid - t->startid - 1]);
 
 	// and maximum value is less than 104 bits,
 	// and standard prime detection is requested (not gaps or twins)
@@ -108,7 +108,7 @@ void compute_prps_work_fcn(void *vptr)
 
 			for (j = 0; j < 8; j++)
 			{
-				mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i + j - t->startid]);
+				mpz_add_u64(t->tmpz, t->offset, t->ddata.primes[i + j - t->startid]);
 
 				if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 				{
@@ -149,7 +149,7 @@ void compute_prps_work_fcn(void *vptr)
 
 		if (mpz_sizeinbase(t->tmpz, 2) < 128)
 		{
-			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
+			mpz_add_u64(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
 			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 			{
 				//gmp_printf("candidate %Zd... ", t->tmpz);
@@ -193,7 +193,7 @@ void compute_prps_work_fcn(void *vptr)
 		}
 		else
 		{
-			mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
+			mpz_add_u64(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
 			if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 			{
 				//gmp_printf("candidate %Zd = offset %Zd + idx %lu (witnesses: %d) is \n", 

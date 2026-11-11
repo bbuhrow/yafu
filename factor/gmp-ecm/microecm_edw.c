@@ -53,129 +53,21 @@ Design and measurements: arith/micro_tiny_edwards_plan.md.  In short:
 #define UEDW_INLINE __inline
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
-#define uedw_ctz64 __builtin_ctzll
-#else
-static __inline int uedw_ctz64(uint64_t x)
-{
-    unsigned long i;
-    _BitScanForward64(&i, x);
-    return (int)i;
-}
-#endif
-
-#if defined(__x86_64__) && defined(__GNUC__) && !defined(_MSC_VER)
-#define UEDW_ASM_X86 1
-#endif
-
 /* ---------------------------------------------------------------- arith */
 /* Montgomery multiplication with the positive inverse (Hurchalla), R = 2^64,
-   inputs and outputs in [0, n). */
-static UEDW_INLINE uint64_t uedw_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
-{
-#ifdef UEDW_ASM_X86
-    __uint128_t prod = (__uint128_t)x * y;
-    uint64_t Thi = (uint64_t)(prod >> 64);
-    uint64_t rrax = (uint64_t)(prod);
-    __asm__(
-        "imulq %[inv], %%rax \n\t"
-        "mulq %[n] \n\t"
-        "leaq (%[Thi], %[n]), %%rax \n\t"
-        "subq %%rdx, %%rax \n\t"
-        "subq %%rdx, %[Thi] \n\t"
-        "cmovbq %%rax, %[Thi] \n\t"
-        : [Thi] "+&bcSD"(Thi), "+&a"(rrax)
-        : [n] "r"(n), [inv]"r"(inv)
-        : "rdx", "cc");
-    return Thi;
-#else
-#if defined(_MSC_VER)
-    uint64_t T_hi;
-    uint64_t T_lo = _umul128(x, y, &T_hi);
-    uint64_t m = T_lo * inv;
-    uint64_t mN_hi = __umulh(m, n);
-#else
-    __uint128_t prod = (__uint128_t)x * y;
-    uint64_t T_hi = (uint64_t)(prod >> 64);
-    uint64_t T_lo = (uint64_t)(prod);
-    uint64_t m = T_lo * inv;
-    uint64_t mN_hi = (uint64_t)(((__uint128_t)m * n) >> 64);
+   inputs and outputs in [0, n); modular add / sub; inverse mod 2^64; binary
+   gcd.  One shared copy of each in arith/limb/limb1.h -- this file used to
+   carry its own.  Scalar layer only: the 52-bit vector code below is local. */
+#ifndef LIMB1_SCALAR_ONLY
+#define LIMB1_SCALAR_ONLY
 #endif
-    uint64_t tmp = T_hi + n - mN_hi;
-    uint64_t result = T_hi - mN_hi;
-    return (T_hi < mN_hi) ? tmp : result;
-#endif
-}
+#include "limb1.h"
 
-static UEDW_INLINE uint64_t uedw_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-#ifdef UEDW_ASM_X86
-    __asm__(
-        "xorq %%r8, %%r8 \n\t"
-        "subq %1, %0 \n\t"
-        "cmovc %2, %%r8 \n\t"
-        "addq %%r8, %0 \n\t"
-        : "+r"(a)
-        : "r"(b), "r"(n)
-        : "r8", "cc");
-    return a;
-#else
-    uint64_t r = a - b;
-    return (a < b) ? r + n : r;
-#endif
-}
-
-static UEDW_INLINE uint64_t uedw_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-#ifdef UEDW_ASM_X86
-    uint64_t t = x - n;
-    x += y;
-    __asm__("add %2, %1\n\t"
-        "cmovc %1, %0\n\t"
-        :"+r" (x), "+&r" (t)
-        : "r" (y)
-        : "cc"
-    );
-    return x;
-#else
-    return (x >= n - y) ? x - (n - y) : x + y;
-#endif
-}
-
-static uint64_t uedw_multiplicative_inverse(uint64_t a)
-{
-    uint64_t x0 = (3 * a) ^ 2;
-    uint64_t y = 1 - a * x0;
-    uint64_t x1 = x0 * (1 + y);
-    y *= y;
-    uint64_t x2 = x1 * (1 + y);
-    y *= y;
-    uint64_t x3 = x2 * (1 + y);
-    y *= y;
-    return x3 * (1 + y);
-}
-
-static uint64_t uedw_bingcd64(uint64_t u, uint64_t v)
-{
-    if (u == 0)
-        return v;
-    if (v != 0) {
-        int j = uedw_ctz64(v);
-        v = (uint64_t)(v >> j);
-        while (1) {
-            uint64_t tmp = u;
-            uint64_t sub1 = (uint64_t)(v - tmp);
-            uint64_t sub2 = (uint64_t)(tmp - v);
-            if (tmp == v)
-                break;
-            u = (tmp >= v) ? v : tmp;
-            v = (tmp >= v) ? sub2 : sub1;
-            j = uedw_ctz64(sub1);
-            v = (uint64_t)(v >> j);
-        }
-    }
-    return u;
-}
+#define uedw_mulredc                mulredc_pos
+#define uedw_submod                 submod
+#define uedw_addmod                 addmod
+#define uedw_multiplicative_inverse multiplicative_inverse
+#define uedw_bingcd64               bingcd64
 
 /* per-modulus constants, Montgomery form */
 typedef struct {
@@ -1355,77 +1247,16 @@ int uecm_edw_hist(uint64_t *hist, int max)
 
 typedef __m512i uedw_v8;
 
-#ifndef IFMA
-static __m512d uedw8_dbias;
-static __m512i uedw8_vbias1;
-static __m512i uedw8_vbias2;
-#endif
-
-#ifdef IFMA
-static UEDW_INLINE __m512i uedw8_mul52lo(__m512i b, __m512i c)
-{
-    return _mm512_madd52lo_epu64(_mm512_setzero_si512(), c, b);
-}
-static UEDW_INLINE __m512i uedw8_mul52hi(__m512i b, __m512i c)
-{
-    return _mm512_madd52hi_epu64(_mm512_setzero_si512(), c, b);
-}
-static UEDW_INLINE void uedw8_mul52lohi(__m512i b, __m512i c, __m512i *l, __m512i *h)
-{
-    *l = _mm512_madd52lo_epu64(_mm512_setzero_si512(), c, b);
-    *h = _mm512_madd52hi_epu64(_mm512_setzero_si512(), c, b);
-}
-#else
-static UEDW_INLINE __m512i uedw8_mul52lo(__m512i b, __m512i c)
-{
-    return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
-}
-static UEDW_INLINE __m512i uedw8_mul52hi(__m512i b, __m512i c)
-{
-    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
-    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
-    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, uedw8_dbias,
-        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    return _mm512_sub_epi64(_mm512_castpd_si512(prod1_ld), uedw8_vbias1);
-}
-static UEDW_INLINE void uedw8_mul52lohi(__m512i b, __m512i c, __m512i *l, __m512i *h)
-{
-    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
-    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
-    __m512d prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, uedw8_dbias,
-        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    *h = _mm512_sub_epi64(_mm512_castpd_si512(prod1_hd), uedw8_vbias1);
-    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(uedw8_vbias2), prod1_hd);
-    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd,
-        (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    *l = _mm512_castpd_si512(prod1_ld);
-}
-#endif
-
-/* Montgomery multiplication, R = 2^52, positive inverse; inputs in [0, n) */
-static UEDW_INLINE __m512i uedw8_mulredc(__m512i x, __m512i y, __m512i N, __m512i invN)
-{
-    __m512i T_hi, T_lo;
-    uedw8_mul52lohi(x, y, &T_lo, &T_hi);
-    __m512i m = uedw8_mul52lo(T_lo, invN);
-    __m512i mN_hi = uedw8_mul52hi(m, N);
-    __m512i tmp = _mm512_sub_epi64(_mm512_add_epi64(T_hi, N), mN_hi);
-    __m512i result = _mm512_sub_epi64(T_hi, mN_hi);
-    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);
-    return _mm512_mask_mov_epi64(result, msk, tmp);
-}
-static UEDW_INLINE __m512i uedw8_addmod(__m512i x, __m512i y, __m512i N)
-{
-    __m512i t = _mm512_add_epi64(x, y);
-    __mmask8 m = _mm512_cmpge_epu64_mask(t, N);
-    return _mm512_mask_sub_epi64(t, m, t, N);
-}
-static UEDW_INLINE __m512i uedw8_submod(__m512i x, __m512i y, __m512i N)
-{
-    __m512i t = _mm512_sub_epi64(x, y);
-    __mmask8 m = _mm512_cmpgt_epu64_mask(y, x);
-    return _mm512_mask_add_epi64(t, m, t, N);
-}
+/* Montgomery multiplication (R = 2^52, positive inverse, inputs in [0, n)),
+   modular add / sub and the 52 x 52 product halves, 8 lanes: shared, in
+   arith/limb/limb1.h.  The non-IFMA FMA bias constants are local to those
+   kernels, so this file no longer keeps (or initializes) its own. */
+#define uedw8_mul52lo   mp_mul52lo_x8
+#define uedw8_mul52hi   mp_mul52hi_x8
+#define uedw8_mul52lohi mp_mul52lohi_x8
+#define uedw8_mulredc   mulredc52_x8
+#define uedw8_addmod    addmod52_x8
+#define uedw8_submod    submod52_x8
 
 typedef struct {
     uedw_v8 n, rho, one, Rsqr, R3;
@@ -2020,11 +1851,6 @@ static void uedw8_list(const uint64_t *n64, uint64_t *f, uint32_t num, uint32_t 
 
 static void uedw8_init_consts(void)
 {
-#ifndef IFMA
-    uedw8_dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
-    uedw8_vbias1 = _mm512_set1_epi64(0x4670000000000000ULL);
-    uedw8_vbias2 = _mm512_set1_epi64(0x4670000000000001ULL);
-#endif
 }
 #endif /* USE_AVX512F */
 

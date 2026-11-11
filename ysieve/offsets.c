@@ -182,10 +182,10 @@ void get_offsets(thread_soedata_t *thread_data)
         mpz_init(lowz);
         mpz_init(sqrtz);
         mpz_set(lowz, sdata->offset);
-        mpz_add_ui(lowz, lowz, ddata->lblk_b);
+        mpz_add_u64(lowz, lowz, ddata->lblk_b);
 
         mpz_set(sqrtz, lowz);
-        mpz_add_ui(sqrtz, sqrtz, sdata->blk_r);
+        mpz_add_u64(sqrtz, sqrtz, sdata->blk_r);
         mpz_sqrt(sqrtz, sqrtz);
         mpz_add_ui(sqrtz, sqrtz, 1);
 
@@ -200,9 +200,9 @@ void get_offsets(thread_soedata_t *thread_data)
             {
                 ddata->pbounds[block] = i;
                 block++;
-                mpz_add_ui(lowz, lowz, sdata->blk_r);
+                mpz_add_u64(lowz, lowz, sdata->blk_r);
                 mpz_set(sqrtz, lowz);
-                mpz_add_ui(sqrtz, sqrtz, sdata->blk_r);
+                mpz_add_u64(sqrtz, sqrtz, sdata->blk_r);
                 mpz_sqrt(sqrtz, sqrtz);
                 mpz_add_ui(sqrtz, sqrtz, 1);
             }

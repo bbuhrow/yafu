@@ -297,7 +297,7 @@ brent_marker:
 		while (!feof(in))
 		{
 			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-            mpz_set_ui(gmptmp, comp[i]);
+            mpz_set_u64(gmptmp, comp[i]);
             j = mpz_sizeinbase(gmptmp, 2);
 			totBits += j;
 			if ((uint32_t)j > maxBits)
@@ -357,7 +357,7 @@ brent_marker:
         while (!feof(in))
         {
             fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-            mpz_set_ui(gmptmp, comp[i]);
+            mpz_set_u64(gmptmp, comp[i]);
             j = mpz_sizeinbase(gmptmp, 2);
             totBits += j;
             if ((uint32_t)j > maxBits)
@@ -429,7 +429,7 @@ brent_marker:
 		while (!feof(in))
 		{
 			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-            mpz_set_ui(gmptmp, comp[i]);
+            mpz_set_u64(gmptmp, comp[i]);
             j = mpz_sizeinbase(gmptmp, 2);
 			totBits += j;
 			if ((uint32_t)j > maxBits)
@@ -1135,7 +1135,7 @@ microecm_marker:
 		while (!feof(in))
 		{
 			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-			mpz_set_ui(gmptmp, comp[i]);
+			mpz_set_u64(gmptmp, comp[i]);
 
 			j = mpz_sizeinbase(gmptmp, 2);
 			totBits += j;
@@ -1226,7 +1226,7 @@ microecm_edw_marker:
 		while (!feof(in))
 		{
 			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
-			mpz_set_ui(gmptmp, comp[i]);
+			mpz_set_u64(gmptmp, comp[i]);
 
 			j = mpz_sizeinbase(gmptmp, 2);
 			totBits += j;

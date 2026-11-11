@@ -665,7 +665,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         // if larger than a small bound, do a perfect power check
         fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
         
-        if ((mpz_cmp_ui(b, fobj->prime_threshold) > 1) && 
+        if ((mpz_cmp_u64(b, fobj->prime_threshold) > 1) && 
             mpz_perfect_power_p(b))
         {
             if (fobj->VFLAG > 0)
@@ -2520,7 +2520,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 	while ((mpz_cmp_ui(in, 1) > 0) && (primes[k] < 10000) && (k < nump))
 	{
 		uint64_t q = primes[k];
-		uint64_t r = mpz_tdiv_ui(in, q);
+		uint64_t r = mpz_tdiv_u64(in, q);
 
 		if (r != 0)
 		{
@@ -2528,7 +2528,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 		}
 		else
 		{
-			mpz_tdiv_q_ui(in, in, q);
+			mpz_tdiv_q_u64(in, in, q);
 			mpz_init(out[numout]);
 			mpz_set_64(out[numout], q);
 			numout++;
@@ -2550,14 +2550,14 @@ int factor_tiny(mpz_t in, mpz_t* out,
 		}
 
 		if (mpz_sizeinbase(in, 2) <= 64) {
-			uint64_t n64 = mpz_get_ui(in);
+			uint64_t n64 = mpz_get_u64(in);
 			uint64_t f = getfactor_uecm_edw(n64, 1, prng);
 			if (f > 1)
 			{
 				mpz_init(out[numout]);
-				mpz_set_ui(out[numout], f);
+				mpz_set_u64(out[numout], f);
 				numout++;
-				mpz_tdiv_q_ui(in, in, f);
+				mpz_tdiv_q_u64(in, in, f);
 				continue;
 			}
 			else

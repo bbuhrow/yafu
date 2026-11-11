@@ -15,10 +15,14 @@ test/
                             an exact uint64 primality oracle + generators,
                             plus a corpus self-check module
   test_main.c               lists the modules to run
-  layer0/                   primitive tests (mp_platform.h)
+  layer0/                   primitive tests (arith/limb/mp_platform.h)
     test_mp_arith.c           umul128 / udiv128 / add-/sub-carry chains
     test_mp_bitscan.c         lead/trail zero-count, reset-lsb
+    test_limb_inline.c        header-only limb kernels: 32-bit primitives, 64-bit modular,
+                              128-bit arithmetic, 52-bit x8 (no GMP, self-contained refs)
   layer1/                   kernel tests (link YAFU + GMP)
+    test_limb.c               arith/limb vs GMP: 128-bit Montgomery (edges, aliasing), sp helpers,
+                              gcds, jacobi, sqrt mod p, 104-bit x8 kernels
     test_sp_arith.c           arith.h single-word mul/div/mulmod/modexp/modinv
     test_modular.c            Montgomery (mpz + 128-bit) vs GMP
     test_primality.c          APRCL/BPSW/MR + tinyprp vs the corpus
@@ -31,7 +35,7 @@ test/
 
 ## The layer model
 
-- **Layer 0 — primitives.** The platform arithmetic in `mp_platform.h`.
+- **Layer 0 — primitives.** The platform arithmetic in `arith/limb/mp_platform.h`.
   Checked against self-contained portable-C reference oracles; no external
   dependencies. This is where the `mp_arith` / `mp_bitscan` harnesses now live.
 - **Layer 1 — kernels.** Arithmetic and number-theory building blocks

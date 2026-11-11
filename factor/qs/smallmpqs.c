@@ -2340,10 +2340,10 @@ int smpqs_check_relations(uint32_t sieve_interval, uint32_t blocknum, uint8_t *s
 			(*num)++;
 
 			offset = (blocknum<<15) + thisloc;
-			mpz_set_ui(t2, poly->poly_b);
+			mpz_set_u64(t2, poly->poly_b);
 			mpz_mul_2exp(t2, t2, 1);
 
-			mpz_set_ui(t1, poly->poly_a);
+			mpz_set_u64(t1, poly->poly_a);
 			mpz_mul_ui(t1, t1, offset);
 			if (parity)
 				mpz_sub(t3, t1, t2);
@@ -2922,11 +2922,11 @@ void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n)
 		poly->poly_b = poly->poly_a - poly->poly_b;
 
 	// now that we have b, compute c = (b*b - n)/a
-	mpz_set_ui(t2, poly->poly_b);
+	mpz_set_u64(t2, poly->poly_b);
 	mpz_mul(t2, t2, t2);
 	mpz_sub(t2, t2, n); 
 
-    mpz_set_ui(poly->poly_c, poly->poly_a);
+    mpz_set_u64(poly->poly_c, poly->poly_a);
     mpz_tdiv_q(poly->poly_c, t2, poly->poly_c);
     // MINGW64 bug?  below doesn't work for mingw64 but does for 64-bit gcc/intel/msvc
     //mpz_tdiv_q_ui(poly->poly_c, t2, poly->poly_a);
@@ -3368,8 +3368,8 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										pa = apoly[polynum];
 										d1 = (uint32_t)sqrt((double)(int64_t)pa);
 										
-										mpz_set_ui(tmp, apoly[polynum]);
-										mpz_set_ui(tmp3, bpoly[polynum]);
+										mpz_set_u64(tmp, apoly[polynum]);
+										mpz_set_u64(tmp3, bpoly[polynum]);
 										mpz_mul_ui(tmp, tmp, partial->list[partial_index[l-num_f]]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]]->offset,&tmp);
 										if (partial->list[partial_index[l-num_f]]->parity)
 											mpz_sub(tmp, tmp, tmp3); //zShortSub(&tmp,pb,&tmp);
@@ -3387,8 +3387,8 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										pa = apoly[polynum]; 
 										d2 = (uint32_t)sqrt((double)(int64_t)pa);
 										
-										mpz_set_ui(tmp3, apoly[polynum]);
-										mpz_set_ui(tmp4, bpoly[polynum]);
+										mpz_set_u64(tmp3, apoly[polynum]);
+										mpz_set_u64(tmp4, bpoly[polynum]);
 										mpz_mul_ui(tmp3, tmp3, partial->list[partial_index[l-num_f]-1]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]-1]->offset,&tmp3);
 										if (partial->list[partial_index[l-num_f]-1]->parity)
 											mpz_sub(tmp2, tmp3, tmp4); //zShortSub(&tmp3,pb,&tmp2);
@@ -3416,8 +3416,8 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										polynum = (int)full->list[l]->polynum;
 											
 										//compute Q1(x)
-										mpz_set_ui(tmp, apoly[polynum]);
-										mpz_set_ui(tmp4, bpoly[polynum]);
+										mpz_set_u64(tmp, apoly[polynum]);
+										mpz_set_u64(tmp4, bpoly[polynum]);
 										mpz_mul_ui(tmp, tmp, full->list[l]->offset); //zShortMul(&apoly[polynum],full->list[l]->offset,&tmp);
 										pa = apoly[polynum]; //apoly[polynum].val[0];
 										d1 = (uint32_t)sqrt((double)(int64_t)pa);
@@ -3430,7 +3430,7 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										mpz_mul(tmp, zx, nn); //zMul(&zx,&nn,&tmp);			//accumulate with previous terms
 										mpz_tdiv_r(zx, tmp, n); //zDiv(&tmp,n,&tmp2,&zx);		//mod n
 
-										mpz_mul_ui(tmp2, zy, d1); //zShortMul(&zy,d1,&tmp2);	//sqrt(a) = d is part of mp_y
+										mpz_mul_u64(tmp2, zy, d1); //zShortMul(&zy,d1,&tmp2);	//sqrt(a) = d is part of mp_y
 										mpz_tdiv_r(zy, tmp2, n); //zDiv(&tmp2,n,&tmp3,&zy);
 									}
 								}

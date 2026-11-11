@@ -24,6 +24,7 @@
 ----------------------------------------------------------------------*/
 #include "testkit.h"
 #include <gmp.h>
+#include "gmp_u64.h"
 #include <stdlib.h>
 #include "soe.h"
 
@@ -31,12 +32,7 @@
 #define SOE_BLOCKSIZE  32768    /* 32 KB (>1024 -> used as bytes) */
 
 /* portable mpz <- uint64 (mpz_set_ui takes only the low 32 bits on LLP64) */
-static void mpz_set_u64(mpz_t r, uint64_t v)
-{
-    mpz_set_ui(r, (unsigned long)(v >> 32));
-    mpz_mul_2exp(r, r, 32);
-    mpz_add_ui(r, r, (unsigned long)(v & 0xFFFFFFFFUL));
-}
+/* mpz_set_u64: see arith/limb/gmp_u64.h */
 
 /* ---- prime-count windows near powers of 2 (endpoints even) ---- */
 typedef struct { uint64_t lo, hi, count; } sieve_window;

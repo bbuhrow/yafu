@@ -2499,9 +2499,9 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 						uint64_t sq1, sq2;
 
 						mpz_sqrt(C, C);
-						sq1 = mpz_get_ui(C);
+						sq1 = mpz_get_u64(C);
 						mpz_sqrt(D, D);
-						sq2 = mpz_get_ui(D);
+						sq2 = mpz_get_u64(D);
 
 						// all constraints have been met, build F, L, and M factors from the table here:
 						// https://en.wikipedia.org/wiki/Aurifeuillean_factorization
@@ -2510,8 +2510,8 @@ void find_aurifeuillian_form(fact_obj_t* fobj, snfs_t* poly)
 						// check that we're on the right track
 						mpz_pow_ui(C, a, k);
 						mpz_pow_ui(D, b, k);
-						mpz_mul_ui(a, C, sq1);
-						mpz_mul_ui(b, D, sq2);
+						mpz_mul_u64(a, C, sq1);
+						mpz_mul_u64(b, D, sq2);
 						mpz_pow_ui(C, a, auri_m[i]);
 						mpz_pow_ui(D, b, auri_m[i]);
 						mpz_mul_ui(C, C, pow(auri_c[i], auri_c[i]));
@@ -5903,7 +5903,7 @@ int tdiv_mpz(mpz_t x, int *factors, uint64_t* primes, uint64_t num_p)
 	if (mpz_cmp_ui(xx, 1) > 0)
 	{
 		if (mpz_probab_prime_p(xx, 1))
-			factors[numf++] = mpz_get_ui(xx);
+			factors[numf++] = mpz_get_u64(xx);
 		else
 			numf = 0;
 	}

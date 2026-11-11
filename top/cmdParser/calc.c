@@ -2716,7 +2716,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[0]);
             fobj->div_obj.print = 0;
-            fobj->div_obj.limit = mpz_get_ui(operands[1]);
+            fobj->div_obj.limit = mpz_get_u64(operands[1]);
             zTrial(fobj);
         }
         else if (nargs == 1)
@@ -3166,7 +3166,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             mpz_clear(lowz);
             mpz_clear(highz);
-            mpz_set_ui(operands[0], num_found);
+            mpz_set_u64(operands[0], num_found);
             soe_finalize(sdata);
         }
 
@@ -3653,7 +3653,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                     if (done)
                         continue;
 
-                    uint64_t q64 = mpz_get_ui(n);
+                    uint64_t q64 = mpz_get_u64(n);
                     while (q64 > 1)
                     {
                         mpz_set_ui(n, q64);
@@ -4042,8 +4042,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             uint64_t* primes, nump, pmax, pmin;
             soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            primes = soe_wrapper(sdata, (uint64_t)mpz_get_ui(tmp1), 
-                (uint64_t)mpz_get_ui(tmp1)+(uint64_t)range, 0, &nump, 0, 0);
+            primes = soe_wrapper(sdata, (uint64_t)mpz_get_u64(tmp1), 
+                (uint64_t)mpz_get_u64(tmp1)+(uint64_t)range, 0, &nump, 0, 0);
 
             for (i = 0; i < nump; i++)
             {
@@ -4337,22 +4337,22 @@ int set_uvar(const char* name, mpz_t data, fact_obj_t* fobj)
         fobj->VFLAG = mpz_get_ui(data);
     }
     else if (strcmp(name, "B1pm1") == 0) {
-        fobj->pm1_obj.B1 = mpz_get_ui(data);
+        fobj->pm1_obj.B1 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B2pm1") == 0) {
-        fobj->pm1_obj.B2 = mpz_get_ui(data);
+        fobj->pm1_obj.B2 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B1pp1") == 0) {
-        fobj->pp1_obj.B1 = mpz_get_ui(data);
+        fobj->pp1_obj.B1 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B2pp1") == 0) {
-        fobj->pp1_obj.B2 = mpz_get_ui(data);
+        fobj->pp1_obj.B2 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B1ecm") == 0) {
-        fobj->ecm_obj.B1 = mpz_get_ui(data);
+        fobj->ecm_obj.B1 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B2ecm") == 0) {
-        fobj->ecm_obj.B2 = mpz_get_ui(data);
+        fobj->ecm_obj.B2 = mpz_get_u64(data);
     }
     else if (strcmp(name, "rhomax") == 0) {
         fobj->rho_obj.iterations = mpz_get_ui(data);

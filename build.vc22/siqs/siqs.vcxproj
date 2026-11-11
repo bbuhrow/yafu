@@ -84,7 +84,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\top\aprcl;..\..\common;..\..\include;..\..\ms_include;..\..\factor\gmp-ecm;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\top\aprcl;..\..\common;..\..\include;..\..\ms_include;..\..\factor\gmp-ecm;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);$(YafuLimbDir)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_SSE41;_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -123,7 +123,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir);$(YafuLimbDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

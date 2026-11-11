@@ -26,6 +26,7 @@ SOFTWARE.
 #include <string.h>
 #include <math.h>
 #include "soe.h"
+#include "gmp_u64_xface.h"
 #include "ytools.h"
 #include "threadpool.h"
 #include "soe_impl.h"
@@ -1240,7 +1241,7 @@ void compute_roots_work_fcn(void *vptr)
         mpz_t tmpz;
         mpz_init(tmpz);
 
-        mpz_add_ui(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
+        mpz_add_u64(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
         for (i = t->startid; i < t->stopid; i++)
         {
             uint32_t inv;

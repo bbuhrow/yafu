@@ -65,21 +65,8 @@
 #include <sys/time.h>
 #endif
 
-// for this algorithm, see https://jeffhurchalla.com/2022/04/25/a-faster-multiplicative-inverse-mod-a-power-of-2/
-static uint64_t prp_multiplicative_inverse(uint64_t a)
-{
-	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
-	uint64_t x0 = (3 * a) ^ 2;
-	uint64_t y = 1 - a * x0;
-	uint64_t x1 = x0 * (1 + y);
-	y *= y;
-	uint64_t x2 = x1 * (1 + y);
-	y *= y;
-	uint64_t x3 = x2 * (1 + y);
-	y *= y;
-	uint64_t x4 = x3 * (1 + y);
-	return x4;
-}
+// the inverse mod 2^64 (Hurchalla / Dumas) is shared: arith/limb/limb1.h
+#define prp_multiplicative_inverse multiplicative_inverse
 
 int fermat_prp_64x1(uint64_t n)
 {
@@ -89,40 +76,10 @@ int fermat_prp_64x1(uint64_t n)
 	uint64_t e = (n - 1); // / 2;
 
 	// penultimate-hi-bit mask
-#if defined(USE_AVX2) || defined(USE_AVX512F)
-	// technically need to check the ABM flag, but I don't
-	// have that in place anywhere yet.  AVX2 is generally equivalent.
-
-#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
-
-	uint64_t m = 1ULL << (62 - __lzcnt64(n));   // set a mask at the leading bit - 2
-
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-
-	uint64_t m = 1ULL << (62 - __builtin_clzll(n));
-
-#endif
-
-#else
-	// these builtin functions will have an efficient implementation
-	// for the current processor architecture.
-#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
-
-	uint32_t pos;
-	if (_BitScanReverse64(&pos, n))
-		return pos;
-	else
-		return 64;
-
-	uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
-
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-
-	uint64_t m = 1ULL << (62 - __builtin_clzll(n));
-
-#endif
-
-#endif
+	// (_lead_zcnt64 is a true leading-zero count on every compiler; the old
+	// per-compiler ladder here returned the bit index as the function result
+	// on MSVC builds without AVX2)
+	uint64_t m = 1ULL << (62 - _lead_zcnt64(n));   // set a mask at the leading bit - 2
 
 	result = addmod(result, result, n);
 
@@ -158,40 +115,10 @@ int MR_2sprp_64x1(uint64_t n)
 	uint64_t d = e >> s;
 
 	// penultimate-hi-bit mask of d
-#if defined(USE_AVX2) || defined(USE_AVX512F)
-	// technically need to check the ABM flag, but I don't
-	// have that in place anywhere yet.  AVX2 is generally equivalent.
-
-#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
-
-	uint64_t m = 1ULL << (62 - __lzcnt64(d));   // set a mask at the leading bit - 2
-
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-
-	uint64_t m = 1ULL << (62 - __builtin_clzll(d));
-
-#endif
-
-#else
-	// these builtin functions will have an efficient implementation
-	// for the current processor architecture.
-#if defined( __INTEL_COMPILER) || defined(_MSC_VER)
-
-	uint32_t pos;
-	if (_BitScanReverse64(&pos, d))
-		return pos;
-	else
-		return 64;
-
-	uint64_t m = 1ULL << (62 - pos);   // set a mask at the leading bit - 2
-
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-
-	uint64_t m = 1ULL << (62 - __builtin_clzll(d));
-
-#endif
-
-#endif
+	// (_lead_zcnt64 is a true leading-zero count on every compiler; the old
+	// per-compiler ladder here returned the bit index as the function result
+	// on MSVC builds without AVX2)
+	uint64_t m = 1ULL << (62 - _lead_zcnt64(d));   // set a mask at the leading bit - 2
 
 	// compute b^d using RL binary exponentiation.  RL because then
 	// exponent 1-bits are adds instead of multiplies.
@@ -1212,16 +1139,16 @@ int test_tinyprp(void)
 
 			for (y = 0; y < num; y++)
 			{
-				mpz_set_ui(gmpm, prp[1]);
+				mpz_set_u64(gmpm, prp[1]);
 				mpz_mul_2exp(gmpm, gmpm, 64);
-				mpz_add_ui(gmpm, gmpm, prp[0]);
+				mpz_add_u64(gmpm, gmpm, prp[0]);
 				mpz_sub_ui(gmpmm1, gmpm, 1);
 				mpz_tdiv_q_2exp(gmpe, gmpmm1, 1);
 
 				int j;
 				for (j = 0; j < 168; j++)
 				{
-					mpz_set_ui(gmpb, sm_primes[j]);
+					mpz_set_u64(gmpb, sm_primes[j]);
 					mpz_powm(gmpa, gmpb, gmpe, gmpm);
 					if (mpz_cmp_ui(gmpa, 1) == 0)
 						num1++;
@@ -1461,9 +1388,9 @@ int test_tinyprp(void)
 				e[1] >>= 1;
 
 #ifdef GMP_CHECK
-				mpz_set_ui(gmpn, prp[1]);
+				mpz_set_u64(gmpn, prp[1]);
 				mpz_mul_2exp(gmpn, gmpn, 64);
-				mpz_add_ui(gmpn, gmpn, prp[0]);
+				mpz_add_u64(gmpn, gmpn, prp[0]);
 				mpz_sub_ui(gmpn1, gmpn, 1);
 				mpz_tdiv_q_2exp(gmpe, gmpn1, 1);
 #endif
@@ -1477,7 +1404,7 @@ int test_tinyprp(void)
 						numm1++;
 
 #ifdef GMP_CHECK
-					mpz_set_ui(gmpb, sm_primes[j]);
+					mpz_set_u64(gmpb, sm_primes[j]);
 					mpz_powm(gmpa, gmpb, gmpe, gmpn);
 
 					if ((mpz_cmp_ui(gmpa, 1) == 0) && (result != 1))
@@ -1670,7 +1597,7 @@ int test_tinyprp(void)
 				x += 1;	// number like 6*k + 1
 			} while (x >> (bits - 1) != 1);
 
-			mpz_set_ui(gmp_prp, (uint64_t)x);
+			mpz_set_u64(gmp_prp, (uint64_t)x);
 
 			ticks1 = my_rdtsc();
 			gettimeofday(&start, NULL);
@@ -1681,7 +1608,7 @@ int test_tinyprp(void)
 			for (j = 0; j < num; j++)
 			{
 				numprp += (mpz_probab_prime_p(gmp_prp, 1) > 0);
-				mpz_add_ui(gmp_prp, gmp_prp, inc);
+				mpz_add_u64(gmp_prp, gmp_prp, inc);
 				inc = 6 - inc;
 			}
 
@@ -1938,9 +1865,9 @@ int test_tinyprp(void)
 					if ((prpmask & (1 << i)) == 0)
 					{
 						mpz_set_ui(gmp2, 2);
-						mpz_set_ui(gmpn, prp[8 + i]);
+						mpz_set_u64(gmpn, prp[8 + i]);
 						mpz_mul_2exp(gmpn, gmpn, 52);
-						mpz_add_ui(gmpn, gmpn, prp[i]);
+						mpz_add_u64(gmpn, gmpn, prp[i]);
 						mpz_sub_ui(gmpn1, gmpn, 1);
 						mpz_powm(gmp2, gmp2, gmpn1, gmpn);
 						if (mpz_cmp_ui(gmp2, 1) == 0)
@@ -2087,9 +2014,9 @@ int test_tinyprp(void)
 					if ((prpmask & (1 << i)) == 0)
 					{
 						mpz_set_ui(gmp2, 2);
-						mpz_set_ui(gmpn, prp[8 + i]);
+						mpz_set_u64(gmpn, prp[8 + i]);
 						mpz_mul_2exp(gmpn, gmpn, 52);
-						mpz_add_ui(gmpn, gmpn, prp[i]);
+						mpz_add_u64(gmpn, gmpn, prp[i]);
 						mpz_sub_ui(gmpn1, gmpn, 1);
 						mpz_powm(gmp2, gmp2, gmpn1, gmpn);
 						if (mpz_cmp_ui(gmp2, 1) == 0)
@@ -2213,9 +2140,9 @@ int test_tinyprp(void)
 #ifdef GMP_CHECK
 				if ((prpmask & (1 << i)) == 0)
 				{
-					mpz_set_ui(gmpn, prp[8 + i]);
+					mpz_set_u64(gmpn, prp[8 + i]);
 					mpz_mul_2exp(gmpn, gmpn, 52);
-					mpz_add_ui(gmpn, gmpn, prp[i]);
+					mpz_add_u64(gmpn, gmpn, prp[i]);
 					if (mpz_probab_prime_p(gmpn, 1) > 0)
 					{
 						//printf("prp %016lx%016lx failed in lane %d\n", prp[i + 8], prp[i], i);

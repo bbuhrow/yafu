@@ -65,13 +65,13 @@ void zTrial(fact_obj_t *fobj)
 		(k < (uint32_t)fobj->num_p))
 	{
 		q = (uint64_t)fobj->primes[k];
-		r = mpz_tdiv_ui(fobj->div_obj.gmp_n, q);
+		r = mpz_tdiv_u64(fobj->div_obj.gmp_n, q);
 		
 		if (r != 0)
 			k++;
 		else
 		{			
-			mpz_tdiv_q_ui(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, q);
+			mpz_tdiv_q_u64(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, q);
 			mpz_set_64(tmp, q);
 
 			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
@@ -443,7 +443,7 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 found:
 
 	// 'count' is how far we had to scan 'a' to find a square b
-	mpz_add_ui(a, a, count);
+	mpz_add_u64(a, a, count);
 
 	if ((mpz_size(b2) > 0) && mpz_perfect_square_p(b2))
 	{

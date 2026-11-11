@@ -20,22 +20,16 @@ be re-derived (and had drifted) here and in monty.c / microecm.c.
    Wide single-word sp* operations.
    Two mutually-exclusive implementations:
      * GNU-style x86-64 inline asm  -- the fast path on gcc / clang / icc /
-       mingw (selected by common.h's GCC_ASM64X)
+       mingw (MP_HAS_GNU_ASM_X64)
      * portable, built on the mp_platform.h polyfills -- MSVC, or the
        ASM_ARITH_DEBUG A/B-comparison path
    The portable branch no longer defines its own _addcarry_u64 / rettype /
    COMPILER_MSVC block; it uses the single MSVC-convention polyfills from
    mp_platform.h.
    ============================================================ */
-#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
+#if MP_HAS_GNU_ASM_X64
 
-#if defined(__INTEL_COMPILER) || defined(__clang__)
 #define ASM_ __asm__
-#elif defined(_WIN32)
-#define ASM_ ASM_M
-#else
-#define ASM_ ASM_G
-#endif
 
 // uint64_t u64div(uint64_t c, uint64_t n)
 // {
@@ -54,7 +48,7 @@ be re-derived (and had drifted) here and in monty.c / microecm.c.
 // }
 
 
-#if defined(USE_AVX512F) || defined(USE_BMI2)
+#if MP_USE_BMI2
 __inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {
     __asm__(
         "mulx %3, %0, %1	\n\t"
@@ -303,15 +297,15 @@ void spMultiply(uint64_t u, uint64_t v, uint64_t *product, uint64_t *carry)
 
 void spAdd(uint64_t u, uint64_t v, uint64_t *sum, uint64_t *carry)
 {
-    *carry = _addcarry_u64(0, u, v, sum);
+    *carry = mp_addcarry_u64(0, u, v, sum);
     return;
 }
 
 void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t *sum, uint64_t *carry)
 {
     mp_carry_t c;
-    *carry = _addcarry_u64(0, u, v, sum);
-    c = _addcarry_u64((mp_carry_t)*carry, *sum, w, sum);
+    *carry = mp_addcarry_u64(0, u, v, sum);
+    c = mp_addcarry_u64((mp_carry_t)*carry, *sum, w, sum);
     *carry += c;
     return;
 }
@@ -319,15 +313,15 @@ void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t *sum, uint64_t *carry)
 void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t *sub, uint64_t *borrow)
 {
     mp_carry_t b;
-    *borrow = _subborrow_u64(0, u, v, sub);
-    b = _subborrow_u64(0, *sub, w, sub);
+    *borrow = mp_subborrow_u64(0, u, v, sub);
+    b = mp_subborrow_u64(0, *sub, w, sub);
     *borrow += b;
     return;
 }
 
 void spSub(uint64_t u, uint64_t v, uint64_t *sub, uint64_t *borrow)
 {
-    *borrow = _subborrow_u64(0, u, v, sub);
+    *borrow = mp_subborrow_u64(0, u, v, sub);
     return;
 }
 
@@ -350,12 +344,38 @@ void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t *w)
     return;
 }
 
-/* NOTE: spPRP2() and spModExp_asm() exist only in the asm branch above; there
-   is no portable fallback for them, so a plain-MSVC build currently has no
-   spPRP2.  If MSVC needs it, say the word and I'll add a portable spPRP2 built
-   on spModExp (2^(p-1) mod p). */
+/* Portable spPRP2: 2^(p-1) mod p.  The asm branch above has a hand-written
+   mul/div loop; here odd p (the only case a PRP test cares about) goes through
+   64-bit Montgomery arithmetic, which needs no hardware divide in the loop and
+   so is also the right thing on ARM.  Even p falls back to spModExp. */
+uint64_t spPRP2(uint64_t p)
+{
+    uint64_t inv, one, b, r, e;
 
-#endif /* GCC_ASM64X && !ASM_ARITH_DEBUG */
+    if (p < 3)
+        return (p == 2) ? 0 : 0;
+    if ((p & 1) == 0)
+    {
+        spModExp(2, p - 1, p, &r);
+        return r;
+    }
+
+    inv = multiplicative_inverse(p);
+    one = ((uint64_t)0 - p) % p;            /* R mod p */
+    b = addmod(one, one, p);                /* 2 in Montgomery form */
+    r = one;
+    e = p - 1;
+    while (e)
+    {
+        if (e & 1)
+            r = mulredc_pos(r, b, p, inv);
+        b = sqrredc_pos(b, p, inv);
+        e >>= 1;
+    }
+    return mulredc_pos(r, 1, p, inv);       /* out of Montgomery form */
+}
+
+#endif /* MP_HAS_GNU_ASM_X64 */
 
 
 /* ============================================================
@@ -383,7 +403,7 @@ uint64_t spBits(uint64_t n)
         i++;
     }
 
-    return i;
+    return (uint64_t)i;
 }
 
 int bits64(uint64_t n)
@@ -494,15 +514,15 @@ void ShanksTonelli_1(uint64_t a, uint64_t p, uint64_t* sq)
         }
 
         //replace x by x*g^(2^(r-m-1))
-        spModExp(g, 1 << (r - i - 1), p, &tmp);
+        spModExp(g, (uint64_t)1 << (r - (uint64_t)i - 1), p, &tmp);
         spMulMod(tmp, x, p, &x);
 
         //replace g by g^(2^(r-m)) and
         //replace b by b*g
-        spModExp(g, 1 << (r - i), p, &g);
+        spModExp(g, (uint64_t)1 << (r - (uint64_t)i), p, &g);
         spMulMod(g, b, p, &b);
 
-        r = i;
+        r = (uint64_t)i;
     }
 
 free:
@@ -584,6 +604,7 @@ uint32_t modinv_1b(uint32_t a, uint32_t p) {
     /* thanks to the folks at www.mersenneforum.org */
 
     /* modification: p is fixed at 2^32.  a is only valid if odd */
+    (void)p;
 
     uint64_t dividend = (uint64_t)0x1 << 32;
     uint32_t ps1, ps2, parity, divisor, rem, q, t;
@@ -656,7 +677,7 @@ uint32_t modinv_1c(uint32_t a, uint32_t p) {
     divisor = rem;
     ps1 = q;
     ps2 = 1;
-    parity = ~0;
+    parity = ~0u;
 
     while (divisor > 1) {
         rem = dividend - divisor;
@@ -718,7 +739,7 @@ static int pull_twos(uint64_t* n, int* j, uint64_t p)
         *n >>= 1;
         c = 1 - c;
     }
-    if ((c * (p * p - 1) % 16) == 8)
+    if (((uint64_t)c * (p * p - 1) % 16) == 8)
         * j *= -1;
     return c;
 }
@@ -750,6 +771,11 @@ int jacobi_1(uint64_t n, uint64_t p)
         t = nn;
         nn = p % nn;
         p = t;
+
+        // gcd(n, p) > 1 (only possible for composite p): the symbol is 0.
+        // Without this, pull_twos() never returns on nn == 0.
+        if (nn == 0)
+            return 0;
 
         pull_twos(&nn, &j, p);
     }

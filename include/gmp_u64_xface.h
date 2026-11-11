@@ -17,6 +17,7 @@ $Id: gmp_xface.h 23 2009-07-20 02:59:07Z jasonp_sf $
 
 #include "ytools.h"
 #include <gmp.h>
+#include "gmp_u64.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,29 +31,8 @@ extern "C" {
 /*--------------------------------------------------------------------*/
 static INLINE void uint64_2gmp(uint64_t src, mpz_t dest) {
 
-#if GMP_LIMB_BITS == 64
-
-#if defined(ULL_NO_UL) && (BITS_PER_GMP_ULONG == 32)
-	//if (sizeof(unsigned long int) == 32)
-	{
-		// the "ui" part of mpz_set won't hold 64 bits.
-		mpz_set_ui(dest, src >> 32);
-		mpz_mul_2exp(dest, dest, 32);
-		mpz_add_ui(dest, dest, src & 0xffffffff);
-	}
-#else
-	//else
-	{
-		mpz_set_ui(dest, src);
-	}
-#endif
-
-#else
-    /* mpz_import is terribly slow */
-    mpz_set_ui(dest, src >> 32);
-    mpz_mul_2exp(dest, dest, 32);
-	mpz_add_ui(dest, dest, src & 0xffffffff);
-#endif
+	// 64-bit-safe on LLP64 (MinGW + GMP), see gmp_u64.h
+	mpz_set_u64(dest, src);
 }
 
 /*--------------------------------------------------------------------*/
@@ -70,35 +50,8 @@ static INLINE void int64_2gmp(int64_t src, mpz_t dest) {
 /*--------------------------------------------------------------------*/
 static INLINE uint64_t gmp2uint64(mpz_t src) {
 
-	/* mpz_export is terribly slow */
-	uint64_t ans;
-#if defined(ULL_NO_UL) && (BITS_PER_GMP_ULONG == 32)
-	//if (sizeof(unsigned long int) == 32)
-	{
-		// the "ui" part of mpz_get won't hold 64 bits.
-		// thread- and memory-safe, but slow:
-		mpz_t auxz;
-		mpz_init(auxz);
-
-		ans  = mpz_get_ui(src);
-		mpz_tdiv_q_2exp(auxz, src, 32);
-		ans = ans + ((uint64_t)mpz_get_ui(auxz) << 32);
-
-		mpz_clear(auxz);
-	}
-	//else
-#else
-	{
-		ans = mpz_getlimbn(src, 0);
-
-#if GMP_LIMB_BITS == 32
-		if (mpz_size(src) >= 2)
-			ans |= (uint64_t)mpz_getlimbn(src, 1) << 32;
-#endif
-	}
-#endif
-
-	return ans;
+	// 64-bit-safe on LLP64 (MinGW + GMP), see gmp_u64.h
+	return mpz_get_u64(src);
 }
 
 /*--------------------------------------------------------------------*/

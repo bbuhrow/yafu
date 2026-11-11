@@ -54,9 +54,11 @@ static const tk_module tk_module_meta = {
 /* ---- Layer 0 ---- */
 extern const tk_module tk_module_mp_arith;
 extern const tk_module tk_module_mp_bitscan;
+extern const tk_module tk_module_limb_inline;   /* arith/limb header-only kernels */
 
 /* ---- Layer 1 (YAFU + GMP) ---- */
 #ifndef TK_NO_LAYER1
+extern const tk_module tk_module_limb;      /* arith/limb library routines */
 extern const tk_module tk_module_sp_arith;
 extern const tk_module tk_module_modular;
 extern const tk_module tk_module_primality;
@@ -76,7 +78,9 @@ static const tk_module *const modules[] = {
     &tk_module_selfcheck,
     &tk_module_mp_arith,
     &tk_module_mp_bitscan,
+    &tk_module_limb_inline,
 #ifndef TK_NO_LAYER1
+    &tk_module_limb,
     &tk_module_sp_arith,
     &tk_module_modular,
     &tk_module_primality,

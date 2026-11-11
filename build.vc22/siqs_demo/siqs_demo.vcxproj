@@ -87,7 +87,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\ytools;..\..\ysieve;..\..\zlib;..\..\top\cmdParser;..\..\include;..\..\ms_include;..\..\top\aprcl;..\..\top;..\top\cmdParser;$(mp_dir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\ytools;..\..\ysieve;..\..\zlib;..\..\top\cmdParser;..\..\include;..\..\ms_include;..\..\top\aprcl;..\..\top;..\top\cmdParser;$(mp_dir);$(YafuLimbDir)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>

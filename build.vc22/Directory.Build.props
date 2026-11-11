@@ -22,5 +22,13 @@
   <PropertyGroup Label="Configuration">
     <YafuToolset Condition="'$(YafuToolset)'==''">ClangCL</YafuToolset>
     <PlatformToolset Condition="'$(PlatformToolset)'==''">$(YafuToolset)</PlatformToolset>
+    <!-- the standalone one/two-limb arithmetic library (limb1.h, limb2.h,
+         mp_platform.h); each project appends this to its include path -->
+    <YafuLimbDir>$(MSBuildThisFileDirectory)..\arith\limb</YafuLimbDir>
   </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(YafuLimbDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
 </Project>

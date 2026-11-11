@@ -52,7 +52,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 #include "microecm.h"
-#include "arith.h"
+#ifndef LIMB1_SCALAR_ONLY
+#define LIMB1_SCALAR_ONLY
+#endif
+#include "limb1.h"   /* compiler layer, bit scans, 64-bit modular kernels */
+#include "gmp.h"
+#include "gmp_u64.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -348,200 +353,14 @@ static uint32_t upm1_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t *ploc
         (double)(upper - lower) * (double)((*ploc_lcg) >> 32) * INV_2_POW_32);
 }
 
-__inline uint64_t upm1_submod(uint64_t a, uint64_t b, uint64_t n);
-__inline uint64_t upm1_addmod(uint64_t a, uint64_t b, uint64_t n);
-
-#if defined(MICRO_PM1_ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
-
-MICRO_PM1_FORCE_INLINE uint64_t upm1_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    __asm__(
-        "xorq %%r8, %%r8 \n\t"
-        "subq %1, %0 \n\t"
-        "cmovc %2, %%r8 \n\t"
-        "addq %%r8, %0 \n\t"
-        : "+r"(a)
-        : "r"(b), "r"(n)
-        : "r8", "cc");
-
-    return a;
-}
-
-MICRO_PM1_FORCE_INLINE uint64_t upm1_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-    uint64_t t = x - n;
-    x += y;
-    __asm__("add %2, %1\n\t"
-        "cmovc %1, %0\n\t"
-        :"+r" (x), "+&r" (t)
-        : "r" (y)
-        : "cc"
-    );
-    return x;
-}
-
-#else
-
-// TODO: these defines should be shared with other files that use _addcarry_u64/_subborrow_u64
-#if defined(_MSC_VER)
-#define rettype unsigned char
-#else
-// unsigned char _addcarry_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
-// unsigned char _subborrow_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
-//
-// unsigned long long int __builtin_addcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
-// unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
-#define rettype uint64_t
-#include "portable_carry.h"
-#endif
-
-MICRO_PM1_FORCE_INLINE uint64_t upm1_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    uint64_t r0;
-    if (_subborrow_u64(0, a, b, &r0))
-        r0 += n;
-    return r0;
-}
-
-MICRO_PM1_FORCE_INLINE uint64_t upm1_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-#if 0
-    uint64_t r;
-    uint64_t tmp = x - n;
-    uint8_t c = _addcarry_u64(0, tmp, y, &r);
-    return (c) ? r : x + y;
-#else
-    // FYI: The clause above often compiles with a branch in MSVC.
-    // The statement below often compiles without a branch (uses cmov) in MSVC.
-    return (x >= n - y) ? x - (n - y) : x + y;
-#endif
-}
-
-#endif
-
-/* --- The following two functions are written by Jeff Hurchalla, Copyright 2022 --- */
-
-// for this algorithm, see https://jeffhurchalla.com/2022/04/28/montgomery-redc-using-the-positive-inverse-mod-r/
-MICRO_PM1_FORCE_INLINE static uint64_t upm1_mulredc_alt(uint64_t x, uint64_t y, uint64_t N, uint64_t invN)
-{
-#if defined(_MSC_VER)
-    uint64_t T_hi;
-    uint64_t T_lo = _umul128(x, y, &T_hi);
-    uint64_t m = T_lo * invN;
-    uint64_t mN_hi = __umulh(m, N);
-#else
-    __uint128_t prod = (__uint128_t)x * y;
-    uint64_t T_hi = (uint64_t)(prod >> 64);
-    uint64_t T_lo = (uint64_t)(prod);
-    uint64_t m = T_lo * invN;
-    __uint128_t mN = (__uint128_t)m * N;
-    uint64_t mN_hi = (uint64_t)(mN >> 64);
-#endif
-    uint64_t tmp = T_hi + N;
-#if defined(MICRO_PM1_ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
-    __asm__ (
-        "subq %[mN_hi], %[tmp] \n\t"    /* tmp = T_hi + N - mN_hi */
-        "subq %[mN_hi], %[T_hi] \n\t"   /* T_hi = T_hi - mN_hi */
-        "cmovaeq %[T_hi], %[tmp] \n\t"  /* tmp = (T_hi >= mN_hi) ? T_hi : tmp */
-        : [tmp]"+&r"(tmp), [T_hi]"+&r"(T_hi)
-        : [mN_hi]"r"(mN_hi)
-        : "cc");
-    uint64_t result = tmp;
-#else
-    tmp = tmp - mN_hi;
-    uint64_t result = T_hi - mN_hi;
-    result = (T_hi < mN_hi) ? tmp : result;
-#endif
-   return result;
-}
-
-// for this algorithm, see https://jeffhurchalla.com/2022/04/25/a-faster-multiplicative-inverse-mod-a-power-of-2/
-static uint64_t upm1_multiplicative_inverse(uint64_t a)
-{
-//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
-    uint64_t x0 = (3*a)^2;
-    uint64_t y = 1 - a*x0;
-    uint64_t x1 = x0*(1 + y);
-    y *= y;
-    uint64_t x2 = x1*(1 + y);
-    y *= y;
-    uint64_t x3 = x2*(1 + y);
-    y *= y;
-    uint64_t x4 = x3*(1 + y);
-    return x4;
-}
-
-static uint64_t upm1_bingcd64(uint64_t u, uint64_t v)
-{
-#if 1
-    if (u == 0) {
-        return v;
-    }
-    if (v != 0) {
-        int j = _trail_zcnt64(v);
-        v = (uint64_t)(v >> j);
-        while (1) {
-            uint64_t tmp = u;
-            uint64_t sub1 = (uint64_t)(v - tmp);
-            uint64_t sub2 = (uint64_t)(tmp - v);
-            if (tmp == v)
-                break;
-            u = (tmp >= v) ? v : tmp;
-            v = (tmp >= v) ? sub2 : sub1;
-            // For the line below, the standard way to write this algorithm
-            // would have been to use _trail_zcnt64(v)  (instead of
-            // _trail_zcnt64(sub1)).  However, as pointed out by
-            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
-            // number of low zero bits on u-v is the same as v-u, so counting or
-            // testing can begin on u-v without waiting for abs(u-v) to be
-            // determined."  Hence we are able to use sub1 for the argument.
-            // By removing the dependency on abs(u-v), the CPU can execute
-            // _trail_zcnt64() at the same time as abs(u-v).
-            j = _trail_zcnt64(sub1);
-            v = (uint64_t)(v >> j);
-        }
-    }
-    return u;
-#else
-    // For reference, or if in the future we need to allow an even u,
-    // this version allows u to be even or odd.
-    if (u == 0) {
-        return v;
-    }
-    if (v != 0) {
-        int i = _trail_zcnt64(u);
-        int j = _trail_zcnt64(v);
-        u = (uint64_t)(u >> i);
-        v = (uint64_t)(v >> j);
-        int k = (i < j) ? i : j;
-        while (1) {
-            uint64_t tmp = u;
-            uint64_t sub1 = (uint64_t)(v - tmp);
-            uint64_t sub2 = (uint64_t)(tmp - v);
-            if (tmp == v)
-                break;
-            u = (tmp >= v) ? v : tmp;
-            v = (tmp >= v) ? sub2 : sub1;
-            // For the line below, the standard way to write this algorithm
-            // would have been to use _trail_zcnt64(v)  (instead of
-            // _trail_zcnt64(sub1)).  However, as pointed out by
-            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
-            // number of low zero bits on u-v is the same as v-u, so counting or
-            // testing can begin on u-v without waiting for abs(u-v) to be
-            // determined."  Hence we are able to use sub1 for the argument.
-            // By removing the dependency on abs(u-v), the CPU can execute
-            // _trail_zcnt64() at the same time as abs(u-v).
-            j = _trail_zcnt64(sub1);
-            v = (uint64_t)(v >> j);
-        }
-        u = (uint64_t)(u << k);
-    }
-    return u;
-#endif
-}
-
-/* --- end Hurchalla functions --- */
-
+/* 64-bit modular / Montgomery kernels: one shared copy in arith/limb/limb1.h.
+   (This file used to carry private copies of all of these.)  The upm1_ names
+   are kept as aliases so the rest of the file reads as before. */
+#define upm1_submod                 submod
+#define upm1_addmod                 addmod
+#define upm1_mulredc_alt            mulredc_pos_alt
+#define upm1_multiplicative_inverse multiplicative_inverse
+#define upm1_bingcd64               bingcd64
 
 // full strength mul/sqr redc
 MICRO_PM1_FORCE_INLINE static uint64_t upm1_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
@@ -709,7 +528,7 @@ void upm1_generate_window_plan(uint64_t B1)
         {
             q *= p[i];
         }
-        mpz_mul_ui(e, e, q);
+        mpz_mul_u64(e, e, q);
         gmp_printf("e*=%"PRIu64"=%Zx\n", q, e);
     }
 

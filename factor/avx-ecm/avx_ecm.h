@@ -167,6 +167,8 @@ void print_regvechexrange(__m512i a, int v1, int v2, const char* pre);
 #define castpd _mm512_castsi512_pd
 #define castepu _mm512_castpd_si512
 
+// monty.h / limb1.h define this too; last definition wins (as before), silently
+#undef _mm512_mullo_epi52
 #ifdef IFMA
 
 #define _mm512_mullo_epi52(c, a, b) \

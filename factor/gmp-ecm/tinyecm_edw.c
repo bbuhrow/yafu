@@ -27,6 +27,7 @@ See arith/micro_tiny_edwards_plan.md.
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "limb1.h"          /* shared 64-bit kernels (arith/limb) */
 #if defined(_MSC_VER)
 #include <intrin.h>
 #endif
@@ -208,18 +209,7 @@ static tedw_u128 tedw_from_mpz(const mpz_t a)
     return r;
 }
 
-static uint64_t tedw_inverse64(uint64_t a)
-{
-    uint64_t x0 = (3 * a) ^ 2;
-    uint64_t y = 1 - a * x0;
-    uint64_t x1 = x0 * (1 + y);
-    y *= y;
-    uint64_t x2 = x1 * (1 + y);
-    y *= y;
-    uint64_t x3 = x2 * (1 + y);
-    y *= y;
-    return x3 * (1 + y);
-}
+#define tedw_inverse64 multiplicative_inverse   /* arith/limb/limb1.h */
 
 /* n odd, < 2^128 */
 static void tedw_ctx_init(tedw_ctx *c, const mpz_t n)

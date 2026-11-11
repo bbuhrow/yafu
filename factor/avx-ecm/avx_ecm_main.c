@@ -235,16 +235,14 @@ void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, 
     mpz_set_ui(dest, 0);
     for (j = sz - 1; j >= 0; j--)
     {
-        
-#if defined(WIN64) && (DIGITBITS == 52)
-        mpz_mul_2exp(dest, dest, 20);
-        mpz_add_ui(dest, dest, vec_src->data[num + j * VECLEN] >> 32);
+        // add each word in two 32-bit halves: GMP's *_ui functions take an
+        // unsigned long, which is only 32 bits on LLP64 Windows (MinGW + GMP).
+        // (MPIR's mpir_ui is 64-bit on Win64, which is why MSVC builds worked.)
+        uint64_t w = (uint64_t)vec_src->data[num + j * VECLEN];
+        mpz_mul_2exp(dest, dest, DIGITBITS - 32);
+        mpz_add_ui(dest, dest, (unsigned long)(w >> 32));
         mpz_mul_2exp(dest, dest, 32);
-        mpz_add_ui(dest, dest, (vec_src->data[num + j * VECLEN]) & 0xffffffff);
-#else
-        mpz_mul_2exp(dest, dest, DIGITBITS);
-        mpz_add_ui(dest, dest, vec_src->data[num + j * VECLEN]);
-#endif
+        mpz_add_ui(dest, dest, (unsigned long)(w & 0xffffffff));
         //gmp_printf("word is %016llx, dest is now %Zx\n", vec_src->data[num + j * VECLEN], dest);
     }
 
@@ -263,7 +261,7 @@ void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src)
     vec_dest->size = 0;
     while (mpz_cmp_ui(src_cp, 0) > 0)
     {
-        base_t thisword = mpz_get_ui(src_cp) & VEC_MAXDIGIT;
+        base_t thisword = (base_t)(mpz_getlimbn(src_cp, 0) & VEC_MAXDIGIT);
         for (j = 0; j < VECLEN; j++)
         {
             vec_dest->data[j + i * VECLEN] = thisword;
@@ -290,7 +288,7 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
     //vec_dest->size = 0;
     while (mpz_cmp_ui(src_cp, 0) > 0)
     {
-        base_t thisword = mpz_get_ui(src_cp) & VEC_MAXDIGIT;
+        base_t thisword = (base_t)(mpz_getlimbn(src_cp, 0) & VEC_MAXDIGIT);
         vec_dest->data[lane + i * VECLEN] = thisword;
         i++;
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
@@ -702,7 +700,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     //printf("rho = %016llx\n", mpz_get_ui(montyconst->nhat) & MAXDIGIT);
     for (i = 0; i < VECLEN; i++)
     {
-        montyconst->vrho[i] = mpz_get_ui(montyconst->nhat) & VEC_MAXDIGIT;
+        montyconst->vrho[i] = mpz_get_64(montyconst->nhat) & VEC_MAXDIGIT;
     }
 
     // test karatsuba
@@ -729,7 +727,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
         mpz_urandomb(a, grnd, montyconst->MAXBITS);
         mpz_nextprime(a, a);
-        lcg_state = mpz_get_ui(a);
+        lcg_state = mpz_get_64(a);
         sz = lcg_rand_32_range(montyconst->MAXBITS/2, montyconst->MAXBITS, &lcg_state);
         if ((sz & 1) == 0)
             sz--;
@@ -1467,7 +1465,7 @@ void test_vecarith(int numbits, int iterations, int validate)
 
         for (j = 0; j < 8; j++)
         {
-            mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
+            mdata->vrho[j] = mpz_get_64(mdata->nhat) & VEC_MAXDIGIT;
         }
 
         vecClear(vec_a);
@@ -1725,7 +1723,7 @@ void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validat
         broadcast_mpz_to_vec(mdata->one, mdata->rhat);
         for (j = 0; j < VECLEN; j++)
         {
-            mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
+            mdata->vrho[j] = mpz_get_64(mdata->nhat) & VEC_MAXDIGIT;
         }
 
         broadcast_mpz_to_vec(vn, n);

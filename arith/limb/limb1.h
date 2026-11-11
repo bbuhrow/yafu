@@ -1,20 +1,29 @@
 /*----------------------------------------------------------------------
 limb1.h  --  single-limb arithmetic: 64-bit scalar + 52-bit vector
 
-Hot inline kernels live here (static inline via MP_FORCE_INLINE); the
-heavier / non-inline single-limb routines are declared here and defined in
-limb1.c.  The 64-bit modular + redc family and the 52-bit vector kernels
-were moved down from monty.h; the compiler/OS/ISA detection and the
-_umul128 / __umulh / _addcarry_u64 / _subborrow_u64 polyfills come from
-mp_platform.h, so monty.h's per-branch re-definitions of those are gone.
+Part of the standalone one/two-limb library (see README.md in this
+directory).  Needs only mp_platform.h; nothing from the host project.
 
-Linkage note: the modular block (submod/addmod/mulredc/sqrredc/...) was
-plain `__inline` (external linkage) in monty.h -- a one-definition-rule
-hazard across the compiler matrix.  It is now `static inline` via
-MP_FORCE_INLINE, which also force-inlines (always_inline / __forceinline),
-matching how microecm already treats these.  The Hurchalla functions and
-the 52-bit vector kernels were already `__inline static`, so they moved
-verbatim.
+Sections
+  1. 64-bit Montgomery multiplication with the POSITIVE inverse
+     (Hurchalla): mulredc_pos, sqrredc_pos, mulredc_pos_alt, mfma64;
+     and the binary gcd, bingcd64
+  2. 64-bit modular add / sub and Montgomery multiplication with the
+     NEGATIVE inverse: addmod, submod, mulredc, sqrredc, mulredc63,
+     sqrredc63 -- x86-64 inline asm where available, portable otherwise --
+     plus addmod32 / submod32 and the lazy mulredc60 / sqrredc60
+  3. 52-bit vector building blocks (AVX-512), shared with the 104-bit
+     layer in limb2.h                      [omitted by LIMB1_SCALAR_ONLY]
+  4. 52-bit Montgomery arithmetic, 8 lanes: mulredc52_x8, sqrredc52_x8,
+     addmod52_x8, submod52_x8              [omitted by LIMB1_NO_VECTOR]
+  5. inverses mod 2^64 / 2^52, zero-safe 52-bit scans
+  6. declarations of the out-of-line routines in limb1.c
+
+All inline kernels are `static` and force-inlined (MP_FORCE_INLINE), so
+including this header in many translation units is safe on every
+compiler.  microecm, micropm1, microecm_edw, tinyrho and tinyprp used to
+carry private copies of the section 1, 2, 4 and 5 kernels; they now use
+these.
 ----------------------------------------------------------------------*/
 
 #ifndef LIMB1_H
@@ -42,7 +51,7 @@ verbatim.
 
 
 // for this algorithm, see https://jeffhurchalla.com/2022/04/28/montgomery-redc-using-the-positive-inverse-mod-r/
-__inline static uint64_t mulredc_pos_alt(uint64_t x, uint64_t y, uint64_t N, uint64_t invN)
+MP_FORCE_INLINE uint64_t mulredc_pos_alt(uint64_t x, uint64_t y, uint64_t N, uint64_t invN)
 {
 #if defined(_MSC_VER)
 	uint64_t T_hi;
@@ -153,9 +162,9 @@ static UNUSED_FUNC uint64_t bingcd64(uint64_t u, uint64_t v)
 #define bin_gcd64 bingcd64
 
 // full strength mul/sqr redc
-__inline static uint64_t mulredc_pos(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
+MP_FORCE_INLINE uint64_t mulredc_pos(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
 {
-#if defined(__unix__) && defined(__x86_64__)
+#if MP_HAS_GNU_ASM_X64 && defined(__GNUC__) && !defined(_MSC_VER)
 	// On Intel Skylake: 9 cycles latency, 7 fused uops.
 	__uint128_t prod = (__uint128_t)x * y;
 	uint64_t Thi = (uint64_t)(prod >> 64);
@@ -177,9 +186,9 @@ __inline static uint64_t mulredc_pos(uint64_t x, uint64_t y, uint64_t n, uint64_
 	return mulredc_pos_alt(x, y, n, inv);
 #endif
 }
-__inline static uint64_t sqrredc_pos(uint64_t x, uint64_t n, uint64_t inv)
+MP_FORCE_INLINE uint64_t sqrredc_pos(uint64_t x, uint64_t n, uint64_t inv)
 {
-#if defined(__unix__) && defined(__x86_64__)
+#if MP_HAS_GNU_ASM_X64 && defined(__GNUC__) && !defined(_MSC_VER)
 	// On Intel Skylake: 9 cycles latency, 7 fused uops.
 	__uint128_t prod = (__uint128_t)x * x;
 	uint64_t Thi = (uint64_t)(prod >> 64);
@@ -201,40 +210,31 @@ __inline static uint64_t sqrredc_pos(uint64_t x, uint64_t n, uint64_t inv)
 	return mulredc_pos_alt(x, x, n, inv);
 #endif
 }
-__inline static uint64_t mfma64(uint64_t x, uint64_t y, uint64_t c, uint64_t N, uint64_t invN)
+/* Montgomery fused multiply-add: REDC(x*y + c*R)-style helper, i.e. the high
+   half of x*y gets c added (mod N) before reduction.  Positive inverse.
+   (The old MSVC branch of this function computed m and mN_hi and then fell
+   off the end without returning; this single body is correct everywhere.) */
+MP_FORCE_INLINE uint64_t mfma64(uint64_t x, uint64_t y, uint64_t c, uint64_t N, uint64_t invN)
 {
-#if defined(_MSC_VER)
-	uint64_t T_hi;
-	uint64_t T_lo = _umul128(x, y, &T_hi);
-	uint64_t m = T_lo * invN;
-	uint64_t mN_hi = __umulh(m, N);
-#else
-	__uint128_t z = (__uint128_t)x * y;
-	uint64_t u = (uint64_t)(z >> 64);
-	uint64_t v = (uint64_t)z;
-	uint64_t w = (u < N - c) ? u + c : u + c - N;  // modular add
-	uint64_t T_hi = w;
-	uint64_t T_lo = v;
-
-	uint64_t m = T_lo * invN;
-	__uint128_t mN = (__uint128_t)m * N;
-	uint64_t mN_hi = (uint64_t)(mN >> 64);
-	uint64_t tmp = T_hi + N;
+	uint64_t u, v, w, m, mN_hi, tmp, result;
+	v = _umul128(x, y, &u);
+	w = (u < N - c) ? u + c : u + c - N;  // modular add
+	m = v * invN;
+	mN_hi = __umulh(m, N);
+	tmp = w + N;
 	tmp = tmp - mN_hi;
-	uint64_t result = T_hi - mN_hi;
-	result = (T_hi < mN_hi) ? tmp : result;
+	result = w - mN_hi;
+	result = (w < mN_hi) ? tmp : result;
 	return result;
-
-#endif
-
 }
+
 
 /* --- end Hurchalla functions --- */
 
 
 /********************* 64-bit modular arith **********************/
 
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
+#if MP_HAS_GNU_ASM_X64
 
 MP_FORCE_INLINE uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 {
@@ -263,7 +263,7 @@ MP_FORCE_INLINE uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
     return x;
 }
 
-#if defined(USE_AVX512F) || defined(USE_BMI2)
+#if MP_USE_BMI2
 
 MP_FORCE_INLINE uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
@@ -390,7 +390,7 @@ MP_FORCE_INLINE uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 }
 
 
-#else // !USE_AVX512F && !USE_BMI2
+#else // !MP_USE_BMI2
 
 
 MP_FORCE_INLINE uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
@@ -523,10 +523,10 @@ MP_FORCE_INLINE uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
     return x;
 }
 
-#endif // !USE_AVX512F && !USE_BMI2
+#endif // MP_USE_BMI2
 
 
-#else // (!GCC_ASM64X && !__MINGW64__) || ASM_ARITH_DEBUG
+#else // !MP_HAS_GNU_ASM_X64
 
 // TODO: need something portable to replace 64-bit assembler versions
 // of modular multiplication.  This is getting closer, but for now these things
@@ -540,8 +540,8 @@ MP_FORCE_INLINE uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nh
     tl = _umul128(x, y, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
+    tl = mp_addcarry_u64(0, al, tl, &al);
+    th = mp_addcarry_u64((uint8_t)tl, th, ah, &x);
     if (th || (x >= n)) x -= n;
     return x;
 }
@@ -552,8 +552,11 @@ MP_FORCE_INLINE uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t 
     tl = _umul128(x, y, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
+    tl = mp_addcarry_u64(0, al, tl, &al);
+    (void)mp_addcarry_u64((uint8_t)tl, th, ah, &x);     // no carry out: n < 2^63
+    // reduce, as the asm versions of this routine do: the result is in [0, n)
+    // on every platform (it used to be left in [0, 2n) on this path only).
+    if (x >= n) x -= n;
     return x;
 }
 
@@ -563,8 +566,8 @@ MP_FORCE_INLINE uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
     tl = _umul128(x, x, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
+    tl = mp_addcarry_u64(0, al, tl, &al);
+    th = mp_addcarry_u64((uint8_t)tl, th, ah, &x);
     if (th || (x >= n)) x -= n;
     return x;
 }
@@ -575,23 +578,18 @@ MP_FORCE_INLINE uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
     tl = _umul128(x, x, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
+    tl = mp_addcarry_u64(0, al, tl, &al);
+    (void)mp_addcarry_u64((uint8_t)tl, th, ah, &x);     // no carry out: n < 2^63
+    // reduce, as the asm versions of this routine do: the result is in [0, n)
+    // on every platform (it used to be left in [0, 2n) on this path only).
+    if (x >= n) x -= n;
     return x;
 }
 
 MP_FORCE_INLINE uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 {
     uint64_t r0;
-    if (_subborrow_u64(0, a, b, &r0))
-        r0 += n;
-    return r0;
-}
-
-MP_FORCE_INLINE uint32_t submod32(uint32_t a, uint32_t b, uint32_t n)
-{
-    uint32_t r0;
-    if (_subborrow_u32(0, a, b, &r0))
+    if (mp_subborrow_u64(0, a, b, &r0))
         r0 += n;
     return r0;
 }
@@ -601,7 +599,7 @@ MP_FORCE_INLINE uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 #if 0
     uint64_t r;
     uint64_t tmp = x - n;
-    uint8_t c = _addcarry_u64(0, tmp, y, &r);
+    uint8_t c = mp_addcarry_u64(0, tmp, y, &r);
     return (c) ? r : x + y;
 #else
     // FYI: The clause above often compiles with a branch in MSVC.
@@ -610,10 +608,21 @@ MP_FORCE_INLINE uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 #endif
 }
 
+#endif // MP_HAS_GNU_ASM_X64
+
+
+/* ---- helpers with one portable definition on every platform ----
+   (These used to exist only in the non-asm branch, so gcc/clang x86-64 builds
+   simply did not have them.) */
+
+MP_FORCE_INLINE uint32_t submod32(uint32_t a, uint32_t b, uint32_t n)
+{
+    uint32_t r0 = a - b;
+    return (a < b) ? r0 + n : r0;
+}
+
 MP_FORCE_INLINE uint32_t addmod32(uint32_t x, uint32_t y, uint32_t n)
 {
-    // FYI: The clause above often compiles with a branch in MSVC.
-    // The statement below often compiles without a branch (uses cmov) in MSVC.
     return (x >= n - y) ? x - (n - y) : x + y;
 }
 
@@ -627,8 +636,8 @@ MP_FORCE_INLINE uint64_t sqrredc60(uint64_t x, uint64_t n, uint64_t nhat)
     tl = _umul128(x, x, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
-    c = _addcarry_u64(0, al, tl, &al);
-    _addcarry_u64(c, th, ah, &x);
+    c = mp_addcarry_u64(0, al, tl, &al);
+    mp_addcarry_u64(c, th, ah, &x);
     return x;
 }
 
@@ -641,8 +650,8 @@ MP_FORCE_INLINE uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t 
     tl = _umul128(x, y, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
-    c = _addcarry_u64(0, al, tl, &al);
-    _addcarry_u64(c, th, ah, &x);
+    c = mp_addcarry_u64(0, al, tl, &al);
+    mp_addcarry_u64(c, th, ah, &x);
     return x;
 }
 
@@ -650,7 +659,6 @@ MP_FORCE_INLINE uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t 
 // this works if inputs are 62 bits or less
 #define addmod60(x, y, n) ((x) + (y))
 
-#endif // (!GCC_ASM64X && !__MINGW64__) || ASM_ARITH_DEBUG
 
 
 /* ====================================================================
@@ -665,7 +673,7 @@ MP_FORCE_INLINE uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t 
    `#define LIMB1_SCALAR_ONLY` before including this header to take just the
    scalar 64-bit layer and skip the vector primitives below -- avoiding a
    collision on the shared dbias/vbias globals. */
-#if defined(USE_AVX512F) && !defined(LIMB1_SCALAR_ONLY)
+#if MP_USE_AVX512F && !defined(LIMB1_SCALAR_ONLY)
 
 #define and64 _mm512_and_si512
 #define store64 _mm512_store_si512
@@ -701,7 +709,7 @@ typedef struct
 #endif
 
 
-#ifdef IFMA
+#if MP_USE_IFMA
 
 #define FORCE_INLINE __inline
 
@@ -724,7 +732,7 @@ FORCE_INLINE static void mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
 static __m512d dbias;
 static __m512i vbias1;
 static __m512i vbias2;
-static __m512i vbias3;
+UNUSED_VAR static __m512i vbias3;
 
 #define mul52lo(b, c) \
 	_mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull))
@@ -754,7 +762,10 @@ __inline static void mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
 
 
 
-#ifdef IFMA
+/* avx_ecm.h defines its own _mm512_mullo_epi52; whichever header comes last
+   wins (as it always has) -- the #undef only makes that silent. */
+#undef _mm512_mullo_epi52
+#if MP_USE_IFMA
 #define _mm512_mullo_epi52(c, a, b) \
     c = _mm512_madd52lo_epu64(_mm512_set1_epi64(0), a, b);
 
@@ -884,7 +895,111 @@ __inline static __m512i _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* 
 
 void mulredc52_mask_add_vec(__m512i* c0, __mmask8 addmsk, __m512i a0, __m512i b0, __m512i n0, __m512i vrho);
 
-#endif /* USE_AVX512F (52-bit vector) */
+#endif /* MP_USE_AVX512F && !LIMB1_SCALAR_ONLY (52-bit vector primitives) */
+
+
+/* ====================================================================
+   52-bit single-limb Montgomery arithmetic, 8 lanes (AVX-512)
+
+   One modulus per lane, R = 2^52, POSITIVE inverse (invN = N^-1 mod 2^52,
+   see multiplicative_inverse52), inputs and outputs fully reduced, in
+   [0, N).  This is the vector twin of mulredc_pos / addmod / submod above
+   and is what microecm, microecm_edw and tinyrho run their 52-bit lists on.
+
+   With IFMA a 52 x 52 product is two vpmadd52 instructions.  Without it the
+   high and low halves come from double-precision FMA (the well-known
+   0x467 / 0x433 bias trick); the bias constants are local to each kernel,
+   so nothing here needs an init call or touches shared state.
+
+   Always available with AVX-512 -- LIMB1_SCALAR_ONLY does not remove these,
+   it only removes the older monty.h-style primitives above (which define
+   short macro names and file-scope statics).  Define LIMB1_NO_VECTOR to
+   leave these out too.
+   ==================================================================== */
+#if MP_USE_AVX512F && !defined(LIMB1_NO_VECTOR)
+
+/* low and high 52 bits of the 104-bit products b[i] * c[i]; operands
+   < 2^52.  Without IFMA the low half is returned with junk above bit 51
+   (the caller masks, or only uses it mod 2^52). */
+MP_FORCE_INLINE void mp_mul52lohi_x8(__m512i b, __m512i c, __m512i *l, __m512i *h)
+{
+#if MP_USE_IFMA
+    const __m512i z = _mm512_setzero_si512();
+    *l = _mm512_madd52lo_epu64(z, c, b);
+    *h = _mm512_madd52hi_epu64(z, c, b);
+#else
+    const __m512d dbias_ = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+    const __m512i vbias1_ = _mm512_set1_epi64(0x4670000000000000ULL);
+    const __m512i vbias2_ = _mm512_set1_epi64(0x4670000000000001ULL);
+    __m512d b_ld = _mm512_cvtepu64_pd(b);
+    __m512d c_ld = _mm512_cvtepu64_pd(c);
+    __m512d hd = _mm512_fmadd_round_pd(b_ld, c_ld, dbias_, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    *h = _mm512_sub_epi64(_mm512_castpd_si512(hd), vbias1_);
+    hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2_), hd);
+    b_ld = _mm512_fmadd_round_pd(b_ld, c_ld, hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    *l = _mm512_castpd_si512(b_ld);
+#endif
+}
+
+/* high 52 bits of b[i] * c[i] */
+MP_FORCE_INLINE __m512i mp_mul52hi_x8(__m512i b, __m512i c)
+{
+#if MP_USE_IFMA
+    return _mm512_madd52hi_epu64(_mm512_setzero_si512(), c, b);
+#else
+    const __m512d dbias_ = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));
+    const __m512i vbias1_ = _mm512_set1_epi64(0x4670000000000000ULL);
+    __m512d b_ld = _mm512_cvtepu64_pd(b);
+    __m512d c_ld = _mm512_cvtepu64_pd(c);
+    b_ld = _mm512_fmadd_round_pd(b_ld, c_ld, dbias_, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    return _mm512_sub_epi64(_mm512_castpd_si512(b_ld), vbias1_);
+#endif
+}
+
+/* low 52 bits of b[i] * c[i].  One madd52lo with IFMA (vpmullq is 3 uops and
+   ~15 cycles of latency); mullo and mask otherwise. */
+MP_FORCE_INLINE __m512i mp_mul52lo_x8(__m512i b, __m512i c)
+{
+#if MP_USE_IFMA
+    return _mm512_madd52lo_epu64(_mm512_setzero_si512(), c, b);
+#else
+    return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffULL));
+#endif
+}
+
+/* x * y * 2^-52 mod N */
+MP_FORCE_INLINE __m512i mulredc52_x8(__m512i x, __m512i y, __m512i N, __m512i invN)
+{
+    __m512i T_hi, T_lo;
+    mp_mul52lohi_x8(x, y, &T_lo, &T_hi);
+    __m512i m = mp_mul52lo_x8(T_lo, invN);
+    __m512i mN_hi = mp_mul52hi_x8(m, N);
+    __m512i tmp = _mm512_sub_epi64(_mm512_add_epi64(T_hi, N), mN_hi);
+    __m512i result = _mm512_sub_epi64(T_hi, mN_hi);          // (T - mN) >> 52
+    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);     // unless T_hi < mN_hi
+    return _mm512_mask_mov_epi64(result, msk, tmp);          // then T_hi + N - mN_hi
+}
+
+MP_FORCE_INLINE __m512i sqrredc52_x8(__m512i x, __m512i N, __m512i invN)
+{
+    return mulredc52_x8(x, x, N, invN);
+}
+
+MP_FORCE_INLINE __m512i addmod52_x8(__m512i x, __m512i y, __m512i N)
+{
+    __m512i t = _mm512_add_epi64(x, y);
+    __mmask8 m = _mm512_cmpge_epu64_mask(t, N);
+    return _mm512_mask_sub_epi64(t, m, t, N);
+}
+
+MP_FORCE_INLINE __m512i submod52_x8(__m512i x, __m512i y, __m512i N)
+{
+    __m512i t = _mm512_sub_epi64(x, y);
+    __mmask8 m = _mm512_cmpgt_epu64_mask(y, x);
+    return _mm512_mask_add_epi64(t, m, t, N);
+}
+
+#endif /* MP_USE_AVX512F && !LIMB1_NO_VECTOR (52-bit x8 Montgomery) */
 
 /* ====================================================================
    Small inline helpers
@@ -901,6 +1016,12 @@ MP_FORCE_INLINE uint64_t multiplicative_inverse(uint64_t a)
     uint64_t x2 = x1 * (1 + y); y *= y;
     uint64_t x3 = x2 * (1 + y); y *= y;
     return x3 * (1 + y);
+}
+
+/* the same inverse reduced mod 2^52, for the 52-bit kernels */
+MP_FORCE_INLINE uint64_t multiplicative_inverse52(uint64_t a)
+{
+    return multiplicative_inverse(a) & 0x000fffffffffffffULL;
 }
 
 /* count leading / trailing zeros: the zero-safe 64-bit pair is now

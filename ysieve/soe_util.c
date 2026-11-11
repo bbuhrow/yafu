@@ -871,8 +871,8 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
 
         // the start of the range of interest is controlled by offset, not lowlimit
         // figure out how it needs to change to accomodate sieving
-        mpz_tdiv_q_ui(tmpz, sdata->offset, numclasses * prodN);
-        mpz_mul_ui(tmpz, tmpz, numclasses * prodN);
+        mpz_tdiv_q_u64(tmpz, sdata->offset, numclasses * prodN);
+        mpz_mul_u64(tmpz, tmpz, numclasses * prodN);
         mpz_sub(tmpz2, sdata->offset, tmpz);
 
         // raise the high limit by the amount the offset was lowered, so that

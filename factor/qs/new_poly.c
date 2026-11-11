@@ -722,7 +722,7 @@ void new_poly_a_test(static_conf_t* sconf, dynamic_conf_t* dconf, int gen_and_te
 			uint64_t p = mpz_get_ui(tmp2);
 
 			// valid fb prime?
-			uint64_t r = mpz_tdiv_ui(sconf->n, p);		
+			uint64_t r = mpz_tdiv_u64(sconf->n, p);		
 			int b = jacobi_1(r, p);
 			if (b != 1)
 				continue;
