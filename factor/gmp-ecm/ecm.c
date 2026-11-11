@@ -59,7 +59,7 @@ void get_ecm_method(fact_obj_t* fobj, uint64_t b1, int* b1_method, int* b2_metho
     *b1_method = 0; // default param 0
     *b2_method = 0; // default gmp_stg2_default
 
-#if !(defined(USE_AVX512F) || defined(USE_AVX2)) // || defined(__MINGW32__)
+#if !(defined(USE_AVX512F) || defined(USE_AVX2))
     if (1)
 #else
     // run ecm curves using gmp-ecm, either the internal or external version,
@@ -919,8 +919,7 @@ int ecm_loop(fact_obj_t *fobj)
 	if (ecm_check_input(fobj) == 0)
 		return 0;
 	
-    // AVX-ECM won't work without AVX512F and the MINGW build appears to not work either (compiler bug?)
-#if !(defined(USE_AVX512F) || defined(USE_AVX2)) //|| defined(__MINGW32__)
+#if !(defined(USE_AVX512F) || defined(USE_AVX2))
     if (1)
 #else
     // run ecm curves using gmp-ecm, either the internal or external version,
