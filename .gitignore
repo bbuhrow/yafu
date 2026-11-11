@@ -11,6 +11,8 @@
 *.qo
 .deps/
 msiqs/
+ignore/
+tuning/
 
 # Logs / Checkpoints / data files
 *.log
