@@ -886,177 +886,187 @@ int find_in_factor_list(yfactor_list_t* flist, mpz_t n)
     return -1;
 }
 
-int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES, int force)
+// The factor list tracks a factorization of flist->N: a set of
+// entries f_i with multiplicities c_i.  add_to_factor_list keeps the
+// entries pairwise coprime by splitting entries on common gcds, so that
+// a factor found by any method refines the list.  Two kinds of addition:
+//
+//   force == 0: n is a divisor of the number being tracked (e.g., a
+//      factor just found by some method).  The list is refined by n, but
+//      the product of the list does not change.  If n is coprime to every
+//      entry (e.g., the initial input to an empty list) it is appended
+//      with count 1.
+//
+//   force == 1: n is a new multiplicative piece: the product of the
+//      list is multiplied by n.  Used internally when an entry is split,
+//      and by callers that have removed an entry and are adding back
+//      its pieces.
+//
+// The helper below takes a multiplicity 'mult' so that splits of
+// entries with count > 1, and powers found by mpz_remove, are added in
+// one step instead of by deep recursion.
+static void add_to_factor_list_r(yfactor_list_t* flist, mpz_t n, int mult,
+    int VFLAG, int force)
 {
-	// stick the number n into the provided factor list.
-    // return the index into which the factor was added.
-	int i;
-    int fid;
-	int v = 0;
-    mpz_t g, a, b, t;
+    int i;
+    mpz_t g, a;
 
-    if (mpz_cmp_ui(n, 1) == 0)
-        return -1;
+    if (mpz_cmp_ui(n, 1) <= 0)
+        return;
 
     mpz_init(g);
     mpz_init(a);
-    mpz_init(b);
-    mpz_init(t);
 
-    flist->total_factors++;
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        if (mpz_cmp(n, flist->factors[i].factor) == 0)
+        {
+            if (force)
+            {
+                flist->factors[i].count += mult;
+                if (VFLAG > 2)
+                    gmp_printf("forced increased count of existing factor %Zd\n", n);
+            }
+            else if (VFLAG > 2)
+            {
+                gmp_printf("ignoring addition of existing factor %Zd\n", n);
+            }
+            goto done;
+        }
+
+        mpz_gcd(g, n, flist->factors[i].factor);
+        if (mpz_cmp_ui(g, 1) == 0)
+            continue;
+
+        if (VFLAG > 2)
+        {
+            gmp_printf("add_factor(%Zd): non-trivial factor %Zd in common with existing factor %Zd\n",
+                n, g, flist->factors[i].factor);
+        }
+
+        if (mpz_cmp(g, flist->factors[i].factor) == 0)
+        {
+            // this entry divides n (perhaps to a power).  Divide it
+            // out and continue with what remains of n.
+            int e = (int)mpz_remove(a, n, flist->factors[i].factor);
+
+            if (force)
+            {
+                flist->factors[i].count += e * mult;
+                if (VFLAG > 2)
+                    gmp_printf("forced increased count of existing factor %Zd by %d\n",
+                        flist->factors[i].factor, e * mult);
+            }
+
+            if (VFLAG > 2)
+                gmp_printf("existing factor divides input, continuing with %Zd\n", a);
+
+            add_to_factor_list_r(flist, a, mult, VFLAG, force);
+        }
+        else
+        {
+            // g is a proper divisor of this entry: the entry has been
+            // factored.  Replace it by its pieces, g^e and the cofactor,
+            // each with the entry's multiplicity.  The pieces may still
+            // share factors with each other or with other entries, which
+            // the recursive (forced) additions sort out.
+            mpz_t t;
+            int count = flist->factors[i].count;
+            int e;
+
+            mpz_init_set(t, flist->factors[i].factor);
+            delete_from_factor_list(flist, t);
+            e = (int)mpz_remove(a, t, g);
+
+            if (VFLAG > 2)
+            {
+                gmp_printf("current factor %Zd with count = %d has been factored by input %Zd\n"
+                    "adding factors %Zd^%d and %Zd\n", t, count, n, g, e, a);
+            }
+
+            add_to_factor_list_r(flist, g, count * e, VFLAG, 1);
+            add_to_factor_list_r(flist, a, count, VFLAG, 1);
+            mpz_clear(t);
+
+            // now the input itself still needs to be accounted for: when
+            // forced, all of it is a new piece; otherwise it may carry
+            // more information than g, e.g., a composite input that shares
+            // one prime with this entry and another with a different entry.
+            // The list has been strictly refined, so this terminates.
+            add_to_factor_list_r(flist, n, mult, VFLAG, force);
+        }
+        goto done;
+    }
+
+    // n is coprime to everything in the list: append it.
+    {
+        int fid = flist->num_factors;
+        if (flist->num_factors >= flist->alloc_factors)
+        {
+            flist->alloc_factors *= 2;
+            flist->factors = (yfactor_t*)realloc(flist->factors,
+                flist->alloc_factors * sizeof(yfactor_t));
+        }
+
+        memset(&flist->factors[fid], 0, sizeof(yfactor_t));
+        mpz_init_set(flist->factors[fid].factor, n);
+        flist->factors[fid].count = force ? mult : 1;
+        flist->factors[fid].type = compute_factor_type(flist, n, VFLAG);
+        flist->num_factors++;
+
+        if (VFLAG > 2)
+            gmp_printf("added new factor %Zd\n", n);
+    }
+
+done:
+    mpz_clear(g);
+    mpz_clear(a);
+    return;
+}
+
+int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES, int force)
+{
+    // stick the number n into the provided factor list (see notes above).
+    // return the index of n in the list if it is there, otherwise the
+    // index of the first entry sharing a factor with n (n was a composite
+    // that got split up), or -1 if n is 1.
+    int i;
+    mpz_t g;
+
+    if (mpz_cmp_ui(n, 1) <= 0)
+        return -1;
+
     if (VFLAG > 2)
     {
         gmp_printf("adding %Zd to factor list\n", n);
     }
 
-	// look to see if this factor is already in the list,
-    // or if it shares a factor with anything in the list
+    add_to_factor_list_r(flist, n, 1, VFLAG, force);
+
+    // keep the total count of factors exact
+    flist->total_factors = 0;
     for (i = 0; i < flist->num_factors; i++)
-    {
-        if ((mpz_cmp(n, flist->factors[i].factor) == 0) && (force == 1))
-        {
-            flist->factors[i].count++;
-            mpz_clear(g);
-            mpz_clear(a);
-            mpz_clear(b);
-            mpz_clear(t);
-        
-            if (VFLAG > 2)
-            {
-                gmp_printf("forced increased count of existing factor %Zd\n", n);
-                print_current_factors(flist, VFLAG, 10);
-            }
-            return i;
-        }
-        else if (mpz_cmp(n, flist->factors[i].factor) == 0)
-        {
-            if (VFLAG > 2)
-            {
-                gmp_printf("ignoring addition of existing factor %Zd\n", n);
-                print_current_factors(flist, VFLAG, 10);
-            }
-            return i;
-        }
-
-        // if input doesn't equal this factor, check if it has a
-        // factor in common with it.
-        mpz_gcd(g, n, flist->factors[i].factor);
-        if (mpz_cmp_ui(g, 1) > 0)
-        {
-            if (VFLAG > 2)
-            {
-                gmp_printf("add_factor(%Zd): non-trivial factor %Zd in common with existing factor %Zd\n",
-                    n, g, flist->factors[i].factor);
-            }
-
-            // input has a non-trivial factor in common with
-            // a factor already in the list. possible cases:
-            // partial input == this factor
-            if (mpz_cmp(g, flist->factors[i].factor) == 0)
-            {
-                // add the pieces of the input, one equal to the current factor
-                if (force)
-                {
-                    if (VFLAG > 2)
-                        gmp_printf("forced increased count of existing factor %Zd\n", 
-                            flist->factors[i].factor);
-                    flist->factors[i].count++;
-                }
-                // and the remainder
-                mpz_tdiv_q(a, n, g);
-
-                if (VFLAG > 2)
-                {
-                    gmp_printf("case partial n == f in add_to_factor_list, adding factor %Zd\n", a);
-                }
-                add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES, 1);
-                mpz_clear(g);
-                mpz_clear(a);
-                mpz_clear(b);
-                mpz_clear(t);
-
-                if (VFLAG > 2)
-                {
-                    print_current_factors(flist, VFLAG, 10);
-                }
-                return i;
-            }
-            else
-            {
-                // input == partial f
-                // partial input == partial f
-                // 
-                // current (apparently composite) factor has been
-                // factored by the input.  remove the composite
-                // factor and add its pieces
-                mpz_tdiv_q(a, flist->factors[i].factor, g);
-                mpz_tdiv_q(b, flist->factors[i].factor, a);
-                mpz_set(t, flist->factors[i].factor);
-
-                int num = flist->factors[i].count;
-                int j;
-                delete_from_factor_list(flist, flist->factors[i].factor);
-                for (j = 0; j < num; j++)
-                {
-                    if (VFLAG > 2)
-                    {
-                        gmp_printf("current factor %Zd with count = %d has been factored by input %Zd\n"
-                            "adding factors %Zd and %Zd\n", t, num, n, a, b);
-                    }
-                    if (mpz_cmp(a, b) > 0)
-                    {
-                        add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES, 1);
-                        add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES, 1);
-                    }
-                    else
-                    {
-                        add_to_factor_list(flist, a, VFLAG, NUM_WITNESSES, 1);
-                        add_to_factor_list(flist, b, VFLAG, NUM_WITNESSES, 1);
-                    }
-                }
-
-                mpz_clear(g);
-                mpz_clear(a);
-                mpz_clear(b);
-                mpz_clear(t);
-
-                if (VFLAG > 2)
-                {
-                    print_current_factors(flist, VFLAG, 10);
-                }
-                return i;
-            }
-        }
-    }
-
-    // otherwise, allocate another factor to the list and add it
-    fid = flist->num_factors;
-    if (flist->num_factors >= flist->alloc_factors)
-    {
-        flist->alloc_factors *= 2;
-        flist->factors = (yfactor_t*)realloc(flist->factors,
-            flist->alloc_factors * sizeof(yfactor_t));
-    }
-
-	mpz_init(flist->factors[fid].factor);
-	mpz_set(flist->factors[fid].factor, n);
-    flist->factors[fid].count = 1;
-    flist->factors[fid].type = compute_factor_type(flist, n, VFLAG);
-
-    flist->num_factors++;
+        flist->total_factors += flist->factors[i].count;
 
     if (VFLAG > 2)
     {
-        gmp_printf("added new factor %Zd\n", n);
         print_current_factors(flist, VFLAG, 10);
     }
 
-    mpz_clear(g);
-    mpz_clear(a);
-    mpz_clear(b);
-    mpz_clear(t);
+    i = find_in_factor_list(flist, n);
+    if (i >= 0)
+        return i;
 
-	return fid;
+    mpz_init(g);
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        mpz_gcd(g, n, flist->factors[i].factor);
+        if (mpz_cmp_ui(g, 1) > 0)
+            break;
+    }
+    mpz_clear(g);
+
+    return (i < flist->num_factors) ? i : -1;
 }
 
 void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
@@ -1071,17 +1081,13 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
         {
             flist->total_factors -= flist->factors[i].count;
 
-            int j;
-            // copy everything above this in the list back one position
-            for (j = i; j < flist->num_factors - 1; j++)
-            {
-                mpz_set(flist->factors[j].factor, flist->factors[j + 1].factor);
-                flist->factors[j].count = flist->factors[j + 1].count;
-                flist->factors[j].type = flist->factors[j + 1].type;
-            }
-            // remove the last one in the list
-            flist->factors[j].count = 0;
-            mpz_clear(flist->factors[j].factor);
+            // free this entry and move everything above it back one
+            // position (whole structs, so how-found info moves with each
+            // factor; moving an mpz_t by value is fine since it is
+            // just a handle to its limbs).
+            mpz_clear(flist->factors[i].factor);
+            memmove(&flist->factors[i], &flist->factors[i + 1],
+                (flist->num_factors - 1 - i) * sizeof(yfactor_t));
 
             flist->num_factors--;
             break;

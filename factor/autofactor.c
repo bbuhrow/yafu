@@ -1087,14 +1087,17 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 						// remove the factor from the original list
 						delete_from_factor_list(fobj->factors, fobj->factors->factors[i].factor);
 
-						// add all factors found during the refactorization
+						// add all factors found during the refactorization.
+						// The original entry was deleted, so these are new
+						// multiplicative pieces: force them in (with force == 0
+						// repeats of an existing factor are ignored).
 						for (j=0; j< fobj_refactor->factors->num_factors; j++)
 						{
 							int k;
 							for (k=0; k < fobj_refactor->factors->factors[j].count * ocount; k++)
-								add_to_factor_list(fobj->factors, 
+								add_to_factor_list(fobj->factors,
                                     fobj_refactor->factors->factors[j].factor,
-                                    fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+                                    fobj->VFLAG, fobj->NUM_WITNESSES, 1);
 						}
 
 						// free temps
