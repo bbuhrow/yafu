@@ -8,6 +8,7 @@
 ----------------------------------------------------------------------*/
 #include "testkit.h"
 #include "test_data.h"
+#include "factor.h"
 
 /* ---- a tiny framework self-test (all checks pass; keeps exit status 0) ---- */
 static void t_meta_rng(tk_ctx *tk)
@@ -95,6 +96,19 @@ static const tk_module *const modules[] = {
 #endif
 #endif
 };
+
+// stubs for functions exposed by common.lib
+uint32_t factor_gnfs(msieve_obj* obj, mp_t* input_n,
+    factor_list_t* factor_list) {
+
+    return 0;
+}
+
+uint32_t factor_mpqs(msieve_obj* obj, mp_t* n,
+    factor_list_t* factor_list) {
+
+    return 0;
+}
 
 int main(int argc, char **argv)
 {

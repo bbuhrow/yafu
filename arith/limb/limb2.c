@@ -380,10 +380,14 @@ void ciosModMul128(uint64_t* res_lo, uint64_t* res_hi, uint64_t b_lo, uint64_t b
 	cshi = mp_addcarry_u64(0, t3, cslo, &cslo);
 	t2 = cslo;
 
-	if (t2) {
+	// fully reduce, matching the ciosSubtract128 in the branch below: the
+	// AMM result t2:t1:t0 is < 2n, so one subtract suffices, but it is needed
+	// whenever t >= n, not only on a carry out of 128 bits.  (Subtracting
+	// only when t2 != 0 left results in [n, 2n), which callers comparing
+	// against one / n-1 -- e.g. MR_2sprp_128x1 -- and monty128_edges trip on.)
+	if (t2 || (t1 > mod_hi) || ((t1 == mod_hi) && (t0 >= mod_lo))) {
 		unsigned char carry = mp_subborrow_u64(0, t0, mod_lo, &t0);
 		mp_subborrow_u64(carry, t1, mod_hi, &t1);
-		//ciosSubtract128(&t0, &t1, t2, mod_lo, mod_hi);
 	}
 
 
@@ -1037,9 +1041,14 @@ void dblmod128(uint64_t* a, uint64_t* n)
 
 #ifdef USE_PERIG_128BIT
 
+	// same semantics as the asm above and addmod128: s = 2x, subtract n once
+	// if s >= n or 2x carried out of 128 bits.  Must tolerate a lazily-
+	// reduced x in [n, 2n) (callers skip chkmod128 when n < 2^125); the
+	// old form x >= n - x wrapped for x > n and returned 2x unreduced.
 	uint128_t x = ((uint128_t)a[1] << 64) | a[0];
 	uint128_t n128 = ((uint128_t)n[1] << 64) | n[0];
-	uint128_t r = (x >= n128 - x) ? x - (n128 - x) : x + x;
+	uint128_t s = x + x;
+	uint128_t r = ((s < x) || (s >= n128)) ? s - n128 : s;
 	a[1] = (uint64_t)(r >> 64);
 	a[0] = (uint64_t)r;
 
