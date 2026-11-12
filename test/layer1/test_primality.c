@@ -28,6 +28,7 @@
 #include "testkit.h"
 #include "test_data.h"
 #include <gmp.h>
+#include <inttypes.h>
 #include "mpz_aprcl.h"
 #include "tinyprp.h"
 
@@ -159,10 +160,10 @@ static void t_fermat_u128(tk_ctx* tk)
         fp = fermat_prp_128x1(n128);
         truth = mpz_probab_prime_p(n, 20);
 
-        if (truth) TK_CHECKF(tk, fp, "%llu prime but Fermat says composite",
-            (unsigned long long)n);
-        if (!fp)   TK_CHECKF(tk, !truth, "%llu Fermat-composite but oracle prime",
-            (unsigned long long)n);
+        if (truth) TK_CHECKF(tk, fp, "0x%016" PRIx64 "%016" PRIx64
+            " prime but Fermat says composite", n128[1], n128[0]);
+        if (!fp)   TK_CHECKF(tk, !truth, "0x%016" PRIx64 "%016" PRIx64
+            " Fermat-composite but oracle prime", n128[1], n128[0]);
     }
     /* the spsp2 corpus should fool Fermat */
     for (i = 0; i < tk_spsp2_u64_count; i++)
@@ -289,7 +290,7 @@ static void t_MR_2sprp_u64(tk_ctx* tk)
     for (i = 0; i < tk_spsp2_u64_count; i++)
     {
         TK_CHECKF(tk, MR_2sprp_64x1(tk_spsp2_u64[i]), 
-            "%llu should not fool 64-bit MR sprp base 2", tk_spsp2_u64[i]);
+            "%" PRIu64 " should not fool 64-bit MR sprp base 2", tk_spsp2_u64[i]);
     }
 }
 
@@ -319,10 +320,10 @@ static void t_MR_2sprp_u128(tk_ctx* tk)
         fp = MR_2sprp_128x1(n128);
         truth = mpz_probab_prime_p(n, 20);
 
-        if (truth) TK_CHECKF(tk, fp, "%llu prime but MR says composite",
-            (unsigned long long)n);
-        if (!fp)   TK_CHECKF(tk, !truth, "%llu MR-composite but oracle prime",
-            (unsigned long long)n);
+        if (truth) TK_CHECKF(tk, fp, "0x%016" PRIx64 "%016" PRIx64
+            " prime but MR says composite", n128[1], n128[0]);
+        if (!fp)   TK_CHECKF(tk, !truth, "0x%016" PRIx64 "%016" PRIx64
+            " MR-composite but oracle prime", n128[1], n128[0]);
     }
     /* the spsp2 corpus should not fool MR */
     for (i = 0; i < tk_spsp2_u64_count; i++)
@@ -330,7 +331,7 @@ static void t_MR_2sprp_u128(tk_ctx* tk)
         n128[0] = tk_spsp2_u64[i];
         n128[1] = 0;
         TK_CHECKF(tk, MR_2sprp_128x1(n128),
-            "%llu should not fool 128-bit MR sprp base 2", tk_spsp2_u64[i]);
+            "%" PRIu64 " should not fool 128-bit MR sprp base 2", tk_spsp2_u64[i]);
     }
 
     gmp_randclear(gmp_rng_state);

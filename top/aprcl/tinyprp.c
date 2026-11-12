@@ -290,9 +290,9 @@ int fermat_prp_128x1(uint64_t* n)
 	mpz_mul_2exp(gr, gr, 128);
 	mpz_mod(n128, gr, n128);
 
-	one[0] = gmp2uint64(n128);
+	unityval[0] = gmp2uint64(n128);
 	mpz_tdiv_q_2exp(n128, n128, 64);
-	one[1] = gmp2uint64(n128);
+	unityval[1] = gmp2uint64(n128);
 
 	mpz_clear(n128);
 	mpz_clear(gr);
@@ -439,7 +439,11 @@ int MR_2sprp_128x1(uint64_t *n)
 	int lzcnt = my_clz128(d[0], d[1]);
 
 #ifndef POS_VARIANT
-	int protect = (lzcnt < 3) ? 1 : 0;
+	// the lazy-reduction bound depends on the size of the modulus n, not of
+	// d = (n-1)/2^s (whose leading-zero count is >= s).  Keying this off d
+	// left n >= 2^125 unprotected whenever s >= 3; that was masked on
+	// builds where ciosModMul128 fully reduces, but not on the _MSC_VER path.
+	int protect = (my_clz64(n[1]) < 3) ? 1 : 0;
 #endif
 
 	// we know the first bit is set and the first squaring is of unity,
@@ -503,7 +507,11 @@ int MR_2sprp_128x1(uint64_t *n)
 	{
 		if ((r[0] == mone[0]) && (r[1] == mone[1])) return 1;
 		sqrmod128n(r, r, n, rho);
-		if (protect) chkmod128(r, n);
+		// always reduce before comparing: depending on the compiler,
+		// ciosModMul128 may return a result in [n, 2n) (the _MSC_VER branch
+		// subtracts n only on a carry out of 128 bits), and an unreduced
+		// r would miss the == one / == n-1 tests.
+		chkmod128(r, n);
 		if ((r[0] == one[0]) && (r[1] == one[1])) return 0;
 		s--;
 	}
