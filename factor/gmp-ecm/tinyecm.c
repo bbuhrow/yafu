@@ -4611,11 +4611,11 @@ void to_monty104_x8(vec_u104_t* x, vec_u104_t* N)
 		mpz_mod(m, m, n);
 		x->data[0][i] = mpz_get_ui(m) & 0xffffffff;
 		mpz_tdiv_q_2exp(m, m, 32);
-		x->data[0][i] |= (mpz_get_ui(m) & 0xfffff) << 32;
+		x->data[0][i] |= (mpz_get_u64(m) & 0xfffffULL) << 32;
 		mpz_tdiv_q_2exp(m, m, 20);
 		x->data[1][i] = mpz_get_ui(m) & 0xffffffff;
 		mpz_tdiv_q_2exp(m, m, 32);
-		x->data[1][i] |= (mpz_get_ui(m) & 0xfffff) << 32;
+		x->data[1][i] |= (mpz_get_u64(m) & 0xfffffULL) << 32;
 	}
 
 	mpz_clear(m);
@@ -4640,11 +4640,11 @@ void mpz_to_u104(mpz_t gx, vec_u104_t* x, int lane)
 {
 	x->data[0][lane] = mpz_get_ui(gx) & 0xffffffff;
 	mpz_tdiv_q_2exp(gx, gx, 32);
-	x->data[0][lane] |= (mpz_get_ui(gx) & 0xfffff) << 32;
+	x->data[0][lane] |= (mpz_get_u64(gx) & 0xfffffULL) << 32;
 	mpz_tdiv_q_2exp(gx, gx, 20);
 	x->data[1][lane] = mpz_get_ui(gx) & 0xffffffff;
 	mpz_tdiv_q_2exp(gx, gx, 32);
-	x->data[1][lane] |= (mpz_get_ui(gx) & 0xfffff) << 32;
+	x->data[1][lane] |= (mpz_get_u64(gx) & 0xfffffULL) << 32;
 
 	// restore input - still holds the highest 20 bits
 	mpz_mul_2exp(gx, gx, 32);
@@ -5147,14 +5147,14 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 		//	B1 = 47;
 		//	curves = 1;
 		//	tinyecm(n, f, B1, B1 * 25, curves, ploc_lcg, 0);
-		//	if (mpz_get_ui(f) > 1)
+		//	if (mpz_cmp_ui(f, 1) > 0)
 		//		return 1;
 		//}
 		{
 			B1 = 70;
 			curves = 1;
 			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
-			if (mpz_get_ui(f) > 1)
+			if (mpz_cmp_ui(f, 1) > 0)
 				return 1;
 		}
 		if (targetBits > 58)
@@ -5162,7 +5162,7 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 			B1 = 125;
 			curves = 1;
 			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
-			if (mpz_get_ui(f) > 1)
+			if (mpz_cmp_ui(f, 1) > 0)
 				return 1;
 		}
 	}
@@ -5210,7 +5210,7 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
 	}
 
-	if (mpz_get_ui(f) > 1)
+	if (mpz_cmp_ui(f, 1) > 0)
 		return 1;
 	else
 		return 0;
@@ -5269,7 +5269,7 @@ int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1)
 	}
 
 	tinypm1(n, f, b1, 25 * b1);
-	if (mpz_get_ui(f) > 1)
+	if (mpz_cmp_ui(f, 1) > 0)
 		return 1;
 	else
 		return 0;
@@ -5581,7 +5581,7 @@ int tecm_dispatch_x8(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
 	mpz_mul_2exp(gf, gf, 64);
 	mpz_add_u64(gf, gf, f[0]);
 
-	if (mpz_get_ui(gf) > 1)
+	if (mpz_cmp_ui(gf, 1) > 0)
 		return 1;
 	else
 		return 0;
@@ -5651,17 +5651,17 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 		//B1 = 85;
 		//curves = 12;
 		//tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
-		//if (mpz_get_ui(f) > 1)
+		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 		B1 = 125;
 		curves = 32;
 		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
-		//if (mpz_get_ui(f) > 1)
+		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 		//B1 = 165;
 		//curves = 12;
 		//tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
-		//if (mpz_get_ui(f) > 1)
+		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 	}
 	else if (targetBits <= 31)
@@ -5669,17 +5669,17 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 		//B1 = 125;
 		//curves = 12;
 		//tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
-		//if (mpz_get_ui(f) > 1)
+		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 		B1 = 165;
 		curves = 42;
 		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
-		//if (mpz_get_ui(f) > 1)
+		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 		//B1 = 205;
 		//curves = 12;
 		//tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
-		//if (mpz_get_ui(f) > 1)
+		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 	}
 	else //if (targetBits <= 32)

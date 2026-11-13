@@ -127,7 +127,7 @@ uint32_t getNode(bintree_t* tree, uint32_t low, uint32_t high)
 void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz_t prod)
 {
     uint32_t nodeid = 0;
-    bintree_element_t* node = &tree->nodes[id];
+    bintree_element_t* node;
 
     if (tree->size == tree->alloc)
     {
@@ -136,6 +136,9 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
         tree->nodes = (bintree_element_t*)xrealloc(tree->nodes,
             tree->alloc * sizeof(bintree_element_t));
     }
+
+    // take the node pointer only after any realloc above
+    node = &tree->nodes[id];
 
     if ((side == 0) && (node->left_id != -1))
     {
@@ -458,8 +461,8 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
             {
                 //printf("getting half-product (prod(%u:%u)\n", mid + 1, last);
                 // there is a node for the high-half product and the multiplication is complete,
-                // so assign the node's product to the output.
-                mpz_set(prod, tree->nodes[node].prod);
+                // so assign the node's product to the high-half output.
+                mpz_set(half_prod, tree->nodes[node].prod);
             }
             else
             {
@@ -561,12 +564,14 @@ uint64_t pow2m(uint64_t b, uint64_t n)
 
     if (has_bmi1)
     {
+        // assign the outer 'bits' (these were shadowing declarations,
+        // which left the outer variable uninitialized on BMI1 machines)
 #ifdef __INTEL_COMPILER
-        int bits = 64 - _lead_zcnt64(b);
+        bits = 64 - _lead_zcnt64(b);
 #elif defined(__GNUC__)
-        int bits = 64 - __builtin_clzll(b);
+        bits = 64 - __builtin_clzll(b);
 #elif defined _MSC_VER
-        int bits = 64 - _lead_zcnt64(b);
+        bits = 64 - _lead_zcnt64(b);
 #endif
     }
     else
@@ -2297,7 +2302,10 @@ void compute_remainder_tree(bintree_t* tree, uint32_t first, uint32_t last,
        postprocess each relation */
 
     if (mpz_sizeinbase(numerator, 2) <= (1024)) {
-        if (mpz_sgn(numerator) > 0) {
+        // a zero remainder means every cofactor in this range divides
+        // the prime product (all factors are in the gcd side).  These
+        // still need checking: gcd(0, n) = n puts all of n into f1r/f1a.
+        if (mpz_sgn(numerator) >= 0) {
             while (first <= last)
                 check_batch_relation(rb, first++, lcg_state, numerator);
         }

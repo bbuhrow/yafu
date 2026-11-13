@@ -631,7 +631,9 @@ void siqs_dispatch(void *vptr)
                         tid, static_conf->batch_buffer_id);
                 }
 
-                if (mpz_cmp_ui(static_conf->rb[static_conf->batch_buffer_id].prime_product, 0) == 0)
+                // batch_buffer_id is 1-based: the buffer this thread is about
+                // to process is rb[batch_buffer_id - 1] (see tdiv.c).
+                if (mpz_cmp_ui(static_conf->rb[static_conf->batch_buffer_id - 1].prime_product, 0) == 0)
                 {
                     if (fobj->VFLAG > 1)
                     {
@@ -639,7 +641,7 @@ void siqs_dispatch(void *vptr)
                             static_conf->batch_buffer_id,
                             (uint32_t)(mpz_sizeinbase(static_conf->rb[0].prime_product, 2) / 8));
                     }
-                    mpz_set(static_conf->rb[static_conf->batch_buffer_id].prime_product,
+                    mpz_set(static_conf->rb[static_conf->batch_buffer_id - 1].prime_product,
                         static_conf->rb[0].prime_product);
                 }
 
