@@ -23,9 +23,11 @@ SOFTWARE.
 */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <string.h>
 #include <math.h>
 #include "soe.h"
+#include "gmp_u64_xface.h"
 #include "ytools.h"
 #include "threadpool.h"
 #include "soe_impl.h"
@@ -41,7 +43,7 @@ static __inline uint32_t redc_loc(uint64_t x, uint32_t pinv, uint32_t p)
 {
     uint32_t m = (uint32_t)x * pinv;
     x += (uint64_t)m * (uint64_t)p;
-    m = x >> 32;
+    m = (uint32_t)(x >> 32);
     if (m >= p) m -= p;
     return m;
 }
@@ -929,7 +931,7 @@ void compute_roots_work_fcn(void *vptr)
     uint32_t *class_inv;
     int *res_table;
     int i;
-    uint32_t pn = sdata->prodN;    
+    uint32_t pn = (uint32_t)sdata->prodN;    
     uint32_t start_res;
     uint32_t pdiff;
     uint32_t last_prime;
@@ -937,7 +939,7 @@ void compute_roots_work_fcn(void *vptr)
 
     if (sdata->VFLAG > 2)
     {
-        printf("starting root computation over %u to %u\n", t->startid, t->stopid);
+        printf("starting root computation over %" PRIu64 " to %" PRIu64 "\n", t->startid, t->stopid);
     }
 
     uint32_t numclasses = sdata->numclasses;
@@ -953,7 +955,7 @@ void compute_roots_work_fcn(void *vptr)
         int k = 0;
         for (i = 1; i < pn; i++)
         {
-            if (gcd_1(i, (uint64_t)pn) == 1)
+            if (gcd_1((uint64_t)i, (uint64_t)pn) == 1)
             {
                 rclass[k] = (uint32_t)i;
                 k++;
@@ -969,7 +971,7 @@ void compute_roots_work_fcn(void *vptr)
         int k = 0;
         for (i = 1; i < pn; i++)
         {
-            if (gcd_1(i, (uint64_t)pn) == 1)
+            if (gcd_1((uint64_t)i, (uint64_t)pn) == 1)
             {
                 rclass[k] = (uint32_t)i;
                 k++;
@@ -1050,7 +1052,7 @@ void compute_roots_work_fcn(void *vptr)
 
         if (t->sdata.use_monty)
         {            
-            for (i = t->startid;  i < t->stopid; i++)
+            for (i = (int)t->startid;  i < t->stopid; i++)
             {
                 uint32_t inv;
                 uint32_t prime = t->sdata.sieve_p[i];
@@ -1062,7 +1064,7 @@ void compute_roots_work_fcn(void *vptr)
                 // mul-by-inverse division.
                 classnum = mod_fcn(start_res + pdiff);
                 start_res = classnum;
-                classnum = res_table[classnum];
+                classnum = (uint32_t)res_table[classnum];
 
                 last_prime = prime;
 
@@ -1070,7 +1072,7 @@ void compute_roots_work_fcn(void *vptr)
                 {
                     // start the process with the first prime in this class
                     inv = modinv3(pn, prime);
-                    t->sdata.root[i] = prime - inv;
+                    t->sdata.root[i] = (int)(prime - inv);
                     last_root[classnum] = inv;
                     last_p[classnum] = prime;
 
@@ -1085,7 +1087,7 @@ void compute_roots_work_fcn(void *vptr)
                     inv = last_root[classnum];
                     x = div_fcn(prime - last_p[classnum]);
                     last_root[classnum] = inv + x * class_inv[classnum];
-                    t->sdata.root[i] = prime - last_root[classnum];
+                    t->sdata.root[i] = (int)(prime - last_root[classnum]);
 
                     //if ((i - t->startid) < 100)
                     //    printf("last root,prime for class %d = %u,%u, this prime = %u, "
@@ -1104,7 +1106,7 @@ void compute_roots_work_fcn(void *vptr)
 
                 // implement a special case for lowlimit = 0?
                 t->sdata.lower_mod_prime[i] =
-                    (t->sdata.lowlimit + 1) % prime;
+                    (uint32_t)((t->sdata.lowlimit + 1) % prime);
 
                 //if ((i - t->startid) < 100)
                 //    printf("lower_mod_p = %u\n", t->sdata.lower_mod_prime[i]);
@@ -1117,17 +1119,17 @@ void compute_roots_work_fcn(void *vptr)
                 t->sdata.pinv[i] = (uint32_t)0 - (uint32_t)x;
                 t->sdata.r2modp[i] = (uint32_t)(0x100000000ULL % (uint64_t)prime);
                 t->sdata.r2modp[i] =
-                    ((uint64_t)t->sdata.r2modp[i] * (uint64_t)t->sdata.r2modp[i]) % (uint64_t)prime;
+                    (uint32_t)(((uint64_t)t->sdata.r2modp[i] * (uint64_t)t->sdata.r2modp[i]) % (uint64_t)prime);
 
                 // root into monty
-                t->sdata.root[i] = to_monty_loc(t->sdata.root[i], t->sdata.r2modp[i],
+                t->sdata.root[i] = (int)to_monty_loc((uint32_t)t->sdata.root[i], t->sdata.r2modp[i],
                     t->sdata.pinv[i], prime);
             }            
             
         }
         else
         {
-            for (i = t->startid;  i < t->stopid; i++)
+            for (i = (int)t->startid;  i < t->stopid; i++)
             {
                 uint32_t inv;
                 uint32_t prime = t->sdata.sieve_p[i];
@@ -1141,7 +1143,7 @@ void compute_roots_work_fcn(void *vptr)
                 pdiff = prime - last_prime;
                 classnum = mod_fcn(start_res + pdiff);
                 start_res = classnum;
-                classnum = res_table[classnum];
+                classnum = (uint32_t)res_table[classnum];
 
                 last_prime = prime;
 
@@ -1149,7 +1151,7 @@ void compute_roots_work_fcn(void *vptr)
                 {
                     // start the process with the first prime in this class
                     inv = modinv3(pn, prime);
-                    t->sdata.root[i] = prime - inv;
+                    t->sdata.root[i] = (int)(prime - inv);
                     last_root[classnum] = inv;
                     last_p[classnum] = prime;
                 }
@@ -1159,7 +1161,7 @@ void compute_roots_work_fcn(void *vptr)
                     inv = last_root[classnum];
                     x = div_fcn(prime - last_p[classnum]);
                     last_root[classnum] = inv + x * class_inv[classnum];
-                    t->sdata.root[i] = prime - last_root[classnum];
+                    t->sdata.root[i] = (int)(prime - last_root[classnum]);
                     last_p[classnum] = prime;
                 }
 
@@ -1170,7 +1172,7 @@ void compute_roots_work_fcn(void *vptr)
 #endif
 
                 t->sdata.lower_mod_prime[i] =
-                    (t->sdata.lowlimit + 1) % prime;
+                    (uint32_t)((t->sdata.lowlimit + 1) % prime);
             }
         }
 
@@ -1182,7 +1184,7 @@ void compute_roots_work_fcn(void *vptr)
         // using the result from the previous prime in the same class along
         // with a few precomputed constants and a small division (likely 
         // accelerated by compiler multiply-by-inverse tricks).
-        for (i = t->startid; i < t->stopid; i++)
+        for (i = (int)t->startid; i < t->stopid; i++)
         {
             uint32_t inv;            
             uint32_t prime = t->sdata.sieve_p[i];
@@ -1195,7 +1197,7 @@ void compute_roots_work_fcn(void *vptr)
             pdiff = prime - last_prime;
             classnum = mod_fcn(start_res + pdiff);
             start_res = classnum;
-            classnum = res_table[classnum];
+            classnum = (uint32_t)res_table[classnum];
 
             last_prime = prime;
 
@@ -1204,7 +1206,7 @@ void compute_roots_work_fcn(void *vptr)
                 // start the process with the first prime in this class
                 // by using modinv.
                 inv = modinv3(pn, prime);
-                t->sdata.root[i] = prime - inv;
+                t->sdata.root[i] = (int)(prime - inv);
                 last_root[classnum] = inv;
                 last_p[classnum] = prime;
             }
@@ -1219,7 +1221,7 @@ void compute_roots_work_fcn(void *vptr)
                 inv = last_root[classnum];
                 x = div_fcn(prime - last_p[classnum]);
                 last_root[classnum] = inv + x * class_inv[classnum];
-                t->sdata.root[i] = prime - last_root[classnum];
+                t->sdata.root[i] = (int)(prime - last_root[classnum]);
                 last_p[classnum] = prime;
             }
 #else
@@ -1230,7 +1232,7 @@ void compute_roots_work_fcn(void *vptr)
 #endif
 
             t->sdata.lower_mod_prime[i] =
-                (t->sdata.lowlimit + 1) % prime;
+                (uint32_t)((t->sdata.lowlimit + 1) % prime);
         }
 
 #endif
@@ -1240,18 +1242,18 @@ void compute_roots_work_fcn(void *vptr)
         mpz_t tmpz;
         mpz_init(tmpz);
 
-        mpz_add_ui(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
-        for (i = t->startid; i < t->stopid; i++)
+        mpz_add_u64(tmpz, t->sdata.offset, t->sdata.lowlimit + 1);
+        for (i = (int)t->startid; i < t->stopid; i++)
         {
             uint32_t inv;
             uint32_t prime = t->sdata.sieve_p[i];
 
             // slightly optimized modinv when prime >> prodN
-            inv = modinv3(t->sdata.prodN, prime);
-            t->sdata.root[i] = prime - inv;
+            inv = modinv3((uint32_t)t->sdata.prodN, prime);
+            t->sdata.root[i] = (int)(prime - inv);
 
             t->sdata.lower_mod_prime[i] =
-                mpz_tdiv_ui(tmpz, prime);
+                (uint32_t)mpz_tdiv_ui(tmpz, prime);
         }
         mpz_clear(tmpz);
     }
@@ -1268,7 +1270,7 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 {
     int prime, prodN;
     uint64_t startprime;
-    uint64_t lblk_b, ublk_b, blk_b_sqrt;
+    UNUSED_VAR uint64_t lblk_b, ublk_b, blk_b_sqrt;
     uint64_t i;
     int j;
     uint32_t range, lastid;
@@ -1291,12 +1293,12 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     
     lblk_b = sdata->lowlimit;
     ublk_b = sdata->blk_r + lblk_b - sdata->prodN;
-    blk_b_sqrt = (uint32_t)(sqrt(ublk_b + sdata->prodN)) + 1;
+    blk_b_sqrt = (uint32_t)(sqrt((double)(ublk_b + sdata->prodN))) + 1;
     
     for (i = startprime; i < sdata->bucket_start_id; i++)
     {
         uint32_t inv;
-        prime = sdata->sieve_p[i];
+        prime = (int)sdata->sieve_p[i];
 
         // sieving requires that we find the offset of each sieve prime in each block 
         // that we sieve.  We are more restricted in choice of offset because we
@@ -1315,8 +1317,8 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
         // }
 
         //solve prodN ^ -1 % p 
-        inv = modinv1(prodN, prime);
-        sdata->root[i] = prime - inv;
+        inv = modinv1((uint32_t)prodN, (uint32_t)prime);
+        sdata->root[i] = (int)((uint32_t)prime - inv);
     }
 
     if (sdata->VFLAG > 1)
@@ -1332,7 +1334,7 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
         gettimeofday(&tstart, NULL);
     }
 
-    range = (sdata->bitmap_start_id - sdata->bucket_start_id) / sdata->THREADS;
+    range = (sdata->bitmap_start_id - sdata->bucket_start_id) / (uint32_t)sdata->THREADS;
     //range = (sdata->pboundi - sdata->bucket_start_id) / sdata->THREADS;
     lastid = sdata->bucket_start_id;
 
@@ -1341,19 +1343,19 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
         // divvy up the primes left to compute
         for (j = 0; j < sdata->THREADS; j++)
         {
-            thread_soedata_t *t = thread_data + j;
+            thread_soedata_t *t_in = thread_data + j;
 
-            t->sdata = *sdata;
-            t->startid = lastid;
-            t->stopid = t->startid + range;
-            lastid = t->stopid;
+            t_in->sdata = *sdata;
+            t_in->startid = lastid;
+            t_in->stopid = t_in->startid + range;
+            lastid = (uint32_t)t_in->stopid;
 
             if (sdata->VFLAG > 2)
             {
                 printf("bucket start id = %u, bitmap start id = %u\n",
                     sdata->bucket_start_id, sdata->bitmap_start_id);
-                printf("assigning thread %d root computation over %u to %u\n",
-                    j, t->startid, t->stopid); fflush(stdout);
+                printf("assigning thread %d root computation over %" PRIu64 " to %" PRIu64 "\n",
+                    j, t_in->startid, t_in->stopid); fflush(stdout);
             }
         }
 

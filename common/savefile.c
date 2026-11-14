@@ -47,7 +47,7 @@ void savefile_init(savefile_t *s, char *savefile_name) {
 
 	s->buf = (char*)malloc((size_t)SAVEFILE_BUF_SIZE);
 	if (s->buf == NULL) {
-		printf("failed to allocate %u bytes\n", (size_t)SAVEFILE_BUF_SIZE);
+		printf("failed to allocate %zu bytes\n", (size_t)SAVEFILE_BUF_SIZE);
 		exit(-1);
 	}
 }
@@ -200,7 +200,7 @@ uint32_t savefile_eof(savefile_t * s) {
 #if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
 	return (s->buf_off == s->read_size && s->eof);
 #else
-	return (s->is_a_FILE ? feof((FILE*)s->fp) : gzeof(s->fp));
+	return (uint32_t)((s->is_a_FILE ? feof((FILE*)s->fp) : gzeof(s->fp)));
 #endif
 }
 
@@ -268,7 +268,7 @@ void savefile_write_line(savefile_t * s, char* buf) {
 	if (s->buf_off + strlen(buf) + 1 >= SAVEFILE_BUF_SIZE)
 		savefile_flush(s);
 
-	s->buf_off += sprintf(s->buf + s->buf_off, "%s", buf);
+	s->buf_off += (uint32_t)sprintf(s->buf + s->buf_off, "%s", buf);
 }
 
 /*--------------------------------------------------------------------*/

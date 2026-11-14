@@ -29,7 +29,7 @@ void hashtable_init(hashtable_t *h, uint32 blob_words, uint32 hash_words) {
 	h->hashtable = (uint32 *)xcalloc((size_t)1 << log2_hashtable_size,
 					sizeof(uint32));
 	h->num_used = 0;
-	h->congestion_target = 0.8 * (1 << log2_hashtable_size);
+	h->congestion_target = (uint32)(0.8 * (1 << log2_hashtable_size));
 
 	h->match_array_size = 1;
 	h->match_array_alloc = init_match_size;
@@ -104,7 +104,7 @@ void *hashtable_find(hashtable_t *h, void *blob,
 						log2_hashtable_size,
 						sizeof(uint32));
 		h->log2_hashtable_size = log2_hashtable_size;
-		h->congestion_target = 0.8 * (1 << log2_hashtable_size);
+		h->congestion_target = (uint32)(0.8 * (1 << log2_hashtable_size));
 		h->num_used = 0;
 
 		/* re-link all the previously found entries */

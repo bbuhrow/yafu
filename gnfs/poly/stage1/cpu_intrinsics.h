@@ -172,7 +172,7 @@ mod64_32(uint64 num, uint32 t, uint32 n, uint32 w) {
 	x = (uint32)num;
 	tmp = x * w;
 	PROD32(hi, rem, tmp, n);
-	x = (uint64)(num >> 32);
+	x = (uint32)(num >> 32);
 	tmp = x - hi;
 	tmp = tmp * w;
 	if (hi > x)

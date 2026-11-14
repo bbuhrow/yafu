@@ -65,7 +65,7 @@ typedef struct
     char HAS_SSE41;
     char HAS_AVX;
     char HAS_AVX2;
-#if defined(WIN32)
+#if defined(WIN32) && !defined(__MINGW32__)
     char sysname[MAX_COMPUTERNAME_LENGTH + 1];
     int sysname_sz;
 #else

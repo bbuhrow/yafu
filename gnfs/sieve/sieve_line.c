@@ -223,8 +223,8 @@ uint32 do_line_sieving(msieve_obj *obj, sieve_param_t *params, mpz_t n,
 	/* set user-specified limits, if any */
 
 	if (lower_limit != NULL && upper_limit != NULL) {
-		job.min_b = strtoul(lower_limit, NULL, 10);
-		job.max_b = strtoul(upper_limit, NULL, 10);
+		job.min_b = (uint32)strtoul(lower_limit, NULL, 10);
+		job.max_b = (uint32)strtoul(upper_limit, NULL, 10);
 		if (job.min_b > job.max_b) {
 			printf("lower bound on b must be <= upper bound\n");
 			return 0;
@@ -253,7 +253,7 @@ uint32 do_line_sieving(msieve_obj *obj, sieve_param_t *params, mpz_t n,
 	   with the number of buckets chosen to cover the maximum
 	   size of any factor base prime */
 
-	job.num_buckets = MAX(BLOCK_HASH(fb.rfb.max_prime) + 1,
+	job.num_buckets = (uint32)MAX(BLOCK_HASH(fb.rfb.max_prime) + 1,
 			      BLOCK_HASH(fb.afb.max_prime) + 1);
 	
 	logprintf(obj, "a range: [%" PRId64 ", %" PRId64 "]\n", 
@@ -343,7 +343,7 @@ uint32 do_line_sieving(msieve_obj *obj, sieve_param_t *params, mpz_t n,
 			break;
 		}
 	}
-	obj->flags &= ~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
+	obj->flags &= (unsigned int)~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 
 	ms_relation_batch_free(&job.relation_batch);
 	savefile_flush(&obj->savefile);
@@ -425,11 +425,11 @@ static void init_one_fb(msieve_obj *obj, fb_side_t *fb, sieve_t *out_fb,
 	   leeway for roundoff errors compared to the true log value */
 
 	high_bound = (uint32)(2.6 * log((double)largest_p) / M_LN2 + 0.5);
-	out_fb->cutoff2 = 4 + mpz_sizeinbase(out_fb->LP2_max, 2);
+	out_fb->cutoff2 = (uint32)(4 + mpz_sizeinbase(out_fb->LP2_max, 2));
 	out_fb->cutoff2 = MAX(out_fb->cutoff2, high_bound);
 
 	high_bound = (uint32)(3.9 * log((double)largest_p) / M_LN2 + 0.5);
-	out_fb->cutoff3 = 4 + mpz_sizeinbase(out_fb->LP3_max, 2);
+	out_fb->cutoff3 = (uint32)(4 + mpz_sizeinbase(out_fb->LP3_max, 2));
 	out_fb->cutoff3 = MAX(out_fb->cutoff3, high_bound);
 
 	/* Make factor base entries out of the powers of all the factor
@@ -465,9 +465,9 @@ static void init_one_fb(msieve_obj *obj, fb_side_t *fb, sieve_t *out_fb,
 							* sizeof(fb_power_t));
 				}
 				k = out_fb->powers_fb_size++;
-				out_fb->fb_powers[k].p = power;
-				out_fb->fb_powers[k].r = j;
-				out_fb->fb_powers[k].orig_p = p;
+				out_fb->fb_powers[k].p = (uint16)power;
+				out_fb->fb_powers[k].r = (uint16)j;
+				out_fb->fb_powers[k].orig_p = (uint8)p;
 			}
 		}
 		if (power == p * p) {	
@@ -717,7 +717,7 @@ static void init_one_sieve(sieve_t *out_fb,
 		   update falls */
 
 		if (p > BLOCK_SIZE) {
-			uint32 bucket = BLOCK_HASH(rem);
+			uint32 bucket = (uint32)BLOCK_HASH(rem);
 			entry->next = out_fb->bucket_list[bucket];
 			out_fb->bucket_list[bucket] = i;
 		}
@@ -758,9 +758,9 @@ static void init_one_sieve(sieve_t *out_fb,
 	   their combined log value. This is added to the cutoff
 	   for the entire sieve later */
 
-	common = mpz_fdiv_ui(out_fb->poly->coeff[out_fb->poly->degree], b);
+	common = (uint32)mpz_fdiv_ui(out_fb->poly->coeff[out_fb->poly->degree], b);
 	common = mp_gcd_1(common, b);
-	out_fb->proj_bias = fplog(common, out_fb->log_base);
+	out_fb->proj_bias = (uint8)fplog(common, out_fb->log_base);
 }
 
 /*------------------------------------------------------------------*/
@@ -820,7 +820,7 @@ static void fill_one_block(sieve_t *sieve_fb,
 		new_offset = (uint64)block * BLOCK_SIZE + 
 					entry->offset + entry->p;
 		entry->offset = (uint16)(new_offset & (BLOCK_SIZE-1));
-		new_bucket = BLOCK_HASH(new_offset);
+		new_bucket = (uint32)BLOCK_HASH(new_offset);
 		if (new_bucket >= num_buckets)
 			new_bucket -= num_buckets;
 
@@ -964,31 +964,31 @@ static uint32 do_factoring(sieve_job_t *job,
 		afb->curr_num_lp = 2;
 		if (abits > 150) {
 			afb->curr_num_lp = 3;
-			cutoff_a -= afb->scaled_cutoff3;
+			cutoff_a = (int32)((uint32)cutoff_a - afb->scaled_cutoff3);
 
 			if (abits > 185) {
 				rfb->curr_num_lp = 3;
-				cutoff_r -= rfb->scaled_cutoff3;
+				cutoff_r = (int32)((uint32)cutoff_r - rfb->scaled_cutoff3);
 			}
 			else {
-				cutoff_r -= rfb->scaled_cutoff2;
+				cutoff_r = (int32)((uint32)cutoff_r - rfb->scaled_cutoff2);
 			}
 		}
 		else if (rbits > 150) {
 			rfb->curr_num_lp = 3;
-			cutoff_r -= rfb->scaled_cutoff3;
+			cutoff_r = (int32)((uint32)cutoff_r - rfb->scaled_cutoff3);
 
 			if (rbits > 185) {
 				afb->curr_num_lp = 3;
-				cutoff_a -= afb->scaled_cutoff3;
+				cutoff_a -= (int32)afb->scaled_cutoff3;
 			}
 			else {
-				cutoff_a -= afb->scaled_cutoff2;
+				cutoff_a = (int32)((uint32)cutoff_a - afb->scaled_cutoff2);
 			}
 		}
 		else {
-			cutoff_r -= rfb->scaled_cutoff2;
-			cutoff_a -= afb->scaled_cutoff2;
+			cutoff_r = (int32)((uint32)cutoff_r - rfb->scaled_cutoff2);
+			cutoff_a -= (int32)afb->scaled_cutoff2;
 		}
 
 		if (cutoff_r < 0)
@@ -1051,17 +1051,17 @@ static uint32 do_factoring(sieve_job_t *job,
 			   dwarf the extra overhead of sieving more than once */
 
 			r = resieve_array + 2 * num_resieve;
-			r[0].offset = i+j;
+			r[0].offset = (uint16)(i+j);
 			r[0].num_factors = 0;
 			r[1].num_factors = 0;
-			sieve_a[i+j] = num_resieve++;
+			sieve_a[i+j] = (uint8)(num_resieve++);
 
 			if (num_resieve == MAX_RESIEVE_ENTRIES) {
 				rels += do_resieve(job, resieve_base, 
 						(uint32)(i+j), num_resieve,
 						block_start, b);
 				num_resieve = 0;
-				resieve_base = i+j+1;
+				resieve_base = (uint32)(i+j+1);
 			}
 		}
 	}
@@ -1289,8 +1289,8 @@ static uint32 do_one_factoring(sieve_job_t *job, resieve_t *sieve_value,
 		uint32 lp_r[MAX_LARGE_PRIMES];
 		uint32 lp_a[MAX_LARGE_PRIMES];
 		
-		lp_r[0] = mpz_get_ui(rfb->res);
-		lp_a[0] = mpz_get_ui(afb->res);
+		lp_r[0] = (uint32)mpz_get_ui(rfb->res);
+		lp_a[0] = (uint32)mpz_get_ui(afb->res);
 		for (i = 1; i < MAX_LARGE_PRIMES; i++)
 			lp_r[i] = lp_a[i] = 1;
 
@@ -1322,7 +1322,7 @@ static void divide_out_p(sieve_t *fb, uint32 p) {
 	uint32 rem;
 
 	while (1) {
-		rem = mpz_tdiv_q_ui(fb->tmp2, fb->res, p);
+		rem = (uint32)mpz_tdiv_q_ui(fb->tmp2, fb->res, p);
 		if (rem != 0)
 			return;
 		mpz_swap(fb->res, fb->tmp2);

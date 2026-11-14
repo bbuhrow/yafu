@@ -109,7 +109,7 @@ uint64_t sp_shanks_loop(mpz_t N, fact_obj_t* fobj)
 {
     // call shanks with multiple small multipliers
     int i, rounds, j;
-    uint64_t n64, nn64, f64, big1, big2;
+    UNUSED_VAR uint64_t n64, nn64, f64, big1, big2;
     mult_t mult_save[NUM_SQUFOF_MULT];
     mpz_t gmptmp;
 
@@ -142,7 +142,7 @@ uint64_t sp_shanks_loop(mpz_t N, fact_obj_t* fobj)
         if (big2 / (uint64_t)multipliers[i] < n64)
         {
             //this multiplier makes the input bigger than 64 bits
-            mult_save[i].mult = multipliers[i];
+            mult_save[i].mult = (uint32_t)multipliers[i];
             mult_save[i].valid = 0;
             continue;
         }
@@ -150,13 +150,13 @@ uint64_t sp_shanks_loop(mpz_t N, fact_obj_t* fobj)
         //form the multiplied input
         nn64 = n64 * (uint64_t)multipliers[i];
 
-        mult_save[i].mult = multipliers[i];
+        mult_save[i].mult = (uint32_t)multipliers[i];
         mult_save[i].valid = 1;
 
         //set imax = N^1/4
         mpz_set_64(gmptmp, nn64);
         mpz_sqrt(gmptmp, gmptmp);
-        mult_save[i].b0 = mpz_get_ui(gmptmp);
+        mult_save[i].b0 = (uint32_t)mpz_get_ui(gmptmp);
         mult_save[i].imax = (uint32_t)sqrt((double)mult_save[i].b0) / 16;
 
         //set up recurrence
@@ -200,7 +200,7 @@ uint64_t sp_shanks_loop(mpz_t N, fact_obj_t* fobj)
                 continue;
 
             //form the input
-            nn64 = n64 * multipliers[j];
+            nn64 = n64 * (uint64_t)multipliers[j];
             //try to factor
             shanks_mult_unit(nn64, &mult_save[j], &f64);
 
@@ -215,7 +215,7 @@ uint64_t sp_shanks_loop(mpz_t N, fact_obj_t* fobj)
                 if (f64 != multipliers[j])
                 {
                     //factor found.  check for and remove small multiplier if necessary.
-                    nn64 = gcd64(f64, multipliers[j]);
+                    nn64 = gcd64(f64, (uint64_t)multipliers[j]);
                     f64 /= nn64;
 
                     if (f64 != 1)
@@ -256,8 +256,8 @@ int par_shanks_loop(uint64_t* N, uint64_t* f, int num_in)
     // parallel using AVX2 enhanced racing-SQUFOF.  If a factor is found, it is 
     // placed into the corresponding location of the array 'f'.  Else the location 
     // in 'f' is set to 1. 
-    int i, rounds, j, all_done, list_position, num_successes, num_processed, num_active;
-    uint64_t n64, nn64, f64;
+    UNUSED_VAR int i, rounds, j, all_done, list_position, num_successes, num_processed, num_active;
+    uint64_t f64;
     par_mult_t mult_batch;
     mpz_t gmptmp;
 
@@ -320,7 +320,7 @@ int par_shanks_loop(uint64_t* N, uint64_t* f, int num_in)
 
                 //printf("assigning input %d = %"PRIu64" to lane %d\n", list_position, N[list_position], j);
                 // replace this lane.
-                mult_batch.listref[j] = list_position;
+                mult_batch.listref[j] = (uint32_t)list_position;
                 mult_batch.N[j] = N[list_position++];
 
                 if (mult_batch.N[j] < 3)
@@ -343,7 +343,7 @@ int par_shanks_loop(uint64_t* N, uint64_t* f, int num_in)
                     // record this (unlikely) success, and try to fill the lane again.
                     num_processed++;
                     num_successes++;
-                    f[mult_batch.listref[j]] = (uint64_t)sqrt(N[j]);
+                    f[mult_batch.listref[j]] = (uint64_t)sqrt((double)N[j]);
                     j--;
                 }
             }
@@ -410,7 +410,7 @@ int par_shanks_loop(uint64_t* N, uint64_t* f, int num_in)
         // 3) check if we are all done
         for (j = 0; j < NUM_LANES; j++)
         {
-            int result;
+            UNUSED_VAR int result;
 
             if (mult_batch.active[j] == 1)
             {
@@ -480,7 +480,7 @@ int par_shanks_loop(uint64_t* N, uint64_t* f, int num_in)
                             // on the same multiplier.
                             load_multiplier_data(mult_batch, save_data, j, old_multnum);
                             mult_batch.rounds[j]++;
-                            save_data[j][old_multnum].rounds = mult_batch.rounds[j];
+                            save_data[j][old_multnum].rounds = (uint32_t)mult_batch.rounds[j];
 
                             if (mult_batch.rounds[j] >= mult_batch.maxrounds[j])
                             {
@@ -593,7 +593,7 @@ void save_multiplier_data(par_mult_t batch_data, mult_t** savedata, int lane)
     savedata[lane][i].Q0 = batch_data.Q0[lane];
     savedata[lane][i].Qn = batch_data.Qn[lane];
     savedata[lane][i].valid = batch_data.valid[lane];
-    savedata[lane][i].rounds = batch_data.rounds[lane];
+    savedata[lane][i].rounds = (uint32_t)batch_data.rounds[lane];
     return;
 }
 
@@ -607,7 +607,7 @@ void load_multiplier_data(par_mult_t batch_data, mult_t** savedata, int lane, in
     batch_data.Q0[lane] = savedata[lane][multnum].Q0;
     batch_data.Qn[lane] = savedata[lane][multnum].Qn;
     batch_data.valid[lane] = savedata[lane][multnum].valid;
-    batch_data.rounds[lane] = savedata[lane][multnum].rounds;
+    batch_data.rounds[lane] = (int)savedata[lane][multnum].rounds;
     return;
 }
 
@@ -629,16 +629,16 @@ int get_next_multiplier(par_mult_t batch_data, mult_t** savedata, int lane)
         batch_data.b0[lane] = savedata[lane][i].b0;
         batch_data.bn[lane] = savedata[lane][i].bn;
         batch_data.it[lane] = savedata[lane][i].it;
-        batch_data.mN[lane] = batch_data.N[lane] * multipliers[i];
+        batch_data.mN[lane] = batch_data.N[lane] * (uint64_t)multipliers[i];
         batch_data.imax[lane] = savedata[lane][i].imax;
-        batch_data.mult[lane] = multipliers[i];
+        batch_data.mult[lane] = (uint32_t)multipliers[i];
         batch_data.multnum[lane] = i;
         batch_data.P[lane] = savedata[lane][i].P;
         batch_data.Q0[lane] = savedata[lane][i].Q0;
         batch_data.Qn[lane] = savedata[lane][i].Qn;
         batch_data.valid[lane] = 1;
-        batch_data.maxrounds[lane] = savedata[lane][i].maxrounds;
-        batch_data.rounds[lane] = savedata[lane][i].rounds;
+        batch_data.maxrounds[lane] = (int)savedata[lane][i].maxrounds;
+        batch_data.rounds[lane] = (int)savedata[lane][i].rounds;
         found = 1;
         break;
     }
@@ -665,7 +665,7 @@ int init_multipliers(mult_t** savedata, par_mult_t batch_data,
             if ((big2 / (uint64_t)multipliers[i]) < N)
             {
                 //this multiplier makes the input bigger than 64 bits
-                savedata[lane][i].mult = multipliers[i];
+                savedata[lane][i].mult = (uint32_t)multipliers[i];
                 savedata[lane][i].valid = 0;
                 continue;
             }
@@ -673,7 +673,7 @@ int init_multipliers(mult_t** savedata, par_mult_t batch_data,
             //form the multiplied input
             nn64 = N * (uint64_t)multipliers[i];
 
-            savedata[lane][i].mult = multipliers[i];
+            savedata[lane][i].mult = (uint32_t)multipliers[i];
             savedata[lane][i].valid = 1;
 
             //set imax = N^1/4
@@ -690,11 +690,11 @@ int init_multipliers(mult_t** savedata, par_mult_t batch_data,
             else
                 rounds = 32;
 
-            savedata[lane][i].maxrounds = rounds;
+            savedata[lane][i].maxrounds = (uint32_t)rounds;
             savedata[lane][i].rounds = 0;
 
             mpz_sqrt(gmptmp, gmptmp);
-            savedata[lane][i].b0 = mpz_get_ui(gmptmp);
+            savedata[lane][i].b0 = (uint32_t)mpz_get_ui(gmptmp);
             savedata[lane][i].imax = (uint32_t)sqrt((double)savedata[lane][i].b0) / 16;
 
             //set up recurrence
@@ -724,7 +724,7 @@ int init_multipliers(mult_t** savedata, par_mult_t batch_data,
             batch_data.mN[lane] = nn64;
             batch_data.imax[lane] = savedata[lane][i].imax;
             batch_data.f[lane] = 0;
-            batch_data.mult[lane] = multipliers[i];
+            batch_data.mult[lane] = (uint32_t)multipliers[i];
             batch_data.multnum[lane] = i;
             batch_data.P[lane] = savedata[lane][i].P;
             batch_data.N[lane] = N;
@@ -763,7 +763,7 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
         if ((big2 / (uint64_t)multipliers[i]) < n64)
         {
             //this multiplier makes the input bigger than 64 bits
-            mult_save.mult[lane] = multipliers[i];
+            mult_save.mult[lane] = (uint32_t)multipliers[i];
             mult_save.valid[lane] = 0;
             continue;
         }
@@ -772,7 +772,7 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
         nn64 = n64 * (uint64_t)multipliers[i];
         mult_save.mN[lane] = nn64;
 
-        mult_save.mult[lane] = multipliers[i];
+        mult_save.mult[lane] = (uint32_t)multipliers[i];
         mult_save.valid[lane] = 1;
 
         //set imax = N^1/4
@@ -790,8 +790,8 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
             rounds = 32;
 
         mpz_sqrt(gmptmp, gmptmp);
-        mult_save.b0[lane] = mpz_get_ui(gmptmp);
-        mult_save.imax[lane] = (uint32_t)sqrt((double)mult_save.b0[lane]) * rounds / 16;
+        mult_save.b0[lane] = (uint32_t)mpz_get_ui(gmptmp);
+        mult_save.imax[lane] = (uint32_t)sqrt((double)mult_save.b0[lane]) * (unsigned int)rounds / 16;
 
         //set up recurrence
         mult_save.Q0[lane] = 1;
@@ -826,7 +826,7 @@ void shanks_mult_unit(uint64_t N, mult_t* mult_save, uint64_t* f)
     //input N < 2^63
     //return 1 in f if no factor is found
     uint32_t imax, i, Q0, b0, Qn, bn, P, bbn, Ro, S, So, t1, t2;
-    int j = 0;
+    UNUSED_VAR int j = 0;
 
     //initialize output
     *f = 0;
@@ -928,7 +928,7 @@ void shanks_mult_unit(uint64_t N, mult_t* mult_save, uint64_t* f)
         //printf("checking symmetry point after %d iterations on input %"PRIu64"\n", i, N);
 
         //reduce to G0
-        S = (int)sqrt(Qn);
+        S = (uint32_t)(int)sqrt(Qn);
         Ro = P + S * ((b0 - P) / S);
         t1 = Ro;
         So = (uint32_t)(((int64_t)N - (int64_t)t1 * (int64_t)t1) / (int64_t)S);
@@ -1013,7 +1013,7 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
     ALIGNED_MEM uint32_t t2[NUM_LANES];
     ALIGNED_MEM uint32_t success_vec[NUM_LANES];
 
-    int j = 0;
+    UNUSED_VAR int j = 0;
     int i = 0;
     int k;
     int success;
@@ -1033,8 +1033,10 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
 
     imax = MAX(imax, 128);
 
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
+#endif
     for (k = 0; k < NUM_LANES; k++)
     {
         mult_save->f[k] = 0;
@@ -1045,8 +1047,10 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
         j = 0;
 
         //i must be even on entering the unrolled loop below
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
+#endif
         for (k = 0; k < NUM_LANES; k++)
         {
             if (iterations[k] & 0x1)
@@ -1109,8 +1113,10 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
                 //multiplier try for awhile.  save state so we
                 //know where to start back up in the next round
 
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
+#endif
                 for (k = 0; k < NUM_LANES; k++)
                 {
                     //signal to do nothing but continue looking for a factor
@@ -1156,8 +1162,10 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
                 return;
             }
 
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
+#endif
             for (k = 0; k < NUM_LANES; k++)
             {
                 t1[k] = P[k];
@@ -1206,9 +1214,11 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
             //check for square Qn = S*S
             success = 0;
 
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
 #pragma unroll
+#endif
             for (k = 0; k < NUM_LANES; k++)
             {
                 success_vec[k] = 0;
@@ -1271,8 +1281,10 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
             }
 
             //odd iteration
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
+#endif
             for (k = 0; k < NUM_LANES; k++)
             {
                 t1[k] = P[k];
@@ -1321,8 +1333,10 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
 
         // we're about to check for a factorization.  
         // save progress in case we find one and exit.
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma ivdep
 #pragma vector aligned
+#endif
         for (k = 0; k < NUM_LANES; k++)
         {
             //set default signal: to do nothing but continue looking for a factor
@@ -1340,7 +1354,7 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
                 //    mult_save->mN[k], k, i);
 
                 // reduce to G0
-                S[k] = (int)sqrt(Qn[k]);
+                S[k] = (uint32_t)(int)sqrt(Qn[k]);
                 Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
                 t1[k] = Ro[k];
                 So[k] = (uint32_t)(((int64_t)mult_save->mN[k] - (int64_t)t1[k] * (int64_t)t1[k]) /
@@ -1367,7 +1381,7 @@ void par_shanks_mult_unit(par_mult_t* mult_save)
                             // these run at almost exactly the same speed.  use the normal
                             // gcd both because it is more general and because it will
                             // pick up any future advances in hardware integer division.
-                            mult_save->f[k] = gcd64(Ro[k], mult_save->N[k]);
+                            mult_save->f[k] = (uint32_t)gcd64(Ro[k], mult_save->N[k]);
                             //mult_save->f[k] = spBinGCD_odd(mult_save->N[k], Ro[k]);
 
                             if (mult_save->f[k] > 1)
@@ -1434,11 +1448,11 @@ void par_shanks_mult_unit_asm(par_mult_t* mult_save)
     uint32_t t2[NUM_LANES];
     uint32_t success_vec[NUM_LANES];
     uint64_t conversion[4];
-    double fudge[4];
+    UNUSED_VAR double fudge[4];
 #endif
 
 
-    int j = 0;
+    UNUSED_VAR int j = 0;
     int i = 0;
     int k;
     int success;
@@ -1470,7 +1484,9 @@ void par_shanks_mult_unit_asm(par_mult_t* mult_save)
     //printf("scheduled to run %d iterations\n", imax);
 
     // load previous save point
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma novector
+#endif
     for (k = 0; k < NUM_LANES; k++)
     {
         mult_save->f[k] = 0;
@@ -1484,7 +1500,9 @@ void par_shanks_mult_unit_asm(par_mult_t* mult_save)
         j = 0;
 
         //i must be even on entering the unrolled loop below
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 #pragma novector
+#endif
         for (k = 0; k < NUM_LANES; k++)
         {
             if (iterations[k] & 0x1)
@@ -1884,7 +1902,7 @@ void par_shanks_mult_unit_asm(par_mult_t* mult_save)
         {
             // set default signal: to do nothing but continue looking for a factor
             mult_save->f[k] = 0;
-            iterations[k] += kk;
+            iterations[k] += (uint32_t)kk;
         }
 
         if (i >= imax)
@@ -1981,7 +1999,7 @@ void par_shanks_mult_unit_asm(par_mult_t* mult_save)
                 //    mult_save->mN[k], k, i);
 
                 // reduce to G0
-                S[k] = (int)sqrt(Qn[k]);
+                S[k] = (uint32_t)(int)sqrt(Qn[k]);
                 Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
                 t1[k] = Ro[k];
                 So[k] = (uint32_t)(((int64_t)mult_save->mN[k] - (int64_t)t1[k] * (int64_t)t1[k]) / (int64_t)S[k]);
@@ -2015,7 +2033,7 @@ void par_shanks_mult_unit_asm(par_mult_t* mult_save)
                             // these run at almost exactly the same speed.  use the normal
                             // gcd both because it is more general and because it will
                             // pick up any future advances in hardware integer division.
-                            mult_save->f[k] = gcd64(Ro[k], mult_save->N[k]);
+                            mult_save->f[k] = (uint32_t)gcd64(Ro[k], mult_save->N[k]);
                             //mult_save->f[k] = spBinGCD(mult_save->N[k], Ro[k]);
 
                             if (mult_save->f[k] > 1)
@@ -2106,7 +2124,7 @@ void MakePrimeTable(void) {
         for (j = 0; prime[j] * (uint32_t)prime[j] <= i; j++) {
             if (i % prime[j] == 0) goto NONPRIME;
         }
-        prime[k] = i;
+        prime[k] = (uint16_t)i;
         k++;
     NONPRIME:;
     }
@@ -2166,9 +2184,9 @@ uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
     mpz_init(tmpz);
     mpz_set_64(tmpz, N);
     mpz_root(tmpz, tmpz, 3);
-    B = Tune * (1 + (double)mpz_get_ui(tmpz));
+    B = (uint32_t)(Tune * (1 + (double)mpz_get_ui(tmpz)));
 
-    FirstCut = CutFrac * B;
+    FirstCut = (uint32_t)(CutFrac * B);
 
     //assures prime N will not activate "wrong" Lehman return
     if (FirstCut < 84)
@@ -2201,7 +2219,7 @@ uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
 
     Tune2 = Tune * Tune;
     Tune3 = Tune2 * Tune;
-    Bred = B / Tune3;
+    Bred = (uint32_t)(B / Tune3);
 
     B2 = B * B;
     kN = 0;
@@ -2240,7 +2258,7 @@ uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
         else
             x = sqrt((double)kN);
 
-        a = x;
+        a = (uint64_t)x;
         if ((uint64_t)a * (uint64_t)a == kN)
         {
             B2 = gcd64((uint64_t)a, N);
@@ -2249,10 +2267,10 @@ uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
         }
 
         x *= 2;
-        a = x + 0.9999999665; //very carefully chosen.
+        a = (uint64_t)(x + 0.9999999665); //very carefully chosen.
         //Let me repeat that: a = x+0.9999999665.  Really.
-        b = a % inc;
-        b = a + (inc + r - b) % inc;   //b is a but adjusted upward to make b%inc=r.
+        b = (uint32_t)(a % inc);
+        b = (uint32_t)(a + (inc + r - b) % inc);   //b is a but adjusted upward to make b%inc=r.
         c = (uint64_t)b * (uint64_t)b - kN4;  //this is the precision bottleneck.
         //At this point, I used to do a test:
         //if( c+kN4 != (uint64_t)b*(uint64_t)b ) //overflow-caused failure: exit!
@@ -2262,7 +2280,7 @@ uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
         //If overflow happens, this is irrelevant because c is way smaller than 2^64, kN4, and b*b.
         //Hence c should be correct, despite the overflow. Hence I am removing this error-exit.
 
-        U = x + B2 / (2 * x);
+        U = (uint32_t)(x + (double)((double)B2 / (2 * x)));
         //old code was  U = sqrt((real)(B2+kN4+0.99));   and was 4% slower.
 
         //Below loop is: for(all integers a with 0<=a*a-kN4<=B*B and with a%inc==r)
@@ -2280,7 +2298,7 @@ uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
                 {
                     if (issq4199[c % 4199] & 1)
                     {
-                        b = sqrt(c + 0.9);
+                        b = (uint32_t)sqrt((double)((double)c + 0.9));
                         if (b * b == c)
                         {
                             //square found
@@ -2363,14 +2381,14 @@ double reciprocals[MAXPRIMES];
 void TDiv63InverseSetup(uint64_t* PRIMES, uint64_t NUM_P) {
     int i;
     for (i = 0; i < NUM_P; i++) {
-        primes[i] = PRIMES[i];
+        primes[i] = (int)PRIMES[i];
         reciprocals[i] = 1.0 / primes[i];
     }
 }
 
 int tdiv_inverse(int64_t N, int pLimit) {
     int i = 0;
-    int lbits = _lead_zcnt64(N);
+    int lbits = _lead_zcnt64((unsigned long long)N);
     int Nbits = 64 - lbits;
 
     int pMinBits = Nbits - 53 + DISCRIMINATOR_BITS;
@@ -2390,7 +2408,7 @@ int tdiv_inverse(int64_t N, int pLimit) {
     // Now the primes are big enough to apply trial division by inverses
     for (; primes[i] <= pLimit; i++) {
 
-        int64_t nDivPrime = (int64_t)(N * reciprocals[i] + DISCRIMINATOR);
+        int64_t nDivPrime = (int64_t)((double)N * reciprocals[i] + DISCRIMINATOR);
         //if (N == 346425669865991LL && primes[i] == 70163)
         //	printf("nDivPrime = %ld, test = %ld\n", nDivPrime, nDivPrime * primes[i]);
 
@@ -2472,9 +2490,9 @@ int64_t lehmanOdd(int kBegin, int kLimit, double sqrt4N, int64_t N, int64_t four
         //	{
         //		if (issq4199[test % 4199] & 1)
         //		{
-        const int64_t b = (int64_t)sqrt(test);
+        const int64_t b = (int64_t)sqrt((double)test);
         if (b * b == test) {
-            return gcd64(a + b, N);
+            return (int64_t)gcd64((uint64_t)(a + b), (uint64_t)N);
         }
         //		}
         //	}
@@ -2521,9 +2539,9 @@ int64_t lehmanEven(int kBegin, int kEnd, double sqrt4N, int64_t N, int64_t fourN
         //	{
         //		if (issq4199[test % 4199] & 1)
         //		{
-        const int64_t b = (int64_t)sqrt(test);
+        const int64_t b = (int64_t)sqrt((double)test);
         if (b * b == test) {
-            return gcd64(a + b, N);
+            return (int64_t)gcd64((uint64_t)(a + b), (uint64_t)N);
         }
         //		}
         //	}
@@ -2566,7 +2584,6 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
 {
     int i;
     int k;
-    int j;
     int64_t N = (int64_t)uN;
     int64_t fourN;
     double sqrt4N;
@@ -2580,7 +2597,6 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
         uint64_t NUM_P;
 
         // Precompute sqrts for all possible k. 2^21 entries are enough for N~2^63.
-        int kMax = 1 << 21;
         for (i = 1; i < SQRTBOUND; i++) {
             double sqrtI = sqrt((double)i);
             sqRoot[i] = sqrtI;
@@ -2603,7 +2619,7 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
         //printf("issqr tables generated\n");
     }
 
-    const int cbrt = (int)pow(N, 1. / 3);
+    const int cbrt = (int)pow((double)N, 1. / 3);
 
     // do trial division before Lehman loop, up to the cube root
     if (DoTrialFirst)
@@ -2615,12 +2631,12 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
         //		return PRIMES[i];
         //	i++;
         //}
-        if ((factor = tdiv_inverse(N, cbrt)) > 1) return factor;
+        if ((factor = tdiv_inverse(N, cbrt)) > 1) return (uint64_t)factor;
     }
 
 
     fourN = N << 2;
-    sqrt4N = sqrt(fourN);
+    sqrt4N = sqrt((double)fourN);
 
     // kLimit must be 0 mod 6, since we also want to search above of it
     const int kLimit = ((cbrt + 6) / 6) * 6;
@@ -2636,11 +2652,11 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
 
     // We start with the middle range cases k == 0 (mod 6) and k == 3 (mod 6),
     // which have the highest chance to find a factor.
-    if ((factor = lehmanEven(kTwoA, kLimit, sqrt4N, N, fourN)) > 1) return factor;
-    if ((factor = lehmanOdd(kTwoA + 3, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+    if ((factor = lehmanEven(kTwoA, kLimit, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
+    if ((factor = lehmanOdd(kTwoA + 3, kLimit, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
 
     // Now investigate the small range
-    sixthRootTerm = 0.25 * pow(N, 1 / 6.0); // double precision is required for stability
+    sixthRootTerm = 0.25 * pow((double)N, 1 / 6.0); // double precision is required for stability
     for (k = 1; k < kTwoA; k++) {
         int64_t a;
         const int64_t fourkN = k * fourN;
@@ -2671,9 +2687,9 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
             const int64_t test = a * a - fourkN;
             // Here test<0 is possible because of double to long cast errors in the 'a'-computation.
             // But then b = sqrt(test) gives NaN (sic!) => NaN*NaN != test => no errors.
-            const int64_t b = (int64_t)sqrt(test);
+            const int64_t b = (int64_t)sqrt((double)test);
             if (b * b == test) {
-                return (int64_t)gcd64(a + b, N);
+                return (uint64_t)((int64_t)gcd64((uint64_t)(a + b), (uint64_t)N));
             }
             //{
             //	/* Step 1, reduce to 18% of inputs */
@@ -2693,16 +2709,16 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
     }
 
     // k == 0 (mod 6) has the highest chance to find a factor; checking it in the high range boosts performance
-    if ((factor = lehmanEven(kLimit, kLimit << 1, sqrt4N, N, fourN)) > 1) return factor;
+    if ((factor = lehmanEven(kLimit, kLimit << 1, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
 
     // Complete middle range
-    if ((factor = lehmanOdd(kTwoA + 1, kLimit, sqrt4N, N, fourN)) > 1) return factor;
-    if ((factor = lehmanEven(kTwoA + 2, kLimit, sqrt4N, N, fourN)) > 1) return factor;
-    if ((factor = lehmanEven(kTwoA + 4, kLimit, sqrt4N, N, fourN)) > 1) return factor;
-    if ((factor = lehmanOdd(kTwoA + 5, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+    if ((factor = lehmanOdd(kTwoA + 1, kLimit, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
+    if ((factor = lehmanEven(kTwoA + 2, kLimit, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
+    if ((factor = lehmanEven(kTwoA + 4, kLimit, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
+    if ((factor = lehmanOdd(kTwoA + 5, kLimit, sqrt4N, N, fourN)) > 1) return (uint64_t)factor;
 
     // do trial division after Lehman loop ?
-    const int rt2 = sqrt(N);
+    UNUSED_VAR const int rt2 = (int)sqrt((double)N);
 
     // do trial division after Lehman loop
     if (!DoTrialFirst)
@@ -2714,7 +2730,7 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
         //		return PRIMES[i];
         //	i++;
         //}
-        if ((factor = tdiv_inverse(N, cbrt)) > 1) return factor;
+        if ((factor = tdiv_inverse(N, cbrt)) > 1) return (uint64_t)factor;
     }
 
     // If sqrt(4kN) is very near to an exact integer then the fast ceil() in the 'aStart'-computation
@@ -2722,9 +2738,9 @@ uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac
     for (k = kTwoA + 1; k <= kLimit; k++) {
         int64_t a = (int64_t)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) - 1;
         int64_t test = a * a - k * fourN;
-        int64_t b = (int64_t)sqrt(test);
+        int64_t b = (int64_t)sqrt((double)test);
         if (b * b == test) {
-            return gcd64(a + b, N);
+            return gcd64((uint64_t)(a + b), (uint64_t)N);
         }
         //{
         //	/* Step 1, reduce to 18% of inputs */

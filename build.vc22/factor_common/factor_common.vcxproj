@@ -88,7 +88,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\factor\kmpqs;..\..\factor\gmp-ecm;..\..\include;..\..\ms_include;..\..\top\cmdParser;..\..\top\aprcl;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\arith\limb;..\..\factor\kmpqs;..\..\factor\gmp-ecm;..\..\include;..\..\ms_include;..\..\top\cmdParser;..\..\top\aprcl;..\..\ytools;..\..\ysieve;..\..\zlib;$(mp_dir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -155,6 +155,8 @@
     <ClCompile Include="..\..\arith\arith.c" />
     <ClCompile Include="..\..\arith\fftmul.c" />
     <ClCompile Include="..\..\arith\monty.c" />
+    <ClCompile Include="..\..\arith\limb\limb1.c" />
+    <ClCompile Include="..\..\arith\limb\limb2.c" />
     <ClCompile Include="..\..\factor\batch_factor.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
@@ -197,7 +199,10 @@
     <ClInclude Include="..\..\factor\kmpqs\kmpqs_kernels.h" />
   </ItemGroup>
   <ItemGroup>
-    <YASM Include="..\..\arith\mod64.asm" />
+    <!-- arith\mod64.asm (mod_64) was unused and has been removed -->
+    <None Include="..\..\arith\limb\limb1.h" />
+    <None Include="..\..\arith\limb\limb2.h" />
+    <None Include="..\..\arith\limb\mp_platform.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

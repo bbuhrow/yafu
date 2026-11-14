@@ -168,7 +168,7 @@ typedef struct
 typedef struct {
     // stuff for parallel ggnfs sieving
     char outfilename[80];
-    char job_infile_name[80];
+    char job_infile_name[GSTR_MAXSIZE];   // copied from fobj->nfs_obj.job_infile
     nfs_job_t job;
     uint32_t siever;
     relation_batch_t* rb_ref;

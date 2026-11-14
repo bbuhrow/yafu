@@ -15,10 +15,14 @@ test/
                             an exact uint64 primality oracle + generators,
                             plus a corpus self-check module
   test_main.c               lists the modules to run
-  layer0/                   primitive tests (mp_platform.h)
+  layer0/                   primitive tests (arith/limb/mp_platform.h)
     test_mp_arith.c           umul128 / udiv128 / add-/sub-carry chains
     test_mp_bitscan.c         lead/trail zero-count, reset-lsb
+    test_limb_inline.c        header-only limb kernels: 32-bit primitives, 64-bit modular,
+                              128-bit arithmetic, 52-bit x8 (no GMP, self-contained refs)
   layer1/                   kernel tests (link YAFU + GMP)
+    test_limb.c               arith/limb vs GMP: 128-bit Montgomery (edges, aliasing), sp helpers,
+                              gcds, jacobi, sqrt mod p, 104-bit x8 kernels
     test_sp_arith.c           arith.h single-word mul/div/mulmod/modexp/modinv
     test_modular.c            Montgomery (mpz + 128-bit) vs GMP
     test_primality.c          APRCL/BPSW/MR + tinyprp vs the corpus
@@ -26,12 +30,17 @@ test/
     test_ecm.c                microecm / tinyecm on known semiprimes
     test_ocl_ecm.c            OpenCL kernels gbl_ecm / gbl_ecm96 / gbl_pm196
                               (only built with WITH_OPENCL=1, see below)
+  layer3/                   (top-level `make test-full`, see below)
+    test_siqs.c               SIQS on the 50/60/70-digit siqsbench composites
+    test_snfs.c               SNFS form detection, algebraic/Aurifeuillian/power
+                              splits, poly n and roots; factor() method choice
+                              and options via the yafu binary
   Makefile
 ```
 
 ## The layer model
 
-- **Layer 0 — primitives.** The platform arithmetic in `mp_platform.h`.
+- **Layer 0 — primitives.** The platform arithmetic in `arith/limb/mp_platform.h`.
   Checked against self-contained portable-C reference oracles; no external
   dependencies. This is where the `mp_arith` / `mp_bitscan` harnesses now live.
 - **Layer 1 — kernels.** Arithmetic and number-theory building blocks
@@ -65,6 +74,36 @@ make full YAFU_ROOT=/path/to/yafu YAFU_OBJS="...objects except the driver..."
 See the Makefile header for the variables. Layer 1 is gated behind
 `-DTK_NO_LAYER1` (the subset build defines it), so the framework and Layer 0
 always build even without GMP.
+
+## Layer 3 (test-full)
+
+Built from the top-level Makefile; links the full factoring archives:
+
+```
+make test-full
+./yafu_test_full snfs -v        # run from the yafu source root
+```
+
+`layer3/test_snfs.c` has two kinds of tests:
+
+- **In-process** (tag `fast`): one test per special form, mirroring what
+  factor() does: `snfs_find_form()` on the full input, then
+  `snfs_choose_poly()` on the input less primes < 10^5. Each checks the form
+  type; that the factor list still multiplies to the input; the reduced input
+  size and the number of algebraic / Aurifeuillian / difference-of-powers
+  pieces split off; that the polynomial is for the reduced input and that f
+  and g share a root mod n; and the degree and difficulty. The expected values
+  are pinned: if a deliberate change to poly selection moves them, rerun with
+  `YAFU_TEST_SNFS_REPORT=1` to print the actuals, check them, and update the
+  table.
+- **Black-box** (tag `cli`): runs the built yafu (`$YAFU_BIN`, else `./yafu.exe`
+  or `./yafu`) in `./yafu_test_snfs.tmp/<test>/`, where no yafu.ini is found,
+  so defaults apply. `-plan none -max_nfs 1 -max_siqs 1 -v` makes factor()
+  report its method choice and the sieve it would start, then stop. This
+  checks `-gnfs`, `-xover`, `-snfs_xover` and `-pretest`, and the SNFS ECM
+  depth. It also checks `-np` job files from factor() and snfs(), and an SNFS
+  input where ECM with `-sigma 938848200 -threads 1` finds a factor and the
+  job falls back to SIQS. Without a binary these tests print a note and pass.
 
 ## OpenCL kernel tests
 

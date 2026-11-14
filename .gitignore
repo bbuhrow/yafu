@@ -13,6 +13,9 @@
 msiqs/
 ignore/
 tuning/
+lib/
+yafu_test_snfs.tmp/
+build.vc22/*/x64/*
 
 # Logs / Checkpoints / data files
 *.log

@@ -56,9 +56,9 @@ uint64_t estimate_primes_in_range(uint64_t lowlimit, uint64_t highlimit)
 {
 	uint64_t hi_est, lo_est;
 
-	hi_est = (uint64_t)(highlimit/log((double)highlimit));
+	hi_est = (uint64_t)((double)highlimit/log((double)highlimit));
 	if (lowlimit > 1)
-		lo_est = (uint64_t)(lowlimit/log((double)lowlimit));
+		lo_est = (uint64_t)((double)lowlimit/log((double)lowlimit));
 	else
 		lo_est = 0;
 
@@ -287,7 +287,7 @@ uint32_t modinv3(uint32_t a, uint32_t p) {
     divisor = rem;
     ps1 = q;
     ps2 = 1;
-    parity = ~0;
+    parity = (uint32_t)~0;
 
     while (divisor > 1) {
         rem = dividend - divisor;
@@ -455,7 +455,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
         printf("residue classes mod 2310:\n");
         for (i = 1; i < prodN; i++)
         {
-            if (gcd_1(i, (uint64_t)prodN) == 1)
+            if (gcd_1((uint64_t)i, (uint64_t)prodN) == 1)
             {
                 printf("%d ", i);
                 //printf("%d,", prodN - modinv1(i, prodN));
@@ -543,7 +543,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
 
     if ((sdata->userclasses > 0) && (sdata->is_main_sieve == 1))
     {
-        numclasses = sdata->userclasses;
+        numclasses = (uint64_t)sdata->userclasses;
         switch (numclasses)
         {
         case 2:
@@ -587,7 +587,7 @@ void get_numclasses(uint64_t highlimit, uint64_t lowlimit, soe_staticdata_t *sda
 #endif
     }
 
-	sdata->numclasses = numclasses;
+	sdata->numclasses = (uint32_t)numclasses;
 	sdata->prodN = prodN;
 	sdata->startprime = startprime;
 
@@ -654,12 +654,12 @@ int check_input(uint64_t highlimit, uint64_t lowlimit, uint32_t num_sp, uint32_t
 		}
         if (i == num_sp)
             i--;
-		sdata->pboundi = i;	
+		sdata->pboundi = (uint64_t)i;	
         sdata->pbound = sieve_p[sdata->pboundi - 1];
 
         if (sdata->VFLAG > 2)
         {
-            printf("largest needed prime is %u at sieve_p index %d\n",
+            printf("largest needed prime is %" PRIu64 " at sieve_p index %" PRIu64 "\n",
                 sdata->pbound, sdata->pboundi);
         }
 
@@ -808,7 +808,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
     k = 0;
     for (i = 1; i < prodN; i++)
     {
-        if (gcd_1(i, (uint64_t)prodN) == 1)
+        if (gcd_1((uint64_t)i, (uint64_t)prodN) == 1)
         {
             sdata->rclass[k] = (uint32_t)i;
             k++;
@@ -821,36 +821,36 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
     {
         // if we are asked to count twin primes, we can reduce
         // the effort by only sieving allowed classes.
-        int i, k;
-        k = 0;
+        int i, k_in;
+        k_in = 0;
         int prev = 0;
         //printf("twin residues mod %d:\n", prodN);
         for (i = 1; i < prodN; i++)
         {
-            if (gcd_1(i, (uint64_t)prodN) == 1)
+            if (gcd_1((uint64_t)i, (uint64_t)prodN) == 1)
             {
                 if ((i == 1) || (i == (prodN - 1)))
                 {
                     //printf("%d ", i);
-                    sdata->rclass[k] = (uint32_t)i;
-                    k++;
+                    sdata->rclass[k_in] = (uint32_t)i;
+                    k_in++;
                     //if (k % 10 == 0) printf("\n");
                 }
                 else if ((i - prev) == 2)
                 {
                     //printf("%d %d ", prev, i);
-                    sdata->rclass[k] = (uint32_t)prev;
-                    k++;
-                    sdata->rclass[k] = (uint32_t)i;
-                    k++;
+                    sdata->rclass[k_in] = (uint32_t)prev;
+                    k_in++;
+                    sdata->rclass[k_in] = (uint32_t)i;
+                    k_in++;
                     //if (k % 10 == 0) printf("\n");
                 }
                 prev = i;
             }
         }
-        sdata->numclasses = k;
+        sdata->numclasses = (uint32_t)k_in;
         //printf("\n");
-        printf("%d twin residues for product %d\n", k, prodN);
+        printf("%d twin residues for product %" PRIu64 "\n", k_in, prodN);
         //exit(0);
     }
 
@@ -871,8 +871,8 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
 
         // the start of the range of interest is controlled by offset, not lowlimit
         // figure out how it needs to change to accomodate sieving
-        mpz_tdiv_q_ui(tmpz, sdata->offset, numclasses * prodN);
-        mpz_mul_ui(tmpz, tmpz, numclasses * prodN);
+        mpz_tdiv_q_u64(tmpz, sdata->offset, numclasses * prodN);
+        mpz_mul_u64(tmpz, tmpz, numclasses * prodN);
         mpz_sub(tmpz2, sdata->offset, tmpz);
 
         // raise the high limit by the amount the offset was lowered, so that
@@ -908,7 +908,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
 
     if (sdata->blocks > (1 << (32 - sdata->FLAGBITS)))
     {
-        printf("too many blocks (%u)!\nReduce the sieve range\n",
+        printf("too many blocks (%" PRIu64 ")!\nReduce the sieve range\n",
             sdata->blocks);
         exit(0);
     }
@@ -919,7 +919,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
 
     // compute the breakpoints at which we switch to other sieving methods	
     sdata->num_bitmap_primes = 0;
-    sdata->bitmap_start_id = sdata->pboundi;
+    sdata->bitmap_start_id = (uint32_t)sdata->pboundi;
     if (sdata->pboundi > sdata->BUCKETSTARTI)
     {
         sdata->bucket_start_id = sdata->BUCKETSTARTI;
@@ -928,18 +928,18 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
         sdata->bitmap_lower_bound = 99999999999999ULL;
         if (0) //((int)log10(sdata->orig_llimit) - 14) >= 0)
         {
-            sdata->bitmap_start_id = MIN(
-                bitmap_bound_tab[sdata->startprime - 2][(int)log10(sdata->orig_llimit) - 14],
+            sdata->bitmap_start_id = (uint32_t)MIN(
+                bitmap_bound_tab[sdata->startprime - 2][(int)log10((double)sdata->orig_llimit) - 14],
                 sdata->pboundi);
 
             if ((sdata->bitmap_start_id < sdata->pboundi))
-                sdata->num_bitmap_primes = sdata->pboundi - sdata->bitmap_start_id;
+                sdata->num_bitmap_primes = (uint32_t)(sdata->pboundi - sdata->bitmap_start_id);
             else
-                sdata->bitmap_start_id = sdata->pboundi;
+                sdata->bitmap_start_id = (uint32_t)sdata->pboundi;
         }
 
         // force no bitmap sieving...
-        sdata->bitmap_start_id = sdata->pboundi;
+        sdata->bitmap_start_id = (uint32_t)sdata->pboundi;
         sdata->num_bitmap_primes = 0;
 
         // buckets operate up to the bitmap bound (which may be the 
@@ -949,7 +949,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
     else
     {
         sdata->num_bucket_primes = 0;
-        sdata->bucket_start_id = sdata->pboundi;
+        sdata->bucket_start_id = (uint32_t)sdata->pboundi;
     }
 
     // any prime larger than this will only hit the interval once (in residue space)
@@ -1050,7 +1050,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
     {
         //don't allocate anything now, but
         //provide an figure for the memory that will be allocated later
-        numbytes = numlinebytes * sizeof(uint8_t) * sdata->THREADS;
+        numbytes = numlinebytes * sizeof(uint8_t) * (unsigned long)sdata->THREADS;
     }
 
 
@@ -1080,7 +1080,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
                 interval[x] = 0xffffffffffffffffULL;
 
             // sieve up to the bound, printing each 64-bit word as we fill it
-            for (k = i; k < DYNAMIC_BOUND; k += prime)
+            for (k = i; k < DYNAMIC_BOUND; k += (int)prime)
             {
                 interval[k >> 6] &= ~(1ULL << (k & 63));
             }
@@ -1186,7 +1186,7 @@ void set_bucket_depth(soe_staticdata_t *sdata)
 		uint64_t num_hits = 0;
 		uint64_t hits_per_bucket;
 		
-		for (i = sdata->bucket_start_id; i < sdata->bucket_start_id + sdata->num_bucket_primes; i++)
+		for (i = (int)sdata->bucket_start_id; i < sdata->bucket_start_id + sdata->num_bucket_primes; i++)
 		{
 			// condition to see if the current prime only hits the sieve interval once
 			if ((sdata->sieve_p[i] * sdata->prodN) > (sdata->blk_r * sdata->blocks))
@@ -1205,7 +1205,7 @@ void set_bucket_depth(soe_staticdata_t *sdata)
 		// of hits per bucket.  The idea is to set this right once, even if it is too big,
 		// so that we don't have to keep checking for full buckets in the middle of
 		// the bucket sieve (which would be slow)
-		sdata->bucket_alloc = MAX(hits_per_bucket,50000);
+		sdata->bucket_alloc = (uint32_t)MAX(hits_per_bucket,50000);
 
 		// now count primes that only hit the interval once
 		num_hits = 0;
@@ -1219,7 +1219,7 @@ void set_bucket_depth(soe_staticdata_t *sdata)
 		hits_per_bucket = (uint64_t)((double)hits_per_bucket * 1.1);
 
 		if (num_hits > 0)
-			sdata->large_bucket_alloc = MAX(hits_per_bucket,50000);
+			sdata->large_bucket_alloc = (uint32_t)MAX(hits_per_bucket,50000);
 		else
 			sdata->large_bucket_alloc = 0;
 
@@ -1237,7 +1237,7 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
 	uint32_t bucket_depth = sdata->num_bucket_primes;
 	int i,j;
 	
-	allocated_bytes += sdata->THREADS * sizeof(thread_soedata_t);
+	allocated_bytes += (unsigned long)sdata->THREADS * sizeof(thread_soedata_t);
 	for (i=0; i< sdata->THREADS; i++)
 	{
 		thread_soedata_t *thread = thread_data + i;
@@ -1245,14 +1245,14 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
         if (sdata->analysis > 1)
         {
             thread->ddata.analysis_carry_data =
-                (uint8_t*)xmalloc((sdata->analysis / 8 + 1) * sizeof(uint8_t));
+                (uint8_t*)xmalloc((unsigned long)(sdata->analysis / 8 + 1) * sizeof(uint8_t));
         }
 
         if (sdata->gapmin > 0)
         {
             sdata->analysis = 1;
             thread->ddata.analysis_carry_data =
-                (uint8_t*)xmalloc((sdata->gapmin / 8 + 1) * sizeof(uint8_t));
+                (uint8_t*)xmalloc((unsigned long)(sdata->gapmin / 8 + 1) * sizeof(uint8_t));
         }
 
         // presieving scratch space
@@ -1269,9 +1269,9 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
 		// we'll need to store the offset into the next block for each prime.
 		// actually only need those primes less than BUCKETSTARTP since bucket sieving
 		// doesn't use the offset array.
-        j = MIN(sdata->pboundi, sdata->BUCKETSTARTI);
-        thread->ddata.offsets = (uint32_t *)xmalloc_align(j * sizeof(uint32_t));
-		allocated_bytes += j * sizeof(uint32_t);
+        j = (int)MIN(sdata->pboundi, sdata->BUCKETSTARTI);
+        thread->ddata.offsets = (uint32_t *)xmalloc_align((unsigned long)j * sizeof(uint32_t));
+		allocated_bytes += (unsigned long)j * sizeof(uint32_t);
 		if (thread->ddata.offsets == NULL)
 		{
 			printf("error allocating offsets\n");
@@ -1282,7 +1282,7 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
             if (sdata->VFLAG > 2)
             {
                 printf("allocated %u bytes for offsets for %d sieving primes \n",
-                    (uint32_t)(j * sizeof(uint32_t)), j);
+                    (uint32_t)((unsigned long)j * sizeof(uint32_t)), j);
             }
 		}
 		thread->ddata.bucket_depth = 0;
@@ -1441,7 +1441,7 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
 
 void trim_line(soe_staticdata_t *sdata, int current_line)
 {
-    uint32_t prodN = sdata->prodN;
+    uint32_t prodN = (uint32_t)sdata->prodN;
     uint64_t lowlimit = sdata->lowlimit;
     uint8_t* masks = sdata->masks;
     uint8_t* nmasks = sdata->nmasks;
@@ -1461,7 +1461,7 @@ void trim_line(soe_staticdata_t *sdata, int current_line)
     // zero out full bytes between the last chunk and the original
     // range limit.
     uint64_t num = lowlimit + numchunks * 512 * prodN + sdata->rclass[current_line] - 8 * prodN;
-    uint32_t i = numchunks * 512 / 8 - 1;
+    uint32_t i = (uint32_t)(numchunks * 512 / 8 - 1);
 
     //printf("zeroing flag bytes from %"PRIu64" (index %"PRIu64")", num + 8 * prodN, i + 1);
     while (num > sdata->orig_hlimit)

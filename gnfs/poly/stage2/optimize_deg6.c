@@ -248,7 +248,7 @@ parse_objective(multi_poly_t *poly, char *objective)
 		memset(curr_term, 0, sizeof(term_t));
 		curr_term->coeff = 1;
 
-		coeff = strtol(tmp, &tmp1, 10);
+		coeff = (int32)strtol(tmp, &tmp1, 10);
 		if (coeff != 0)
 			curr_term->coeff *= coeff;
 
@@ -275,17 +275,17 @@ parse_objective(multi_poly_t *poly, char *objective)
 			case 'a':
 			case 'r':
 				tmp1 = NULL;
-				which_var = tmp[1] - '0';
+				which_var = (uint32)(tmp[1] - '0');
 				if (tmp[2] == '^')
-					power = strtol(tmp + 3, &tmp1, 10);
+					power = (uint32)strtol(tmp + 3, &tmp1, 10);
 
 				if (*tmp == 'r') {
 					curr_term->params[which_var] = 
-						(is_neg ? -1 : 1) * power;
+						(int32)((uint32)(is_neg ? -1 : 1) * power);
 				}
 				else {
 					curr_term->params[which_var+2] =
-						(is_neg ? -1 : 1) * power;
+						(int32)((uint32)(is_neg ? -1 : 1) * power);
 				}
 
 				tmp += 2;
@@ -295,12 +295,12 @@ parse_objective(multi_poly_t *poly, char *objective)
 
 			case 'c':
 				tmp1 = NULL;
-				which_var = tmp[1] - '0';
+				which_var = (uint32)(tmp[1] - '0');
 				if (tmp[2] == '^')
-					power = strtol(tmp + 3, &tmp1, 10);
+					power = (uint32)strtol(tmp + 3, &tmp1, 10);
 
-				curr_term->powers[VAR_C0 + which_var] +=
-					(is_neg ? -1 : +1) * power;
+				curr_term->powers[VAR_C0 + which_var] = (int32)((uint32)curr_term->powers[VAR_C0 + which_var] +
+					(uint32)(is_neg ? -1 : +1) * power);
 
 				tmp += 2;
 				if (tmp1 != NULL)
@@ -310,10 +310,10 @@ parse_objective(multi_poly_t *poly, char *objective)
 			case 's':
 				tmp1 = NULL;
 				if (tmp[1] == '^')
-					power = strtol(tmp + 2, &tmp1, 10);
+					power = (uint32)strtol(tmp + 2, &tmp1, 10);
 
-				curr_term->powers[VAR_S] +=
-					(is_neg ? -1 : +1) * power;
+				curr_term->powers[VAR_S] = (int32)((uint32)curr_term->powers[VAR_S] +
+					(uint32)(is_neg ? -1 : +1) * power);
 
 				tmp++;
 				if (tmp1 != NULL)
@@ -323,10 +323,10 @@ parse_objective(multi_poly_t *poly, char *objective)
 			case 't':
 				tmp1 = NULL;
 				if (tmp[1] == '^')
-					power = strtol(tmp + 2, &tmp1, 10);
+					power = (uint32)strtol(tmp + 2, &tmp1, 10);
 
-				curr_term->powers[VAR_T] +=
-					(is_neg ? -1 : +1) * power;
+				curr_term->powers[VAR_T] = (int32)((uint32)curr_term->powers[VAR_T] +
+					(uint32)(is_neg ? -1 : +1) * power);
 
 				tmp++;
 				if (tmp1 != NULL)

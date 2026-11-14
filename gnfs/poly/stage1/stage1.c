@@ -207,14 +207,14 @@ handle_collision(task_data_t *task, uint32 threadid,
 
 		if (d->engine->envelope.is_gpu) {
 			task_control_t task_control;
-			stage1_sieve_data_t* d = task->d;
+			stage1_sieve_data_t* d_in = task->d;
 			stage1_hit_data_t* hit_data = (stage1_hit_data_t*)
 				xmalloc(sizeof(stage1_hit_data_t));
 
-			hit_data->callback = d->poly->callback;
-			hit_data->callback_data = d->poly->callback_data;
-			hit_data->stats = d->stats;
-			hit_data->d = d;
+			hit_data->callback = d_in->poly->callback;
+			hit_data->callback_data = d_in->poly->callback_data;
+			hit_data->stats = d_in->stats;
+			hit_data->d = d_in;
 			mpz_init_set(hit_data->ad, c->high_coeff);
 			mpz_init_set(hit_data->p, c->p);
 			mpz_init_set(hit_data->m, c->m);
@@ -224,7 +224,7 @@ handle_collision(task_data_t *task, uint32 threadid,
 			task_control.shutdown = stage1_hit_free;
 			task_control.data = hit_data;
 
-			threadpool_add_task(d->stage2_threadpool,
+			threadpool_add_task(d_in->stage2_threadpool,
 				&task_control, 1);
 		}
 		else {
@@ -342,7 +342,7 @@ sieve_ad_block(sieve_t *sieve, poly_search_t *poly)
 				sieve->high_coeff_multiplier;
 	target = MIN(target, HIGH_COEFF_SIEVE_LIMIT);
 
-	log_target = floor(log(target) / M_LN2 + 0.5);
+	log_target = (uint32)floor(log(target) / M_LN2 + 0.5);
 	memset(sieve->sieve_array, (int)(log_target - 4),
 			SIEVE_ARRAY_SIZE);
 
@@ -435,7 +435,7 @@ static void
 init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 {
 	uint32 i, j, p;
-	uint32 digits = mpz_sizeinbase(poly->N, 10);
+	uint32 digits = (uint32)mpz_sizeinbase(poly->N, 10);
 
 	if (poly->degree == 4) {
 		sieve->high_coeff_multiplier = 420;
@@ -471,10 +471,10 @@ init_ad_sieve(sieve_t *sieve, poly_search_t *poly)
 		if (p > HIGH_COEFF_PRIME_LIMIT)
 			break;
 
-		log_val = floor(log(p) / M_LN2 + 0.5);
+		log_val = (uint8)floor(log(p) / M_LN2 + 0.5);
 		power = p;
 		for (j = 0; j < sieve->high_coeff_power_limit; j++) {
-			uint32 r = mpz_cdiv_ui(poly->tmp1, (mp_limb_t)power);
+			uint32 r = (uint32)mpz_cdiv_ui(poly->tmp1, (mp_limb_t)power);
 
 			if (sieve->num_primes >= sieve->num_primes_alloc) {
 				sieve->num_primes_alloc *= 2;
@@ -535,8 +535,8 @@ stage1_sieve_data_init(stage1_sieve_data_t *d,
 			mpz_set_ui(d->test_ad, ad);                /* a_d always fits a word */
 			d->test_mode = 1;
 		}
-		if ((tmp = strstr(obj->nfs_args, "test_pmin=")) != NULL) d->test_pmin = strtoul(tmp + 10, NULL, 10);
-		if ((tmp = strstr(obj->nfs_args, "test_pmax=")) != NULL) d->test_pmax = strtoul(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_pmin=")) != NULL) d->test_pmin = (uint32)strtoul(tmp + 10, NULL, 10);
+		if ((tmp = strstr(obj->nfs_args, "test_pmax=")) != NULL) d->test_pmax = (uint32)strtoul(tmp + 10, NULL, 10);
 		if ((tmp = strstr(obj->nfs_args, "test_qmin=")) != NULL) d->test_qmin = strtoull(tmp + 10, NULL, 10);
 		if ((tmp = strstr(obj->nfs_args, "test_qmax=")) != NULL) d->test_qmax = strtoull(tmp + 10, NULL, 10);
 	}
@@ -580,15 +580,15 @@ stage1_sieve_data_init(stage1_sieve_data_t *d,
 		d->threads[i].sieve_q_fb = sieve_fb_alloc();
 	}
 
-	d->stage1_threadpool = threadpool_init(num_threads,
-					MAX(10, num_threads),
+	d->stage1_threadpool = threadpool_init((int)num_threads,
+					(int)MAX(10, num_threads),
 					&thread_control);
 
 	thread_control.init = NULL;
 	thread_control.shutdown = NULL;
 	thread_control.data = NULL;
 	d->stage2_threadpool = threadpool_init(
-		MAX(1, d->num_stage2_workers), 1000, &thread_control);
+		(int)MAX(1, d->num_stage2_workers), 1000, &thread_control);
 
 }
 
@@ -669,12 +669,12 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	                  coeff_max
 	*/
 
-	p_max = MIN(MAX_P, sqrt(c->p_size_max));
-	p_max = MIN(p_max, P_SCALE * P_SCALE *
+	p_max = (uint32)MIN(MAX_P, sqrt(c->p_size_max));
+	p_max = (uint32)MIN(p_max, P_SCALE * P_SCALE *
 			sqrt(0.5 * c->m0 / c->coeff_max));
-	p_min = MAX(1, p_max / P_SCALE);
+	p_min = (uint32)MAX(1, p_max / P_SCALE);
 
-	special_q_max = MIN(MAX_SPECIAL_Q, 
+	special_q_max = (uint64)MIN((double)MAX_SPECIAL_Q, 
 			    c->p_size_max / p_min / p_min);
 	special_q_max = MAX(special_q_max, 1);
 	special_q_min = 1;
@@ -692,7 +692,7 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	   per special q, so we choose the factors to be as 
 	   small as possible */
 
-	special_q_fb_max = MIN(200000, special_q_max);
+	special_q_fb_max = (uint32)MIN(200000, special_q_max);
 	sieve_fb_init(d->threads[threadid].sieve_q_fb, c,
 			2, special_q_fb_max,
 			1, degree,
@@ -716,14 +716,14 @@ search_coeff_core(task_data_t * task, uint32 threadid)
 	num_pieces = 1;
 	if ((!d->test_mode) && (special_q_max - special_q_min > 500000))
 	{
-		num_pieces = MIN(200, (double)special_q_max * p_max
-			/ log(special_q_max) / log(p_max)
+		num_pieces = (uint32)MIN(200, (double)special_q_max * p_max
+			/ log((double)special_q_max) / log(p_max)
 			/ 3e10);
 	}
 
 	if (num_pieces > 51) { /* randomize the special_q range */
-		uint32 piece_length = (special_q_max - special_q_min)
-				/ num_pieces;
+		uint32 piece_length = (uint32)((special_q_max - special_q_min)
+				/ num_pieces);
 		uint32 piece = get_rand(&obj->seed1, &obj->seed2)
 				% num_pieces;
         //piece = 100;
@@ -861,7 +861,7 @@ task_data_run(void *data, int threadid)
 {
 	task_data_t *task = (task_data_t *)data;
 
-	search_coeff_core(task, threadid);
+	search_coeff_core(task, (uint32)threadid);
 }
 
 static double search_coeff_async(stage1_sieve_data_t * d,
@@ -871,7 +871,6 @@ static double search_coeff_async(stage1_sieve_data_t * d,
 	   thread pool; we copy the coefficient so the input
 	   one can be overwritten by calling code */
 
-	uint32 i;
 	task_control_t task_control;
 	task_data_t *task_data = (task_data_t *)xmalloc(sizeof(task_data_t));
 	poly_coeff_t *c2 = poly_coeff_init();
@@ -882,7 +881,7 @@ static double search_coeff_async(stage1_sieve_data_t * d,
 	task_data->obj = d->obj;
 	task_data->c = c2;
 	task_data->d = d;
-	task_data->coeff_deadline = coeff_deadline;
+	task_data->coeff_deadline = (uint32)coeff_deadline;
 
 	task_control.init = NULL;
 	task_control.run = task_data_run;
@@ -980,12 +979,12 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 				/* duplicate search_coeff_core's p/q bound
 				   derivation just enough to know the q range
 				   that will actually be searched */
-				p_max = MIN(MAX_P, sqrt(cc->p_size_max));
-				p_max = MIN(p_max, P_SCALE * P_SCALE *
+				p_max = (uint32)MIN(MAX_P, sqrt(cc->p_size_max));
+				p_max = (uint32)MIN(p_max, P_SCALE * P_SCALE *
 					sqrt(0.5 * cc->m0 / cc->coeff_max));
-				p_min = MAX(1, p_max / P_SCALE);
+				p_min = (uint32)MAX(1, p_max / P_SCALE);
 
-				special_q_max = MIN(MAX_SPECIAL_Q,
+				special_q_max = (uint64)MIN((double)MAX_SPECIAL_Q,
 					cc->p_size_max / p_min / p_min);
 				special_q_max = MAX(special_q_max, 1);
 				special_q_min = 1;
@@ -1007,16 +1006,16 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 				if ((!d->test_mode) &&
 					(special_q_max - special_q_min > 500000))
 				{
-					num_pieces = MIN(200,
+					num_pieces = (uint32)MIN(200,
 						(double)special_q_max * p_max
-						/ log(special_q_max) / log(p_max)
+						/ log((double)special_q_max) / log(p_max)
 						/ 3e10);
 				}
 
 				if (num_pieces > 51) {
 					uint32 piece_length =
-						(special_q_max - special_q_min)
-						/ num_pieces;
+						(uint32)((special_q_max - special_q_min)
+						/ num_pieces);
 					special_q_min2 = special_q_min;
 					special_q_max2 = special_q_min + piece_length;
 				}
@@ -1036,7 +1035,7 @@ search_coeffs(stage1_sieve_data_t *d, uint32 deadline)
 					1, degree,
 					0);
 
-				special_q_fb_max = MIN(200000, special_q_max2);
+				special_q_fb_max = (uint32)MIN(200000, special_q_max2);
 				sieve_fb_init(d->threads[0].sieve_q_fb, cc,
 					2, special_q_fb_max,
 					1, degree,

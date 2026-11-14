@@ -149,7 +149,7 @@ static uint32 purge_duplicates_pass2(msieve_obj *obj,
 		   relation collide in the table of bits */
 
 		a = strtoll(buf, &next_field, 10);
-		b = strtoul(next_field + 1, NULL, 10);
+		b = (uint32)strtoul(next_field + 1, NULL, 10);
 		key[0] = (uint32)a;
 		key[1] = ((a >> 32) & 0x1f) | (b << 5);
 
@@ -230,7 +230,7 @@ static double estimate_rel_size(savefile_t *savefile) {
 		}
 
 		num_relations++;
-		totlen += strlen(buf);
+		totlen += (uint32)strlen(buf);
 	}
 
 	savefile_close(savefile);
@@ -311,8 +311,8 @@ uint32 nfs_purge_duplicates(msieve_obj *obj, factor_base_t *fb,
 			num_rels = get_file_size(name_gz) / 0.55 / rel_size;
 		} else 
 #endif /* get_file_size( ) will now do the same internally */
-			num_rels = get_file_size(savefile->name) / rel_size;
-		log2_hashtable1_size = log(num_rels * 10.0) / M_LN2 + 0.5;
+			num_rels = (double)get_file_size(savefile->name) / rel_size;
+		log2_hashtable1_size = (uint32)(log(num_rels * 10.0) / M_LN2 + 0.5);
 	}
 	if (log2_hashtable1_size < 25)
 		log2_hashtable1_size = 25;
@@ -550,5 +550,5 @@ uint32 nfs_purge_duplicates(msieve_obj *obj, factor_base_t *fb,
 
 	free(prime_bins);
 	*num_relations_out = num_relations;
-	return BIN_SIZE * (i + 0.5);
+	return (uint32)(BIN_SIZE * (i + 0.5));
 }

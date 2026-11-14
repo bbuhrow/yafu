@@ -298,9 +298,9 @@ static void build_factor_base(mp_t *n,
 		nmodp = mp_mod_1(n, prime);
 		if (nmodp == 0 || mp_legendre_1(nmodp, prime) == 1) {
 
-			fbptr->prime = prime;
-			fbptr->logprime = (uint8)(log((double)prime) / 
-							M_LN2 + .5);
+			fbptr->prime = ((prime) & 0x3FFFFFFu);
+			fbptr->logprime = (((uint8)(log((double)prime) / 
+							M_LN2 + .5)) & 0x1Fu);
 
 			/* find x such that x^2 mod prime = n mod prime */
 

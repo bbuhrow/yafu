@@ -76,7 +76,7 @@ static void
 make_heap(xline_t *h, uint32 size) {
 
 	int32 i;
-	for (i = HEAP_PARENT(size); i >= 0; i--)
+	for (i = (int32)HEAP_PARENT(size); i >= 0; i--)
 		heapify(h, (uint32)i, size);
 }
 
@@ -88,14 +88,14 @@ save_xline(xline_heap_t *heap, uint32 score,
 
 	if (heap->num_entries <= XLINE_HEAP_SIZE - 1) {
 		xline_t *s = h + heap->num_entries++;
-		s->score = score;
+		s->score = (uint16)score;
 		s->which_y_block = which_y_block;
 		s->resclass = resclass;
 		if (heap->num_entries == XLINE_HEAP_SIZE)
 			make_heap(h, XLINE_HEAP_SIZE);
 	}
 	else if (h->score < score) {
-		h->score = score;
+		h->score = (uint16)score;
 		h->which_y_block = which_y_block;
 		h->resclass = resclass;
 		heapify(h, 0, XLINE_HEAP_SIZE);
@@ -169,13 +169,13 @@ root_sieve_x(root_sieve_t *rs, xdata_t *xdata,
 					k = 0;
 				}
 				hits->score[k] = sieve[j];
-				hits->roots[k][0] = j;
+				hits->roots[k][0] = (uint8)j;
 				k++;
 			}
 		}
 
-		hits->power = p;
-		hits->num_roots = k;
+		hits->power = (uint8)p;
+		hits->num_roots = (uint8)k;
 		num_lattices *= k;
 	}
 
@@ -216,7 +216,7 @@ xdata_alloc(sieve_prime_t *lattice_primes,
 		uint32 num_roots = curr_prime->powers[0].num_roots;
 
 		curr_xdata->p = p;
-		curr_xdata->latsize_mod_p = mpz_tdiv_ui(mp_lattice_size, p);
+		curr_xdata->latsize_mod_p = (uint32)mpz_tdiv_ui(mp_lattice_size, p);
 		curr_xdata->num_roots = num_roots;
 		curr_xdata->contrib = curr_prime->powers[0].sieve_contrib;
 		curr_xdata->roots = (xprog_t *)xmalloc(num_roots * 
@@ -263,11 +263,11 @@ xdata_init(sieve_prime_t *lattice_primes, xdata_t *xdata,
 		xprog_t *roots = curr_xdata->roots;
 
 		uint32 latsize_mod_p = curr_xdata->latsize_mod_p;
-		uint32 yres_mod_p = mpz_tdiv_ui(resclass_y, p);
-		uint32 ybase_mod_p = mpz_fdiv_ui(y_base, p);
+		uint32 yres_mod_p = (uint32)mpz_tdiv_ui(resclass_y, p);
+		uint32 ybase_mod_p = (uint32)mpz_fdiv_ui(y_base, p);
 		uint32 y_mod_p = mp_modadd_1(yres_mod_p, ybase_mod_p, p);
-		int32 z_mod = curr_z % p;
-		uint32 z_mod_p = (z_mod < 0) ?  (z_mod + (int32)p) : z_mod;
+		int32 z_mod = (int32)(curr_z % p);
+		uint32 z_mod_p = (uint32)((z_mod < 0) ?  (z_mod + (int32)p) : z_mod);
 
 		for (j = 0; j < num_roots; j++) {
 			sieve_root_t *r = sp->roots + j;
@@ -276,12 +276,12 @@ xdata_init(sieve_prime_t *lattice_primes, xdata_t *xdata,
 			uint32 resclass = r->resclass;
 			uint32 resclass2 = mp_modmul_1(resclass, resclass, p);
 
-			curr_xprog->stride_y = mp_modmul_1(resclass, 
+			curr_xprog->stride_y = (uint16)mp_modmul_1(resclass, 
 							latsize_mod_p, p);
 			start = mp_modsub_1(start, 
 					mp_modmul_1(resclass, y_mod_p, p), 
 					p);
-			curr_xprog->start = mp_modsub_1(start, 
+			curr_xprog->start = (uint16)mp_modsub_1(start, 
 					mp_modmul_1(resclass2, z_mod_p, p), 
 					p);
 		}
@@ -316,7 +316,7 @@ find_hits(root_sieve_t *rs, xdata_t *xdata,
 
 				sieve[start] += contrib;
 
-				curr_prog->start = mp_modsub_1(start,
+				curr_prog->start = (uint16)mp_modsub_1(start,
 						curr_prog->stride_y, p);
 			}
 		}
@@ -389,7 +389,7 @@ sieve_x_run_deg6(root_sieve_t *rs)
 
 	qsort(xline_heap.entries, xline_heap.num_entries,
 			sizeof(xline_t), compare_xlines);
-	cutoff_score = 0.95 * xline_heap.entries[0].score;
+	cutoff_score = (uint32)(0.95 * xline_heap.entries[0].score);
 
 	for (i = 0; i < xline_heap.num_entries; i++) {
 
@@ -416,7 +416,7 @@ sieve_x_run_deg6(root_sieve_t *rs)
 		mpz_set_d(x->tmp1, line_min);
 		mpz_tdiv_q(x->x_base, x->tmp1, x->mp_lattice_size);
 		mpz_mul(x->x_base, x->x_base, x->mp_lattice_size);
-		x->x_blocks = (line_max - line_min) / x->dbl_lattice_size;
+		x->x_blocks = (uint32)((line_max - line_min) / x->dbl_lattice_size);
 
 		uint64_2gmp(curr_xline->resclass, x->tmp1);
 		mpz_mul(x->resclass, x->tmp1, x->crt0);

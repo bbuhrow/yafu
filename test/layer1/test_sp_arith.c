@@ -28,12 +28,7 @@
 /* ---- portable mpz <- integer builders (mpz_set_ui takes only the low 32
    bits on LLP64, so assemble 64-bit values in 32-bit chunks). No temporaries,
    so these are cheap enough to call in a hot loop. ---- */
-static void mpz_set_u64(mpz_t r, uint64_t v)
-{
-    mpz_set_ui(r, (unsigned long)(v >> 32));
-    mpz_mul_2exp(r, r, 32);
-    mpz_add_ui(r, r, (unsigned long)(v & 0xFFFFFFFFUL));
-}
+/* mpz_set_u64: see arith/limb/gmp_u64.h */
 static void mpz_set_u128(mpz_t r, uint64_t lo, uint64_t hi)
 {
     mpz_set_u64(r, hi);

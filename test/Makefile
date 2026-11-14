@@ -23,6 +23,7 @@ YAFU_ROOT ?= /sppdg/scratch/buhrow/projects/factoring/yafu.git
 # Include paths. Layer 0 needs mp_platform.h; adjust if it lives elsewhere.
 INCLUDES  ?= -I. \
              -I$(YAFU_ROOT)/include \
+             -I$(YAFU_ROOT)/arith/limb \
              -I$(YAFU_ROOT)/top/aprcl \
              -I$(YAFU_ROOT)/ysieve
 
@@ -38,8 +39,8 @@ YAFU_OBJS ?=
 
 # ---------------------------------------------------------------------------
 FRAMEWORK = testkit.c test_data.c test_main.c
-LAYER0    = layer0/test_mp_arith.c layer0/test_mp_bitscan.c
-LAYER1    = layer1/test_sp_arith.c layer1/test_modular.c layer1/test_primality.c
+LAYER0    = layer0/test_mp_arith.c layer0/test_mp_bitscan.c layer0/test_limb_inline.c
+LAYER1    = layer1/test_limb.c layer1/test_sp_arith.c layer1/test_modular.c layer1/test_primality.c
 
 BIN       ?= yafu_test
 

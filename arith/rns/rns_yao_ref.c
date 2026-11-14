@@ -9,6 +9,7 @@
  */
 
 #include "rns_yao.h"
+#include "gmp_u64.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +35,7 @@ static void get_ch(rnsy_fixed_t *fx, mpz_t X, uint64_t *x, int base, int ch)
     for (t = fx->s - 1; t >= 0; t--)
     {
         mpz_mul_2exp(X, X, RNS_WBITS);
-        mpz_add_ui(X, X, x[(base * fx->s + t) * fx->n + ch]);
+        mpz_add_u64(X, X, x[(base * fx->s + t) * fx->n + ch]);
     }
 }
 
@@ -47,7 +48,7 @@ static void put_ch(rnsy_fixed_t *fx, uint64_t *x, int base, int ch, mpz_t X)
     mpz_init_set(v, X);
     for (t = 0; t < fx->s; t++)
     {
-        x[(base * fx->s + t) * fx->n + ch] = mpz_get_ui(v) & RNS_MASK52;
+        x[(base * fx->s + t) * fx->n + ch] = mpz_get_u64(v) & RNS_MASK52;
         mpz_tdiv_q_2exp(v, v, RNS_WBITS);
     }
     mpz_clear(v);
@@ -60,14 +61,14 @@ static void fold(rnsy_fixed_t *fx, mpz_t X, uint64_t d, mpz_t tmp)
     {
         mpz_tdiv_q_2exp(tmp, X, (mp_bitcnt_t)fx->w);
         mpz_tdiv_r_2exp(X, X, (mp_bitcnt_t)fx->w);
-        mpz_addmul_ui(X, tmp, d);
+        mpz_addmul_u64(X, tmp, d);
     }
 }
 
 static uint64_t mpz_low52(mpz_t x, mpz_t t)
 {
     mpz_fdiv_r_2exp(t, x, RNS_WBITS);
-    return mpz_get_ui(t);
+    return mpz_get_u64(t);
 }
 
 // out += sum_k digit_k(a) * tab[k], a < 2^w: a product by a per-N constant
@@ -78,7 +79,7 @@ static void cmul_acc(rnsy_fixed_t *fx, mpz_t out, mpz_t a, mpz_t *tab, mpz_t tmp
     for (k = 0; k < fx->s; k++)
     {
         mpz_tdiv_q_2exp(tmp, a, (mp_bitcnt_t)(RNS_WBITS * k));
-        mpz_addmul_ui(out, tab[k], mpz_get_ui(tmp) & RNS_MASK52);
+        mpz_addmul_u64(out, tab[k], mpz_get_u64(tmp) & RNS_MASK52);
     }
 }
 
@@ -134,7 +135,7 @@ static int fit_constants(uint64_t out[MAXN][MAXN], int *z, mpz_t full[MAXN][MAXN
             if (mpz_sizeinbase(v, 2) > 52)
                 ok = 0;
             else
-                out[a][b] = mpz_get_ui(v);
+                out[a][b] = mpz_get_u64(v);
             if ((int)mpz_sizeinbase(v, 2) > *vstored)
                 *vstored = (int)mpz_sizeinbase(v, 2);
             mpz_clear(v);
@@ -183,7 +184,7 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
     for (cnt = 0, d = 1; cnt < 2 * n; d += 2)
     {
         int good = 1;
-        mpz_sub_ui(t, fx->two_w, d);
+        mpz_sub_u64(t, fx->two_w, d);
         for (i = 0; i < cnt && good; i++)
         {
             mpz_gcd(u, t, pool[i]);
@@ -232,7 +233,7 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
             mpz_set_ui(full[i][j], 1);
             for (k = 0; k < n; k++)
                 if (k != i)
-                    mpz_mul_ui(full[i][j], full[i][j], fx->dc[j] - fx->db[k]);
+                    mpz_mul_u64(full[i][j], full[i][j], fx->dc[j] - fx->db[k]);
             mpz_sub(u, full[i][j], fx->Bi[i]);
             if (!mpz_divisible_p(u, fx->c[j]))
                 die("first extension constant mismatch");
@@ -254,7 +255,7 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
             mpz_set_ui(full[j][i], 1);
             for (k = 0; k < n; k++)
                 if (k != j)
-                    mpz_mul_ui(full[j][i], full[j][i], fx->dc[k] - fx->db[i]);
+                    mpz_mul_u64(full[j][i], full[j][i], fx->dc[k] - fx->db[i]);
             if (fx->cneg)
                 mpz_add(u, full[j][i], Cj);
             else
@@ -296,9 +297,9 @@ rnsy_fixed_t *rnsy_fixed_init_n(int maxbits, int n)
     mpz_set_ui(u, 0);
     mpz_setbit(u, RNS_WBITS);
     mpz_invert(t, fx->MB, u);
-    fx->MBinv_r = mpz_get_ui(t);
+    fx->MBinv_r = mpz_get_u64(t);
     mpz_invert(t, fx->MC, u);
-    fx->MCinv_r = mpz_get_ui(t);
+    fx->MCinv_r = mpz_get_u64(t);
 
     for (i = 0; i < MAXN; i++)
         for (j = 0; j < MAXN; j++)
@@ -399,7 +400,7 @@ static void digits_mpz(uint64_t *v, int ndig, int stride, mpz_t X)
     mpz_init_set(t, X);
     for (k = 0; k < ndig; k++)
     {
-        v[k * stride] = mpz_get_ui(t) & RNS_MASK52;
+        v[k * stride] = mpz_get_u64(t) & RNS_MASK52;
         mpz_tdiv_q_2exp(t, t, RNS_WBITS);
     }
     if (mpz_sgn(t) != 0)
@@ -604,7 +605,7 @@ rnsy_ctx_t *rnsy_ctx_init(rnsy_fixed_t *fx, mpz_t N)
     mpz_mul(t, t, N);
     for (i = 0; i < fx->n; i++)
     {
-        mpz_mul_ui(u, t, fx->Br[i]);
+        mpz_mul_u64(u, t, fx->Br[i]);
         ctx->BrN[i] = mpz_low52(u, u);
     }
 
@@ -794,7 +795,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y)
     {
         mpz_set_ui(q, 0);
         for (i = 0; i < n; i++)
-            mpz_addmul_ui(q, xi[i], fx->Bt[i][j]);
+            mpz_addmul_u64(q, xi[i], fx->Bt[i][j]);
         mpz_mul_2exp(q, q, (mp_bitcnt_t)fx->zB[j]);
         fold(fx, q, fx->dc[j], tmp);
 
@@ -826,7 +827,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y)
     {
         mpz_set_ui(b, 0);
         for (j = 0; j < n; j++)
-            mpz_addmul_ui(b, xr[j], fx->Ct[j][i]);
+            mpz_addmul_u64(b, xr[j], fx->Ct[j][i]);
         mpz_mul_2exp(b, b, (mp_bitcnt_t)fx->zC[i]);
         if (fx->cneg)
             mpz_sub(q, fx->K_b[i], b);
@@ -834,7 +835,7 @@ void rnsy_mulmod_ref(rnsy_ctx_t *ctx, uint64_t *z, uint64_t *x, uint64_t *y)
             mpz_set(q, b);
         if (mpz_sgn(q) < 0)
             die("K_b too small");
-        mpz_addmul_ui(q, fx->negMC_b[i], alpha);
+        mpz_addmul_u64(q, fx->negMC_b[i], alpha);
         fold(fx, q, fx->db[i], tmp);
         put_ch(fx, z, 0, i, q);
     }

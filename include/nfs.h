@@ -94,6 +94,7 @@ extern void nfs(fact_obj_t* fobj);
 extern snfs_t* snfs_find_form(fact_obj_t* fobj, mpz_t n);
 extern void remove_algebraic_factors(fact_obj_t* fobj, 
     snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG);
+extern int remove_binomial_power_factors(fact_obj_t* fobj, snfs_t* poly, int VFLAG);
 extern void remove_algebraic_factors_lucas(fact_obj_t* fobj,
     snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG);
 

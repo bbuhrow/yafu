@@ -29,23 +29,16 @@ This file is dual-licensed like microecm.h (FreeBSD or MPL 2.0).
 #define TRHO_INLINE __inline
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
-#define trho_ctz64 __builtin_ctzll
-#define trho_clz64 __builtin_clzll
-#else
-static __inline int trho_ctz64(uint64_t x)
-{
-    unsigned long i;
-    _BitScanForward64(&i, x);
-    return (int)i;
-}
-static __inline int trho_clz64(uint64_t x)
-{
-    unsigned long i;
-    _BitScanReverse64(&i, x);
-    return 63 - (int)i;
-}
+/* compiler layer, bit scans and the 64-bit modular kernels come from the
+   one/two-limb library (arith/limb).  Scalar layer only: the x8 code below
+   is local to this file. */
+#ifndef LIMB1_SCALAR_ONLY
+#define LIMB1_SCALAR_ONLY
 #endif
+#include "limb1.h"
+
+#define trho_ctz64(x) ((int)_trail_zcnt64(x))
+#define trho_clz64(x) ((int)_lead_zcnt64(x))
 
 /* ------------------------------------------------------------- common */
 static int trho_bits64(uint64_t x)
@@ -77,70 +70,14 @@ static uint32_t trho_batch(int bits)
     return (uint32_t)1 << e;
 }
 
-/* a^-1 mod 2^64, a odd */
-static uint64_t trho_inv64(uint64_t a)
-{
-    uint64_t x0 = (3 * a) ^ 2;
-    uint64_t y = 1 - a * x0;
-    uint64_t x1 = x0 * (1 + y);
-    y *= y;
-    uint64_t x2 = x1 * (1 + y);
-    y *= y;
-    uint64_t x3 = x2 * (1 + y);
-    y *= y;
-    return x3 * (1 + y);
-}
-
-/* gcd(u, v), u odd */
-static uint64_t trho_gcd64(uint64_t u, uint64_t v)
-{
-    if (v == 0)
-        return u;
-    v >>= trho_ctz64(v);
-    while (u != v) {
-        if (u > v) {
-            uint64_t t = u;
-            u = v;
-            v = t;
-        }
-        v -= u;
-        v >>= trho_ctz64(v);
-    }
-    return u;
-}
-
-/* ============================================================ scalar 64 */
-/* Montgomery multiplication with the positive inverse, R = 2^64, inputs
-   and outputs in [0, n) (microecm_edw.c's uedw_mulredc, C version) */
-static TRHO_INLINE uint64_t trho_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
-{
-#if defined(_MSC_VER)
-    uint64_t T_hi;
-    uint64_t T_lo = _umul128(x, y, &T_hi);
-    uint64_t m = T_lo * inv;
-    uint64_t mN_hi = __umulh(m, n);
-#else
-    __uint128_t prod = (__uint128_t)x * y;
-    uint64_t T_hi = (uint64_t)(prod >> 64);
-    uint64_t T_lo = (uint64_t)(prod);
-    uint64_t m = T_lo * inv;
-    uint64_t mN_hi = (uint64_t)(((__uint128_t)m * n) >> 64);
-#endif
-    uint64_t tmp = T_hi + n - mN_hi;
-    uint64_t result = T_hi - mN_hi;
-    return (T_hi < mN_hi) ? tmp : result;
-}
-
-static TRHO_INLINE uint64_t trho_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-    return (x >= n - y) ? x - (n - y) : x + y;
-}
-
-static TRHO_INLINE uint64_t trho_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    uint64_t r = a - b;
-    return (a < b) ? r + n : r;
-}
+/* a^-1 mod 2^64 (a odd), gcd(u, v) (u odd), and Montgomery multiplication
+   with the positive inverse, R = 2^64, inputs and outputs in [0, n):
+   shared with microecm / microecm_edw via arith/limb/limb1.h */
+#define trho_inv64   multiplicative_inverse
+#define trho_gcd64   bingcd64
+#define trho_mulredc mulredc_pos
+#define trho_addmod  addmod
+#define trho_submod  submod
 
 #define F64(v) trho_addmod(trho_mulredc((v), (v), n, inv), c, n)
 
@@ -485,43 +422,11 @@ static TRHO_INLINE void trho8_lohi(__m512i a, __m512i b, __m512i *l, __m512i *h)
 #endif
 
 /* ------------------------------------------------------------- 52-bit */
-/* Montgomery multiplication, R = 2^52, positive inverse; inputs in [0, n)
-   (microecm_edw.c's uedw8_mulredc) */
-static TRHO_INLINE __m512i trho8_mulredc52(__m512i x, __m512i y, __m512i N, __m512i invN)
-{
-    __m512i T_hi, T_lo, m, mN_hi;
-#ifdef IFMA
-    const __m512i z = _mm512_setzero_si512();
-    T_lo = _mm512_madd52lo_epu64(z, x, y);
-    T_hi = _mm512_madd52hi_epu64(z, x, y);
-    m = _mm512_madd52lo_epu64(z, T_lo, invN);
-    mN_hi = _mm512_madd52hi_epu64(z, m, N);
-#else
-    __m512i l;
-    trho8_lohi(x, y, &T_lo, &T_hi);
-    m = _mm512_and_si512(_mm512_mullo_epi64(T_lo, invN), _mm512_set1_epi64(TRHO_M52));
-    trho8_lohi(m, N, &l, &mN_hi);
-    (void)l;
-#endif
-    __m512i tmp = _mm512_sub_epi64(_mm512_add_epi64(T_hi, N), mN_hi);
-    __m512i result = _mm512_sub_epi64(T_hi, mN_hi);
-    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);
-    return _mm512_mask_mov_epi64(result, msk, tmp);
-}
-
-static TRHO_INLINE __m512i trho8_addmod52(__m512i x, __m512i y, __m512i N)
-{
-    __m512i t = _mm512_add_epi64(x, y);
-    __mmask8 m = _mm512_cmpge_epu64_mask(t, N);
-    return _mm512_mask_sub_epi64(t, m, t, N);
-}
-
-static TRHO_INLINE __m512i trho8_submod52(__m512i x, __m512i y, __m512i N)
-{
-    __m512i t = _mm512_sub_epi64(x, y);
-    __mmask8 m = _mm512_cmpgt_epu64_mask(y, x);
-    return _mm512_mask_add_epi64(t, m, t, N);
-}
+/* Montgomery multiplication with the positive inverse, R = 2^52, lanes in
+   [0, N), and modular add / sub: shared, in arith/limb/limb1.h */
+#define trho8_mulredc52 mulredc52_x8
+#define trho8_addmod52  addmod52_x8
+#define trho8_submod52  submod52_x8
 
 #ifndef TRHO52_U
 #define TRHO52_U 4                      /* vectors in flight */

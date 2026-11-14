@@ -25,6 +25,10 @@ Public License 2.0, as microecm.c.
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef LIMB1_SCALAR_ONLY
+#define LIMB1_SCALAR_ONLY
+#endif
+#include "limb1.h"          /* shared 64-bit kernels (arith/limb) */
 
 #ifndef ALIGNED_MEM
 #if defined(_MSC_VER)
@@ -252,18 +256,7 @@ typedef struct {
 #define A4(a, b) u4_add((a), (b), &c->n)
 #define D4(a, b) u4_sub((a), (b), &c->n)
 
-static uint64_t uedw4_inverse(uint64_t a)
-{
-    uint64_t x0 = (3 * a) ^ 2;
-    uint64_t y = 1 - a * x0;
-    uint64_t x1 = x0 * (1 + y);
-    y *= y;
-    uint64_t x2 = x1 * (1 + y);
-    y *= y;
-    uint64_t x3 = x2 * (1 + y);
-    y *= y;
-    return x3 * (1 + y);
-}
+#define uedw4_inverse multiplicative_inverse   /* arith/limb/limb1.h */
 
 static uint64_t uedw4_gcd(uint64_t u, uint64_t v)
 {

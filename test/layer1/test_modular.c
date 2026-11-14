@@ -29,14 +29,15 @@
 #include "testkit.h"
 #include "test_data.h"
 #include <gmp.h>
+#include "gmp_u64.h"
 #include "monty.h"          /* if monty128* moved to limb2.h in your tree, include that too */
 
 /* set an mpz from a uint64[2] little-endian pair (lo, hi) */
 static void set_mpz_u128(mpz_t out, const uint64_t v[2])
 {
-    mpz_set_ui(out, v[1]);
+    mpz_set_u64(out, v[1]);
     mpz_mul_2exp(out, out, 64);
-    mpz_add_ui(out, out, v[0]);
+    mpz_add_u64(out, out, v[0]);
 }
 /* read an mpz (assumed < 2^128) back into a uint64[2] little-endian pair */
 static void get_mpz_u128(uint64_t v[2], const mpz_t in)

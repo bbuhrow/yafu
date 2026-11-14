@@ -812,8 +812,15 @@ void vecPP1(fact_obj_t* fobj)
             //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
             remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
-            mpz_tdiv_q(g, N[k], poly.primitive);
-            mpz_gcd(N[k], N[k], poly.primitive);
+            // exact split: g = the part of the input outside the primitive factor
+            if (mpz_cmp_ui(poly.primitive, 1) > 0)
+            {
+                mpz_gcd(g, N[k], poly.primitive);
+                mpz_swap(g, N[k]);
+                mpz_divexact(g, g, N[k]);
+            }
+            else
+                mpz_set_ui(g, 1);
 
             if (mpz_cmp_ui(g, 1) > 0)
             {
@@ -1509,8 +1516,15 @@ void vecPM1(fact_obj_t* fobj)
             //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
             remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
-            mpz_tdiv_q(g, N[k], poly.primitive);
-            mpz_gcd(N[k], N[k], poly.primitive);
+            // exact split: g = the part of the input outside the primitive factor
+            if (mpz_cmp_ui(poly.primitive, 1) > 0)
+            {
+                mpz_gcd(g, N[k], poly.primitive);
+                mpz_swap(g, N[k]);
+                mpz_divexact(g, g, N[k]);
+            }
+            else
+                mpz_set_ui(g, 1);
 
             if (mpz_cmp_ui(g, 1) > 0)
             {
@@ -2171,8 +2185,15 @@ void vecPPM1_1N(fact_obj_t *fobj)
         //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
         remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
-        mpz_tdiv_q(g, N, poly.primitive);
-        mpz_gcd(N, N, poly.primitive);
+        // exact split: g = the part of the input outside the primitive factor
+        if (mpz_cmp_ui(poly.primitive, 1) > 0)
+        {
+            mpz_gcd(g, N, poly.primitive);
+            mpz_swap(g, N);
+            mpz_divexact(g, g, N);
+        }
+        else
+            mpz_set_ui(g, 1);
 
         if (mpz_cmp_ui(g, 1) > 0)
         {

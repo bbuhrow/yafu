@@ -575,8 +575,8 @@ void ms_relation_batch_add(int64 a, uint32 b,
 	c = rb->relations + rb->num_relations++;
 	c->a = a;
 	c->b = b;
-	c->num_factors_r = num_factors_r;
-	c->num_factors_a = num_factors_a;
+	c->num_factors_r = (uint8)num_factors_r;
+	c->num_factors_a = (uint8)num_factors_a;
 	c->lp_r_num_words = 0;
 	c->lp_a_num_words = 0;
 	c->factor_list_word = rb->num_factors;
@@ -610,7 +610,7 @@ void ms_relation_batch_add(int64 a, uint32 b,
 			f[i] = unfactored_r->val[i];
 		f += i;
 		rb->num_factors += i;
-		c->lp_r_num_words = i;
+		c->lp_r_num_words = (uint8)i;
 	}
 
 	if (unfactored_a->nwords > 1 || 
@@ -619,7 +619,7 @@ void ms_relation_batch_add(int64 a, uint32 b,
 			f[i] = unfactored_a->val[i];
 		f += i;
 		rb->num_factors += i;
-		c->lp_a_num_words = i;
+		c->lp_a_num_words = (uint8)i;
 	}
 }
 	

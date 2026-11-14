@@ -77,7 +77,7 @@ do_sieving(sieve_root_t *r, uint16 *sieve,
 		uint32 ri = start;
 
 		do {
-			sieve[ri] += contrib;
+			sieve[ri] += (uint16)contrib;
 			ri += step;
 		} while (ri < dim);
 
@@ -131,15 +131,15 @@ find_hits(sieve_prime_t *lattice_primes,
 				if (k == MAX_ROOTS)
 					break;
 
-				hits->score[k] = curr_score;
-				hits->roots[k][0] = j % dim;
-				hits->roots[k][1] = (j / dim) % dim;
+				hits->score[k] = (uint16)curr_score;
+				hits->roots[k][0] = (uint8)(j % dim);
+				hits->roots[k][1] = (uint8)((j / dim) % dim);
 				hits->roots[k][2] = 0;
 				k++;
 			}
 		}
-		hits->power = dim;
-		hits->num_roots = k;
+		hits->power = (uint8)dim;
+		hits->num_roots = (uint8)k;
 	}
 }
 
@@ -196,10 +196,10 @@ sieve_xy_run_deg5(root_sieve_t *rs, uint64 lattice_size,
 	xy->dbl_lattice_size = (double)lattice_size;
 	uint64_2gmp(lattice_size, xy->mp_lattice_size);
 
-	mpz_set_d(xy->y_base, line_min / lattice_size - 1);
+	mpz_set_d(xy->y_base, line_min / (double)lattice_size - 1);
 	mpz_mul(xy->y_base, xy->y_base, xy->mp_lattice_size);
 
-	y_blocks = (line_max - line_min) / lattice_size + 1;
+	y_blocks = (uint32)((double)((line_max - line_min) / (double)lattice_size) + 1);
 	if (y_blocks > xy->y_blocks) {
 		xy->x_line_min = (double *)xrealloc(xy->x_line_min,
 						y_blocks * sizeof(double));
@@ -270,7 +270,7 @@ sieve_xy_run_deg5(root_sieve_t *rs, uint64 lattice_size,
 			xy->x_line_max[i] = line_max;
 		}
 
-		curr_y += lattice_size;
+		curr_y += (int64)lattice_size;
 	}
 
 	for (i = y_blocks; i; i--) {

@@ -93,56 +93,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // We rarely will ever want to use debugging printfs
 //#define MICRO_ECM_VERBOSE_PRINTF
 
-#ifndef _trail_zcnt64
+/* compiler / ISA layer, bit scans and the 64-bit modular kernels.  Scalar
+   layer only: this file has its own 52-bit vector code. */
+#ifndef LIMB1_SCALAR_ONLY
+#define LIMB1_SCALAR_ONLY
+#endif
+#include "limb1.h"
 
-#if defined( __INTEL_COMPILER)
-#if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
-#define _trail_zcnt64 _tzcnt_u64
-#else
-__inline uint64_t _trail_zcnt64(uint64_t x)
-{
-    uint64_t pos;
-    if (_BitScanForward64(&pos, x))
-        return pos;
-    else
-        return 64;
-}
-#endif
-#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
-#define _trail_zcnt64 __builtin_ctzll
-#elif defined(_MSC_VER)
-__inline uint64_t _trail_zcnt64(uint64_t x)
-{
-    uint32_t pos;
-    if (_BitScanForward64(&pos, x))
-        return pos;
-    else
-        return 64;
-}
-#else
-__inline uint64_t _trail_zcnt64(uint64_t x)
-{
-    uint64_t pos;
-    if (x)
-    {
-        x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
-        for (pos = 0; x; pos++)
-        {
-            x >>= 1;
-        }
-    }
-    else
-    {
-#ifdef CHAR_BIT
-        pos = CHAR_BIT * sizeof(x);
-#else
-        pos = 8 * sizeof(x);
-#endif
-    }
-    return pos;
-}
-#endif
-#endif
 
 #ifdef _MSC_VER
 #  define MICRO_ECM_FORCE_INLINE __forceinline
@@ -188,7 +145,7 @@ static const uint32_t map[60] = {
 static const double INV_2_POW_32 = 1.0 / (double)((uint64_t)(1) << 32);
 
 #define NUMP 1438
-static const int primes[NUMP] = {
+UNUSED_VAR static const int primes[NUMP] = {
 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31,
 37, 41, 43, 47, 53, 59, 61, 67, 71, 73,
 79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
@@ -340,281 +297,17 @@ static uint32_t uecm_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t *ploc
         (double)(upper - lower) * (double)((*ploc_lcg) >> 32) * INV_2_POW_32);
 }
 
-__inline uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n);
-__inline uint64_t uecm_addmod(uint64_t a, uint64_t b, uint64_t n);
-
-#if defined(MICRO_ECM_ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
-
-MICRO_ECM_FORCE_INLINE uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    __asm__(
-        "xorq %%r8, %%r8 \n\t"
-        "subq %1, %0 \n\t"
-        "cmovc %2, %%r8 \n\t"
-        "addq %%r8, %0 \n\t"
-        : "+r"(a)
-        : "r"(b), "r"(n)
-        : "r8", "cc");
-
-    return a;
-}
-
-MICRO_ECM_FORCE_INLINE uint64_t uecm_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-    uint64_t t = x - n;
-    x += y;
-    __asm__("add %2, %1\n\t"
-        "cmovc %1, %0\n\t"
-        :"+r" (x), "+&r" (t)
-        : "r" (y)
-        : "cc"
-    );
-    return x;
-}
-
-#else
-
-// TODO: these defines should be shared with other files that use _addcarry_u64/_subborrow_u64
-#if defined(_MSC_VER)
-#define rettype unsigned char
-#else
-// unsigned char _addcarry_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
-// unsigned char _subborrow_u64 (unsigned char c_in, unsigned __int64 a, unsigned __int64 b, unsigned __int64 *out)
-//
-// unsigned long long int __builtin_addcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
-// unsigned long long int __builtin_subcll (unsigned long long int a, unsigned long long int b, unsigned long long int carry_in, unsigned long long int *carry_out)
-#define rettype uint64_t
-#include "portable_carry.h"
-#endif
-
-MICRO_ECM_FORCE_INLINE uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    uint64_t r0;
-    if (_subborrow_u64(0, a, b, &r0))
-        r0 += n;
-    return r0;
-}
-
-MICRO_ECM_FORCE_INLINE uint64_t uecm_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-#if 0
-    uint64_t r;
-    uint64_t tmp = x - n;
-    uint8_t c = _addcarry_u64(0, tmp, y, &r);
-    return (c) ? r : x + y;
-#else
-    // FYI: The clause above often compiles with a branch in MSVC.
-    // The statement below often compiles without a branch (uses cmov) in MSVC.
-    return (x >= n - y) ? x - (n - y) : x + y;
-#endif
-}
-
-#endif
-
-/* --- The following two functions are written by Jeff Hurchalla, Copyright 2022 --- */
-
-// for this algorithm, see https://jeffhurchalla.com/2022/04/28/montgomery-redc-using-the-positive-inverse-mod-r/
-MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc_alt(uint64_t x, uint64_t y, uint64_t N, uint64_t invN)
-{
-#if defined(_MSC_VER)
-    uint64_t T_hi;
-    uint64_t T_lo = _umul128(x, y, &T_hi);
-    uint64_t m = T_lo * invN;
-    uint64_t mN_hi = __umulh(m, N);
-#else
-    __uint128_t prod = (__uint128_t)x * y;
-    uint64_t T_hi = (uint64_t)(prod >> 64);
-    uint64_t T_lo = (uint64_t)(prod);
-    uint64_t m = T_lo * invN;
-    __uint128_t mN = (__uint128_t)m * N;
-    uint64_t mN_hi = (uint64_t)(mN >> 64);
-#endif
-    uint64_t tmp = T_hi + N;
-#if defined(MICRO_ECM_ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
-    __asm__ (
-        "subq %[mN_hi], %[tmp] \n\t"    /* tmp = T_hi + N - mN_hi */
-        "subq %[mN_hi], %[T_hi] \n\t"   /* T_hi = T_hi - mN_hi */
-        "cmovaeq %[T_hi], %[tmp] \n\t"  /* tmp = (T_hi >= mN_hi) ? T_hi : tmp */
-        : [tmp]"+&r"(tmp), [T_hi]"+&r"(T_hi)
-        : [mN_hi]"r"(mN_hi)
-        : "cc");
-    uint64_t result = tmp;
-#else
-    tmp = tmp - mN_hi;
-    uint64_t result = T_hi - mN_hi;
-    result = (T_hi < mN_hi) ? tmp : result;
-#endif
-   return result;
-}
-
-// for this algorithm, see https://jeffhurchalla.com/2022/04/25/a-faster-multiplicative-inverse-mod-a-power-of-2/
-static uint64_t uecm_multiplicative_inverse(uint64_t a)
-{
-//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
-    uint64_t x0 = (3*a)^2;
-    uint64_t y = 1 - a*x0;
-    uint64_t x1 = x0*(1 + y);
-    y *= y;
-    uint64_t x2 = x1*(1 + y);
-    y *= y;
-    uint64_t x3 = x2*(1 + y);
-    y *= y;
-    uint64_t x4 = x3*(1 + y);
-    return x4;
-}
-
-static uint64_t uecm_bingcd64(uint64_t u, uint64_t v)
-{
-#if 1
-    if (u == 0) {
-        return v;
-    }
-    if (v != 0) {
-        int j = _trail_zcnt64(v);
-        v = (uint64_t)(v >> j);
-        while (1) {
-            uint64_t tmp = u;
-            uint64_t sub1 = (uint64_t)(v - tmp);
-            uint64_t sub2 = (uint64_t)(tmp - v);
-            if (tmp == v)
-                break;
-            u = (tmp >= v) ? v : tmp;
-            v = (tmp >= v) ? sub2 : sub1;
-            // For the line below, the standard way to write this algorithm
-            // would have been to use _trail_zcnt64(v)  (instead of
-            // _trail_zcnt64(sub1)).  However, as pointed out by
-            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
-            // number of low zero bits on u-v is the same as v-u, so counting or
-            // testing can begin on u-v without waiting for abs(u-v) to be
-            // determined."  Hence we are able to use sub1 for the argument.
-            // By removing the dependency on abs(u-v), the CPU can execute
-            // _trail_zcnt64() at the same time as abs(u-v).
-            j = _trail_zcnt64(sub1);
-            v = (uint64_t)(v >> j);
-        }
-    }
-    return u;
-#else
-    // For reference, or if in the future we need to allow an even u,
-    // this version allows u to be even or odd.
-    if (u == 0) {
-        return v;
-    }
-    if (v != 0) {
-        int i = _trail_zcnt64(u);
-        int j = _trail_zcnt64(v);
-        u = (uint64_t)(u >> i);
-        v = (uint64_t)(v >> j);
-        int k = (i < j) ? i : j;
-        while (1) {
-            uint64_t tmp = u;
-            uint64_t sub1 = (uint64_t)(v - tmp);
-            uint64_t sub2 = (uint64_t)(tmp - v);
-            if (tmp == v)
-                break;
-            u = (tmp >= v) ? v : tmp;
-            v = (tmp >= v) ? sub2 : sub1;
-            // For the line below, the standard way to write this algorithm
-            // would have been to use _trail_zcnt64(v)  (instead of
-            // _trail_zcnt64(sub1)).  However, as pointed out by
-            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
-            // number of low zero bits on u-v is the same as v-u, so counting or
-            // testing can begin on u-v without waiting for abs(u-v) to be
-            // determined."  Hence we are able to use sub1 for the argument.
-            // By removing the dependency on abs(u-v), the CPU can execute
-            // _trail_zcnt64() at the same time as abs(u-v).
-            j = _trail_zcnt64(sub1);
-            v = (uint64_t)(v >> j);
-        }
-        u = (uint64_t)(u << k);
-    }
-    return u;
-#endif
-}
-
-/* --- end Hurchalla functions --- */
-
-
-// full strength mul/sqr redc
-MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t inv)
-{
-// gcc-style asm on any x86-64 gcc / clang except clang-cl; it used to
-// need __unix__, so MinGW took the ~5% slower uecm_mulredc_alt path
-#if defined(__x86_64__) && defined(__GNUC__) && !defined(_MSC_VER)
-    // On Intel Skylake: 9 cycles latency, 7 fused uops.
-    __uint128_t prod = (__uint128_t)x * y;
-    uint64_t Thi = (uint64_t)(prod >> 64);
-    uint64_t rrax = (uint64_t)(prod);
-    __asm__(
-        "imulq %[inv], %%rax \n\t"        /* m = T_lo * invN */
-        "mulq %[n] \n\t"                  /* mN = m * N */
-        "leaq (%[Thi], %[n]), %%rax \n\t" /* rax = T_hi + N */
-        "subq %%rdx, %%rax \n\t"          /* rax = rax - mN_hi */
-        "subq %%rdx, %[Thi] \n\t"         /* t_hi = T_hi - mN_hi */
-        "cmovbq %%rax, %[Thi] \n\t"       /* t_hi = (T_hi<mN_hi) ? rax : t_hi */
-        : [Thi] "+&bcSD"(Thi), "+&a"(rrax)
-        : [n] "r"(n), [inv]"r"(inv)
-        : "rdx", "cc");
-    uint64_t result = Thi;
-    return result;
-
-#else
-    return uecm_mulredc_alt(x, y, n, inv);
-#endif
-}
-MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc(uint64_t x, uint64_t n, uint64_t inv)
-{
-// gcc-style asm on any x86-64 gcc / clang except clang-cl; it used to
-// need __unix__, so MinGW took the ~5% slower uecm_mulredc_alt path
-#if defined(__x86_64__) && defined(__GNUC__) && !defined(_MSC_VER)
-    // On Intel Skylake: 9 cycles latency, 7 fused uops.
-    __uint128_t prod = (__uint128_t)x * x;
-    uint64_t Thi = (uint64_t)(prod >> 64);
-    uint64_t rrax = (uint64_t)(prod);
-    __asm__(
-        "imulq %[inv], %%rax \n\t"        /* m = T_lo * invN */
-        "mulq %[n] \n\t"                  /* mN = m * N */
-        "leaq (%[Thi], %[n]), %%rax \n\t" /* rax = T_hi + N */
-        "subq %%rdx, %%rax \n\t"          /* rax = rax - mN_hi */
-        "subq %%rdx, %[Thi] \n\t"         /* t_hi = T_hi - mN_hi */
-        "cmovbq %%rax, %[Thi] \n\t"       /* t_hi = (T_hi<mN_hi) ? rax : t_hi */
-        : [Thi] "+&bcSD"(Thi), "+&a"(rrax)
-        : [n] "r"(n), [inv]"r"(inv)
-        : "rdx", "cc");
-    uint64_t result = Thi;
-    return result;
-
-#else
-    return uecm_mulredc_alt(x, x, n, inv);
-#endif
-}
-MICRO_ECM_FORCE_INLINE static uint64_t uecm_mfma(uint64_t x, uint64_t y, uint64_t c, uint64_t N, uint64_t invN)
-{
-#if defined(_MSC_VER)
-    uint64_t T_hi;
-    uint64_t T_lo = _umul128(x, y, &T_hi);
-    uint64_t m = T_lo * invN;
-    uint64_t mN_hi = __umulh(m, N);
-#else
-    __uint128_t z = (__uint128_t)x * y;
-    uint64_t u = (uint64_t)(z >> 64);
-    uint64_t v = (uint64_t)z;
-    uint64_t w = (u < N - c) ? u + c : u + c - N;  // modular add
-    uint64_t T_hi = w;
-    uint64_t T_lo = v;
-    
-    uint64_t m = T_lo * invN;
-    __uint128_t mN = (__uint128_t)m * N;
-    uint64_t mN_hi = (uint64_t)(mN >> 64);
-    uint64_t tmp = T_hi + N;
-    tmp = tmp - mN_hi;
-    uint64_t result = T_hi - mN_hi;
-    result = (T_hi < mN_hi) ? tmp : result;
-    return result;
-
-#endif
-
-}
+/* 64-bit modular / Montgomery kernels: one shared copy in arith/limb/limb1.h.
+   (This file used to carry private copies of all of these.)  The uecm_ names
+   are kept as aliases so the rest of the file reads as before. */
+#define uecm_submod                 submod
+#define uecm_addmod                 addmod
+#define uecm_mulredc_alt            mulredc_pos_alt
+#define uecm_mulredc                mulredc_pos
+#define uecm_sqrredc                sqrredc_pos
+#define uecm_mfma                   mfma64
+#define uecm_multiplicative_inverse multiplicative_inverse
+#define uecm_bingcd64               bingcd64
 
 MICRO_ECM_FORCE_INLINE static void uecm_uadd(uint64_t rho, uint64_t n, const uecm_pt P1, const uecm_pt P2,
     const uecm_pt Pin, uecm_pt *Pout)
@@ -685,10 +378,6 @@ MICRO_ECM_FORCE_INLINE static void uecm_udup(uint64_t s, uint64_t rho, uint64_t 
 #define uecm_MB_WIDTH 8
 #define uecm_SIMD_BYTES 64
 
-static __m512d dbias;
-static __m512i vbias1;
-static __m512i vbias2;
-static __m512i lo52mask;
 
 #define GCC_VERSION (__GNUC__ * 10000 \
                      + __GNUC_MINOR__ * 100 \
@@ -699,120 +388,27 @@ static __m512i lo52mask;
 #define _mm512_storeu_epi64 _mm512_store_epi64
 #endif
 
-#ifdef IFMA
+/* 8-lane 52-bit Montgomery kernels (positive inverse): shared, in
+   arith/limb/limb1.h.  The FMA bias constants for the non-IFMA path are
+   local to those kernels, so the file-scope dbias / vbias statics (and
+   their initialization in getfactor_uecm_x8_list) are gone. */
+#define uecm_mul52hi                  mp_mul52hi_x8
+#define uecm_mul52lo                  mp_mul52lo_x8
+#define uecm_mul52lohi                mp_mul52lohi_x8
+#define uecm_mulredc_x8               mulredc52_x8
+#define uecm_sqrredc_x8               sqrredc52_x8
+#define uecm_addmod_x8                addmod52_x8
+#define uecm_submod_x8                submod52_x8
+#define uecm_multiplicative_inverse52 multiplicative_inverse52
 
-MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52hi(__m512i b, __m512i c)
-{
-    return _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
-}
-
-MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52lo(__m512i b, __m512i c)
-{
-    return _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
-}
-
-MICRO_ECM_FORCE_INLINE static void uecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
-{
-    *l = _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
-    *h = _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
-    return;
-}
-#else
-
-
-MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52lo(__m512i b, __m512i c)
-{
-    return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
-}
-MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52hi(__m512i b, __m512i c)
-{
-    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
-    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
-    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    return _mm512_sub_epi64(uecm_castepu(prod1_ld), vbias1);
-}
-MICRO_ECM_FORCE_INLINE static void uecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
-{
-    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
-    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
-    __m512d prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    *h = _mm512_sub_epi64(uecm_castepu(prod1_hd), vbias1);
-    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
-    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
-    *l = _mm512_castpd_si512(prod1_ld);
-    return;
-}
-
-#endif
-
-MICRO_ECM_FORCE_INLINE static __m512i uecm_mulredc_x8(__m512i x, __m512i y, __m512i N, __m512i invN)
-{
-    // invN is the positive variant = 0 - nhat (the standard negative inverse)
-    __m512i T_hi; // = uecm_mul52hi(x, y, dbias, vbias1);
-    __m512i T_lo; // = uecm_mul52lo(x, y);
-    uecm_mul52lohi(x, y, &T_lo, &T_hi);
-    // low 52 bits of T_lo * invN: one madd52lo with IFMA (vpmullq is 3 uops,
-    // ~15 cycles latency on the critical path); mullo & mask otherwise
-    __m512i m = uecm_mul52lo(T_lo, invN);
-    __m512i mN_hi = uecm_mul52hi(m, N);
-    __m512i tmp = uecm_add64(T_hi, N);
-    tmp = uecm_sub64(tmp, mN_hi);
-    __m512i result = uecm_sub64(T_hi, mN_hi);               // result is (T - mN) >> 52
-    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);    // unless T_hi < mN_hi
-    return _mm512_mask_mov_epi64(result, msk, tmp);         // then return (T_hi + N - mN_hi)
-}
-MICRO_ECM_FORCE_INLINE static __m512i uecm_sqrredc_x8(__m512i x, __m512i N, __m512i invN)
-{
-    // invN is the positive variant = 0 - nhat (the standard negative inverse)
-    __m512i T_hi; // = uecm_mul52hi(x, y, dbias, vbias1);
-    __m512i T_lo; // = uecm_mul52lo(x, y);
-    uecm_mul52lohi(x, x, &T_lo, &T_hi);
-    // low 52 bits of T_lo * invN: one madd52lo with IFMA (vpmullq is 3 uops,
-    // ~15 cycles latency on the critical path); mullo & mask otherwise
-    __m512i m = uecm_mul52lo(T_lo, invN);
-    __m512i mN_hi = uecm_mul52hi(m, N);
-    __m512i tmp = uecm_add64(T_hi, N);
-    tmp = uecm_sub64(tmp, mN_hi);
-    __m512i result = uecm_sub64(T_hi, mN_hi);
-    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);
-    return _mm512_mask_mov_epi64(result, msk, tmp);
-}
-MICRO_ECM_FORCE_INLINE static __m512i uecm_addmod_x8(__m512i x, __m512i y, __m512i N)
-{
-    __m512i t = uecm_add64(x, y);
-    __mmask8 m = _mm512_cmpge_epu64_mask(t, N);
-    return _mm512_mask_sub_epi64(t, m, t, N);
-}
-MICRO_ECM_FORCE_INLINE static __m512i uecm_submod_x8(__m512i x, __m512i y, __m512i N)
-{
-    __m512i t = uecm_sub64(x, y);
-    __mmask8 m = _mm512_cmpgt_epu64_mask(y, x);
-    return _mm512_mask_add_epi64(t, m, t, N);
-}
-
-static uint64_t uecm_multiplicative_inverse52(uint64_t a)
-{
-    //    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
-    uint64_t x0 = (3 * a) ^ 2;
-    uint64_t y = 1 - a * x0;
-    uint64_t x1 = x0 * (1 + y);
-    y *= y;
-    uint64_t x2 = x1 * (1 + y);
-    y *= y;
-    uint64_t x3 = x2 * (1 + y);
-    y *= y;
-    uint64_t x4 = x3 * (1 + y);
-    return x4 & 0x000fffffffffffffull;
-}
-
-MICRO_ECM_FORCE_INLINE uint64_t uecm_submod52(uint64_t a, uint64_t b, uint64_t n)
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_submod52(uint64_t a, uint64_t b, uint64_t n)
 {
     uint64_t r0;
-    if (_subborrow_u64(0, a, b, (unsigned long long *)(&r0)))
+    if (mp_subborrow_u64(0, a, b, &r0))
         r0 += n;
     return r0;
 }
-MICRO_ECM_FORCE_INLINE uint64_t uecm_addmod52(uint64_t x, uint64_t y, uint64_t n)
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_addmod52(uint64_t x, uint64_t y, uint64_t n)
 {
     // FYI: The clause above often compiles with a branch in MSVC.
     // The statement below often compiles without a branch (uses cmov) in MSVC.
@@ -1819,7 +1415,7 @@ static __m512i uecm_build_x8(uecm_pt_x8* P, __m512i rho, __m512i n, uint64_t* pl
     return ps;
 }
 
-static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* ploc_lcg, uint64_t* ps, uint64_t five, uint64_t Rsqr)
+UNUSED_FUNC static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* ploc_lcg, uint64_t* ps, uint64_t five, uint64_t Rsqr)
 {
     uint64_t t1, t2, t3, t4;
     uint64_t u, v;
@@ -2335,8 +1931,8 @@ static const uint8_t b1_85[225] = {
     17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,
     43,41,31,17,7,1,11,13,19,29 };
 
-static const int numb1_125 = 319;
-static const uint8_t b1_125[319] = {
+UNUSED_VAR static const int numb1_125 = 319;
+UNUSED_VAR static const uint8_t b1_125[319] = {
     23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
     29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,
     17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,
@@ -2347,8 +1943,8 @@ static const uint8_t b1_125[319] = {
     31,19,13,7,11,17,29,43,0,47,29,19,11,7,1,41,43,59,0,53,49,37,23,13,11,7,1,17,19,29,41,43,59,0,59,49,
     41,37,23,13,1,7,11,29,43,47,53,0,59,53,49,31,23,13,7,1,17,29,43,47,0,59,31,29,19,11,7,37,49,53 };
 
-static const int numb1_165 = 435;
-static const uint8_t b1_165[435] = {
+UNUSED_VAR static const int numb1_165 = 435;
+UNUSED_VAR static const uint8_t b1_165[435] = {
     13,7,1,11,17,19,31,43,47,49,53,59,0,59,49,43,
     37,31,29,23,19,17,7,11,13,47,53,0,53,47,41,37,
     31,23,19,11,1,13,29,43,59,0,53,49,41,37,31,19,
@@ -2378,8 +1974,8 @@ static const uint8_t b1_165[435] = {
     29,31,43,0,53,31,19,17,13,7,1,29,37,59,0,49,
     47,41,29 };
 
-static const int numb1_205 = 511;
-static const uint8_t b1_205[511] = {
+UNUSED_VAR static const int numb1_205 = 511;
+UNUSED_VAR static const uint8_t b1_205[511] = {
     1,23,41,0,59,53,49,47,37,23,19,17,13,1,7,29,43,0,53,49,41,31,29,19,17,11,7,1,13,37,59,0,49,47,29,23,
     13,7,1,17,31,37,43,0,59,49,47,43,37,31,29,17,13,7,1,11,19,53,0,59,53,49,41,37,23,13,1,11,17,19,29,43,
     47,0,53,49,47,43,23,19,11,1,7,17,37,41,0,59,53,41,37,31,29,19,17,11,1,13,43,47,0,53,47,41,19,17,7,1,
@@ -2575,7 +2171,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     uecm_pt Pd1;
     uecm_pt *Pd = &Pd1;
     const uint8_t *barray = 0;
-    int numb;
+    int numb = 0;	// stays 0 (no stage 1) for an unsupported stg1_max
 
 #ifdef MICRO_ECM_VERBOSE_PRINTF
     ptadds = 0;
@@ -2684,7 +2280,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -2698,7 +2294,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -2931,7 +2527,7 @@ static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
     uecm_pt_x8 Pd1;
     uecm_pt_x8* Pd = &Pd1;
     const uint8_t* barray = 0;
-    int numb;
+    int numb = 0;	// stays 0 (no stage 1) for an unsupported stg1_max
 
 #ifdef MICRO_ECM_VERBOSE_PRINTF
     ptadds = 0;
@@ -3040,7 +2636,7 @@ static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd_x8(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -3054,7 +2650,7 @@ static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd_x8(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -3280,7 +2876,6 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     //attempt to factor n with the elliptic curve method
     //following brent and montgomery's papers, and CP's book
     int curve;
-    int found = 0;
     int result;
     uecm_pt P;
     uint64_t tmp1;
@@ -3306,7 +2901,6 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     uint64_t s;
 
     int use_prebuilt_curves = 1;
-    uint32_t smallsigma[8] = { 11, 61, 56, 81, 83, 7, 30, 51 };
     uint64_t Z[8] = { 85184, 14526784, 11239424, 34012224, 36594368, 21952, 1728000, 8489664 };
     uint64_t X[8] = { 1560896ULL, 51312965696ULL, 30693697091ULL, 281784327616ULL,
         326229015104ULL, 85184ULL, 716917375ULL, 17495004736ULL };
@@ -3336,7 +2930,7 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
             P.Z = Z[curve];
             // some computation left to do for S parameter for this 'n'
 
-            uint64_t num, uvc, u3vc;
+            uint64_t num;
 
             uint64_t dem = d[curve];
             // jeff note:  uecm_modinv_64(dem, n) appears to require dem < n,
@@ -3445,7 +3039,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
     ALIGNED_MEM uint64_t uarray[8], rarray[8], tarray[8], oarray[8];
     ALIGNED_MEM uint64_t narray[8], carray[8], fivea[8], Rsqra[8];
     uint32_t stg1_max = B1;
-    __m512i v_u, v_s, v_n, v_f, v_r, v_c, v_o;
+    __m512i v_u, v_s, v_n, v_r, v_c, v_o;
     uecm_pt_x8 v_P;
     int i;
     uint32_t j = 0;
@@ -3483,7 +3077,6 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                 uint64_t two_13 = uecm_mulredc52(two_8, two_5, n64[j], rho);  // R*2^13         (mod n)
                 uint64_t two_26 = uecm_sqrredc52(two_13, n64[j], rho);        // R*2^26        (mod n)
                 uint64_t Rsqr = uecm_sqrredc52(two_26, n64[j], rho);          // R*2^52 ≡ R*R  (mod n)
-                uint64_t s;
 
                 // mark this index for loading into vectors
                 lmsk |= (1 << i);
@@ -3552,7 +3145,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                 if (result == 1)
                 {
                     f[oarray[i]] = t;
-                    msk &= (~(1 << i));
+                    msk &= (uint8_t)(~(1 << i));
                 }
             }
         }
@@ -3573,7 +3166,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                     if (result == 1)
                     {
                         f[oarray[i]] = t;
-                        msk &= (~(1 << i));
+                        msk &= (uint8_t)(~(1 << i));
                     }
                 }
             }
@@ -3624,14 +3217,14 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
         {
             B1 = 47;
             curves = 1;
-            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
             if (f64 > 1)
                 return f64;
         }
         {
             B1 = 70;
             curves = 1;
-            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
             if (f64 > 1)
                 return f64;
         }
@@ -3639,7 +3232,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
         {
             B1 = 125;
             curves = 1;
-            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
             if (f64 > 1)
                 return f64;
         }
@@ -3649,19 +3242,19 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
     {
         B1 = 27;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 44)
     {
         B1 = 47;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 48)
     {
         B1 = 70;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 52)
     {
@@ -3672,7 +3265,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 85;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 58)
     {
@@ -3683,7 +3276,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 125;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 62)
     {
@@ -3694,7 +3287,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 165;
         curves = 42;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 64)
     {
@@ -3705,7 +3298,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 205;
         curves = 42;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
 
     return f64;
@@ -3722,43 +3315,43 @@ static void uecm_dispatch_x8_list(uint64_t* n, uint64_t* f,
     {
         B1 = 27;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 44)
     {
         B1 = 47;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 48)
     {
         B1 = 70;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 52)
     {
         B1 = 85;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 58)
     {
         B1 = 125;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 62)
     {
         B1 = 165;
         curves = 42;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 64)
     {
         B1 = 205;
         curves = 42;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
 
     return;
@@ -3955,10 +3548,6 @@ int prp_uecm_fermat(uint64_t n)
 
 void getfactor_uecm_x8_list(uint64_t* q64, uint64_t* f64, uint32_t num_in, uint64_t* pran)
 {
-    dbias = _mm512_castsi512_pd(uecm_set64(0x4670000000000000ULL));
-    vbias1 = uecm_set64(0x4670000000000000ULL);
-    vbias2 = uecm_set64(0x4670000000000001ULL);
-    lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
 
     int bits = uecm_get_bits(q64[0]);       // assume all the same size
     uecm_dispatch_x8_list(q64, f64, bits, num_in, pran);

@@ -51,7 +51,7 @@ either expressed or implied, of the FreeBSD Project.
 // http://mersenneforum.org/showpost.php?p=427989&postcount=2429
 
 
-static int debugctr = 0;
+UNUSED_VAR static int debugctr = 0;
 void thread_init(thread_data_t* tdata, vec_monty_t* mdata, uint64_t B1, uint64_t B2);
 void test_vecarith(int numbits, int iterations, int validate);
 void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validate);
@@ -235,16 +235,14 @@ void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, 
     mpz_set_ui(dest, 0);
     for (j = sz - 1; j >= 0; j--)
     {
-        
-#if defined(WIN64) && (DIGITBITS == 52)
-        mpz_mul_2exp(dest, dest, 20);
-        mpz_add_ui(dest, dest, vec_src->data[num + j * VECLEN] >> 32);
+        // add each word in two 32-bit halves: GMP's *_ui functions take an
+        // unsigned long, which is only 32 bits on LLP64 Windows (MinGW + GMP).
+        // (MPIR's mpir_ui is 64-bit on Win64, which is why MSVC builds worked.)
+        uint64_t w = (uint64_t)vec_src->data[num + j * VECLEN];
+        mpz_mul_2exp(dest, dest, DIGITBITS - 32);
+        mpz_add_ui(dest, dest, (unsigned long)(w >> 32));
         mpz_mul_2exp(dest, dest, 32);
-        mpz_add_ui(dest, dest, (vec_src->data[num + j * VECLEN]) & 0xffffffff);
-#else
-        mpz_mul_2exp(dest, dest, DIGITBITS);
-        mpz_add_ui(dest, dest, vec_src->data[num + j * VECLEN]);
-#endif
+        mpz_add_ui(dest, dest, (unsigned long)(w & 0xffffffff));
         //gmp_printf("word is %016llx, dest is now %Zx\n", vec_src->data[num + j * VECLEN], dest);
     }
 
@@ -263,7 +261,7 @@ void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src)
     vec_dest->size = 0;
     while (mpz_cmp_ui(src_cp, 0) > 0)
     {
-        base_t thisword = mpz_get_ui(src_cp) & VEC_MAXDIGIT;
+        base_t thisword = (base_t)(mpz_getlimbn(src_cp, 0) & VEC_MAXDIGIT);
         for (j = 0; j < VECLEN; j++)
         {
             vec_dest->data[j + i * VECLEN] = thisword;
@@ -273,7 +271,7 @@ void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src)
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
     }
 
-    vec_dest->size = vec_dest->WORDS_ALLOC;
+    vec_dest->size = (int)vec_dest->WORDS_ALLOC;
     mpz_clear(src_cp);
     return;
 }
@@ -290,7 +288,7 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
     //vec_dest->size = 0;
     while (mpz_cmp_ui(src_cp, 0) > 0)
     {
-        base_t thisword = mpz_get_ui(src_cp) & VEC_MAXDIGIT;
+        base_t thisword = (base_t)(mpz_getlimbn(src_cp, 0) & VEC_MAXDIGIT);
         vec_dest->data[lane + i * VECLEN] = thisword;
         i++;
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
@@ -304,7 +302,7 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
         vec_dest->data[lane + i * VECLEN] = 0;
     }
 
-    vec_dest->size = vec_dest->WORDS_ALLOC; // MAX(vec_dest->size, i);
+    vec_dest->size = (int)vec_dest->WORDS_ALLOC; // MAX(vec_dest->size, i);
     mpz_clear(src_cp);
     return;
 }
@@ -314,16 +312,13 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     int save_b1, uint32_t *curves_run)
 {
     thread_data_t *tdata;
-	vec_bignum_t **f, *n;
+	UNUSED_VAR vec_bignum_t *n;
     mpz_t g, r, N;
-	uint32_t *siglist;
 	uint32_t numcurves_per_thread;
 	uint64_t b1 = B1;
 	uint32_t i, j;
-	char **nextptr;
 	vec_monty_t *montyconst;
 	int pid = getpid();
-    uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 1;
     uint64_t sigma = fobj->ecm_obj.sigma;
     uint32_t maxbits, mmaxbits, nwords, nblocks;
@@ -363,7 +358,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     if (pid <= 0)
     {
-        pid = startt.tv_usec;
+        pid = (int)startt.tv_usec;
     }
 
     if (verbose > 1)
@@ -381,7 +376,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     mpz_set(N, fobj->N);
 
     // check for Mersenne inputs
-    size_n = mpz_sizeinbase(N, 2);
+    size_n = (int)mpz_sizeinbase(N, 2);
 
     for (i = 31; i <= size_n; i++)
     {
@@ -391,7 +386,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         mpz_mod(g, r, N);
         if (mpz_cmp_ui(g, 0) == 0)
         {
-            size_n = i;
+            size_n = (int)i;
             isMersenne = 1;
             break;
         }
@@ -402,7 +397,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         mpz_mod(g, r, N);
         if (mpz_cmp_ui(g, 0) == 0)
         {
-            size_n = i;
+            size_n = (int)i;
             isMersenne = -1;
             break;
         }
@@ -413,8 +408,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         mpz_mod(g, r, N);
         if (mpz_sizeinbase(g, 2) < (DIGITBITS/2))
         {
-            size_n = i;
-            isMersenne = mpz_get_ui(g);
+            size_n = (int)i;
+            isMersenne = (int)mpz_get_ui(g);
             break;
         }
     }
@@ -439,8 +434,15 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         //find_primitive_factor(fobj, &poly, fobj->primes, fobj->num_p, verbose);
         remove_algebraic_factors(fobj, &poly, fobj->primes, fobj->num_p, verbose);
 
-        mpz_tdiv_q(g, N, poly.primitive);
-        mpz_gcd(N, N, poly.primitive);
+        // exact split: g = the part of the input outside the primitive factor
+        if (mpz_cmp_ui(poly.primitive, 1) > 0)
+        {
+            mpz_gcd(g, N, poly.primitive);
+            mpz_swap(g, N);
+            mpz_divexact(g, g, N);
+        }
+        else
+            mpz_set_ui(g, 1);
 
         if (mpz_cmp_ui(g, 1) > 0)
         {
@@ -512,7 +514,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         {
             int ndigits = gmp_base10(N);
             mpz_set_ui(r, 10);
-            mpz_pow_ui(r, r, ndigits - 10);
+            mpz_pow_ui(r, r, (unsigned long)(ndigits - 10));
             mpz_tdiv_q(g, N, r);
             mpz_set_ui(r, 10);
             mpz_pow_ui(r, r, 10);
@@ -535,7 +537,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 size_n);
         }
         forceNoMersenne = 1;
-        size_n = mpz_sizeinbase(N, 2);
+        size_n = (int)mpz_sizeinbase(N, 2);
     }
     else if ((isMersenne != 0) && (forceNoMersenne == 0))
     {
@@ -545,7 +547,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
     else
     {
-        size_n = mpz_sizeinbase(N, 2);
+        size_n = (int)mpz_sizeinbase(N, 2);
         nwords = maxbits / DIGITBITS;
         nblocks = nwords / BLOCKWORDS;
     }
@@ -553,7 +555,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     if (forceNoMersenne)
     {
         isMersenne = 0;
-        size_n = mpz_sizeinbase(N, 2);
+        size_n = (int)mpz_sizeinbase(N, 2);
     }
 
     // RNS backend for large enough non-Mersenne inputs (avx_rns_bits,
@@ -580,7 +582,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     // now that we know NWORDS, can allocate the monty structure.
     montyconst = vec_monty_alloc(nwords);
-    tdata = (thread_data_t*)malloc(threads * sizeof(thread_data_t));
+    tdata = (thread_data_t*)malloc((unsigned long)threads * sizeof(thread_data_t));
 
     tdata[0].MAXBITS = montyconst->MAXBITS = maxbits;
     tdata[0].NBLOCKS = montyconst->NBLOCKS = nblocks;
@@ -608,10 +610,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         mpz_set(montyconst->nhat, N);           // remember input N
         // do all math w.r.t the Mersenne number
         mpz_set_ui(N, 1);
-        mpz_mul_2exp(N, N, size_n);
+        mpz_mul_2exp(N, N, (mp_bitcnt_t)size_n);
         if (isMersenne > 0)
         {
-            mpz_sub_ui(N, N, isMersenne);
+            mpz_sub_ui(N, N, (unsigned long)isMersenne);
         }
         else
         {
@@ -625,7 +627,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     else
     {
         montyconst->isMersenne = 0;
-        montyconst->nbits = mpz_sizeinbase(N, 2);
+        montyconst->nbits = (int)mpz_sizeinbase(N, 2);
         montyconst->use_vnbits = 0;             // all lanes use the same N.
         mpz_set_ui(r, 1);
         mpz_mul_2exp(r, r, DIGITBITS * tdata[0].NWORDS);
@@ -677,7 +679,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     if (numcurves < threads)
     {
-        numcurves = threads;
+        numcurves = (uint32_t)threads;
     }
 	
     if (verbose > 1)
@@ -685,12 +687,12 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         printf("configuring avx-ecm with %d threads\n", threads); fflush(stdout);
     }
 
-	numcurves_per_thread = numcurves / threads + (numcurves % threads != 0);
-	numcurves = numcurves_per_thread * threads;
+	numcurves_per_thread = numcurves / (uint32_t)threads + (numcurves % (uint32_t)threads != 0);
+	numcurves = numcurves_per_thread * (uint32_t)threads;
 
     if (verbose > 1)
     {
-        printf("Input has %d bits, using %d threads (%d curves/thread)\n",
+        printf("Input has %zu bits, using %d threads (%d curves/thread)\n",
             mpz_sizeinbase(N, 2), threads, numcurves_per_thread);
         printf("Processing in batches of %u primes\n", tdata[0].PRIME_RANGE);
     }
@@ -702,7 +704,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     //printf("rho = %016llx\n", mpz_get_ui(montyconst->nhat) & MAXDIGIT);
     for (i = 0; i < VECLEN; i++)
     {
-        montyconst->vrho[i] = mpz_get_ui(montyconst->nhat) & VEC_MAXDIGIT;
+        montyconst->vrho[i] = mpz_get_64(montyconst->nhat) & VEC_MAXDIGIT;
     }
 
     // test karatsuba
@@ -729,7 +731,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
         mpz_urandomb(a, grnd, montyconst->MAXBITS);
         mpz_nextprime(a, a);
-        lcg_state = mpz_get_ui(a);
+        lcg_state = mpz_get_64(a);
         sz = lcg_rand_32_range(montyconst->MAXBITS/2, montyconst->MAXBITS, &lcg_state);
         if ((sz & 1) == 0)
             sz--;
@@ -737,7 +739,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         printf("\nsize is %u\n", sz);
 
         montyconst->isMersenne = 1;
-        montyconst->nbits = sz;
+        montyconst->nbits = (int)sz;
         montyconst->use_vnbits = 0;             // all lanes use the same N.
         
 
@@ -754,7 +756,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         mpz_set_ui(c, 1);
         mpz_mul_2exp(c, c, sz);
         mpz_sub_ui(c, c, 1);
-        insert_mpz_to_vec(vn, c, i);
+        insert_mpz_to_vec(vn, c, (int)i);
         mpz_set(montyconst->nhat, c);           // remember input N
         // do all math w.r.t the Mersenne number
         broadcast_mpz_to_vec(montyconst->n, c);
@@ -766,12 +768,12 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         {
             mpz_urandomb(a, grnd, sz);
             mpz_nextprime(a, a);
-            insert_mpz_to_vec(va, a, i);
+            insert_mpz_to_vec(va, a, (int)i);
             mpz_urandomb(b, grnd, sz);
             mpz_nextprime(b, b);
-            insert_mpz_to_vec(vb, b, i);
+            insert_mpz_to_vec(vb, b, (int)i);
 
-            insert_mpz_to_vec(vn, c, i);
+            insert_mpz_to_vec(vn, c, (int)i);
 
             gmp_printf("a%d: %Zx\n", i, a);
             gmp_printf("b%d: %Zx\n", i, b);
@@ -787,8 +789,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
         for (i = 0; i < VECLEN; i++)
         {
-            extract_bignum_from_vec_to_mpz(a, vc, i, montyconst->NWORDS);
-            extract_bignum_from_vec_to_mpz(b, vkc, i, 2*montyconst->NWORDS);
+            extract_bignum_from_vec_to_mpz(a, vc, (int)i, (int)montyconst->NWORDS);
+            extract_bignum_from_vec_to_mpz(b, vkc, (int)i, (int)(2*montyconst->NWORDS));
 
             gmp_printf("sch%d: %Zx\n", i, a);
             gmp_printf("kar%d: %Zx\n", i, b);
@@ -797,22 +799,22 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         exit(1);
     }
 
-    assign_mul_ptrs(montyconst, tdata[0].MAXBITS, verbose);
+    assign_mul_ptrs(montyconst, (int)tdata[0].MAXBITS, verbose);
 
 	gettimeofday(&stopt, NULL);
 
     if (0)
     {
-        size_n = mpz_sizeinbase(fobj->N, 2);
-        test_vecarith(size_n, numcurves, 1);
+        size_n = (int)mpz_sizeinbase(fobj->N, 2);
+        test_vecarith(size_n, (int)numcurves, 1);
         exit(0);
 
         for (size_n = 200, maxbits = 208, numcurves = 8000; size_n <= 2000; 
             size_n += 200, maxbits += 208, numcurves /= 2)
         {
             gettimeofday(&startt, NULL);
-            assign_mul_ptrs(montyconst, maxbits, verbose);
-            test_vecarith(size_n, numcurves, 1);
+            assign_mul_ptrs(montyconst, (int)maxbits, verbose);
+            test_vecarith(size_n, (int)numcurves, 1);
             gettimeofday(&stopt, NULL);
             t_time = ytools_difftime(&startt, &stopt);
             printf("Test took %1.4f seconds.\n", t_time);
@@ -822,8 +824,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         for (size_n = 10000; size_n <= 100000; size_n += 4000)
         {
             gettimeofday(&startt, NULL);
-            assign_mul_ptrs(montyconst, maxbits, verbose);
-            test_vecarith(size_n, numcurves, 1);
+            assign_mul_ptrs(montyconst, (int)maxbits, verbose);
+            test_vecarith(size_n, (int)numcurves, 1);
             gettimeofday(&stopt, NULL);
             t_time = ytools_difftime(&startt, &stopt);
             printf("Test took %1.4f seconds.\n", t_time);
@@ -833,8 +835,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             size_n += 200, maxbits += 208, numcurves /= 2)
         {
             gettimeofday(&startt, NULL);
-            assign_mul_ptrs(montyconst, maxbits, verbose);
-            test_vecarith(size_n, numcurves, 0);
+            assign_mul_ptrs(montyconst, (int)maxbits, verbose);
+            test_vecarith(size_n, (int)numcurves, 0);
             gettimeofday(&stopt, NULL);
             t_time = ytools_difftime(&startt, &stopt);
             printf("Test took %1.4f seconds.\n", t_time);
@@ -844,8 +846,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         for (size_n = 10000; size_n <= 100000; size_n += 4000)
         {
             gettimeofday(&startt, NULL);
-            assign_mul_ptrs(montyconst, maxbits, verbose);
-            test_vecarith(size_n, numcurves, 0);
+            assign_mul_ptrs(montyconst, (int)maxbits, verbose);
+            test_vecarith(size_n, (int)numcurves, 0);
             gettimeofday(&stopt, NULL);
             t_time = ytools_difftime(&startt, &stopt);
             printf("Test took %1.4f seconds.\n", t_time);
@@ -866,9 +868,9 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         // each thread gets a random LCG state that folds in the current pid,
         // this session's rand_t, and the current microsecond timer.  Plus the
         // thread id to make it unique per-thread.
-		tdata[i].lcg_state = hash64(stopt.tv_usec) + hash64(pid) + hash64(i+1) + 
-            seed1 + (uint64_t)seed2 << 32;
-        tdata[i].total_threads = threads;
+		tdata[i].lcg_state = hash64((uint64_t)stopt.tv_usec) + hash64((uint64_t)pid) + hash64(i+1) + 
+            seed1 + ((uint64_t)seed2 << 32);
+        tdata[i].total_threads = (uint32_t)threads;
         tdata[i].verbose = verbose;
         tdata[i].save_b1 = save_b1;
         tdata[i].STAGE1_MAX = tdata[0].STAGE1_MAX;
@@ -893,10 +895,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
             for (j = 0, k = 0; k < 2 * D; k++)
             {
-                if (spGCD(k, 2 * D) == 1)
+                if (spGCD((uint64_t)k, 2 * D) == 1)
                 {
-                    tdata[i].Qmap[k] = j;
-                    tdata[i].Qrmap[j++] = k;
+                    tdata[i].Qmap[k] = (uint32_t)j;
+                    tdata[i].Qrmap[j++] = (uint32_t)k;
                 }
                 else
                 {
@@ -909,7 +911,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 tdata[i].Qrmap[k] = (uint32_t)-1;
             }
 
-            tdata[i].Q = (Queue_t * *)malloc(j * sizeof(Queue_t*));
+            tdata[i].Q = (Queue_t * *)malloc((unsigned long)j * sizeof(Queue_t*));
             for (k = 0; k < j; k++)
             {
                 tdata[i].Q[k] = newQueue(D, 0);
@@ -926,7 +928,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         {
             for (j = 0; j < VECLEN; j++)
             {
-                tdata[i].sigma[j] = sigma + VECLEN * i + j;
+                tdata[i].sigma[j] = sigma + VECLEN * i + (uint64_t)j;
             }
         }
         else
@@ -1004,7 +1006,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         char* s;
         s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
         logprint(flog, "ecm: commencing %u curves using AVX-ECM method on %s, ",
-            tdata[0].curves * threads, s);
+            tdata[0].curves * (uint32_t)threads, s);
         free(s);
 
         int tmp = fobj->ecm_obj.stg2_is_default;
@@ -1078,7 +1080,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             mpz_gcd(g, fobj->ecm_obj.gmp_n, tdata[i].factors[j].factor);
 
             int k;
-            for (k = j + 1; k < tdata[i].numfactors; k++)
+            for (k = (int)(j + 1); k < tdata[i].numfactors; k++)
             {
                 if (mpz_divisible_p(g, tdata[i].factors[k].factor))
                 {
@@ -1100,7 +1102,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             //fid = fobj->factors->num_factors - 1;
 
             fobj->factors->factors[fid].tid = tdata[i].factors[j].thread_id;
-            fobj->factors->factors[fid].curve_num = tdata[i].factors[j].curve_id;
+            fobj->factors->factors[fid].curve_num = (uint32_t)tdata[i].factors[j].curve_id;
             fobj->factors->factors[fid].sigma = tdata[i].factors[j].sigma;
             fobj->factors->factors[fid].vid = tdata[i].factors[j].vec_id;
             fobj->factors->factors[fid].method = tdata[i].factors[j].stg_id;
@@ -1255,13 +1257,13 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
 
     for (j = 0, i = 0; i < 2 * D; i++)
     {
-        if (spGCD(i, 2 * D) == 1)
+        if (spGCD((uint64_t)i, 2 * D) == 1)
         {
             j++;
         }
     }
 
-    tdata->work->R = j + 3;
+    tdata->work->R = (uint32_t)(j + 3);
 
     // decide on the stage 2 parameters.  Larger U means
     // more memory and more setup overhead, but more prime pairs.
@@ -1299,7 +1301,7 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
         adds[i] = (double)D * (double)U[i];;
 
         // runtime cost of stage 2
-        numadds = (B2 - B1) / (D);
+        numadds = (int)((B2 - B1) / (D));
 
         // total adds cost
         addcost = 6.0 * ((double)numadds + adds[i]);
@@ -1307,7 +1309,7 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
         // inversion cost - we invert in batches of 2U at a time, taking 3*U muls.
         // estimating the cost of the inversion as equal to an add, but we do the 
         // 8 vector elements one at a time.
-        numinv = ((double)numadds / (double)U[i] / 2.0) + 2;
+        numinv = (int)(((double)numadds / (double)U[i] / 2.0) + 2);
         invcost = (double)numinv * (VECLEN * 6.0) + (double)numinv * 3.0;
 
         //// estimate number of prime pairs times 1 (1 mul per pair with batch inversion)
@@ -1329,7 +1331,7 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
         }
     }
 
-    tdata->work->U = bestU;
+    tdata->work->U = (uint32_t)bestU;
     tdata->work->L = tdata->work->U * 2;
 
     tdata->work->NWORDS = mdata->NWORDS;
@@ -1391,11 +1393,11 @@ void test_vecarith(int numbits, int iterations, int validate)
     numwords = (int)avxecm_redc_nwords((uint32_t)numbits);
 
     printf("commencing test with %d bits (%d words)\n", numbits, numwords);
-    mdata = vec_monty_alloc(numwords);
+    mdata = vec_monty_alloc((uint32_t)numwords);
 
-    mdata->NBLOCKS = numwords / BLOCKWORDS;
-    mdata->MAXBITS = numwords * DIGITBITS;
-    mdata->NWORDS = numwords;
+    mdata->NBLOCKS = (uint32_t)(numwords / BLOCKWORDS);
+    mdata->MAXBITS = (uint32_t)(numwords * DIGITBITS);
+    mdata->NWORDS = (uint32_t)numwords;
 
     mpz_init(n);
     mpz_init(r);
@@ -1406,14 +1408,14 @@ void test_vecarith(int numbits, int iterations, int validate)
     mpz_init(t2);
     mpz_init(t3);
     mpz_init(t4);
-    vec_n = vecInit(numwords);
-    vec_p = vecInit(numwords);
-    vec_a = vecInit(numwords);
-    vec_e = vecInit(numwords);
-    vec_s = vecInit(numwords);
-    vec_b = vecInit(numwords);
-    vec_am = vecInit(numwords);
-    vec_one = vecInit(numwords);
+    vec_n = vecInit((uint32_t)numwords);
+    vec_p = vecInit((uint32_t)numwords);
+    vec_a = vecInit((uint32_t)numwords);
+    vec_e = vecInit((uint32_t)numwords);
+    vec_s = vecInit((uint32_t)numwords);
+    vec_b = vecInit((uint32_t)numwords);
+    vec_am = vecInit((uint32_t)numwords);
+    vec_one = vecInit((uint32_t)numwords);
     gmp_randinit_default(state);
 
     vecClear(vec_one);
@@ -1425,7 +1427,7 @@ void test_vecarith(int numbits, int iterations, int validate)
     for (i = 0; i < iterations; i++)
     {
         // get a random odd modulus
-        mpz_urandomb(n, state, numbits);
+        mpz_urandomb(n, state, (mp_bitcnt_t)numbits);
         if (mpz_even_p(n))
         {
             mpz_add_ui(n, n, 1);
@@ -1436,7 +1438,7 @@ void test_vecarith(int numbits, int iterations, int validate)
         broadcast_mpz_to_vec(vec_n, n);
 
         // get a random exponent
-        mpz_urandomb(e, state, numbits);
+        mpz_urandomb(e, state, (mp_bitcnt_t)numbits);
         vecClear(vec_e);
         broadcast_mpz_to_vec(vec_e, e);
 
@@ -1444,10 +1446,10 @@ void test_vecarith(int numbits, int iterations, int validate)
 
         // initialize monty arithmetic
         mdata->isMersenne = 0;
-        mdata->nbits = mpz_sizeinbase(n, 2);
+        mdata->nbits = (int)mpz_sizeinbase(n, 2);
         mdata->use_vnbits = 0;             // all lanes use the same N.
         mpz_set_ui(r, 1);
-        mpz_mul_2exp(r, r, numwords * DIGITBITS);
+        mpz_mul_2exp(r, r, (mp_bitcnt_t)(numwords * DIGITBITS));
         mpz_invert(mdata->nhat, n, r);
         mpz_sub(mdata->nhat, r, mdata->nhat);
         //mpz_invert(mdata->rhat, r, n);
@@ -1467,7 +1469,7 @@ void test_vecarith(int numbits, int iterations, int validate)
 
         for (j = 0; j < 8; j++)
         {
-            mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
+            mdata->vrho[j] = mpz_get_64(mdata->nhat) & VEC_MAXDIGIT;
         }
 
         vecClear(vec_a);
@@ -1478,7 +1480,7 @@ void test_vecarith(int numbits, int iterations, int validate)
         // get 8 random numbers and load them into a vector
         for (j = 0; j < 8; j++)
         {
-            mpz_urandomb(a, state, numbits);
+            mpz_urandomb(a, state, (mp_bitcnt_t)numbits);
             mpz_tdiv_r(a, a, n);
             //if (j == 0) gmp_printf("a = %Zd\ne = %Zd\nn = %Zd\n", a, e, n);
             insert_mpz_to_vec(vec_a, a, j);
@@ -1501,14 +1503,14 @@ void test_vecarith(int numbits, int iterations, int validate)
             mpz_mul(t4, t1, t2);
 
             mpz_set_ui(t1, 1);
-            mpz_mul_2exp(t1, t1, numwords * DIGITBITS);
+            mpz_mul_2exp(t1, t1, (mp_bitcnt_t)(numwords * DIGITBITS));
             mpz_invert(t2, n, t1);
             mpz_sub(t2, t1, t2);
             mpz_mul(t3, t4, t2);
-            mpz_tdiv_r_2exp(t3, t3, numwords * DIGITBITS);
+            mpz_tdiv_r_2exp(t3, t3, (mp_bitcnt_t)(numwords * DIGITBITS));
             mpz_mul(t3, t3, n);
             mpz_add(t3, t3, t4);
-            mpz_tdiv_q_2exp(t4, t3, numwords * DIGITBITS);
+            mpz_tdiv_q_2exp(t4, t3, (mp_bitcnt_t)(numwords * DIGITBITS));
             if (mpz_cmp(t4, n) >= 0)
             {
                 mpz_sub(t4, t4, n);
@@ -1550,14 +1552,14 @@ void test_vecarith(int numbits, int iterations, int validate)
             mpz_mul(t4, t1, t2);
 
             mpz_set_ui(t1, 1);
-            mpz_mul_2exp(t1, t1, numwords * DIGITBITS);
+            mpz_mul_2exp(t1, t1, (mp_bitcnt_t)(numwords * DIGITBITS));
             mpz_invert(t2, n, t1);
             mpz_sub(t2, t1, t2);
             mpz_mul(t3, t4, t2);
-            mpz_tdiv_r_2exp(t3, t3, numwords * DIGITBITS);
+            mpz_tdiv_r_2exp(t3, t3, (mp_bitcnt_t)(numwords * DIGITBITS));
             mpz_mul(t3, t3, n);
             mpz_add(t3, t3, t4);
-            mpz_tdiv_q_2exp(t4, t3, numwords * DIGITBITS);
+            mpz_tdiv_q_2exp(t4, t3, (mp_bitcnt_t)(numwords * DIGITBITS));
             if (mpz_cmp(t4, n) >= 0)
             {
                 mpz_sub(t4, t4, n);
@@ -1725,7 +1727,7 @@ void vec_bench(int lo_words, int hi_words, int step_words, int reps, int validat
         broadcast_mpz_to_vec(mdata->one, mdata->rhat);
         for (j = 0; j < VECLEN; j++)
         {
-            mdata->vrho[j] = mpz_get_ui(mdata->nhat) & VEC_MAXDIGIT;
+            mdata->vrho[j] = mpz_get_64(mdata->nhat) & VEC_MAXDIGIT;
         }
 
         broadcast_mpz_to_vec(vn, n);

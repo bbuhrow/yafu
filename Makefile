@@ -440,6 +440,7 @@ CFLAGS += -DVBITS=$(VBITS)
 CFLAGS += \
     -I. \
     -Iinclude \
+    -Iarith/limb \
     -Ims_include \
     -Itop/aprcl \
     -Itop/cmdParser \
@@ -903,6 +904,8 @@ COMMON_SRCS = \
     factor/trialdiv.c \
     arith/arith.c \
     arith/monty.c \
+    arith/limb/limb1.c \
+    arith/limb/limb2.c \
     arith/fftmul.c \
     top/aprcl/tinyprp.c \
     factor/gmp-ecm/tinyecm.c \
@@ -1354,10 +1357,9 @@ ecm: _dep_status \
 # (factor_common, microecm, gpu_cofactorization, ...) and their SIQS/NFS/CUDA
 # dependencies are never dragged into the test binary.
 #
-# NOTE: if your tree has split the 128-bit / single-limb code out of arith.c /
-# monty.c into limb1.c / limb2.c, add those to COMMON_SRCS (the main build needs
-# them too) or append their objects to TEST_KERNEL_OBJS, so symbols such as
-# mulmod128 resolve at link time.
+# The one- and two-limb kernels (mulmod128, spModExp, ...) live in the
+# standalone library arith/limb (limb1.c / limb2.c), which is part of
+# COMMON_SRCS, so they resolve from the same archive.
 # -----------------------------------------------------------------------------
 .PHONY: test test-run test-clean
 
@@ -1368,6 +1370,8 @@ TEST_SRCS := \
     $(TEST_DIR)/test_main.c \
     $(TEST_DIR)/layer0/test_mp_arith.c \
     $(TEST_DIR)/layer0/test_mp_bitscan.c \
+    $(TEST_DIR)/layer0/test_limb_inline.c \
+    $(TEST_DIR)/layer1/test_limb.c \
     $(TEST_DIR)/layer1/test_sp_arith.c \
     $(TEST_DIR)/layer1/test_modular.c \
     $(TEST_DIR)/layer1/test_primality.c \
@@ -1386,7 +1390,8 @@ TEST_KERNEL_OBJS ?= $(YAFU_COMMON_OBJS)
 # Dedicated compile rule: more specific than the generic %.o rule, so it wins
 # for test sources.  Adds -I$(TEST_DIR) and a coarse header dependency; stays
 # out of the .deps/ machinery.
-$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(TEST_DIR)/testkit.h $(TEST_DIR)/test_data.h
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(TEST_DIR)/testkit.h $(TEST_DIR)/test_data.h \
+                 arith/limb/mp_platform.h arith/limb/limb1.h arith/limb/limb2.h
 	$(CC) $(CFLAGS) -I$(TEST_DIR) -c -o $@ $<
 
 libyafu_common.a: $(TEST_KERNEL_OBJS)
@@ -1420,7 +1425,8 @@ test-clean:
 # -----------------------------------------------------------------------------
 .PHONY: test-full test-full-run
 
-TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c
+TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c \
+                 $(TEST_DIR)/layer3/test_snfs.c
 TEST_FULL_BIN := yafu_test_full$(EXE_EXT)
 TEST_ARCHIVES := libysiqs.a libyecm.a libynfs.a libmsieve.a
 
@@ -1467,7 +1473,8 @@ KMPQS_WFLAGS := -Wno-conversion -Wno-sign-conversion -Wno-misleading-indentation
 factor/kmpqs/%.o: CFLAGS += $(KMPQS_WFLAGS)
 
 KMPQS_SRCS       := factor/kmpqs/kmpqs.c factor/kmpqs/kmpqs1.c factor/kmpqs/kmpqs3.c
-KMPQS_BENCH_DEPS := factor/kmpqs/kmpqs_bench.c top/aprcl/tinyprp.c arith/monty.c ytools/ytools.c
+KMPQS_BENCH_DEPS := factor/kmpqs/kmpqs_bench.c top/aprcl/tinyprp.c arith/monty.c \
+                    arith/limb/limb1.c arith/limb/limb2.c ytools/ytools.c
 
 kmpqs-bench: _dep_status
 	$(CC) $(CFLAGS) $(KMPQS_WFLAGS) $(KMPQS_SRCS) $(KMPQS_BENCH_DEPS) -o kmpqs_bench$(EXE_EXT) $(LIBS)

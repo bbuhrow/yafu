@@ -400,8 +400,8 @@ int tk_run(const tk_module *const *modules, int nmodules, int argc, char **argv)
             tk.verbose = cfg.verbose;
             tk.do_bench = cfg.do_bench;
             /* independent, reproducible stream per test */
-            tk_rng_seed(&tk.rng, cfg.seed + 0x1000ULL * (uint64_t)(i + 1)
-                                          + (uint64_t)(j + 1));
+            tk_rng_seed(&tk.rng, cfg.seed + 0x1000ULL * (unsigned long long)(uint64_t)(i + 1)
+                                          + (unsigned long long)(uint64_t)(j + 1));
 
             {
                 double tk__t0 = tk_now_sec();

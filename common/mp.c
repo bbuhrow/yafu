@@ -612,8 +612,8 @@ void signed_mp_mul(signed_mp_t *a, signed_mp_t *b,
 void mp_rshift(mp_t *a, uint32 shift, mp_t *res) {
 
 	int32 i;
-	int32 words = a->nwords;
-	int32 start_word = shift / 32;
+	int32 words = (int32)a->nwords;
+	int32 start_word = (int32)(shift / 32);
 	uint32 word_shift = shift & 31;
 	uint32 comp_word_shift = 32 - word_shift;
 
@@ -680,8 +680,8 @@ static void mp_divrem_core(big_mp_t *num, mp_t *denom,
 	uint32 nacc[2*MAX_MP_WORDS+1];
 	uint32 dacc[MAX_MP_WORDS];
 
-	i = num->nwords;
-	j = denom->nwords;
+	i = (int32)num->nwords;
+	j = (int32)denom->nwords;
 	high_denom = denom->val[j-1];
 
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) 
@@ -716,8 +716,8 @@ static void mp_divrem_core(big_mp_t *num, mp_t *denom,
 		nacc[i] = num->val[i-1] >> comp_shift;
 	}
 	else {
-		memcpy(dacc, denom->val, j * sizeof(uint32));
-		memcpy(nacc, num->val, i * sizeof(uint32));
+		memcpy(dacc, denom->val, (unsigned long)j * sizeof(uint32));
+		memcpy(nacc, num->val, (unsigned long)i * sizeof(uint32));
 		nacc[i] = 0;
 	}
 	high_denom = dacc[j-1];
@@ -782,10 +782,10 @@ static void mp_divrem_core(big_mp_t *num, mp_t *denom,
 		rem->val[k] = nacc[k] >> shift;
 	}
 	else {
-		memcpy(rem->val, nacc, j * sizeof(uint32));
+		memcpy(rem->val, nacc, (unsigned long)j * sizeof(uint32));
 	}
 
-	j = MIN(num->nwords - denom->nwords + 1, MAX_MP_WORDS);
+	j = (int32)MIN(num->nwords - denom->nwords + 1, MAX_MP_WORDS);
 	quot->nwords = num_nonzero_words(quot->val, (uint32)j);
 	rem->nwords = num_nonzero_words(rem->val, denom->nwords);
 }
@@ -851,7 +851,7 @@ uint32 mp_divrem_1(mp_t *num, uint32 denom, mp_t *quot) {
 	for (i = (int32)num->nwords; i < MAX_MP_WORDS; i++)
 		quot->val[i] = 0;
 	
-	i = num->nwords - 1;
+	i = (int32)(num->nwords - 1);
 	if (num->val[i] < denom) {
 		rem = num->val[i];
 		quot->val[i--] = 0;
@@ -875,8 +875,8 @@ uint32 mp_divrem_1(mp_t *num, uint32 denom, mp_t *quot) {
 		i--;
 	}
 
-	i = num->nwords;
-	quot->nwords = i;
+	i = (int32)num->nwords;
+	quot->nwords = (uint32)i;
 	if (i && quot->val[i-1] == 0)
 		quot->nwords--;
 
@@ -957,7 +957,7 @@ static uint64 mp_mod_2(uint32 num[4], uint64 p) {
 		nacc[i] = num[i-1] >> comp_shift;
 	}
 	else {
-		memcpy(nacc, num, i * sizeof(uint32));
+		memcpy(nacc, num, (unsigned long)i * sizeof(uint32));
 		nacc[i] = 0;
 	}
 
@@ -1103,7 +1103,7 @@ uint32 mp_iroot(mp_t *a, uint32 root, mp_t *res) {
 			mp_div(a, res, &q);
 			if (mp_cmp(&q, res) >= 0) {
 				mp_mul(res, res, &q);
-				return mp_cmp(&q, a);
+				return (uint32)mp_cmp(&q, a);
 			}
 			mp_add(res, &q, res);
 			mp_rshift(res, 1, res);
@@ -1123,7 +1123,7 @@ uint32 mp_iroot(mp_t *a, uint32 root, mp_t *res) {
 			mp_div(a, &pow, &q);
 			if (mp_cmp(&q, res) >= 0) {
 				mp_mul(&pow, res, &q);
-				return mp_cmp(&q, a);
+				return (uint32)mp_cmp(&q, a);
 			}
 			mp_mul_1(res, root - 1, res);
 			mp_add(res, &q, res);
@@ -1198,9 +1198,9 @@ char * mp_print(mp_t *a, uint32 base, FILE *f, char *scratch) {
 	do {
 		next_letter = mp_divrem_1(&tmp, base, &tmp);
 		if (next_letter < 10)
-			*(--bufptr) = '0' + next_letter;
+			*(--bufptr) = (char)('0' + next_letter);
 		else
-			*(--bufptr) = 'a' + (next_letter - 10);
+			*(--bufptr) = (char)('a' + (next_letter - 10));
 	} while ( !mp_is_zero(&tmp) );
 	
 	if (f)
@@ -1577,7 +1577,7 @@ void mp_modsqrt(mp_t *a, mp_t *p, mp_t *res,
 			mp_rand(bits, &d0, seed1, seed2);
 
 		mp_sub_1(p, 1, &t);
-		s = mp_rjustify(&t, &t);
+		s = (int32)mp_rjustify(&t, &t);
 
 		mp_expo(a0, &t, p, &a1);
 		mp_expo(&d0, &t, p, &d1);
@@ -1593,7 +1593,7 @@ void mp_modsqrt(mp_t *a, mp_t *p, mp_t *res,
 			}
 			mp_add_1(&ad, 1, &ad);
 			if (!mp_cmp(&ad, p)) {
-				m.nwords = i / 32 + 1;
+				m.nwords = (uint32)(i / 32 + 1);
 				m.val[i / 32] |= 1 << (i & 31);
 			}
 		}
@@ -1661,7 +1661,7 @@ int32 mp_is_prime(mp_t *p, uint32 *seed1, uint32 *seed2) {
 
 	mpz_init(zp);
 	mp2gmp(p, zp);
-	ret = mpz_aprcl(zp);
+	ret = (uint32)mpz_aprcl(zp);
 	mpz_clear(zp);
 	if (ret == APRTCLE_PRIME) return MSIEVE_PRIME;
 	if (ret == APRTCLE_PRP) return MSIEVE_PROBABLE_PRIME;

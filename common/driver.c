@@ -245,7 +245,7 @@ void msieve_run(msieve_obj *obj) {
 
 		obj->flags |= MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 		ecm_pp1_pm1(obj, &reduced_n, &reduced_n, &factor_list);
-		obj->flags &= ~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
+		obj->flags &= (unsigned int)~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 		if (obj->flags & MSIEVE_FLAG_STOP_SIEVING)
 			goto clean_up;
 	}
@@ -266,7 +266,7 @@ void msieve_run(msieve_obj *obj) {
 			if (f->type == MSIEVE_COMPOSITE) {
 				mp_t new_n;
 				mp_copy(&f->factor, &new_n);
-				status = msieve_run_core(obj, &new_n,
+				status = (int32)msieve_run_core(obj, &new_n,
 							&factor_list);
 				break;
 			}

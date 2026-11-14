@@ -92,7 +92,7 @@ static void mpz_poly_bits(mpz_poly_t *p,
 	uint32 i;
 	uint64 bits1, bits2;
 
-	for (i = bits1 = bits2 = 0; i <= p->degree; i++) {
+	for (i = (uint32)(bits1 = bits2 = 0); i <= p->degree; i++) {
 		uint64 curr_bits = mpz_sizeinbase(p->coeff[i], 2);
 		bits1 += curr_bits;
 		bits2 = MAX(bits2, curr_bits);
@@ -221,7 +221,7 @@ static uint32 verify_product(mpz_poly_t *gmp_prod, abpair_t *abpairs,
 	   be computed very quickly */
 
 	uint32 i, j;
-	uint32 c_mod_q = mpz_fdiv_ui(c, q);
+	uint32 c_mod_q = (uint32)mpz_fdiv_ui(c, q);
 	uint32 d = alg_poly->degree;
 	uint32 ref_prod[MAX_POLY_DEGREE];
 	uint32 prod[MAX_POLY_DEGREE];
@@ -233,9 +233,9 @@ static uint32 verify_product(mpz_poly_t *gmp_prod, abpair_t *abpairs,
 
 	for (i = 0; i <= d; i++) {
 		prod[i] = 0;
-		ref_prod[i] = mpz_fdiv_ui(gmp_prod->coeff[i],
+		ref_prod[i] = (uint32)mpz_fdiv_ui(gmp_prod->coeff[i],
 					(unsigned long)q);
-		mod[i] = mpz_fdiv_ui(alg_poly->coeff[i],
+		mod[i] = (uint32)mpz_fdiv_ui(alg_poly->coeff[i],
 					(unsigned long)q);
 	}
 	prod[0] = 1;
@@ -369,7 +369,7 @@ static uint32 get_initial_inv_sqrt(msieve_obj *obj, mpz_poly_t *alg_poly,
 	/* find a prime q for which mp_alg_poly mod q is
 	   irreducible. The starting value to try was passed in */
 
-	start_q = mpz_get_ui(q_out);
+	start_q = (uint32)mpz_get_ui(q_out);
 
 	for (i = 0; i < ISQRT_NUM_ATTEMPTS; i++) {
 		if (get_prime_for_sqrt(alg_poly, start_q + 1, &q)) {
@@ -437,7 +437,7 @@ static uint32 get_final_sqrt(msieve_obj *obj, mpz_poly_t *alg_poly,
 	   cut the memory use in half by changing prod(x) to this.
 	   Remember final_k as well */
 
-	i = mpz_get_ui(q);
+	i = (uint32)mpz_get_ui(q);
 	for (num_iter = 0; mpz_sizeinbase(q, 2) < 
 				prod_max_bits / 2 + 4000; num_iter++) {
 		mpz_mul(q, q, q);
@@ -661,11 +661,11 @@ void alg_square_root(msieve_obj *obj, mpz_poly_t *alg_poly,
 	   fail if both square roots have the same value mod the prime;
 	   however, even a 16-bit prime makes this very unlikely */
 
-	i = mpz_size(prod.coeff[0]);
+	i = (uint32)mpz_size(prod.coeff[0]);
 	log2_prodsize = (double)GMP_LIMB_BITS * (i - 2) +
-			log(mpz_getlimbn(prod.coeff[0], (mp_size_t)(i-1)) *
+			log((double)mpz_getlimbn(prod.coeff[0], (mp_size_t)(i-1)) *
 				pow(2.0, (double)GMP_LIMB_BITS) +
-			    mpz_getlimbn(prod.coeff[0], (mp_size_t)(i-2))) / 
+			    (double)mpz_getlimbn(prod.coeff[0], (mp_size_t)(i-2))) / 
 			M_LN2 + 10000;
 
 	while (log2_prodsize > 31.5)

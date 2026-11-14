@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\layer1">
+      <UniqueIdentifier>{93309389-d2e5-4008-b500-9376bdfc2d75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\layer2">
+      <UniqueIdentifier>{a0c68db0-f1b3-444c-aace-86ed7c065963}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\layer3">
+      <UniqueIdentifier>{6f20a31e-6ae5-4d08-9576-ab6e53f29982}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\layer4">
+      <UniqueIdentifier>{f3954056-9fc1-48b2-aebb-576626c2cb5b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\layer0">
+      <UniqueIdentifier>{42a1611a-83d7-4170-9ea9-96060f1a44f0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\test\test_data.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\test_main.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\testkit.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer0\test_mp_arith.c">
+      <Filter>Source Files\layer0</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer0\test_mp_bitscan.c">
+      <Filter>Source Files\layer0</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer1\test_modular.c">
+      <Filter>Source Files\layer1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer1\test_primality.c">
+      <Filter>Source Files\layer1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer1\test_sieve.c">
+      <Filter>Source Files\layer1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer1\test_sp_arith.c">
+      <Filter>Source Files\layer1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer2\test_ecm.c">
+      <Filter>Source Files\layer2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer3\test_siqs.c">
+      <Filter>Source Files\layer3</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer0\test_limb_inline.c">
+      <Filter>Source Files\layer0</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer1\test_limb.c">
+      <Filter>Source Files\layer1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\test\layer2\test_ocl_ecm.c">
+      <Filter>Source Files\layer2</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\test\testkit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\test\test_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\arith\mp_platform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

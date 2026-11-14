@@ -59,8 +59,8 @@ typedef struct
 
 montgomery_t* monty_setup(mpz_t n)
 {
-    int nfullwords = mpz_sizeinbase(n, 2) / GMP_LIMB_BITS +
-        ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0);
+    int nfullwords = (int)(mpz_sizeinbase(n, 2) / GMP_LIMB_BITS +
+        ((mpz_sizeinbase(n, 2) % GMP_LIMB_BITS) > 0));
 
     montgomery_t* m;
 
@@ -75,10 +75,10 @@ montgomery_t* monty_setup(mpz_t n)
     m->rbits = nfullwords * GMP_LIMB_BITS;
     mpz_set(m->n, n);
     mpz_set_ui(m->r, 1);
-    mpz_mul_2exp(m->r, m->r, m->rbits);
+    mpz_mul_2exp(m->r, m->r, (mp_bitcnt_t)m->rbits);
     mpz_invert(m->nhat, m->n, m->r);
     mpz_sub(m->nhat, m->r, m->nhat);
-    mpz_mul_2exp(m->rhat, m->r, m->rbits);
+    mpz_mul_2exp(m->rhat, m->r, (mp_bitcnt_t)m->rbits);
     mpz_mod(m->rhat, m->rhat, n);
 
     return m;
@@ -86,7 +86,7 @@ montgomery_t* monty_setup(mpz_t n)
 
 void to_montgomery(montgomery_t* mdata, mpz_t x)
 {
-    mpz_mul_2exp(x, x, mdata->rbits);
+    mpz_mul_2exp(x, x, (mp_bitcnt_t)mdata->rbits);
     mpz_tdiv_r(x, x, mdata->n);
     return;
 }
@@ -129,14 +129,14 @@ void montgomery_free(montgomery_t* mdata)
 void montgomery_redc(montgomery_t* mdata, mpz_t x)
 {
     // q'=x*(-n^-1) mod r
-    mpz_tdiv_r_2exp(mdata->tmp, x, mdata->rbits);
+    mpz_tdiv_r_2exp(mdata->tmp, x, (mp_bitcnt_t)mdata->rbits);
     mpz_mul(mdata->tmp, mdata->tmp, mdata->nhat);
-    mpz_tdiv_r_2exp(mdata->tmp, mdata->tmp, mdata->rbits);
+    mpz_tdiv_r_2exp(mdata->tmp, mdata->tmp, (mp_bitcnt_t)mdata->rbits);
     // q'n
     mpz_mul(mdata->tmp, mdata->tmp, mdata->n);     
     // q'n + x
     mpz_add(x, mdata->tmp, x);      
-    mpz_tdiv_q_2exp(x, x, mdata->rbits);
+    mpz_tdiv_q_2exp(x, x, (mp_bitcnt_t)mdata->rbits);
     if (mpz_cmp(x, mdata->n) >= 0)
         mpz_sub(x, x, mdata->n);
 }
@@ -364,7 +364,7 @@ int mpz_fibonacci_prp(mpz_t n, long int p, long int q)
       return PRP_COMPOSITE;
   }
 
-  mpz_init_set_ui(zP, p);
+  mpz_init_set_ui(zP, (unsigned long)p);
   mpz_init(pmodn);
   mpz_mod(pmodn, zP, n);
 
@@ -375,13 +375,13 @@ int mpz_fibonacci_prp(mpz_t n, long int p, long int q)
   mpz_init_set_si(qh, 1);
   mpz_init_set_si(tmp,0);
 
-  s = mpz_scan1(n, 0);
-  for (j = mpz_sizeinbase(n,2)-1; j >= s+1; j--)
+  s = (int)mpz_scan1(n, 0);
+  for (j = (int)(mpz_sizeinbase(n,2)-1); j >= s+1; j--)
   {
     /* ql = ql*qh (mod n) */
     mpz_mul(ql, ql, qh);
     mpz_mod(ql, ql, n);
-    if (mpz_tstbit(n,j) == 1)
+    if (mpz_tstbit(n,(mp_bitcnt_t)j) == 1)
     {
       /* qh = ql*q */
       mpz_mul_si(qh, ql, q);
@@ -528,14 +528,14 @@ int mpz_lucas_prp(mpz_t n, long int p, long int q)
   mpz_init_set_si(qh, 1);
   mpz_init_set_si(tmp,0);
 
-  s = mpz_scan1(index, 0);
+  s = (int)mpz_scan1(index, 0);
 
-  for (j = mpz_sizeinbase(index,2)-1; j >= s+1; j--)
+  for (j = (int)(mpz_sizeinbase(index,2)-1); j >= s+1; j--)
   {
     /* ql = ql*qh (mod n) */
     mpz_mul(ql, ql, qh);
     mpz_mod(ql, ql, n);
-    if (mpz_tstbit(index,j) == 1)
+    if (mpz_tstbit(index,(mp_bitcnt_t)j) == 1)
     {
       /* qh = ql*q */
       mpz_mul_si(qh, ql, q);
@@ -730,20 +730,20 @@ int mpz_lucas_prp_monty(mpz_t n, long int p, long int q)
         to_montgomery(m, mq);
     }
 
-    s = mpz_scan1(index, 0);
+    s = (int)mpz_scan1(index, 0);
 
     //gmp_printf("n = %Zx, q = %d (%Zx), "
     //    "1 = %Zx, p = %d, d = %d, s = %d, sz = %d (mpz)\n",
     //    n, q, mq, uh, p, d, s, mpz_sizeinbase(index, 2));
 
-    for (j = mpz_sizeinbase(index, 2) - 1; j >= s + 1; j--)
+    for (j = (int)(mpz_sizeinbase(index, 2) - 1); j >= s + 1; j--)
     {
         /* ql = ql*qh (mod n) */
         montgomery_mul(ql, ql, qh, m);
         //mpz_mul(ql, ql, qh);
         //mpz_mod(ql, ql, n);
 
-        if (mpz_tstbit(index, j) == 1)
+        if (mpz_tstbit(index, (mp_bitcnt_t)j) == 1)
         {
             /* qh = ql*q */
             //mpz_mul_si(qh, ql, q);
@@ -1316,7 +1316,7 @@ int mpz_selfridge_prp(mpz_t n)
       return PRP_COMPOSITE;
   }
 
-  mpz_init_set_ui(zD, d);
+  mpz_init_set_ui(zD, (unsigned long)d);
 
   while (1)
   {
@@ -1404,7 +1404,7 @@ int mpz_strongselfridge_prp(mpz_t n)
       return PRP_COMPOSITE;
   }
 
-  mpz_init_set_ui(zD, d);
+  mpz_init_set_ui(zD, (unsigned long)d);
 
   while (1)
   {
@@ -1491,7 +1491,7 @@ int mpz_extrastrongselfridge_prp(mpz_t n)
             return PRP_COMPOSITE;
     }
 
-    mpz_init_set_ui(zD, d);
+    mpz_init_set_ui(zD, (unsigned long)d);
 
     while (1)
     {
@@ -2054,13 +2054,13 @@ void JS_E(int PK, int PL, int PM, int P)
   }
 
 
-  Mask = mpz_sizeinbase(biExp, 2)-1;
+  Mask = (long)(mpz_sizeinbase(biExp, 2)-1);
 
   do
   {
     JS_2(PK, PL, PM, P);
     Mask--;
-    if (mpz_tstbit(biExp, Mask))
+    if (mpz_tstbit(biExp, (mp_bitcnt_t)Mask))
     {
       JS_JW(PK, PL, PM, P);
     }
@@ -2140,7 +2140,7 @@ int mpz_aprtcle(mpz_t N, int verbose)
 
   /* If the input number is larger than 7000 decimal digits
      we will just return whether it is a BPSW (probable) prime */
-  NumberLength = mpz_sizeinbase(N, 10);
+  NumberLength = (int)mpz_sizeinbase(N, 10);
   if (NumberLength > 7000)
   {
     if (verbose >= APRTCLE_VERBOSE2)
@@ -2175,7 +2175,7 @@ int mpz_aprtcle(mpz_t N, int verbose)
       {
         U /= Q;
         /* MultBigNbrByLong(biS, Q, biS, NumberLength); */
-        mpz_mul_ui(biS, biS, Q);
+        mpz_mul_ui(biS, biS, (unsigned long)Q);
       }
       while (U % Q == 0);
 
@@ -2209,7 +2209,7 @@ MainStart:
 
       SW = TestedQs = 0;
       /* Q = W = (int) BigNbrModLong(TestNbr, P * P); */
-      Q = W = mpz_fdiv_ui(TestNbr, P * P);
+      Q = W = (int)mpz_fdiv_ui(TestNbr, (unsigned long)(P * P));
       for (J = P - 2; J > 0; J--)
       {
         W = (W * Q) % (P * P);
@@ -2318,7 +2318,7 @@ MainStart:
             mpz_set_ui(aiJ01[I], 0);
           }
           /* VK = (int) BigNbrModLong(TestNbr, PK); */
-          VK = mpz_fdiv_ui(TestNbr, PK);
+          VK = (int)mpz_fdiv_ui(TestNbr, (unsigned long)PK);
           for (I = 1; I < PK; I++)
           {
             if (I % P != 0)
@@ -2362,12 +2362,12 @@ MainStart:
                 if (IV == 0)
                 {
                   /* LongToBigNbr(X, biExp, NumberLength); */
-                  mpz_set_ui(biExp, X);
+                  mpz_set_ui(biExp, (unsigned long)X);
                 }
                 else
                 {
                   /* LongToBigNbr(VK * X / PK, biExp, NumberLength); */
-                  mpz_set_ui(biExp, (VK * X) / PK);
+                  mpz_set_ui(biExp, (unsigned long)((VK * X) / PK));
                   if ((VK * X) / PK == 0)
                   {
                     continue;
@@ -2428,7 +2428,7 @@ MainStart:
             if (K == 1)
             {
               /* MultBigNbrByLongModN(1, Q, aiJ00[0], TestNbr, NumberLength); */
-              mpz_set_ui(aiJ00[0], Q);
+              mpz_set_ui(aiJ00[0], (unsigned long)Q);
               /* aiJ01[0] = 1; */
               mpz_set_ui(aiJ01[0], 1);
             }
@@ -2454,9 +2454,9 @@ MainStart:
                   mpz_set(aiJ01[1], aiJS[1]);
                 }
                 /* MultBigNbrByLongModN(aiJS[0], Q, aiJ00[0], TestNbr, NumberLength); */
-                mpz_mul_ui(aiJ00[0], aiJS[0], Q);
+                mpz_mul_ui(aiJ00[0], aiJS[0], (unsigned long)Q);
                 /* MultBigNbrByLongModN(aiJS[1], Q, aiJ00[1], TestNbr, NumberLength); */
-                mpz_mul_ui(aiJ00[1], aiJS[1], Q);
+                mpz_mul_ui(aiJ00[1], aiJS[1], (unsigned long)Q);
               }
               else
               {
@@ -2476,12 +2476,12 @@ MainStart:
                     if (IV == 0)
                     {
                       /* LongToBigNbr(X, biExp, NumberLength); */
-                      mpz_set_ui(biExp, X);
+                      mpz_set_ui(biExp, (unsigned long)X);
                     }
                     else
                     {
                       /* LongToBigNbr(VK * X / PK, biExp, NumberLength); */
-                      mpz_set_ui(biExp, VK * X / PK);
+                      mpz_set_ui(biExp, (unsigned long)(VK * X / PK));
                       if (VK * X / PK == 0)
                       {
                         continue;
@@ -2574,7 +2574,7 @@ MainStart:
             mpz_set_ui(aiJS[I], 0);
           }
           /* DivBigNbrByLong(TestNbr, PK, biExp, NumberLength); */
-          mpz_fdiv_q_ui(biExp, TestNbr, PK);
+          mpz_fdiv_q_ui(biExp, TestNbr, (unsigned long)PK);
           JS_E(PK, PL, PM, P);
           for (I = 0; I < PK; I++)
           {
@@ -2692,7 +2692,7 @@ MainStart:
           // if (Q^((N-1)/2) mod N != N-1), N is not prime.
 
           /* MultBigNbrByLongModN(1, Q, biTmp, TestNbr, NumberLength); */
-          mpz_set_ui(biTmp, Q);
+          mpz_set_ui(biTmp, (unsigned long)Q);
           mpz_mod(biTmp, biTmp, TestNbr);
 
           mpz_sub_ui(biT, TestNbr, 1); /* biT = n-1 */
@@ -2725,7 +2725,7 @@ MainStart:
             do
             {
               /* MultBigNbrByLong(biS, Q, biS, NumberLength); */
-              mpz_mul_ui(biS, biS, Q);
+              mpz_mul_ui(biS, biS, (unsigned long)Q);
               U /= Q;
             }
             while (U % Q == 0);
@@ -2752,7 +2752,7 @@ MainStart:
             do
             {
               /* MultBigNbrByLong(biS, Q, biS, NumberLength); */
-              mpz_mul_ui(biS, biS, Q);
+              mpz_mul_ui(biS, biS, (unsigned long)Q);
               U /= Q;
             }
             while (U % Q == 0);

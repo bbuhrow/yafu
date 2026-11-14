@@ -284,7 +284,7 @@ void tpool_go(tpool_t *thread_data)
 #endif
 
     // allocate the queue of threads waiting for work
-    thread_queue = (int *)malloc(thread_data->num_threads * sizeof(int));
+    thread_queue = (int *)malloc((unsigned long)thread_data->num_threads * sizeof(int));
     threads_waiting = (int *)malloc(sizeof(int));
 
 #if (defined(_WIN32) || defined(_WIN64))  // && (!defined(__clang__))
@@ -494,7 +494,7 @@ void tpool_go(tpool_t *thread_data)
 tpool_t * tpool_setup(int num_threads, void *start_fcn, void *stop_fcn, 
     void *sync_fcn, void *dispatch_fcn, void *udata)
 {
-    tpool_t *t = (tpool_t *)malloc(num_threads * sizeof(tpool_t));
+    tpool_t *t = (tpool_t *)malloc((unsigned long)num_threads * sizeof(tpool_t));
     int i;
 
     //int numberOfProcessors = sysconf(_SC_NPROCESSORS_ONLN);

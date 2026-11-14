@@ -44,6 +44,7 @@ This file is a snapshot of a work in progress, originated by Mayo
 */
 
 #include "avx_ecm.h"
+#include <inttypes.h>
 #include "monty.h"
 
 #ifdef USE_AVX512F
@@ -112,7 +113,7 @@ void print_hexbignum(vec_bignum_t* a, const char* pre)
     if (pre != NULL)
         printf("%s", pre);
 
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         printf("%013"PRIx64"", a->data[i]);
     }
@@ -135,9 +136,9 @@ void print_vechexbignum(vec_bignum_t* a, const char* pre)
             continue;
 #endif
         //for (i = 2 * NWORDS - 1; i >= 0; i--)
-        for (i = NWORDS - 1; i >= 0; i--)
+        for (i = (int)(NWORDS - 1); i >= 0; i--)
         {
-            printf("%016llx", a->data[i * VECLEN + j]);
+            printf("%016" PRIx64, a->data[i * VECLEN + j]);
         }
         printf("\n");
     }
@@ -170,7 +171,7 @@ uint32_t vec_gte52(vec_bignum_t* u, vec_bignum_t* v)
     __mmask8 mdecided = 0;
     __mmask8 mgte = 0;
 
-    for (i = NWORDS - 1; i >= 0; --i)
+    for (i = (int)(NWORDS - 1); i >= 0; --i)
     {
         __m512i a = _mm512_load_epi64(u->data + i * VECLEN);
         __m512i b = _mm512_load_epi64(v->data + i * VECLEN);
@@ -256,14 +257,14 @@ uint32_t vec_bignum52_mask_lshift_n(vec_bignum_t* u, int n, uint32_t wmask)
     for (i = 0; i < NWORDS; i++)
     {
         word = _mm512_load_epi64(u->data + i * VECLEN);
-        nextcarry = _mm512_srli_epi64(word, (DIGITBITS - n));
+        nextcarry = _mm512_srli_epi64(word, (unsigned int)((DIGITBITS - n)));
         _mm512_mask_store_epi64(u->data + i * VECLEN, (__mmask8)wmask,
-            _mm512_and_epi64(highmask, _mm512_or_epi64(_mm512_slli_epi64(word, n), carry)));
+            _mm512_and_epi64(highmask, _mm512_or_epi64(_mm512_slli_epi64(word, (unsigned int)n), carry)));
         carry = nextcarry;
     }
 
     _mm512_mask_store_epi64(u->data + i * VECLEN, (__mmask8)wmask,
-        _mm512_and_epi64(highmask, _mm512_or_epi64(_mm512_slli_epi64(word, n), carry)));
+        _mm512_and_epi64(highmask, _mm512_or_epi64(_mm512_slli_epi64(word, (unsigned int)n), carry)));
 
     // return an overflow mask
     return wmask & _mm512_cmp_epi64_mask(carry, _mm512_set1_epi64(0), _MM_CMPINT_GT);
@@ -281,14 +282,14 @@ void vec_bignum52_mask_rshift_n(vec_bignum_t* u, vec_bignum_t* v, int n, uint32_
     int wshift = n / 52;
     int bshift = n % 52;
 
-    lowmask = _mm512_set1_epi64((1ULL << (uint64_t)bshift) - 1ULL);
+    lowmask = _mm512_set1_epi64((long long)((1ULL << (uint64_t)bshift) - 1ULL));
 
-    for (i = 2 * NWORDS - 1; (i - wshift) >= 0; i--)
+    for (i = (int)(2 * NWORDS - 1); (i - wshift) >= 0; i--)
     {
         word = _mm512_load_epi64(u->data + i * VECLEN);
-        nextcarry = _mm512_slli_epi64(_mm512_and_epi64(word, lowmask), (DIGITBITS - bshift));
+        nextcarry = _mm512_slli_epi64(_mm512_and_epi64(word, lowmask), (unsigned int)((DIGITBITS - bshift)));
         _mm512_mask_store_epi64(v->data + (i - wshift) * VECLEN, (__mmask8)wmask,
-            _mm512_or_epi64(_mm512_srli_epi64(word, bshift), carry));
+            _mm512_or_epi64(_mm512_srli_epi64(word, (unsigned int)bshift), carry));
         carry = nextcarry;
     }
 
@@ -313,14 +314,14 @@ void vec_bignum52_mask_rshift_vn(vec_bignum_t* u, vec_bignum_t* v, int* n, uint3
     }
 
     lowmask = _mm512_set_epi64(
-        (1ULL << (uint64_t)(bshift_a[7])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[6])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[5])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[4])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[3])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[2])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[1])) - 1ULL,
-        (1ULL << (uint64_t)(bshift_a[0])) - 1ULL);
+        (long long)((1ULL << (uint64_t)(bshift_a[7])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[6])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[5])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[4])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[3])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[2])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[1])) - 1ULL),
+        (long long)((1ULL << (uint64_t)(bshift_a[0])) - 1ULL));
 
     vbshift = _mm512_set_epi64(
         bshift_a[7],
@@ -334,7 +335,7 @@ void vec_bignum52_mask_rshift_vn(vec_bignum_t* u, vec_bignum_t* v, int* n, uint3
 
     vbnshift = _mm512_sub_epi64(_mm512_set1_epi64(DIGITBITS), vbshift);
 
-    for (i = 2 * NWORDS - 1; (i - wshift) >= 0; i--)
+    for (i = (int)(2 * NWORDS - 1); (i - wshift) >= 0; i--)
     {
         word = _mm512_load_epi64(u->data + i * VECLEN);
         nextcarry = _mm512_sllv_epi64(_mm512_and_epi64(word, lowmask), vbnshift);
@@ -364,7 +365,7 @@ void vec_bignum52_mask_rshift_1(vec_bignum_t* u, uint32_t wmask)
     //    carry = nextcarry;
     //}
 
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         word = _mm512_load_epi64(u->data + i * VECLEN);
         nextcarry = _mm512_slli_epi64(_mm512_and_epi64(word, lowmask), (DIGITBITS - 1));
@@ -423,7 +424,7 @@ uint32_t vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
     // a and b are both positive
     // a >= b
     int i;
-    uint32_t NWORDS = MAX(a->size, b->size);
+    uint32_t NWORDS = (uint32_t)MAX(a->size, b->size);
     __mmask8 carry = 0;
     __m512i avec;
     __m512i bvec;
@@ -442,7 +443,7 @@ uint32_t vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
 
     if (carry)
     {
-        c->size = NWORDS + 1;
+        c->size = (int)(NWORDS + 1);
         // subtract any final borrows that exceed the size of b.
         _mm512_mask_store_epi64(c->data + i * VECLEN, carry, _mm512_set1_epi64(1));
     }
@@ -459,7 +460,7 @@ void vec_bignum52_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c)
     // a and b are both positive
     // a >= b
     int i;
-    uint32_t NWORDS = MAX(a->size, b->size);
+    uint32_t NWORDS = (uint32_t)MAX(a->size, b->size);
     __mmask8 carry = 0;
     __m512i avec;
     __m512i bvec;

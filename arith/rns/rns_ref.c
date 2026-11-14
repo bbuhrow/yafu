@@ -4,6 +4,7 @@
  */
 
 #include "rns.h"
+#include "gmp_u64.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,16 +65,16 @@ static uint64_t gcd64(uint64_t a, uint64_t b)
 
 static uint64_t mpz_mod_u52(mpz_t x, uint64_t m, mpz_t t)
 {
-    mpz_set_ui(t, m);
+    mpz_set_u64(t, m);
     mpz_mod(t, x, t);
-    return mpz_get_ui(t);
+    return mpz_get_u64(t);
 }
 
 static uint64_t mpz_low52(mpz_t x, mpz_t t)
 {
     // x mod 2^52 for x of any sign
     mpz_fdiv_r_2exp(t, x, RNS_WBITS);
-    return mpz_get_ui(t);
+    return mpz_get_u64(t);
 }
 
 // ---------------------------------------------------------------------------
@@ -228,9 +229,9 @@ rns_fixed_t *rns_fixed_init(int maxbits)
     mpz_init_set_ui(fx->MB, 1);
     mpz_init_set_ui(fx->MC, 1);
     for (i = 0; i < nB; i++)
-        mpz_mul_ui(fx->MB, fx->MB, fx->b[i]);
+        mpz_mul_u64(fx->MB, fx->MB, fx->b[i]);
     for (j = 0; j < nC; j++)
-        mpz_mul_ui(fx->MC, fx->MC, fx->c[j]);
+        mpz_mul_u64(fx->MC, fx->MC, fx->c[j]);
 
     // verify the bounds exactly
     mpz_set_ui(bound, (unsigned long)(RNS_HEADROOM * fx->k));
@@ -260,10 +261,10 @@ rns_fixed_t *rns_fixed_init(int maxbits)
     for (i = 0; i < nB; i++)
     {
         mpz_init(fx->Bi[i]);
-        mpz_divexact_ui(fx->Bi[i], fx->MB, fx->b[i]);
-        mpz_set_ui(u, fx->b[i]);
+        mpz_divexact_u64(fx->Bi[i], fx->MB, fx->b[i]);
+        mpz_set_u64(u, fx->b[i]);
         mpz_invert(t, fx->Bi[i], u);
-        fx->Biinv_b[i] = mpz_get_ui(t);
+        fx->Biinv_b[i] = mpz_get_u64(t);
         for (j = 0; j < nC; j++)
             fx->BtoC[j * nB + i] = mpz_mod_u52(fx->Bi[i], fx->c[j], t);
         fx->BtoC[nC * nB + i] = mpz_low52(fx->Bi[i], t);
@@ -273,10 +274,10 @@ rns_fixed_t *rns_fixed_init(int maxbits)
     {
         mpz_t Cj;
         mpz_init(Cj);
-        mpz_divexact_ui(Cj, fx->MC, fx->c[j]);
-        mpz_set_ui(u, fx->c[j]);
+        mpz_divexact_u64(Cj, fx->MC, fx->c[j]);
+        mpz_set_u64(u, fx->c[j]);
         mpz_invert(t, Cj, u);
-        fx->Cjinv_c[j] = mpz_get_ui(t);
+        fx->Cjinv_c[j] = mpz_get_u64(t);
         for (i = 0; i < nB; i++)
             fx->CtoB[i * nC + j] = mpz_mod_u52(Cj, fx->b[i], t);
         fx->CtoB[nB * nC + j] = mpz_low52(Cj, t);
@@ -297,9 +298,9 @@ rns_fixed_t *rns_fixed_init(int maxbits)
     mpz_set_ui(u, 1);
     mpz_mul_2exp(u, u, RNS_WBITS);
     mpz_invert(t, fx->MC, u);
-    fx->MCinv_r = mpz_get_ui(t);
+    fx->MCinv_r = mpz_get_u64(t);
     mpz_invert(t, fx->MB, u);
-    fx->MBinv_r = mpz_get_ui(t);
+    fx->MBinv_r = mpz_get_u64(t);
 
     mpz_clear(t);
     mpz_clear(u);
@@ -413,9 +414,9 @@ rns_ctx_t *rns_ctx_init(rns_fixed_t *fx, mpz_t N)
     for (i = 0; i < nB; i++)
     {
         // |-N^{-1} * B_i^{-1}|_{b_i}
-        mpz_set_ui(u, fx->b[i]);
+        mpz_set_u64(u, fx->b[i]);
         mpz_invert(Ninv, N, u);
-        mpz_mul_ui(t, Ninv, fx->Biinv_b[i]);
+        mpz_mul_u64(t, Ninv, fx->Biinv_b[i]);
         mpz_neg(t, t);
         ctx->f1_b[i] = mpz_mod_u52(t, fx->b[i], u);
     }
@@ -423,10 +424,10 @@ rns_ctx_t *rns_ctx_init(rns_fixed_t *fx, mpz_t N)
     for (j = 0; j < nC; j++)
     {
         // |N * M_B^{-1} * C_j^{-1}|_{c_j}
-        mpz_set_ui(u, fx->c[j]);
+        mpz_set_u64(u, fx->c[j]);
         mpz_invert(t, fx->MB, u);
         mpz_mul(t, t, N);
-        mpz_mul_ui(t, t, fx->Cjinv_c[j]);
+        mpz_mul_u64(t, t, fx->Cjinv_c[j]);
         ctx->g2_c[j] = mpz_mod_u52(t, fx->c[j], u);
     }
 
@@ -513,7 +514,7 @@ void rns_to_int(rns_ctx_t *ctx, mpz_t X, uint64_t *x)
     for (i = 0; i < fx->nB; i++)
     {
         uint64_t v = mulred(x[i], fx->Biinv_b[i], fx->db[i]);
-        mpz_mul_ui(t, fx->Bi[i], v);
+        mpz_mul_u64(t, fx->Bi[i], v);
         mpz_add(X, X, t);
     }
     mpz_mod(X, X, fx->MB);

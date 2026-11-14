@@ -102,8 +102,8 @@ void get_offsets(thread_soedata_t *thread_data)
     uint32_t diff = sdata->rclass[thread_data->current_line] - 1;
     uint64_t tmp2;
     int s;
-    int FLAGSIZE = sdata->FLAGSIZE;
-    int FLAGBITS = sdata->FLAGBITS;
+    int FLAGSIZE = (int)sdata->FLAGSIZE;
+    int FLAGBITS = (int)sdata->FLAGBITS;
 
     // failsafe: set all blocks to sieve with all primes.  the loop below will overwrite
     // these with better limits according to the size of flags in the blocks.
@@ -182,10 +182,10 @@ void get_offsets(thread_soedata_t *thread_data)
         mpz_init(lowz);
         mpz_init(sqrtz);
         mpz_set(lowz, sdata->offset);
-        mpz_add_ui(lowz, lowz, ddata->lblk_b);
+        mpz_add_u64(lowz, lowz, ddata->lblk_b);
 
         mpz_set(sqrtz, lowz);
-        mpz_add_ui(sqrtz, sqrtz, sdata->blk_r);
+        mpz_add_u64(sqrtz, sqrtz, sdata->blk_r);
         mpz_sqrt(sqrtz, sqrtz);
         mpz_add_ui(sqrtz, sqrtz, 1);
 
@@ -200,14 +200,14 @@ void get_offsets(thread_soedata_t *thread_data)
             {
                 ddata->pbounds[block] = i;
                 block++;
-                mpz_add_ui(lowz, lowz, sdata->blk_r);
+                mpz_add_u64(lowz, lowz, sdata->blk_r);
                 mpz_set(sqrtz, lowz);
-                mpz_add_ui(sqrtz, sqrtz, sdata->blk_r);
+                mpz_add_u64(sqrtz, sqrtz, sdata->blk_r);
                 mpz_sqrt(sqrtz, sqrtz);
                 mpz_add_ui(sqrtz, sqrtz, 1);
             }
 
-            modp = mpz_tdiv_ui(lowz, prime);
+            modp = (uint32_t)mpz_tdiv_ui(lowz, prime);
             tmp2 = (uint64_t)s * (uint64_t)modp;
             ddata->offsets[i] = (uint32_t)(tmp2 % (uint64_t)prime);
             //gmp_printf("p = %u, o = %u, r = %d, lblk_b = %Zd, modp = %u\n", 
@@ -223,7 +223,7 @@ void get_offsets(thread_soedata_t *thread_data)
         uint64_t** bptr;
 
         uint32_t* nptr;
-        uint32_t linesize = FLAGSIZE * sdata->blocks;
+        uint32_t linesize = (uint32_t)((uint64_t)FLAGSIZE * sdata->blocks);
         uint32_t* lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
 
         nptr = ddata->bucket_hits;
@@ -242,7 +242,7 @@ void get_offsets(thread_soedata_t *thread_data)
                 __m256i vr2 = _mm256_loadu_si256((__m256i*)(&sdata->r2modp[i]));
                 __m256i vr = _mm256_loadu_si256((__m256i*)(&sdata->root[i]));
                 __m256i vlmp = _mm256_loadu_si256((__m256i*)(&lmp[i]));
-                __m256i vdiff = _mm256_set1_epi32(diff);
+                __m256i vdiff = _mm256_set1_epi32((int)diff);
                 __m256i t1, t2, t3;
                 __m256i even, odd;
                 ALIGNED_MEM uint64_t tmp[8];
@@ -250,7 +250,7 @@ void get_offsets(thread_soedata_t *thread_data)
                 // condition to see if the current prime only hits the sieve interval once
                 if (sdata->sieve_p[i] > sdata->large_bucket_start_prime)
                 {
-                    ddata->largep_offset = i;
+                    ddata->largep_offset = (uint32_t)i;
                     break;
                 }
 
@@ -379,7 +379,7 @@ void get_offsets(thread_soedata_t *thread_data)
                 // condition to see if the current prime only hits the sieve interval once
                 if (prime > sdata->large_bucket_start_prime)
                 {
-                    ddata->largep_offset = i;
+                    ddata->largep_offset = (uint32_t)i;
                     break;
                 }
 
@@ -422,7 +422,7 @@ void get_offsets(thread_soedata_t *thread_data)
                 // condition to see if the current prime only hits the sieve interval once
                 if (prime > sdata->large_bucket_start_prime)
                 {
-                    ddata->largep_offset = i;
+                    ddata->largep_offset = (uint32_t)i;
                     break;
                 }
 
@@ -461,7 +461,7 @@ void get_offsets(thread_soedata_t *thread_data)
             // condition to see if the current prime only hits the sieve interval once
             if (prime > sdata->large_bucket_start_prime)
             {
-                ddata->largep_offset = i;
+                ddata->largep_offset = (uint32_t)i;
                 break;
             }
 
@@ -498,12 +498,12 @@ void get_offsets(thread_soedata_t *thread_data)
 
         if ((i < sdata->bitmap_start_id) && (ddata->largep_offset == 0))
         {
-            uint32_t* lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
+            uint32_t* lmp_in = sdata->lower_mod_prime;// -sdata->bucket_start_id;
             prime = sdata->sieve_p[i];
 
             s = sdata->root[i];
 
-            tmp2 = (uint64_t)s * (uint64_t)(lmp[i] + diff);
+            tmp2 = (uint64_t)s * (uint64_t)(lmp_in[i] + diff);
             root = (uint32_t)(tmp2 % (uint64_t)prime);
 
             nptr = ddata->bucket_hits;
@@ -528,7 +528,7 @@ void get_offsets(thread_soedata_t *thread_data)
             // itself since it doesn't need to be advanced.
             uint32_t** large_bptr;
             uint32_t* large_nptr;
-            uint32_t* lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
+            uint32_t* lmp_in = sdata->lower_mod_prime;// -sdata->bucket_start_id;
 
             large_nptr = ddata->large_bucket_hits;
             large_bptr = ddata->large_sieve_buckets;
@@ -551,8 +551,8 @@ void get_offsets(thread_soedata_t *thread_data)
                     __m256i vpinv = _mm256_loadu_si256((__m256i*)(&sdata->pinv[i]));
                     __m256i vr2 = _mm256_loadu_si256((__m256i*)(&sdata->r2modp[i]));
                     __m256i vr = _mm256_loadu_si256((__m256i*)(&sdata->root[i]));
-                    __m256i vlmp = _mm256_loadu_si256((__m256i*)(&lmp[i]));
-                    __m256i vdiff = _mm256_set1_epi32(diff);
+                    __m256i vlmp = _mm256_loadu_si256((__m256i*)(&lmp_in[i]));
+                    __m256i vdiff = _mm256_set1_epi32((int)diff);
                     __m256i t1, t2, t3;
                     __m256i even, odd;
                     ALIGNED_MEM uint32_t tmp[8];
@@ -577,9 +577,9 @@ void get_offsets(thread_soedata_t *thread_data)
                     // take out of monty rep
                     vr = vec_redc(CLEAR_HIGH_VEC(vr), CLEAR_HIGH_VEC(_mm256_shuffle_epi32(vr, 0xB1)), vpinv, vp);
 
-                    t1 = _mm256_set1_epi32(linesize);
+                    t1 = _mm256_set1_epi32((int)linesize);
                     t1 = _mm256_cmpge_epu32(vr, t1);
-                    mask = ~(_mm256_movemask_epi8(t1));
+                    mask = (uint32_t)~(_mm256_movemask_epi8(t1));
 
                     _mm256_storeu_si256((__m256i*)tmp, vr);
 
@@ -653,7 +653,7 @@ void get_offsets(thread_soedata_t *thread_data)
                     // each prime, for the residue class 1.  add the difference between this
                     // residue class and 1 before multiplying by the modular inverse.
                     // could use (_mm256_mul_epu32 --> VPMULUDQ)
-                    tmp2 = (uint64_t)s * (uint64_t)(lmp[i] + diff);
+                    tmp2 = (uint64_t)s * (uint64_t)(lmp_in[i] + diff);
 
                     // would need custom solution
                     root = (uint32_t)(tmp2 % (uint64_t)prime);
@@ -687,8 +687,8 @@ void get_offsets(thread_soedata_t *thread_data)
                 // each prime, for the residue class 1.  add the difference between this
                 // residue class and 1 before multiplying by the modular inverse.
                 // could use (_mm256_mul_epu32 --> VPMULUDQ)
-                tmp2 = (uint64_t)s * (uint64_t)(lmp[i] + diff);
-                tmp3 = (uint64_t)s2 * (uint64_t)(lmp[i + 1] + diff);
+                tmp2 = (uint64_t)s * (uint64_t)(lmp_in[i] + diff);
+                tmp3 = (uint64_t)s2 * (uint64_t)(lmp_in[i + 1] + diff);
 
                 // would need custom solution
                 root = (uint32_t)(tmp2 % (uint64_t)prime);
@@ -716,7 +716,7 @@ void get_offsets(thread_soedata_t *thread_data)
                 prime = sdata->sieve_p[i];
                 s = sdata->root[i];
 
-                tmp2 = (uint64_t)s * (uint64_t)(lmp[i] + diff);
+                tmp2 = (uint64_t)s * (uint64_t)(lmp_in[i] + diff);
                 root = (uint32_t)(tmp2 % (uint64_t)prime);
 
                 if (root < linesize)

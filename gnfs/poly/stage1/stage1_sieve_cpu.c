@@ -508,7 +508,7 @@ prune_dup_arrays(cpu_thread_data_t *td, uint32 match_bits,
 	uint32 *bin_prefix = td->bin_prefix;
 	uint32 num_survivors[max_iter];
 	uint32 dup_shift = 0;
-	uint32 dup_mask = (1 << dup_array_bits) - 1;
+	uint32 dup_mask = (uint32)((1 << dup_array_bits) - 1);
 
 	/* Using hash table find possible repeated keys, if f(x) 
 	   is not repeated then x is also not repeated.
@@ -528,7 +528,7 @@ prune_dup_arrays(cpu_thread_data_t *td, uint32 match_bits,
 		uint32 dup_mask2;
 		uint32 dup_array_size2;
 		uint32 curr_num_prefix = 0;
-		uint32 ilog2 = MAX(5,(int)(log(estimated_dups + 1) / 
+		uint32 ilog2 = (uint32)MAX(5,(int)(log(estimated_dups + 1) / 
 				M_LN2 + d_extra_bits));
 
 		ilog2 = MIN(ilog2, match_bits);
@@ -546,7 +546,7 @@ prune_dup_arrays(cpu_thread_data_t *td, uint32 match_bits,
 		if (dup_shift2 + ilog2 > match_bits)
 			dup_shift2 = 0;
         
-		dup_mask2 = (1 << ilog2) - 1;
+		dup_mask2 = (uint32)((1 << ilog2) - 1);
 		dup_array_size2 = 1 << (ilog2 - 5);
 		memset(U2, 0, dup_array_size2 * sizeof(uint32));
 		memset(U3, 0, dup_array_size2 * sizeof(uint32));
@@ -588,7 +588,7 @@ find_dup_one_bin(cpu_thread_data_t *td,
 		uint32 match_bits, uint32 dup_array_bits,
 	        uint32 radix_bits, uint32 which_bin)
 {
-	uint32 dup_array_mask = (1 << dup_array_bits) - 1;
+	uint32 dup_array_mask = (uint32)((1 << dup_array_bits) - 1);
 	uint32 dup_array_size = 1 << (dup_array_bits - 5);
 	uint32 bucket = which_bin; /* first bucket at known position */
 	uint32 bucket_off = bucket << BUCKET_BITS;
@@ -678,7 +678,7 @@ find_dup_all(cpu_thread_data_t *td, uint32 match_bits,
 	uint32 i;
 	uint32 num_sort = td->num_sort;
 	uint64 *key = td->sort_key;
-	uint32 dup_array_mask = (1 << dup_array_bits) - 1;
+	uint32 dup_array_mask = (uint32)((1 << dup_array_bits) - 1);
 	uint32 dup_array_size = 1 << (dup_array_bits - 5);
 	uint32 num_dups = 0;
 
@@ -812,16 +812,16 @@ finish_search(task_data_t *task, uint32 threadid, uint32 match_bits)
 	   need to radix sort the list of survivors to avoid
 	   iterating through all of them */
 
-	p_bits = MAX(5, (int)(log(num_survivors + 1) / 
+	p_bits = (uint32)MAX(5, (int)(log(num_survivors + 1) / 
 				M_LN2 + d_extra_bits));
 	p_size = 1 << (p_bits - 5);
-	p_mask = (1 << p_bits) - 1;
+	p_mask = (uint32)((1 << p_bits) - 1);
 	p_alloc = p_size + (1 << p_bits) + 1;
 	if (p_alloc > td->num_dup_alloc) {
-		uint32 t = 2 * p_alloc;
-		td->num_dup_alloc = t;
+		uint32 t_in = 2 * p_alloc;
+		td->num_dup_alloc = t_in;
 		td->dup_data = (uint32 *)xrealloc(td->dup_data, 
-					t * sizeof(uint32));
+					t_in * sizeof(uint32));
 	}
 	p_bit_array = td->dup_data;
 	p_count = td->dup_data + p_size;
@@ -863,11 +863,11 @@ finish_search(task_data_t *task, uint32 threadid, uint32 match_bits)
 		for (j = s_start; j < s_end; j++) {
 			if ((key & match_mask) == sort_survivors[j]) {
 				if (num_match >= td->num_match_alloc) {
-					uint32 t = 2 * num_match;
-					td->num_match_alloc = t;
+					uint32 t_in = 2 * num_match;
+					td->num_match_alloc = t_in;
 					td->match = (match_t *)xrealloc(
 							td->match, 
-							t * sizeof(match_t));
+							t_in * sizeof(match_t));
 				}
 				td->match[num_match].key = key;
 				td->match[num_match].data = sort_data[i];
@@ -891,7 +891,7 @@ finish_search(task_data_t *task, uint32 threadid, uint32 match_bits)
 
 			handle_collision(task, threadid, (uint64)p0 * p1,
 				   td->curr_q, td->curr_q_root,
-				   (int64)td->match[i].key - sieve_size / 2);
+				   (int64)((unsigned long)(int64)td->match[i].key - sieve_size / 2));
 		}
 	}
 }
@@ -948,18 +948,18 @@ collision_search(task_data_t *task, uint32 threadid, uint32 key_bits)
 	   The duplicate detection arrays have 1-bit type 
 	   so the actual memory allocated is much smaller */
 
-	dup_array_bits = MAX(5,(int)((double)log(max_bin_size + 1) / 
+	dup_array_bits = (uint32)MAX(5,(int)((double)log(max_bin_size + 1) / 
 				M_LN2 + d_extra_bits));
 	match_bits = MIN(32, key_bits - radix_bits);
 	dup_array_bits = MIN(dup_array_bits, match_bits);
 	dup_array_size = 1 << (dup_array_bits - 5);
 	dup_words = 3 * dup_array_size + max_bin_size;
 	if (dup_words > td->num_dup_alloc) {
-		uint32 t = dup_words * 3 / 2;
-		td->num_dup_alloc = t;
+		uint32 t_in = dup_words * 3 / 2;
+		td->num_dup_alloc = t_in;
 		aligned_free(td->dup_data);
 		td->dup_data = (uint32 *)aligned_malloc(
-					t * sizeof(uint32), 64);
+					t_in * sizeof(uint32), 64);
 	}
 	td->dup0 = td->dup_data;
 	td->dup1 = td->dup_data + dup_array_size;

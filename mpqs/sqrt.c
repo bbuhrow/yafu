@@ -185,7 +185,7 @@ uint32 find_factors(msieve_obj *obj, mp_t *n,
 		for (i = MIN_FB_OFFSET; i < fb_size; i++) {
 			uint32 mask2 = 0x80000000;
 			uint32 exponent = fb_counts[i] / 2;
-			uint32 prime = factor_base[i].prime;
+			uint32 prime_in = factor_base[i].prime;
 
 			if (exponent == 0)
 				continue;
@@ -193,7 +193,7 @@ uint32 find_factors(msieve_obj *obj, mp_t *n,
 			mp_clear(&tmp);
 			tmp.nwords = 1;
 			tmp.val[0] = factor_base[i].prime; 
-			factor.val[0] = prime;
+			factor.val[0] = prime_in;
 
 			while (!(exponent & mask2))
 				mask2 >>= 1;

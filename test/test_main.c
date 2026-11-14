@@ -8,6 +8,7 @@
 ----------------------------------------------------------------------*/
 #include "testkit.h"
 #include "test_data.h"
+#include "factor.h"
 
 /* ---- a tiny framework self-test (all checks pass; keeps exit status 0) ---- */
 static void t_meta_rng(tk_ctx *tk)
@@ -54,9 +55,11 @@ static const tk_module tk_module_meta = {
 /* ---- Layer 0 ---- */
 extern const tk_module tk_module_mp_arith;
 extern const tk_module tk_module_mp_bitscan;
+extern const tk_module tk_module_limb_inline;   /* arith/limb header-only kernels */
 
 /* ---- Layer 1 (YAFU + GMP) ---- */
 #ifndef TK_NO_LAYER1
+extern const tk_module tk_module_limb;      /* arith/limb library routines */
 extern const tk_module tk_module_sp_arith;
 extern const tk_module tk_module_modular;
 extern const tk_module tk_module_primality;
@@ -68,6 +71,7 @@ extern const tk_module tk_module_ocl_ecm;   /* OpenCL batch-factoring kernels (m
 #endif
 #ifdef TK_WITH_LAYER3
 extern const tk_module tk_module_siqs;   /* Layer 3: links the full factoring archives */
+extern const tk_module tk_module_snfs;   /* Layer 3: snfs forms/polys + factor() method choice */
 #endif
 #endif
 
@@ -76,7 +80,9 @@ static const tk_module *const modules[] = {
     &tk_module_selfcheck,
     &tk_module_mp_arith,
     &tk_module_mp_bitscan,
+    &tk_module_limb_inline,
 #ifndef TK_NO_LAYER1
+    &tk_module_limb,
     &tk_module_sp_arith,
     &tk_module_modular,
     &tk_module_primality,
@@ -88,9 +94,26 @@ static const tk_module *const modules[] = {
 #endif
 #ifdef TK_WITH_LAYER3
     &tk_module_siqs,
+    &tk_module_snfs,
 #endif
 #endif
 };
+
+// stubs for functions exposed by common.lib.  The Layer-3 build links the full
+// msieve archive, which provides the real ones.
+#ifndef TK_WITH_LAYER3
+uint32_t factor_gnfs(msieve_obj* obj, mp_t* input_n,
+    factor_list_t* factor_list) {
+
+    return 0;
+}
+
+uint32_t factor_mpqs(msieve_obj* obj, mp_t* n,
+    factor_list_t* factor_list) {
+
+    return 0;
+}
+#endif
 
 int main(int argc, char **argv)
 {

@@ -22,7 +22,7 @@ typedef struct {
 static int compare_row_count(const void *x, const void *y) {
 	row_count_t *xx = (row_count_t *)x;
 	row_count_t *yy = (row_count_t *)y;
-	return yy->count - xx->count;
+	return (int)(yy->count - xx->count);
 }
 
 static int compare_uint32(const void *x, const void *y) {
@@ -38,7 +38,7 @@ static int compare_uint32(const void *x, const void *y) {
 static int compare_weight(const void *x, const void *y) {
 	la_col_t *xx = (la_col_t *)x;
 	la_col_t *yy = (la_col_t *)y;
-	return xx->weight - yy->weight;
+	return (int)(xx->weight - yy->weight);
 }
 
 /*------------------------------------------------------------------*/
@@ -54,7 +54,7 @@ uint64 count_matrix_nonzero(msieve_obj *obj,
 	mem_use = ncols * (sizeof(la_col_t) +
 		sizeof(uint32) * ((num_dense_rows + 31) / 32));
 
-	for (i = total_weight = sparse_weight = 0; i < ncols; i++) {
+	for (i = (uint32)(total_weight = sparse_weight = 0); i < ncols; i++) {
 		uint32 w = cols[i].weight;
 		total_weight += w;
 		sparse_weight += w;

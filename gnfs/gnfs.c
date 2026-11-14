@@ -62,7 +62,7 @@ uint32 factor_gnfs(msieve_obj *obj, mp_t *input_n,
 
 	/* Calculate the factor base bound */
 
-	bits = mpz_sizeinbase(n, 2);
+	bits = (uint32)mpz_sizeinbase(n, 2);
 	get_sieve_params(bits, &params);
 
 	gmp_sprintf(obj->mp_sprintf_buf, "%Zd", n);
@@ -124,10 +124,10 @@ uint32 factor_gnfs(msieve_obj *obj, mp_t *input_n,
 			   wild guess: a fixed fraction of the total number 
 			   of large primes possible */
 
-			max_relations = 0.8 * (params.rfb_lp_size /
+			max_relations = (uint32)(0.8 * (params.rfb_lp_size /
 					(log((double)params.rfb_lp_size) - 1) +
 					params.afb_lp_size /
-					(log((double)params.afb_lp_size) - 1));
+					(log((double)params.afb_lp_size) - 1)));
 		}
 	}
 
@@ -205,8 +205,8 @@ static void get_sieve_params(uint32 bits, sieve_param_t *params) {
 	max_size = sizeof(prebuilt_params) / sizeof(sieve_param_t);
 	if (bits >= prebuilt_params[max_size - 1].bits) {
 		*params = prebuilt_params[max_size - 1];
-		params->sieve_begin = -params->sieve_size;
-		params->sieve_end = params->sieve_size;
+		params->sieve_begin = (int64)-params->sieve_size;
+		params->sieve_end = (int64)params->sieve_size;
 		return;
 	}
 
@@ -242,7 +242,7 @@ static void get_sieve_params(uint32 bits, sieve_param_t *params) {
 	params->afb_lp_size = (uint32)(
 			 ((double)low->afb_lp_size * j +
 			  (double)high->afb_lp_size * i) / dist + 0.5);
-	sieve_size = (uint64)(
+	sieve_size = (int64)(uint64)(
 			 ((double)low->sieve_size * j +
 			  (double)high->sieve_size * i) / dist + 0.5);
 	params->sieve_begin = -sieve_size;

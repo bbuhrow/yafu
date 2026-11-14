@@ -79,8 +79,8 @@ int32 fplog_eval_poly(int64 a, uint32 b, mpz_t scratch,
 	   current base of sieve logarithms, rounding down */
 
 	eval_poly(scratch, a, b, f);
-	*bits = mpz_sizeinbase(scratch, 2);
-	return (uint32)((*bits) * M_LN2 / log_base);
+	*bits = (uint32)mpz_sizeinbase(scratch, 2);
+	return (int32)((uint32)((*bits) * M_LN2 / log_base));
 }
 
 /*------------------------------------------------------------------*/
@@ -115,9 +115,9 @@ double get_log_base(mpz_poly_t *poly,
 	eval_poly(tmp2, a1, b, poly);
 
 	if (mpz_cmp(tmp2, tmp1) > 0) 
-		t = mpz_sizeinbase(tmp1, 2);
+		t = (double)mpz_sizeinbase(tmp1, 2);
 	else
-		t = mpz_sizeinbase(tmp2, 2);
+		t = (double)mpz_sizeinbase(tmp2, 2);
 
 	/* the base to use is a number x such that 
 	   log_x (2^t) = LOG_TARGET. After much re-
@@ -147,7 +147,7 @@ uint32 read_last_line(msieve_obj *obj, mpz_t n) {
 		gmp_sscanf(buf + 2, "%Zd", read_n);
 	if (mpz_cmp(n, read_n) == 0) {
 		fgets(buf, (int)sizeof(buf), linefile);
-		last_line = atoi(buf);
+		last_line = (uint32)atoi(buf);
 	}
 
 	fclose(linefile);

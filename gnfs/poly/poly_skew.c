@@ -372,7 +372,7 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 
 			// in order to save in-progress rootopt results we
 			// need to forward the flags to the sizeopt handler.
-			sizeopt_data.flags = obj->flags;
+			sizeopt_data.flags = (int)obj->flags;
 		}
 		else {
 			rootopt_data.best_saved_combined_e = 0.0;
@@ -470,7 +470,7 @@ void find_poly_core(msieve_obj *obj, mpz_t n,
 		if (obj->flags & MSIEVE_FLAG_NFS_POLYSIZE) {
 			const char* sa = obj->nfs_args ?
 				strstr(obj->nfs_args, "stage2_threads=") : NULL;
-			if (sa) num_s2 = MAX(1, atoi(sa + 15));
+			if (sa) num_s2 = (uint32)MAX(1, atoi(sa + 15));
 			num_s2 = MAX(num_s2, obj->num_threads);   /* NEW: guarantee one bundle
 												  per producer thread for
 												  the CPU inline path */

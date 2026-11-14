@@ -118,22 +118,22 @@ void save_relation(sieve_conf_t *conf, uint32 sieve_offset,
 	uint32 i, j;
 	char buf[LINE_BUF_SIZE];
 
-	i = sprintf(buf, "R ");
+	i = (uint32)sprintf(buf, "R ");
 
 	if (sieve_offset & 0x80000000)
-		i += sprintf(buf + i, "-%x ", sieve_offset & 0x7fffffff);
+		i += (uint32)sprintf(buf + i, "-%x ", sieve_offset & 0x7fffffff);
 	else
-		i += sprintf(buf + i, "%x ", sieve_offset & 0x7fffffff);
+		i += (uint32)sprintf(buf + i, "%x ", sieve_offset & 0x7fffffff);
 	
-	i += sprintf(buf + i, "%x ", poly_index);
+	i += (uint32)sprintf(buf + i, "%x ", poly_index);
 
 	for (j = 0; j < num_factors; j++)
-		i += sprintf(buf + i, "%x ", fb_offsets[j]);
+		i += (uint32)sprintf(buf + i, "%x ", fb_offsets[j]);
 
 	if (large_prime1 < large_prime2)
-		i += sprintf(buf + i, "L %x %x\n", large_prime1, large_prime2);
+		i += (uint32)sprintf(buf + i, "L %x %x\n", large_prime1, large_prime2);
 	else
-		i += sprintf(buf + i, "L %x %x\n", large_prime2, large_prime1);
+		i += (uint32)sprintf(buf + i, "L %x %x\n", large_prime2, large_prime1);
 
 	savefile_write_line(&conf->obj->savefile, buf);
 
@@ -164,7 +164,7 @@ void read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf)) {
-		p1 = strtoul(buf, &next_field, 16);
+		p1 = (uint32)strtoul(buf, &next_field, 16);
 		buf = next_field;
 	}
 	else {
@@ -174,7 +174,7 @@ void read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf))
-		p2 = strtoul(buf, &next_field, 16);
+		p2 = (uint32)strtoul(buf, &next_field, 16);
 	
 	if (p1 < p2) {
 		*prime1 = p1;
@@ -223,7 +223,7 @@ static int32 read_relation(sieve_conf_t *conf,
 	if (!isxdigit(*relation_buf))
 		return -1;
 
-	sieve_offset = strtoul(relation_buf, &next_field, 16);
+	sieve_offset = (uint32)strtoul(relation_buf, &next_field, 16);
 	relation_buf = next_field;
 	while (isspace(*relation_buf))
 		relation_buf++;
@@ -234,7 +234,7 @@ static int32 read_relation(sieve_conf_t *conf,
 	if (!isxdigit(*relation_buf))
 		return -2;
 
-	poly_index = strtoul(relation_buf, &next_field, 16);
+	poly_index = (uint32)strtoul(relation_buf, &next_field, 16);
 	relation_buf = next_field;
 	if (poly_index >= num_derived_poly)
 		return -3;
@@ -247,7 +247,7 @@ static int32 read_relation(sieve_conf_t *conf,
 	num_factors = 0;
 	while (num_factors < 64 && *relation_buf != 'L') {
 		if (isxdigit(*relation_buf)) {
-			i = strtoul(relation_buf, &next_field, 16);
+			i = (uint32)strtoul(relation_buf, &next_field, 16);
 
 			/* factor base offsets must be sorted into
 			   ascending order */
@@ -385,7 +385,7 @@ static void read_poly_a(sieve_conf_t *conf,
 	poly_buf += 2;
 	for (i = 0; i < num_factors; i++) {
 		if (isxdigit(*poly_buf)) {
-			j = strtoul(poly_buf, &next_field, 16);
+			j = (uint32)strtoul(poly_buf, &next_field, 16);
 			poly_buf = next_field;
 
 			if (i > 0 && j <= poly_factors[i-1])
@@ -403,10 +403,10 @@ static void read_poly_a(sieve_conf_t *conf,
 	mp_clear(a);
 	a->nwords = a->val[0] = 1;
 	for (i = 0; i < conf->num_poly_factors; i++) {
-		uint32 j = poly_factors[i];
+		uint32 j_in = poly_factors[i];
 
-		if (j < conf->fb_size) {
-			uint32 prime = conf->factor_base[j].prime;
+		if (j_in < conf->fb_size) {
+			uint32 prime = conf->factor_base[j_in].prime;
 			mp_mul_1(a, prime, a);
 		}
 	}
@@ -513,7 +513,7 @@ static uint32 add_to_hashtable(cycle_t *table, uint32 *hashtable,
 			num_new_entries++;
 			default_table_entry++;
 
-			offset = entry - table;
+			offset = (uint32)(entry - table);
 			entry->data = offset;
 			(*components)++;
 			(*vertices)++;
@@ -775,7 +775,7 @@ int sort_cycles(const void *x, const void *y) {
 	/* Callback for sorting a list of cycles by the
 	   number of relations each contains */
 
-	return xx->cycle.num_relations - yy->cycle.num_relations;
+	return (int)(xx->cycle.num_relations - yy->cycle.num_relations);
 }
 
 /*--------------------------------------------------------------------*/
@@ -827,7 +827,7 @@ void qs_filter_relations(sieve_conf_t *conf) {
 	savefile_read_line(buf, sizeof(buf), &obj->savefile);
 
 	while (!savefile_eof(&obj->savefile)) {
-		char *start;
+		char *start_in;
 
 		switch (buf[0]) {
 		case 'A':
@@ -835,10 +835,10 @@ void qs_filter_relations(sieve_conf_t *conf) {
 			break;
 
 		case 'R':
-			start = strchr(buf, 'L');
-			if (start != NULL) {
+			start_in = strchr(buf, 'L');
+			if (start_in != NULL) {
 				uint32 prime1, prime2;
-				read_large_primes(start, &prime1, &prime2);
+				read_large_primes(start_in, &prime1, &prime2);
 				if (i == curr_rel) {
 					curr_rel = 3 * curr_rel / 2;
 					relation_list = (relation_t *)xrealloc(
@@ -1147,11 +1147,11 @@ void qs_filter_relations(sieve_conf_t *conf) {
 			   cycle this generates */
 
 			if (entry1->data == 0) {
-				entry1->data = entry2 - table;
+				entry1->data = (uint32)(entry2 - table);
 				entry1->count = start;
 			}
 			else if (entry2->data == 0) {
-				entry2->data = entry1 - table;
+				entry2->data = (uint32)(entry1 - table);
 				entry2->count = start;
 			}
 			else {

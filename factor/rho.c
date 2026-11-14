@@ -194,7 +194,7 @@ int mbrent(fact_obj_t *fobj)
 
 	uint32_t i=0,k,r,m;
 	int it;
-	int imax = fobj->rho_obj.iterations;
+	int imax = (int)fobj->rho_obj.iterations;
 
 	// initialize local arbs
 	mpz_init(x);
@@ -419,7 +419,7 @@ uint64_t spbrent(uint64_t N, uint64_t c, int imax)
     r = 1;
 
     // under 48 bits, don't defer gcd quite as long
-    i = _trail_zcnt64(N);
+    i = (uint32_t)_trail_zcnt64(N);
     if (i > 20)
         m = 32;
     else if (i > 16)
@@ -525,7 +525,7 @@ uint64_t spbrent64(uint64_t N, int imax)
 	r = 1;
 
 	// under 48 bits, don't defer gcd quite as long
-	i = _trail_zcnt64(N);
+	i = (uint32_t)_trail_zcnt64(N);
 	if (i > 20)
 		m = 32;
 	else if (i > 16)

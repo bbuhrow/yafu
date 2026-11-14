@@ -131,7 +131,6 @@ int nfs_check_special_case(fact_obj_t *fobj)
 
 	if (mpz_perfect_power_p(fobj->nfs_obj.gmp_n))
 	{
-		FILE *flog;
 		uint32_t j;
 
 		if (fobj->VFLAG > 0)
@@ -188,13 +187,30 @@ void checkFilePresence(char* name) {
 }
 
 //----------------------- NFS ENTRY POINT ------------------------------------//
+static void nfs_run(fact_obj_t *fobj);
+
 void nfs(fact_obj_t *fobj)
+{
+	// nfs_run() sets nfs_obj.snfs = 1 once it commits to an snfs job.  That
+	// flag otherwise means "the user asked for snfs" (snfs() function), and
+	// leaving it set made every later input of a factor() run (and later
+	// statements on the same line) force snfs, or exit when no snfs
+	// polynomial exists.  Restore the caller's value on the way out.
+	int user_snfs = fobj->nfs_obj.snfs;
+
+	nfs_run(fobj);
+
+	fobj->nfs_obj.snfs = user_snfs;
+	return;
+}
+
+static void nfs_run(fact_obj_t *fobj)
 {
 	// expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	msieve_obj *obj = NULL;
 	char *nfs_args = NULL; // unused as yet
-	enum cpu_type cpu = ytools_get_cpu_type();
+	UNUSED_VAR enum cpu_type cpu = ytools_get_cpu_type();
 	mp_t mpN;
 	factor_list_t factor_list;
 	uint32_t flags = 0;
@@ -322,11 +338,11 @@ void nfs(fact_obj_t *fobj)
 
             if (nfs_state != NFS_STATE_DONE)
             {
-                char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+                char* s_in = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
                 logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
-                    gmp_base10(fobj->nfs_obj.gmp_n), s);
+                    gmp_base10(fobj->nfs_obj.gmp_n), s_in);
 
-				free(s);
+				free(s_in);
 
 				//if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 0) > 0)
 				//{
@@ -553,6 +569,26 @@ void nfs(fact_obj_t *fobj)
 					free(s);
 				}
 
+				// snfs form detection may have reduced the input by removing
+				// algebraic factors.  msieve's view of the number (the obj,
+				// mpN and its factor list, all set up in NFS_STATE_INIT) must
+				// follow, or gnfs poly selection runs on the original number.
+				s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+				if ((obj != NULL) && (strcmp(s, obj->input) != 0))
+				{
+					strcpy(input, s);
+					msieve_obj_free(obj);
+					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
+						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32_t)0, 9,
+						(uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
+						(uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
+					fobj->nfs_obj.mobj = obj;
+					gmp2mp_t(fobj->nfs_obj.gmp_n, &mpN);
+					factor_list_init(&factor_list);
+					factor_list_add(obj, &factor_list, &mpN);
+				}
+				free(s);
+
 				if (fobj->nfs_obj.snfs == 0)
 				{
 					// prepare for gnfs polyselect
@@ -665,7 +701,6 @@ void nfs(fact_obj_t *fobj)
 			exit(-1);
 #endif
 
-			FILE *fp;
 			char buffer[1024];
 
 			if (job.snfs != NULL) {
@@ -680,7 +715,7 @@ void nfs(fact_obj_t *fobj)
 			if (job.current_rels == 0) {
 				if (fgetc(dat) == 'N') {
 					// https://www.geeksforgeeks.org/c-program-count-number-lines-file/
-					for (char c = fgetc(dat); !feof(dat); c = fgetc(dat)) {
+					for (char c = (char)fgetc(dat); !feof(dat); c = (char)fgetc(dat)) {
 						if (c == '\n') {
 							job.current_rels++;
 						}
@@ -714,7 +749,7 @@ void nfs(fact_obj_t *fobj)
 			sprintf(syscmd, "%s %sparameters/factor/params.c%d N=%s ", buffer, fobj->nfs_obj.cado_dir, cadoPower, input);
 
 			// Roundup of fobj->num_threads / 2
-			int nrclients = (fobj->num_threads / 2) + (obj->num_threads % 2);
+			int nrclients = (int)((uint32_t)(fobj->num_threads / 2) + (obj->num_threads % 2));
 			// Spawn clients based on fobj->num_threads
 			// Use sprintf to append to end of syscmd
 			sprintf(syscmd + strlen(syscmd), "slaves.nrclients=%d slaves.hostnames=localhost ", nrclients);
@@ -783,12 +818,12 @@ void nfs(fact_obj_t *fobj)
 #ifdef _MSC_VER
 			_getcwd(cwdBuf, 4097);
 #else
-			getcwd(cwdBuf, 4097);
+			if (getcwd(cwdBuf, 4097) == NULL) cwdBuf[0] = '\0';
 #endif
 			sprintf(syscmd + strlen(syscmd), "-w %s/cadoWorkdir", cwdBuf);
 
 			printf("nfs: cmdline: %s\n", syscmd);
-			system(syscmd);
+			if (system(syscmd) != 0) { /* failure shows up when the output is checked */ }
 
 			// Check for convert_poly presence
 			checkFilePresence(fobj->nfs_obj.convert_poly_path);
@@ -800,7 +835,7 @@ void nfs(fact_obj_t *fobj)
 			printf("nfs: calling convert_poly to create nfs.fb from c*.poly\n");
 			// TODO: Support Windows lol
 			sprintf(syscmd, "%s -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.convert_poly_path, cadoPower);
-			system(syscmd);
+			if (system(syscmd) != 0) { /* failure shows up when the output is checked */ }
 
 			printf("nfs: appending CADO relations into nfs.dat\n");
 
@@ -828,7 +863,7 @@ void nfs(fact_obj_t *fobj)
 				// Don't keep the file, as that would cause us to read it again the next run
 				// Suppress stderr with 2>/dev/null
 				sprintf(syscmd, "gunzip -c %s 1>nfs.cado 2>/dev/null && rm %s", filename, filename);
-				system(syscmd);
+				if (system(syscmd) != 0) { /* failure shows up when the output is checked */ }
 				checkFilePresence("nfs.cado");
 
 				// Read the relations
@@ -883,9 +918,9 @@ void nfs(fact_obj_t *fobj)
 				// min rels by a few percent.  this will prevent too frequent
 				// filtering attempts while allowing the q_batch size to remain small.
 				if (job.current_rels > job.min_rels)
-					job.min_rels = job.current_rels * fobj->nfs_obj.filter_min_rels_nudge;
+					job.min_rels = (uint32_t)(job.current_rels * fobj->nfs_obj.filter_min_rels_nudge);
 				else
-					job.min_rels *= fobj->nfs_obj.filter_min_rels_nudge;
+					job.min_rels = (uint32_t)(job.min_rels * fobj->nfs_obj.filter_min_rels_nudge);
 
 				if (fobj->VFLAG > 0)
 					printf("nfs: raising min_rels by %1.2f percent to %u\n", 
@@ -983,7 +1018,7 @@ void nfs(fact_obj_t *fobj)
 								nfs_set_min_rels(&job);
 							}
 							
-							job.use_max_rels = job.current_rels * 0.8; // job.min_rels * 1.5;
+							job.use_max_rels = (uint32_t)(job.current_rels * 0.8); // job.min_rels * 1.5;
 							printf("nfs: no dependency file found - trying again with %u relations\n",
 								job.use_max_rels);
 							nfs_state = NFS_STATE_FILTER;
@@ -1117,7 +1152,7 @@ void nfs(fact_obj_t *fobj)
 				sprintf(tmpstr, "c%d.db", cadoPower);    	remove(tmpstr);
 				sprintf(tmpstr, "c%d.db-shm", cadoPower);	remove(tmpstr);
 				sprintf(tmpstr, "c%d.db-wal", cadoPower);	remove(tmpstr);
-				system("rm -r cadoWorkdir");
+				if (system("rm -r cadoWorkdir") != 0) { /* failure shows up when the output is checked */ }
 			}
 
 			gettimeofday(&stop, NULL);
@@ -1235,7 +1270,7 @@ void nfs(fact_obj_t *fobj)
 				if (fobj->VFLAG >= 0)
 				{
 					printf("nfs: elapsed time of %6.4f seconds exceeds specified "
-						"nfs timeout of %1.4f sec, exiting\n", t_time, fobj->nfs_obj.timeout);
+						"nfs timeout of %u sec, exiting\n", t_time, fobj->nfs_obj.timeout);
 				}
 				nfs_state = NFS_STATE_EXIT;
 			}
@@ -1317,7 +1352,7 @@ void nfs(fact_obj_t *fobj)
                     int i;
                     copy_mpz_polys_t(job.poly, job.snfs->poly);
                     mpz_set(job.snfs->n, fobj->nfs_obj.gmp_n);
-					for (i = job.poly->alg.degree; i >= 0; i--)
+					for (i = (int)job.poly->alg.degree; i >= 0; i--)
 					{
 						mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
 					}
@@ -1431,7 +1466,7 @@ void nfs(fact_obj_t *fobj)
                     int i;
                     copy_mpz_polys_t(job.poly, job.snfs->poly);
                     mpz_set(job.snfs->n, fobj->nfs_obj.gmp_n);
-                    for (i = job.poly->alg.degree; i >= 0; i--)
+                    for (i = (int)job.poly->alg.degree; i >= 0; i--)
                         mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
                 }
 
@@ -1709,19 +1744,23 @@ int est_gnfs_size(nfs_job_t *job)
     else
     {
         if (job->snfs->sdifficulty > job->snfs->difficulty)
-            return  0.56 * job->snfs->sdifficulty + 30;
+            return  (int)(0.56 * job->snfs->sdifficulty + 30);
         else
-            return  0.56 * job->snfs->difficulty + 30;
+            return  (int)(0.56 * job->snfs->difficulty + 30);
     }
 		
 }
 
 int est_gnfs_size_via_poly(snfs_t *job)
 {
+	// keep this consistent with est_gnfs_size(), which nfs() uses to decide
+	// snfs vs. gnfs: factor() must reach the same decision.
 	if ((job->difficulty < 0) || (job->difficulty > 512))
 		return 999999;
+	else if (job->sdifficulty > job->difficulty)
+		return  (int)(0.56 * job->sdifficulty + 30);
 	else
-		return  0.56*job->difficulty + 30;
+		return  (int)(0.56*job->difficulty + 30);
 }
 
 double** gnfs_table;
@@ -1855,7 +1894,6 @@ double* parse_params_file(char* filename, int *numrows)
 	}
 	else
 	{
-		int status = 0;
 		char line[1024];
 
 		*numrows = 0;
@@ -1885,8 +1923,8 @@ double* parse_params_file(char* filename, int *numrows)
 				if ((*numrows) == 0)
 					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
 				else
-					table = (double*)xrealloc(table, ((*numrows) + 1) * 
-						GGNFS_TABLE_COLS * sizeof(double));
+					table = (double*)xrealloc(table, (unsigned long)(((*numrows) + 1) * 
+						GGNFS_TABLE_COLS) * sizeof(double));
 
 				table[(*numrows) * GGNFS_TABLE_COLS + 0] = d;
 				table[(*numrows) * GGNFS_TABLE_COLS + 1] = rlim;
@@ -1909,8 +1947,8 @@ double* parse_params_file(char* filename, int *numrows)
 				if ((*numrows) == 0)
 					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
 				else
-					table = (double*)xrealloc(table, ((*numrows) + 1) *
-						GGNFS_TABLE_COLS * sizeof(double));
+					table = (double*)xrealloc(table, (unsigned long)(((*numrows) + 1) *
+						GGNFS_TABLE_COLS) * sizeof(double));
 
 				table[(*numrows) * GGNFS_TABLE_COLS + 0] = d;
 				table[(*numrows) * GGNFS_TABLE_COLS + 1] = rlim;
@@ -1960,7 +1998,7 @@ void set_ggnfs_tables(fact_obj_t* fobj)
 
 		if (parsed_table != NULL)
 		{
-			gnfs_table = (double**)xmalloc(parsed_rows * sizeof(double*));
+			gnfs_table = (double**)xmalloc((unsigned long)parsed_rows * sizeof(double*));
 			for (i = 0; i < parsed_rows; i++)
 			{
 				gnfs_table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
@@ -2074,7 +2112,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	// increasingly poor choices as one goes farther off the table, but you should be
 	// doing things by hand by then anyway.
     // if we find a better skew for snfs polys then return 1 else return 0;
-	uint32_t i, d = gmp_base10(fobj->nfs_obj.gmp_n);
+	uint32_t i, d = (uint32_t)gmp_base10(fobj->nfs_obj.gmp_n);
 	double scale;
 	int found = 0;
 	uint32_t lpb = 0, mfb = 0, fblim = 0, siever = 0;
@@ -2115,7 +2153,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
             //printf("nfs: sdifficulty %lf\n", job->snfs->sdifficulty);
             //gmp_printf("nfs: m = %Zd\n", job->snfs->poly->m);
             //printf("nfs: alg degree %u\n", job->snfs->poly->alg.degree);
-            d = job->snfs->difficulty;
+            d = (uint32_t)job->snfs->difficulty;
         }
             
         check_poly(job->snfs, fobj->VFLAG);
@@ -2145,7 +2183,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				job->poly->side == RATIONAL_SPQ ? "rational" : "algebraic");
         }
 
-        d = job->snfs->sdifficulty;
+        d = (uint32_t)job->snfs->sdifficulty;
 
         int do_skew_opt = 0;
         
@@ -2210,7 +2248,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
-		i = est_gnfs_size(job);
+		i = (uint32_t)est_gnfs_size(job);
 		if (fobj->VFLAG > 0)
 		{
 			printf("nfs: guessing snfs difficulty %d is roughly equal to "
@@ -2294,38 +2332,38 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				(double)(table[i+1][0] - table[i][0]);
 
 			//interp
-			fblim = table[i+1][1] - 
-				(uint32_t)(scale * (double)(table[i+1][1] - table[i][1]));
+			fblim = (uint32_t)(table[i+1][1] - 
+				(uint32_t)(scale * (double)(table[i+1][1] - table[i][1])));
 			if (job->rlim == 0) job->rlim = fblim;
 
-			fblim = table[i + 1][2] -
-				(uint32_t)(scale * (double)(table[i + 1][2] - table[i][2]));
+			fblim = (uint32_t)(table[i + 1][2] -
+				(uint32_t)(scale * (double)(table[i + 1][2] - table[i][2])));
 			if (job->alim == 0) job->alim = fblim;
 
 			//pick closest entry
 			if ((d - table[i][0]) < (table[i+1][0] - d))
-				lpb = table[i][3];
+				lpb = (uint32_t)table[i][3];
 			else
-				lpb = table[i+1][3];
+				lpb = (uint32_t)table[i+1][3];
 			if (job->lpbr == 0) job->lpbr = lpb;
 
 			if ((d - table[i][0]) < (table[i + 1][0] - d))
-				lpb = table[i][4];
+				lpb = (uint32_t)table[i][4];
 			else
-				lpb = table[i + 1][4];
+				lpb = (uint32_t)table[i + 1][4];
 			if (job->lpba == 0) job->lpba = lpb;
 
 			//pick closest entry
 			if ((d - table[i][0]) < (table[i+1][0] - d))
-				mfb = table[i][5];
+				mfb = (uint32_t)table[i][5];
 			else
-				mfb = table[i+1][5];
+				mfb = (uint32_t)table[i+1][5];
 			if (job->mfbr == 0) job->mfbr = mfb;
 
 			if ((d - table[i][0]) < (table[i + 1][0] - d))
-				mfb = table[i][6];
+				mfb = (uint32_t)table[i][6];
 			else
-				mfb = table[i + 1][6];
+				mfb = (uint32_t)table[i + 1][6];
 			if (job->mfba == 0) job->mfba = mfb;
 
 			//pick closest entry
@@ -2343,23 +2381,23 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 			//pick closest entry
 			if ((d - table[i][0]) < (table[i+1][0] - d))
-				siever = table[i][9];
+				siever = (uint32_t)table[i][9];
 			else
-				siever = table[i+1][9];
+				siever = (uint32_t)table[i+1][9];
 			// if no user specified siever - pick one from the table
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
 			//interp
-			job->startq = table[i + 1][10] -
-				(uint32_t)(scale * (double)(table[i + 1][10] - table[i][10]));
+			job->startq = (uint32_t)(table[i + 1][10] -
+				(uint32_t)(scale * (double)(table[i + 1][10] - table[i][10])));
 
 			//interp
-			job->qrange = table[i+1][11] - 
-				(uint32_t)(scale * (double)(table[i+1][11] - table[i][11]));
+			job->qrange = (uint32_t)(table[i+1][11] - 
+				(uint32_t)(scale * (double)(table[i+1][11] - table[i][11])));
 
 			//interp
-			job->min_rels = table[i + 1][12] -
-				(uint32_t)(scale * (double)(table[i + 1][12] - table[i][12]));
+			job->min_rels = (uint32_t)(table[i + 1][12] -
+				(uint32_t)(scale * (double)(table[i + 1][12] - table[i][12])));
 
 			found = 1;
 		}
@@ -2370,22 +2408,22 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		//couldn't find a table entry
 		if (d <= table[0][0])
 		{
-			fblim = table[0][1];
+			fblim = (uint32_t)table[0][1];
 			if (job->rlim == 0) job->rlim = fblim;
 
-			fblim = table[0][2];
+			fblim = (uint32_t)table[0][2];
 			if (job->alim == 0) job->alim = fblim;
 
-			lpb = table[0][3];
+			lpb = (uint32_t)table[0][3];
 			if (job->lpbr == 0) job->lpbr = lpb;
 
-			lpb = table[0][4];
+			lpb = (uint32_t)table[0][4];
 			if (job->lpba == 0) job->lpba = lpb;
 
-			mfb = table[0][5];
+			mfb = (uint32_t)table[0][5];
 			if (job->mfbr == 0) job->mfbr = mfb;
 
-			mfb = table[0][6];
+			mfb = (uint32_t)table[0][6];
 			if (job->mfba == 0) job->mfba = mfb;
 
 			lambda = table[0][7];
@@ -2394,31 +2432,31 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			lambda = table[0][8];
 			if (job->alambda < 1e-6) job->alambda = lambda;
 
-			siever = table[0][9];
+			siever = (uint32_t)table[0][9];
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
-			job->startq = table[0][10];
-			job->qrange = table[0][11];
-			job->min_rels = table[0][12];
+			job->startq = (uint32_t)table[0][10];
+			job->qrange = (uint32_t)table[0][11];
+			job->min_rels = (uint32_t)table[0][12];
 		}
 		else
 		{
-			fblim = table[table_rows -1][1];
+			fblim = (uint32_t)table[table_rows -1][1];
 			if (job->rlim == 0) job->rlim = fblim;
 
-			fblim = table[table_rows - 1][2];
+			fblim = (uint32_t)table[table_rows - 1][2];
 			if (job->alim == 0) job->alim = fblim;
 
-			lpb = table[table_rows -1][3];
+			lpb = (uint32_t)table[table_rows -1][3];
 			if (job->lpbr == 0) job->lpbr = lpb;
 
-			lpb = table[table_rows - 1][4];
+			lpb = (uint32_t)table[table_rows - 1][4];
 			if (job->lpba == 0) job->lpba = lpb;
 
-			mfb = table[table_rows -1][5];
+			mfb = (uint32_t)table[table_rows -1][5];
 			if (job->mfbr == 0) job->mfbr = mfb;
 
-			mfb = table[table_rows - 1][6];
+			mfb = (uint32_t)table[table_rows - 1][6];
 			if (job->mfba == 0) job->mfba = mfb;
 
 			lambda = table[table_rows -1][7];
@@ -2427,12 +2465,12 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			lambda = table[table_rows - 1][8];
 			if (job->alambda < 1e-6) job->alambda = lambda;
 
-			siever = table[table_rows -1][9];
+			siever = (uint32_t)table[table_rows -1][9];
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
-			job->startq = table[table_rows - 1][10];
-			job->qrange = table[table_rows - 1][11];
-			job->min_rels = table[table_rows - 1][12];
+			job->startq = (uint32_t)table[table_rows - 1][10];
+			job->qrange = (uint32_t)table[table_rows - 1][11];
+			job->min_rels = (uint32_t)table[table_rows - 1][12];
 		}
 	}
 
@@ -2492,7 +2530,7 @@ void trial_sieve(fact_obj_t* fobj)
 		filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
         memset(filenames[i], 0, GSTR_MAXSIZE);
 		//printf("pointer: %p\n", filenames[i]);
-		strncpy(filenames[i++], arg, ptr-arg);
+		strncpy(filenames[i++], arg, (size_t)(ptr-arg));
 		arg = ptr + 1;
 	}
 	filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));

@@ -189,7 +189,7 @@ double minimize_global(double p[MAX_VARS], uint32 ndim,
 		iter += 80;
 
 		if (simplex(simp, scores, p, &best_score, 
-			impulse, &seed1, &seed2, ndim, tol, 80,
+			impulse, &seed1, &seed2, (int)ndim, tol, 80,
 			callback, extra) == 0)
 			break;
 

@@ -12,7 +12,7 @@ benefit from your work.
 $Id: util.c 964 2014-05-03 03:30:03Z jasonp_sf $
 --------------------------------------------------------------------*/
 
-#define _POSIX_C_SOURCE 200112L
+#define _XOPEN_SOURCE 600		// POSIX.1-2001 + XSI (nice)
 #include <util.h>
 #include <time.h>
 
@@ -85,7 +85,7 @@ read_clock(void) {
 #else
 	struct timeval thistime;   
 	gettimeofday(&thistime, NULL);
-	return thistime.tv_sec * 1000000 + thistime.tv_usec;
+	return (uint64)(thistime.tv_sec * 1000000 + thistime.tv_usec);
 #endif
 }
 
@@ -116,8 +116,8 @@ get_cpu_time(void) {
 	getrusage(RUSAGE_SELF, &r_usage);
 	#endif
 
-	return ((uint64)r_usage.ru_utime.tv_sec * 1000000 +
-	               r_usage.ru_utime.tv_usec) / 1000000.0;
+	return (double)((uint64)r_usage.ru_utime.tv_sec * 1000000 +
+	               (unsigned long)r_usage.ru_utime.tv_usec) / 1000000.0;
 #endif
 }
 
@@ -133,7 +133,7 @@ get_wall_time(void)
 #else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec + ts.tv_nsec / 1e9;
+	return (double)ts.tv_sec + (double)ts.tv_nsec / (double)1e9;
 #endif
 }
 
@@ -198,12 +198,12 @@ double msieve_difftime(struct timeval* start, struct timeval* end)
 
 	if (start->tv_sec == end->tv_sec) {
 		secs = 0;
-		usecs = end->tv_usec - start->tv_usec;
+		usecs = (double)(end->tv_usec - start->tv_usec);
 	}
 	else {
-		usecs = 1000000 - start->tv_usec;
-		secs = end->tv_sec - (start->tv_sec + 1);
-		usecs += end->tv_usec;
+		usecs = (double)(1000000 - start->tv_usec);
+		secs = (double)(end->tv_sec - (start->tv_sec + 1));
+		usecs += (double)end->tv_usec;
 		if (usecs >= 1000000) {
 			usecs -= 1000000;
 			secs += 1;
@@ -220,9 +220,7 @@ void set_idle_priority(void) {
 	SetPriorityClass(GetCurrentProcess(),
 			IDLE_PRIORITY_CLASS);
 #else
-#if __GNUC__ < 14
-	nice(100);
-#endif
+	if (nice(100) == -1) { /* priority is only a hint */ }
 #endif
 }
 
@@ -381,9 +379,9 @@ void get_cache_sizes(uint32 *level1_size_out,
 					 type.s.cache_type != 3)
 					continue;
 
-				d = (size.s.line_size + 1) *
+				d = (uint32)((size.s.line_size + 1) *
 				    (size.s.num_lines + 1) *
-				    (size.s.ways + 1) *
+				    (size.s.ways + 1)) *
 				    (num_sets + 1);
 
 				if (type.s.cache_level == 1)
@@ -403,21 +401,21 @@ void get_cache_sizes(uint32 *level1_size_out,
 
 		CPUID(2, a, b, c, d);
 
-		features[0] = (a >> 8);
-		features[1] = (a >> 16);
-		features[2] = (a >> 24);
-		features[3] = b;
-		features[4] = (b >> 8);
-		features[5] = (b >> 16);
-		features[6] = (b >> 24);
-		features[7] = c;
-		features[8] = (c >> 8);
-		features[9] = (c >> 16);
-		features[10] = (c >> 24);
-		features[11] = d;
-		features[12] = (d >> 8);
-		features[13] = (d >> 16);
-		features[14] = (d >> 24);
+		features[0] = (uint8)(a >> 8);
+		features[1] = (uint8)(a >> 16);
+		features[2] = (uint8)(a >> 24);
+		features[3] = (uint8)b;
+		features[4] = (uint8)(b >> 8);
+		features[5] = (uint8)(b >> 16);
+		features[6] = (uint8)(b >> 24);
+		features[7] = (uint8)c;
+		features[8] = (uint8)(c >> 8);
+		features[9] = (uint8)(c >> 16);
+		features[10] = (uint8)(c >> 24);
+		features[11] = (uint8)d;
+		features[12] = (uint8)(d >> 8);
+		features[13] = (uint8)(d >> 16);
+		features[14] = (uint8)(d >> 24);
 
 		/* use the maximum of the (known) L2 and L3 cache sizes */
 
@@ -609,11 +607,11 @@ uint64 get_file_size(char *name) {
 		sprintf(name_gz, "%s.gz", name);
 		if (stat(name_gz, &tmp) != 0) 
 			return 0;
-		return (tmp.st_size / 11) * 20;
+		return (uint64)((tmp.st_size / 11) * 20);
 	}
 #endif
 
-	return tmp.st_size;
+	return (uint64)tmp.st_size;
 }
 
 /*--------------------------------------------------------------------*/
@@ -637,8 +635,8 @@ uint64 get_ram_size(void) {
 	return tmp.ullTotalPhys;
 
 #elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
-	int page_size = sysconf(_SC_PAGESIZE);
-	int num_pages = sysconf(_SC_PHYS_PAGES);
+	int page_size = (int)sysconf(_SC_PAGESIZE);
+	int num_pages = (int)sysconf(_SC_PHYS_PAGES);
 
 	if (page_size < 0 || num_pages < 0)
 		return 0;

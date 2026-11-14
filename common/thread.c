@@ -65,8 +65,8 @@ static void threadpool_queue_init(struct threadpool_queue *queue,
 	queue->head = 0;
 	queue->tail = 0;
 	queue->num_tasks = 0;
-	queue->max_tasks = max_tasks;
-	queue->tasks = (void **)xcalloc(max_tasks, sizeof(void *));
+	queue->max_tasks = (unsigned int)max_tasks;
+	queue->tasks = (void **)xcalloc((size_t)max_tasks, sizeof(void *));
 }
 
 static void threadpool_queue_free(struct threadpool_queue *queue)
@@ -170,7 +170,7 @@ static int threadpool_queue_is_full(struct threadpool_queue *queue)
  */
 static int threadpool_queue_getsize(struct threadpool_queue *queue)
 {
-	return queue->num_tasks;
+	return (int)queue->num_tasks;
 }
 
 static void threadpool_task_clear(task_control_t *task)
@@ -239,7 +239,8 @@ static task_control_t * threadpool_task_get_task(struct threadpool *pool)
  * @param data Contains a pointer to the startup data
  * @return NULL.
  */
-#if defined(__GNUC__) && (__GNUC__ > 4 || __GNUC__ == 4 && __GNUC_MINOR__>1)
+#if defined(__GNUC__) && (__GNUC__ > 4 || __GNUC__ == 4 && __GNUC_MINOR__>1) && \
+	(defined(__i386__) || defined(__x86_64__))
 
 /* gcc on win32 needs to force 16-byte stack alignment on 
    thread entry, as this exceeds what windows may provide; see
@@ -450,7 +451,7 @@ struct threadpool* threadpool_init(int num_of_threads,
 	/* Init the queues. */
 	threadpool_queue_init(&(pool->tasks_queue), queue_size);
 	threadpool_queue_init(&(pool->free_tasks_queue), queue_size);
-	pool->tasks = (task_control_t *)xmalloc(queue_size *
+	pool->tasks = (task_control_t *)xmalloc((unsigned long)queue_size *
 					sizeof(task_control_t));
 
 	/* Add all the free tasks to the free tasks queue. */
@@ -463,13 +464,13 @@ struct threadpool* threadpool_init(int num_of_threads,
 	}
 
 	/* Create the thr_arr. */
-	if ((pool->thr_arr = malloc(sizeof(pthread_t) * num_of_threads)) == NULL) {
+	if ((pool->thr_arr = malloc(sizeof(pthread_t) * (unsigned long)num_of_threads)) == NULL) {
 		perror("malloc: ");
 		free(pool);
 		return NULL;
 	}
 
-	if ((pool->thr_init = malloc(sizeof(struct thread_init) * num_of_threads)) == NULL) {
+	if ((pool->thr_init = malloc(sizeof(struct thread_init) * (unsigned long)num_of_threads)) == NULL) {
 		perror("malloc: ");
 		free(pool);
 		return NULL;
@@ -482,7 +483,7 @@ struct threadpool* threadpool_init(int num_of_threads,
 		pool->thr_init[i].pool = pool;
 		pool->thr_init[i].control = *t;
 
-		pool->num_of_threads = i + 1;
+		pool->num_of_threads = (unsigned short)(i + 1);
 		if (pthread_create(&(pool->thr_arr[i]),NULL,
 				worker_thr_routine,
 				&(pool->thr_init[i]))) {

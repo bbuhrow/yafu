@@ -27,7 +27,7 @@ void ideal_list_init(ideal_list_t *ideal_list,
 
 	for (i = 0; i < num_ideals; i++) {
 		ideal_set_t *entry = ideal_list->list + i;
-		entry->active = is_active;
+		entry->active = (uint16)is_active;
 		entry->min_relset_size = 0xffff;
 		entry->next = entry;
 		entry->prev = entry;
@@ -149,11 +149,11 @@ void heap_add_ideal(heap_t *heap,
 			if (old_entry->next != old_entry) {
 				uint32 j;
 
-				j = old_entry->next - ideal_array;
+				j = (uint32)(old_entry->next - ideal_array);
 				new_entry->next = old_entry->next;
 				ideal_array[j].prev = new_entry;
 
-				j = old_entry->prev - ideal_array;
+				j = (uint32)(old_entry->prev - ideal_array);
 				new_entry->prev = old_entry->prev;
 				ideal_array[j].next = new_entry;
 			}
@@ -274,7 +274,7 @@ uint32 heap_add_relset(heap_t *active_heap,
 		}
 
 		ideal_set->relsets[ideal_set->num_relsets++] = relset_num;
-		ideal_set->min_relset_size = MIN(prev_weight, weight);
+		ideal_set->min_relset_size = (uint16)MIN(prev_weight, weight);
 
 		/* if there are enough relation sets still 
 		   containing ideal i, put it back into the heap */
@@ -302,7 +302,7 @@ void heap_remove_relset(heap_t *active_heap,
 	
 	uint32 i, j;
 	uint32 weight = r->num_small_ideals + r->num_large_ideals;
-	uint32 relset_num = r - relset_array;
+	uint32 relset_num = (uint32)(r - relset_array);
 
 	/* remove the relation set by removing each of its 
 	   large ideals from the heap */
@@ -350,7 +350,7 @@ void heap_remove_relset(heap_t *active_heap,
 							r2->num_small_ideals +
 							r2->num_large_ideals);
 				}
-				ideal_set->min_relset_size = curr_weight;
+				ideal_set->min_relset_size = (uint16)curr_weight;
 			}
 
 			/* if there are enough relation sets still
@@ -374,7 +374,7 @@ uint32 heap_remove_best(heap_t *heap, ideal_list_t *ideal_list) {
 	if (key == heap->num_bins)
 		return (uint32)(-1);
 	
-	ideal = heap->hashtable[key].next - ideal_list->list;
+	ideal = (uint32)(heap->hashtable[key].next - ideal_list->list);
 	heap_remove_ideal(heap, ideal_list, ideal);
 	return ideal;
 }
@@ -391,7 +391,7 @@ uint32 heap_remove_worst(heap_t *heap, ideal_list_t *ideal_list) {
 	if ((int32)key < 0)
 		return (uint32)(-1);
 	
-	ideal = heap->hashtable[key].next - ideal_list->list;
+	ideal = (uint32)(heap->hashtable[key].next - ideal_list->list);
 	heap_remove_ideal(heap, ideal_list, ideal);
 	return ideal;
 }
@@ -485,7 +485,7 @@ void merge_two_relsets(relation_set_t *r1, relation_set_t *r2,
 
 	uint32 i;
 	uint32 max_relations = r1->num_relations + r2->num_relations;
-	uint32 max_ideals = r1->num_large_ideals + r2->num_large_ideals - 2;
+	uint32 max_ideals = (uint32)(r1->num_large_ideals + r2->num_large_ideals - 2);
 
 	memset(r_out, 0, sizeof(relation_set_t));
 
@@ -507,7 +507,7 @@ void merge_two_relsets(relation_set_t *r1, relation_set_t *r2,
 		memset(r_out, 0, sizeof(relation_set_t));
 		return;
 	}
-	r_out->num_relations = i;
+	r_out->num_relations = (uint16)i;
 
 	/* merge the ideal lists of r1 and r2 */
 
@@ -522,7 +522,7 @@ void merge_two_relsets(relation_set_t *r1, relation_set_t *r2,
 				r2->data + r2->num_relations, 
 				r2->num_large_ideals);
 
-	r_out->num_large_ideals = i;
+	r_out->num_large_ideals = (uint16)i;
 
 	/* save the merged lists */
 

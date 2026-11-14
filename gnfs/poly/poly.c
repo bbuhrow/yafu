@@ -74,7 +74,7 @@ int32 read_poly(msieve_obj *obj, mpz_t n,
 		mpz_t *read_coeff;
 		char *tmp;
 
-		i = buf[1] - '0';
+		i = (uint32)(buf[1] - '0');
 		if (i > MAX_POLY_DEGREE) {
 			fclose(fp);
 			logprintf(obj, "warning: polynomial degree exceeds "
@@ -216,7 +216,7 @@ int32 find_poly(msieve_obj *obj, mpz_t n) {
 
 	obj->flags |= MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 	find_poly_core(obj, n, &params, &config, degree);
-	obj->flags &= ~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
+	obj->flags &= (unsigned int)~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 
 	/* save the best polynomial */
 

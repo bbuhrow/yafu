@@ -49,8 +49,8 @@ static void add_to_hashtable(bucket_t *entry,
 						2 * i * sizeof(bucket_entry_t));
 	}
 	new_entry = entry->list + i;
-	new_entry->logprime = logprime;
-	new_entry->prime_index = prime_index;
+	new_entry->logprime = (unsigned char)logprime;
+	new_entry->prime_index = ((prime_index) & 0xFFFFFFu);
 	new_entry->sieve_offset = sieve_offset & mask;
 }
 	
@@ -511,7 +511,7 @@ uint32 ROUTINE_NAME(sieve_conf_t *conf,
 				j < conf->sieve_large_fb_start; j++) {
 			fb_t *fbptr = factor_base + j;
 			packed_fb_t *pfbptr = packed_fb + j;
-			pfbptr->prime = fbptr->prime;
+			pfbptr->prime = ((fbptr->prime) & 0xFFFFFFu);
 			pfbptr->logprime = fbptr->logprime;
 			pfbptr->next_loc1 = fbptr->root1;
 			pfbptr->next_loc2 = fbptr->root2;
@@ -550,8 +550,8 @@ uint32 ROUTINE_NAME(sieve_conf_t *conf,
 
 		for (block = 0; block < num_sieve_blocks; block++) {
 	
-			int32 block_start = -(sieve_size / 2) + 
-					(block * SIEVE_BLOCK_SIZE);
+			int32 block_start = (int32)(-(sieve_size / 2) + 
+					(block * SIEVE_BLOCK_SIZE));
 	
 			/* initialize the sieve array */
 

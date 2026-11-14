@@ -11,7 +11,7 @@ mkdir -p "$OUT"
 R=$(realpath ../..)
 S=$R/factor/gmp-ecm
 G=$(realpath $R/../gmp-install/6.2.1)
-INC="-I$S -I$R/ytools -I$R/include -I$G/include"
+INC="-I$S -I$R/arith/limb -I$R/ytools -I$R/include -I$G/include"
 for isa in avx2 ifma f; do
     case $isa in
         avx2) D="-O2 -mavx2 -mbmi -mbmi2 -DUSE_AVX2 -DUSE_BMI2";;
@@ -27,6 +27,8 @@ for isa in avx2 ifma f; do
         gcc $D -mfma $X4FLAGS $INC -c $S/tinyecm_edw_x4.c -o $O/tinyecm_edw_x4.o
     fi
     gcc $D $INC -c $R/arith/monty.c -o $O/monty.o
+    gcc $D $INC -c $R/arith/limb/limb1.c -o $O/limb1.o
+    gcc $D $INC -c $R/arith/limb/limb2.c -o $O/limb2.o
     gcc $D $INC -DWITH_EDW -DWITH_X4 -o $OUT/e2e_$isa tiny_e2e.c $O/*.o $G/lib/libgmp.a -lm
 done
 echo built in $OUT

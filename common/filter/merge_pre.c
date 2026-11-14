@@ -160,8 +160,8 @@ void filter_merge_2way(msieve_obj *obj, filter_t *filter,
 						sizeof(ideal_relation_t));
 			}
 			reverse_array[num_reverse].relation_array_word =
-					(uint32 *)curr_relation -
-					(uint32 *)relation_array;
+					(uint64)((uint32 *)curr_relation -
+					(uint32 *)relation_array);
 			reverse_array[num_reverse].next = 
 						ideal_map[ideal].payload;
 			ideal_map[ideal].payload = num_reverse++;
@@ -305,9 +305,9 @@ void filter_merge_2way(msieve_obj *obj, filter_t *filter,
 							sizeof(relation_set_t));
 		}
 		curr_relset = relset_array + num_relset;
-		curr_relset->num_relations = num_tmp_relation;
-		curr_relset->num_small_ideals = num_small_ideal;
-		curr_relset->num_large_ideals = num_tmp_ideal;
+		curr_relset->num_relations = (uint16)num_tmp_relation;
+		curr_relset->num_small_ideals = (uint16)num_small_ideal;
+		curr_relset->num_large_ideals = (uint16)num_tmp_ideal;
 
 		/* sort the relation numbers in ascending order
 		   (the ideal list is already ordered), then store */

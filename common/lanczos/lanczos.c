@@ -1235,9 +1235,9 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 		if (report_interval) {
 			if (dim_solved >= next_report) {
 				time_t curr_time = time(NULL);
-				double elapsed = curr_time - first_time;
-				uint32 eta = elapsed * (max_n - dim_solved) /
-						(dim_solved - first_dim_solved);
+				double elapsed = (double)(curr_time - first_time);
+				uint32 eta = (uint32)(elapsed * (max_n - dim_solved) /
+						(dim_solved - first_dim_solved));
 
 				fprintf(stderr, "linear algebra completed %u "
 					"of %u dimensions (%1.1f%%, ETA "
@@ -1286,10 +1286,10 @@ static v_t * block_lanczos_core(msieve_obj *obj,
 
 				MPI_NODE_0_START
 				time_t curr_time = time(NULL);
-				double elapsed = curr_time - first_time;
+				double elapsed = (double)(curr_time - first_time);
 
-				dump_interval = (3600.0 / elapsed) *
-					       (dim_solved - first_dim_solved); 
+				dump_interval = (uint32)((3600.0 / elapsed) *
+					       (dim_solved - first_dim_solved)); 
 				dump_interval = MAX(dump_interval,
 						   DEFAULT_DUMP_INTERVAL + 1);
 
@@ -1648,7 +1648,7 @@ uint64 * block_lanczos(msieve_obj *obj,
 						dump_interval);
 
 	if (dump_interval)
-		obj->flags &= ~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
+		obj->flags &= (unsigned int)~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 
 	if (*num_deps_found) {
 		uint32 i;

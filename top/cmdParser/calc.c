@@ -113,13 +113,13 @@ int feval(int func, int nargs, meta_t* metadata);
 int new_uvar(const char* name, mpz_t data);
 int set_uvar(const char* name, mpz_t data, fact_obj_t *fobj);
 int get_uvar(const char* name, mpz_t data);
-void free_uvars();
+void free_uvars(void);
 int new_strvar(const char* name, char* data);
 int set_strvar(const char* name, char* data);
 int get_strvar(const char* name, char* data);
 char* get_strvarname(const char* data);
 int is_strvar(const char* name);
-void free_strvars();
+void free_strvars(void);
 int invalid_dest(char* dest);
 int invalid_num(char* num);
 char** tokenize(char* in, int* token_types, int* num_tokens);
@@ -227,12 +227,12 @@ void toStr(char* src, str_t* dest)
 {
     if ((int)strlen(src) > dest->alloc)
     {
-        sGrow(dest, strlen(src) + 10);
-        dest->alloc = strlen(src) + 10;
+        sGrow(dest, (int)(strlen(src) + 10));
+        dest->alloc = (int)(strlen(src) + 10);
     }
     memcpy(dest->s, src, strlen(src) * sizeof(char));
     dest->s[strlen(src)] = '\0';
-    dest->nchars = strlen(src) + 1;
+    dest->nchars = (int)(strlen(src) + 1);
 
     return;
 }
@@ -240,7 +240,7 @@ void toStr(char* src, str_t* dest)
 void sGrow(str_t* str, int size)
 {
     //printf("growing str_t size...\n");
-    str->s = (char*)xrealloc(str->s, size * sizeof(char));
+    str->s = (char*)xrealloc(str->s, (unsigned long)size * sizeof(char));
     str->alloc = size;
 
     return;
@@ -250,12 +250,12 @@ void sAppend(const char* src, str_t* dest)
 {
     if (((int)strlen(src) + dest->nchars) >= dest->alloc)
     {
-        sGrow(dest, strlen(src) + dest->nchars + 10);
-        dest->alloc = strlen(src) + dest->nchars + 10;
+        sGrow(dest, (int)((size_t)(strlen(src) + (size_t)dest->nchars) + 10));
+        dest->alloc = (int)((size_t)(strlen(src) + (size_t)dest->nchars) + 10);
     }
 
     memcpy(dest->s + dest->nchars - 1, src, strlen(src) * sizeof(char));
-    dest->nchars += strlen(src);	//already has a null char accounted for
+    dest->nchars += (int)strlen(src);	//already has a null char accounted for
     dest->s[dest->nchars - 1] = '\0';
 
     return;
@@ -265,10 +265,10 @@ void sCopy(str_t* dest, str_t* src)
 {
     if (dest->alloc < src->nchars + 2)
     {
-        dest->s = (char*)xrealloc(dest->s, (src->nchars + 2) * sizeof(char));
+        dest->s = (char*)xrealloc(dest->s, (unsigned long)(src->nchars + 2) * sizeof(char));
         dest->alloc = src->nchars + 2;
     }
-    memcpy(dest->s, src->s, src->nchars * sizeof(char));
+    memcpy(dest->s, src->s, (unsigned long)src->nchars * sizeof(char));
     dest->nchars = src->nchars;
     return;
 }
@@ -280,7 +280,7 @@ void sCopy(str_t* dest, str_t* src)
 int stack_init(int num, bstack_t* stack, int type)
 {
     int i;
-    stack->elements = (str_t**)xmalloc(num * sizeof(str_t*));		//array of elements
+    stack->elements = (str_t**)xmalloc((unsigned long)num * sizeof(str_t*));		//array of elements
     //space for each element (a str_t)
     for (i = 0; i < num; i++)
     {
@@ -317,7 +317,7 @@ void push(str_t* str, bstack_t* stack)
     {
         stack->size *= 2;
         stack->elements = (str_t**)xrealloc(stack->elements,
-            stack->size * sizeof(str_t*));
+            (unsigned long)stack->size * sizeof(str_t*));
         if (stack->elements == NULL)
         {
             printf("error allocating stack space\n");
@@ -656,13 +656,13 @@ str_t* preprocess(str_t* in, int* numlines)
             in->s[i++] = ' ';
 
         i = 1;
-        while ((in->s[strlen(in->s) - i] == ',') ||
-            (in->s[strlen(in->s) - i] == '}') ||
-            (in->s[strlen(in->s) - i] == ')'))
+        while ((in->s[strlen(in->s) - (size_t)i] == ',') ||
+            (in->s[strlen(in->s) - (size_t)i] == '}') ||
+            (in->s[strlen(in->s) - (size_t)i] == ')'))
         {
-            if ((in->s[strlen(in->s) - i] == ',') ||
-                (in->s[strlen(in->s) - i] == '}'))
-                in->s[strlen(in->s) - i] = ' ';
+            if ((in->s[strlen(in->s) - (size_t)i] == ',') ||
+                (in->s[strlen(in->s) - (size_t)i] == '}'))
+                in->s[strlen(in->s) - (size_t)i] = ' ';
             i++;
         }
     }
@@ -703,7 +703,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -787,7 +787,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -858,7 +858,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -920,7 +920,7 @@ str_t* preprocess(str_t* in, int* numlines)
         if (ptr != current->s)
         {
             int n = (int)(ptr - current->s);
-            strncpy(start, current->s, MIN(n, 79));
+            strncpy(start, current->s, (size_t)MIN(n, 79));
             start[n] = '\0';
         }
         else
@@ -946,7 +946,7 @@ str_t* preprocess(str_t* in, int* numlines)
         else if (eptr[strlen(eptr) + 1] == '\0')
         {
             // no else statement and no output suppression character
-            strncpy(str, eptr, strlen(eptr) - 1);
+            memcpy(str, eptr, strlen(eptr) - 1);
             str[strlen(eptr) - 1] = '\0';
             sprintf(vname, "%s_body", pre);
             if (set_strvar(vname, str))
@@ -966,7 +966,7 @@ str_t* preprocess(str_t* in, int* numlines)
                     new_strvar(vname, str);
 
                 ptr = strtok(NULL, "\0");
-                strncpy(str, ptr, strlen(ptr) - 1);
+                memcpy(str, ptr, strlen(ptr) - 1);
                 str[strlen(ptr) - 1] = '\0';
                 sprintf(vname, "%s_elsebody", pre);
                 if (set_strvar(vname, str))
@@ -993,7 +993,7 @@ str_t* preprocess(str_t* in, int* numlines)
                     new_strvar(vname, str);
 
                 ptr = strtok(NULL, "\0");
-                strncpy(str, ptr, strlen(ptr) - 1);
+                memcpy(str, ptr, strlen(ptr) - 1);
                 str[strlen(ptr) - 1] = '\0';
                 sprintf(vname, "%s_elsebody", pre);
                 if (set_strvar(vname, str))
@@ -1018,7 +1018,7 @@ str_t* preprocess(str_t* in, int* numlines)
     // time and count open/closed parens/braces, while looking for
     // commas.
     openp = openb = closedp = closedb = 0;
-    k = strlen(current->s);
+    k = (int)strlen(current->s);
     for (i = 0, j = 0; i < k; i++, j++)
     {
         if (current->s[i] == '(') openp++;
@@ -1029,7 +1029,7 @@ str_t* preprocess(str_t* in, int* numlines)
             if ((openp == closedp) && (openb == closedb))
             {
                 (*numlines)++;
-                out = (str_t*)xrealloc(out, *numlines * sizeof(str_t));
+                out = (str_t*)xrealloc(out, (unsigned long)*numlines * sizeof(str_t));
                 out[*numlines - 2].s[i] = '\0';
                 sInit(&out[*numlines - 1]);
                 current = &out[*numlines - 1];
@@ -1090,13 +1090,13 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
     // for each character read, decide if we've found the start of a new token
 
     int inpos, i, el_type, el_type2, token_alloc, tmpsize = GSTR_MAXSIZE;
-    int len = strlen(in);
+    int len = (int)strlen(in);
     char ch;
     char* tmp;
     char** tokens;
 
     token_alloc = 100;		//100 tokens
-    tokens = (char**)xmalloc(token_alloc * sizeof(char*));
+    tokens = (char**)xmalloc((unsigned long)token_alloc * sizeof(char*));
     *num_tokens = 0;
 
     tmp = (char*)xmalloc(GSTR_MAXSIZE * sizeof(char));
@@ -1220,8 +1220,8 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
 
                 if (*num_tokens >= token_alloc)
                 {
-                    tokens = (char**)xrealloc(tokens, token_alloc * 2 * sizeof(char*));
-                    token_types = (int*)xrealloc(token_types, token_alloc * 2 * sizeof(int));
+                    tokens = (char**)xrealloc(tokens, (unsigned long)(token_alloc * 2) * sizeof(char*));
+                    token_types = (int*)xrealloc(token_types, (unsigned long)(token_alloc * 2) * sizeof(int));
                     token_alloc *= 2;
                 }
             }
@@ -1238,7 +1238,7 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
             if (i == (tmpsize - 1))
             {
                 tmpsize += GSTR_MAXSIZE;
-                tmp = (char*)xrealloc(tmp, tmpsize * sizeof(char));
+                tmp = (char*)xrealloc(tmp, (unsigned long)tmpsize * sizeof(char));
                 //printf("tmp string is now size %d\n", tmpsize);
             }
             tmp[i] = ch;
@@ -1524,8 +1524,8 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
 
     if ((ptr = strchr(in->s, '=')) != NULL)
     {
-        offset = (ptr - in->s);
-        strncpy(varname, in->s, offset);
+        offset = (int)(ptr - in->s);
+        strncpy(varname, in->s, (size_t)offset);
         varname[offset++] = '\0';
     }
     else
@@ -1579,9 +1579,9 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                     gmp_printf("\n%s = ", varname);
 
                     int i;
-                    for (i = mpz_sizeinbase(tmp, 2) - 1; i >= 0; i--)
+                    for (i = (int)(mpz_sizeinbase(tmp, 2) - 1); i >= 0; i--)
                     {
-                        printf("%d", mpz_tstbit(tmp, i));
+                        printf("%d", mpz_tstbit(tmp, (mp_bitcnt_t)i));
                     }
                     printf("\n\n");
                 }
@@ -1604,9 +1604,9 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                 else if (OBASE == BIN)
                 {
                     int i;
-                    for (i = mpz_sizeinbase(tmp, 2) - 1; i >= 0; i--)
+                    for (i = (int)(mpz_sizeinbase(tmp, 2) - 1); i >= 0; i--)
                     {
-                        printf("%d", mpz_tstbit(tmp, i));
+                        printf("%d", mpz_tstbit(tmp, (mp_bitcnt_t)i));
                     }
                     printf("\n");
                 }
@@ -1676,7 +1676,6 @@ int calc(str_t* in, meta_t* metadata)
     str_t* post;		//post fix expression
     char** tokens;		//pointer to an array of strings holding tokens
     char* tok;
-    char* strN;			/* use this to make a copy of the post-fix string */
     char delim[2];
     int* token_types;	//type of each token
     int num_tokens;		//number of tokens in the array.
@@ -1917,7 +1916,7 @@ int calc(str_t* in, meta_t* metadata)
             printf("stack contents: ");
             for (i = 0; i < stk.num; i++)
             {
-                printf("%s (%d/%d/%d) ", stk.elements[i]->s,
+                printf("%s (%d/%zu/%d) ", stk.elements[i]->s,
                     stk.elements[i]->nchars, strlen(stk.elements[i]->s),
                     stk.elements[i]->alloc);
             }
@@ -1996,14 +1995,14 @@ int calc(str_t* in, meta_t* metadata)
                 // put result back on stack
                 for (j = 0; j < na; j++)
                 {
-                    int sz = mpz_sizeinbase(operands[j], 10) + 10;
+                    int sz = (int)(mpz_sizeinbase(operands[j], 10) + 10);
                     if (tmp->alloc < sz)
                     {
-                        tmp->s = (char*)realloc(tmp->s, sz * sizeof(char));
+                        tmp->s = (char*)realloc(tmp->s, (unsigned long)sz * sizeof(char));
                         tmp->alloc = sz;
                     }
                     mpz_get_str(tmp->s, 10, operands[j]);
-                    tmp->nchars = strlen(tmp->s) + 1;
+                    tmp->nchars = (int)(strlen(tmp->s) + 1);
                     push(tmp, &stk);
                 }
             }
@@ -2013,14 +2012,14 @@ int calc(str_t* in, meta_t* metadata)
 
                 // the string token is not a function, check if it's a defined variable
 
-                sz = mpz_sizeinbase(tmpz, 10) + 10;
+                sz = (int)(mpz_sizeinbase(tmpz, 10) + 10);
                 if (gstr1.alloc < sz)
                 {
-                    gstr1.s = (char*)xrealloc(gstr1.s, sz * sizeof(char));
+                    gstr1.s = (char*)xrealloc(gstr1.s, (unsigned long)sz * sizeof(char));
                     gstr1.alloc = sz;
                 }
                 mpz_get_str(gstr1.s, 10, tmpz);
-                gstr1.nchars = strlen(gstr1.s) + 1;
+                gstr1.nchars = (int)(strlen(gstr1.s) + 1);
                 sCopy(tmp, &gstr1);
                 push(tmp, &stk);
             }
@@ -2111,13 +2110,9 @@ int generateDivisors64(uint64_t* divlist, int* numdiv, int curIndex, int current
 
 uint64_t sumdiv64(uint64_t n)
 {
-
-
-
-
-
-
-
+    // unimplemented stub (no callers)
+    (void)n;
+    return 0;
 }
 
 
@@ -2161,7 +2156,6 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	// in the mpz_t array 'operands'.
 	// place return values in operands[0]
 	mpz_t mp1, mp2, mp3, tmp1, tmp2;
-	mpz_t gmpz;
 
 	str_t str;
 	uint32_t i=0;
@@ -2169,9 +2163,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	uint32_t j,k;
 	double t;
 	struct timeval tstart, tstop;
-	uint64_t lower, upper, inc, count;
+	UNUSED_VAR uint64_t lower, upper, count;
     fact_obj_t* fobj = metadata->fobj;
-    soe_staticdata_t* sdata = metadata->sdata;
+    UNUSED_VAR soe_staticdata_t* sdata = metadata->sdata;
 
 	mpz_init(mp1);
 	mpz_init(mp2);
@@ -2242,7 +2236,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	case 8:
 		// ln - one argument
         if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], (uint32_t)((mpz_sizeinbase(operands[0], 2)-1) * log(2.0)));
+		mpz_set_ui(operands[0], (uint32_t)((double)(mpz_sizeinbase(operands[0], 2)-1) * log(2.0)));
 		break;
 	case 9:
 		// size - one argument
@@ -2257,14 +2251,14 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	case 10:
 		// issquare
         if (check_args(funcnum, nargs)) break;
-		i = mpz_perfect_square_p(operands[0]);
+		i = (uint32_t)mpz_perfect_square_p(operands[0]);
 		mpz_set_ui(operands[0], i);
 		break;
 	case 11:
 		// isprime - one argument
         if (check_args(funcnum, nargs)) break;
 
-        i = compute_factor_type(fobj->factors, operands[0], fobj->VFLAG);
+        i = (uint32_t)compute_factor_type(fobj->factors, operands[0], fobj->VFLAG);
 
         if (i == 0)
         {
@@ -2315,13 +2309,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 		if (mpz_sgn(operands[1]) >= 0)
 			mpz_mul_2exp(operands[0], operands[0], mpz_get_ui(operands[1]));
 		else
-			mpz_tdiv_q_2exp(operands[0], operands[0], -1*mpz_get_si(operands[1]));
+			mpz_tdiv_q_2exp(operands[0], operands[0], (mp_bitcnt_t)(-1*mpz_get_si(operands[1])));
 
 		break;
 	case 17:
 		// ispow - one argument
         if (check_args(funcnum, nargs)) break;
-		i = mpz_perfect_power_p(operands[0]);
+		i = (uint32_t)mpz_perfect_power_p(operands[0]);
 		mpz_set_ui(operands[0], i);
 		break;
 	case 18:
@@ -2407,7 +2401,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // 2: n - reduction modulus
         // 3: r - bits in R
         mpz_set_ui(mp1, 1);
-        j = mpz_get_ui(operands[2]);
+        j = (uint32_t)mpz_get_ui(operands[2]);
         mpz_mul_2exp(mp1, mp1, j);
         mpz_invert(mp2, operands[1], mp1);
         mpz_sub(mp2, mp1, mp2);
@@ -2465,7 +2459,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 39:
         // popcnt
         if (check_args(funcnum, nargs)) break;
-        j = mpz_popcount(operands[0]);
+        j = (uint32_t)mpz_popcount(operands[0]);
         mpz_set_ui(operands[0], j);
         break;
     case 40:
@@ -2535,7 +2529,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 50:
         // hamdist
         if (check_args(funcnum, nargs)) break;
-        j = mpz_hamdist(operands[0], operands[1]);
+        j = (uint32_t)mpz_hamdist(operands[0], operands[1]);
         mpz_set_ui(operands[0], j);
         break;
     case 51:
@@ -2550,7 +2544,6 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         // customize for SNFS
         mpz_set(fobj->nfs_obj.gmp_n, fobj->input_N);
-        fobj->nfs_obj.snfs = 1;
 
         // let NFS know there is a full form
         mpz_set(fobj->nfs_obj.snfs_fullinput, operands[0]);
@@ -2568,8 +2561,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        // run SNFS
+        // run SNFS.  The snfs flag means "user asked for snfs" only for this
+        // call: clear it afterwards so later statements (e.g. factor() on the
+        // same line) are not forced into snfs.
+        fobj->nfs_obj.snfs = 1;
         nfs(fobj);
+        fobj->nfs_obj.snfs = 0;
 
         // return anything not factored
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
@@ -2595,7 +2592,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("Paranoid, huh?  This might take a minute\n");
         }
 
-        build_RSA(mpz_get_ui(operands[0]), operands[0], gmp_randstate);
+        build_RSA((int)mpz_get_ui(operands[0]), operands[0], gmp_randstate);
         break;
     case 53:
         // factor - one argument
@@ -2634,12 +2631,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 if (set_uvar(vname, fobj->factors->factors[i].factor, fobj))
                     new_uvar(vname, fobj->factors->factors[i].factor);
                 sprintf(vname, "_fpow%d", i);
-                mpz_set_ui(operands[4], fobj->factors->factors[i].count);
+                mpz_set_ui(operands[4], (unsigned long)fobj->factors->factors[i].count);
                 if (set_uvar(vname, operands[4], fobj))
                     new_uvar(vname, operands[4]);
             }
             sprintf(vname, "_fnum");
-            mpz_set_ui(operands[4], fobj->factors->num_factors);
+            mpz_set_ui(operands[4], (unsigned long)fobj->factors->num_factors);
             if (set_uvar(vname, operands[4], fobj))
                 new_uvar(vname, operands[4]);
         }
@@ -2670,7 +2667,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             // customize for this method
             mpz_set(fobj->pp1_obj.gmp_n, operands[0]);
-            fobj->pp1_obj.numbases = mpz_get_ui(operands[1]);
+            fobj->pp1_obj.numbases = (uint32_t)mpz_get_ui(operands[1]);
             williams_loop(fobj);
         }
         else if (nargs == 1)
@@ -2716,7 +2713,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[0]);
             fobj->div_obj.print = 0;
-            fobj->div_obj.limit = mpz_get_ui(operands[1]);
+            fobj->div_obj.limit = (uint32_t)mpz_get_u64(operands[1]);
             zTrial(fobj);
         }
         else if (nargs == 1)
@@ -2776,9 +2773,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             upper = mpz_get_64(operands[2]);
 
             {
-                soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-                soe_wrapper(sdata, lower, upper, 1, &n64, 0, 0);
-                soe_finalize(sdata);
+                soe_staticdata_t* sdata_in = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+                soe_wrapper(sdata_in, lower, upper, 1, &n64, 0, 0);
+                soe_finalize(sdata_in);
             }
             
 
@@ -2804,9 +2801,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         upper = mpz_get_64(operands[1]);
         
         {
-            uint64_t* PRIMES, NUM_P, P_MAX, P_MIN;
-            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            PRIMES = soe_wrapper(sdata, lower, upper, mpz_get_ui(operands[2]), &NUM_P, 
+            UNUSED_VAR uint64_t* PRIMES, NUM_P, P_MAX, P_MIN;
+            soe_staticdata_t* sdata_in = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+            PRIMES = soe_wrapper(sdata_in, lower, upper, (int)mpz_get_ui(operands[2]), &NUM_P, 
                 metadata->pfile, metadata->pscreen);
 
             if (PRIMES != NULL)
@@ -2814,7 +2811,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 P_MIN = PRIMES[0];
                 P_MAX = PRIMES[NUM_P - 1];
             }
-            soe_finalize(sdata);
+            soe_finalize(sdata_in);
             mpz_set_64(operands[0], NUM_P);
         }
 
@@ -2823,8 +2820,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // torture - two arguments
         if (check_args(funcnum, nargs)) break;
 
-        i = mpz_get_ui(operands[0]);
-        k = mpz_get_ui(operands[1]);
+        i = (uint32_t)mpz_get_ui(operands[0]);
+        k = (uint32_t)mpz_get_ui(operands[1]);
         for (j = 0; j < i; j++)
         {
             printf("***********RUN %d***********\n", j + 1);
@@ -2850,7 +2847,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             // customize for this method
             mpz_set(fobj->ecm_obj.gmp_n, operands[0]);
-            k = mpz_get_ui(operands[1]);
+            k = (uint32_t)mpz_get_ui(operands[1]);
             fobj->ecm_obj.num_curves = k;
             ecm_loop(fobj);
         }
@@ -2877,7 +2874,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // lucas lehmer test
         if (check_args(funcnum, nargs)) break;
 
-        if (llt(mpz_get_ui(operands[0]), fobj->VFLAG))
+        if (llt((uint32_t)mpz_get_ui(operands[0]), fobj->VFLAG))
         {
             if (fobj->VFLAG > 1)
                 gmp_printf("%Zd is prime!\n", operands[0]);
@@ -2895,7 +2892,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // siqsbench
         if (nargs == 1)
         {
-            uint32_t digit_limit = mpz_get_ui(operands[0]);
+            uint32_t digit_limit = (uint32_t)mpz_get_ui(operands[0]);
             mpz_set_ui(operands[0], 1);
             new_factorization(fobj, operands[0]);
 
@@ -2932,7 +2929,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         new_factorization(fobj, operands[0]);
 
         // customize for this method
-        k = mpz_get_ui(operands[1]);
+        k = (uint32_t)mpz_get_ui(operands[1]);
         factor(fobj);
 
         mpz_set_ui(mp2, 1);
@@ -2991,7 +2988,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             tiny_qs_params* params;
             params = init_tinysiqs();
 
-            numf = tinysiqs(params, operands[0], tmp1, tmp2, mp3, 0);
+            numf = (int)tinysiqs(params, operands[0], tmp1, tmp2, mp3, 0);
 
             if (numf > 0)
             {
@@ -3015,7 +3012,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_t t1, t2, t3, t4, t5;
             mpz_t u, v, x, z;
             mpz_t n, s, rsq, r;
-            int bits = mpz_get_ui(operands[2]);
+            int bits = (int)mpz_get_ui(operands[2]);
 
             mpz_init(t1);
             mpz_init(t2);
@@ -3034,8 +3031,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(n, operands[0]);
             mpz_set(s, operands[1]);
             mpz_set_ui(r, 1);
-            mpz_mul_2exp(r, r, bits);
-            mpz_mul_2exp(rsq, r, bits);
+            mpz_mul_2exp(r, r, (mp_bitcnt_t)bits);
+            mpz_mul_2exp(rsq, r, (mp_bitcnt_t)bits);
             mpz_tdiv_r(rsq, rsq, n);
 
             // v = 4*sigma
@@ -3130,7 +3127,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         {
             uint64_t num_found;
             uint64_t* primes;
-            uint64_t range;
+            UNUSED_VAR uint64_t range;
             mpz_t lowz, highz;
 
             primes = NULL;
@@ -3142,7 +3139,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             gettimeofday(&tstart, NULL);
 
-            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+            soe_staticdata_t* sdata_in = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
 
             if (mpz_cmp_ui(operands[2], 2000000000ull) > 0)
             {
@@ -3150,9 +3147,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 mpz_set_ui(operands[2], 2000000000ull);
             }
 
-            sdata->witnesses = 1;
-            sdata->analysis = metadata->soe_analysis;
-            primes = sieve_to_depth(sdata, lowz, highz,
+            sdata_in->witnesses = 1;
+            sdata_in->analysis = metadata->soe_analysis;
+            primes = sieve_to_depth(sdata_in, lowz, highz,
                 0, 1, mpz_get_ui(operands[2]),
                 &num_found, metadata->pfile, metadata->pscreen);
 
@@ -3166,8 +3163,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             mpz_clear(lowz);
             mpz_clear(highz);
-            mpz_set_ui(operands[0], num_found);
-            soe_finalize(sdata);
+            mpz_set_u64(operands[0], num_found);
+            soe_finalize(sdata_in);
         }
 
         break;
@@ -3192,7 +3189,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             // customize for this method
             mpz_set(fobj->div_obj.gmp_n, operands[0]);
             n64 = mpz_get_64(operands[1]);
-            j = mpz_get_ui(operands[2]);
+            j = (uint32_t)mpz_get_ui(operands[2]);
         }
         else
         {
@@ -3235,7 +3232,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // bpsw, 1 argument
         if (check_args(funcnum, nargs)) break;
 
-        i = mpz_bpsw_prp(operands[0]);
+        i = (uint32_t)mpz_bpsw_prp(operands[0]);
         // should we print out the input number again?
         if (i == PRP_COMPOSITE)
         {
@@ -3256,7 +3253,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // aprcl, one argument
         if (check_args(funcnum, nargs)) break;
 
-        i = mpz_aprtcle(operands[0], APRTCLE_VERBOSE1);
+        i = (uint32_t)mpz_aprtcle(operands[0], APRTCLE_VERBOSE1);
         // should we print out the input number again?
         if (i == APRTCLE_COMPOSITE)
         {
@@ -3293,13 +3290,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             FILE* out;
             int i;
-            mpz_t tmp1, tmp2, tmp3;
-            uint32_t num = mpz_get_ui(operands[0]);
-            uint32_t bits = mpz_get_ui(operands[1]);
+            mpz_t tmp1_in, tmp2_in, tmp3;
+            uint32_t num = (uint32_t)mpz_get_ui(operands[0]);
+            uint32_t bits = (uint32_t)mpz_get_ui(operands[1]);
             char name[80];
 
-            mpz_init(tmp1);
-            mpz_init(tmp2);
+            mpz_init(tmp1_in);
+            mpz_init(tmp2_in);
             mpz_init(tmp3);
 
             snprintf(name, 80, "semiprimes_%02dbit.dat", bits);
@@ -3314,7 +3311,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             {
                 mpz_urandomb(tmp3, gmp_randstate, bits / 2);
                 mpz_setbit(tmp3, bits / 2 - 1);
-                mpz_nextprime(tmp1, tmp3);
+                mpz_nextprime(tmp1_in, tmp3);
                 if (bits & 1)
                 {
                     mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
@@ -3325,16 +3322,16 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                     mpz_urandomb(tmp3, gmp_randstate, bits / 2);
                     mpz_setbit(tmp3, bits / 2 - 1);
                 }
-                mpz_nextprime(tmp2, tmp3);
-                mpz_mul(tmp3, tmp2, tmp1);
+                mpz_nextprime(tmp2_in, tmp3);
+                mpz_mul(tmp3, tmp2_in, tmp1_in);
                 gmp_fprintf(out, "%Zd,%Zd,%Zd\n",
-                    tmp3, tmp1, tmp2);
+                    tmp3, tmp1_in, tmp2_in);
             }
             fclose(out);
 
             printf("generated %d semiprimes in file semiprimes.dat\n", num);
-            mpz_clear(tmp1);
-            mpz_clear(tmp2);
+            mpz_clear(tmp1_in);
+            mpz_clear(tmp2_in);
             mpz_clear(tmp3);
         }
 
@@ -3343,7 +3340,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // fftmul
 
         fftmul(operands[4], operands[0], operands[1], 
-            mpz_get_ui(operands[2]), mpz_get_ui(operands[3]));
+            (int)mpz_get_ui(operands[2]), (int)mpz_get_ui(operands[3]));
 
         mpz_set(operands[0], operands[4]);
 
@@ -3544,7 +3541,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // run special tests.  previously had just dropped these
         // into driver.c 
         
-        test_dlp_composites(mpz_get_ui(operands[0]));
+        test_dlp_composites((int)mpz_get_ui(operands[0]));
 
 #if 0
         if (0)
@@ -3563,7 +3560,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_init(f2);
             tqs_params = init_tinyqs();
 
-            while (~feof(fid))
+            while (!feof(fid))
             {
                 if (fgets(buf, 1024, fid) == NULL)
                     break;
@@ -3653,7 +3650,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                     if (done)
                         continue;
 
-                    uint64_t q64 = mpz_get_ui(n);
+                    uint64_t q64 = mpz_get_u64(n);
                     while (q64 > 1)
                     {
                         mpz_set_ui(n, q64);
@@ -4042,8 +4039,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             uint64_t* primes, nump, pmax, pmin;
             soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            primes = soe_wrapper(sdata, (uint64_t)mpz_get_ui(tmp1), 
-                (uint64_t)mpz_get_ui(tmp1)+(uint64_t)range, 0, &nump, 0, 0);
+            primes = soe_wrapper(sdata, (uint64_t)mpz_get_u64(tmp1), 
+                (uint64_t)mpz_get_u64(tmp1)+(uint64_t)range, 0, &nump, 0, 0);
 
             for (i = 0; i < nump; i++)
             {
@@ -4121,8 +4118,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         {
-            int count = 0;
-            int m;
+            int count_in = 0;
+            UNUSED_VAR int m;
 
             mpz_set(mp2, operands[0]);
 
@@ -4140,9 +4137,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("\n***divisors***\n");
 
             mpz_set_ui(mp1, 1);
-            count = generateDivisors(0, 0, mp1, fobj->factors);
-            printf("found %d divisors\n", count);
-            mpz_set_ui(operands[0], count);
+            count_in = generateDivisors(0, 0, mp1, fobj->factors);
+            printf("found %d divisors\n", count_in);
+            mpz_set_ui(operands[0], (unsigned long)count_in);
         }
 
         break;
@@ -4155,7 +4152,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         uint64_t num_p;
         uint64_t* primes;
         uint64_t* twins;
-        uint64_t range;
+        UNUSED_VAR uint64_t range;
         mpz_t lowz, highz;
 
         primes = NULL;
@@ -4170,12 +4167,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // find an array of twin primes
         uint64_t limit = 10000000000ull;
 
-        soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-        sdata->witnesses = 1;
-        sdata->analysis = 2;
-        twins = sieve_to_depth(sdata, lowz, highz,
+        soe_staticdata_t* sdata_in = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+        sdata_in->witnesses = 1;
+        sdata_in->analysis = 2;
+        twins = sieve_to_depth(sdata_in, lowz, highz,
             0, 1, 1000000000, &num_t, 0, 0);
-        soe_finalize(sdata);
+        soe_finalize(sdata_in);
 
         gettimeofday(&tstop, NULL);
         t = ytools_difftime(&tstart, &tstop);
@@ -4184,9 +4181,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         gettimeofday(&tstart, NULL);
 
-        sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-        primes = soe_wrapper(sdata, 0, 10000000000ull, 0, &num_p, 0, 0);
-        soe_finalize(sdata);
+        sdata_in = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+        primes = soe_wrapper(sdata_in, 0, 10000000000ull, 0, &num_p, 0, 0);
+        soe_finalize(sdata_in);
 
         gettimeofday(&tstop, NULL);
         t = ytools_difftime(&tstart, &tstop);
@@ -4198,7 +4195,6 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         uint64_t n;
         uint32_t min_id = 0;
         uint32_t min_p_id = 1;
-        uint32_t last_min_id = 0;
         evens[0] = 0x7;     // 0, 2, 4
         for (i = 0; i < num_t; i++)
         {
@@ -4285,7 +4281,7 @@ int new_uvar(const char* name, mpz_t data)
     if (uvars.num == uvars.alloc)
     {
         //need more room for variables
-        uvars.vars = (uvar_t*)xrealloc(uvars.vars, uvars.num * 2 * sizeof(uvar_t));
+        uvars.vars = (uvar_t*)xrealloc(uvars.vars, (unsigned long)(uvars.num * 2) * sizeof(uvar_t));
         uvars.alloc *= 2;
         for (i = uvars.num; i < uvars.alloc; i++)
             mpz_init(uvars.vars[i].data);
@@ -4304,7 +4300,7 @@ int set_uvar(const char* name, mpz_t data, fact_obj_t* fobj)
     // else return 1
     int i;
 
-    i = mpz_get_ui(data);
+    i = (int)mpz_get_ui(data);
     // first look if it is a global constant
     if (strcmp(name, "IBASE") == 0)
     {
@@ -4334,34 +4330,34 @@ int set_uvar(const char* name, mpz_t data, fact_obj_t* fobj)
     }
     else if (strcmp(name, "verbose") == 0)
     {
-        fobj->VFLAG = mpz_get_ui(data);
+        fobj->VFLAG = (int)mpz_get_ui(data);
     }
     else if (strcmp(name, "B1pm1") == 0) {
-        fobj->pm1_obj.B1 = mpz_get_ui(data);
+        fobj->pm1_obj.B1 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B2pm1") == 0) {
-        fobj->pm1_obj.B2 = mpz_get_ui(data);
+        fobj->pm1_obj.B2 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B1pp1") == 0) {
-        fobj->pp1_obj.B1 = mpz_get_ui(data);
+        fobj->pp1_obj.B1 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B2pp1") == 0) {
-        fobj->pp1_obj.B2 = mpz_get_ui(data);
+        fobj->pp1_obj.B2 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B1ecm") == 0) {
-        fobj->ecm_obj.B1 = mpz_get_ui(data);
+        fobj->ecm_obj.B1 = mpz_get_u64(data);
     }
     else if (strcmp(name, "B2ecm") == 0) {
-        fobj->ecm_obj.B2 = mpz_get_ui(data);
+        fobj->ecm_obj.B2 = mpz_get_u64(data);
     }
     else if (strcmp(name, "rhomax") == 0) {
-        fobj->rho_obj.iterations = mpz_get_ui(data);
+        fobj->rho_obj.iterations = (uint32_t)mpz_get_ui(data);
     }
     else if (strcmp(name, "nprp") == 0) {
-        fobj->NUM_WITNESSES = mpz_get_ui(data);
+        fobj->NUM_WITNESSES = (int)mpz_get_ui(data);
     }
     else if (strcmp(name, "threads") == 0) {
-        fobj->THREADS = mpz_get_ui(data);
+        fobj->THREADS = (int)mpz_get_ui(data);
     }
     //else if (strcmp(name, "pfile") == 0) {
     //
@@ -4390,10 +4386,10 @@ int get_uvar(const char* name, mpz_t data)
 
     // first look if it is a global constant
     if (strcmp(name, "IBASE") == 0) {
-        mpz_set_ui(data, IBASE); return 0;
+        mpz_set_ui(data, (unsigned long)IBASE); return 0;
     }
     else if (strcmp(name, "OBASE") == 0) {
-        mpz_set_ui(data, OBASE); return 0;
+        mpz_set_ui(data, (unsigned long)OBASE); return 0;
     }
 
 
@@ -4453,7 +4449,7 @@ int new_strvar(const char* name, char* data)
     if (strvars.num == strvars.alloc)
     {
         // need more room for variables
-        strvars.vars = (strvar_t*)xrealloc(strvars.vars, strvars.num * 2 * sizeof(strvar_t));
+        strvars.vars = (strvar_t*)xrealloc(strvars.vars, (unsigned long)(strvars.num * 2) * sizeof(strvar_t));
         strvars.alloc *= 2;
         for (i = strvars.num; i < strvars.alloc; i++)
         {

@@ -45,6 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "avx_ecm.h"
+#include "arith.h"
 #include "../../arith/rns/rns_yao.h"
 #include <stdlib.h>
 #include <string.h>
@@ -104,7 +105,8 @@ void vec_set_raw_ui(vec_monty_t *mdata, vec_bignum_t *v, uint64_t x)
     {
         avxecm_rns_t *r = RNSB(mdata);
         mpz_t t;
-        mpz_init_set_ui(t, (unsigned long)x);
+        mpz_init(t);
+        mpz_set_64(t, x);
         rnsy_from_int(r->ctx, r->x1, t);
         for (j = 0; j < VECLEN_I; j++)
             rnsyb_vset_lane(r->ctx, v->data, j, r->x1);

@@ -10,7 +10,9 @@ SRC=$(realpath "$1"); OUT=$(realpath -m "$2")
 mkdir -p "$OUT"
 R=$(realpath ../..)
 G=$(realpath $R/../gmp-install/6.2.1)
-INC="-I$SRC -I$R/factor/gmp-ecm -I$R/ytools -I$R/include -I$G/include"
+INC="-I$SRC -I$R/factor/gmp-ecm -I$R/arith/limb -I$R/ytools -I$R/include -I$G/include"
+# the 64/128-bit kernels live in the limb library now (arith/limb)
+LIMB="$R/arith/limb/limb1.c $R/arith/limb/limb2.c"
 BASE="-O2 -march=native -DUSE_AVX2 -DUSE_BMI2"
 for isa in ifma f; do
     case $isa in
@@ -26,12 +28,12 @@ for isa in ifma f; do
     (cd $S/x/y &&
      gcc $BASE $D $INC -o $OUT/bench64_$isa tiny_bench.c -lm &&
      gcc $BASE $D $INC -o $OUT/bench8_$isa tiny_bench8.c -lm &&
-     gcc $BASE $D $INC -o $OUT/bench104_$isa tiny_bench104.c $SRC/monty.c $G/lib/libgmp.a -lm &&
-     gcc $BASE $D $INC -o $OUT/bench128_$isa tiny_bench128.c $SRC/monty.c $G/lib/libgmp.a -lm)
+     gcc $BASE $D $INC -o $OUT/bench104_$isa tiny_bench104.c $SRC/monty.c $LIMB $G/lib/libgmp.a -lm &&
+     gcc $BASE $D $INC -o $OUT/bench128_$isa tiny_bench128.c $SRC/monty.c $LIMB $G/lib/libgmp.a -lm)
     gcc $BASE $D $INC -c $SRC/microecm.c -o $OUT/m_$isa.o
     gcc $BASE $D $INC -c $SRC/tinyecm.c -o $OUT/t_$isa.o
     gcc $BASE $D $INC -c $SRC/monty.c -o $OUT/mo_$isa.o
     gcc $BASE $D $INC -o $OUT/e2e_$isa tiny_e2e.c $OUT/m_$isa.o $OUT/t_$isa.o $OUT/mo_$isa.o \
-        $G/lib/libgmp.a -lm
+        $LIMB $G/lib/libgmp.a -lm
 done
 echo built in $OUT

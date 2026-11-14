@@ -403,7 +403,7 @@ static void heap_insert(subinterval_t *h, uint32 size) {
 static void make_heap(subinterval_t *h, uint32 size) {
 
 	int32 i;
-	for (i = HEAP_PARENT(size); i >= 0; i--)
+	for (i = (int32)HEAP_PARENT(size); i >= 0; i--)
 		heapify(h, (uint32)i, size);
 }
 
