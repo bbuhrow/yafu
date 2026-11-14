@@ -88,7 +88,7 @@ int main(int argc, char** argv)
 
     gettimeofday(&start, NULL);
 
-    while (~feof(fid))
+    while (!feof(fid))
     {
         int64_t a;
         uint32_t b;
@@ -264,7 +264,7 @@ int main(int argc, char** argv)
                     qsort(rb.relations[i].lp_a, 3, sizeof(uint32_t), &qcomp_uint32);
 
                     //printf("searching file for relation %u, currently on line %u\n", i, n);
-                    while (~feof(fid))
+                    while (!feof(fid))
                     {
                         int64_t a;
                         uint32_t b;

@@ -32,13 +32,13 @@ code to the public domain.
 /
 /					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
 
-static int ecm_levels[NUM_ECM_LEVELS] = {
+UNUSED_VAR static int ecm_levels[NUM_ECM_LEVELS] = {
     15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65 };
 
-static uint64_t ecm_std_b1[NUM_ECM_LEVELS] = { 2000, 11000, 50000, 250000, 1000000,
+UNUSED_VAR static uint64_t ecm_std_b1[NUM_ECM_LEVELS] = { 2000, 11000, 50000, 250000, 1000000,
     3000000, 11000000, 43000000, 110000000, 260000000, 850000000, 2900000000 };
 
-static double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
+UNUSED_VAR static double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
     /*t15, 2000,	*/	{30,		12,			7,			5,			3,			2,			2,			2,			2,		1,		1},
     /*t20, 11000,	*/	{844,		74,			21,			8,			5,			3,			2,			2,			2,		2,		1},
     /*t25, 50000,	*/	{58129,		1539,		214,		50,			20,			11,			7,			5,			4,		3,		3},
@@ -54,7 +54,7 @@ static double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
 /* produced using ecm -v -v -v for the various B1 bounds using param 0 (default B2).
 / version 7.0.5
 /					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-static double ecm_data_param0[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
+UNUSED_VAR static double ecm_data_param0[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
     /*t15, 2000,	*/	{34,		7,			3,			2,			2,			1,			1,			1,			1,		1,		1},
     /*t20, 11000,	*/	{1282,		86,		    21,			8,			5,			3,			2,			2,			2,		2,		1},
     /*t25, 50000,	*/	{95034,	    1864,		214,		50,			20,			11,			7,			5,			4,		3,		3},
@@ -71,7 +71,7 @@ static double ecm_data_param0[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
 /* produced using ecm -v -v -v for the various B1 bounds using param 1 (default B2).
 / version 7.0.5
 /					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-static double ecm_data_param1[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
+UNUSED_VAR static double ecm_data_param1[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
     /*t15, 2000,	*/	{43,		8,			4,			2,			2,			1,			1,			1,			1,		1,		1},
     /*t20, 11000,	*/	{1743,		107,		24,			9,			5,			4,			3,			2,			2,		2,		1},
     /*t25, 50000,	*/	{134769,	2402,		261,		58,			22,			13,			8,			5,			4,		3,		3},
@@ -88,7 +88,7 @@ static double ecm_data_param1[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
 /* produced using ecm -v -v -v for the various B1 bounds using param 3 (default B2).
 / version 7.0.5
 /					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-static double ecm_data_param3[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
+UNUSED_VAR static double ecm_data_param3[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
     /*t15, 2000,	*/	{43,		8,			4,			2,			2,			1,			1,			1,			1,		1,		1},
     /*t20, 11000,	*/	{1743,		107,		24,			9,			5,			4,			3,			2,			2,		2,		1},
     /*t25, 50000,	*/	{134769,	2402,		261,		58,			22,			13,			8,			5,			4,		3,		3},
@@ -106,7 +106,7 @@ static double ecm_data_param3[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
 /  Thanks tbusby!
 /
 /                          2k       11k      50k      250k     1M       3M       11M      43M      110M     260M     850M     2900M */
-static double avx_ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
+UNUSED_VAR static double avx_ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {
     /*t15, 2000,    */    {32,      8,       4,       3,       2,       2,       2,       1,       1,       1,       1,       1     },
     /*t20, 11000,   */    {1203,    98,      26,      11,      7,       5,       4,       3,       3,       2,       2,       2     },
     /*t25, 50000,   */    {88933,   2174,    281,     74,      32,      20,      12,      8,       7,       5,       4,       4     },

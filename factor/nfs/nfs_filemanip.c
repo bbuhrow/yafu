@@ -552,7 +552,7 @@ uint32_t get_spq(char **lines, int last_line, fact_obj_t *fobj)
 		}
 
 		// grab rat side entry
-		for (i = (ptr - lines[line]) - 1; i >= 0; i--)
+		for (i = (int)((ptr - lines[line]) - 1); i >= 0; i--)
 			if (lines[line][i] == ',')
 				break;
 
@@ -564,7 +564,7 @@ uint32_t get_spq(char **lines, int last_line, fact_obj_t *fobj)
 			printf("found %x\n", rat[count]);
 
 		// grab alg side entry
-		for (i= strlen(lines[line]) - 1; i >= 0; i--)
+		for (i= (int)(strlen(lines[line]) - 1); i >= 0; i--)
 			if (lines[line][i] == ',')
 				break;
 
@@ -774,7 +774,8 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 			if (fobj->VFLAG > 0)
 				printf("best poly: \n%s",line);
 
-			strncpy(polyscore, line, 256);
+			strncpy(polyscore, line, 256 - 1);
+			polyscore[256 - 1] = '\0';
 
             if (fobj->LOGFLAG)
             {
@@ -885,9 +886,9 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job,
 	// now that we have the poly in a structure, 
 	// get norm estimates and print those too.
 	mpz_set(spoly.n, fobj->nfs_obj.gmp_n);
-	spoly.poly->alg.degree = max_deg;
+	spoly.poly->alg.degree = (uint32_t)max_deg;
 	spoly.poly->rat.degree = 1;
-	spoly.difficulty = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+	spoly.difficulty = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 	// reverse calculation to get equivalent snfs difficulty for approx_norms...
 	spoly.difficulty = (spoly.difficulty - 30) / 0.56;		
 	spoly.valid = 1;
@@ -1133,7 +1134,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (substr != NULL)
 		{
-			lpbr = strtoul(substr + 5, NULL, 10);
+			lpbr = (uint32_t)strtoul(substr + 5, NULL, 10);
 			logprint(flog, "lpbr: %u\n", lpbr);
 			continue;
 		}
@@ -1142,7 +1143,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (substr != NULL)
 		{
-			lpba = strtoul(substr + 5, NULL, 10);
+			lpba = (uint32_t)strtoul(substr + 5, NULL, 10);
 			logprint(flog, "lpba: %u\n", lpba);
 			continue;
 		}
@@ -1189,7 +1190,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
                     if ((coeff > job->poly->alg.degree) &&
                         (mpz_cmp_ui(job->poly->alg.coeff[coeff], 0) > 0))
                     {
-                        job->poly->alg.degree = coeff;
+                        job->poly->alg.degree = (uint32_t)coeff;
                     }
 					logprint(flog, "c%d: %s", coeff, line + 3);
                     break;
@@ -1243,7 +1244,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
         if (substr != NULL)
         {
             sscanf(line + 5, "%lf", &job->poly->skew);
-            skew = job->poly->skew;
+            skew = (float)job->poly->skew;
             if (fobj->VFLAG > 0)
             {
                 printf("nfs: found skew: %lf\n", job->poly->skew);
@@ -1254,7 +1255,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "size:");
 		if (substr != NULL)
 		{
-			uint32_t difficulty = size = strtoul(substr + 5, NULL, 10);
+			uint32_t difficulty = size = (uint32_t)strtoul(substr + 5, NULL, 10);
 
             if (is_snfs)
             {
@@ -1278,7 +1279,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "mfbr:");
 		if (substr != NULL)
 		{
-			mfbr = strtoul(substr + 5, NULL, 10);
+			mfbr = (uint32_t)strtoul(substr + 5, NULL, 10);
 			logprint(flog, "mfbr: %u\n", mfbr);
 			continue;
 		}
@@ -1286,7 +1287,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "mfba:");
 		if (substr != NULL)
 		{
-			mfba = strtoul(substr + 5, NULL, 10);
+			mfba = (uint32_t)strtoul(substr + 5, NULL, 10);
 			logprint(flog, "mfba: %u\n", mfba);
 			continue;
 		}
@@ -1294,7 +1295,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "rlim:");		
 		if (substr != NULL)
 		{
-			rlim = strtoul(substr + 5, NULL, 10);
+			rlim = (uint32_t)strtoul(substr + 5, NULL, 10);
 			logprint(flog, "rlim: %u\n", rlim);
 			continue;
 		}
@@ -1302,7 +1303,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "alim:");		
 		if (substr != NULL)
 		{
-			alim = strtoul(substr + 5, NULL, 10);
+			alim = (uint32_t)strtoul(substr + 5, NULL, 10);
 			logprint(flog, "alim: %u\n", alim);
 			continue;
 		}
@@ -1645,7 +1646,7 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params)
 				snfs_init(&spoly);
 				mpz_set(spoly.n, fobj->nfs_obj.gmp_n);
 				copy_mpz_polys_t(job->poly, spoly.poly);
-				spoly.difficulty = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+				spoly.difficulty = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 				// reverse calculation to get equivalent snfs difficulty for approx_norms...
 				spoly.difficulty = (spoly.difficulty - 30) / 0.56;
 				spoly.valid = 1;

@@ -158,8 +158,8 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 	 
 	   range 1: p < 256 or small prime bound, r = 32 */
 
-	recip_cutoff = ((uint64)1 << 32) / ( 
-				(uint64)num_sieve_blocks * sieve_block_size);	
+	recip_cutoff = (uint32)(((uint64)1 << 32) / ( 
+				(uint64)num_sieve_blocks * sieve_block_size));	
 	if (recip_cutoff < 256) {
 		logprintf(obj, "error1: factor base and/or sieve interval "
 				"is too large\n");
@@ -171,7 +171,7 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 		if (prime >= 1000 || prime >= recip_cutoff)
 			break;
 
-		fbptr->recip = ((uint64)1 << 32) / (uint64)prime;
+		fbptr->recip = (uint32)(((uint64)1 << 32) / (uint64)prime);
 		if (floor(MP_RADIX / (double)prime + 0.5) ==
 						(double)fbptr->recip) {
 			fbptr->rcorrect = 1;
@@ -192,7 +192,7 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 		if (prime >= 1000)
 			break;
 
-		fbptr->recip = ((uint64)1 << 40) / (uint64)prime;
+		fbptr->recip = (uint32)(((uint64)1 << 40) / (uint64)prime);
 		if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
 						(double)fbptr->recip) {
 			fbptr->rcorrect = 1;
@@ -213,7 +213,7 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 		if (prime >= sieve_block_size || prime >= recip_cutoff)
 			break;
 
-		fbptr->recip = ((uint64)1 << 32) / (uint64)prime;
+		fbptr->recip = (uint32)(((uint64)1 << 32) / (uint64)prime);
 		if (floor(MP_RADIX / (double)prime + 0.5) ==
 						(double)fbptr->recip) {
 			fbptr->rcorrect = 1;
@@ -232,8 +232,8 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 
 	   range 4: p < block size, r = 40 */
 
-	recip_cutoff = ((uint64)1 << 40) / (
-				(uint64)num_sieve_blocks * sieve_block_size);	
+	recip_cutoff = (uint32)(((uint64)1 << 40) / (
+				(uint64)num_sieve_blocks * sieve_block_size));	
 	if (recip_cutoff < sieve_block_size) {
 		logprintf(obj, "error: factor base and/or sieve interval "
 				"is too large\n");
@@ -245,7 +245,7 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 		if (prime >= sieve_block_size)
 			break;
 
-		fbptr->recip = ((uint64)1 << 40) / (uint64)prime;
+		fbptr->recip = (uint32)(((uint64)1 << 40) / (uint64)prime);
 		if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
 						(double)fbptr->recip) {
 			fbptr->rcorrect = 1;
@@ -460,7 +460,7 @@ void do_sieving(msieve_obj *obj, mp_t *n,
 
 	savefile_flush(&obj->savefile);
 	savefile_close(&obj->savefile);
-	obj->flags &= ~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
+	obj->flags &= (unsigned int)~MSIEVE_FLAG_SIEVING_IN_PROGRESS;
 
 	for (i = 0; i < conf.poly_block * num_sieve_blocks; i++) {
 		free(conf.buckets[i].list);
@@ -748,7 +748,7 @@ uint32 check_sieve_val(sieve_conf_t *conf, int32 sieve_offset,
 	uint32 tf_offset;
 	uint32 index;
 	uint32 sieve_block_size = conf->sieve_block_size;
-	int32 sieve_size = conf->num_sieve_blocks * sieve_block_size;
+	int32 sieve_size = (int32)(conf->num_sieve_blocks * sieve_block_size);
 
 	/* Compute the polynomial index. We work with three numbers:
 
@@ -763,7 +763,7 @@ uint32 check_sieve_val(sieve_conf_t *conf, int32 sieve_offset,
 	       used by the hashtable-based trial factoring code
 	*/
 
-	tf_offset = (sieve_offset + sieve_size / 2);
+	tf_offset = (uint32)(sieve_offset + sieve_size / 2);
 	index = tf_offset & (sieve_block_size - 1);
 
 	sign_of_offset = POSITIVE;

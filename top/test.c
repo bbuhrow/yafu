@@ -110,7 +110,7 @@ int test_tinysiqs(mpz_t* inputs, int num_inputs)
 	int correct = 0;
 	for (i = 0; i < num_inputs; i++)
 	{
-		int numf = tinysiqs(params, inputs[i], f1, f2, f3, 0);
+		int numf = (int)tinysiqs(params, inputs[i], f1, f2, f3, 0);
 
 		if (numf > 0)
 		{
@@ -232,7 +232,6 @@ void test_dlp_composites(int testnum)
 	int num_files;
 	char filenames[30][80];
 	fact_obj_t *fobj2;
-    uint64_t lcg_state = 0xdeadbeef0badcafe;
 	uint64_t lcg = 42;
 
 	fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
@@ -296,14 +295,14 @@ brent_marker:
 		//read in everything
 		while (!feof(in))
 		{
-			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+			if (fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i) != 3) break;
             mpz_set_u64(gmptmp, comp[i]);
-            j = mpz_sizeinbase(gmptmp, 2);
-			totBits += j;
+            j = (int)mpz_sizeinbase(gmptmp, 2);
+			totBits += (uint32_t)j;
 			if ((uint32_t)j > maxBits)
-				maxBits = j;
+				maxBits = (uint32_t)j;
 			if ((uint32_t)j < minBits && j != 0)
-				minBits = j;
+				minBits = (uint32_t)j;
 			i++;
 		}
 		num = i;
@@ -356,14 +355,14 @@ brent_marker:
         //read in everything
         while (!feof(in))
         {
-            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+            if (fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i) != 3) break;
             mpz_set_u64(gmptmp, comp[i]);
-            j = mpz_sizeinbase(gmptmp, 2);
-            totBits += j;
+            j = (int)mpz_sizeinbase(gmptmp, 2);
+            totBits += (uint32_t)j;
             if ((uint32_t)j > maxBits)
-                maxBits = j;
+                maxBits = (uint32_t)j;
             if ((uint32_t)j < minBits && j != 0)
-                minBits = j;
+                minBits = (uint32_t)j;
             i++;
         }
         num = i;
@@ -428,14 +427,14 @@ brent_marker:
 		//read in everything
 		while (!feof(in))
 		{
-			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+			if (fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i) != 3) break;
             mpz_set_u64(gmptmp, comp[i]);
-            j = mpz_sizeinbase(gmptmp, 2);
-			totBits += j;
+            j = (int)mpz_sizeinbase(gmptmp, 2);
+			totBits += (uint32_t)j;
 			if ((uint32_t)j > maxBits)
-				maxBits = j;
+				maxBits = (uint32_t)j;
 			if ((uint32_t)j < minBits && j != 0)
-				minBits = j;
+				minBits = (uint32_t)j;
 			i++;
 		}
 		num = i;
@@ -464,7 +463,7 @@ brent_marker:
 				int p;
 				for (p = 0; p < 3; p++)
 				{
-					f64 = spbrent(comp[i], p + 1, 8192);
+					f64 = spbrent(comp[i], (uint64_t)(p + 1), 8192);
 					if ((f64 == f1[i]) || (f64 == f2[i]))
 					{
 						correct++;
@@ -530,11 +529,11 @@ tinyqs_marker:
 			minBits = 99999;
 			maxBits = 0;
 
-			mpz_t* inputs = (mpz_t*)xmalloc(num * sizeof(mpz_t));
+			mpz_t* inputs = (mpz_t*)xmalloc((unsigned long)num * sizeof(mpz_t));
 
 			for (i = 0; i < num; i++)
 			{
-				fgets(buf, 1024, in);
+				if (fgets(buf, 1024, in) == NULL) break;
 #ifdef _MSC_VER
 				gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 					gmp_comp, &known1, &known2);
@@ -543,7 +542,7 @@ tinyqs_marker:
 					gmp_comp, &known1, &known2);
 #endif
 
-				bits = mpz_sizeinbase(gmp_comp, 2);
+				bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 				totBits += bits;
 				if (bits < minBits) minBits = bits;
 				if (bits > maxBits) maxBits = bits;
@@ -617,11 +616,11 @@ kmpqs_marker:
 			minBits = 99999;
 			maxBits = 0;
 
-			mpz_t* inputs = (mpz_t*)xmalloc(num * sizeof(mpz_t));
+			mpz_t* inputs = (mpz_t*)xmalloc((unsigned long)num * sizeof(mpz_t));
 
 			for (i = 0; i < num; i++)
 			{
-				fgets(buf, 1024, in);
+				if (fgets(buf, 1024, in) == NULL) break;
 #ifdef _MSC_VER
 				gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 					gmp_comp, &known1, &known2);
@@ -630,7 +629,7 @@ kmpqs_marker:
 					gmp_comp, &known1, &known2);
 #endif
 
-				bits = mpz_sizeinbase(gmp_comp, 2);
+				bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 				totBits += bits;
 				if (bits < minBits) minBits = bits;
 				if (bits > maxBits) maxBits = bits;
@@ -678,9 +677,9 @@ tinyecm_104_list_marker:
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
-		int curves;
-		int B1;
-		uint64_t known1, known2, known3;
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
+		UNUSED_VAR uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
@@ -696,12 +695,12 @@ tinyecm_104_list_marker:
 		maxBits = 0;
 		for (i = 0; i < num; i++)
 		{
-			fgets(buf, 1024, in);
+			if (fgets(buf, 1024, in) == NULL) break;
 
 			gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
 				gmp_comp, &known1, &known2);
 
-			bits = mpz_sizeinbase(gmp_comp, 2);
+			bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;
@@ -723,7 +722,7 @@ tinyecm_104_list_marker:
 		printf("maximum bits of input numbers: %u\n", maxBits);
 		printf("commencing getfactor_tecm_x8_list test\n");
 
-		getfactor_tecm_x8_list(comp, outf, maxBits / 2, num, &lcg);
+		getfactor_tecm_x8_list(comp, outf, (int)(maxBits / 2), (uint32_t)num, &lcg);
 
 		correct = 0;
 		for (j = 0; j < num; j++)
@@ -768,9 +767,9 @@ tinyecm_104_edw_list_marker:
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
-		int curves;
-		int B1;
-		uint64_t known1, known2, known3;
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
+		UNUSED_VAR uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
@@ -786,11 +785,11 @@ tinyecm_104_edw_list_marker:
 		maxBits = 0;
 		for (i = 0; i < num; i++)
 		{
-			fgets(buf, 1024, in);
+			if (fgets(buf, 1024, in) == NULL) break;
 			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 				gmp_comp, &known1, &known2);
 
-			bits = mpz_sizeinbase(gmp_comp, 2);
+			bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;
@@ -812,7 +811,7 @@ tinyecm_104_edw_list_marker:
 		printf("maximum bits of input numbers: %u\n", maxBits);
 		printf("commencing getfactor_tecm_x8_list test\n");
 
-		getfactor_tecm_edw_x8_list(comp, outf, maxBits / 2, num, &lcg);
+		getfactor_tecm_edw_x8_list(comp, outf, (int)(maxBits / 2), (uint32_t)num, &lcg);
 
 		correct = 0;
 		for (j = 0; j < num; j++)
@@ -857,8 +856,8 @@ tinyecm_128_marker:
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
-		int curves;
-		int B1;
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
 		uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
@@ -877,11 +876,11 @@ tinyecm_128_marker:
 		printf("commencing getfactor_tecm test\n");
 		for (i = 0; i < num; i++)
 		{
-			fgets(buf, 1024, in);
+			if (fgets(buf, 1024, in) == NULL) break;
 			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 				gmp_comp, &known1, &known2);
 
-			bits = mpz_sizeinbase(gmp_comp, 2);
+			bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;
@@ -935,8 +934,8 @@ tinyecm_128_edw_marker:
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
-		int curves;
-		int B1;
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
 		uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
@@ -955,11 +954,11 @@ tinyecm_128_edw_marker:
 		printf("commencing getfactor_tecm test\n");
 		for (i = 0; i < num; i++)
 		{
-			fgets(buf, 1024, in);
+			if (fgets(buf, 1024, in) == NULL) break;
 			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 				gmp_comp, &known1, &known2);
 
-			bits = mpz_sizeinbase(gmp_comp, 2);
+			bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;
@@ -1014,9 +1013,9 @@ uecm_52_list_marker:
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
-		int curves;
-		int B1;
-		uint64_t known1, known2, known3;
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
+		UNUSED_VAR uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
@@ -1032,7 +1031,7 @@ uecm_52_list_marker:
 		maxBits = 0;
 		for (i = 0; i < num; i++)
 		{
-			fgets(buf, 1024, in);
+			if (fgets(buf, 1024, in) == NULL) break;
 #ifdef _MSC_VER
 			gmp_sscanf(buf, "%Zd, %u, %u",
 				gmp_comp, &known1, &known2);
@@ -1041,15 +1040,15 @@ uecm_52_list_marker:
 				gmp_comp, &known1, &known2);
 #endif
 
-			bits = mpz_sizeinbase(gmp_comp, 2);
+			bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;
 
 			comp[i] = mpz_get_ui(gmp_comp) & 0xfffffffffffffull;
 
-			f1[i] = known1;
-			f2[i] = known2;
+			f1[i] = (uint32_t)known1;
+			f2[i] = (uint32_t)known2;
 		}
 
 		printf("average bits of input numbers: %1.2f\n", (double)totBits / (double)num);
@@ -1057,7 +1056,7 @@ uecm_52_list_marker:
 		printf("maximum bits of input numbers: %u\n", maxBits);
 		printf("commencing getfactor_uecm_x8_list test\n");
 
-		getfactor_uecm_x8_list(comp, outf, num, &lcg);
+		getfactor_uecm_x8_list(comp, outf, (uint32_t)num, &lcg);
 
 		correct = 0;
 		for (j = 0; j < num; j++)
@@ -1112,10 +1111,10 @@ microecm_marker:
 	for (nf = 0; nf < num_files; nf++)
 	{
 		mpz_t gmp_comp, gmp_f;
-		char buf[1024];
-		int curves;
-		int B1;
-		uint64_t known1, known2, known3;
+		UNUSED_VAR char buf[1024];
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
+		UNUSED_VAR uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
@@ -1134,15 +1133,15 @@ microecm_marker:
 		i = 0;
 		while (!feof(in))
 		{
-			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+			if (fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i) != 3) break;
 			mpz_set_u64(gmptmp, comp[i]);
 
-			j = mpz_sizeinbase(gmptmp, 2);
-			totBits += j;
+			j = (int)mpz_sizeinbase(gmptmp, 2);
+			totBits += (uint32_t)j;
 			if ((uint32_t)j > maxBits)
-				maxBits = j;
+				maxBits = (uint32_t)j;
 			if ((uint32_t)j < minBits && j != 0)
-				minBits = j;
+				minBits = (uint32_t)j;
 			i++;
 		}
 		printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
@@ -1203,10 +1202,10 @@ microecm_edw_marker:
 	for (nf = 0; nf < num_files; nf++)
 	{
 		mpz_t gmp_comp, gmp_f;
-		char buf[1024];
-		int curves;
-		int B1;
-		uint64_t known1, known2, known3;
+		UNUSED_VAR char buf[1024];
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
+		UNUSED_VAR uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
@@ -1225,15 +1224,15 @@ microecm_edw_marker:
 		i = 0;
 		while (!feof(in))
 		{
-			fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+			if (fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i) != 3) break;
 			mpz_set_u64(gmptmp, comp[i]);
 
-			j = mpz_sizeinbase(gmptmp, 2);
-			totBits += j;
+			j = (int)mpz_sizeinbase(gmptmp, 2);
+			totBits += (uint32_t)j;
 			if ((uint32_t)j > maxBits)
-				maxBits = j;
+				maxBits = (uint32_t)j;
 			if ((uint32_t)j < minBits && j != 0)
-				minBits = j;
+				minBits = (uint32_t)j;
 			i++;
 		}
 		printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
@@ -1277,9 +1276,9 @@ mpqs_marker:
 	{
 		mpz_t gmp_comp;
 		char buf[1024];
-		int curves;
-		int B1;
-		uint64_t known1, known2, known3;
+		UNUSED_VAR int curves;
+		UNUSED_VAR int B1;
+		UNUSED_VAR uint64_t known1, known2, known3;
 
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
@@ -1293,11 +1292,11 @@ mpqs_marker:
 		minBits = 99999;
 		maxBits = 0;
 
-		mpz_t* inputs = (mpz_t*)xmalloc(num * sizeof(mpz_t));
+		mpz_t* inputs = (mpz_t*)xmalloc((unsigned long)num * sizeof(mpz_t));
 
 		for (i = 0; i < num; i++)
 		{
-			fgets(buf, 1024, in);
+			if (fgets(buf, 1024, in) == NULL) break;
 #ifdef _MSC_VER
 			gmp_sscanf(buf, "%Zd, %"PRIu64", %"PRIu64"",
 				gmp_comp, &known1, &known2);
@@ -1306,7 +1305,7 @@ mpqs_marker:
 				gmp_comp, &known1, &known2);
 #endif
 
-			bits = mpz_sizeinbase(gmp_comp, 2);
+			bits = (uint32_t)mpz_sizeinbase(gmp_comp, 2);
 			totBits += bits;
 			if (bits < minBits) minBits = bits;
 			if (bits > maxBits) maxBits = bits;

@@ -71,6 +71,7 @@ extern const tk_module tk_module_ocl_ecm;   /* OpenCL batch-factoring kernels (m
 #endif
 #ifdef TK_WITH_LAYER3
 extern const tk_module tk_module_siqs;   /* Layer 3: links the full factoring archives */
+extern const tk_module tk_module_snfs;   /* Layer 3: snfs forms/polys + factor() method choice */
 #endif
 #endif
 
@@ -93,11 +94,14 @@ static const tk_module *const modules[] = {
 #endif
 #ifdef TK_WITH_LAYER3
     &tk_module_siqs,
+    &tk_module_snfs,
 #endif
 #endif
 };
 
-// stubs for functions exposed by common.lib
+// stubs for functions exposed by common.lib.  The Layer-3 build links the full
+// msieve archive, which provides the real ones.
+#ifndef TK_WITH_LAYER3
 uint32_t factor_gnfs(msieve_obj* obj, mp_t* input_n,
     factor_list_t* factor_list) {
 
@@ -109,6 +113,7 @@ uint32_t factor_mpqs(msieve_obj* obj, mp_t* n,
 
     return 0;
 }
+#endif
 
 int main(int argc, char **argv)
 {

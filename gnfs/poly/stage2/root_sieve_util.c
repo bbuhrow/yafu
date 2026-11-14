@@ -162,7 +162,7 @@ compute_lattices(hit_t *hitlist, uint32 num_lattice_primes,
 		crt_prod[i] *= mp_modinv_1((uint32)(crt_prod[i] % p), p);
 	}
 
-	i0 = i1 = i2 = i3 = i4 = i5 = i6 = i7 = i8 = i9 = i = 0;
+	i0 = i1 = i2 = i3 = i4 = i5 = i6 = i7 = i8 = i9 = (int32)(i = 0);
 	crt_score[num_lattice_primes] = 0;
 	crt_accum[num_lattice_primes][0] = 0;
 	crt_accum[num_lattice_primes][1] = 0;

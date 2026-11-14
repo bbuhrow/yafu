@@ -65,7 +65,7 @@ void zTrial(fact_obj_t *fobj)
 		(k < (uint32_t)fobj->num_p))
 	{
 		q = (uint64_t)fobj->primes[k];
-		r = mpz_tdiv_u64(fobj->div_obj.gmp_n, q);
+		r = (uint32_t)mpz_tdiv_u64(fobj->div_obj.gmp_n, q);
 		
 		if (r != 0)
 			k++;
@@ -86,7 +86,7 @@ void zTrial(fact_obj_t *fobj)
 #if BITS_PER_DIGIT == 64
 				printf("div: found prime factor = %" PRIu64 "\n",q);
 #else
-				printf("div: found prime factor = %u\n",q);
+				printf("div: found prime factor = %" PRIu64 "\n",q);
 #endif
 			if (fobj->autofact_obj.autofact_active && fobj->autofact_obj.stop_strict)
 			{
@@ -109,7 +109,7 @@ void zTrial(fact_obj_t *fobj)
 void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 {
 	// check if (b^1/i)^i == b for i = 2 to bitlen(b)
-	uint32_t bits = mpz_sizeinbase(b,2);
+	uint32_t bits = (uint32_t)mpz_sizeinbase(b,2);
 	uint32_t i;
 	FILE *flog = NULL;
 	mpz_t base, ans;
@@ -234,24 +234,24 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 
 		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
 
-        char* s = mpz_get_str(NULL, 10, fobj->div_obj.gmp_n);
+        char* s_in = mpz_get_str(NULL, 10, fobj->div_obj.gmp_n);
 		if (is_mpz_prp(fobj->div_obj.gmp_n, fobj->NUM_WITNESSES))
 		{			
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n), s);
+				gmp_base10(fobj->div_obj.gmp_n), s_in);
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n), s);
+				gmp_base10(fobj->div_obj.gmp_n), s_in);
 		}
 		else
 		{
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n), s);
+				gmp_base10(fobj->div_obj.gmp_n), s_in);
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n), s);
+				gmp_base10(fobj->div_obj.gmp_n), s_in);
 		}
-        free(s);
+        free(s_in);
 
 		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
 		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
@@ -305,7 +305,9 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
         setbit(sqr1, (i64* i64) % M1);
 
     for (i64 = 0; i64 < M2; ++i64)
+    {
         setbit(sqr2, (i64* i64) % M2);
+    }
 
 	// test it.  This will be good enough if |u*p-v*q| < 2 * N^(1/4), where
 	// mult = u*v
@@ -329,8 +331,8 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 	// for the modular sequence of b*b = a*a - n values 
 	// (where b2_2 = b2_1 * 2a + 1), mark locations where
 	// b^2 can be a square
-	m = mpz_mod_ui(tmp, a, M);
-	mmn = mpz_mod_ui(tmp, b2, M);
+	m = (uint32_t)mpz_mod_ui(tmp, a, M);
+	mmn = (uint32_t)mpz_mod_ui(tmp, b2, M);
 	for (i = 0; i < M; ++i)
 	{
 		if (getbit(sqr, mmn)) setbit(mod, i);
@@ -349,7 +351,7 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 	{
 		--i;
 		++s;
-		skip[i] = s;
+		skip[i] = (uint16_t)s;
 		if (s > d) d = s;
 		if (getbit(mod,i)) s = 0;
 	}
@@ -359,8 +361,8 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 	// (where b2_2 = b2_1 * 2a + 1), mark locations where the
 	// modular sequence can be a square mod M1.  These will
 	// generally differ from the sequence mod M.
-	m = mpz_mod_ui(tmp, a, M1);
-	mmn = mpz_mod_ui(tmp, b2, M1);
+	m = (uint32_t)mpz_mod_ui(tmp, a, M1);
+	mmn = (uint32_t)mpz_mod_ui(tmp, b2, M1);
 	for (i = 0; i < M1; ++i)
 	{
 		if (getbit(sqr1, mmn)) setbit(mod1, i);
@@ -372,8 +374,8 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 	// (where b2_2 = b2_1 * 2a + 1), mark locations where the
 	// modular sequence can be a square mod M2.  These will
 	// generally differ from the sequence mod M or M1.
-	m = mpz_mod_ui(tmp, a, M2);
-	mmn = mpz_mod_ui(tmp, b2, M2);
+	m = (uint32_t)mpz_mod_ui(tmp, a, M2);
+	mmn = (uint32_t)mpz_mod_ui(tmp, b2, M2);
 	for (i = 0; i < M2; ++i)
 	{
 		if (getbit(sqr2, mmn)) setbit(mod2, i);
@@ -464,18 +466,18 @@ found:
         }
 
 		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-        char* s = mpz_get_str(NULL, 10, tmp);
+        char* s_in = mpz_get_str(NULL, 10, tmp);
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{			
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(tmp), s);
+				gmp_base10(tmp), s_in);
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(tmp), s);
+				gmp_base10(tmp), s_in);
 		}
-        free(s);
+        free(s_in);
 
 
 
@@ -485,19 +487,19 @@ found:
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
 		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-        s = mpz_get_str(NULL, 10, tmp);
+        s_in = mpz_get_str(NULL, 10, tmp);
 
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{			
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(tmp), s);
+				gmp_base10(tmp), s_in);
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(tmp), s);
+				gmp_base10(tmp), s_in);
 		}
-        free(s);
+        free(s_in);
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 	}
@@ -531,7 +533,7 @@ int sptestsqr(uint64_t n)
 	if (t == 0 || t == 1 || t == 4 ||
 		t == 9 || t == 16 || t == 17 || t == 25)
 	{
-		t = (uint64_t)sqrt((int64_t)n);
+		t = (uint64_t)sqrt((double)((int64_t)n));
 		if (n == t * t)
 			return 1;
 	}
@@ -565,7 +567,7 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
 
     if (sptestsqr(n))
     {
-        return sqrt(n);
+        return (uint64_t)sqrt((double)n);
     }
 
     a = 0;
@@ -578,7 +580,7 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
     multN = n * mult;
 
     // compute ceil(sqrt(multN))
-    a = ceil(sqrt((int64_t)multN));
+    a = (uint64_t)ceil(sqrt((double)(int64_t)multN));
 
     // form b^2
     b2 = a * a;
@@ -623,11 +625,11 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
         {
             for (k = 0; k < smM; k++)
             {
-                m = j;
-                mmn = k;
+                m = (uint32_t)j;
+                mmn = (uint32_t)k;
                 for (i = 0; i < smM; ++i)
                 {
-                    if (getbit(smsqr, mmn)) setbit(smmod + j * smM * sz + k * sz, i);
+                    if (getbit(smsqr, mmn)) setbit(smmod + (unsigned int)j * (uint32_t)smM * (uint32_t)sz + k * sz, i);
                     mmn = (mmn + m + m + 1) % smM;
                     m = (m + 1) % smM;
                 }
@@ -642,11 +644,11 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
         {
             for (k = 0; k < smM1; k++)
             {
-                m = j;
-                mmn = k;
+                m = (uint32_t)j;
+                mmn = (uint32_t)k;
                 for (i = 0; i < smM1; ++i)
                 {
-                    if (getbit(smsqr1, mmn)) setbit(smmod1 + j * smM1 * sz1 + k * sz1, i);
+                    if (getbit(smsqr1, mmn)) setbit(smmod1 + (unsigned int)j * (uint32_t)smM1 * (uint32_t)sz1 + k * sz1, i);
                     mmn = (mmn + m + m + 1) % smM1;
                     m = (m + 1) % smM1;
                 }
@@ -661,11 +663,11 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
         {
             for (k = 0; k < smM2; k++)
             {
-                m = j;
-                mmn = k;
+                m = (uint32_t)j;
+                mmn = (uint32_t)k;
                 for (i = 0; i < smM2; ++i)
                 {
-                    if (getbit(smsqr2, mmn)) setbit(smmod2 + j * smM2 * sz2 + k * sz2, i);
+                    if (getbit(smsqr2, mmn)) setbit(smmod2 + (unsigned int)j * (uint32_t)smM2 * (uint32_t)sz2 + k * sz2, i);
                     mmn = (mmn + m + m + 1) % smM2;
                     m = (m + 1) % smM2;
                 }
@@ -680,13 +682,13 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
     count = 0;
     if (sptestsqr(b2))
     {
-        return sqrt(b2);
+        return (uint64_t)sqrt((double)b2);
     }
 
     // select locations where b^2 can be a square mod M from precomputed list
-    m = a % smM;
-    mmn = b2 % smM;
-    thismod = smmod + m * smM * sz + mmn * sz;
+    m = (uint32_t)(a % smM);
+    mmn = (uint32_t)(b2 % smM);
+    thismod = smmod + m * smM * (uint32_t)sz + mmn * (uint32_t)sz;
 
     // we only consider locations where the modular sequence mod M can
     // be square, so compute the distance to the next square location
@@ -699,20 +701,20 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
     {
         --i;
         ++s;
-        smskip[i] = s;
+        smskip[i] = (uint16_t)s;
         if (s > d) d = s;
         if (getbit(thismod, i)) s = 0;
     }
 
     // select locations where b^2 can be a square mod M1 from precomputed list
-    m = a % smM1;
-    mmn = b2 % smM1;
-    thismod1 = smmod1 + m * smM1 * sz1 + mmn * sz1;
+    m = (uint32_t)(a % smM1);
+    mmn = (uint32_t)(b2 % smM1);
+    thismod1 = smmod1 + m * smM1 * (uint32_t)sz1 + mmn * (uint32_t)sz1;
 
     // select locations where b^2 can be a square mod M2 from precomputed list
-    m = a % smM2;
-    mmn = b2 % smM2;
-    thismod2 = smmod2 + m * smM2 * sz2 + mmn * sz2;
+    m = (uint32_t)(a % smM2);
+    mmn = (uint32_t)(b2 % smM2);
+    thismod2 = smmod2 + m * smM2 * (uint32_t)sz2 + mmn * (uint32_t)sz2;
 
     // loop, checking for perfect squares
     //mpz_mul_2exp(a2, a, 1);
@@ -762,7 +764,7 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
 
     if ((b2 > 0) && sptestsqr(b2))
     {
-        tmp = (uint64_t)sqrt((int64_t)b2);
+        tmp = (uint64_t)sqrt((double)((int64_t)b2));
         tmp = a + tmp;
         tmp = spGCD(n, tmp);
         return tmp;

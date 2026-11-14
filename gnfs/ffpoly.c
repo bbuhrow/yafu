@@ -36,11 +36,11 @@ static void poly_cp(poly_t dest, poly_t src) {
 /*------------------------------------------------------------------*/
 static void poly_fix_degree(poly_t op) { 
 
-	int32 i = op->degree;
+	int32 i = (int32)op->degree;
 
 	while ((i > 0) && (op->coef[i] == 0))
 		i--;
-	op->degree = i;
+	op->degree = (uint32)i;
 }
 
 /*------------------------------------------------------------------*/
@@ -109,9 +109,9 @@ static void poly_mod(poly_t res, poly_t op, poly_t _mod, uint32 p) {
 		msw = tmp->coef[tmp->degree];
 
 		tmp->coef[tmp->degree] = 0;
-		for (i = mod->degree-1; i >= 0; i--) {
+		for (i = (int32)(mod->degree-1); i >= 0; i--) {
 			uint32 c = mp_modmul_1(msw, mod->coef[i], p);
-			uint32 j = tmp->degree - (mod->degree - i);
+			uint32 j = tmp->degree - (mod->degree - (uint32)i);
 			tmp->coef[j] = mp_modsub_1(tmp->coef[j], c, p);
 		}
 		poly_fix_degree(tmp);
@@ -690,7 +690,7 @@ static void poly_reduce_mod_p(poly_t res, mpz_poly_t *_f, uint32 p) {
 
 	res->degree = _f->degree;
 	for (i = 0; i <= _f->degree; i++)
-		res->coef[i] = mpz_fdiv_ui(_f->coeff[i], p);
+		res->coef[i] = (uint32)mpz_fdiv_ui(_f->coeff[i], p);
 	poly_fix_degree(res);
 }
 
@@ -847,7 +847,7 @@ static void poly_xpow_pd(poly_t res, uint32 p, uint32 d, poly_t f) {
 	x->coef[1] = 1;
 
 	poly_cp(res, x);
-	for (i = mpz_sizeinbase(exponent, 2) - 2; (int32)i >= 0; i--) {
+	for (i = (uint32)(mpz_sizeinbase(exponent, 2) - 2); (int32)i >= 0; i--) {
 		poly_modmul(res, res, res, f, p);
 		if (mpz_tstbit(exponent, i))
 			poly_modmul(res, res, x, f, p);
@@ -968,7 +968,7 @@ uint32 inv_sqrt_mod_q(mpz_poly_t *res, mpz_poly_t *s_in, mpz_poly_t *f_in,
 
 		poly_cp(y0, r0);
 		poly_cp(y1, r1);
-		for (j = mpz_sizeinbase(exponent, 2) - 2; j; j--) {
+		for (j = (uint32)(mpz_sizeinbase(exponent, 2) - 2); j; j--) {
 
 			poly_t p0, p1, p2;
 

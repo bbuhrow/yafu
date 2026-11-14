@@ -107,7 +107,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
     uint32_t ptadds;
 #endif
 
-static const uint32_t map[60] = {
+UNUSED_VAR static const uint32_t map[60] = {
     0, 1, 2, 0, 0, 0, 0, 3, 0, 0,
     0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
     0, 0, 0, 8, 0, 0, 0, 0, 0, 9,
@@ -118,7 +118,7 @@ static const uint32_t map[60] = {
 static const double INV_2_POW_32 = 1.0 / (double)((uint64_t)(1) << 32);
 
 #define NUMP 2767
-static const int primes[NUMP] = {
+UNUSED_VAR static const int primes[NUMP] = {
 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31,
 37, 41, 43, 47, 53, 59, 61, 67, 71, 73,
 79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
@@ -346,7 +346,7 @@ static const int primes[NUMP] = {
 24917, 24919, 24923, 24943, 24953, 24967, 24971, 24977, 24979, 24989, 25013, 25031, 25033, 25037, 25057};
 
 
-static uint32_t upm1_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t *ploc_lcg)
+UNUSED_FUNC static uint32_t upm1_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t *ploc_lcg)
 {
     *ploc_lcg = 6364136223846793005ULL * (*ploc_lcg) + 1442695040888963407ULL;
     return lower + (uint32_t)(
@@ -1313,7 +1313,7 @@ static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, u
     uint64_t d[32], six, five, pw, pgiant;
     int i, j;
     uint64_t acc;
-    uint32_t b2 = 25 * b1;
+    UNUSED_VAR uint32_t b2 = 25 * b1;
 
     d[1] = P;
     d[2] = upm1_sqrredc(P, n, rho);
@@ -1444,7 +1444,7 @@ static uint64_t upm1_stage2_pair(uint64_t P, uint64_t rho, uint64_t n, uint32_t 
     uint64_t d[32], six, x12, xmid, x24, x25, x36, x60, x72, five, pw, pgiant;
     int i, j;
     uint64_t acc;
-    uint32_t b2 = 25 * b1;
+    UNUSED_VAR uint32_t b2 = 25 * b1;
 
     // we accumulate f(vw) - f(u) where f(n) = n^2, so that
     // we can pair together primes vw+/-u
@@ -1730,7 +1730,7 @@ static uint64_t upm1_dispatch(uint64_t n, int targetBits, uint32_t b1)
         if (targetBits < 50) B1 = 100;
         else B1 = 333;
 
-        return micropm1(n, B1, 25 * B1);
+        return micropm1(n, (uint32_t)B1, (uint32_t)(25 * B1));
     }
 }
 

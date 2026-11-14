@@ -326,8 +326,8 @@ void filter_postproc_relsets(msieve_obj *obj, merge_t *merge) {
 		if (curr_num_relations == 1)
 			continue;
 
-		r->num_large_ideals = curr_num_relations;
-		r->num_active_ideals = curr_num_relations;
+		r->num_large_ideals = (uint16)curr_num_relations;
+		r->num_active_ideals = (uint16)curr_num_relations;
 		r->data = (uint32 *)xrealloc(r->data, 2 * curr_num_relations * 
 						sizeof(uint32));
 

@@ -43,9 +43,9 @@ int gmp_base10(mpz_t x)
     int g;		//guess: either correct or +1
 
     mpz_init(t);
-    g = mpz_sizeinbase(x, 10);
+    g = (int)mpz_sizeinbase(x, 10);
     mpz_set_ui(t, 10);
-    mpz_pow_ui(t, t, g - 1);
+    mpz_pow_ui(t, t, (unsigned long)(g - 1));
     g = g - (mpz_cmp(t, x) > 0 ? 1 : 0);
     mpz_clear(t);
     return g;
@@ -54,7 +54,7 @@ int gmp_base10(mpz_t x)
 // borrowed from jasonp... 
 double zlog(mpz_t x) {
 
-    uint32_t i = mpz_size(x);
+    uint32_t i = (uint32_t)mpz_size(x);
 
     switch (i) {
 
@@ -65,14 +65,14 @@ double zlog(mpz_t x) {
     case 2:
 
         return log((double)(mpz_getlimbn(x, 0)) +
-            18446744073709551616.0 * mpz_getlimbn(x, 1));
+            18446744073709551616.0 * (double)mpz_getlimbn(x, 1));
 
     default:
 
         return 64 * (i - 3) * LN2 +
             log((double)(mpz_getlimbn(x, i - 3)) + 18446744073709551616.0 * (
             ((double)mpz_getlimbn(x, i - 2) + 18446744073709551616.0 *
-                mpz_getlimbn(x, i - 1))));
+                (double)mpz_getlimbn(x, i - 1))));
 
     }
 }
@@ -149,7 +149,7 @@ int llt(uint32_t exp, int VFLAG)
             {
                 for (j = 0; j < nchars; j++)
                     printf("\b");
-                nchars = printf("llt iteration %d", i);
+                nchars = (uint32_t)printf("llt iteration %d", i);
                 fflush(stdout);
             }
         }
@@ -205,7 +205,7 @@ void gordon(int bits, mpz_t p, gmp_randstate_t gmp_randstate)
     be about half that of p, while the bitlength of t will be slightly less than that of r.
     */
 
-    int i, j, s_len, n_words;
+    int i, j, s_len;
     mpz_t s, t, r, tmp, tmp2, p0;
 
     mpz_init(s);
@@ -220,12 +220,12 @@ void gordon(int bits, mpz_t p, gmp_randstate_t gmp_randstate)
     //1. s and t should be about half the bitlength of p
     //random s of bitlength bits/2
     s_len = bits / 2 - 4;
-    mpz_urandomb(s, gmp_randstate, s_len);
-    mpz_setbit(s, s_len);
+    mpz_urandomb(s, gmp_randstate, (mp_bitcnt_t)s_len);
+    mpz_setbit(s, (mp_bitcnt_t)s_len);
 
     //random t of bitlength bits/2
-    mpz_urandomb(t, gmp_randstate, s_len);
-    mpz_setbit(t, s_len);
+    mpz_urandomb(t, gmp_randstate, (mp_bitcnt_t)s_len);
+    mpz_setbit(t, (mp_bitcnt_t)s_len);
 
     //2. Select an integer i0. Find the first prime in the sequence 2i(t) + 1, for i = i0; i0 +
     //1; i0 + 2; : : : (see Note 4.54). Denote this prime by r = 2i(t)+ 1.
@@ -236,7 +236,7 @@ void gordon(int bits, mpz_t p, gmp_randstate_t gmp_randstate)
     {
         i++;
         mpz_mul_2exp(r, t, 1);
-        mpz_mul_ui(r, r, i);
+        mpz_mul_ui(r, r, (unsigned long)i);
         mpz_add_ui(r, r, 1);
     }
 
@@ -272,7 +272,7 @@ void gordon(int bits, mpz_t p, gmp_randstate_t gmp_randstate)
         //zAdd(&p0, &tmp, p);
         mpz_mul(tmp, r, s);
         mpz_mul_2exp(tmp, tmp, 1);
-        mpz_mul_ui(tmp, tmp, j);
+        mpz_mul_ui(tmp, tmp, (unsigned long)j);
         mpz_add(p, p0, tmp);
     }
 
@@ -288,7 +288,6 @@ void gordon(int bits, mpz_t p, gmp_randstate_t gmp_randstate)
 void build_RSA(int bits, mpz_t in, gmp_randstate_t gmp_randstate)
 {
     int i;
-    int words, subwords;
     mpz_t p, q;
 
     mpz_init(p);

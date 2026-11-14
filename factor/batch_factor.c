@@ -101,32 +101,31 @@ uint32_t getNode(bintree_t* tree, uint32_t low, uint32_t high)
         else
         {
             if (node->left_id == -1)
-                return -1;
+                return (uint32_t)-1;
 
             if (high <= tree->nodes[node->left_id].high)
             {
                 //printf("taking left path\n");
-                nodeid = node->left_id;
+                nodeid = (uint32_t)node->left_id;
                 node = &tree->nodes[node->left_id];
             }
             else
             {
                 if (node->right_id == -1)
-                    return -1;
+                    return (uint32_t)-1;
 
                 //printf("taking right path\n");
-                nodeid = node->right_id;
+                nodeid = (uint32_t)node->right_id;
                 node = &tree->nodes[node->right_id];
             }
         }
     }
 
-    return -1;
+    return (uint32_t)-1;
 }
 
 void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz_t prod)
 {
-    uint32_t nodeid = 0;
     bintree_element_t* node;
 
     if (tree->size == tree->alloc)
@@ -216,9 +215,9 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
     tree->nodes[tree->size].right_id = -1;
     tree->nodes[tree->size].complete = 0;
     if (side == 0)
-        tree->nodes[id].left_id = tree->size;
+        tree->nodes[id].left_id = (int)tree->size;
     else
-        tree->nodes[id].right_id = tree->size;
+        tree->nodes[id].right_id = (int)tree->size;
 
     //printf("added new node %d and assigned to node %d side %d\n", tree->size, id, side);
     tree->size++;
@@ -273,7 +272,7 @@ void relation_to_gmp(relation_batch_t* rb,
        NFS relation, then convert to an mpz_t */
 
     int j;
-    uint32_t i, nwords;
+    uint32_t nwords;
     cofactor_t* c = rb->relations + index;
     uint32_t* f = rb->factors + c->factor_list_word +
         c->num_factors_r + c->num_factors_a;
@@ -336,7 +335,7 @@ void relation_to_gmp(relation_batch_t* rb,
         // the only case because there is no a-side, so the
         // siqs code has been working correctly.
         mpz_set_ui(num3, f[nwords - 1]);
-        for (j = nwords - 2; j >= 0; j--)
+        for (j = (int)(nwords - 2); j >= 0; j--)
         {
             mpz_mul_2exp(num3, num3, 32);
             mpz_add_ui(num3, num3, f[j]);
@@ -451,7 +450,7 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 
                 // either there isn't a node or the product isn't complete so
                 // create a new node and recurse on the multiply.
-                addNode(tree, pnode, 0, first, mid, NULL);
+                addNode(tree, (int)pnode, 0, first, mid, NULL);
                 multiply_relations(tree, first, mid, rb, prod);
             }
 
@@ -469,7 +468,7 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
                 //printf("forming half-product (prod(%u:%u)\n", mid + 1, last);
                 // either there isn't a node or the product isn't complete so
                 // create a new node and recurse on the multiply.
-                addNode(tree, pnode, 1, mid + 1, last, NULL);
+                addNode(tree, (int)pnode, 1, mid + 1, last, NULL);
                 multiply_relations(tree, mid + 1, last, rb, half_prod);
             }
         }
@@ -551,7 +550,7 @@ uint64_t pow2m(uint64_t b, uint64_t n)
 {
     // compute 2^b mod n
     uint64_t acc, x, rho, am, g[8], mask;
-    int i;
+    UNUSED_VAR int i;
     int j;
     int bstr;
 
@@ -585,7 +584,7 @@ uint64_t pow2m(uint64_t b, uint64_t n)
                 break;
             }
         }
-        bits = 64 - count;
+        bits = (int)(64 - count);
     }
 
     x = (((n + 2) & 4) << 1) + n;   // here x*a==1 mod 2**4
@@ -613,14 +612,14 @@ uint64_t pow2m(uint64_t b, uint64_t n)
     // before we put the accumulator into monty rep.
     // iter1: sqr 1 and mul
     acc = 1;
-    bstr = (b & mask) >> (bits - 3);
+    bstr = (int)((b & mask) >> (bits - 3));
     if (bstr > 0)
         acc = acc * (1ULL << bstr);
     mask >>= 3;
     bits -= 3;
     acc *= acc;
     acc *= acc;
-    bstr = (b & mask) >> (bits - 2);
+    bstr = (int)((b & mask) >> (bits - 2));
     if (bstr > 0)
         acc = acc * (1ULL << bstr);
     mask >>= 2;
@@ -631,7 +630,7 @@ uint64_t pow2m(uint64_t b, uint64_t n)
 
     while (bits > 3)
     {
-        bstr = (b & mask) >> (bits - 3);
+        bstr = (int)((b & mask) >> (bits - 3));
         acc = sqrredc(acc, n, rho);
         acc = sqrredc(acc, n, rho);
         acc = sqrredc(acc, n, rho);
@@ -641,7 +640,7 @@ uint64_t pow2m(uint64_t b, uint64_t n)
         bits -= 3;
     }
 
-    bstr = (b & mask);
+    bstr = (int)(b & mask);
     for (j = 0; mask > 0; j++)
     {
         acc = sqrredc(acc, n, rho);
@@ -860,7 +859,7 @@ process_r:
                 f64 = getfactor_uecm(mpz_get_u64(f1r), 0, lcg_state);
                 rb->num_uecm[0]++;
 
-                printf("failed to find factor of %d-bit f1r %"PRIu64", this should be sent to mpqs\n",
+                printf("failed to find factor of %zu-bit f1r %"PRIu64", this should be sent to mpqs\n",
                     mpz_sizeinbase(f1r, 2), mpz_get_u64(f1r));
                 rb->num_abort[5]++;
                 return;
@@ -904,7 +903,7 @@ process_r:
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            if (f64 == 1) printf("failed to find factor of %d-bit f2r %"PRIu64"\n",
+            if (f64 == 1) printf("failed to find factor of %zu-bit f2r %"PRIu64"\n",
                 mpz_sizeinbase(f2r, 2), mpz_get_u64(f2r));
             rb->num_abort[6]++;
             return;
@@ -1029,9 +1028,9 @@ process_r:
             if (mpz_sizeinbase(_large, 2) > 64)
             {
 #ifdef USE_AVX512F
-                success = getfactor_tecm_x8(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+                success = getfactor_tecm_x8(_large, _small, (int)(mpz_sizeinbase(_large, 2) / 3), lcg_state);
 #else
-                success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+                success = getfactor_tecm(_large, _small, (int)(mpz_sizeinbase(_large, 2) / 3), lcg_state);
 #endif
                 rb->num_tecm++;
 
@@ -1203,9 +1202,9 @@ process_r:
         }
 
 #ifdef USE_AVX512F
-        int success = getfactor_tecm_x8(f2r, _small, mpz_sizeinbase(f2r, 2) / 3, lcg_state);
+        int success = getfactor_tecm_x8(f2r, _small, (int)(mpz_sizeinbase(f2r, 2) / 3), lcg_state);
 #else
-        int success = getfactor_tecm(f2r, _small, mpz_sizeinbase(f2r, 2) / 3, lcg_state);
+        int success = getfactor_tecm(f2r, _small, (int)(mpz_sizeinbase(f2r, 2) / 3), lcg_state);
 #endif
         rb->num_tecm2++;
 
@@ -1592,7 +1591,7 @@ process_a:
 
                 if (f64 == 1)
                 {
-                    printf("failed to find factor of %d-bit f1a %"PRIu64", this should be sent to mpqs\n",
+                    printf("failed to find factor of %zu-bit f1a %"PRIu64", this should be sent to mpqs\n",
                         mpz_sizeinbase(f1a, 2), mpz_get_u64(f1a));
                     rb->num_abort_a[5]++;
                     return;
@@ -1664,11 +1663,11 @@ process_a:
 #ifdef USE_AVX512F
         int success;
         if (mpz_sizeinbase(f1a, 2) <= 104)
-            success = getfactor_tecm_x8(f1a, _small, mpz_sizeinbase(f1a, 2) / 3, lcg_state);
+            success = getfactor_tecm_x8(f1a, _small, (int)(mpz_sizeinbase(f1a, 2) / 3), lcg_state);
         else
-            success = getfactor_tecm(f1a, _small, mpz_sizeinbase(f1a, 2) / 3, lcg_state);
+            success = getfactor_tecm(f1a, _small, (int)(mpz_sizeinbase(f1a, 2) / 3), lcg_state);
 #else
-        int success = getfactor_tecm(f1a, _small, mpz_sizeinbase(f1a, 2) / 3, lcg_state);
+        int success = getfactor_tecm(f1a, _small, (int)(mpz_sizeinbase(f1a, 2) / 3), lcg_state);
 #endif
         rb->num_tecm_a++;
 
@@ -1767,9 +1766,9 @@ process_a:
             if (mpz_sizeinbase(_large, 2) > 64)
             {
 #ifdef USE_AVX512F
-                success = getfactor_tecm_x8(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+                success = getfactor_tecm_x8(_large, _small, (int)(mpz_sizeinbase(_large, 2) / 3), lcg_state);
 #else
-                success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+                success = getfactor_tecm(_large, _small, (int)(mpz_sizeinbase(_large, 2) / 3), lcg_state);
 #endif
                 rb->num_tecm_a++;
 
@@ -1953,9 +1952,9 @@ process_a:
 
         // run the smallest amount of ecm we can on this
 #ifdef USE_AVX512F
-        int success = getfactor_tecm_x8(f2a, _small, mpz_sizeinbase(f2a, 2) / 3, lcg_state);
+        int success = getfactor_tecm_x8(f2a, _small, (int)(mpz_sizeinbase(f2a, 2) / 3), lcg_state);
 #else
-        int success = getfactor_tecm(f2a, _small, mpz_sizeinbase(f2a, 2) / 3, lcg_state);
+        int success = getfactor_tecm(f2a, _small, (int)(mpz_sizeinbase(f2a, 2) / 3), lcg_state);
 #endif
         rb->num_tecm2_a++;
 
@@ -2041,9 +2040,9 @@ process_a:
             if ((mpz_sizeinbase(_large, 2) > 64) && ((mpz_probab_prime_p(_large, 1) == 0)))
             {
 #ifdef USE_AVX512F
-                success = getfactor_tecm_x8(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+                success = getfactor_tecm_x8(_large, _small, (int)(mpz_sizeinbase(_large, 2) / 3), lcg_state);
 #else
-                success = getfactor_tecm(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
+                success = getfactor_tecm(_large, _small, (int)(mpz_sizeinbase(_large, 2) / 3), lcg_state);
 #endif
                 rb->num_tecm_a++;
 
@@ -2281,7 +2280,7 @@ done:
         c->lp_a[i] = lp_a[i];
     }
 
-    c->success = num_r + num_a;
+    c->success = (uint8_t)(num_r + num_a);
 
     return;
 }
@@ -2357,10 +2356,10 @@ void relation_batch_init(FILE* logfile, relation_batch_t* rb,
         uint64_t* primes = soe_wrapper(sdata, min_prime, max_prime, 0, &num_primes, 0, 0);
 
         // compute the product of primes
-        printf("multiplying %"PRIu64" primes from %u to %"PRIu64"\n",
+        printf("multiplying %"PRIu64" primes from %" PRIu64 " to %"PRIu64"\n",
             num_primes, primes[0], primes[num_primes - 1]);
 
-        multiply_primes(0, num_primes, primes, rb->prime_product);
+        multiply_primes(0, (uint32_t)num_primes, primes, rb->prime_product);
 
         free(primes);
         soe_finalize(sdata);
@@ -2491,8 +2490,8 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
     c->a = a;
     c->b = b;
     c->signed_offset = offset;
-    c->num_factors_r = num_factors_r;
-    c->num_factors_a = num_factors_a;
+    c->num_factors_r = (uint8_t)num_factors_r;
+    c->num_factors_a = (uint8_t)num_factors_a;
     c->lp_r_num_words = 0;
     c->lp_a_num_words = 0;
     c->factor_list_word = rb->num_factors;
@@ -2534,7 +2533,7 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
 
         f += i;
         rb->num_factors += i;
-        c->lp_r_num_words = i;
+        c->lp_r_num_words = (uint8_t)i;
     }
     else if ((mpz_cmp_ui(unfactored_r_in, 1) > 0) &&
         (mpz_sizeinbase(unfactored_r_in, 2) < 64))
@@ -2553,7 +2552,7 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
 
         f += i;
         rb->num_factors += i;
-        c->lp_a_num_words = i;
+        c->lp_a_num_words = (uint8_t)i;
     }
     else if ((mpz_cmp_ui(unfactored_a_in, 1) > 0) &&
         (mpz_sizeinbase(unfactored_a_in, 2) < 64))
@@ -2595,10 +2594,10 @@ uint32_t relation_batch_run(relation_batch_t* rb, mpz_t prime_prod, uint64_t* lc
 
         if (0)
         {
-            printf("memory use for relations array is %u MB\n", rb->num_relations_alloc *
+            printf("memory use for relations array is %zu MB\n", rb->num_relations_alloc *
                 sizeof(cofactor_t) / (1 << 20));
 
-            printf("memory use for factors array is %u MB\n", rb->num_factors_alloc *
+            printf("memory use for factors array is %zu MB\n", rb->num_factors_alloc *
                 sizeof(uint32_t) / (1 << 20));
         }
 
@@ -2611,7 +2610,7 @@ uint32_t relation_batch_run(relation_batch_t* rb, mpz_t prime_prod, uint64_t* lc
         uint32_t bytes = 0;
         for (i = 0; i < tree.size; i++)
         {
-            bytes += mpz_sizeinbase(tree.nodes[i].prod, 2) / 8;
+            bytes += (uint32_t)(mpz_sizeinbase(tree.nodes[i].prod, 2) / 8);
             mpz_clear(tree.nodes[i].prod);
         }
 

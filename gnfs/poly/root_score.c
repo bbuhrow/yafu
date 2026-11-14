@@ -50,7 +50,7 @@ static double get_root_freq(mpz_poly_t *poly,
 
 	degree = poly->degree;
 	for (i = 0; i <= degree; i++)
-		coeffs[i] = mpz_fdiv_ui(poly->coeff[i], power);
+		coeffs[i] = (uint32)mpz_fdiv_ui(poly->coeff[i], power);
 	while (degree > 0 && coeffs[degree] == 0)
 		degree--;
 

@@ -142,6 +142,9 @@ typedef struct
 	// target job type
 	enum job_type_e target_job_type;
 
+	// equivalent gnfs size of the snfs job, when target_job_type == job_snfs
+	int snfs_equiv_size;
+
 } factor_work_t;
 
 enum factorization_state {
@@ -198,7 +201,6 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	//compute how long we think siqs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
-	double freq = fobj->MEAS_CPU_FREQUENCY;
 	int digits = gmp_base10(b);
 
 	cpu = ytools_get_cpu_type();
@@ -246,7 +248,6 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	// compute how long we think gnfs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
-	double freq = fobj->MEAS_CPU_FREQUENCY;
 	int digits = gmp_base10(b);
 
 	cpu = ytools_get_cpu_type();
@@ -287,7 +288,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	return estimate;
 }
 
-enum job_type_e determine_job_type(fact_obj_t* fobj)
+enum job_type_e determine_job_type(fact_obj_t* fobj, int* snfs_equiv_size)
 {
 	// intended to be called during autofactorization jobs.
 	// for the given input and user options, determine the appropriate
@@ -296,6 +297,9 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 	int numdigits = gmp_base10(fobj->N);
 
 	snfs_t* poly;
+
+	// equivalent gnfs size of the snfs job, if snfs is chosen (else 0)
+	*snfs_equiv_size = 0;
 
 #ifdef USE_NFS
 
@@ -360,7 +364,6 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 		nfs_job_t job;
 		int snfs_status = 0;
 		int gnfs_size;
-		int i;
 
 		// we found a SNFS form, which is now stored in poly->n.  Remember this
 		// so we don't have to keep finding it.
@@ -379,7 +382,7 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 		mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
 
 		// the gnfs size of the current input
-		gnfs_size = mpz_sizeinbase(fobj->N, 10);
+		gnfs_size = (int)mpz_sizeinbase(fobj->N, 10);
 
 		// the equivalent gnfs size of the current best snfs poly found for this input
 		int equiv_gnfs_size = 999999;
@@ -393,7 +396,9 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 			printf("fac: gnfs size is %d, equivalent gnfs size of snfs poly is %d\n",
 				gnfs_size, equiv_gnfs_size);
 
-			int have_tune = check_tune_params(fobj);
+			// a user-specified crossover (-xover / -snfs_xover) trumps tune
+			// data, here and in schedule_work, so both agree on the method.
+			int have_tune = check_tune_params(fobj) && !fobj->autofact_obj.prefer_xover;
 
 			double qs_time_est = 9999999.0;
 			double gnfs_time_est = 9999999.0;
@@ -405,7 +410,7 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 				mpz_t b;
 				mpz_init(b);
 				mpz_set_ui(b, 10);
-				mpz_pow_ui(b, b, equiv_gnfs_size);
+				mpz_pow_ui(b, b, (unsigned long)equiv_gnfs_size);
 				snfs_time_est = get_gnfs_time_estimate(fobj, b);
 				mpz_clear(b);
 
@@ -601,7 +606,7 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 					target_job_type = job_siqs;
 					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
 						"chosing siqs based on qs/gnfs crossover %1.2f\n",
-						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
+						gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				}
 				else
 				{
@@ -609,15 +614,37 @@ enum job_type_e determine_job_type(fact_obj_t* fobj)
 					target_job_type = job_gnfs;
 					logprint_oc(fobj->flogname, "a",  "gnfs size: %d, unexpectedly found no SNFS polynomials, "
 						"chosing gnfs based on qs/gnfs crossover %1.2f\n",
-						gnfs_size, equiv_gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
+						gnfs_size, fobj->autofact_obj.qs_gnfs_xover);
 				}
 			}
 		}
 
+		if (target_job_type == job_snfs)
+		{
+			*snfs_equiv_size = equiv_gnfs_size;
+		}
+
 		// don't need the poly anymore.  If this ends up actually going
 		// to snfs, we redo all of the poly formation there.
+		if ((snfs_status > 0) && (job.snfs != NULL))
+		{
+			snfs_clear(job.snfs);
+			free(job.snfs);
+			job.snfs = NULL;
+		}
 		snfs_clear(poly);
 		free(poly);
+	}
+
+	// below 75 digits nfs is not competitive (and the nfs parameter tables
+	// start at 75 digits): use siqs unless gnfs was explicitly requested.
+	if (((target_job_type == job_snfs) || (target_job_type == job_gnfs)) &&
+		(gmp_base10(fobj->N) < 75) && (fobj->nfs_obj.gnfs == 0) && (fobj->nfs_obj.snfs == 0))
+	{
+		if (fobj->VFLAG > 0)
+			printf("fac: input below 75 digits, using siqs instead of nfs\n");
+		target_job_type = job_siqs;
+		*snfs_equiv_size = 0;
 	}
 
 #else
@@ -665,7 +692,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         // if larger than a small bound, do a perfect power check
         fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
         
-        if ((mpz_cmp_u64(b, fobj->prime_threshold) > 1) && 
+        if ((mpz_cmp_u64(b, fobj->prime_threshold) > 0) &&
             mpz_perfect_power_p(b))
         {
             if (fobj->VFLAG > 0)
@@ -791,13 +818,13 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	case state_ecm_55digit:
 	case state_ecm_60digit:
 	case state_ecm_65digit:
-		tmp1 = fobj->ecm_obj.B1;
+		tmp1 = (uint32_t)fobj->ecm_obj.B1;
 		tmp2 = fobj->ecm_obj.B2;
 		fobj->ecm_obj.B1 = fwork->B1;
 		fobj->ecm_obj.B2 = fwork->B2;
 		fobj->ecm_obj.num_curves = fwork->curves;
 		mpz_set(fobj->ecm_obj.gmp_n, b);
-		curves_done = ecm_loop(fobj);
+		curves_done = (uint32_t)ecm_loop(fobj);
 		mpz_set(b, fobj->ecm_obj.gmp_n);
 		fobj->ecm_obj.B1 = tmp1;
 		fobj->ecm_obj.B2 = tmp2;
@@ -817,7 +844,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	case state_pp1_lvl1:
 	case state_pp1_lvl2:
 	case state_pp1_lvl3:
-		tmp1 = fobj->pp1_obj.B1;
+		tmp1 = (uint32_t)fobj->pp1_obj.B1;
 		tmp2 = fobj->pp1_obj.B2;
 		fobj->pp1_obj.B1 = fwork->B1;
 		fobj->pp1_obj.B2 = fwork->B2;
@@ -847,7 +874,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	case state_pm1_lvl1:
 	case state_pm1_lvl2:
 	case state_pm1_lvl3:
-		tmp1 = fobj->pm1_obj.B1;
+		tmp1 = (uint32_t)fobj->pm1_obj.B1;
 		tmp2 = fobj->pm1_obj.B2;
 		fobj->pm1_obj.B1 = fwork->B1;
 		fobj->pm1_obj.B2 = fwork->B2;
@@ -1457,13 +1484,9 @@ uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state stat
 enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
 {
 	int have_tune;
-    int i;
 	enum factorization_state next_state;
 	int numdigits = gmp_base10(b);
 	double target_digits;
-	double work_done;
-	FILE *flog;
-	snfs_t *poly;
 
 	// get the next factorization state that hasn't been completed
 	next_state = get_next_state(fwork, fobj);
@@ -1483,7 +1506,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	if (fwork->target_job_type == job_unknown)
 	{
 		mpz_set(fobj->N, b);
-		fwork->target_job_type = determine_job_type(fobj);
+		fwork->target_job_type = determine_job_type(fobj, &fwork->snfs_equiv_size);
 		mpz_set(b, fobj->N);
 
 		if (fobj->VFLAG >= 0)
@@ -1503,32 +1526,42 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	numdigits = gmp_base10(b);
 
 	// set an initial ECM target depth based on any user-supplied plan
+	double plan_ratio;
+	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
+	{
+		plan_ratio = 1. / 3.;
+	}
+	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
+	{
+		plan_ratio = 2. / 9.;
+	}
+	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+	{
+		plan_ratio = fobj->autofact_obj.target_pretest_ratio;
+	}
+	else
+	{
+		plan_ratio = 4. / 13.;
+	}
+
     if (fobj->autofact_obj.only_pretest > 1)
     {
         target_digits = fobj->autofact_obj.only_pretest;
     }
-    else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
-    {
-        target_digits = 1. * (double)numdigits / 3.;
-    }
-    else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
-    {
-        target_digits = 2. * (double)numdigits / 9.;
-    }
-    else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-    {
-        target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
-    }
     else
     {
-        target_digits = 4. * (double)numdigits / 13.;
+        target_digits = plan_ratio * (double)numdigits;
     }
 
-	// if the input has an snfs form and the stars align such that
-	// this will be an eventual SNFS factorization, then 
-	// scale back ECM effort as a result.
-	if (fwork->target_job_type == job_snfs)
+	// if this will be an SNFS factorization, the ECM depth should track the
+	// difficulty of the SNFS job, not the size of the input: use the
+	// equivalent GNFS size of the chosen SNFS polynomial.  (Scaling the input
+	// size by a constant under-ECMs SNFS jobs on large cofactors and over-ECMs
+	// them on small ones.)
+	if ((fwork->target_job_type == job_snfs) && (fwork->snfs_equiv_size > 0))
 	{
+		double snfs_target = plan_ratio * (double)MIN(fwork->snfs_equiv_size, numdigits);
+
 		if (fobj->VFLAG >= 0)
 		{
 			if (fobj->autofact_obj.only_pretest > 1)
@@ -1539,18 +1572,15 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			}
 			else
 			{
-				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has usable snfs form\n",
-					target_digits, target_digits / 1.2857);
+				printf("fac: ecm effort set from %1.2f to %1.2f: input has usable snfs form "
+					"(equivalent gnfs size %d)\n",
+					target_digits, snfs_target, fwork->snfs_equiv_size);
 			}
 		}
 
-		if (fobj->autofact_obj.only_pretest > 1)
+		if (fobj->autofact_obj.only_pretest <= 1)
 		{
-
-		}
-		else
-		{
-			target_digits /= 1.2857;
+			target_digits = snfs_target;
 		}
 	}
 
@@ -1638,71 +1668,27 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 		logprint_oc(fobj->flogname, "a", "scheduler: switching to sieve method\n");
 
-		if (!have_tune || fobj->autofact_obj.prefer_xover)
+		// determine_job_type() has already weighed the input size, any snfs
+		// polynomial and its quality, the crossovers or tune data (a user
+		// crossover trumps tune data) and user flags such as -gnfs.  Use its
+		// decision so that the ECM depth and the sieve method always agree.
+		(void)have_tune;
+		switch (fwork->target_job_type)
 		{
-			// use a hard cutoff - within reason
-            if ((((numdigits > fobj->autofact_obj.qs_snfs_xover) && 
-                (fobj->autofact_obj.has_snfs_form)) ||
-                (numdigits > fobj->autofact_obj.qs_gnfs_xover)) &&
-				(numdigits >= 75))
+		case job_snfs:
+		case job_gnfs:
+			next_state = state_nfs;
+			break;
+		case job_siqs:
+			next_state = state_qs;
+			break;
+		default:
+			// ecm-only or unknown: fall back on the crossover
+			if ((numdigits > fobj->autofact_obj.qs_gnfs_xover) && (numdigits >= 75))
 				next_state = state_nfs;
 			else
 				next_state = state_qs;
-		}
-		else
-		{
-
-			if (0)
-			{
-				double qs_time_est, gnfs_time_est;
-
-				// compute the time to factor using estimates derived during 'tune'.
-				// if we know of a preferable SNFS poly, use its equivalent gnfs
-				// size to predict the job duration.
-
-				qs_time_est = get_qs_time_estimate(fobj, b);
-				gnfs_time_est = get_gnfs_time_estimate(fobj, b);
-
-				if (fobj->VFLAG > 0)
-				{
-					printf("fac: tune params predict %1.2f sec for SIQS and %1.2f sec for NFS\n",
-						qs_time_est, gnfs_time_est);
-				}
-
-				if (qs_time_est < gnfs_time_est)
-				{
-					if (fobj->VFLAG > 0)
-					{
-						printf("fac: tune params scheduling SIQS work\n");
-					}
-					next_state = state_qs;
-				}
-				else
-				{
-					if (fobj->VFLAG > 0)
-					{
-						printf("fac: tune params scheduling NFS work\n");
-					}
-					next_state = state_nfs;
-				}
-			}
-			else
-			{
-				// the determine job type function does all of the analysis
-				// on which method is best, use its output.
-				switch (fwork->target_job_type)
-				{
-				case 0: next_state = state_nfs; break;
-				case 1: next_state = state_nfs; break;
-				case 2: next_state = state_qs; break;
-				case 3: next_state = state_nfs; break; // ecm?, default to nfs
-				case 4: next_state = state_nfs; break; // unknown? default to nfs
-				}
-
-			}
-
-
-
+			break;
 		}
 	}
 
@@ -1789,7 +1775,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 
 	work_low = get_ecm_curves_done(fwork, state);
 	get_ecm_method(fobj, b1, &b1_method, &b2_method);
-	work_high = get_curves_for_tlevel(state - state_ecm_15digit, b1_method, b2_method);
+	work_high = get_curves_for_tlevel((int)(state - state_ecm_15digit), b1_method, b2_method);
 
     if (fobj->VFLAG >= 1)
     {
@@ -1831,12 +1817,12 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
-	enum factorization_state interp_state = state_idle;
 	int b1_method, b2_method, tlevel;
 
 	fwork->target_job_type = job_unknown;
+	fwork->snfs_equiv_size = 0;
 
-	// initialize max allowed work fields 
+	// initialize max allowed work fields
 	get_ecm_method(fobj, ecm_std_b1[0], &b1_method, &b2_method);
 	fwork->ecm_max_15digit_curves = get_curves_for_tlevel(0, b1_method, b2_method);
 
@@ -1928,7 +1914,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 			curves = MIN(curves, get_curves_for_tlevel(tlevel, b1_method, b2_method));
 			//printf("recording %u of max %u curves for tlevel %d\n", 
 			//	curves, get_curves_for_tlevel(tlevel, b1_method, b2_method), tlevel);
-			record_curves_completed(&fobj->ecm_obj, curves, b1, b1_method, b2_method);
+			record_curves_completed(&fobj->ecm_obj, (int)curves, b1, b1_method, b2_method);
 			//printf("total work is now %1.4lf\n", fobj->ecm_obj.total_work);
 
 			switch (tlevel)
@@ -1976,9 +1962,10 @@ int check_for_exit_on_factor(fact_obj_t* fobj)
 
 	for (i = 0; i < factors->num_factors; i++)
 	{
-		int sz = mpz_sizeinbase(factors->factors[i].factor, base);
+		int sz = (int)mpz_sizeinbase(factors->factors[i].factor, base);
 
-		if (fobj->autofact_obj.stopprime && (factors->factors[i].type != (PRP | PRIME)))
+		if (fobj->autofact_obj.stopprime && (factors->factors[i].type != PRP) &&
+			(factors->factors[i].type != PRIME))
 		{
 			// We require the factor to be prime and it's not, so don't need
 			// to check the other conditions.
@@ -2047,6 +2034,104 @@ int check_for_exit_on_factor(fact_obj_t* fobj)
 	}
 	
 	return 0;
+}
+
+// saved per-composite work state for factor()
+typedef struct
+{
+	mpz_t n;
+	factor_work_t fwork;
+	double tlevels[NUM_ECM_LEVELS];
+	double total_work;
+} work_snap_t;
+
+typedef struct
+{
+	work_snap_t* s;
+	int num;
+	int alloc;
+} work_snap_list_t;
+
+static void work_snaps_init(work_snap_list_t* L)
+{
+	L->num = 0;
+	L->alloc = 0;
+	L->s = NULL;
+}
+
+static void work_snaps_free(work_snap_list_t* L)
+{
+	int i;
+	for (i = 0; i < L->num; i++)
+		mpz_clear(L->s[i].n);
+	free(L->s);
+	work_snaps_init(L);
+}
+
+static int work_snaps_find(work_snap_list_t* L, mpz_t n)
+{
+	int i;
+	for (i = 0; i < L->num; i++)
+		if (mpz_cmp(L->s[i].n, n) == 0)
+			return i;
+	return -1;
+}
+
+static void work_snaps_switch(work_snap_list_t* L, fact_obj_t* fobj,
+	factor_work_t* fwork, mpz_t prev, mpz_t next)
+{
+	yfactor_list_t* flist = fobj->factors;
+	int i, id;
+
+	// every composite piece of the number just worked on inherits the work
+	// done on it so far (unless it already has a saved state).
+	for (i = 0; i < flist->num_factors; i++)
+	{
+		work_snap_t* w;
+
+		if ((flist->factors[i].type == PRP) || (flist->factors[i].type == PRIME))
+			continue;
+		if (!mpz_divisible_p(prev, flist->factors[i].factor))
+			continue;
+		if (work_snaps_find(L, flist->factors[i].factor) >= 0)
+			continue;
+
+		if (L->num >= L->alloc)
+		{
+			L->alloc = (L->alloc == 0) ? 8 : 2 * L->alloc;
+			L->s = (work_snap_t*)xrealloc(L->s, (size_t)L->alloc * sizeof(work_snap_t));
+		}
+		w = &L->s[L->num++];
+		mpz_init_set(w->n, flist->factors[i].factor);
+		w->fwork = *fwork;
+		memcpy(w->tlevels, fobj->ecm_obj.tlevels, sizeof(w->tlevels));
+		w->total_work = fobj->ecm_obj.total_work;
+	}
+
+	// load the next composite's state, if we have one
+	id = work_snaps_find(L, next);
+	if (id >= 0)
+	{
+		*fwork = L->s[id].fwork;
+		memcpy(fobj->ecm_obj.tlevels, L->s[id].tlevels, sizeof(L->s[id].tlevels));
+		fobj->ecm_obj.total_work = L->s[id].total_work;
+		fobj->autofact_obj.ecm_total_work_performed = L->s[id].total_work;
+
+		mpz_clear(L->s[id].n);
+		L->s[id] = L->s[L->num - 1];
+		L->num--;
+
+		if (fobj->VFLAG > 0)
+		{
+			gmp_printf("fac: switching to c%d, resuming its pretesting at t%1.2f\n",
+				gmp_base10(next), fobj->ecm_obj.total_work);
+		}
+	}
+
+	// the method decision was for a different number
+	fwork->target_job_type = job_unknown;
+	fwork->snfs_equiv_size = 0;
+	return;
 }
 
 void factor(fact_obj_t *fobj)
@@ -2158,7 +2243,7 @@ void factor(fact_obj_t *fobj)
     // then compute the effective digit number for this input.
     if (fobj->autofact_obj.initial_work < 1.0)
     {
-        initial_work = fobj->autofact_obj.initial_work * mpz_sizeinbase(fobj->N, 10);
+        initial_work = fobj->autofact_obj.initial_work * (double)mpz_sizeinbase(fobj->N, 10);
     }
 
     // put the initial work done into the work structure.  It's important
@@ -2234,7 +2319,8 @@ void factor(fact_obj_t *fobj)
 		mpz_init(tmpz);
 		mpz_init(g);
 
-		fgets(tmpstr,1024,data);
+		if (fgets(tmpstr,1024,data) == NULL)
+			strcpy(tmpstr, "N 0");	// empty savefile: matches no input
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
@@ -2277,7 +2363,8 @@ void factor(fact_obj_t *fobj)
 		mpz_init(g);
 
 		// may not be sufficient, in extreme cases...
-		fgets(tmpstr,1024,data);
+		if (fgets(tmpstr,1024,data) == NULL)
+			strcpy(tmpstr, "N 0");	// empty savefile: matches no input
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
@@ -2307,9 +2394,25 @@ void factor(fact_obj_t *fobj)
 		fclose(data);
 	}
 
+	// Work done (trial division, rho, ECM curves, ...) applies to the number it
+	// was done on and to all of its divisors, but not to unrelated composites.
+	// When the composite being worked on splits, every composite piece
+	// inherits the work state as of that moment; work done afterwards on one
+	// piece must not be credited to its siblings (e.g., ECM run on a c9 found
+	// by rho must not count as pretesting of the c111 it was split from).
+	work_snap_list_t snaps;
+	mpz_t cur_in;
+	mpz_init(cur_in);
+	work_snaps_init(&snaps);
+
 	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
-	{	
+	{
+		// record the number before scheduling: schedule_work can already
+		// split it (snfs form detection removes algebraic factors), and those
+		// pieces must inherit the work done so far.
+		mpz_set(cur_in, b);
+
 		if (!override_fact_state)
 		{
 			// schedule work to be done on this input
@@ -2326,6 +2429,14 @@ void factor(fact_obj_t *fobj)
 
 		if (more_work)
 		{
+			if (mpz_cmp(b, cur_in) != 0)
+			{
+				// switching composites: save the current state for all composite
+				// divisors of the number just worked on, then load the state of
+				// the next one.
+				work_snaps_switch(&snaps, fobj, &fwork, cur_in, b);
+			}
+
 			//mpz_set(fobj->input_N, b);
 			mpz_set(fobj->N, b);
 			//gmp_printf("fac: next item of work is %Zd\n", b);
@@ -2339,7 +2450,7 @@ void factor(fact_obj_t *fobj)
             (quit_after_sieve_method &&
             ((fact_state == state_qs) ||
             (fact_state == state_nfs))) ||
-            ((fact_state == state_nfs) &&
+            (((fact_state == state_nfs) || (fact_state == state_qs)) &&
             (fobj->flags == FACTOR_INTERRUPT)))
         {
             fact_state = state_done;
@@ -2350,23 +2461,26 @@ void factor(fact_obj_t *fobj)
             // handle appropriately.
             if (fobj->ecm_obj.exit_cond == ECM_EXIT_ABORT)
             {
-                FILE *flog;
+                FILE *flog_in = NULL;
 
                 if (fobj->LOGFLAG)
                 {
-                    flog = fopen(fobj->flogname, "a");
+                    flog_in = fopen(fobj->flogname, "a");
                 }
-				print_std_ecm_work_done(&fobj->ecm_obj, 1, flog, fobj->VFLAG, fobj->LOGFLAG);
+				print_std_ecm_work_done(&fobj->ecm_obj, 1, flog_in, fobj->VFLAG, fobj->LOGFLAG);
 				fobj->autofact_obj.ecm_total_work_performed = fobj->ecm_obj.total_work;
                 if (fobj->LOGFLAG)
                 {
-                    logprint(flog, "\testimated sum of completed work is t%1.2f\n", fobj->ecm_obj.total_work);
-                    if (flog != NULL) fclose(flog);
+                    logprint(flog_in, "\testimated sum of completed work is t%1.2f\n", fobj->ecm_obj.total_work);
+                    if (flog_in != NULL) fclose(flog_in);
                 }
                 fact_state = state_done;
             }
         }
 	}
+
+	work_snaps_free(&snaps);
+	mpz_clear(cur_in);
 
 	// optionally record output in one or more file formats
 	if (fobj->factors->num_factors >= 1)
@@ -2428,7 +2542,7 @@ void factor(fact_obj_t *fobj)
 				if (fobj->autofact_obj.want_output_expressions)
 					gmp_fprintf(fobj->autofact_obj.ou_file, "%Zd\n", fobj->N);
 				else
-					gmp_fprintf(fobj->autofact_obj.ou_file, "%s\n", origN);
+					gmp_fprintf(fobj->autofact_obj.ou_file, "%Zd\n", origN);
 				if (fclose(fobj->autofact_obj.ou_file) != 0)
 					printf(" ***Error: problem closing file %s\n", fobj->autofact_obj.ou_str);
 			}
@@ -2586,7 +2700,7 @@ int factor_tiny(mpz_t in, mpz_t* out,
 			mpz_t* kf;
 			int nf, i;
 
-			if ((getfactor_tecm_edw(in, gmpf, mpz_sizeinbase(in, 2) / 3 - 2, prng) > 0) &&
+			if ((getfactor_tecm_edw(in, gmpf, (int)(mpz_sizeinbase(in, 2) / 3 - 2), prng) > 0) &&
 				(mpz_cmp_ui(gmpf, 1) > 0) && (mpz_cmp(gmpf, in) < 0) &&
 				mpz_divisible_p(in, gmpf) && (mpz_probab_prime_p(gmpf, 1) > 0))
 			{
@@ -2701,7 +2815,6 @@ int factor64(uint64_t in, uint64_t* out,
 					}
 				}
 				int imax = 64;
-				int found = 0;
 				for (; imax < 8192; imax *= 2)
 				{
 					f1 = spbrent64(f, imax);
@@ -2835,7 +2948,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 		if (nump > 0)
 		{
-			int* printed = (int*)xmalloc(flist->num_factors * sizeof(int));
+			int* printed = (int*)xmalloc((unsigned long)flist->num_factors * sizeof(int));
 			for (i = 0; i < flist->num_factors; i++)
 			{
 				printed[i] = 0;

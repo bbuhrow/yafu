@@ -372,7 +372,7 @@ static uint32 purge_cliques_core(msieve_obj *obj,
 	for (i = 0; i < num_relations; i++) {
 
 		uint64 relation_array_word = 
-				((uint32 *)curr_relation -
+				(uint64)((uint32 *)curr_relation -
 				 (uint32 *)relation_array);
 
 		/* for each ideal in the relation */
@@ -475,8 +475,8 @@ static uint32 purge_cliques_core(msieve_obj *obj,
 					   to the score of the clique */
 
 					if (!map->clique) {
-						clique_score += 1.0 / 
-							map->payload;
+						clique_score = (float)(clique_score + 1.0 / 
+							map->payload);
 						continue;
 					}
 

@@ -94,15 +94,18 @@ void applyArg(char* arg, int argNum, options_t* options)
 {
     if (argNum == 0)
     {
-        strncpy(options->inputN, arg, MAXARGLEN);
+        strncpy(options->inputN, arg, MAXARGLEN - 1);
+        options->inputN[MAXARGLEN - 1] = '\0';
     }
     else if (argNum == 1)
     {
-        strncpy(options->B1, arg, MAXARGLEN);
+        strncpy(options->B1, arg, MAXARGLEN - 1);
+        options->B1[MAXARGLEN - 1] = '\0';
     }
     else if (argNum == 2)
     {
-        strncpy(options->B2, arg, MAXARGLEN);
+        strncpy(options->B2, arg, MAXARGLEN - 1);
+        options->B2[MAXARGLEN - 1] = '\0';
     }
 
     return;
@@ -124,7 +127,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, options->OptionArray[2]) == 0)
     {
-        options->numcurves = strtoul(arg, NULL, 10);
+        options->numcurves = (uint32_t)strtoul(arg, NULL, 10);
     }
     else if (strcmp(opt, options->OptionArray[3]) == 0)
     {
@@ -152,7 +155,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, options->OptionArray[9]) == 0)
     {
-        strncpy(options->extecm_path, arg, MAXARGLEN);
+        strncpy(options->extecm_path, arg, MAXARGLEN - 1);
+        options->extecm_path[MAXARGLEN - 1] = '\0';
     }
     else if (strcmp(opt, options->OptionArray[10]) == 0)
     {

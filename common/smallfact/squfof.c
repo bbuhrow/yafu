@@ -197,7 +197,7 @@ uint32 squfof_one_cycle(squfof_data_t *data, uint32 mult_idx,
 	q0 = sqrtq;
 	p1 = p0 + sqrtq * ((sqrtn - p0) / sqrtq);
 	scaledn = data->n * (uint64)multipliers[mult_idx];
-	q1 = (scaledn - (uint64)p1 * (uint64)p1) / (uint64)q0;
+	q1 = (uint32)((scaledn - (uint64)p1 * (uint64)p1) / (uint64)q0);
 
 	while (1) {
 		uint32 q, tmp;

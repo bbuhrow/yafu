@@ -84,7 +84,7 @@ static void t_lead_zcnt(tk_ctx *tk)
         TK_BENCH(tk, "lead_zcnt64 ref", 1, 0.0,
                  { tk_sink_u64 += (uint64_t)ref_clz64((x += 0x9E37) | 1); });
         TK_BENCH(tk, "lead_zcnt64 native", 1, 0.0,
-                 { tk_sink_u64 += _lead_zcnt64((x += 0x9E37) | 1); });
+                 { tk_sink_u64 = (unsigned long)(tk_sink_u64 + (unsigned long)(_lead_zcnt64((x += 0x9E37) | 1))); });
     }
 }
 
@@ -101,7 +101,7 @@ static void t_trail_zcnt(tk_ctx *tk)
         TK_BENCH(tk, "trail_zcnt64 ref", 1, 0.0,
                  { tk_sink_u64 += (uint64_t)ref_ctz64((x += 0x9E37) | 1); });
         TK_BENCH(tk, "trail_zcnt64 native", 1, 0.0,
-                 { tk_sink_u64 += _trail_zcnt64((x += 0x9E37) | 1); });
+                 { tk_sink_u64 = (unsigned long)(tk_sink_u64 + (unsigned long)(_trail_zcnt64((x += 0x9E37) | 1))); });
     }
 }
 

@@ -387,9 +387,9 @@ static void file_cache_get_next(msieve_obj *obj, FILE *fp,
 
 		if (obj->mpi_la_row_rank == 0) {
 #endif
-		f->num_valid = words_left +
+		f->num_valid = (uint32)(words_left +
 			fread(f->cache + words_left, sizeof(uint32),
-				FILE_CACHE_WORDS - words_left, fp);
+				FILE_CACHE_WORDS - words_left, fp));
 #ifdef HAVE_MPI
 		}
 

@@ -150,13 +150,13 @@ void record_curves_completed(ecm_obj_t* ecm_obj, int curves, uint64_t b1, int b1
         if (i == 0)
         {
             ecm_obj->num_records++;
-            ecm_obj->curve_b1_rec = (uint64_t*)xmalloc(ecm_obj->num_records * sizeof(uint64_t));
-            ecm_obj->curve_b2_rec = (uint64_t*)xmalloc(ecm_obj->num_records * sizeof(uint64_t));
-            ecm_obj->param_rec = (int*)xmalloc(ecm_obj->num_records * sizeof(int));
-            ecm_obj->num_rec = (int*)xmalloc(ecm_obj->num_records * sizeof(int));
+            ecm_obj->curve_b1_rec = (uint64_t*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(uint64_t));
+            ecm_obj->curve_b2_rec = (uint64_t*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(uint64_t));
+            ecm_obj->param_rec = (int*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(int));
+            ecm_obj->num_rec = (int*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(int));
 
             ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
-            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = b2_method;
+            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = (uint64_t)b2_method;
             ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
             ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
         }
@@ -165,16 +165,16 @@ void record_curves_completed(ecm_obj_t* ecm_obj, int curves, uint64_t b1, int b1
             // add a new record for these curves
             ecm_obj->num_records++;
             ecm_obj->curve_b1_rec = (uint64_t*)xrealloc(ecm_obj->curve_b1_rec,
-                ecm_obj->num_records * sizeof(uint64_t));
+                (unsigned long)ecm_obj->num_records * sizeof(uint64_t));
             ecm_obj->curve_b2_rec = (uint64_t*)xrealloc(ecm_obj->curve_b2_rec,
-                ecm_obj->num_records * sizeof(uint64_t));
+                (unsigned long)ecm_obj->num_records * sizeof(uint64_t));
             ecm_obj->param_rec = (int*)xrealloc(ecm_obj->param_rec,
-                ecm_obj->num_records * sizeof(int));
+                (unsigned long)ecm_obj->num_records * sizeof(int));
             ecm_obj->num_rec = (int*)xrealloc(ecm_obj->num_rec,
-                ecm_obj->num_records * sizeof(int));
+                (unsigned long)ecm_obj->num_records * sizeof(int));
 
             ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
-            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = b2_method;
+            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = (uint64_t)b2_method;
             ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
             ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
         }
@@ -262,19 +262,19 @@ uint32_t get_curves_for_tlevel(int tlevel, int b1_method, int b2_method)
     {
         if ((b2_method == 100) && (b1_method == 0))
         {
-            max_curves = avx_ecm_data[tlevel][tlevel];
+            max_curves = (uint32_t)avx_ecm_data[tlevel][tlevel];
         }
         else if ((b1_method == 0) || (b1_method == 2))
         {
-            max_curves = ecm_data_param0[tlevel][tlevel];
+            max_curves = (uint32_t)ecm_data_param0[tlevel][tlevel];
         }
         else if (b1_method == 1)
         {
-            max_curves = ecm_data_param1[tlevel][tlevel];
+            max_curves = (uint32_t)ecm_data_param1[tlevel][tlevel];
         }
         else if (b1_method == 3)
         {
-            max_curves = ecm_data_param3[tlevel][tlevel];
+            max_curves = (uint32_t)ecm_data_param3[tlevel][tlevel];
         }
         else
         {
@@ -822,7 +822,7 @@ void ecm_dispatch_fcn(void *ptr)
         tdata->work_fcn_id = tdata->num_work_fcn;
     }
     else if (*thread_data->total_curves_run < 
-        (thread_data->fobj->ecm_obj.num_curves - *thread_data->curves_in_flight))
+        (thread_data->fobj->ecm_obj.num_curves - (uint32_t)*thread_data->curves_in_flight))
     {
         // more curves to run
         (*thread_data->curves_in_flight)++;
@@ -888,10 +888,8 @@ int ecm_loop(fact_obj_t *fobj)
 {
 	// expects the input in ecm_obj->gmp_n
 	FILE *flog = NULL;
-	int i,j;
+	UNUSED_VAR int i,j;
     double total_time = 0;
-	int num_batches;    
-    int run_avxecm = 0;
 
 	// maybe make this an input option: whether or not to stop after
 	// finding a factor in the middle of running a requested batch of curves
@@ -939,7 +937,7 @@ int ecm_loop(fact_obj_t *fobj)
         //init ecm process
         ecm_process_init(fobj);
 
-        thread_data = (ecm_thread_data_t*)malloc(fobj->THREADS * sizeof(ecm_thread_data_t));
+        thread_data = (ecm_thread_data_t*)malloc((unsigned long)fobj->THREADS * sizeof(ecm_thread_data_t));
         for (i = 0; i < fobj->THREADS; i++)
         {
             // several things in the thread structure need to be tied
@@ -979,7 +977,7 @@ int ecm_loop(fact_obj_t *fobj)
                 printf("ecm: splitting %u curves to resume with %d threads\n",
                     thread_data->fobj->ecm_obj.num_curves, fobj->THREADS);
             }
-            split_residue_file(thread_data->fobj->ecm_obj.num_curves, 
+            split_residue_file((int)thread_data->fobj->ecm_obj.num_curves, 
                 fobj->THREADS, "gpu_ecm_resume");
 
             // now archive the resume file
@@ -1064,7 +1062,7 @@ int ecm_loop(fact_obj_t *fobj)
         if (((bail_on_factor == 1) && (bail == 1)) ||
             (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0))
         {
-            total_curves_run = fobj->ecm_obj.num_curves;
+            total_curves_run = (int)fobj->ecm_obj.num_curves;
         }
 
         free(thread_data);
@@ -1085,7 +1083,7 @@ int ecm_loop(fact_obj_t *fobj)
         uint64_t B2;
         uint32_t curves_run;
         int save_b1 = fobj->ecm_obj.save_b1;
-        uint64_t ecm_ext_xover;
+        uint64_t ecm_ext_xover = fobj->ecm_obj.ecm_ext_xover;
         
         mpz_init(F);
         mpz_set(F, fobj->ecm_obj.gmp_n);
@@ -1160,10 +1158,10 @@ int ecm_loop(fact_obj_t *fobj)
             //init ecm process
             ecm_process_init(fobj);
 
-            thread_data = (ecm_thread_data_t*)malloc(fobj->THREADS * sizeof(ecm_thread_data_t));
+            thread_data = (ecm_thread_data_t*)malloc((unsigned long)fobj->THREADS * sizeof(ecm_thread_data_t));
             
             // split the residue file into one file per thread
-            split_residue_file(curves_run, fobj->THREADS, "avx_ecm_resume");
+            split_residue_file((int)curves_run, fobj->THREADS, "avx_ecm_resume");
 
             // now archive the resume file
             {
@@ -1252,7 +1250,7 @@ int ecm_loop(fact_obj_t *fobj)
         else
         {
             // we just completed standard (param0) curves, with reduced and simplified B2
-            record_curves_completed(&fobj->ecm_obj, curves_run,
+            record_curves_completed(&fobj->ecm_obj, (int)curves_run,
                 fobj->ecm_obj.B1, 0, 100);
         }
 
@@ -1260,11 +1258,11 @@ int ecm_loop(fact_obj_t *fobj)
         if (((bail_on_factor == 1) && (bail == 1)) ||
             (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0))
         {
-            total_curves_run = MAX(fobj->ecm_obj.num_curves, curves_run);
+            total_curves_run = (int)MAX(fobj->ecm_obj.num_curves, curves_run);
         }
         else
         {
-            total_curves_run = curves_run;
+            total_curves_run = (int)curves_run;
         }
 
         mpz_clear(F);
@@ -1286,7 +1284,6 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
     }
 
 	fact_obj_t *fobj = thread_data->fobj;
-	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
 
 	if (is_mpz_prp(thread_data->gmp_factor, fobj->NUM_WITNESSES))
@@ -1341,7 +1338,7 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	{
 		//if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
 	    //		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
-		thread_data->sigma = fobj->ecm_obj.sigma;
+		thread_data->sigma = (uint32_t)fobj->ecm_obj.sigma;
 	}
 	else //if (get_uvar("sigma",tmp))
 	{
@@ -1434,7 +1431,7 @@ void ecm_do_one_curve(void *ptr)
 		}
 
 		status = ecm_factor(thread_data->gmp_factor, thread_data->gmp_n,
-				fobj->ecm_obj.B1, thread_data->params);		
+				(double)fobj->ecm_obj.B1, thread_data->params);		
 #endif
 		//the return value is the stage the factor was found in, if no error
 		thread_data->stagefound = status;
@@ -1444,9 +1441,9 @@ void ecm_do_one_curve(void *ptr)
 		char *cmd;
 		FILE *fid;
 		char line[1024];
-		char *ptr = NULL;
+		char *ptr_in = NULL;
 		char *tmpstr = NULL;
-		int retcode;
+		int retcode = 0;
 
 		// let mpz figure out and allocate the string
 		tmpstr = mpz_get_str(tmpstr, 10, thread_data->gmp_n);
@@ -1472,7 +1469,7 @@ void ecm_do_one_curve(void *ptr)
                 //char exename[1024];
                 //GetModuleFileName(NULL, exename, 1024);
 
-                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume_%d.txt %u | tee %s\n",
+                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume_%d.txt %" PRIu64 " | tee %s\n",
                     tmpstr, fobj->ecm_obj.ecm_path, thread_data->thread_num, 
                     fobj->ecm_obj.B1, thread_data->tmp_output);
             }
@@ -1497,7 +1494,7 @@ void ecm_do_one_curve(void *ptr)
                 //char exename[1024];
                 //GetModuleFileName(NULL, exename, 1024);
 
-                sprintf(cmd, "echo %s | %s -resume `pwd`/gpu_ecm_resume_%d.txt %u | tee %s\n",
+                sprintf(cmd, "echo %s | %s -resume `pwd`/gpu_ecm_resume_%d.txt %" PRIu64 " | tee %s\n",
                     tmpstr, fobj->ecm_obj.ecm_path, thread_data->thread_num,
                     fobj->ecm_obj.B1, thread_data->tmp_output);
             }
@@ -1547,7 +1544,7 @@ void ecm_do_one_curve(void *ptr)
 
                 if (fobj->ecm_obj.stg2_is_default)
                 {
-                    sprintf(stg2, "");
+                    stg2[0] = '\0';
                 }
                 else
                 {
@@ -1556,14 +1553,14 @@ void ecm_do_one_curve(void *ptr)
 
                 if (fobj->VFLAG >= 0)
                 {
-                    sprintf(cmd, "echo %s | %s -sigma 3:%u -save gpu_ecm_resume.txt -gpu %s %s %s %u %u | tee %s\n",
+                    sprintf(cmd, "echo %s | %s -sigma 3:%u -save gpu_ecm_resume.txt -gpu %s %s %s %" PRIu64 " %u | tee %s\n",
                         tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma,
                         cgbn, gpudev, gpucurves, fobj->ecm_obj.B1, 1,
                         thread_data->tmp_output);
                 }
                 else
                 {
-                    sprintf(cmd, "echo %s | %s -sigma 3:%u -save gpu_ecm_resume.txt -gpu %s %s %s %u %u > %s\n",
+                    sprintf(cmd, "echo %s | %s -sigma 3:%u -save gpu_ecm_resume.txt -gpu %s %s %s %" PRIu64 " %u > %s\n",
                         tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma,
                         cgbn, gpudev, gpucurves, fobj->ecm_obj.B1, 1,
                         thread_data->tmp_output);
@@ -1571,7 +1568,7 @@ void ecm_do_one_curve(void *ptr)
             }
             else
             {
-                sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n",
+                sprintf(cmd, "echo %s | %s -sigma %u %" PRIu64 " > %s\n",
                     tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1,
                     thread_data->tmp_output);
             }
@@ -1609,37 +1606,36 @@ void ecm_do_one_curve(void *ptr)
 		{
 			char fact[1024];
 
-			fgets(line, 1024, fid);
-			if (line == NULL)
+			if (fgets(line, 1024, fid) == NULL)
 				break;
 
             if (fobj->ecm_obj.use_gpuecm && (found_curves_run == 0))
             {
-                ptr = strstr(line, "Computing ");
-                if (ptr != NULL)
+                ptr_in = strstr(line, "Computing ");
+                if (ptr_in != NULL)
                 {
                     int curves;
                     //ptr = strstr(line, "(");
-                    sscanf(ptr+10, "%d", &curves);
+                    sscanf(ptr_in+10, "%d", &curves);
                     thread_data->curves_run += (curves - 1);
                     found_curves_run = 1;
                 }
             }
 
-			ptr = strstr(line, "**********");
-			if (ptr == NULL)
+			ptr_in = strstr(line, "**********");
+			if (ptr_in == NULL)
 				continue;
 
 			// found a factor.  search for the :
-			ptr = strstr(line, ":");
-			if (ptr == NULL)
+			ptr_in = strstr(line, ":");
+			if (ptr_in == NULL)
 				continue;
 
 			// the character prior to this is the stage, and the rest of the line
 			// after it is the factor
-			sscanf(ptr-2,"%d",&thread_data->stagefound);
+			sscanf(ptr_in-2,"%d",&thread_data->stagefound);
 
-			strcpy(fact, ptr+1);
+			strcpy(fact, ptr_in+1);
 
 			mpz_set_str(thread_data->gmp_factor, fact, 10);
 			//str2hexz(fact, &thread_data->factor);
@@ -1700,21 +1696,21 @@ int print_B1B2(fact_obj_t *fobj, FILE *fid)
 	if (fobj->ecm_obj.B1 % 1000000000 == 0)
 	{
 		suffix = 'B';
-		sprintf(stg1str,"%u%c",fobj->ecm_obj.B1 / 1000000000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->ecm_obj.B1 / 1000000000, suffix);
 	}
 	else if (fobj->ecm_obj.B1 % 1000000 == 0)
 	{
 		suffix = 'M';
-		sprintf(stg1str,"%u%c",fobj->ecm_obj.B1 / 1000000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->ecm_obj.B1 / 1000000, suffix);
 	}
 	else if (fobj->ecm_obj.B1 % 1000 == 0)
 	{
 		suffix = 'k';
-		sprintf(stg1str,"%u%c",fobj->ecm_obj.B1 / 1000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->ecm_obj.B1 / 1000, suffix);
 	}
 	else
 	{
-		sprintf(stg1str,"%u",fobj->ecm_obj.B1);
+		sprintf(stg1str,"%" PRIu64,fobj->ecm_obj.B1);
 	}
 
 	if (fobj->ecm_obj.stg2_is_default == 0)

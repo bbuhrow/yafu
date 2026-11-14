@@ -88,7 +88,7 @@ static inline uint64_t my_rdtsc(void)
 #endif
 }
 
-static uint32 
+UNUSED_FUNC static uint32 
 get_rand(uint32 *rand_seed, uint32 *rand_carry) {
    
 	/* A multiply-with-carry generator by George Marsaglia.
@@ -121,7 +121,7 @@ uint32_t my_clz32(uint64_t n)
 #else
 #if defined(__GNUC__)
 	if (n)
-		return __builtin_clz(n);
+		return (uint32_t)__builtin_clz((unsigned int)n);
 	return 32;
 #else
 	if (n == 0)
@@ -157,7 +157,7 @@ uint64_t my_ctz32(uint32_t n)
 #else
 #if defined(__GNUC__)
 	if (n)
-		return __builtin_ctz(n);
+		return (uint64_t)__builtin_ctz(n);
 	return 32;
 #else
 	if (n == 0)
@@ -201,7 +201,7 @@ uint32_t next_power_2(uint32_t sz)
 
 // intrinsics for swapping N-bit chunks of data within a 512-bit vector, with N < 32.
 // these require index vectors and the additional extension AVX-512BW
-static __m512i swap8bit_idx;
+UNUSED_VAR static __m512i swap8bit_idx;
 
 #define SWAP8(x) _mm512_shuffle_epi8((x), swap8bit_idx)
 
@@ -1294,7 +1294,6 @@ void bitonic_sort16_dir_128(uint16_t* data, int dir)
 void bitonic_merge16_dir_256(uint16_t* data, int dir) 
 {
 	// merge phase: 256 16-bit elements
-	int i, j;
 
 	__m512i t1;
 	__m512i t2;
@@ -1320,14 +1319,8 @@ void bitonic_merge16_dir_256(uint16_t* data, int dir)
 	__m512i dv6_swap;
 	__m512i dv7_swap;
 	__m512i dv8_swap;
-	__mmask32 m1;
-	__mmask32 m2;
-	__mmask32 m3;
-	__mmask32 m4;
-	__mmask32 m5;
-	__mmask32 m6;
-	__mmask32 m7;
-	__mmask32 m8;
+	UNUSED_VAR __mmask32 m1;
+	UNUSED_VAR __mmask32 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 32);
@@ -1508,8 +1501,8 @@ void bitonic_sort16_dir_256(uint16_t* data, int dir)
 	__m512i dv6_swap;
 	__m512i dv7_swap;
 	__m512i dv8_swap;
-	__mmask32 m1;
-	__mmask32 m2;
+	UNUSED_VAR __mmask32 m1;
+	UNUSED_VAR __mmask32 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 32);
@@ -1823,7 +1816,6 @@ void bitonic_sort16_dir_256(uint16_t* data, int dir)
 void bitonic_merge32_dir_64(uint32_t* data, int dir) 
 {
 	// perform the final merge phase on 64 32-bit elements
-	int i, j;
 
 	__m512i t1;
 	__m512i t2;
@@ -2100,7 +2092,6 @@ void bitonic_sort32_dir_64(uint32_t* data, int dir)
 void bitonic_merge32_dir_128(uint32_t* data, int dir) 
 {
 	// perform the final merge phase on 128 32-bit elements
-	int i, j;
 
 	__m512i t1;
 	__m512i t2;
@@ -2126,14 +2117,8 @@ void bitonic_merge32_dir_128(uint32_t* data, int dir)
 	__m512i dv6_swap;
 	__m512i dv7_swap;
 	__m512i dv8_swap;
-	__mmask16 m1;
-	__mmask16 m2;
-	__mmask16 m3;
-	__mmask16 m4;
-	__mmask16 m5;
-	__mmask16 m6;
-	__mmask16 m7;
-	__mmask16 m8;
+	UNUSED_VAR __mmask16 m1;
+	UNUSED_VAR __mmask16 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 16);
@@ -2282,7 +2267,6 @@ void bitonic_merge32_dir_128(uint32_t* data, int dir)
 void bitonic_sort32_dir_128(uint32_t* data, int dir) 
 {
 	// sort 128 32-bit elements
-	int i, j;
 
 	__m512i t1;
 	__m512i t2;
@@ -2308,14 +2292,8 @@ void bitonic_sort32_dir_128(uint32_t* data, int dir)
 	__m512i dv6_swap;
 	__m512i dv7_swap;
 	__m512i dv8_swap;
-	__mmask16 m1;
-	__mmask16 m2;
-	__mmask16 m3;
-	__mmask16 m4;
-	__mmask16 m5;
-	__mmask16 m6;
-	__mmask16 m7;
-	__mmask16 m8;
+	UNUSED_VAR __mmask16 m1;
+	UNUSED_VAR __mmask16 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 16);
@@ -2592,7 +2570,6 @@ void bitonic_sort32_dir_128(uint32_t* data, int dir)
 void bitonic_merge32_dir_256(uint32_t* data, int dir) 
 {
 	// perform the final merge phase on 128 32-bit elements
-	int i, j;
 
 	__m512i dv1;
 	__m512i dv2;
@@ -2626,14 +2603,8 @@ void bitonic_merge32_dir_256(uint32_t* data, int dir)
 	__m512i t6;
 	__m512i t7;
 	__m512i t8;
-	__mmask16 m1;
-	__mmask16 m2;
-	__mmask16 m3;
-	__mmask16 m4;
-	__mmask16 m5;
-	__mmask16 m6;
-	__mmask16 m7;
-	__mmask16 m8;
+	UNUSED_VAR __mmask16 m1;
+	UNUSED_VAR __mmask16 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 16);
@@ -2955,7 +2926,6 @@ void bitonic_merge32_dir_256(uint32_t* data, int dir)
 void bitonic_sort32_dir_256(uint32_t* data, int dir) 
 {
 	// sort 256 32-bit elements
-	int i, j;
 
 	__m512i dv1;
 	__m512i dv2;
@@ -2989,14 +2959,8 @@ void bitonic_sort32_dir_256(uint32_t* data, int dir)
 	__m512i t6;
 	__m512i t7;
 	__m512i t8;
-	__mmask16 m1;
-	__mmask16 m2;
-	__mmask16 m3;
-	__mmask16 m4;
-	__mmask16 m5;
-	__mmask16 m6;
-	__mmask16 m7;
-	__mmask16 m8;
+	UNUSED_VAR __mmask16 m1;
+	UNUSED_VAR __mmask16 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 16);
@@ -3655,10 +3619,6 @@ void bitonic_merge_dir_64(uint64_t* data, int dir)
 	__m512i t2;
 	__m512i t3;
 	__m512i t4;
-	__m512i t5;
-	__m512i t6;
-	__m512i t7;
-	__m512i t8;
 	__m512i dv1;
 	__m512i dv2;
 	__m512i dv3;
@@ -4012,16 +3972,11 @@ void bitonic_merge_dir_64(uint64_t* data, int dir)
 void bitonic_sort_dir_64(uint64_t* data, int dir) 
 {
 	// sort 64 elements of 64-bit data
-	int i, j;
 
 	__m512i t1;
 	__m512i t2;
 	__m512i t3;
 	__m512i t4;
-	__m512i t5;
-	__m512i t6;
-	__m512i t7;
-	__m512i t8;
 	__m512i dv1;
 	__m512i dv2;
 	__m512i dv3;
@@ -4797,7 +4752,6 @@ void bitonic_sort_dir_64(uint64_t* data, int dir)
 void bitonic_sort_dir_64_minmax(uint64_t* data, int dir) 
 {
 	// sort 64 64-bit elements
-	int i, j;
 
 	__m512i t1;
 	__m512i t2;
@@ -4823,14 +4777,8 @@ void bitonic_sort_dir_64_minmax(uint64_t* data, int dir)
 	__m512i dv6_swap;
 	__m512i dv7_swap;
 	__m512i dv8_swap;
-	__mmask16 m1;
-	__mmask16 m2;
-	__mmask16 m3;
-	__mmask16 m4;
-	__mmask16 m5;
-	__mmask16 m6;
-	__mmask16 m7;
-	__mmask16 m8;
+	UNUSED_VAR __mmask16 m1;
+	UNUSED_VAR __mmask16 m2;
 
 	dv1 = _mm512_load_si512(data);
 	dv2 = _mm512_load_si512(data + 8);
@@ -5504,7 +5452,7 @@ void L1sort(uint64_t *data, int dir)
 	{
 		for (j = 0; j < 4096 / bitonic_sort_size; j++) {
 			// up/down merges of the previous up/down sorts, output is up/down sorted
-			bitonic_merge(&data[j * bitonic_sort_size], bitonic_sort_size, j & 1);
+			bitonic_merge(&data[(uint32_t)j * bitonic_sort_size], bitonic_sort_size, j & 1);
 		}
 		bitonic_sort_size *= 2;
 	}
@@ -5662,10 +5610,6 @@ void bitonic_merge16(uint16_t *data, uint32_t sz, int dir)
 	__m512i t2;
 	__m512i t3;
 	__m512i t4;
-	__m512i t5;
-	__m512i t6;
-	__m512i t7;
-	__m512i t8;
 	__m512i dv1;
 	__m512i dv2;
 	__m512i dv3;
@@ -5912,14 +5856,6 @@ void bitonic_merge32(uint32_t *data, uint32_t sz, int dir)
 	__m512i dv15;
 	__m512i dv16;
 
-	__mmask16 m1;
-	__mmask16 m2;
-	__mmask16 m3;
-	__mmask16 m4;
-	__mmask16 m5;
-	__mmask16 m6;
-	__mmask16 m7;
-	__mmask16 m8;
 			
 	if (dir == 1)
 	{
@@ -6351,7 +6287,7 @@ void bucket_sort32(uint32_t *buckets, uint32_t bucket_size, uint32_t *bucket_cou
 	if ((32 + SH) > key_bits)
 	{
 		shift = key_bits - SH;
-		mask = (1 << shift)  - 1;
+		mask = (uint32)((1 << shift)  - 1);
 	}
 	else
 	{
@@ -6369,7 +6305,7 @@ void bucket_sort32(uint32_t *buckets, uint32_t bucket_size, uint32_t *bucket_cou
 	for (i = 0; i < sz; i++) {
 		uint32 key = (uint32)((data[i] >> shift) & NB1);
 		uint32_t *bptr = current_bucket[key];
-		bptr[portion_cnt[key]] = data[i] & mask;
+		bptr[portion_cnt[key]] = (uint32_t)(data[i] & mask);
 		portion_cnt[key]++;
 
 		if (portion_cnt[key] == portion_sz)

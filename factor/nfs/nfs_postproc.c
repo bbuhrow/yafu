@@ -45,10 +45,14 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	}
 	
 	if(fobj->nfs_obj.td > 0){
-	    if(strlen(nfs_args)>0)
+        if (strlen(nfs_args) > 0)
+        {
             sprintf(nfs_args + strlen(nfs_args), " target_density=%d", fobj->nfs_obj.td);
+        }
         else
-            sprintf(nfs_args, "target_density=%d",fobj->nfs_obj.td);
+        {
+            sprintf(nfs_args, "target_density=%d", fobj->nfs_obj.td);
+        }
 
 	    obj->nfs_args = nfs_args;
     }
@@ -177,17 +181,17 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	// log anything left over
 	if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) > 0) 
 	{
-		char c[4];
+		char c_in[4];
 
 		if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 		{
 			add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-			strncpy(c,"prp",4);			
+			strncpy(c_in,"prp",4);			
 		}
 		else
 		{
 			add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-			strncpy(c,"C",2);
+			strncpy(c_in,"C",2);
 		}
 		
         if (fobj->LOGFLAG)
@@ -201,7 +205,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             else
             {
                 char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
-                logprint(logfile, "%s%d = %s\n", c,
+                logprint(logfile, "%s%d = %s\n", c_in,
                     gmp_base10(fobj->nfs_obj.gmp_n), s);
                 fclose(logfile);
                 free(s);

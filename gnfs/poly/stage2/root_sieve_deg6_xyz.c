@@ -88,7 +88,7 @@ do_sieving(sieve_root_t *r, uint16 *sieve,
 			uint32 rj = ri;
 
 			do {
-				sieve[rj] += contrib;
+				sieve[rj] += (uint16)contrib;
 				rj += step;
 			} while (rj < dim);
 
@@ -147,15 +147,15 @@ find_hits(sieve_prime_t *lattice_primes,
 				if (k == MAX_ROOTS)
 					break;
 
-				hits->score[k] = curr_score;
-				hits->roots[k][0] = j % dim;
-				hits->roots[k][1] = (j / dim) % dim;
-				hits->roots[k][2] = (j / dim) / dim;
+				hits->score[k] = (uint16)curr_score;
+				hits->roots[k][0] = (uint8)(j % dim);
+				hits->roots[k][1] = (uint8)((j / dim) % dim);
+				hits->roots[k][2] = (uint8)((j / dim) / dim);
 				k++;
 			}
 		}
-		hits->power = dim;
-		hits->num_roots = k;
+		hits->power = (uint8)dim;
+		hits->num_roots = (uint8)k;
 	}
 
 	free(sieve);
@@ -193,9 +193,9 @@ sieve_xyz_run_deg6(root_sieve_t *rs, uint64 lattice_size,
 
 	xyz->num_lattices = 0;
 	xyz->lattice_size = lattice_size;
-	xyz->z_base = line_min / lattice_size - 1;
-	xyz->z_base *= lattice_size;
-	z_blocks = (line_max - line_min) / lattice_size;
+	xyz->z_base = (int64)((double)(line_min / (double)lattice_size) - 1);
+	xyz->z_base *= (int64)lattice_size;
+	z_blocks = (uint32)((line_max - line_min) / (double)lattice_size);
 	if (z_blocks > xyz->z_blocks) {
 		xyz->y_line_min = (double *)xrealloc(xyz->y_line_min,
 						z_blocks * sizeof(double));
@@ -240,7 +240,7 @@ sieve_xyz_run_deg6(root_sieve_t *rs, uint64 lattice_size,
 	next_z = xyz->z_base;
 	for (i = 0; i < z_blocks; i++) {
 		dpoly_t apoly;
-		int64 curr_z = xyz->z_base + i * lattice_size;
+		int64 curr_z = (int64)((unsigned long)xyz->z_base + i * lattice_size);
 
 		if (curr_z < next_z) {
 			if (line_min >= line_max) {
@@ -256,8 +256,8 @@ sieve_xyz_run_deg6(root_sieve_t *rs, uint64 lattice_size,
 
 		next_z = curr_z + 1;
 		apoly = rs->apoly;
-		apoly.coeff[3] += rs->dbl_p * curr_z;
-		apoly.coeff[2] -= rs->dbl_d * curr_z;
+		apoly.coeff[3] += rs->dbl_p * (double)curr_z;
+		apoly.coeff[2] -= rs->dbl_d * (double)curr_z;
 		if (line_min >= line_max) {
 			line_min = -10000;
 			line_max = 10000;
@@ -285,7 +285,7 @@ sieve_xyz_run_deg6(root_sieve_t *rs, uint64 lattice_size,
 	for (i = 0; i < z_blocks; i++) {
 		if (xyz->y_line_min[i] != xyz->y_line_max[i])
 			break;
-		xyz->z_base += lattice_size;
+		xyz->z_base = (int64)((uint64)xyz->z_base + lattice_size);
 	}
 	z_blocks -= i;
 	if (i > 0) {

@@ -156,7 +156,6 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 		uint32_t startq;
 		uint32_t rangeq;
 		uint32_t rels;
-		int start = 1;
 
 		if (fobj->VFLAG > 0)
 		{
@@ -164,9 +163,9 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 				fobj->nfs_obj.outputfile);
 		}
 
-		while (~feof(fid))
+		while (!feof(fid))
 		{
-			fgets(buf, 1024, fid);
+			if (fgets(buf, 1024, fid) == NULL) break;
 
 			if (feof(fid))
 			{
@@ -234,7 +233,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 				{
 					qrange_data->alloc_r *= 2;
 					qrange_data->qranges_r = (qrange_t*)xrealloc(qrange_data->qranges_r,
-						qrange_data->alloc_r * sizeof(qrange_t));
+						(unsigned long)qrange_data->alloc_r * sizeof(qrange_t));
 				}
 
 				qrange_data->qranges_r[qrange_data->num_r].qrange_start = startq;
@@ -247,7 +246,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 				{
 					qrange_data->alloc_a *= 2;
 					qrange_data->qranges_a = (qrange_t*)xrealloc(qrange_data->qranges_a,
-						qrange_data->alloc_a * sizeof(qrange_t));
+						(unsigned long)qrange_data->alloc_a * sizeof(qrange_t));
 				}
 
 				qrange_data->qranges_a[qrange_data->num_a].qrange_start = startq;
@@ -264,8 +263,8 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 		fclose(fid);
 	}
 
-	qsort(qrange_data->qranges_a, qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
-	qsort(qrange_data->qranges_r, qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
+	qsort(qrange_data->qranges_a, (size_t)qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
+	qsort(qrange_data->qranges_r, (size_t)qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
 
 	job->current_rels = totalrels;
 
@@ -290,21 +289,20 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 
 void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_t range)
 {
-	int i;
 	if (side == 'a')
 	{
 		if (qrange_data->num_a == qrange_data->alloc_a)
 		{
 			qrange_data->alloc_a *= 2;
 			qrange_data->qranges_a = (qrange_t*)xrealloc(qrange_data->qranges_a,
-				qrange_data->alloc_a * sizeof(qrange_t));
+				(unsigned long)qrange_data->alloc_a * sizeof(qrange_t));
 		}
 
 		qrange_data->qranges_a[qrange_data->num_a].qrange_start = start;
 		qrange_data->qranges_a[qrange_data->num_a].qrange_end = start + range;
 		qrange_data->num_a++;
 
-		qsort(qrange_data->qranges_a, qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
+		qsort(qrange_data->qranges_a, (size_t)qrange_data->num_a, sizeof(qrange_t), &qcomp_qrange);
 	}
 	else
 	{
@@ -312,14 +310,14 @@ void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_
 		{
 			qrange_data->alloc_r *= 2;
 			qrange_data->qranges_r = (qrange_t*)xrealloc(qrange_data->qranges_r,
-				qrange_data->alloc_r * sizeof(qrange_t));
+				(unsigned long)qrange_data->alloc_r * sizeof(qrange_t));
 		}
 
 		qrange_data->qranges_r[qrange_data->num_r].qrange_start = start;
 		qrange_data->qranges_r[qrange_data->num_r].qrange_end = start + range;
 		qrange_data->num_r++;
 
-		qsort(qrange_data->qranges_r, qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
+		qsort(qrange_data->qranges_r, (size_t)qrange_data->num_r, sizeof(qrange_t), &qcomp_qrange);
 	}
 	return;
 }
@@ -662,7 +660,7 @@ void nfs_sieve_start(void* vptr)
 		logprint_oc(fobj->flogname, "a", "initializing relation batch from %u to %"PRIu64"\n", 2, 1ULL << max_prime);
 
 		char fname[80];
-		sprintf(fname, "bgcd_lpb%d", max_prime);
+		sprintf(fname, "bgcd_lpb%" PRIu64, max_prime);
 		FILE* fid = fopen(fname, "rb");
 		int compute_pproduct = 1;
 
@@ -731,9 +729,9 @@ void nfs_sieve_start(void* vptr)
 	}
 
 	udata->requested_side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
-	int side = udata->requested_side;
+	UNUSED_VAR int side = udata->requested_side;
 
-	udata->thread_data = (nfs_threaddata_t*)malloc(fobj->THREADS * sizeof(nfs_threaddata_t));
+	udata->thread_data = (nfs_threaddata_t*)malloc((unsigned long)fobj->THREADS * sizeof(nfs_threaddata_t));
 
 	// initialize a database of q-ranges from the global .ranges file, if it exists,
 	// or prepare to start a new job with default/user input if not.
@@ -752,7 +750,7 @@ void nfs_sieve_start(void* vptr)
 		if (fobj->nfs_obj.rangeq > 0)
 		{
 			// custom start and stop.
-			if ((udata->qrange_data->thread_qrange * fobj->THREADS) > fobj->nfs_obj.rangeq)
+			if ((udata->qrange_data->thread_qrange * (uint32_t)fobj->THREADS) > fobj->nfs_obj.rangeq)
 			{
 				// adjust default q-per-range
 				udata->qrange_data->thread_qrange = 
@@ -979,7 +977,7 @@ void nfs_sieve_sync(void* vptr)
 		free(hn);
 
 		if ((of = fopen(ofn, "r")) != 0) {
-			fscanf(of, "%u", &last_spq);
+			if (fscanf(of, "%u", &last_spq) != 1) last_spq = 0;
 
 			if (fobj->VFLAG > 0)
 			{
@@ -1034,7 +1032,7 @@ void nfs_sieve_sync(void* vptr)
 					while (1)
 					{
 						// read a line into the next position of the circular buffer
-						fgets(tmp, GSTR_MAXSIZE, of);
+						if (fgets(tmp, GSTR_MAXSIZE, of) == NULL) { /* EOF: tmp keeps the previous line; the loop exits below */ }
 
 						// quick check that it might be a valid line
 						if (strlen(tmp) > 30)
@@ -1263,7 +1261,7 @@ void nfs_sieve_sync(void* vptr)
 	}
 
 	// done with the temporary output file for this thread.
-	int status = remove(udata->thread_data[tid].outfilename);
+	UNUSED_VAR int status = remove(udata->thread_data[tid].outfilename);
 
 	// whether or not the file still exists right now, just keep going.
 	// if the file still exists when we go to create a new one
@@ -1325,7 +1323,7 @@ void nfs_sieve_dispatch(void* vptr)
 	{
 		if (fobj->VFLAG >= 0)
 		{
-			printf("nfs: thread %d halting, nfs timeout of %1.4sec exceeded\n", tid, fobj->nfs_obj.timeout);
+			printf("nfs: thread %d halting, nfs timeout of %u sec exceeded\n", tid, fobj->nfs_obj.timeout);
 		}
 		tdata->work_fcn_id = tdata->num_work_fcn;
 		return;
@@ -1336,7 +1334,7 @@ void nfs_sieve_dispatch(void* vptr)
 		// this is where we set what Q-range to sieve for the current thread.
 		// first see what the .ranges file says should be done.  This
 		// will drive a normal automated factorization.
-		qrange_t* qrange = get_next_range(udata->qrange_data, udata->requested_side);
+		qrange_t* qrange = get_next_range(udata->qrange_data, (char)udata->requested_side);
 		
 		if ((udata->qrange_data->num_a == 0) && (udata->qrange_data->num_r == 0))
 		{
@@ -1436,7 +1434,7 @@ void nfs_sieve_dispatch(void* vptr)
 
 		// regardless of how this range was selected, make it unavailable to other threads
 		// and record it in the ranges file.
-		insert_range(udata->qrange_data, udata->requested_side,
+		insert_range(udata->qrange_data, (char)udata->requested_side,
 			t->job.startq, t->job.qrange);
 		free(qrange);
 
@@ -1486,13 +1484,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 {
 	uint32_t count;
 	int i, minscore_id = 0;
-	double* score = (double*)malloc(njobs * sizeof(double));
+	double* score = (double*)malloc((unsigned long)njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char time[80];
 	uint32_t spq_range = 1000, actual_range;
 	FILE *flog = NULL;
-    int sysreturn;
+    UNUSED_VAR int sysreturn;
 
 	char** filenames; // args
 	nfs_job_t* jobs; // args
@@ -1521,13 +1519,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	{ // read files into job structs (get fblim)
 
 		filenames = (char**) args;
-		jobs = (nfs_job_t*)malloc(njobs * sizeof(nfs_job_t));
+		jobs = (nfs_job_t*)malloc((unsigned long)njobs * sizeof(nfs_job_t));
 		if( jobs == NULL )
 		{
 			printf("Couldn't alloc memory!\n");
 			exit(-1);
 		}
-		memset(jobs, 0, njobs*sizeof(nfs_job_t));
+		memset(jobs, 0, (unsigned long)njobs*sizeof(nfs_job_t));
 
 		for(i = 0; i < njobs; i++)
 		{
@@ -1550,7 +1548,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	else
 	{ // create poly files
 		jobs = (nfs_job_t *) args;
-		filenames = (char**)malloc(njobs*sizeof(char*));
+		filenames = (char**)malloc((unsigned long)njobs*sizeof(char*));
 		if( !filenames )
 		{
 			printf("malloc derped it up!\n");
@@ -1709,8 +1707,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			}
 			fclose(in);
 
-			line = get_spq(lines, line, fobj);
-			actual_range = line - jobs[i].startq;
+			line = (int)get_spq(lines, line, fobj);
+			actual_range = (uint32_t)line - jobs[i].startq;
 			if (fobj->VFLAG > 0)
 				printf("test: found %u relations in a range of %u special-q\n", 
 				count, spq_range);
@@ -1925,7 +1923,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *infile, char *outfile, int vflag)
 {
 	relation_batch_t* rb = thread_data->job.rb;
-	char buf[1024], str1[1024], str2[1024];
+	char buf[1024], str1[1024];
 	uint32_t fr[32], fa[32], numr = 0, numa = 0;
 	mpz_t res1, res2;
 	struct timeval start;
@@ -1955,7 +1953,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 
 	gettimeofday(&start, NULL);
 
-	while (~feof(fid))
+	while (!feof(fid))
 	{
 		int64_t a;
 		uint32_t b;
@@ -2016,7 +2014,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 		ptr = thistok;
 		while (strlen(ptr) > 0)
 		{
-			fr[numr++] = strtoul(ptr, NULL, 16);
+			fr[numr++] = (uint32_t)strtoul(ptr, NULL, 16);
 			ptr = strchr(ptr, ',');
 			if (ptr == NULL)
 				break;
@@ -2029,7 +2027,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 		ptr = thistok;
 		while (strlen(ptr) > 0)
 		{
-			fa[numa++] = strtoul(ptr, NULL, 16);
+			fa[numa++] = (uint32_t)strtoul(ptr, NULL, 16);
 			ptr = strchr(ptr, ',');
 			if (ptr == NULL)
 				break;
@@ -2121,8 +2119,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 
 	if (fout != NULL)
 	{
-		int num_success = 0;
-		int n = 0;
+		UNUSED_VAR int num_success = 0;
 		int nwrote = 0;
 		line = 0;
 		for (i = 0; i < rb->num_relations; i++)
@@ -2137,7 +2134,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 				for (j = 0; j < 3; j++)
 				{
 					if (rb->relations[i].lp_r[j] > 1)
-						fprintf(fout, "%x,", rb->relations[i].lp_r[j]);
+						fprintf(fout, "%" PRIx64 ",", rb->relations[i].lp_r[j]);
 				}
 				for (k = 0; k < rb->relations[i].num_factors_r - 1; k++)
 				{
@@ -2147,7 +2144,7 @@ uint32_t process_batch(nfs_threaddata_t* thread_data, mpz_ptr prime_prod, char *
 				for (j = 0; j < 3; j++)
 				{
 					if (rb->relations[i].lp_a[j] > 1)
-						fprintf(fout, "%x,", rb->relations[i].lp_a[j]);
+						fprintf(fout, "%" PRIx64 ",", rb->relations[i].lp_a[j]);
 				}
 
 				f = rb->factors + rb->relations[i].factor_list_word + rb->relations[i].num_factors_r;
@@ -2955,10 +2952,10 @@ void* lasieve_launcher(void* vptr) {
 	tpool_t* tdata = (tpool_t*)vptr;
 	nfs_userdata_t* udata = tdata->user_data;
 	fact_obj_t* fobj = udata->fobj;
-	nfs_job_t* job = udata->main_job_ref;
+	UNUSED_VAR nfs_job_t* job = udata->main_job_ref;
 	int tid = tdata->tindex;
 	nfs_threaddata_t* thread_data = &udata->thread_data[tid];
-	qrange_data_t* qrange_data = udata->qrange_data;
+	UNUSED_VAR qrange_data_t* qrange_data = udata->qrange_data;
 
 #else
 void *lasieve_launcher(void *ptr) {

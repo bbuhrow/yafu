@@ -106,7 +106,7 @@ int pp1_wrapper(fact_obj_t *fobj)
 	}
 
 	status = ecm_factor(pp1_data.gmp_factor, pp1_data.gmp_n,
-			fobj->pp1_obj.B1, pp1_data.params);
+			(double)fobj->pp1_obj.B1, pp1_data.params);
 
 	mpz_set(fobj->pp1_obj.gmp_n, pp1_data.gmp_n);
 
@@ -135,10 +135,10 @@ void williams_loop(fact_obj_t *fobj)
 	//with our random choice of base
 	//expects the input in pp1_obj->gmp_n
 	mpz_t d,t;
-	int i,it,trials = fobj->pp1_obj.numbases;
+	UNUSED_VAR int i,it,trials = (int)fobj->pp1_obj.numbases;
     clock_t start = clock();
     clock_t stop = clock();
-	double tt;
+	UNUSED_VAR double tt;
 		
 	//check for trivial cases
 	if ((mpz_cmp_ui(fobj->pp1_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 0) == 0))
@@ -285,21 +285,21 @@ void pp1_print_B1_B2(fact_obj_t *fobj)
 	if (fobj->pp1_obj.B1 % 1000000000 == 0)
 	{
 		suffix = 'B';
-		sprintf(stg1str,"%u%c",fobj->pp1_obj.B1 / 1000000000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->pp1_obj.B1 / 1000000000, suffix);
 	}
 	else if (fobj->pp1_obj.B1 % 1000000 == 0)
 	{
 		suffix = 'M';
-		sprintf(stg1str,"%u%c",fobj->pp1_obj.B1 / 1000000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->pp1_obj.B1 / 1000000, suffix);
 	}
 	else if (fobj->pp1_obj.B1 % 1000 == 0)
 	{
 		suffix = 'K';
-		sprintf(stg1str,"%u%c",fobj->pp1_obj.B1 / 1000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->pp1_obj.B1 / 1000, suffix);
 	}
 	else
 	{
-		sprintf(stg1str,"%u",fobj->pp1_obj.B1);
+		sprintf(stg1str,"%" PRIu64,fobj->pp1_obj.B1);
 	}
 
 	if (fobj->pp1_obj.stg2_is_default == 0)

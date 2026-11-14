@@ -183,12 +183,12 @@ double ytools_difftime(struct timeval* start, struct timeval* end)
 
     if (start->tv_sec == end->tv_sec) {
         secs = 0;
-        usecs = end->tv_usec - start->tv_usec;
+        usecs = (double)(end->tv_usec - start->tv_usec);
     }
     else {
-        usecs = 1000000 - start->tv_usec;
-        secs = end->tv_sec - (start->tv_sec + 1);
-        usecs += end->tv_usec;
+        usecs = (double)(1000000 - start->tv_usec);
+        secs = (double)(end->tv_sec - (start->tv_sec + 1));
+        usecs += (double)end->tv_usec;
         if (usecs >= 1000000) {
             usecs -= 1000000;
             secs += 1;
@@ -208,21 +208,21 @@ char* time_from_secs(char* str, unsigned long time)
     {
         d = time / (3600 * 24);
         time %= (3600 * 24);
-        sprintf(str, "%u day%s ", d, d > 1 ? "s" : "");
+        sprintf(str, "%lu day%s ", d, d > 1 ? "s" : "");
     }
     if (time > 3600)
     {
         d = time / 3600;
         time %= 3600;
-        sprintf(str, "%s%uh ", str, d);
+        sprintf(str + strlen(str), "%luh ", d);
     }
     if (time > 60)
     {
         d = time / 60;
         time %= 60;
-        sprintf(str, "%s%um ", str, d);
+        sprintf(str + strlen(str), "%lum ", d);
     }
-    sprintf(str, "%s%us", str, time);
+    sprintf(str + strlen(str), "%lus", time);
     return str;
 }
 
@@ -242,9 +242,15 @@ void get_random_seeds(uint32_t *seed1, uint32_t *seed2) {
 
         /* Yay! Cryptographic-quality nondeterministic randomness! */
 
-        fread(&tmp_seed1, sizeof(uint32_t), (size_t)1, rand_device);
-        fread(&tmp_seed2, sizeof(uint32_t), (size_t)1, rand_device);
+        size_t got = fread(&tmp_seed1, sizeof(uint32_t), (size_t)1, rand_device);
+        got += fread(&tmp_seed2, sizeof(uint32_t), (size_t)1, rand_device);
         fclose(rand_device);
+        if (got != 2)
+        {
+            // short read: fall back to the clock
+            tmp_seed1 = (uint32_t)time(NULL);
+            tmp_seed2 = (uint32_t)clock() ^ 0x9e3779b9u;
+        }
     }
     else
 
@@ -764,18 +770,18 @@ static void ytools_arm_cpu_name(char* idstr, int len)
 
     if (!have)
     {
-        snprintf(idstr, len, "N/A");
+        snprintf(idstr, (size_t)len, "N/A");
         return;
     }
 
     vname = ytools_arm_implementer(impl);
     pname = ytools_arm_part(impl, part);
     if (vname && pname)
-        snprintf(idstr, len, "%s %s r%up%u", vname, pname, variant, rev);
+        snprintf(idstr, (size_t)len, "%s %s r%up%u", vname, pname, variant, rev);
     else if (vname)
-        snprintf(idstr, len, "%s part 0x%03x r%up%u", vname, part, variant, rev);
+        snprintf(idstr, (size_t)len, "%s part 0x%03x r%up%u", vname, part, variant, rev);
     else
-        snprintf(idstr, len, "implementer 0x%02x part 0x%03x r%up%u",
+        snprintf(idstr, (size_t)len, "implementer 0x%02x part 0x%03x r%up%u",
             impl, part, variant, rev);
 }
 
@@ -953,11 +959,11 @@ void ytools_get_computer_info(info_t* info, int do_print)
 //#elif defined(_MSC_VER) && defined(__clang__)
 //#include <x86intrin.h>
 //#define HAS_CPUID
-//#define CPUID(__leaf, __eax, __ebx, __ecx, __edx) \
-//    __asm("cpuid" : "=a"(__eax), "=b" (__ebx), "=c"(__ecx), "=d"(__edx) \
+//#define CPUID(__leaf, __eax, __ebx, __ecx, __edx)
+//    __asm("cpuid" : "=a"(__eax), "=b" (__ebx), "=c"(__ecx), "=d"(__edx)
 //                  : "0"(__leaf))
-//#define CPUID2(code1, code2, a, b, c, d) \
-//	__asm("cpuid" : "=a"(a), "=b" (b), "=c"(c), "=d"(d) \
+//#define CPUID2(code1, code2, a, b, c, d)
+//	__asm("cpuid" : "=a"(a), "=b" (b), "=c"(c), "=d"(d)
 //                  : "0"(code1), "2"(code2))
 //
 #elif defined(_MSC_VER) 
@@ -1052,9 +1058,9 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
                     type.s.cache_type != 3)
                     continue;
 
-                d = (size.s.line_size + 1) *
+                d = (uint32_t)((size.s.line_size + 1) *
                     (size.s.num_lines + 1) *
-                    (size.s.ways + 1) *
+                    (size.s.ways + 1)) *
                     (num_sets + 1);
 
                 if (type.s.cache_level == 1)
@@ -1082,21 +1088,21 @@ void ytools_get_cache_sizes(uint32_t* level1_size_out,
 
         CPUID(2, a, b, c, d);
 
-        features[0] = (a >> 8);
-        features[1] = (a >> 16);
-        features[2] = (a >> 24);
-        features[3] = b;
-        features[4] = (b >> 8);
-        features[5] = (b >> 16);
-        features[6] = (b >> 24);
-        features[7] = c;
-        features[8] = (c >> 8);
-        features[9] = (c >> 16);
-        features[10] = (c >> 24);
-        features[11] = d;
-        features[12] = (d >> 8);
-        features[13] = (d >> 16);
-        features[14] = (d >> 24);
+        features[0] = (uint8_t)(a >> 8);
+        features[1] = (uint8_t)(a >> 16);
+        features[2] = (uint8_t)(a >> 24);
+        features[3] = (uint8_t)b;
+        features[4] = (uint8_t)(b >> 8);
+        features[5] = (uint8_t)(b >> 16);
+        features[6] = (uint8_t)(b >> 24);
+        features[7] = (uint8_t)c;
+        features[8] = (uint8_t)(c >> 8);
+        features[9] = (uint8_t)(c >> 16);
+        features[10] = (uint8_t)(c >> 24);
+        features[11] = (uint8_t)d;
+        features[12] = (uint8_t)(d >> 8);
+        features[13] = (uint8_t)(d >> 16);
+        features[14] = (uint8_t)(d >> 24);
 
         /* level 1 and level 2 cache codes only; level 3 codes (0x22,
            0x23, 0x25, 0x29, 0x46, 0x47, 0x4a-0x4d, 0xe4, 0xea-0xec)
@@ -1267,7 +1273,7 @@ enum cpu_type ytools_get_cpu_type(void) {
     }
     else if ((b & 0xff) == 'A') {		/* "AuthenticAMD" */
 
-        uint8_t family, model;
+        UNUSED_VAR uint8_t family, model;
 
         CPUID(1, a, b, c, d);
         family = (a >> 8) & 0xf;
@@ -1319,8 +1325,8 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
     int nCacheLineSize = 0;
     int nL2Associativity = 0;
     int nCacheSizeK = 0;
-    int nPhysicalAddress = 0;
-    int nVirtualAddress = 0;
+    UNUSED_VAR int nPhysicalAddress = 0;
+    UNUSED_VAR int nVirtualAddress = 0;
     int nRet = 0;
 
     int nCores = 0;
@@ -1424,7 +1430,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
     // in a human readable form.
     CPUID(0, CPUInfo[0], CPUInfo[1], CPUInfo[2], CPUInfo[3]);
     //__cpuid(CPUInfo, 0);
-    nIds = CPUInfo[0];
+    nIds = (unsigned int)CPUInfo[0];
     memset(CPUString, 0, sizeof(CPUString));
     *((int*)CPUString) = CPUInfo[1];
     *((int*)(CPUString + 4)) = CPUInfo[3];
@@ -1482,7 +1488,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
     // gets the number of valid extended IDs.
     CPUID(0x80000000, CPUInfo[0], CPUInfo[1], CPUInfo[2], CPUInfo[3]);
     //__cpuid(CPUInfo, 0x80000000);
-    nExIds = CPUInfo[0];
+    nExIds = (unsigned int)CPUInfo[0];
     memset(CPUBrandString, 0, sizeof(CPUBrandString));
 
     // Get the information associated with each extended ID.
@@ -1519,7 +1525,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
             bRDTSCP = (CPUInfo[3] & 0x8000000) || 0;
             b64Available = (CPUInfo[3] & 0x20000000) || 0;
             b3DNowExt = (CPUInfo[3] & 0x40000000) || 0;
-            b3DNow = (CPUInfo[3] & 0x80000000) || 0;
+            b3DNow = ((unsigned int)CPUInfo[3] & 0x80000000) || 0;
         }
 
         // Interpret CPU brand string and cache information.
@@ -1633,7 +1639,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
                 nIds = 1;
                 while (i < (sizeof(szFeatures) / sizeof(const char*)))
                 {
-                    if (nFeatureInfo & nIds)
+                    if ((unsigned int)nFeatureInfo & nIds)
                     {
                         printf("\t");
                         printf("%s", szFeatures[i]);
@@ -1801,7 +1807,7 @@ int ytools_extended_cpuid(char* idstr, int* cachelinesize, char* bSSE41Extension
     *AVX512ER = (CPUInfo[1] & (1 << 27)) || 0;
     *AVX512CD = (CPUInfo[1] & (1 << 28)) || 0;
     *AVX512BW = (CPUInfo[1] & (1 << 30)) || 0;
-    *AVX512VL = (CPUInfo[1] & (1u << 31)) || 0;
+    *AVX512VL = ((unsigned int)CPUInfo[1] & (1u << 31)) || 0;
 
     if ((*BMI1) && do_print)
         printf("\n\n\tBMI1 Extensions\n");
@@ -1915,7 +1921,7 @@ int qcomp_double(const void *x, const void *y)
 
 uint32_t* merge_sort(uint32_t* a, uint32_t* b, int sz_a, int sz_b)
 {
-    uint32_t* c = (uint32_t*)malloc((sz_a + sz_b) * sizeof(uint32_t));
+    uint32_t* c = (uint32_t*)malloc((unsigned long)(sz_a + sz_b) * sizeof(uint32_t));
     int i = 0, j = 0, k = 0;
 
     while ((i < sz_a) && (j < sz_b)) {
@@ -2062,7 +2068,7 @@ void enqueue(Queue_t* Q, uint32_t e)
 
 uint32_t dequeue(Queue_t* Q)
 {
-    uint32_t e = -1;
+    uint32_t e = (uint32_t)-1;
 
     if (Q->len > 0)
     {
@@ -2098,7 +2104,7 @@ uint32_t dequeue(Queue_t* Q)
 
 uint32_t peekqueue(Queue_t* Q)
 {
-    uint32_t e = -1;
+    uint32_t e = (uint32_t)-1;
     if (Q->len > 0)
     {
         if (Q->isStack)
@@ -2273,7 +2279,7 @@ uint64_t choose(int n, int k)
     int i;
     for (i = 1; i <= k; i++)
     {
-        p = p * (n + 1 - i) / i;
+        p = p * (uint64_t)(n + 1 - i) / (uint64_t)i;
     }
     return p;
 }
@@ -2287,7 +2293,7 @@ void combination(int* c, int n, int p, int x) {
         c[i] = (i != 0) ? c[i - 1] : 0;
         do {
             c[i]++;
-            r = choose(n - c[i], p - (i + 1));
+            r = (int)choose(n - c[i], p - (i + 1));
             k = k + r;
         } while (k < x);
         k = k - r;
@@ -2401,7 +2407,7 @@ void CombinationRepetitionUtil(int chosen[], int arr[],
 void CombinationRepetition(int arr[], int n, int r)
 {
     // Allocate memory
-    int* chosen = (int*)xmalloc((r + 1) * sizeof(int));
+    int* chosen = (int*)xmalloc((unsigned long)(r + 1) * sizeof(int));
     int num;
 
     // Call the recursive function

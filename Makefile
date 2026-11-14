@@ -1425,7 +1425,8 @@ test-clean:
 # -----------------------------------------------------------------------------
 .PHONY: test-full test-full-run
 
-TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c
+TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c \
+                 $(TEST_DIR)/layer3/test_snfs.c
 TEST_FULL_BIN := yafu_test_full$(EXE_EXT)
 TEST_ARCHIVES := libysiqs.a libyecm.a libynfs.a libmsieve.a
 

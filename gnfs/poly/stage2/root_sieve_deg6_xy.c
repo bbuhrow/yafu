@@ -86,7 +86,7 @@ static void
 make_heap(plane_t *h, uint32 size) {
 
 	int32 i;
-	for (i = HEAP_PARENT(size); i >= 0; i--)
+	for (i = (int32)HEAP_PARENT(size); i >= 0; i--)
 		heapify(h, (uint32)i, size);
 }
 
@@ -215,15 +215,15 @@ root_sieve_xy(root_sieve_t *rs, xydata_t *xydata,
 				}
 
 				hits->score[k] = sieve[j];
-				hits->roots[k][0] = j % p;
-				hits->roots[k][1] = j / p;
+				hits->roots[k][0] = (uint8)(j % p);
+				hits->roots[k][1] = (uint8)(j / p);
 				if (++k == MAX_ROOTS)
 					break;
 			}
 		}
 
-		hits->power = p;
-		hits->num_roots = k;
+		hits->power = (uint8)p;
+		hits->num_roots = (uint8)k;
 		num_lattices *= k;
 	}
 
@@ -276,7 +276,7 @@ xydata_alloc(sieve_prime_t *lattice_primes,
 			uint32 num_roots = sp->num_roots;
 	
 			curr_xypower->power = power;
-			curr_xypower->latsize_mod = lattice_size_xyz % power;
+			curr_xypower->latsize_mod = (uint32)(lattice_size_xyz % power);
 			curr_xypower->num_roots = num_roots;
 			curr_xypower->contrib = sp->sieve_contrib;
 			curr_xypower->roots = (xyprog_t *)xmalloc(num_roots * 
@@ -286,8 +286,8 @@ xydata_alloc(sieve_prime_t *lattice_primes,
 				sieve_root_t *r = sp->roots + k;
 				xyprog_t *curr_xyprog = curr_xypower->roots + k;
 
-				curr_xyprog->base_start = r->start;
-				curr_xyprog->resclass = r->resclass;
+				curr_xyprog->base_start = (uint8)r->start;
+				curr_xyprog->resclass = (uint8)r->resclass;
 				curr_xyprog->invtable_y = 
 					(uint8 *)xmalloc(power * sizeof(uint8));
 			}
@@ -336,11 +336,11 @@ xydata_init(xydata_t *xydata, uint32 num_lattice_primes,
 
 			uint32 p = curr_xypower->power;
 			uint32 latsize_mod = curr_xypower->latsize_mod;
-			uint32 y_mod_p = lattice_xyz->y % p;
-			int64 z_start = z_base + lattice_xyz->z;
-			int32 z_start_mod = z_start % p;
-			uint32 z_mod_p = (z_start_mod < 0) ? 
-					(z_start_mod + (int32)p) : z_start_mod;
+			uint32 y_mod_p = (uint32)(lattice_xyz->y % p);
+			int64 z_start = (int64)((unsigned long)z_base + lattice_xyz->z);
+			int32 z_start_mod = (int32)(z_start % p);
+			uint32 z_mod_p = (uint32)((z_start_mod < 0) ? 
+					(z_start_mod + (int32)p) : z_start_mod);
 
 			for (k = 0; k < num_roots; k++) {
 				xyprog_t *curr_xyprog = curr_xypower->roots + k;
@@ -354,18 +354,18 @@ xydata_init(xydata_t *xydata, uint32 num_lattice_primes,
 				uint32 stride_y = mp_modmul_1(resclass, 
 							latsize_mod, p);
 
-				curr_xyprog->stride_z = mp_modmul_1(resclass2, 
+				curr_xyprog->stride_z = (uint8)mp_modmul_1(resclass2, 
 							latsize_mod, p);
 
 				start = mp_modsub_1(start, 
 						mp_modmul_1(resclass, 
 							y_mod_p, p), p);
-				curr_xyprog->start = mp_modsub_1(start, 
+				curr_xyprog->start = (uint8)mp_modsub_1(start, 
 						mp_modmul_1(resclass2, 
 							z_mod_p, p), p);
 
 				for (m = n = 0; m < p; m++) {
-					invtable_y[ytmp] = n;
+					invtable_y[ytmp] = (uint8)n;
 					ytmp = mp_modadd_1(ytmp, 
 							latsize_mod, p);
 					n = mp_modadd_1(n, stride_y, p);
@@ -402,7 +402,7 @@ do_sieving(xydata_t *curr_xydata)
 			row += p;
 		}
 
-		curr_prog->start = mp_modsub_1(start, 
+		curr_prog->start = (uint8)mp_modsub_1(start, 
 					curr_prog->stride_z, p);
 	}
 }
@@ -447,7 +447,7 @@ do_sieving_powers(xydata_t *curr_xydata)
 				}
 			}
 
-			curr_prog->start = mp_modsub_1(start, 
+			curr_prog->start = (uint8)mp_modsub_1(start, 
 						curr_prog->stride_z, p);
 		}
 	}
@@ -563,7 +563,7 @@ sieve_xy_run_deg6(root_sieve_t *rs)
 
 	qsort(plane_heap.entries, plane_heap.num_entries,
 			sizeof(plane_t), compare_planes);
-	cutoff_score = 0.9 * plane_heap.entries[0].plane.score;
+	cutoff_score = (uint16)(0.9 * plane_heap.entries[0].plane.score);
 
 	for (i = 0; i < plane_heap.num_entries; i++) {
 
@@ -577,17 +577,17 @@ sieve_xy_run_deg6(root_sieve_t *rs)
 
 		line_min = xyz->y_line_min[curr_plane->which_z_block];
 		line_max = xyz->y_line_max[curr_plane->which_z_block];
-		z_base = xyz->z_base + curr_plane->which_z_block *
-					xyz->lattice_size;
+		z_base = (int64)((unsigned long)xyz->z_base + curr_plane->which_z_block *
+					xyz->lattice_size);
 
 		xy->apoly = rs->apoly;
-		xy->apoly.coeff[3] += z_base * rs->dbl_p;
-		xy->apoly.coeff[2] -= z_base * rs->dbl_d;
+		xy->apoly.coeff[3] += (double)z_base * rs->dbl_p;
+		xy->apoly.coeff[2] -= (double)z_base * rs->dbl_d;
 
 		mpz_set_d(xy->tmp1, line_min);
 		mpz_tdiv_q(xy->y_base, xy->tmp1, xy->mp_lattice_size);
 		mpz_mul(xy->y_base, xy->y_base, xy->mp_lattice_size);
-		xy->y_blocks = (line_max - line_min) / xy->dbl_lattice_size;
+		xy->y_blocks = (uint32)((line_max - line_min) / xy->dbl_lattice_size);
 
 		uint64_2gmp(lattice_xy->x, xy->tmp1);
 		uint64_2gmp(lattice_xyz->x, xy->tmp2);
@@ -605,7 +605,7 @@ sieve_xy_run_deg6(root_sieve_t *rs)
 				xy->mp_lattice_size);
 
 		xy->curr_score = lattice_xyz->score + lattice_xy->score;
-		rs->curr_z = z_base + lattice_xyz->z; 
+		rs->curr_z = (int64)((unsigned long)z_base + lattice_xyz->z); 
 
 		sieve_x_run_deg6(rs);
 

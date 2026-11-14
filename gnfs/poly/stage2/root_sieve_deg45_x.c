@@ -83,7 +83,7 @@ static void
 make_heap(xline_t *h, uint32 size) {
 
 	int32 i;
-	for (i = HEAP_PARENT(size); i >= 0; i--)
+	for (i = (int32)HEAP_PARENT(size); i >= 0; i--)
 		heapify(h, (uint32)i, size);
 }
 
@@ -96,7 +96,7 @@ save_xline(xline_heap_t *heap, uint32 score,
 
 	if (heap->num_entries <= XLINE_HEAP_SIZE - 1) {
 		xline_t *s = h + heap->num_entries++;
-		s->score = score;
+		s->score = (uint16)score;
 		s->which_y_block = which_y_block;
 		s->which_lattice = which_lattice;
 		s->resclass = resclass;
@@ -104,7 +104,7 @@ save_xline(xline_heap_t *heap, uint32 score,
 			make_heap(h, XLINE_HEAP_SIZE);
 	}
 	else if (h->score < score) {
-		h->score = score;
+		h->score = (uint16)score;
 		h->which_y_block = which_y_block;
 		h->which_lattice = which_lattice;
 		h->resclass = resclass;
@@ -217,7 +217,7 @@ root_sieve_x(root_sieve_t *rs, xdata_t *xdata,
 				max_sieve_val = sieve[j];
 			}
 		}
-		max_sieve_val = 0.7 * max_sieve_val;
+		max_sieve_val = (uint16)(0.7 * max_sieve_val);
 
 		for (j = k = 0; j < sieve_size; j++) {
 			if (sieve[j] >= max_sieve_val) {
@@ -225,13 +225,13 @@ root_sieve_x(root_sieve_t *rs, xdata_t *xdata,
 					break;
 
 				hits->score[k] = sieve[j];
-				hits->roots[k][0] = j;
+				hits->roots[k][0] = (uint8)j;
 				k++;
 			}
 		}
 
-		hits->power = sieve_size;
-		hits->num_roots = k;
+		hits->power = (uint8)sieve_size;
+		hits->num_roots = (uint8)k;
 		num_lattices *= k;
 	}
 
@@ -283,7 +283,7 @@ xdata_alloc(sieve_prime_t *lattice_primes,
 			uint32 power = sp->power;
 
 			curr_xpower->p = power;
-			curr_xpower->latsize_mod_p = mpz_tdiv_ui(
+			curr_xpower->latsize_mod_p = (uint32)mpz_tdiv_ui(
 						mp_lattice_size, power);
 			curr_xpower->num_roots = sp->num_roots;
 			curr_xpower->contrib = sp->sieve_contrib;
@@ -337,16 +337,16 @@ xdata_init(sieve_prime_t *lattice_primes, xdata_t *xdata,
 
 			uint32 latsize_mod_p = curr_xpower->latsize_mod_p;
 			uint32 yres_mod_p = (uint32)(resclass_y % p);
-			uint32 ybase_mod_p = mpz_fdiv_ui(y_base, p);
+			uint32 ybase_mod_p = (uint32)mpz_fdiv_ui(y_base, p);
 			uint32 y_mod_p = mp_modadd_1(yres_mod_p, 
 							ybase_mod_p, p);
 
 			for (k = 0; k < num_roots; k++) {
 				sieve_root_t *r = sp->roots + k;
 
-				roots[k].stride_y = mp_modmul_1(r->resclass, 
+				roots[k].stride_y = (uint16)mp_modmul_1(r->resclass, 
 							latsize_mod_p, p);
-				roots[k].start = mp_modsub_1(r->start, 
+				roots[k].start = (uint16)mp_modsub_1(r->start, 
 						mp_modmul_1(r->resclass,
 							y_mod_p, p), p);
 			}
@@ -381,7 +381,7 @@ do_sieving(xdata_t *xdata)
 			for (k = start; k < sieve_size; k += p)
 				sieve[k] += contrib;
 
-			curr_prog->start = mp_modsub_1(start,
+			curr_prog->start = (uint16)mp_modsub_1(start,
 					curr_prog->stride_y, p);
 		}
 	}
@@ -503,8 +503,8 @@ sieve_x_run_deg5(root_sieve_t *rs)
 						x->mp_lattice_size);
 				mpz_mul(x->x_base, x->x_base, 
 						x->mp_lattice_size);
-				x->x_blocks = (line_max - line_min) /
-						x->dbl_lattice_size;
+				x->x_blocks = (uint32)((line_max - line_min) /
+						x->dbl_lattice_size);
 
 				root_sieve_line(rs);
 
@@ -537,7 +537,7 @@ sieve_x_run_deg5(root_sieve_t *rs)
 	qsort(xline_heap.entries, xline_heap.num_entries,
 			sizeof(xline_t), compare_xlines);
 
-	cutoff_score = 0.4 * xline_heap.entries[0].score;
+	cutoff_score = (uint32)(0.4 * xline_heap.entries[0].score);
 	mpz_invert(x->crt0, xy->mp_lattice_size, x->tmp1);
 	mpz_invert(x->crt1, x->tmp1, xy->mp_lattice_size);
 	mpz_mul(x->crt0, x->crt0, xy->mp_lattice_size);
@@ -569,7 +569,7 @@ sieve_x_run_deg5(root_sieve_t *rs)
 		mpz_set_d(x->tmp1, line_min);
 		mpz_tdiv_q(x->x_base, x->tmp1, x->mp_lattice_size);
 		mpz_mul(x->x_base, x->x_base, x->mp_lattice_size);
-		x->x_blocks = (line_max - line_min) / x->dbl_lattice_size;
+		x->x_blocks = (uint32)((line_max - line_min) / x->dbl_lattice_size);
 
 		uint64_2gmp(curr_xline->resclass, x->tmp1);
 		mpz_mul(x->resclass, x->tmp1, x->crt0);
@@ -614,7 +614,7 @@ sieve_x_run_deg4(root_sieve_t *rs, uint64 lattice_size,
 	if (x->lattice_size == 1) {
 		mpz_set_ui(x->resclass, (unsigned long)0);
 		mpz_set_d(x->x_base, line_min);
-		x->x_blocks = line_max - line_min;
+		x->x_blocks = (uint32)(line_max - line_min);
 		x->curr_score = 0;
 		root_sieve_line(rs);
 		return;
@@ -636,7 +636,7 @@ sieve_x_run_deg4(root_sieve_t *rs, uint64 lattice_size,
 	qsort(xline_heap.entries, xline_heap.num_entries,
 			sizeof(xline_t), compare_xlines);
 
-	cutoff_score = 0.4 * xline_heap.entries[0].score;
+	cutoff_score = (uint32)(0.4 * xline_heap.entries[0].score);
 
 	for (i = 0; i < xline_heap.num_entries; i++) {
 
@@ -648,7 +648,7 @@ sieve_x_run_deg4(root_sieve_t *rs, uint64 lattice_size,
 		mpz_set_d(x->x_base, line_min);
 		mpz_tdiv_q(x->x_base, x->x_base, x->mp_lattice_size);
 		mpz_mul(x->x_base, x->x_base, x->mp_lattice_size);
-		x->x_blocks = (line_max - line_min) / x->dbl_lattice_size;
+		x->x_blocks = (uint32)((line_max - line_min) / x->dbl_lattice_size);
 
 		uint64_2gmp(curr_xline->resclass, x->resclass);
 

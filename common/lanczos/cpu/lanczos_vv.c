@@ -51,7 +51,7 @@ void vv_xor(void *dest_in, void *src_in, uint32 n) {
 	v_t *dest = (v_t *)dest_in;
 	uint32 i;
 
-	for (i = 0; i < (n & ~7); i += 8) {
+	for (i = 0; i < (n & (uint32)~7); i += 8) {
 		dest[i + 0] = v_xor(dest[i + 0], src[i + 0]);
 		dest[i + 1] = v_xor(dest[i + 1], src[i + 1]);
 		dest[i + 2] = v_xor(dest[i + 2], src[i + 2]);
@@ -70,7 +70,7 @@ void vv_mask(void *v_in, v_t mask, uint32 n) {
 	v_t *v = (v_t *)v_in;
 	uint32 i;
 
-	for (i = 0; i < (n & ~7); i += 8) {
+	for (i = 0; i < (n & (uint32)~7); i += 8) {
 		v[i + 0] = v_and(v[i + 0], mask);
 		v[i + 1] = v_and(v[i + 1], mask);
 		v[i + 2] = v_and(v[i + 2], mask);
@@ -351,7 +351,7 @@ void vv_mul_NxB_BxB_acc(packed_matrix_t *matrix,
 		task.data = cpudata->tasks + i;
 		threadpool_add_task(cpudata->threadpool, &task, 0);
 	}
-	outer_thread_run(cpudata->tasks + i, i);
+	outer_thread_run(cpudata->tasks + i, (int)i);
 
 	if (i > 0)
 		threadpool_drain(cpudata->threadpool, 1);
@@ -590,7 +590,7 @@ void vv_mul_BxN_NxB(packed_matrix_t *matrix,
 		task.data = cpudata->tasks + i;
 		threadpool_add_task(cpudata->threadpool, &task, 0);
 	}
-	inner_thread_run(cpudata->tasks + i, i);
+	inner_thread_run(cpudata->tasks + i, (int)i);
 
 	/* All the scratch vectors used by threads get 
 	   xor-ed into the final xy vector */

@@ -412,7 +412,6 @@ void free_factobj(fact_obj_t *fobj)
 
 void alloc_factobj(fact_obj_t *fobj)
 {
-	int i;
 	
 	mpz_init(fobj->N);
     mpz_init(fobj->input_N);
@@ -445,7 +444,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->ecm_obj.gmp_f);
     mpz_set_ui(fobj->ecm_obj.gmp_n, 0);
     mpz_set_ui(fobj->ecm_obj.gmp_f, 0);
-    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(fobj->num_threads * sizeof(uint64_t));
+    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc((unsigned long)fobj->num_threads * sizeof(uint64_t));
     
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
@@ -585,7 +584,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     if (!parameters_only)
     {
         dest->ecm_obj.lcg_state = (uint64_t*)xrealloc(dest->ecm_obj.lcg_state,
-            src->num_threads * sizeof(uint64_t));
+            (unsigned long)src->num_threads * sizeof(uint64_t));
         for (i = 0; i < (int)src->num_threads; i++)
         {
             dest->ecm_obj.lcg_state[i] =
@@ -1005,7 +1004,7 @@ static void add_to_factor_list_r(yfactor_list_t* flist, mpz_t n, int mult,
         {
             flist->alloc_factors *= 2;
             flist->factors = (yfactor_t*)realloc(flist->factors,
-                flist->alloc_factors * sizeof(yfactor_t));
+                (unsigned long)flist->alloc_factors * sizeof(yfactor_t));
         }
 
         memset(&flist->factors[fid], 0, sizeof(yfactor_t));
@@ -1087,7 +1086,7 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
             // just a handle to its limbs).
             mpz_clear(flist->factors[i].factor);
             memmove(&flist->factors[i], &flist->factors[i + 1],
-                (flist->num_factors - 1 - i) * sizeof(yfactor_t));
+                (unsigned long)(flist->num_factors - 1 - i) * sizeof(yfactor_t));
 
             flist->num_factors--;
             break;
@@ -1104,7 +1103,7 @@ void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
     dest->aprcl_prove_cutoff = src->aprcl_prove_cutoff;
     if (alloc_dest)
     {
-        dest->factorization_str = (char*)xmalloc(src->str_alloc * sizeof(char));
+        dest->factorization_str = (char*)xmalloc((unsigned long)src->str_alloc * sizeof(char));
     }
     strcpy(dest->factorization_str, src->factorization_str);
 
@@ -1119,7 +1118,7 @@ void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
 
     if (alloc_dest)
     {
-        dest->factors = (yfactor_t*)xmalloc(src->alloc_factors * sizeof(yfactor_t));
+        dest->factors = (yfactor_t*)xmalloc((unsigned long)src->alloc_factors * sizeof(yfactor_t));
     }
 
     int i;
@@ -1144,8 +1143,8 @@ void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
 
 char* append_factor(char* in, mpz_t factor)
 {
-    int numb = (strlen(in) + gmp_base10(factor) + 4);
-    char* out = (char*)xmalloc(numb * sizeof(char));
+    int numb = (int)((size_t)(strlen(in) + (size_t)gmp_base10(factor)) + 4);
+    char* out = (char*)xmalloc((unsigned long)numb * sizeof(char));
     if (out == NULL)
     {
         printf("could not allocate %d bytes for output buffer\n", numb);
@@ -1164,7 +1163,7 @@ void init_factor_list(yfactor_list_t* flist, mpz_t n)
     flist->alloc_factors = 2;
     flist->num_factors = 0;
     flist->total_factors = 0;
-    flist->factors = (yfactor_t*)xmalloc(flist->alloc_factors * sizeof(yfactor_t));
+    flist->factors = (yfactor_t*)xmalloc((unsigned long)flist->alloc_factors * sizeof(yfactor_t));
     int i;
     for (i = 0; i < flist->alloc_factors; i++)
     {
@@ -1229,7 +1228,7 @@ void generate_factorization_str(yfactor_list_t* flist)
     get_prod_of_factors(flist, prod);
 
     maxlen = 3 * gmp_base10(prod) + 4;
-    tersebuf = (char*)xmalloc(maxlen);
+    tersebuf = (char*)xmalloc((size_t)maxlen);
     strcpy(tersebuf, "");
 
     for (i = 0; i < flist->num_factors; i++)
@@ -1248,7 +1247,7 @@ void generate_factorization_str(yfactor_list_t* flist)
         free(flist->factorization_str);
     }
 
-    flist->factorization_str = (char*)xmalloc((gmp_base10(prod) + strlen(tersebuf) + 10) * sizeof(char));
+    flist->factorization_str = (char*)xmalloc(((size_t)gmp_base10(prod) + strlen(tersebuf) + 10) * sizeof(char));
     
     flist->str_alloc = gmp_sprintf(flist->factorization_str, "%Zd=%s", prod, tersebuf) + 1;
     free(tersebuf);
@@ -1361,7 +1360,10 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 
 	//mpz_gcd(common_fact, file_n, input_n);	
 	if (mpz_cmp_ui(file_n, 0) == 0)
+	{
+		mpz_clear(r);
 		return 0;
+	}
 
 	mpz_tdiv_qr(common_fact, r, input_n, file_n);	
 
@@ -1433,7 +1435,6 @@ int compute_factor_type(yfactor_list_t* flist, mpz_t n, int verbose)
 void compute_factor_types(yfactor_list_t* flist, int verbose, int force)
 {
     int i;
-    int v;
 
     for (i = 0; i < flist->num_factors; i++)
     {
@@ -1479,10 +1480,10 @@ void print_factor(const char* prefix, mpz_t factor, int OBASE)
     else if (OBASE == 2)
     {
         int i;
-        printf("%s%db = 0b", prefix, mpz_sizeinbase(factor, 2));
-        for (i = mpz_sizeinbase(factor, 2) - 1; i >= 0; i--)
+        printf("%s%zub = 0b", prefix, mpz_sizeinbase(factor, 2));
+        for (i = (int)(mpz_sizeinbase(factor, 2) - 1); i >= 0; i--)
         {
-            printf("%d", mpz_tstbit(factor, i));
+            printf("%d", mpz_tstbit(factor, (mp_bitcnt_t)i));
         }
         printf("\n");
     }
@@ -1496,7 +1497,7 @@ void print_factors(fact_obj_t *fobj)
     int NUM_WITNESSES = fobj->NUM_WITNESSES;
     int OBASE = fobj->OBASE;
 	uint32_t i;
-	int j, v;
+	int j;
 	mpz_t prod, remainder;
     int print_terse = fobj->OUTPUT_TERSE;
 
@@ -1586,7 +1587,7 @@ void print_current_factors(yfactor_list_t* flist, int verbose, int base)
     int VFLAG = verbose;
     int OBASE = base;
     uint32_t i;
-    int j, v;
+    int j;
 
     // always print factors unless complete silence is requested
     if (VFLAG >= 0)

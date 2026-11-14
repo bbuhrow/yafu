@@ -30,6 +30,11 @@ test/
     test_ecm.c                microecm / tinyecm on known semiprimes
     test_ocl_ecm.c            OpenCL kernels gbl_ecm / gbl_ecm96 / gbl_pm196
                               (only built with WITH_OPENCL=1, see below)
+  layer3/                   (top-level `make test-full`, see below)
+    test_siqs.c               SIQS on the 50/60/70-digit siqsbench composites
+    test_snfs.c               SNFS form detection, algebraic/Aurifeuillian/power
+                              splits, poly n and roots; factor() method choice
+                              and options via the yafu binary
   Makefile
 ```
 
@@ -69,6 +74,36 @@ make full YAFU_ROOT=/path/to/yafu YAFU_OBJS="...objects except the driver..."
 See the Makefile header for the variables. Layer 1 is gated behind
 `-DTK_NO_LAYER1` (the subset build defines it), so the framework and Layer 0
 always build even without GMP.
+
+## Layer 3 (test-full)
+
+Built from the top-level Makefile; links the full factoring archives:
+
+```
+make test-full
+./yafu_test_full snfs -v        # run from the yafu source root
+```
+
+`layer3/test_snfs.c` has two kinds of tests:
+
+- **In-process** (tag `fast`): one test per special form, mirroring what
+  factor() does: `snfs_find_form()` on the full input, then
+  `snfs_choose_poly()` on the input less primes < 10^5. Each checks the form
+  type; that the factor list still multiplies to the input; the reduced input
+  size and the number of algebraic / Aurifeuillian / difference-of-powers
+  pieces split off; that the polynomial is for the reduced input and that f
+  and g share a root mod n; and the degree and difficulty. The expected values
+  are pinned: if a deliberate change to poly selection moves them, rerun with
+  `YAFU_TEST_SNFS_REPORT=1` to print the actuals, check them, and update the
+  table.
+- **Black-box** (tag `cli`): runs the built yafu (`$YAFU_BIN`, else `./yafu.exe`
+  or `./yafu`) in `./yafu_test_snfs.tmp/<test>/`, where no yafu.ini is found,
+  so defaults apply. `-plan none -max_nfs 1 -max_siqs 1 -v` makes factor()
+  report its method choice and the sieve it would start, then stop. This
+  checks `-gnfs`, `-xover`, `-snfs_xover` and `-pretest`, and the SNFS ECM
+  depth. It also checks `-np` job files from factor() and snfs(), and an SNFS
+  input where ECM with `-sigma 938848200 -threads 1` finds a factor and the
+  job falls back to SIQS. Without a binary these tests print a note and pass.
 
 ## OpenCL kernel tests
 

@@ -142,7 +142,7 @@ __m512i __inline _mm512_sbb_epi64(__m512i a, __mmask8 c, __m512i b, __mmask8 *co
     __m512i t = _mm512_sub_epi64(a, b);
     *cout = _mm512_cmpgt_epu64_mask(t, a);
     __m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));
-    *cout = _mm512_kor(*cout, _mm512_cmpgt_epu64_mask(t2, t));
+    *cout = (__mmask8)_mm512_kor(*cout, _mm512_cmpgt_epu64_mask(t2, t));
     return t2;
 }
 
@@ -254,8 +254,6 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
 
     __mmask8 scarry_e1 = 0;
     __mmask8 scarry_o1 = 0;
-    __mmask8 scarry_e = 0;
-    __mmask8 scarry_o = 0;
     __mmask16 scarry2;
     __mmask16 scarry;
 
@@ -592,13 +590,13 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
     }
 
     // second half mul
-    for (i = NBLOCKS; i < 2 * NBLOCKS; i++)
+    for (i = (int)NBLOCKS; i < 2 * NBLOCKS; i++)
     {
 
         te0 = te1 = te2 = te3 = te4 = te5 = te6 = te7 = zero;
         to0 = to1 = to2 = to3 = to4 = to5 = to6 = to7 = zero;
 
-        for (j = i - NBLOCKS + 1; j < NBLOCKS; j++)
+        for (j = (int)((uint32_t)i - NBLOCKS + 1); j < NBLOCKS; j++)
         {
             a0 = _mm512_load_epi32(a->data + ((i - j) * BLOCKWORDS + 3) * VECLEN);
             a1 = _mm512_load_epi32(a->data + ((i - j) * BLOCKWORDS + 2) * VECLEN);
@@ -736,9 +734,9 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
         }
 
         // finish each triangular shaped column sum (a * b)
-        a1 = _mm512_load_epi32(a->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
-        a2 = _mm512_load_epi32(a->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
-        a3 = _mm512_load_epi32(a->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
+        a1 = _mm512_load_epi32(a->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi32(a->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi32(a->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
 
         b0 = _mm512_load_epi32(b->data + (NWORDS - 1) * VECLEN);
         b1 = _mm512_load_epi32(b->data + (NWORDS - 2) * VECLEN);
@@ -766,9 +764,9 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
         ACCUM_EO_PROD(te4, to4, te5, to5);
 
         // finish each triangular shaped column sum (s * n)
-        a1 = _mm512_load_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
-        a2 = _mm512_load_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
-        a3 = _mm512_load_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
+        a1 = _mm512_load_epi32(s->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi32(s->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi32(s->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
 
         b0 = _mm512_load_epi32(n->data + (NWORDS - 1) * VECLEN);
         b1 = _mm512_load_epi32(n->data + (NWORDS - 2) * VECLEN);
@@ -803,7 +801,7 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
 
         // store the low-word final result
         a0 = _mm512_eo64lo_to_epi32(acc_e0, acc_o0);
-        _mm512_store_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + j) * VECLEN, a0);
+        _mm512_store_epi32(s->data + (((unsigned int)i - (uint32_t)NBLOCKS) * BLOCKWORDS + (uint32_t)j) * VECLEN, a0);
 
         // and shift.
         acc_e0 = _mm512_srli_epi64(acc_e0, 32);
@@ -821,7 +819,7 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
 
         // store the low-word final result
         a0 = _mm512_eo64lo_to_epi32(acc_e0, acc_o0);
-        _mm512_store_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + j) * VECLEN, a0);
+        _mm512_store_epi32(s->data + (((unsigned int)i - (uint32_t)NBLOCKS) * BLOCKWORDS + (uint32_t)j) * VECLEN, a0);
 
         // and shift.
         acc_e0 = _mm512_srli_epi64(acc_e0, 32);
@@ -839,7 +837,7 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
 
         // store the low-word final result
         a0 = _mm512_eo64lo_to_epi32(acc_e0, acc_o0);
-        _mm512_store_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + j) * VECLEN, a0);
+        _mm512_store_epi32(s->data + (((unsigned int)i - (uint32_t)NBLOCKS) * BLOCKWORDS + (uint32_t)j) * VECLEN, a0);
 
         // and shift.
         acc_e0 = _mm512_srli_epi64(acc_e0, 32);
@@ -857,7 +855,7 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
 
         // store the low-word final result
         a0 = _mm512_eo64lo_to_epi32(acc_e0, acc_o0);
-        _mm512_store_epi32(s->data + ((i - NBLOCKS) * BLOCKWORDS + j) * VECLEN, a0);
+        _mm512_store_epi32(s->data + (((unsigned int)i - (uint32_t)NBLOCKS) * BLOCKWORDS + (uint32_t)j) * VECLEN, a0);
 
         // and shift.
         acc_e0 = _mm512_srli_epi64(acc_e0, 32);
@@ -886,13 +884,13 @@ void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *
 
     // if there was a final borrow, we didn't need to do the subtraction after all.
     // replace with original results based on final borrow mask.
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         b0 = _mm512_load_epi32(s->data + i * VECLEN);
         _mm512_mask_store_epi32(c->data + i * VECLEN, scarry, b0);
     }
 
-    c->size = NWORDS;
+    c->size = (int)NWORDS;
     return;
 }
 
@@ -927,8 +925,6 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
 
     __mmask8 scarry_e1 = 0;
     __mmask8 scarry_o1 = 0;
-    __mmask8 scarry_e = 0;
-    __mmask8 scarry_o = 0;
     __mmask16 scarry2;
     __mmask16 scarry;
 
@@ -1538,7 +1534,7 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
         to0 = to1 = to2 = to3 = to4 = to5 = to6 = to7 = zero;
 
 
-        for (j = 0; j < (NBLOCKS - i - 1) / 2; j++)
+        for (j = 0; j < (NBLOCKS - (uint32_t)i - 1) / 2; j++)
         {
             __mmask8 scarry_e1 = 0;
             __mmask8 scarry_o1 = 0;
@@ -1548,10 +1544,10 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
 
             //hips_block_mul_type3(a->data + (i * BLOCKWORDS + (j + 2) * BLOCKWORDS) * VECLEN,
             //    a->data + (NWORDS - 2 * BLOCKWORDS - j * BLOCKWORDS) * VECLEN, t_e, t_o);
-            a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);
-            a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);
-            a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);
-            a3 = _mm512_load_epi32(a->data + (NWORDS - 4 - j * BLOCKWORDS) * VECLEN);
+            a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+            a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+            a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+            a3 = _mm512_load_epi32(a->data + (NWORDS - 4 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
 
             b0 = _mm512_load_epi32(b->data + (j*BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi32(b->data + (j*BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);
@@ -1628,10 +1624,10 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
             {
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);
-                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);
-                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);
-                a3 = _mm512_load_epi32(a->data + (NWORDS - 4 - j * BLOCKWORDS) * VECLEN);
+                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+                a3 = _mm512_load_epi32(a->data + (NWORDS - 4 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
 
                 b0 = _mm512_load_epi32(b->data + (j*BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN);
                 b1 = _mm512_load_epi32(b->data + (j*BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);
@@ -1709,9 +1705,9 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
                 // i even, block shape 1.
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);
-                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);
-                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);
+                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
 
                 //k == 0;
                 _mm512_mul_eo64_epi32(a0, a2, &prod1_e, &prod1_o);
@@ -1760,9 +1756,9 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
             {
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);  // {f, b}
-                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);  // {e, a}
-                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);  // {d, 9}
+                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);  // {f, b}
+                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);  // {e, a}
+                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);  // {d, 9}
 
                 //k == 0;
                 _mm512_mul_eo64_epi32(a0, a2, &prod1_e, &prod1_o);
@@ -1806,10 +1802,10 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
                 // i even, block shape 1.
                 // always a continuation of the full-block loop, so use the same 
                 // loading pattern.  Only now we don't need as many b-terms.
-                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);		// {f, b}
-                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);		// {e, a}
-                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);		// {d, 9}
-                a3 = _mm512_load_epi32(a->data + (NWORDS - 4 - j * BLOCKWORDS) * VECLEN);		// {c, 8}
+                a0 = _mm512_load_epi32(a->data + (NWORDS - 1 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);		// {f, b}
+                a1 = _mm512_load_epi32(a->data + (NWORDS - 2 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);		// {e, a}
+                a2 = _mm512_load_epi32(a->data + (NWORDS - 3 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);		// {d, 9}
+                a3 = _mm512_load_epi32(a->data + (NWORDS - 4 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);		// {c, 8}
 
                 b0 = _mm512_load_epi32(b->data + (j*BLOCKWORDS + i * BLOCKWORDS + 1) * VECLEN); // {9, 5}
                 b1 = _mm512_load_epi32(b->data + (j*BLOCKWORDS + i * BLOCKWORDS + 2) * VECLEN);	// {a, 6}
@@ -1885,15 +1881,15 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
         }
 
         // the s*n term.  No more doubling past here.
-        for (j = 0; j < NBLOCKS - 1 - i; j++)
+        for (j = 0; j < NBLOCKS - 1 - (uint32_t)i; j++)
         {
             __mmask8 scarry_e1 = 0;
             __mmask8 scarry_o1 = 0;
 
-            a0 = _mm512_load_epi32(s->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);
-            a1 = _mm512_load_epi32(s->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);
-            a2 = _mm512_load_epi32(s->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);
-            a3 = _mm512_load_epi32(s->data + (NWORDS - 4 - j * BLOCKWORDS) * VECLEN);
+            a0 = _mm512_load_epi32(s->data + (NWORDS - 1 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+            a1 = _mm512_load_epi32(s->data + (NWORDS - 2 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+            a2 = _mm512_load_epi32(s->data + (NWORDS - 3 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
+            a3 = _mm512_load_epi32(s->data + (NWORDS - 4 - (uint32_t)(j * BLOCKWORDS)) * VECLEN);
 
             b0 = _mm512_load_epi32(n->data + ((i + j) * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi32(n->data + ((i + j) * BLOCKWORDS + 2) * VECLEN);
@@ -2077,19 +2073,19 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
 
     // if there was a final borrow, we didn't need to do the subtraction after all.
     // replace with original results based on final borrow mask.
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         b0 = _mm512_load_epi32(s->data + i * VECLEN);
         _mm512_mask_store_epi32(c->data + i * VECLEN, scarry, b0);
     }
 
-    c->size = NWORDS;
+    c->size = (int)NWORDS;
     return;
 }
 
 void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
-    int i, j, k;
+    int i, j;
     uint32_t NWORDS = n->WORDS_ALLOC;
     uint32_t NBLOCKS = n->WORDS_ALLOC / BLOCKWORDS;
     __m512i a0, a1, a2, a3;
@@ -2113,9 +2109,6 @@ void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_b
 
     __mmask8 scarry_e1 = 0;
     __mmask8 scarry_o1 = 0;
-    __mmask8 scarry_e = 0;
-    __mmask8 scarry_o = 0;
-    __mmask16 scarry2;
     __mmask16 scarry;
 
     // zero the accumulator
@@ -2315,13 +2308,13 @@ void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_b
     }
 
     // second half mul
-    for (i = NBLOCKS; i < 2 * NBLOCKS; i++)
+    for (i = (int)NBLOCKS; i < 2 * NBLOCKS; i++)
     {
 
         te0 = te1 = te2 = te3 = te4 = te5 = te6 = te7 = zero;
         to0 = to1 = to2 = to3 = to4 = to5 = to6 = to7 = zero;
 
-        for (j = i - NBLOCKS + 1; j < NBLOCKS; j++)
+        for (j = (int)((uint32_t)((uint32_t)i - NBLOCKS) + 1); j < NBLOCKS; j++)
         {
             a0 = _mm512_load_epi32(a->data + ((i - j) * BLOCKWORDS + 3) * VECLEN);
             a1 = _mm512_load_epi32(a->data + ((i - j) * BLOCKWORDS + 2) * VECLEN);
@@ -2391,9 +2384,9 @@ void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_b
         }
 
         // finish each triangular shaped column sum (a * b)
-        a1 = _mm512_load_epi32(a->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
-        a2 = _mm512_load_epi32(a->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
-        a3 = _mm512_load_epi32(a->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
+        a1 = _mm512_load_epi32(a->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi32(a->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi32(a->data + (((uint32_t)i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
 
         b0 = _mm512_load_epi32(b->data + (NWORDS - 1) * VECLEN);
         b1 = _mm512_load_epi32(b->data + (NWORDS - 2) * VECLEN);
@@ -2521,7 +2514,7 @@ void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_b
 
     a1 = _mm512_load_epi32(c->data + i * VECLEN);
     b0 = _mm512_load_epi32(s->data + i * VECLEN);
-    b0 = _mm512_and_epi32(_mm512_set1_epi32((1U << (uint32_t)(bshift)) - 1U), b0);
+    b0 = _mm512_and_epi32(_mm512_set1_epi32((int)((1U << (uint32_t)(bshift)) - 1U)), b0);
     a0 = _mm512_adc_epi32(a1, scarry, b0, &scarry);
     _mm512_store_epi32(c->data + i * VECLEN, a0);
 
@@ -2556,7 +2549,7 @@ void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_b
     exit(1);
 #endif
 
-    c->size = NWORDS;
+    c->size = (int)NWORDS;
     return;
 }
 
@@ -3771,7 +3764,6 @@ void vec_simul_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_b
     __mmask16 cmask = 0;
     __mmask16 cmask2 = 0;
     __mmask16 bmask = 0;
-    __mmask16 bmask2 = 0;
     __m512i avec;
     __m512i bvec;
     __m512i cvec;
@@ -3798,7 +3790,7 @@ void vec_simul_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_b
     // compare.  the initial mask is equal to the addition carry
     // because if the most significant word has a carry, then the
     // result is bigger than n.
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         cvec = _mm512_load_epi32(sum->data + i * VECLEN);
         nvec = _mm512_load_epi32(mdata->n->data + i * VECLEN);
@@ -3868,7 +3860,7 @@ void vecaddmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* m
     // compare.  the initial mask is equal to the addition carry
     // because if the most significant word has a carry, then the
     // result is bigger than n.
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         cvec = _mm512_load_epi32(c->data + i * VECLEN);
         nvec = _mm512_load_epi32(mdata->n->data + i * VECLEN);
@@ -3913,7 +3905,6 @@ void vecsubmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* m
     uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 mask = 0;
-    __mmask16 mask2 = 0;
     __m512i nvec;
     __m512i avec;
     __m512i bvec;
@@ -4002,7 +3993,6 @@ void vecsubmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_m
     // a >= b
     // n is the montgomery base
     int i;
-    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 mask = 0;
     __m512i nvec;
@@ -4025,7 +4015,7 @@ void vecsubmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_m
     // if we had a final carry, then b was bigger than a so we need to re-add n.
     mask = carry;
     carry = 0;
-    nvec = _mm512_set1_epi32(0xffffffff);
+    nvec = _mm512_set1_epi32((int)0xffffffff);
     for (i = 0; i <= wshift; i++)
     {
         cvec = _mm512_load_epi32(c->data + i * VECLEN);
@@ -4100,7 +4090,7 @@ void vec_simul_addsub_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* s
         _mm512_and_epi32(_mm512_set1_epi32((1 << (bshift)) - 1), avec));
 
     carry = 0;
-    nvec = _mm512_set1_epi32(0xffffffffULL);
+    nvec = _mm512_set1_epi32((int)0xffffffffULL);
     for (i = 0; i <= wshift; i++)
     {
         // conditional add
@@ -4127,7 +4117,7 @@ uint32_t vec_gte(vec_bignum_t * u, vec_bignum_t * v)
     __mmask16 mdecided = 0;
     __mmask16 mgte = 0;
 
-    for (i = NWORDS - 1; i >= 0; --i)
+    for (i = (int)(NWORDS - 1); i >= 0; --i)
     {
         __m512i a = _mm512_load_epi32(u->data + i * VECLEN);
         __m512i b = _mm512_load_epi32(v->data + i * VECLEN);
@@ -4174,7 +4164,7 @@ uint32_t vec_bignum_mask_lshift_1(vec_bignum_t * u, uint32_t wmask)
     uint32_t NWORDS = u->WORDS_ALLOC;
     __m512i nextcarry;
     __m512i carry = _mm512_setzero_epi32();
-    __m512i highmask = _mm512_set1_epi32(0x80000000);
+    UNUSED_VAR __m512i highmask = _mm512_set1_epi32((int)0x80000000);
     __m512i word;
 
     for (i = 0; i < NWORDS; i++)
@@ -4206,14 +4196,14 @@ void vec_bignum_mask_rshift_n(vec_bignum_t* u, vec_bignum_t* v, int n, uint32_t 
     int wshift = n / 32;
     int bshift = n % 32;
 
-    lowmask = _mm512_set1_epi32((1ULL << (uint32_t)bshift) - 1ULL);
+    lowmask = _mm512_set1_epi32((int)((1ULL << (uint32_t)bshift) - 1ULL));
 
-    for (i = 2 * NWORDS - 1; (i - wshift) >= 0; i--)
+    for (i = (int)(2 * NWORDS - 1); (i - wshift) >= 0; i--)
     {
         word = _mm512_load_epi32(u->data + i * VECLEN);
-        nextcarry = _mm512_slli_epi32(_mm512_and_epi32(word, lowmask), (DIGITBITS - bshift));
-        _mm512_mask_store_epi64(v->data + (i - wshift) * VECLEN, (__mmask16)wmask,
-            _mm512_or_epi32(_mm512_srli_epi32(word, bshift), carry));
+        nextcarry = _mm512_slli_epi32(_mm512_and_epi32(word, lowmask), (unsigned int)((DIGITBITS - bshift)));
+        _mm512_mask_store_epi64(v->data + (i - wshift) * VECLEN, (__mmask8)wmask,
+            _mm512_or_epi32(_mm512_srli_epi32(word, (unsigned int)bshift), carry));
         carry = nextcarry;
     }
 
@@ -4238,7 +4228,7 @@ void vec_bignum_mask_rshift_1(vec_bignum_t * u, uint32_t wmask)
     //    carry = nextcarry;
     //}
 
-    for (i = NWORDS - 1; i >= 0; i--)
+    for (i = (int)(NWORDS - 1); i >= 0; i--)
     {
         word = _mm512_load_epi32(u->data + i * VECLEN);
         nextcarry = _mm512_slli_epi32(_mm512_and_epi32(word, lowmask), 31);

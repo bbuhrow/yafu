@@ -71,5 +71,5 @@ uint32_t tiny_soe(uint32_t limit, uint32_t *primes)
 	}
 
 	free(flags);
-	return it;
+	return (uint32_t)it;
 }

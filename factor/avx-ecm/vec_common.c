@@ -64,9 +64,9 @@ vec_bignum_t * vecInit(uint32_t words)
 void vecCopy(vec_bignum_t * src, vec_bignum_t * dest)
 {
     //physically copy the digits of u into the digits of v
-    int su = VECLEN * (2 * src->WORDS_ALLOC + 1);
+    int su = (int)(VECLEN * (2 * src->WORDS_ALLOC + 1));
 
-    memcpy(dest->data, src->data, su * sizeof(base_t));
+    memcpy(dest->data, src->data, (unsigned long)su * sizeof(base_t));
     dest->size = src->size; // = NWORDS;
     dest->WORDS_ALLOC = src->WORDS_ALLOC;
     return;
@@ -77,7 +77,7 @@ void vecCopyn(vec_bignum_t * src, vec_bignum_t * dest, int size)
     //physically copy the digits of u into the digits of v
     int su = VECLEN * size;
 
-    memcpy(dest->data, src->data, su * sizeof(base_t));
+    memcpy(dest->data, src->data, (unsigned long)su * sizeof(base_t));
     dest->size = size;
     dest->WORDS_ALLOC = src->WORDS_ALLOC;
     return;
@@ -132,9 +132,9 @@ vec_monty_t* vec_monty_alloc(uint32_t words)
        (veckmul_mersenne) and vecmod_mersenne need only ~4*words and are
        unaffected by the larger allocation. */
     {
-        int toomW = words / 3 + 5;
-        int toomT = 34 * toomW + 23 + 2 * words + 2;
-        mdata->mtmp4 = vecInit((toomT + 1) / 2);
+        int toomW = (int)(words / 3 + 5);
+        int toomT = (int)((uint32_t)((uint32_t)(34 * toomW + 23) + 2 * words) + 2);
+        mdata->mtmp4 = vecInit((uint32_t)((toomT + 1) / 2));
     }
 
     mdata->g = (vec_bignum_t **)malloc((1 << MAX_WINSIZE) * sizeof(vec_bignum_t *));
@@ -222,14 +222,14 @@ int get_bitwin(vec_bignum_t* e, int bitloc, int winsize, int lane, int winmask)
 
     if (word == word2)
     {
-        bstr = (e->data[lane + word * VECLEN] >> bitstart) & winmask;
+        bstr = (int)((e->data[lane + word * VECLEN] >> bitstart) & (uint64_t)winmask);
     }
     else
     {
         int upperbits = (bitloc % DIGITBITS) + 1;
 
-        bstr = (e->data[lane + word2 * VECLEN] >> bitstart);
-        bstr |= ((e->data[lane + word * VECLEN]) << (winsize - upperbits));
+        bstr = (int)(e->data[lane + word2 * VECLEN] >> bitstart);
+        bstr |= (int)((e->data[lane + word * VECLEN]) << (winsize - upperbits));
         bstr &= winmask;
     }
 

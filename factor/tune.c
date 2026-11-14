@@ -1,4 +1,5 @@
 #include "arith.h"
+#include <inttypes.h>
 #include "factor.h"
 #include "qs.h"
 #include "gnfs-yafu.h"
@@ -56,11 +57,11 @@ void factor_tune(fact_obj_t *inobj)
 
 	//uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
-	uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
+	UNUSED_VAR uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		63709, 143984, 242825, 589192, 1178529, 1716902, 2457335, 3511771 }; // 2397232, 3293925
-	uint32_t siqs_actualrels_direct_avx512[NUM_SIQS_PTS] = { 27532, 44122,
+	UNUSED_VAR uint32_t siqs_actualrels_direct_avx512[NUM_SIQS_PTS] = { 27532, 44122,
 		87583, 137216, 288934, 459212, 678979, 1133328, 1859293, 2675540 }; // 2397232, 3293925
-	uint32_t siqs_actualrels_direct[NUM_SIQS_PTS] = { 33129, 59729,
+	UNUSED_VAR uint32_t siqs_actualrels_direct[NUM_SIQS_PTS] = { 33129, 59729,
 		72805, 130026, 211588, 281348, 651696, 1263068, 1923778, 2675540 }; // 2397232, 3293925
     uint32_t siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
         15, 13, 16, 20, 18, 19, 20, 21 }; // 20, 20
@@ -74,13 +75,12 @@ void factor_tune(fact_obj_t *inobj)
 		4969315, 5522597, 5783845};
 	double gnfs_extraptime[NUM_GNFS_PTS];
 	double gnfs_sizes[NUM_GNFS_PTS] = {85, 90, 95, 100, 105, 110};
-	double gnfs_max_poly_time[NUM_GNFS_PTS] = {0.09, 0.12, 0.21, 0.34, 0.5, 1.0};	//HRS
 
 	double ecm_extraptime1[3][NUM_ECM_PTS];
-	double ecm_extraptime2[3];
 	double ecm_sizes[NUM_ECM_PTS];
 
-	double a, b, a2, b2, a3, b3, fit, xover;
+	double a, b, a2, b2, fit, xover;
+	double a3 = 0.0, b3 = 0.0;	// stay 0 when ECM tuning is skipped
 	double avg_exp = 0.0;
 	uint32_t count;
 	char tmpbuf[GSTR_MAXSIZE];
@@ -199,7 +199,7 @@ void factor_tune(fact_obj_t *inobj)
 		// 2% of the total sieve time
 		siqs_extraptime[i] += 0.02 * siqs_extraptime[i];
 
-		printf("elapsed time for ~%dk relations of c%d = %6.4f seconds.\n",
+		printf("elapsed time for ~%dk relations of c%zu = %6.4f seconds.\n",
 			siqs_testrels[i] / 1000, mpz_sizeinbase(n, 10), t_time);
 		printf("extrapolated time for complete factorization = %6.4f seconds\n", siqs_extraptime[i]);
 	}
@@ -261,7 +261,7 @@ void factor_tune(fact_obj_t *inobj)
 
 		printf("nfs: commencing construction of afb\n");
 
-		system(syscmd);
+		if (system(syscmd) != 0) { /* failure shows up when the output is checked */ }
 		gettimeofday(&stop, NULL);
         t_time2 = ytools_difftime(&start, &stop);
 		
@@ -277,7 +277,7 @@ void factor_tune(fact_obj_t *inobj)
 			sievername, startq, qrange);
 		printf("nfs: commencing lattice sieving over range: %u - %u\n",
 			startq, startq + qrange);
-		system(syscmd);
+		if (system(syscmd) != 0) { /* failure shows up when the output is checked */ }
 		gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
@@ -346,10 +346,10 @@ tune_ecm:
 		{
 			reset_factobj(fobj);
 
-			mpz_urandomb(n, gmp_randstate, ecm_size - 100);
+			mpz_urandomb(n, gmp_randstate, (mp_bitcnt_t)(ecm_size - 100));
 			mpz_nextprime(n, n);
 			mpz_mul(n, n, base_100b);
-			ecm_sizes[i] = mpz_sizeinbase(n, 2);
+			ecm_sizes[i] = (double)mpz_sizeinbase(n, 2);
 
 			// measure how long the total process takes for B1=10000, 100000, 1000000
 			fobj->ecm_obj.B1 = 100000;
@@ -362,7 +362,7 @@ tune_ecm:
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 			
-			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
+			printf("elapsed time per curve for B1=%" PRIu64 "k on c%zu = %6.4f seconds.\n",
 				fobj->ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 			
 			ecm_extraptime1[0][i] = t_time / curves_run;
@@ -377,7 +377,7 @@ tune_ecm:
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 			
-			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
+			printf("elapsed time per curve for B1=%" PRIu64 "k on c%zu = %6.4f seconds.\n",
 				fobj->ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 			
 			ecm_extraptime1[1][i] = t_time / curves_run;
@@ -392,7 +392,7 @@ tune_ecm:
 			gettimeofday(&stop, NULL);
 			t_time = ytools_difftime(&start, &stop);
 
-			printf("elapsed time per curve for B1=%dk on c%d = %6.4f seconds.\n",
+			printf("elapsed time per curve for B1=%" PRIu64 "k on c%zu = %6.4f seconds.\n",
 				fobj->ecm_obj.B1 / 1000, mpz_sizeinbase(n, 10), t_time / curves_run);
 
 			ecm_extraptime1[2][i] = t_time / curves_run;
@@ -721,7 +721,7 @@ void update_INI(double mult, double exponent, double mult2,
 		//if last character of line is newline, remove it
 		do 
 		{
-			len = strlen(str);
+			len = (int)strlen(str);
 			if (str[len - 1] == 10)
 				str[len - 1] = '\0';
 			else if (str[len - 1] == 13)
@@ -862,7 +862,7 @@ double best_fit(double *x, double *y, int numpts,
 	double avgX, avgY, varX, varY, cov, *yy;
 	int i;
 
-	yy = (double *)malloc(numpts * sizeof(double));
+	yy = (double *)malloc((unsigned long)numpts * sizeof(double));
 
 	for (i = 0; i < numpts; i++)
 	{
@@ -972,7 +972,7 @@ static void siqstune_semiprime(mpz_t n, int digits, gmp_randstate_t st)
     mpz_init(t);
     mpz_init(p);
     mpz_init(q);
-    mpz_ui_pow_ui(lo, 10, digits - 1);
+    mpz_ui_pow_ui(lo, 10, (unsigned long)(digits - 1));
 
     do
     {
@@ -1174,18 +1174,18 @@ void siqs_param_tune(fact_obj_t* fobj)
         "%d thread%s\n", ncand, SIQS_CANDIDATES_FILE, seconds, fobj->THREADS,
         fobj->THREADS > 1 ? "s" : "");
 
-    out = (siqs_param_row_t*)malloc(ncand * sizeof(siqs_param_row_t));
-    meas = (siqstune_meas_t*)malloc(ncand * sizeof(siqstune_meas_t));
+    out = (siqs_param_row_t*)malloc((unsigned long)ncand * sizeof(siqs_param_row_t));
+    meas = (siqstune_meas_t*)malloc((unsigned long)ncand * sizeof(siqstune_meas_t));
     mpz_init(n);
     gmp_randinit_default(st);
 
     for (i = 0, maxrank = 0; i < ncand; i++)
         if (cand[i].rank > maxrank)
             maxrank = cand[i].rank;
-    rank_sum = (double*)malloc((maxrank + 1) * sizeof(double));
-    rank_cnt = (int*)malloc((maxrank + 1) * sizeof(int));
-    rank_full = (int*)malloc((maxrank + 1) * sizeof(int));
-    rank_row = (int*)malloc((maxrank + 1) * sizeof(int));
+    rank_sum = (double*)malloc((unsigned long)(maxrank + 1) * sizeof(double));
+    rank_cnt = (int*)malloc((unsigned long)(maxrank + 1) * sizeof(int));
+    rank_full = (int*)malloc((unsigned long)(maxrank + 1) * sizeof(int));
+    rank_row = (int*)malloc((unsigned long)(maxrank + 1) * sizeof(int));
 
     for (i = 0; i < ncand; i++)
     {
@@ -1235,7 +1235,7 @@ void siqs_param_tune(fact_obj_t* fobj)
             }
             else
             {
-                gmp_randseed_ui(st, 20261022 + d);
+                gmp_randseed_ui(st, (unsigned long)(20261022 + d));
                 siqstune_semiprime(n, d, st);
                 gmp_printf("\n==== c%d: %Zd ====\n(the table has no test "
                     "number for c%d: estimating from fulls)\n", d, n, d);
@@ -1412,7 +1412,7 @@ void siqs_param_tune(fact_obj_t* fobj)
 // ---------------------------------------------------------------------------
 
 // replace (or append) a "key=value" line in yafu.ini
-static void update_INI_key(const char *key, const char *value)
+UNUSED_FUNC static void update_INI_key(const char *key, const char *value)
 {
     FILE *in, *out;
     char str[GSTR_MAXSIZE];

@@ -1138,6 +1138,13 @@ static void SIQS_run(fact_obj_t *fobj)
             // a stop condition, other than finding enough relations to finish, was met.
             // e.g., specified elasped time or relation count or a CTRL-C.  In these
             // cases don't run filtering, just go to cleanup.
+            // A CTRL-C is flagged on fobj so that callers like factor()
+            // stop rather than scheduling siqs again (which would resume
+            // from the savefile and keep sieving).
+            if (SIQS_ABORT)
+            {
+                fobj->flags |= FACTOR_INTERRUPT;
+            }
             goto done;
         }
 

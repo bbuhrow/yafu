@@ -28,6 +28,7 @@ either expressed or implied, of the FreeBSD Project.
 */
 
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "gmp.h"
@@ -195,7 +196,7 @@ double bench_curves;
 double bench_stg1;
 double bench_stg2;
 
-static uint32_t total_curves_run = 0;
+UNUSED_VAR static uint32_t total_curves_run = 0;
 
 void u128_to_mpz(uint64_t *in, mpz_t out)
 {
@@ -1301,9 +1302,8 @@ void prac_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c,
 void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, double v)
 {
 	uint64_t d, e, r;
-	int i;
+	UNUSED_VAR int i;
 	uint64_t *s1, *s2, *d1, *d2;
-	uint64_t swp;
 
 	d = c;
 	r = (uint64_t)((double)d * v + 0.5);
@@ -1385,7 +1385,7 @@ static uint32_t tecm_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t* ploc
 void build_one_curve(tinyecm_pt *P, monty128_t *mdata, 
 	tinyecm_work *work, uint32_t sigma, uint64_t * lcg_state, int verbose)
 {
-	base_t t1[2], t2[2], t3[2], t4[2], t5[2], s[3];
+	UNUSED_VAR base_t t1[2], t2[2], t3[2], t4[2], s[3];
 	base_t u[2], v[2], n[2];
 	mpz_t gmpt, gmpn;
 	mpz_init(gmpt);
@@ -1395,7 +1395,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	n[1] = mdata->n[1];
 
 	if (verbose)
-		printf("n = %016lx%016lx\n", n[1], n[0]);
+		printf("n = %016" PRIx64 "%016" PRIx64 "\n", n[1], n[0]);
 
 	if (sigma == 0)
 	{
@@ -1412,19 +1412,19 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	mulmod128(u, work->Rsqr, u, mdata);	// to Montgomery form
 	
 	if (verbose)
-		printf("monty(sigma) = %016lx%016lx\n", u[1], u[0]);
+		printf("monty(sigma) = %016" PRIx64 "%016" PRIx64 "\n", u[1], u[0]);
 
 	t1[0] = 4;
 	t1[1] = 0;
 	mulmod128(t1, work->Rsqr, t1, mdata);	// to Montgomery form
 
 	if (verbose)
-		printf("monty(4) = %016lx%016lx\n", t1[1], t1[0]);
+		printf("monty(4) = %016" PRIx64 "%016" PRIx64 "\n", t1[1], t1[0]);
 
 	mulmod128(u, t1, v, mdata);		// v = 4*sigma
 
 	if (verbose)
-		printf("v = 4*sigma = %016lx%016lx\n", v[1], v[0]);
+		printf("v = 4*sigma = %016" PRIx64 "%016" PRIx64 "\n", v[1], v[0]);
 
 	sqrmod128(u, u, mdata);
 	t1[0] = 5;
@@ -1433,19 +1433,19 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	submod128(u, t1, u, mdata->n);		// u = sigma^2 - 5
 
 	if (verbose)
-		printf("u = sigma^2 - 5 = %016lx%016lx\n", u[1], u[0]);
+		printf("u = sigma^2 - 5 = %016" PRIx64 "%016" PRIx64 "\n", u[1], u[0]);
 
 	sqrmod128(u, t1, mdata);
 	mulmod128(t1, u, P->X, mdata);	// x = u^3
 
 	if (verbose)
-		printf("x = u^3 = %016lx%016lx\n", P->X[1], P->X[0]);
+		printf("x = u^3 = %016" PRIx64 "%016" PRIx64 "\n", P->X[1], P->X[0]);
 
 	sqrmod128(v, t1, mdata);
 	mulmod128(t1, v, P->Z, mdata);	// z = v^3
 
 	if (verbose)
-		printf("z = v^3 = %016lx%016lx\n", P->Z[1], P->Z[0]);
+		printf("z = v^3 = %016" PRIx64 "%016" PRIx64 "\n", P->Z[1], P->Z[0]);
 
 	//compute parameter A
 	submod128(v, u, t1, mdata->n);		// (v - u)
@@ -1453,7 +1453,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	mulmod128(t2, t1, t4, mdata);	// (v - u)^3
 
 	if (verbose)
-		printf("(v - u)^3 = %016lx%016lx\n", t4[1], t4[0]);
+		printf("(v - u)^3 = %016" PRIx64 "%016" PRIx64 "\n", t4[1], t4[0]);
 
 	t1[0] = 3;
 	t1[1] = 0;
@@ -1462,12 +1462,12 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	addmod128(t2, v, t3, mdata->n);		// 3u + v
 
 	if (verbose)
-		printf("3u + v = %016lx%016lx\n", t3[1], t3[0]);
+		printf("3u + v = %016" PRIx64 "%016" PRIx64 "\n", t3[1], t3[0]);
 
 	mulmod128(t3, t4, t1, mdata);	// a = (v-u)^3 * (3u + v)
 
 	if (verbose)
-		printf("a = (v-u)^3 * (3u + v) = %016lx%016lx\n", t1[1], t1[0]);
+		printf("a = (v-u)^3 * (3u + v) = %016" PRIx64 "%016" PRIx64 "\n", t1[1], t1[0]);
 
 	t2[0] = 16;
 	t2[1] = 0;
@@ -1476,7 +1476,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	mulmod128(t3, v, t4, mdata);		// 16*u^3*v
 
 	if (verbose)
-		printf("16*u^3*v = %016lx%016lx\n", t4[1], t4[0]);
+		printf("16*u^3*v = %016" PRIx64 "%016" PRIx64 "\n", t4[1], t4[0]);
 
 	// u holds the denom, t1 holds the numer
 	// accomplish the division by multiplying by the modular inverse
@@ -1491,7 +1491,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	mpz_to_u128(gmpt, t3);
 
 	if (verbose)
-		printf("1/16*u^3*v = %016lx%016lx\n", t3[1], t3[0]);
+		printf("1/16*u^3*v = %016" PRIx64 "%016" PRIx64 "\n", t3[1], t3[0]);
 
 	// s = (v - u)^3 * (3*u + v) / 16u^3v: (t1 R) * t4^-1 / R, then to
 	// Montgomery form with R^2 (no mpz products or conversions)
@@ -1508,14 +1508,9 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
-	base_t retval;
-	base_t i, j;
+	UNUSED_VAR base_t i;
 	int curve;
-	int tid;
-	char *wstr;
-	int found = 0;
 	int result;
-	uint64_t num_found;
 	tinyecm_work work;
 	tinyecm_pt P;
 	monty128_t mdata;
@@ -1555,7 +1550,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		mpz_init(gmp3);
 		mpz_init(gmp4);
 
-		printf("commencing test of modular arithmetic mod %016lx%016lx\n", n128[1], n128[0]);
+		printf("commencing test of modular arithmetic mod %016" PRIx64 "%016" PRIx64 "\n", n128[1], n128[0]);
 
 		// addmod
 		for (i = 0; i < iterations; i++)
@@ -1577,10 +1572,10 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 			if (mpz_cmp(gmp3, gmp4) != 0)
 			{
 				printf("addmod failure:\n");
-				printf("a = %016lx%016lx\n", a[1], a[0]);
-				printf("b = %016lx%016lx\n", b[1], b[0]);
-				printf("c = %016lx%016lx\n", c[1], c[0]);
-				printf("n = %016lx%016lx\n", n128[1], n128[0]);
+				printf("a = %016" PRIx64 "%016" PRIx64 "\n", a[1], a[0]);
+				printf("b = %016" PRIx64 "%016" PRIx64 "\n", b[1], b[0]);
+				printf("c = %016" PRIx64 "%016" PRIx64 "\n", c[1], c[0]);
+				printf("n = %016" PRIx64 "%016" PRIx64 "\n", n128[1], n128[0]);
 				gmp_printf("gmp result = %Zx\n", gmp3);
 			}
 
@@ -1607,10 +1602,10 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 			if (mpz_cmp(gmp3, gmp4) != 0)
 			{
 				printf("submod failure:\n");
-				printf("a = %016lx%016lx\n", a[1], a[0]);
-				printf("b = %016lx%016lx\n", b[1], b[0]);
-				printf("c = %016lx%016lx\n", c[1], c[0]);
-				printf("n = %016lx%016lx\n", n128[1], n128[0]);
+				printf("a = %016" PRIx64 "%016" PRIx64 "\n", a[1], a[0]);
+				printf("b = %016" PRIx64 "%016" PRIx64 "\n", b[1], b[0]);
+				printf("c = %016" PRIx64 "%016" PRIx64 "\n", c[1], c[0]);
+				printf("n = %016" PRIx64 "%016" PRIx64 "\n", n128[1], n128[0]);
 				gmp_printf("gmp result = %Zx\n", gmp3);
 			}
 
@@ -1641,10 +1636,10 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 			if (mpz_cmp(gmp3, gmp4) != 0)
 			{
 				printf("mulmod failure:\n");
-				printf("a = %016lx%016lx\n", a[1], a[0]);
-				printf("b = %016lx%016lx\n", b[1], b[0]);
-				printf("c = %016lx%016lx\n", c[1], c[0]);
-				printf("n = %016lx%016lx\n", n128[1], n128[0]);
+				printf("a = %016" PRIx64 "%016" PRIx64 "\n", a[1], a[0]);
+				printf("b = %016" PRIx64 "%016" PRIx64 "\n", b[1], b[0]);
+				printf("c = %016" PRIx64 "%016" PRIx64 "\n", c[1], c[0]);
+				printf("n = %016" PRIx64 "%016" PRIx64 "\n", n128[1], n128[0]);
 				gmp_printf("gmp result = %Zx\n", gmp3);
 			}
 
@@ -1674,9 +1669,9 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 			if (mpz_cmp(gmp3, gmp4) != 0)
 			{
 				printf("sqrmod failure:\n");
-				printf("a = %016lx%016lx\n", a[1], a[0]);
-				printf("c = %016lx%016lx\n", c[1], c[0]);
-				printf("n = %016lx%016lx\n", n128[1], n128[0]);
+				printf("a = %016" PRIx64 "%016" PRIx64 "\n", a[1], a[0]);
+				printf("c = %016" PRIx64 "%016" PRIx64 "\n", c[1], c[0]);
+				printf("n = %016" PRIx64 "%016" PRIx64 "\n", n128[1], n128[0]);
 				gmp_printf("gmp result = %Zx\n", gmp3);
 			}
 
@@ -1705,17 +1700,17 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		if (verbose)
 		{
 			printf("curve parameters:\n\tsigma = %u\n", work.sigma);
-			printf("\tn = %016lx%016lx\n", work.n[1], work.n[0]);
-			printf("\tr = %016lx%016lx\n", 0, mdata.rho);
-			printf("\tx = %016lx%016lx\n", P.X[1], P.X[0]);
-			printf("\tz = %016lx%016lx\n", P.Z[1], P.Z[0]);
-			printf("\ts = %016lx%016lx\n", work.s[1], work.s[0]);
+			printf("\tn = %016" PRIx64 "%016" PRIx64 "\n", work.n[1], work.n[0]);
+			printf("\tr = %016" PRIx64 "%016" PRIx64 "\n", (uint64_t)0, mdata.rho);
+			printf("\tx = %016" PRIx64 "%016" PRIx64 "\n", P.X[1], P.X[0]);
+			printf("\tz = %016" PRIx64 "%016" PRIx64 "\n", P.Z[1], P.Z[0]);
+			printf("\ts = %016" PRIx64 "%016" PRIx64 "\n", work.s[1], work.s[0]);
 		}
 
 		ecm_stage1(&mdata, &work, &P);
 
 		if (verbose)
-			printf("\nstg1 point X = %016lx%016lx Z = %016lx%016lx\n",
+			printf("\nstg1 point X = %016" PRIx64 "%016" PRIx64 " Z = %016" PRIx64 "%016" PRIx64 "\n",
 				P.X[1], P.X[0], P.Z[1], P.Z[0]);
 
 		result = check_factor(P.Z, mdata.n, mdata.mtmp1);
@@ -1723,7 +1718,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		if (result == 1)
 		{
 			if (verbose)
-				printf("\nfound factor %016lx%016lx in stage 1 with sigma = %u\n",
+				printf("\nfound factor %016" PRIx64 "%016" PRIx64 " in stage 1 with sigma = %u\n",
 					mdata.mtmp1[1], mdata.mtmp1[0], sigma);
 
 			u128_to_mpz(mdata.mtmp1, f);
@@ -1735,7 +1730,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 			ecm_stage2(&P, &mdata, &work);
 
 			if (verbose)
-				printf("\nstg2 accum = %016lx%016lx\n",
+				printf("\nstg2 accum = %016" PRIx64 "%016" PRIx64 "\n",
 					work.stg2acc[1], work.stg2acc[0]);
 
 			result = check_factor(work.stg2acc, mdata.n, mdata.mtmp1);
@@ -1743,7 +1738,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 			if (result == 1)
 			{
 				if (verbose)
-					printf("\nfound factor %016lx%016lx in stage 2 with sigma = %u\n",
+					printf("\nfound factor %016" PRIx64 "%016" PRIx64 " in stage 2 with sigma = %u\n",
 						mdata.mtmp1[1], mdata.mtmp1[0], sigma);
 
 				u128_to_mpz(mdata.mtmp1, f);
@@ -1804,7 +1799,7 @@ void ecm_stage1_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P,
 
 void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 {
-	int i;
+	UNUSED_VAR int i;
 	uint64_t q;
 	uint64_t stg1 = (uint64_t)work->stg1_max;
 
@@ -2042,7 +2037,7 @@ void ecm_stage2(tinyecm_pt* P, monty128_t* mdata, tinyecm_work* work )
 	tinyecm_pt Pd1;
 	tinyecm_pt* Pd = &Pd1;
 	const uint8_t* barray = 0;
-	int numb;
+	int numb = 0;	// stays 0 (no stage 1) for an unsupported stg1_max
 	uint32_t stg1_max = work->stg1_max;
 
 #ifdef MICRO_ECM_VERBOSE_PRINTF
@@ -2155,7 +2150,7 @@ void ecm_stage2(tinyecm_pt* P, monty128_t* mdata, tinyecm_work* work )
 		// [j+6]Q + [6]Q([j]Q) = [j+12]Q
 		add(mdata, work, &pt6, &Pb[k], &Pb[i], &Pb[map[j + 12]]);
 		i = k;
-		k = map[j + 12];
+		k = (int)map[j + 12];
 		j += 6;
 	}
 
@@ -2169,7 +2164,7 @@ void ecm_stage2(tinyecm_pt* P, monty128_t* mdata, tinyecm_work* work )
 		// [j+6]Q + [6]Q([j]Q) = [j+12]Q
 		add(mdata, work, &pt6, &Pb[k], &Pb[i], &Pb[map[j + 12]]);
 		i = k;
-		k = map[j + 12];
+		k = (int)map[j + 12];
 		j += 6;
 	}
 
@@ -2628,7 +2623,6 @@ static void tpm1_stage2_pair(monty128_t* mdata, uint64_t *P, uint64_t *acc, uint
 	uint64_t d[32][2], six[2], x12[2], xmid[2], x24[2], x25[2];
 	uint64_t x36[2], x60[2], x72[2], five[2], pw[2], pgiant[2];
 	int i, j;
-	uint32_t b2 = 25 * b1;
 
 	// we accumulate f(vw) - f(u) where f(n) = n^2, so that
 	// we can pair together primes vw+/-u
@@ -3027,8 +3021,7 @@ __inline static void tecm_mulredc104_x8(vec_u104_t* p, vec_u104_t* x, vec_u104_t
 	__m512i invN1 = _mm512_load_si512(invN->data[1]);
 	__m512i N0 = _mm512_load_si512(N->data[0]);
 	__m512i N1 = _mm512_load_si512(N->data[1]);
-	__m512i N2;
-	__m512i zero = _mm512_setzero_si512();
+	UNUSED_VAR __m512i zero = _mm512_setzero_si512();
 
 	// T = x*y
 	//tecm_mul52lohi(x0, y0, &T0, &T1);
@@ -3254,8 +3247,7 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	__m512i invN1 = _mm512_load_si512(invN->data[1]);
 	__m512i N0 = _mm512_load_si512(N->data[0]);
 	__m512i N1 = _mm512_load_si512(N->data[1]);
-	__m512i N2;
-	__m512i zero = _mm512_setzero_si512();
+	UNUSED_VAR __m512i zero = _mm512_setzero_si512();
 
 	// compare
 	__mmask8 msk = _mm512_cmplt_epu64_mask(w1, x1);
@@ -3400,7 +3392,6 @@ __inline static void tecm_submulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	msk |= _mm512_cmpeq_epu64_mask(T3, mN3) & _mm512_cmplt_epu64_mask(T2, mN2);
 
 	// subtract
-	bmsk;
 	T2 = _mm512_subsetc_epi52(T2, mN2, &bmsk);
 	T3 = _mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
 
@@ -3439,8 +3430,7 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	__m512i invN1 = _mm512_load_si512(invN->data[1]);
 	__m512i N0 = _mm512_load_si512(N->data[0]);
 	__m512i N1 = _mm512_load_si512(N->data[1]);
-	__m512i N2;
-	__m512i zero = _mm512_setzero_si512();
+	UNUSED_VAR __m512i zero = _mm512_setzero_si512();
 
 	// add
 	__mmask8 bmsk;
@@ -3585,7 +3575,6 @@ __inline static void tecm_addmulredc104_x8(vec_u104_t* p, vec_u104_t* w, vec_u10
 	msk |= _mm512_cmpeq_epu64_mask(T3, mN3) & _mm512_cmplt_epu64_mask(T2, mN2);
 
 	// subtract
-	bmsk;
 	T2 = _mm512_subsetc_epi52(T2, mN2, &bmsk);
 	T3 = _mm512_sbb_epi52(T3, bmsk, mN3, &bmsk);
 
@@ -3618,7 +3607,7 @@ static __inline __mmask8 iszerovec(vec_u104_t* src)
 		_mm512_cmpeq_epu64_mask(_mm512_load_si512(src->data[1]), _mm512_setzero_si512());
 }
 
-static void tecm_multiplicative_inverse104(uint64_t* inv, uint64_t a)
+UNUSED_FUNC static void tecm_multiplicative_inverse104(uint64_t* inv, uint64_t a)
 {
 	//    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
 	uint64_t x0 = (3 * a) ^ 2;		// 2^4
@@ -3632,7 +3621,7 @@ static void tecm_multiplicative_inverse104(uint64_t* inv, uint64_t a)
 	uint64_t x4 = x3 * (1 + y);		// 2^64
 
 	// y *= y
-	uint64_t yhi, ylo;
+	UNUSED_VAR uint64_t yhi, ylo;
 #ifdef HAS_UINT128
 	uint128_t yp = (uint128_t)y * y;
 	ylo = (uint64_t)yp;
@@ -4062,7 +4051,7 @@ static void tecm_prac_x8(vec_u104_t* rho, vec_u104_t* n, tecm_pt_x8* P, uint64_t
 
 void ecm_stage1_x8(monty104_x8_t* mdata, tinyecm_work_x8* work, tecm_pt_x8* P)
 {
-	int i;
+	UNUSED_VAR int i;
 	uint64_t q;
 	uint64_t stg1 = (uint64_t)work->stg1_max;
 	vec_u104_t* rho = &mdata->rho;
@@ -4212,7 +4201,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 	ALIGNED_MEM tecm_pt_x8 Pd1;
 	tecm_pt_x8* Pd = &Pd1;
 	const uint8_t* barray = 0;
-	int numb;
+	int numb = 0;	// stays 0 (no stage 1) for an unsupported stg1_max
 	uint32_t stg1_max = work->stg1_max;
 	vec_u104_t* N = &mdata->n;
 	vec_u104_t* rho = &mdata->rho;
@@ -4328,7 +4317,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 		// [j+6]Q + [6]Q([j]Q) = [j+12]Q
 		tecm_uadd_x8(rho, N, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
 		i = k;
-		k = map[j + 12];
+		k = (int)map[j + 12];
 		j += 6;
 	}
 
@@ -4342,7 +4331,7 @@ void ecm_stage2_x8(tecm_pt_x8* P, monty104_x8_t* mdata, tinyecm_work_x8* work)
 		// [j+6]Q + [6]Q([j]Q) = [j+12]Q
 		tecm_uadd_x8(rho, N, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
 		i = k;
-		k = map[j + 12];
+		k = (int)map[j + 12];
 		j += 6;
 	}
 
@@ -4665,7 +4654,7 @@ void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 	ALIGNED_MEM vec_u104_t t3;
 	ALIGNED_MEM vec_u104_t t4;
 	ALIGNED_MEM vec_u104_t t5;
-	ALIGNED_MEM vec_u104_t s, * rho = &mdata->rho;
+	UNUSED_VAR ALIGNED_MEM vec_u104_t s, * rho = &mdata->rho;
 	ALIGNED_MEM vec_u104_t u;
 	ALIGNED_MEM vec_u104_t v, * n = &mdata->n;
 	ALIGNED_MEM vec_u104_t sigma;
@@ -4676,7 +4665,7 @@ void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 
 	for (i = 0; i < 8; i++)
 	{
-		work->sigma[i] = sigma.data[0][i] = tecm_lcg_rand_32B(7, (uint32_t)-1, lcg_state);
+		work->sigma[i] = (uint32_t)(sigma.data[0][i] = tecm_lcg_rand_32B(7, (uint32_t)-1, lcg_state));
 		sigma.data[1][i] = 0;
 		t1.data[0][i] = 4;
 		t1.data[1][i] = 0;
@@ -4697,41 +4686,41 @@ void build_curves_104_x8(tecm_pt_x8* P, monty104_x8_t* mdata,
 
 	verbose = 0;
 
-	if (verbose) printf("n[0] = %016lx%016lx\n", n->data[1][0], n->data[0][0]);
-	if (verbose) printf("r[0] = %016lx%016lx\n", rho->data[1][0], rho->data[0][0]);
-	if (verbose) printf("s[0] = %016lx%016lx\n", sigma.data[1][0], sigma.data[0][0]);
+	if (verbose) printf("n[0] = %016" PRIx64 "%016" PRIx64 "\n", n->data[1][0], n->data[0][0]);
+	if (verbose) printf("r[0] = %016" PRIx64 "%016" PRIx64 "\n", rho->data[1][0], rho->data[0][0]);
+	if (verbose) printf("s[0] = %016" PRIx64 "%016" PRIx64 "\n", sigma.data[1][0], sigma.data[0][0]);
 
 	tecm_mulredc104_x8(&v, &sigma, &t1, n, rho);	// v = 4*sigma
-	if (verbose) printf("v[0] = %016lx%016lx\n", v.data[1][0], v.data[0][0]);
+	if (verbose) printf("v[0] = %016" PRIx64 "%016" PRIx64 "\n", v.data[1][0], v.data[0][0]);
 	tecm_sqrredc104_x8(&u, &sigma, n, rho);
 	tecm_submod104_x8(&u, &u, &t2, n);				// u = sigma^2 - 5
 
 	tecm_sqrredc104_x8(&t1, &u, n, rho);
 	tecm_mulredc104_x8(&P->X, &t1, &u, n, rho);		// x = u^3
-	if (verbose) printf("x[0] = %016lx%016lx\n", P->X.data[1][0], P->X.data[0][0]);
+	if (verbose) printf("x[0] = %016" PRIx64 "%016" PRIx64 "\n", P->X.data[1][0], P->X.data[0][0]);
 
 	tecm_sqrredc104_x8(&t1, &v, n, rho);
 	tecm_mulredc104_x8(&P->Z, &t1, &v, n, rho);		// z = v^3
-	if (verbose) printf("z[0] = %016lx%016lx\n", P->Z.data[1][0], P->Z.data[0][0]);
+	if (verbose) printf("z[0] = %016" PRIx64 "%016" PRIx64 "\n", P->Z.data[1][0], P->Z.data[0][0]);
 
 	//compute parameter A
 	tecm_submod104_x8(&t1, &v, &u, n);				// (v - u)
-	if (verbose) printf("v-u = %016lx%016lx\n", t1.data[1][0], t1.data[0][0]);
+	if (verbose) printf("v-u = %016" PRIx64 "%016" PRIx64 "\n", t1.data[1][0], t1.data[0][0]);
 	tecm_sqrredc104_x8(&t2, &t1, n, rho);
 	tecm_mulredc104_x8(&t4, &t1, &t2, n, rho);		// (v - u)^3
-	if (verbose) printf("(v-u)^3 = %016lx%016lx\n", t4.data[1][0], t4.data[0][0]);
+	if (verbose) printf("(v-u)^3 = %016" PRIx64 "%016" PRIx64 "\n", t4.data[1][0], t4.data[0][0]);
 	tecm_mulredc104_x8(&t2, &u, &t3, n, rho);		// 3u
-	if (verbose) printf("3u = %016lx%016lx\n", t2.data[1][0], t2.data[0][0]);
-	if (verbose) printf("v = %016lx%016lx\n", v.data[1][0], v.data[0][0]);
+	if (verbose) printf("3u = %016" PRIx64 "%016" PRIx64 "\n", t2.data[1][0], t2.data[0][0]);
+	if (verbose) printf("v = %016" PRIx64 "%016" PRIx64 "\n", v.data[1][0], v.data[0][0]);
 	tecm_addmod104_x8(&t3, &t2, &v, n);				// 3u + v
-	if (verbose) printf("3u+v = %016lx%016lx\n", t3.data[1][0], t3.data[0][0]);
+	if (verbose) printf("3u+v = %016" PRIx64 "%016" PRIx64 "\n", t3.data[1][0], t3.data[0][0]);
 	tecm_mulredc104_x8(&t1, &t4, &t3, n, rho);		// a = (v-u)^3 * (3u + v)
 
 	tecm_mulredc104_x8(&t3, &P->X, &t5, n, rho);	// 16*u^3
 	tecm_mulredc104_x8(&t4, &v, &t3, n, rho);		// 16*u^3*v
 
-	if (verbose) printf("a = %016lx%016lx\n", t1.data[1][0], t1.data[0][0]);
-	if (verbose) printf("d = %016lx%016lx\n", t4.data[1][0], t4.data[0][0]);
+	if (verbose) printf("a = %016" PRIx64 "%016" PRIx64 "\n", t1.data[1][0], t1.data[0][0]);
+	if (verbose) printf("d = %016" PRIx64 "%016" PRIx64 "\n", t4.data[1][0], t4.data[0][0]);
 
 	// u holds the denom, t1 holds the numer
 	// accomplish the division by multiplying by the modular inverse
@@ -4762,21 +4751,14 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 {
 	// attempt to factor n with the elliptic curve method
 	// following brent and montgomery's papers, and CP's book
-	base_t retval;
 	base_t i, j = 0;
-	int curve;
-	int tid;
-	char* wstr;
-	int found = 0;
 	int result;
-	uint64_t num_found;
 	ALIGNED_MEM tinyecm_work_x8 work;
 	ALIGNED_MEM tecm_pt_x8 P;
 	ALIGNED_MEM monty104_x8_t mdata;
-	uint32_t sigma;
-	ALIGNED_MEM vec_u104_t uarray;
-	ALIGNED_MEM vec_u104_t rarray;
-	ALIGNED_MEM uint64_t carray[8];
+	UNUSED_VAR ALIGNED_MEM vec_u104_t uarray;
+	UNUSED_VAR ALIGNED_MEM vec_u104_t rarray;
+	UNUSED_VAR ALIGNED_MEM uint64_t carray[8];
 	ALIGNED_MEM uint64_t oarray[8];
 	uint8_t msk = 0;
 	mpz_t gN, gR, gT;
@@ -4807,13 +4789,13 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 				mpz_add_u64(gN, gN, n[j * 2 + 0]);
 
 				mpz_mod(gT, gR, gN);
-				mpz_to_u104(gT, &mdata.one, i);
+				mpz_to_u104(gT, &mdata.one, (int)i);
 				mpz_mul(gT, gT, gT);
 				mpz_mod(gT, gT, gN);
-				mpz_to_u104(gT, &mdata.rsqr, i);
+				mpz_to_u104(gT, &mdata.rsqr, (int)i);
 
 				mpz_invert(gN, gN, gR);
-				mpz_to_u104(gN, &mdata.rho, i);
+				mpz_to_u104(gN, &mdata.rho, (int)i);
 
 				// mark this index for loading into vectors
 				lmsk |= (1 << i);
@@ -4825,7 +4807,7 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 				f[j * 2 + 0] = 1;
 				f[j * 2 + 1] = 0;
 
-				//printf("adding %016lx%016lx, rho = %016lx%016lx, one=%016lx%016lx to mask %d\n",
+				//printf("adding %016" PRIx64 "%016" PRIx64 ", rho = %016" PRIx64 "%016" PRIx64 ", one=%016" PRIx64 "%016" PRIx64 " to mask %d\n",
 				//	n[j * 2 + 1], n[j * 2 + 0],
 				//	mdata.rho.data[1][i], mdata.rho.data[0][i],
 				//	mdata.one.data[1][i], mdata.one.data[0][i], i);
@@ -4842,7 +4824,7 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 
 		//for (i = 0; i < 8; i++)
 		//{
-		//	printf("%d: sigma = %010u, X = %016lx%016lx, Z = %016lx%016lx, s = %016lx%016lx\n",
+		//	printf("%d: sigma = %010u, X = %016" PRIx64 "%016" PRIx64 ", Z = %016" PRIx64 "%016" PRIx64 ", s = %016" PRIx64 "%016" PRIx64 "\n",
 		//		i, work.sigma[i], P.X.data[1][i], P.X.data[0][i],
 		//		P.Z.data[1][i], P.Z.data[0][i],
 		//		work.s.data[1][i], work.s.data[0][i]);
@@ -4852,7 +4834,7 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 
 		//for (i = 0; i < 8; i++)
 		//{
-		//	printf("%d: X = %016lx%016lx, Z = %016lx%016lx\n",
+		//	printf("%d: X = %016" PRIx64 "%016" PRIx64 ", Z = %016" PRIx64 "%016" PRIx64 "\n",
 		//		i, P.X.data[1][i], P.X.data[0][i],
 		//		P.Z.data[1][i], P.Z.data[0][i]);
 		//}
@@ -4880,9 +4862,9 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 				{
 					f[oarray[i] * 2 + 0] = fi[0];
 					f[oarray[i] * 2 + 1] = fi[1];
-					//printf("stg1 found factor %016lx%016lx of input %016lx%016lx\n",
+					//printf("stg1 found factor %016" PRIx64 "%016" PRIx64 " of input %016" PRIx64 "%016" PRIx64 "\n",
 					//	fi[1], fi[0], n[oarray[i] * 2 + 1], n[oarray[i] * 2 + 0]);
-					msk &= (~(1 << i));
+					msk &= (uint8_t)(~(1 << i));
 				}
 			}
 		}
@@ -4913,9 +4895,9 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 					{
 						f[oarray[i] * 2 + 0] = fi[0];
 						f[oarray[i] * 2 + 1] = fi[1];
-						//printf("stg2 found factor %016lx%016lx of input %016lx%016lx\n",
+						//printf("stg2 found factor %016" PRIx64 "%016" PRIx64 " of input %016" PRIx64 "%016" PRIx64 "\n",
 						//	fi[1], fi[0], n[oarray[i] * 2 + 1], n[oarray[i] * 2 + 0]);
-						msk &= (~(1 << i));
+						msk &= (uint8_t)(~(1 << i));
 					}
 				}
 			}
@@ -4923,7 +4905,7 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 
 		//for (i = 0; i < 8; i++)
 		//{
-		//	printf("%d: X = %016lx%016lx, Z = %016lx%016lx\n",
+		//	printf("%d: X = %016" PRIx64 "%016" PRIx64 ", Z = %016" PRIx64 "%016" PRIx64 "\n",
 		//		i, P.X.data[1][i], P.X.data[0][i],
 		//		P.Z.data[1][i], P.Z.data[0][i]);
 		//}
@@ -4960,17 +4942,12 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 {
 	// attempt to factor n with the elliptic curve method
 	// following brent and montgomery's papers, and CP's book
-	base_t i, j = 0;
+	base_t i;
 	int curve;
-	int tid;
-	char* wstr;
-	int found = 0;
 	int result;
-	uint64_t num_found;
 	ALIGNED_MEM tinyecm_work_x8 work;
 	ALIGNED_MEM tecm_pt_x8 P;
 	ALIGNED_MEM monty104_x8_t mdata;
-	uint32_t sigma;
 	mpz_t gN, gR, gT;
 
 	mpz_init(gN);
@@ -4990,7 +4967,7 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 
 	for (i = 0; i < 8; i++)
 	{
-		mpz_to_u104(gR, &mdata.rsqr, i);
+		mpz_to_u104(gR, &mdata.rsqr, (int)i);
 	}
 
 	mpz_set_ui(gR, 1);
@@ -4999,8 +4976,8 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 
 	for (i = 0; i < 8; i++)
 	{
-		mpz_to_u104(gT, &mdata.one, i);
-		mpz_to_u104(gN, &mdata.rho, i);
+		mpz_to_u104(gT, &mdata.one, (int)i);
+		mpz_to_u104(gN, &mdata.rho, (int)i);
 
 		work.n.data[0][i] = mdata.n.data[0][i] = n[0];
 		work.n.data[1][i] = mdata.n.data[1][i] = n[1];
@@ -5011,7 +4988,7 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 	work.stg1_max = B1;
 	work.stg2_max = B2;
 
-	//printf("attempting tecm on %016lx%016lx\n", n[1], n[0]);
+	//printf("attempting tecm on %016" PRIx64 "%016" PRIx64 "\n", n[1], n[0]);
 
 	for (curve = 0; curve < curves; curve += 8)
 	{
@@ -5039,7 +5016,7 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 				{
 					f[0] = fi[0];
 					f[1] = fi[1];
-					//printf("factor %016lx found in lane %d in stage 1\n", f[0], i);
+					//printf("factor %016" PRIx64 " found in lane %d in stage 1\n", f[0], i);
 					goto done;
 				}
 			}
@@ -5070,7 +5047,7 @@ void tinyecm_x8(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t cur
 					{
 						f[0] = fi[0];
 						f[1] = fi[1];
-						//printf("factor %016lx found in lane %d in stage 2\n", f[0], i);
+						//printf("factor %016" PRIx64 " found in lane %d in stage 2\n", f[0], i);
 						goto done;
 					}
 				}
@@ -5091,7 +5068,7 @@ done:
 
 void tinyecm_test(int sizeb, int num, int type)
 {
-	u128_t *inputs;
+	UNUSED_VAR u128_t *inputs;
 	int i;
 
 	if (sizeb > 128)
@@ -5106,7 +5083,7 @@ void tinyecm_test(int sizeb, int num, int type)
 		return;
 	}
 
-	inputs = (u128_t *)malloc(num * sizeof(u128_t));
+	inputs = (u128_t *)malloc((unsigned long)num * sizeof(u128_t));
 
 	// build the requested input type, quantity and size
 	for (i = 0; i < num; i++)
@@ -5153,7 +5130,7 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 		{
 			B1 = 70;
 			curves = 1;
-			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+			tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 			if (mpz_cmp_ui(f, 1) > 0)
 				return 1;
 		}
@@ -5161,7 +5138,7 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 		{
 			B1 = 125;
 			curves = 1;
-			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+			tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 			if (mpz_cmp_ui(f, 1) > 0)
 				return 1;
 		}
@@ -5183,31 +5160,31 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 	{
 		B1 = 70;
 		curves = 32;
-		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+		tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 	}
 	else if (targetBits <= 52)
 	{
 		B1 = 85;
 		curves = 32;
-		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+		tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 	}
 	else if (targetBits <= 58)
 	{
 		B1 = 125;
 		curves = 32;
-		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+		tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 	}
 	else if (targetBits <= 62)
 	{
 		B1 = 165;
 		curves = 42;
-		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+		tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 	}
 	else
 	{
 		B1 = 205;
 		curves = 42;
-		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, verbose);
+		tinyecm(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg, verbose);
 	}
 
 	if (mpz_cmp_ui(f, 1) > 0)
@@ -5219,7 +5196,7 @@ int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* plo
 
 static int tecm_get_bits(mpz_t n)
 {
-	return mpz_sizeinbase(n, 2);
+	return (int)mpz_sizeinbase(n, 2);
 }
 
 // getfactor_tecm() returns 0 if unable to find a factor of n,
@@ -5343,12 +5320,12 @@ void tecm_testmath(void)
 		{
 			for (j = 0; j < 8; j++)
 			{
-				mpz_urandomb(gx, gmp_randstate, bits);
-				mpz_setbit(gx, bits-1);
-				mpz_urandomb(gy, gmp_randstate, bits);
-				mpz_setbit(gy, bits - 1);
-				mpz_urandomb(gn, gmp_randstate, bits);
-				mpz_setbit(gn, bits - 1);
+				mpz_urandomb(gx, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gx, (mp_bitcnt_t)(bits-1));
+				mpz_urandomb(gy, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gy, (mp_bitcnt_t)(bits - 1));
+				mpz_urandomb(gn, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gn, (mp_bitcnt_t)(bits - 1));
 				if (mpz_even_p(gn))
 					mpz_sub_ui(gn, gn, 1);
 				mpz_invert(gt, gn, gr);
@@ -5407,12 +5384,12 @@ void tecm_testmath(void)
 		{
 			for (j = 0; j < 8; j++)
 			{
-				mpz_urandomb(gx, gmp_randstate, bits);
-				mpz_setbit(gx, bits - 1);
-				mpz_urandomb(gy, gmp_randstate, bits);
-				mpz_setbit(gy, bits - 1);
-				mpz_urandomb(gn, gmp_randstate, bits);
-				mpz_setbit(gn, bits - 1);
+				mpz_urandomb(gx, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gx, (mp_bitcnt_t)(bits - 1));
+				mpz_urandomb(gy, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gy, (mp_bitcnt_t)(bits - 1));
+				mpz_urandomb(gn, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gn, (mp_bitcnt_t)(bits - 1));
 				if (mpz_even_p(gn))
 					mpz_sub_ui(gn, gn, 1);
 
@@ -5452,12 +5429,12 @@ void tecm_testmath(void)
 		{
 			for (j = 0; j < 8; j++)
 			{
-				mpz_urandomb(gx, gmp_randstate, bits);
-				mpz_setbit(gx, bits - 1);
-				mpz_urandomb(gy, gmp_randstate, bits);
-				mpz_setbit(gy, bits - 1);
-				mpz_urandomb(gn, gmp_randstate, bits);
-				mpz_setbit(gn, bits - 1);
+				mpz_urandomb(gx, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gx, (mp_bitcnt_t)(bits - 1));
+				mpz_urandomb(gy, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gy, (mp_bitcnt_t)(bits - 1));
+				mpz_urandomb(gn, gmp_randstate, (mp_bitcnt_t)bits);
+				mpz_setbit(gn, (mp_bitcnt_t)(bits - 1));
 				if (mpz_even_p(gn))
 					mpz_sub_ui(gn, gn, 1);
 
@@ -5520,17 +5497,17 @@ int tecm_dispatch_x8(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
 		{
 			B1 = 47;
 			curves = 1;
-			tinyecm_x8(n, f, B1, B1 * 25, curves, curves, ploc_lcg, 0);
+			tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(B1 * 25), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 		}
 		{
 			B1 = 70;
 			curves = 1;
-			tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+			tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 		}
 		{
 			B1 = 125;
 			curves = 1;
-			tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+			tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 		}
 	}
 
@@ -5538,43 +5515,43 @@ int tecm_dispatch_x8(mpz_t gn, mpz_t gf, int targetBits, uint64_t* ploc_lcg)
 	{
 		B1 = 27;
 		curves = 32;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 	else if (targetBits <= 22)
 	{
 		B1 = 47;
 		curves = 32;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 	else if (targetBits <= 24)
 	{
 		B1 = 70;
 		curves = 32;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 	else if (targetBits <= 26)
 	{
 		B1 = 85;
 		curves = 32;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 	else if (targetBits <= 29)
 	{
 		B1 = 125;
 		curves = 32;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 	else if (targetBits <= 31)
 	{
 		B1 = 165;
 		curves = 48;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 	else //if (targetBits <= 32)
 	{
 		B1 = 205;
 		curves = 48;
-		tinyecm_x8(n, f, B1, 25 * B1, curves, curves, ploc_lcg, 0);
+		tinyecm_x8(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, (uint32_t)curves, ploc_lcg, 0);
 	}
 
 	mpz_set_u64(gf, f[1]);
@@ -5608,17 +5585,17 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 		{
 			B1 = 47;
 			curves = 1;
-			tinyecm_x8_list(n, f, B1, B1 * 25, curves, num_in, ploc_lcg, 0);
+			tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(B1 * 25), (uint32_t)curves, num_in, ploc_lcg, 0);
 		}
 		{
 			B1 = 70;
 			curves = 1;
-			tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+			tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 		}
 		{
 			B1 = 125;
 			curves = 1;
-			tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+			tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 		}
 	}
 
@@ -5626,25 +5603,25 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 	{
 		B1 = 27;
 		curves = 32;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 	}
 	else if (targetBits <= 22)
 	{
 		B1 = 47;
 		curves = 32;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 	}
 	else if (targetBits <= 24)
 	{
 		B1 = 70;
 		curves = 32;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 	}
 	else if (targetBits <= 26)
 	{
 		B1 = 85;
 		curves = 32;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 	}
 	else if (targetBits <= 29)
 	{
@@ -5655,7 +5632,7 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 		//	return 1;
 		B1 = 125;
 		curves = 32;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 		//B1 = 165;
@@ -5673,7 +5650,7 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 		//	return 1;
 		B1 = 165;
 		curves = 42;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 		//if (mpz_cmp_ui(f, 1) > 0)
 		//	return 1;
 		//B1 = 205;
@@ -5686,7 +5663,7 @@ void tecm_dispatch_x8_list(uint64_t* n, uint64_t* f, int targetBits, uint32_t nu
 	{
 		B1 = 205;
 		curves = 42;
-		tinyecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg, 0);
+		tinyecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg, 0);
 	}
 
 	return;
@@ -5726,7 +5703,6 @@ int getfactor_tecm_x8(mpz_t n, mpz_t f, int target_bits, uint64_t* pran)
 void getfactor_tecm_x8_list(uint64_t* q64, uint64_t* f64, int target_bits,
 	uint32_t num_in, uint64_t* pran)
 {
-	int bits;       // assume all the same size
 	int i;
 	mpz_t n, f;
 

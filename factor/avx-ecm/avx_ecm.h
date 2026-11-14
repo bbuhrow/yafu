@@ -83,57 +83,57 @@ void print_regvechexrange(__m512i a, int v1, int v2, const char* pre);
 // ---------------------------------------------------------------------
 // emulated instructions
 // ---------------------------------------------------------------------
-//#define _mm512_addsetc_epi52(a, b, cout) {          \
-//    __m512i t = _mm512_add_epi64(a, b);                                        \
-//    (*(cout)) = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL)); \
-//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));            \
-//    t;                                                                         \
+//#define _mm512_addsetc_epi52(a, b, cout) {
+//    __m512i t = _mm512_add_epi64(a, b);
+//    (*(cout)) = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t;
 //}
 //
-//#define _mm512_adc_epi52(a, c, b, cout) {                                     \
-//    __m512i t = _mm512_add_epi64(a, b);                                        \
-//    t = _mm512_add_epi64(t, _mm512_maskz_set1_epi64(c, 1));                    \
-//    (*(cout)) = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL)); \
-//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));            \
-//    t;                                                                         \
+//#define _mm512_adc_epi52(a, c, b, cout) {
+//    __m512i t = _mm512_add_epi64(a, b);
+//    t = _mm512_add_epi64(t, _mm512_maskz_set1_epi64(c, 1));
+//    (*(cout)) = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t;
 //}
 //
-//#define _mm512_mask_adc_epi52(a, m, c, b, cout) {                             \
-//    __m512i t = _mm512_add_epi64(a, b);                                        \
-//    t = _mm512_mask_add_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));         \
-//    (*(cout)) = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL)); \
-//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));            \
-//    t;                                                                         \
+//#define _mm512_mask_adc_epi52(a, m, c, b, cout) {
+//    __m512i t = _mm512_add_epi64(a, b);
+//    t = _mm512_mask_add_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
+//    (*(cout)) = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t;
 //}
 //
-//#define _mm512_addcarry_epi52(a, c, cout) {        \
-//    __m512i t = _mm512_add_epi64(a, _mm512_maskz_set1_epi64(c, 1));            \
-//    (*(cout)) = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL)); \
-//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));            \
-//    t;                                                                         \
+//#define _mm512_addcarry_epi52(a, c, cout) {
+//    __m512i t = _mm512_add_epi64(a, _mm512_maskz_set1_epi64(c, 1));
+//    (*(cout)) = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t;
 //}
 //
-//#define _mm512_subborrow_epi52(a, c, cout) {       \
-//    __m512i t = _mm512_sub_epi64(a, _mm512_maskz_set1_epi64(c, 1));            \
-//    (*(cout)) = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0));                  \
-//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));            \
-//    t;                                                                         \
+//#define _mm512_subborrow_epi52(a, c, cout) {
+//    __m512i t = _mm512_sub_epi64(a, _mm512_maskz_set1_epi64(c, 1));
+//    (*(cout)) = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0));
+//    t = _mm512_and_epi64(t, _mm512_set1_epi64(0xfffffffffffffULL));
+//    t;
 //}
 //
-//#define _mm512_sbb_epi52(a, c, b, cout) {  \
-//__m512i t = _mm512_sub_epi64(a, b);                                            \
-//(*(cout)) = _mm512_cmpgt_epu64_mask(b, a);                                         \
-//__m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));               \
-//(*(cout)) = _kor_mask8((*(cout)), _mm512_cmpgt_epu64_mask(t2, t));                     \
-//t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));              \
+//#define _mm512_sbb_epi52(a, c, b, cout) {
+//__m512i t = _mm512_sub_epi64(a, b);
+//(*(cout)) = _mm512_cmpgt_epu64_mask(b, a);
+//__m512i t2 = _mm512_sub_epi64(t, _mm512_maskz_set1_epi64(c, 1));
+//(*(cout)) = _kor_mask8((*(cout)), _mm512_cmpgt_epu64_mask(t2, t));
+//t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
 //t2; }
 //
-//#define _mm512_mask_sbb_epi52(a, m, c, b, cout) {                             \
-//__m512i t = _mm512_mask_sub_epi64(a, m, a, b);                                 \
-//(*(cout)) = _mm512_mask_cmpgt_epu64_mask(m, b, a);                                 \
-//__m512i t2 = _mm512_mask_sub_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));    \
-//(*(cout)) = _kor_mask8((*(cout)), _mm512_mask_cmpgt_epu64_mask(m, t2, t));             \
-//t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));              \
+//#define _mm512_mask_sbb_epi52(a, m, c, b, cout) {
+//__m512i t = _mm512_mask_sub_epi64(a, m, a, b);
+//(*(cout)) = _mm512_mask_cmpgt_epu64_mask(m, b, a);
+//__m512i t2 = _mm512_mask_sub_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
+//(*(cout)) = _kor_mask8((*(cout)), _mm512_mask_cmpgt_epu64_mask(m, t2, t));
+//t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
 //t2; }
 //
 #define _mm512_adcsbb_epi52(x, c, b, y, lomask, sum, diff) { \
@@ -413,12 +413,12 @@ te2 = _mm512_madd52lo_epu64(te2, t2, t3);
     c = _mm512_add_epi64(c, i1); \
     c = _mm512_and_epi64(c, vlmask); 
 
-//#define _mm512_mullo_epi52(c, a, b) \
-//    prod1_hd = _mm512_cvtepu64_pd(a); \
-//    prod2_hd = _mm512_cvtepu64_pd(b); \
-//    prod3_hd = _mm512_fmadd_round_pd(prod1_hd, prod2_hd, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
-//    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd); \
-//    prod3_hd = _mm512_fmadd_round_pd(prod1_hd, prod2_hd, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)); \
+//#define _mm512_mullo_epi52(c, a, b)
+//    prod1_hd = _mm512_cvtepu64_pd(a);
+//    prod2_hd = _mm512_cvtepu64_pd(b);
+//    prod3_hd = _mm512_fmadd_round_pd(prod1_hd, prod2_hd, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+//    prod3_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod3_hd);
+//    prod3_hd = _mm512_fmadd_round_pd(prod1_hd, prod2_hd, prod3_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 //    c = _mm512_sub_epi64(_mm512_castpd_si512(prod3_hd), _mm512_set1_epi64(0x4330000000000000ULL));
 
 #define VEC_MUL_ACCUM_LOHI_PD(a, b, lo, hi) \

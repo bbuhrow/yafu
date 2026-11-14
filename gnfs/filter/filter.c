@@ -28,8 +28,8 @@ static void find_fb_size(factor_base_t *fb,
 	   the filtering bounds */
 
 	if (limit_r > 20000000 && limit_a > 20000000) {
-		*entries_r_out = 1.02 * limit_r / (log((double)limit_r) - 1);
-		*entries_a_out = 1.02 * limit_a / (log((double)limit_a) - 1);
+		*entries_r_out = (uint32)(1.02 * limit_r / (log((double)limit_r) - 1));
+		*entries_a_out = (uint32)(1.02 * limit_a / (log((double)limit_a) - 1));
 		return;
 	}
 
@@ -171,7 +171,7 @@ static uint32 do_merge(msieve_obj *obj, filter_t *filter,
 	   tracking, which forces the target matrix size to 
 	   increase, so that target_excess is larger now */
 
-	filter->target_excess *= FINAL_EXCESS_FRACTION;
+	filter->target_excess = (uint32)(filter->target_excess * FINAL_EXCESS_FRACTION);
 
 	if ((relations_needed = check_excess(filter)) > 0)
 		return relations_needed;
@@ -271,14 +271,14 @@ uint32 nfs_filter_relations(msieve_obj *obj, mpz_t n) {
 
 		tmp = strstr(obj->nfs_args, "filter_maxrels=");
 		if (tmp != NULL) {
-			max_relations = strtoul(tmp + 15, NULL, 10);
+			max_relations = (uint32)strtoul(tmp + 15, NULL, 10);
 			logprintf(obj, "setting max relations to %u\n",
 					max_relations);
 		}
 
 		tmp = strstr(obj->nfs_args, "filter_lpbound=");
 		if (tmp != NULL) {
-			filter_bound = strtoul(tmp + 15, NULL, 10);
+			filter_bound = (uint32)strtoul(tmp + 15, NULL, 10);
 			logprintf(obj, "setting large prime bound to %u\n",
 					filter_bound);
 		}
@@ -292,7 +292,7 @@ uint32 nfs_filter_relations(msieve_obj *obj, mpz_t n) {
 
 		tmp = strstr(obj->nfs_args, "max_weight=");
 		if (tmp != NULL) {
-			max_weight = strtoul(tmp + 11, NULL, 10);
+			max_weight = (uint32)strtoul(tmp + 11, NULL, 10);
 			if (max_weight < MAX_KEEP_WEIGHT) {
 				logprintf(obj, "setting initial max weight to %u\n",
 						max_weight);
@@ -314,8 +314,8 @@ uint32 nfs_filter_relations(msieve_obj *obj, mpz_t n) {
 			const char *tmp0 = tmp - 1;
 			while (tmp0 > obj->nfs_args && isdigit(tmp0[-1]))
 				tmp0--;
-			max_relations = strtoul(tmp + 1, NULL, 10);
-			filter_bound = strtoul(tmp0, NULL, 10);
+			max_relations = (uint32)strtoul(tmp + 1, NULL, 10);
+			filter_bound = (uint32)strtoul(tmp0, NULL, 10);
 
 			logprintf(obj, "setting max relations to %u\n",
 					max_relations);

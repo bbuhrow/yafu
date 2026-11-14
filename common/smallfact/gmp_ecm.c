@@ -114,8 +114,8 @@ static uint32 postprocess(msieve_obj *obj, mpz_t factor,
      		   We would have to give up factoring one of them and
      		   continue on the other */
 
-		is_prime0 = mpz_probab_prime_p(factor, 1);
-		is_prime1 = mpz_probab_prime_p(n, 1);
+		is_prime0 = (uint32)mpz_probab_prime_p(factor, 1);
+		is_prime1 = (uint32)mpz_probab_prime_p(n, 1);
 		if ( (is_prime1 > 0 && is_prime0 == 0) ||
 		     (is_prime1 == 0 && is_prime0 == 0 &&
 				mpz_cmp(factor, n) > 0) ) {

@@ -36,7 +36,7 @@ typedef struct {
 	uint32_t deadline;
 } poly_params_t;
 
-static const poly_deadline_t time_limits[] = {
+UNUSED_VAR static const poly_deadline_t time_limits[] = {
 	//  bits, seconds
 		{248, 15},		    // 74 digits 1
 		{264, 30},		    // 80 digits 2
@@ -158,95 +158,12 @@ static void get_default_params(double digits, poly_params_t* params,
 		log(high->stage2_norm) * j) / dist);
 	params->final_norm = exp((log(low->final_norm) * k +
 		log(high->final_norm) * j) / dist);
-	params->deadline = exp((log(low->deadline) * k +
+	params->deadline = (uint32_t)exp((log(low->deadline) * k +
 		log(high->deadline) * j) / dist);
 }
 
 
 #define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
-
-int tdiv_exp(int x, int* factors, uint64_t* primes, uint64_t num_p)
-{
-	int numf = 0;
-	int xx = x;
-	int i;
-
-	i = 0;
-	while ((xx > 1) && (primes[i] < 1000))
-	{
-		int q = (int)primes[i];
-
-		if (xx % q != 0)
-			i++;
-		else
-		{
-			xx /= q;
-			factors[numf++] = q;
-		}
-	}
-
-	return numf;
-}
-
-int genDivisors(int curIndex, int currentCount, mpz_t curDivisor, mpz_t base,
-	mpz_t input, yfactor_list_t* flist, fact_obj_t* fobj)
-{
-	// Base case i.e. we do not have more
-	// primeFactors to include
-	if (curIndex == flist->num_factors) {
-		if (mpz_cmp_ui(curDivisor, 1) > 0)
-		{
-			mpz_t n;
-			mpz_init(n);
-			mpz_set_ui(n, 2);
-			mpz_pow_ui(n, n, mpz_get_ui(curDivisor));
-			mpz_sub_ui(n, n, 1);
-
-			//gmp_printf("%Zd, %Zd\n", curDivisor, n);
-
-			mpz_t t;
-			mpz_init(t);
-			// is this term a nontrivial divisor of the input we are trying to autofactor?
-			while (1)
-			{
-				mpz_gcd(t, input, n);
-				if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, input) < 0))
-				{
-					{
-						//gmp_printf("gen: removing factor %Zd from input %Zd (gcd of divisor %Zd)\n",
-						//	t, input, n);
-						if (fobj->VFLAG >= 0)
-							gmp_printf("gen: found algebraic factor %Zd\n");
-						add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-					}
-
-					mpz_tdiv_q(input, input, t);
-				}
-				else
-				{
-					break;
-				}
-			}
-			mpz_clear(t);
-			mpz_clear(n);
-
-			return currentCount + 1;
-		}
-		return currentCount;
-	}
-
-	mpz_t copy;
-	mpz_init(copy);
-	mpz_set(copy, curDivisor);
-
-	int i;
-	for (i = 0; i <= flist->factors[curIndex].count; ++i) {
-		currentCount = genDivisors(curIndex + 1, currentCount, copy, base, input, flist, fobj);
-		mpz_mul(copy, copy, flist->factors[curIndex].factor);
-	}
-	mpz_clear(copy);
-	return currentCount;
-}
 
 snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 {
@@ -269,126 +186,7 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 	{
 		if (fobj->VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 
-		int halved = find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
-
-		if (poly->form_type == SNFS_BRENT)
-		{
-			if (0)
-			{
-				mpz_t t, g;
-				mpz_init(t);
-				mpz_init(g);
-				if (fobj->autofact_obj.autofact_active)
-				{
-					// if we are autofactoring, we are proceeding with the -1 term.
-					// add the other half as a factor.
-					mpz_set(t, poly->base1);
-					mpz_pow_ui(t, t, poly->exp1);
-					mpz_add_ui(t, t, 1);
-					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
-					{
-						//gmp_printf("adding factor %Zd after gcd of +1 term %Zd\n", g, t);
-						add_to_factor_list(fobj->factors, g, 0, 0, 0);
-						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-					}
-
-					mpz_set(t, poly->base1);
-					mpz_pow_ui(t, t, poly->exp1);
-					mpz_sub_ui(t, t, 1);
-
-					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
-					{
-						//gmp_printf("adding factor %Zd after gcd of -1 term %Zd\n", g, t);
-						add_to_factor_list(fobj->factors, g, 0, 0, 0);
-						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-					}
-				}
-				else
-				{
-					// we've factored the input, which is good enough.
-					mpz_set(t, poly->base1);
-					mpz_pow_ui(t, t, poly->exp1);
-					mpz_add_ui(t, t, 1);
-
-					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
-					{
-						add_to_factor_list(fobj->factors, g, 0, 0, 0);
-						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-					}
-
-					mpz_set(t, poly->base1);
-					mpz_pow_ui(t, t, poly->exp1);
-					mpz_sub_ui(t, t, 1);
-
-					mpz_gcd(g, t, fobj->nfs_obj.gmp_n);
-					if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, fobj->nfs_obj.gmp_n) < 0))
-					{
-						add_to_factor_list(fobj->factors, g, 0, 0, 0);
-						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-					}
-				}
-				mpz_clear(t);
-				mpz_clear(g);
-			}
-			else if ((poly->coeff1 == 1) && (poly->coeff2 == -1) && 
-				(mpz_cmp_ui(poly->base2, 1) == 0))
-			{
-				if (halved == 2)
-					poly->exp1 *= 2;
-
-				mpz_t t, g;
-
-				mpz_init(t);
-				mpz_init(g);
-
-				mpz_set_ui(t, poly->exp1);
-
-				if (mpz_probab_prime_p(t, 1) == 0)
-				{
-					yfactor_list_t flist;
-
-					if (fobj->VFLAG >= 0)
-						gmp_printf("gen: algebraic factor of 'b^e - 1' form with composite exponent\n");
-
-					mpz_set(g, poly->base1);
-					mpz_pow_ui(g, g, poly->exp1);
-					mpz_sub_ui(g, g, 1);
-
-					init_factor_list(&flist, g);
-
-					int e = poly->exp1;
-					int f[32];
-					int i;
-					int nf;
-					nf = tdiv_exp(e, f, fobj->primes, fobj->num_p);
-
-					// add known exponent divisors
-					for (i = 0; i < nf; i++)
-					{
-						mpz_set_ui(t, f[i]);
-						add_to_factor_list(&flist, t, 0, 0, 1);
-					}
-
-					// generate all divisors and remove from input 
-					mpz_set_ui(t, 1);
-					genDivisors(0, 0, t, poly->base1, fobj->nfs_obj.gmp_n, &flist, fobj);
-
-					clear_factor_list(&flist);
-
-					if (fobj->VFLAG >= 0)
-						gmp_printf("gen: continuing with residue %Zd\n", fobj->nfs_obj.gmp_n);
-
-					// redo poly find
-					poly->form_type = SNFS_NONE;
-					halved = find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
-				}
-				mpz_clear(t);
-				mpz_clear(g);
-			}
-		}
+		find_brent_form(n, poly, fobj->VFLAG, fobj->flogname);
 	}
 
 	if (poly->form_type == SNFS_NONE)
@@ -434,10 +232,9 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optimize_poly)
 {
 	snfs_t* poly, * polys = NULL;
-	int i, npoly;
+	int i, npoly, npoly_gen = 0;
 	FILE *f;
 	nfs_job_t *jobs, *best;
-	int retcode = 0;
 
 	if (polyin == NULL)
 	{
@@ -477,6 +274,18 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	// if the user is calling factor() then we are in a better position to remove factors
 	// we find and continue down the best path.
 	// AVX-ECM also uses this to help determine if it is better to do special reductions when possible.
+	if (remove_binomial_power_factors(fobj, poly, fobj->VFLAG))
+	{
+		// a sum/difference of powers split the input; check what is left
+		if (nfs_check_special_case(fobj) == 1)
+		{
+			job->snfs = NULL;
+			snfs_clear(poly);
+			free(poly);
+			return -2;
+		}
+	}
+
 	if ((poly->form_type != SNFS_DIRECT) && (poly->form_type != SNFS_XYYXF) &&
 		(poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -500,7 +309,28 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	// create a good polynomial.  start by making sure the input number
 	// is the one with any previously found factors removed.
 	mpz_gcd(poly->n, poly->n, fobj->nfs_obj.gmp_n);
-	
+
+	// the polynomial must be built for (and validated against) the number we
+	// are actually factoring.  If the form's n and the input disagree, the
+	// form detection went wrong somewhere; never hand a job with a different
+	// n (or n = 1) to the siever.
+	if (mpz_cmp(poly->n, fobj->nfs_obj.gmp_n) != 0)
+	{
+		if (fobj->VFLAG > 0)
+		{
+			gmp_printf("gen: warning: form cofactor %Zd differs from input, using input\n", poly->n);
+		}
+		mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+	}
+
+	if (mpz_cmp_ui(poly->n, 1) <= 0)
+	{
+		job->snfs = NULL;
+		snfs_clear(poly);
+		free(poly);
+		return -2;
+	}
+
 	if (poly->form_type == SNFS_XYYXF)
 	{
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
@@ -548,6 +378,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
+	npoly_gen = npoly;		// ranking keeps the top few; all generated polys must be cleared
 	snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
     if (npoly > 1)
     {
@@ -567,7 +398,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 		snfs_init(job->snfs);
 		snfs_copy_poly(&polys[0], job->snfs);
 
-		for (i = 0; i < npoly; i++)
+		for (i = 0; i < npoly_gen; i++)
 		{
 			snfs_clear(&polys[i]);
 		}
@@ -609,13 +440,13 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 
 	// initialize job structures to pass into test sieving.  test sieving may modify parameters
 	// of the job to optimize rels/q.
-	jobs = (nfs_job_t*)malloc(npoly * sizeof(nfs_job_t));
+	jobs = (nfs_job_t*)malloc((unsigned long)npoly * sizeof(nfs_job_t));
 	if( !jobs )
 	{
 		printf("out of memory\n");
 		exit(-1);
 	}
-	memset(jobs, 0, npoly * sizeof(nfs_job_t));
+	memset(jobs, 0, (unsigned long)npoly * sizeof(nfs_job_t));
 	
 	// assign initial parameters
 	for (i=0; i<npoly; i++)
@@ -681,7 +512,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
             // faster by gnfs despite found snfs form, skip to gnfs processing.
             copy_job(&jobs[0], job);
 
-			for (i = 0; i < npoly; i++)
+			for (i = 0; i < npoly_gen; i++)
 			{
 				snfs_clear(&polys[i]);
 			}
@@ -779,7 +610,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	ggnfs_to_msieve(fobj, job);
 
 cleanup:
-    for (i = 0; i < npoly; i++)
+    for (i = 0; i < npoly_gen; i++)
     {
         snfs_clear(&polys[i]);
     }
@@ -844,13 +675,13 @@ void split_file(int nthreads, char* base_filename, const char* file_extension)
 				for (j = 0; j < lines_per_file; j++)
 				{
 					// need the ability to parse an arbitrary length line
-					char line[8192];
-					strptr = fgets(line, 8192, fid);
+					char line_in[8192];
+					strptr = fgets(line_in, 8192, fid);
 					if (strptr == NULL)
 					{
 						break;
 					}
-					fputs(line, fid_out);
+					fputs(line_in, fid_out);
 					if (feof(fid))
 					{
 						break;
@@ -871,13 +702,13 @@ void split_file(int nthreads, char* base_filename, const char* file_extension)
 			for (j = 0; j < lines_per_file; j++)
 			{
 				// need the ability to parse an arbitrary length line
-				char line[8192];
-				strptr = fgets(line, 8192, fid);
+				char line_in[8192];
+				strptr = fgets(line_in, 8192, fid);
 				if (strptr == NULL)
 				{
 					break;
 				}
-				fputs(line, fid_out);
+				fputs(line_in, fid_out);
 				if (feof(fid))
 				{
 					break;
@@ -928,17 +759,17 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 #endif
 
 	int special_polyfind = 0;		// if user has specified np1, nps, or npr
-	int i,j,is_startup;
+	UNUSED_VAR int i,j,is_startup;
 	char syscmd[GSTR_MAXSIZE + 4];
 	char master_polyfile[GSTR_MAXSIZE + 2];
 	char polyfile_extension[8];
 	uint64_t start = 0, range = 0;
-	uint32_t deadline, estimated_range_time, this_range_time, total_time, num_ranges;
+	UNUSED_VAR uint32_t deadline, estimated_range_time, this_range_time, total_time, num_ranges;
 	struct timeval stopt;	// stop time of this job
 	struct timeval startt;	// start time of this job
 	double t_time;
     double e0;
-    int sysreturn;
+    UNUSED_VAR int sysreturn;
 
 	//file into which we will combine all of the thread results
 	strcpy(polyfile_extension, "p");
@@ -951,7 +782,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	}
 
 	// figure out how long poly selection should take
-	i = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2);
+	i = (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2);
 	// compute digits the same way msieve does.
 	double digits = log(mpz_get_d(fobj->nfs_obj.gmp_n)) / log(10.0);
 
@@ -1133,18 +964,18 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		{ /* BB: adjusted deg5 crossover and intercept for more realistic
 		  Murphy-E goals below crossover, blending into good trendline above crossover */
 			// from msieve source...
-			int digits = gmp_base10(fobj->nfs_obj.gmp_n); // mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+			int digits_in = gmp_base10(fobj->nfs_obj.gmp_n); // mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 			int degree = fobj->nfs_obj.pref_degree;
 
-			e0 = 0.0625 * digits + 1.69;
+			e0 = 0.0625 * digits_in + 1.69;
 			if (degree > 4)
 			{
 				// the two curves cross at c149, not c121
 				// this led to the range c121 - c149 having unrealistically
 				// large Murphy-E
-				e0 = (digits >= 144) ?
-					(0.0635 * digits + 1.608) :
-					(0.0526 * digits + 3.178);
+				e0 = (digits_in >= 144) ?
+					(0.0635 * digits_in + 1.608) :
+					(0.0526 * digits_in + 3.178);
 			}
 			e0 = exp(-log(10) * e0);
 #if 0 //def HAVE_CUDA
@@ -1185,7 +1016,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		quality_mult = -1; // 1.4;
         strcpy(quality, "awesome");
 
-        fobj->nfs_obj.poly_option == 4;
+        fobj->nfs_obj.poly_option = 4;
         printf("psearch options deep, fast, and wide are deprecated, using psearch=avg\n");
     }
 
@@ -1215,7 +1046,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	if (have_tune)
 	{
 		double gnfs_time_est = fobj->nfs_obj.gnfs_multiplier * exp(
-			fobj->nfs_obj.gnfs_exponent * mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+			fobj->nfs_obj.gnfs_exponent * (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
 
 		gnfs_time_est /= saved_threads;
 
@@ -1237,10 +1068,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	gettimeofday(&startt, NULL);
 
 	//init each thread data structure with info needed to do poly search on a range
-	thread_data = (nfs_threaddata_t *)malloc(fobj->THREADS * sizeof(nfs_threaddata_t));
+	thread_data = (nfs_threaddata_t *)malloc((unsigned long)fobj->THREADS * sizeof(nfs_threaddata_t));
 
 	// allocate the queue of threads waiting for work
-	thread_queue = (int *)malloc(fobj->THREADS * sizeof(int));
+	thread_queue = (int *)malloc((unsigned long)fobj->THREADS * sizeof(int));
 	threads_waiting = (int *)malloc(sizeof(int));
 
 	if (fobj->THREADS > 1)
@@ -1471,7 +1302,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 				t_time = ytools_difftime(&startt, &stopt);
 
 				// update the estimated range time			
-				this_range_time = ytools_difftime(&t->thread_start_time, &stopt);
+				this_range_time = (uint32_t)ytools_difftime(&t->thread_start_time, &stopt);
 
 				if (!is_startup)
 				{
@@ -1602,6 +1433,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			}
 			break;
 
+			default:
+				break;
 			}
 
 			// exit the loop without restarting the thread if abort is asserted.
@@ -1643,7 +1476,6 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						// if we just found a new best score and the size of this 
 						// job is such that substantial poly-select is involved,
 						// do a test sieve of the new best polynomial.
-						struct timeval teststart;
 						struct timeval teststop;
 
 						if (have_new_best && (!poly_time_exceeded) && 
@@ -1669,6 +1501,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 							// restart this thread running a test sieve to a temp data file
 							strncpy(tmpoutfile, t->outfilename, 79);
+							tmpoutfile[79] = '\0';
 							sprintf(t->outfilename, "poly_test_sieve.%d.dat", tid);
 
 							t->job.poly = NULL;			// NULL poly will get initialized by copy_job
@@ -2010,14 +1843,13 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	fact_obj_t *fobj = t->fobj;
 	char *nfs_args = (char *)xmalloc(1024 * sizeof(char));
 	// compute digits the same way msieve does.
-    double digits = log(mpz_get_d(t->fobj->nfs_obj.gmp_n)) / log(10.0); //gmp_base10(t->fobj->nfs_obj.gmp_n);
+    UNUSED_VAR double digits = log(mpz_get_d(t->fobj->nfs_obj.gmp_n)) / log(10.0); //gmp_base10(t->fobj->nfs_obj.gmp_n);
     int deadline_per_coeff;
-	int degree;
 
 	// deadline is an overall job deadline... reduce it now that msieve enforces coefficient deadlines
 	// deadline_per_coeff = deadline;
 	// this gets us at least 4 new sets of a_d throughout the run
-	deadline_per_coeff = deadline / 1;
+	deadline_per_coeff = (int)(deadline / 1);
 	if (deadline_per_coeff == 0)
 		deadline_per_coeff = 1;
 
@@ -2086,7 +1918,7 @@ void get_polysearch_params(fact_obj_t *fobj, uint64_t*start, uint64_t*range)
 		// search custom range of leading coefficient.  This effectively ignores the deadline
 		// because the deadline is only checked after each range is done.  if we assign the
 		// entire range up front, the deadline is never checked before polysearch finishes.
-		*range = fobj->nfs_obj.polyrange / fobj->THREADS;
+		*range = fobj->nfs_obj.polyrange / (uint32_t)fobj->THREADS;
 
 		// sanity check
 		if (*range == 0) *range = 1;
@@ -2116,7 +1948,6 @@ void *polyfind_launcher(void *ptr)
 
 		if (t->fobj->VFLAG >= 0)
 		{
-			uint64_t start, stop; // one instance where the new msieve api is rather a pain
 			if (t->obj->nfs_args != NULL)
 			{
 				//if (strlen(t->obj->nfs_args) > 10)
@@ -2230,6 +2061,8 @@ void *polyfind_launcher(void *ptr)
 
 		break;
 
+	default:
+		break;
 	}
 
     //printf("**** finished poly work in thread %d\n", t->tindex);

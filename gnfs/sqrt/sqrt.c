@@ -329,11 +329,11 @@ uint32 nfs_find_factors(msieve_obj *obj, mpz_t n,
 
 		tmp = strstr(obj->nfs_args, "dep_first=");
 		if (tmp != NULL)
-			dep_lower = strtoul(tmp + 10, NULL, 10);
+			dep_lower = (uint32)strtoul(tmp + 10, NULL, 10);
 
 		tmp = strstr(obj->nfs_args, "dep_last=");
 		if (tmp != NULL)
-			dep_upper = strtoul(tmp + 9, NULL, 10);
+			dep_upper = (uint32)strtoul(tmp + 9, NULL, 10);
 
 		/* old-style 'X,Y' format */
 
@@ -345,8 +345,8 @@ uint32 nfs_find_factors(msieve_obj *obj, mpz_t n,
 				lower_limit--;
 			}
 			upper_limit++;
-			dep_lower = strtoul(lower_limit, NULL, 10);
-			dep_upper = strtoul(upper_limit, NULL, 10);
+			dep_lower = (uint32)strtoul(lower_limit, NULL, 10);
+			dep_upper = (uint32)strtoul(upper_limit, NULL, 10);
 		}
 
 		dep_lower = MAX(dep_lower, 1);

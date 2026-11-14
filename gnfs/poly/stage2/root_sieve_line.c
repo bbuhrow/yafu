@@ -63,7 +63,7 @@ void
 make_heap(line_score_t *h, uint32 size) {
 
 	int32 i;
-	for (i = HEAP_PARENT(size); i >= 0; i--)
+	for (i = (int32)HEAP_PARENT(size); i >= 0; i--)
 		heapify(h, (uint32)i, size);
 }
 
@@ -193,10 +193,10 @@ prepare_sieve_line(root_sieve_t *rs)
 			uint32 z_mod;
 			int32 tmpval;
 
-			xmin_mod = mpz_fdiv_ui(x->x_base, power);
-			y_mod = mpz_fdiv_ui(rs->curr_y, power);
-			tmpval = rs->curr_z % power;
-			z_mod = (tmpval < 0) ? tmpval + (int32)power : tmpval;
+			xmin_mod = (uint32)mpz_fdiv_ui(x->x_base, power);
+			y_mod = (uint32)mpz_fdiv_ui(rs->curr_y, power);
+			tmpval = (int32)(rs->curr_z % power);
+			z_mod = (uint32)((tmpval < 0) ? tmpval + (int32)power : tmpval);
 
 			for (k = 0; k < num_roots; k++) {
 				sieve_root_t *r = sp->roots + k;
@@ -250,15 +250,15 @@ fill_contrib_array(root_sieve_t *rs, sieve_power_t *sp,
 	uint32 resclass_mod;
 	int32 tmpval;
 
-	resclass_mod = mpz_tdiv_ui(x->resclass, power);
-	xmin_mod = mpz_fdiv_ui(x->x_base, power);
-	y_mod = mpz_fdiv_ui(rs->curr_y, power);
+	resclass_mod = (uint32)mpz_tdiv_ui(x->resclass, power);
+	xmin_mod = (uint32)mpz_fdiv_ui(x->x_base, power);
+	y_mod = (uint32)mpz_fdiv_ui(rs->curr_y, power);
 
-	tmpval = rs->curr_z % power;
-	z_mod = (tmpval < 0) ? tmpval + (int32)power : tmpval;
+	tmpval = (int32)(rs->curr_z % power);
+	z_mod = (uint32)((tmpval < 0) ? tmpval + (int32)power : tmpval);
 
 	for (i = 0, j = resclass_mod; i < power; i++) {
-		inv[j] = i;
+		inv[j] = (uint16)i;
 		j = mp_modadd_1(j, lattice_mod, power);
 	}
 
@@ -304,12 +304,12 @@ fill_contrib_array_special(root_sieve_t *rs, sieve_power_t *sp,
 	uint32 inv = mp_modinv_1(reduced_lattice, reduced_power);
 	int32 tmpval;
 
-	resclass_mod = mpz_tdiv_ui(x->resclass, power);
-	xmin_mod = mpz_fdiv_ui(x->x_base, power);
-	y_mod = mpz_fdiv_ui(rs->curr_y, power);
+	resclass_mod = (uint32)mpz_tdiv_ui(x->resclass, power);
+	xmin_mod = (uint32)mpz_fdiv_ui(x->x_base, power);
+	y_mod = (uint32)mpz_fdiv_ui(rs->curr_y, power);
 
-	tmpval = rs->curr_z % power;
-	z_mod = (tmpval < 0) ? tmpval + (int32)power : tmpval;
+	tmpval = (int32)(rs->curr_z % power);
+	z_mod = (uint32)((tmpval < 0) ? tmpval + (int32)power : tmpval);
 
 	for (i = 0; i < num_roots; i++) {
 		sieve_root_t *r = sp->roots + i;
@@ -363,7 +363,7 @@ prepare_sieve_lattice(root_sieve_t *rs)
 			sieve_power_t *sp = curr_prime->powers + j;
 			uint32 power = sp->power;
 			uint32 common_factor;
-			uint32 lattice_mod = mpz_tdiv_ui(x->mp_lattice_size,
+			uint32 lattice_mod = (uint32)mpz_tdiv_ui(x->mp_lattice_size,
 							power);
 
 			if (lattice_mod == 0)
@@ -465,6 +465,6 @@ root_sieve_line(root_sieve_t *rs)
 		size_score = optimize_basic(&apoly, &best_skew, &best_xlate);
 
 		save_rotation(&rs->root_heap, rs->curr_x, rs->curr_y, 
-				rs->curr_z, log(size_score) + alpha);
+				rs->curr_z, (float)(log(size_score) + alpha));
 	}
 }

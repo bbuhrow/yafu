@@ -154,13 +154,13 @@ void poly_init(sieve_conf_t *conf, uint32 sieve_size) {
 	   too large or too small */
 
 	for (j = 0; j < num_factors; j++)
-		conf->factor_bits[j] = i;
+		conf->factor_bits[j] = (uint8)i;
 	if (rem <= num_factors) {
 		for (j = 0; j < rem; j++)
 			conf->factor_bits[j]++;
 	}
 	else {
-		conf->factor_bits[j] = i;
+		conf->factor_bits[j] = (uint8)i;
 		num_factors++;
 		for (j = 0; j < (i - rem); j++) 
 			conf->factor_bits[j]--;
@@ -315,7 +315,7 @@ void build_derived_poly(sieve_conf_t *conf) {
 		while ((i & (1 << bitpos)) == 0)
 			bitpos++;
 	
-		conf->next_poly_action[i] = bitpos;
+		conf->next_poly_action[i] = (uint8)bitpos;
 		if (i & (1 << (bitpos+1)) ) {
 			signed_mp_add(b-1, poly_tmp_b + bitpos, b);
 		}
@@ -525,10 +525,10 @@ void build_base_poly(sieve_conf_t *conf) {
 
 	/* dump the 'a' value to disk */
 
-	i = sprintf(buf, "A");
+	i = (uint32)sprintf(buf, "A");
 	for (j = 0; j < conf->num_poly_factors; j++)
-		i += sprintf(buf + i, " %x", conf->poly_factors[j]);
-	i += sprintf(buf + i, "\n");
+		i += (uint32)sprintf(buf + i, " %x", conf->poly_factors[j]);
+	i += (uint32)sprintf(buf + i, "\n");
 	savefile_write_line(&obj->savefile, buf);
 }
 
@@ -537,5 +537,5 @@ int sort_ascending(const void *x, const void *y) {
 
 	uint32 *xx = (uint32 *)x;
 	uint32 *yy = (uint32 *)y;
-	return xx[0] - yy[0];
+	return (int)(xx[0] - yy[0]);
 }

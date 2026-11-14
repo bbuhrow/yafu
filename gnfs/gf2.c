@@ -199,7 +199,7 @@ static uint32 fill_qcb(msieve_obj *obj, mpz_poly_t *apoly,
 			uint64 p = decompress_p(r->factors, &array_size);
 			if (j >= num_r && p > min_qcb_ideal &&
 					p < ((uint64)1 << 32)) {
-				uint32 pos = (p - min_qcb_ideal) / 2;
+				uint32 pos = (uint32)((p - min_qcb_ideal) / 2);
 				bits[pos / 8] |= 1 << (pos % 8);
 			}
 		}
@@ -441,8 +441,8 @@ static void build_matrix_core(msieve_obj *obj, la_col_t *cycle_list,
 						(size_t)num_small_ideals,
 						sizeof(ideal_t),
 						compare_ideals);
-				uint32 idx = qcb_size + 1 +
-						(loc - small_ideals);
+				uint32 idx = (uint32)(qcb_size + 1 +
+						(loc - small_ideals));
 				if (loc == NULL) {
 					printf("error: unexpected dense "
 						"ideal found\n");

@@ -48,11 +48,7 @@ SOFTWARE.
 int main(int argc, char** argv)
 {
     options_t* options;
-    int count;
-    int haveFile;
     // timing
-    double t;
-    struct timeval tstart, tstop;
     char* inputN;
     char* B1;
     char* B2;
@@ -89,7 +85,8 @@ int main(int argc, char** argv)
     fobj.THREADS = options->threads;
     fobj.VFLAG = options->verbosity;
     fobj.ecm_obj.ecm_ext_xover = options->extecm_xover;
-    strncpy(fobj.ecm_obj.ecm_path, options->extecm_path, 1024);
+    strncpy(fobj.ecm_obj.ecm_path, options->extecm_path, 1024 - 1);
+    fobj.ecm_obj.ecm_path[1024 - 1] = '\0';
     
     if (options->sigma > 0)
     {

@@ -66,10 +66,10 @@ void sieve_line(thread_soedata_t *thread_data)
 	soe_staticdata_t *sdata = &thread_data->sdata;	
 	uint32_t current_line = thread_data->current_line;
 	uint8_t *line = thread_data->sdata.lines[current_line];
-    int FLAGSIZE = sdata->FLAGSIZE;
-    int FLAGSIZEm1 = sdata->FLAGSIZEm1;
-    int FLAGBITS = sdata->FLAGBITS;
-    int SOEBLOCKSIZE = sdata->SOEBLOCKSIZE;
+    int FLAGSIZE = (int)sdata->FLAGSIZE;
+    int FLAGSIZEm1 = (int)sdata->FLAGSIZEm1;
+    int FLAGBITS = (int)sdata->FLAGBITS;
+    int SOEBLOCKSIZE = (int)sdata->SOEBLOCKSIZE;
     uint8_t* masks = sdata->masks;
     uint8_t* nmasks = sdata->nmasks;
 	
@@ -78,7 +78,7 @@ void sieve_line(thread_soedata_t *thread_data)
     uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = FLAGSIZE * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)((uint64_t)FLAGSIZE * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i,j,k;
@@ -87,7 +87,7 @@ void sieve_line(thread_soedata_t *thread_data)
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-	ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+	ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
 	// for the current line, find the offsets of each small/med prime past the low limit
 	// and bucket sieve large primes
@@ -101,7 +101,7 @@ void sieve_line(thread_soedata_t *thread_data)
             // set all flags for this block, which also puts it into cache for the sieving
             // to follow.  only do this if we are not bitmap sieving, because
             // that happens before the linesieve and we don't want to overwrite it.
-            memset(flagblock, 255, SOEBLOCKSIZE);
+            memset(flagblock, 255, (size_t)SOEBLOCKSIZE);
         }
 
         if (sdata->sieve_range == 0)
@@ -122,13 +122,13 @@ void sieve_line(thread_soedata_t *thread_data)
 		pre_sieve_ptr(ddata, sdata, flagblock);
 
         // start where presieving left off, which is different for various cpus.
-        j = sdata->presieve_max_id;
+        j = (uint64_t)sdata->presieve_max_id;
 
         // unroll the loop: all primes less than this max hit the interval at least 16 times
         // at first glance it looks like AVX2 operations to compute the indices
         // might be helpful, but since we can't address memory with SIMD registers
         // it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 1901); //22998); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 1901); //22998); // 1901);
 		for (;j<stopid;j++)
 		{
 			uint32_t tmpP;
@@ -156,7 +156,7 @@ void sieve_line(thread_soedata_t *thread_data)
 			prime = sdata->sieve_p[j];
 
 			tmpP = prime << 4;
-			stop = FLAGSIZE - tmpP + prime;
+			stop = (uint32_t)FLAGSIZE - tmpP + prime;
 			k=ddata->offsets[j];            
 
             p1 = prime;
@@ -199,12 +199,12 @@ void sieve_line(thread_soedata_t *thread_data)
 			for (;k<FLAGSIZE;k+=prime)
 				flagblock[k>>3] &= masks[k&7];
 
-			ddata->offsets[j]= k - FLAGSIZE;
+			ddata->offsets[j]= (uint32_t)(k - (uint64_t)FLAGSIZE);
 			
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
-		stopid = MIN(ddata->pbounds[i], 3513); //43388); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 3513); //43388); // 3513);
         for (; j<stopid; j++)
         {
             uint32_t tmpP;
@@ -214,7 +214,7 @@ void sieve_line(thread_soedata_t *thread_data)
             prime = sdata->sieve_p[j];
 
             tmpP = prime << 3;
-            stop = FLAGSIZE - tmpP + prime;
+            stop = (uint32_t)FLAGSIZE - tmpP + prime;
             k = ddata->offsets[j];
             p1 = prime;
             p2 = p1 + prime;
@@ -237,12 +237,12 @@ void sieve_line(thread_soedata_t *thread_data)
             for (; k<FLAGSIZE; k += prime)
                 flagblock[k >> 3] &= masks[k & 7];
 
-            ddata->offsets[j] = (uint32_t)(k - FLAGSIZE);
+            ddata->offsets[j] = (uint32_t)(k - (uint64_t)FLAGSIZE);
 
         }
 
         // unroll the loop: all primes less than this max hit the interval at least 4 times
-		stopid = MIN(ddata->pbounds[i], 6543); //82023); // 
+		stopid = (int)MIN(ddata->pbounds[i], 6543); //82023); // 
         for (; j<stopid; j++)
         {
             uint32_t tmpP;
@@ -252,7 +252,7 @@ void sieve_line(thread_soedata_t *thread_data)
             prime = sdata->sieve_p[j];
 
             tmpP = prime << 2;
-            stop = FLAGSIZE - tmpP + prime;
+            stop = (uint32_t)FLAGSIZE - tmpP + prime;
             k = ddata->offsets[j];
             p1 = prime;
             p2 = p1 + prime;
@@ -269,14 +269,14 @@ void sieve_line(thread_soedata_t *thread_data)
             for (; k<FLAGSIZE; k += prime)
                 flagblock[k >> 3] &= masks[k & 7];
 
-            ddata->offsets[j] = (uint32_t)(k - FLAGSIZE);
+            ddata->offsets[j] = (uint32_t)(k - (uint64_t)FLAGSIZE);
 
         }
 
         // primes are getting fairly big now, unrolling is less useful.
         // keep going up to the large prime bound.
-        //stopid = MIN(ddata->pbounds[i], 23002);
-		stopid = ddata->pbounds[i];
+        //stopid = (int)MIN(ddata->pbounds[i], 23002);
+		stopid = (int)ddata->pbounds[i];
         for (; j<stopid; j++)
         {
             prime = sdata->sieve_p[j];
@@ -292,7 +292,7 @@ void sieve_line(thread_soedata_t *thread_data)
                 flagblock[k >> 3] &= masks[k & 7];
             }
 
-            ddata->offsets[j] = (uint32_t)(k - FLAGSIZE);
+            ddata->offsets[j] = (uint32_t)(k - (uint64_t)FLAGSIZE);
         }
 
         for (; j<ddata->pbounds[i]; j++)
@@ -303,7 +303,7 @@ void sieve_line(thread_soedata_t *thread_data)
                 flagblock[k >> 3] &= masks[k & 7];
                 k += sdata->sieve_p[j];
             }
-            ddata->offsets[j] = (uint32_t)(k - FLAGSIZE);
+            ddata->offsets[j] = (uint32_t)(k - (uint64_t)FLAGSIZE);
         }
 
 		// finally, fill any primes in this block's bucket
@@ -318,14 +318,14 @@ void sieve_line(thread_soedata_t *thread_data)
 			{		
 				// unload 8 hits
 
-                flagblock[(bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 0] & 7];
-                flagblock[(bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 1] & 7];
-                flagblock[(bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 2] & 7];
-                flagblock[(bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 3] & 7];
-                flagblock[(bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 4] & 7];
-                flagblock[(bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 5] & 7];
-                flagblock[(bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 6] & 7];
-                flagblock[(bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 7] & 7];
+                flagblock[(bptr[j + 0] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 0] & 7];
+                flagblock[(bptr[j + 1] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 1] & 7];
+                flagblock[(bptr[j + 2] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 2] & 7];
+                flagblock[(bptr[j + 3] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 3] & 7];
+                flagblock[(bptr[j + 4] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 4] & 7];
+                flagblock[(bptr[j + 5] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 5] & 7];
+                flagblock[(bptr[j + 6] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 6] & 7];
+                flagblock[(bptr[j + 7] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j + 7] & 7];
 				
                 // then compute their next hit and update the roots while they are
                 // still fresh in the cache
@@ -358,7 +358,7 @@ void sieve_line(thread_soedata_t *thread_data)
 			//finish up those that didn't fit into a group of 8 hits
 			for (;j < nptr[i]; j++)
 			{
-                flagblock[(bptr[j] & FLAGSIZEm1) >> 3] &= masks[bptr[j] & 7];
+                flagblock[(bptr[j] & (uint64_t)FLAGSIZEm1) >> 3] &= masks[bptr[j] & 7];
                 
                 bptr[j] += (bptr[j] >> 32);
                 if ((uint32_t)bptr[j] < linesize)
@@ -381,26 +381,26 @@ void sieve_line(thread_soedata_t *thread_data)
                 for (j = 0; j < (large_nptr[i] - 16); j += 16)
 				{				
 					// unload 16 hits
-					flagblock[(large_bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 0] & 7];
-					flagblock[(large_bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 1] & 7];
-					flagblock[(large_bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 2] & 7];
-					flagblock[(large_bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 3] & 7];
-					flagblock[(large_bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 4] & 7];
-					flagblock[(large_bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 5] & 7];
-					flagblock[(large_bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 6] & 7];
-					flagblock[(large_bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 7] & 7];
-					flagblock[(large_bptr[j + 8] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 8] & 7];
-					flagblock[(large_bptr[j + 9] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 9] & 7];
-					flagblock[(large_bptr[j + 10] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 10] & 7];
-					flagblock[(large_bptr[j + 11] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 11] & 7];
-					flagblock[(large_bptr[j + 12] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 12] & 7];
-					flagblock[(large_bptr[j + 13] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 13] & 7];
-					flagblock[(large_bptr[j + 14] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 14] & 7];
-					flagblock[(large_bptr[j + 15] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 15] & 7];
+					flagblock[(large_bptr[j + 0] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 0] & 7];
+					flagblock[(large_bptr[j + 1] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 1] & 7];
+					flagblock[(large_bptr[j + 2] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 2] & 7];
+					flagblock[(large_bptr[j + 3] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 3] & 7];
+					flagblock[(large_bptr[j + 4] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 4] & 7];
+					flagblock[(large_bptr[j + 5] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 5] & 7];
+					flagblock[(large_bptr[j + 6] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 6] & 7];
+					flagblock[(large_bptr[j + 7] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 7] & 7];
+					flagblock[(large_bptr[j + 8] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 8] & 7];
+					flagblock[(large_bptr[j + 9] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 9] & 7];
+					flagblock[(large_bptr[j + 10] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 10] & 7];
+					flagblock[(large_bptr[j + 11] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 11] & 7];
+					flagblock[(large_bptr[j + 12] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 12] & 7];
+					flagblock[(large_bptr[j + 13] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 13] & 7];
+					flagblock[(large_bptr[j + 14] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 14] & 7];
+					flagblock[(large_bptr[j + 15] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 15] & 7];
 				}
 
 				for (;j < large_nptr[i]; j++)
-					flagblock[(large_bptr[j] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j] & 7];
+					flagblock[(large_bptr[j] & (uint32_t)FLAGSIZEm1) >> 3] &= masks[large_bptr[j] & 7];
 
 			}
 
@@ -443,7 +443,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 	uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = 262144 * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)(262144 * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i, j, k;
@@ -453,7 +453,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-	ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+	ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
 	// for the current line, find the offsets of each small/med prime past the low limit
 	// and bucket sieve large primes
@@ -493,7 +493,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 		pre_sieve_ptr(ddata, sdata, flagblock);
 
 		// start where presieving left off, which is different for various cpus.
-		j = sdata->presieve_max_id;
+		j = (uint64_t)sdata->presieve_max_id;
 
 		// unroll the loop: all primes less than this max hit the interval at least 16 times
 		//maxP = 262144 >> 4;
@@ -501,7 +501,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 		// at first glance it looks like AVX2 operations to compute the indices
 		// might be helpful, but since we can't address memory with SIMD registers
 		// it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 1901); //22998); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 1901); //22998); // 1901);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -572,14 +572,14 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 			for (; k < 262144; k += prime)
 				flagblock[k >> 3] &= masks[k & 7];
 
-			ddata->offsets[j] = k - 262144;
+			ddata->offsets[j] = (uint32_t)(k - 262144);
 
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
 		//maxP = 262144 >> 3;
 
-		stopid = MIN(ddata->pbounds[i], 3513); //43388); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 3513); //43388); // 3513);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -619,7 +619,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 		// unroll the loop: all primes less than this max hit the interval at least 4 times
 		//maxP = 262144 >> 2;
 
-		stopid = MIN(ddata->pbounds[i], 6543); //82023); // 
+		stopid = (int)MIN(ddata->pbounds[i], 6543); //82023); // 
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -652,8 +652,8 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 
 		// primes are getting fairly big now, unrolling is less useful.
 		// keep going up to the large prime bound.
-		//stopid = MIN(ddata->pbounds[i], 23002);
-		stopid = ddata->pbounds[i];
+		//stopid = (int)MIN(ddata->pbounds[i], 23002);
+		stopid = (int)ddata->pbounds[i];
 		for (; j < stopid; j++)
 		{
 			prime = sdata->sieve_p[j];
@@ -686,7 +686,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 		if (ddata->bucket_depth > 0)
 		{
 			__m512i vt1, vt3;      // temp vectors
-			__m512i vlinesize = _mm512_set1_epi32(linesize);
+			__m512i vlinesize = _mm512_set1_epi32((int)linesize);
 			__mmask16 cmp1;
 
 			// finally, fill any primes in this block's bucket
@@ -748,11 +748,11 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 			if (ddata->largep_offset > 0)
 			{
 				__m512i vbuck;
-				__m512i vt1;
+				__m512i vt1_in;
 				__m512i vt2;
 				__m512i v262143 = _mm512_set1_epi32(262143);
 				__m512i v31 = _mm512_set1_epi32(31);
-				__m512i vfull = _mm512_set1_epi32(0xffffffff);
+				__m512i vfull = _mm512_set1_epi32((int)0xffffffff);
 				__m512i vone = _mm512_set1_epi32(1);
 
 				uint32_t *large_bptr = ddata->large_sieve_buckets[i];
@@ -765,11 +765,11 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 					// the bottleneck is not in computing the indices.
 					// keep it here for future reference: scatter might help eventually.
 					vbuck = _mm512_loadu_si512((__m256i *)(large_bptr + j));
-					vt1 = _mm512_and_epi32(vbuck, v262143);
-					vt2 = _mm512_and_epi32(vt1, v31);
+					vt1_in = _mm512_and_epi32(vbuck, v262143);
+					vt2 = _mm512_and_epi32(vt1_in, v31);
 					vt2 = _mm512_sllv_epi32(vone, vt2);        // bit location
 					vt2 = _mm512_andnot_epi32(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm512_srli_epi32(vt1, 5);
+					vt1_in = _mm512_srli_epi32(vt1_in, 5);
 
 					// this is not collision free... and it's not
 					// much faster, if at all, from the other way.
@@ -777,7 +777,7 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 					//vbuck = _mm512_and_epi32(vext, vt2);
 					//_mm512_i32scatter_epi32(flagblock32, vt1, vbuck, _MM_SCALE_4);
 
-					_mm512_storeu_si512((__m256i *)t, vt1);
+					_mm512_storeu_si512((__m256i *)t, vt1_in);
 					_mm512_storeu_si512((__m256i *)t2, vt2);
 
 					flagblock32[t[0]] &= t2[0];
@@ -839,7 +839,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 	uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = 1048576 * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)(1048576 * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i, j, k;
@@ -849,7 +849,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-	ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+	ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
 	// for the current line, find the offsets of each small/med prime past the low limit
 	// and bucket sieve large primes
@@ -889,7 +889,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 		}
 
 		// start where presieving left off, which is different for various cpus.
-		j = sdata->presieve_max_id;
+		j = (uint64_t)sdata->presieve_max_id;
 
 		// unroll the loop: all primes less than this max hit the interval at least 16 times
 		//maxP = 1048576 >> 4;
@@ -897,7 +897,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 		// at first glance it looks like AVX2 operations to compute the indices
 		// might be helpful, but since we can't address memory with SIMD registers
 		// it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 6540); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 6540); // 1901);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -968,14 +968,14 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 			for (; k < 1048576; k += prime)
 				flagblock[k >> 3] &= masks[k & 7];
 
-			ddata->offsets[j] = k - 1048576;
+			ddata->offsets[j] = (uint32_t)(k - 1048576);
 
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
 		//maxP = 1048576 >> 3;
 
-		stopid = MIN(ddata->pbounds[i], 12249); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 12249); // 3513);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1015,7 +1015,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 		// unroll the loop: all primes less than this max hit the interval at least 4 times
 		//maxP = 1048576 >> 2;
 
-		stopid = MIN(ddata->pbounds[i], 22998); // 
+		stopid = (int)MIN(ddata->pbounds[i], 22998); // 
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1048,8 +1048,8 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 
 		// primes are getting fairly big now, unrolling is less useful.
 		// keep going up to the large prime bound.
-		//stopid = MIN(ddata->pbounds[i], 23002);
-		stopid = ddata->pbounds[i];
+		//stopid = (int)MIN(ddata->pbounds[i], 23002);
+		stopid = (int)ddata->pbounds[i];
 		for (; j < stopid; j++)
 		{
 			prime = sdata->sieve_p[j];
@@ -1082,7 +1082,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 		if (ddata->bucket_depth > 0)
 		{
 			__m512i vt1, vt3;      // temp vectors
-			__m512i vlinesize = _mm512_set1_epi32(linesize);
+			__m512i vlinesize = _mm512_set1_epi32((int)linesize);
 			__mmask16 cmp1;
 
 			// finally, fill any primes in this block's bucket
@@ -1144,11 +1144,11 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 			if (ddata->largep_offset > 0)
 			{
 				__m512i vbuck;
-				__m512i vt1;
+				__m512i vt1_in;
 				__m512i vt2;
 				__m512i v1048575 = _mm512_set1_epi32(1048575);
 				__m512i v31 = _mm512_set1_epi32(31);
-				__m512i vfull = _mm512_set1_epi32(0xffffffff);
+				__m512i vfull = _mm512_set1_epi32((int)0xffffffff);
 				__m512i vone = _mm512_set1_epi32(1);
 
 				uint32_t *large_bptr = ddata->large_sieve_buckets[i];
@@ -1161,11 +1161,11 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 					// the bottleneck is not in computing the indices.
 					// keep it here for future reference: scatter might help eventually.
 					vbuck = _mm512_loadu_si512((__m256i *)(large_bptr + j));
-					vt1 = _mm512_and_epi32(vbuck, v1048575);
-					vt2 = _mm512_and_epi32(vt1, v31);
+					vt1_in = _mm512_and_epi32(vbuck, v1048575);
+					vt2 = _mm512_and_epi32(vt1_in, v31);
 					vt2 = _mm512_sllv_epi32(vone, vt2);        // bit location
 					vt2 = _mm512_andnot_epi32(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm512_srli_epi32(vt1, 5);
+					vt1_in = _mm512_srli_epi32(vt1_in, 5);
 
 					// this is not collision free... and it's not
 					// much faster, if at all, from the other way.
@@ -1173,7 +1173,7 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 					//vbuck = _mm512_and_epi32(vext, vt2);
 					//_mm512_i32scatter_epi32(flagblock32, vt1, vbuck, _MM_SCALE_4);
 
-					_mm512_storeu_si512((__m256i *)t, vt1);
+					_mm512_storeu_si512((__m256i *)t, vt1_in);
 					_mm512_storeu_si512((__m256i *)t2, vt2);
 
 					flagblock32[t[0]] &= t2[0];
@@ -1235,7 +1235,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 	uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = 2097152 * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)(2097152 * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i, j, k;
@@ -1245,7 +1245,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-	ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+	ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
 	// for the current line, find the offsets of each small/med prime past the low limit
 	// and bucket sieve large primes
@@ -1285,7 +1285,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 		}
 
 		// start where presieving left off, which is different for various cpus.
-		j = sdata->presieve_max_id;
+		j = (uint64_t)sdata->presieve_max_id;
 
 		// unroll the loop: all primes less than this max hit the interval at least 16 times
 		//maxP = 2097152 >> 4;
@@ -1293,7 +1293,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 		// at first glance it looks like AVX2 operations to compute the indices
 		// might be helpful, but since we can't address memory with SIMD registers
 		// it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 12249); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 12249); // 1901);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1364,14 +1364,14 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 			for (; k < 2097152; k += prime)
 				flagblock[k >> 3] &= masks[k & 7];
 
-			ddata->offsets[j] = k - 2097152;
+			ddata->offsets[j] = (uint32_t)(k - 2097152);
 
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
 		//maxP = 2097152 >> 3;
 
-		stopid = MIN(ddata->pbounds[i], 22998); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 22998); // 3513);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1411,7 +1411,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 		// unroll the loop: all primes less than this max hit the interval at least 4 times
 		//maxP = 2097152 >> 2;
 
-		stopid = MIN(ddata->pbounds[i], 43388); // 
+		stopid = (int)MIN(ddata->pbounds[i], 43388); // 
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1444,8 +1444,8 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 
 		// primes are getting fairly big now, unrolling is less useful.
 		// keep going up to the large prime bound.
-		//stopid = MIN(ddata->pbounds[i], 23002);
-		stopid = ddata->pbounds[i];
+		//stopid = (int)MIN(ddata->pbounds[i], 23002);
+		stopid = (int)ddata->pbounds[i];
 		for (; j < stopid; j++)
 		{
 			prime = sdata->sieve_p[j];
@@ -1478,7 +1478,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 		if (ddata->bucket_depth > 0)
 		{
 			__m512i vt1, vt3;      // temp vectors
-			__m512i vlinesize = _mm512_set1_epi32(linesize);
+			__m512i vlinesize = _mm512_set1_epi32((int)linesize);
 			__mmask16 cmp1;
 
 			// finally, fill any primes in this block's bucket
@@ -1540,11 +1540,11 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 			if (ddata->largep_offset > 0)
 			{
 				__m512i vbuck;
-				__m512i vt1;
+				__m512i vt1_in;
 				__m512i vt2;
 				__m512i v2097151 = _mm512_set1_epi32(2097151);
 				__m512i v31 = _mm512_set1_epi32(31);
-				__m512i vfull = _mm512_set1_epi32(0xffffffff);
+				__m512i vfull = _mm512_set1_epi32((int)0xffffffff);
 				__m512i vone = _mm512_set1_epi32(1);
 
 				uint32_t *large_bptr = ddata->large_sieve_buckets[i];
@@ -1557,11 +1557,11 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 					// the bottleneck is not in computing the indices.
 					// keep it here for future reference: scatter might help eventually.
 					vbuck = _mm512_loadu_si512((__m256i *)(large_bptr + j));
-					vt1 = _mm512_and_epi32(vbuck, v2097151);
-					vt2 = _mm512_and_epi32(vt1, v31);
+					vt1_in = _mm512_and_epi32(vbuck, v2097151);
+					vt2 = _mm512_and_epi32(vt1_in, v31);
 					vt2 = _mm512_sllv_epi32(vone, vt2);        // bit location
 					vt2 = _mm512_andnot_epi32(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm512_srli_epi32(vt1, 5);
+					vt1_in = _mm512_srli_epi32(vt1_in, 5);
 
 					// this is not collision free... and it's not
 					// much faster, if at all, from the other way.
@@ -1569,7 +1569,7 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 					//vbuck = _mm512_and_epi32(vext, vt2);
 					//_mm512_i32scatter_epi32(flagblock32, vt1, vbuck, _MM_SCALE_4);
 
-					_mm512_storeu_si512((__m256i *)t, vt1);
+					_mm512_storeu_si512((__m256i *)t, vt1_in);
 					_mm512_storeu_si512((__m256i *)t2, vt2);
 
 					flagblock32[t[0]] &= t2[0];
@@ -1631,7 +1631,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 	uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = 4194304 * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)(4194304 * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i, j, k;
@@ -1641,7 +1641,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-	ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+	ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
 	// for the current line, find the offsets of each small/med prime past the low limit
 	// and bucket sieve large primes
@@ -1681,7 +1681,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 		}
 
 		// start where presieving left off, which is different for various cpus.
-		j = sdata->presieve_max_id;
+		j = (uint64_t)sdata->presieve_max_id;
 
 		// unroll the loop: all primes less than this max hit the interval at least 16 times
 		//maxP = 4194304 >> 4;
@@ -1689,7 +1689,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 		// at first glance it looks like AVX2 operations to compute the indices
 		// might be helpful, but since we can't address memory with SIMD registers
 		// it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 22998); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 22998); // 1901);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1760,14 +1760,14 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 			for (; k < 4194304; k += prime)
 				flagblock[k >> 3] &= masks[k & 7];
 
-			ddata->offsets[j] = k - 4194304;
+			ddata->offsets[j] = (uint32_t)(k - 4194304);
 
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
 		//maxP = 4194304 >> 3;
 
-		stopid = MIN(ddata->pbounds[i], 43388); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 43388); // 3513);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1807,7 +1807,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 		// unroll the loop: all primes less than this max hit the interval at least 4 times
 		//maxP = 4194304 >> 2;
 
-		stopid = MIN(ddata->pbounds[i], 82023); // 
+		stopid = (int)MIN(ddata->pbounds[i], 82023); // 
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -1840,8 +1840,8 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 
 		// primes are getting fairly big now, unrolling is less useful.
 		// keep going up to the large prime bound.
-		//stopid = MIN(ddata->pbounds[i], 23002);
-		stopid = ddata->pbounds[i];
+		//stopid = (int)MIN(ddata->pbounds[i], 23002);
+		stopid = (int)ddata->pbounds[i];
 		for (; j < stopid; j++)
 		{
 			prime = sdata->sieve_p[j];
@@ -1874,7 +1874,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 		if (ddata->bucket_depth > 0)
 		{
 			__m512i vt1, vt3;      // temp vectors
-			__m512i vlinesize = _mm512_set1_epi32(linesize);
+			__m512i vlinesize = _mm512_set1_epi32((int)linesize);
 			__mmask16 cmp1;
 
 			// finally, fill any primes in this block's bucket
@@ -1936,11 +1936,11 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 			if (ddata->largep_offset > 0)
 			{
 				__m512i vbuck;
-				__m512i vt1;
+				__m512i vt1_in;
 				__m512i vt2;
 				__m512i v4194303 = _mm512_set1_epi32(4194303);
 				__m512i v31 = _mm512_set1_epi32(31);
-				__m512i vfull = _mm512_set1_epi32(0xffffffff);
+				__m512i vfull = _mm512_set1_epi32((int)0xffffffff);
 				__m512i vone = _mm512_set1_epi32(1);
 
 				uint32_t *large_bptr = ddata->large_sieve_buckets[i];
@@ -1953,11 +1953,11 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 					// the bottleneck is not in computing the indices.
 					// keep it here for future reference: scatter might help eventually.
 					vbuck = _mm512_loadu_si512((__m256i *)(large_bptr + j));
-					vt1 = _mm512_and_epi32(vbuck, v4194303);
-					vt2 = _mm512_and_epi32(vt1, v31);
+					vt1_in = _mm512_and_epi32(vbuck, v4194303);
+					vt2 = _mm512_and_epi32(vt1_in, v31);
 					vt2 = _mm512_sllv_epi32(vone, vt2);        // bit location
 					vt2 = _mm512_andnot_epi32(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm512_srli_epi32(vt1, 5);
+					vt1_in = _mm512_srli_epi32(vt1_in, 5);
 
 					// this is not collision free... and it's not
 					// much faster, if at all, from the other way.
@@ -1965,7 +1965,7 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 					//vbuck = _mm512_and_epi32(vext, vt2);
 					//_mm512_i32scatter_epi32(flagblock32, vt1, vbuck, _MM_SCALE_4);
 
-					_mm512_storeu_si512((__m256i *)t, vt1);
+					_mm512_storeu_si512((__m256i *)t, vt1_in);
 					_mm512_storeu_si512((__m256i *)t2, vt2);
 
 					flagblock32[t[0]] &= t2[0];
@@ -2033,7 +2033,7 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 	uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = 262144 * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)(262144 * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i, j, k;
@@ -2094,12 +2094,12 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 		}
 
 		// start where presieving left off, which is different for various cpus.
-        j = sdata->presieve_max_id;
+        j = (uint64_t)sdata->presieve_max_id;
 
 		// at first glance it looks like AVX2 operations to compute the indices
 		// might be helpful, but since we can't address memory with SIMD registers
 		// it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 1901); //22998); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 1901); //22998); // 1901);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -2180,14 +2180,14 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 #endif
             }
 
-			ddata->offsets[j] = k - 262144;
+			ddata->offsets[j] = (uint32_t)(k - 262144);
 
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
 		//maxP = 262144 >> 3;
 
-		stopid = MIN(ddata->pbounds[i], 3513); //43388); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 3513); //43388); // 3513);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -2272,7 +2272,7 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 		// unroll the loop: all primes less than this max hit the interval at least 4 times
 		//maxP = 262144 >> 2;
 
-		stopid = MIN(ddata->pbounds[i], 6543); //82023); // 
+		stopid = (int)MIN(ddata->pbounds[i], 6543); //82023); // 
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -2336,7 +2336,7 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 
 		// primes are getting fairly big now, unrolling is less useful.
 		// keep going up to the large prime bound.
-		stopid = ddata->pbounds[i];
+		stopid = (int)ddata->pbounds[i];
         for (; j < stopid; j++)
         {
             prime = sdata->sieve_p[j];
@@ -2387,7 +2387,7 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 		if (ddata->bucket_depth > 0)
 		{
 			__m256i vt1, vt2, vt3, vt4;      // temp vectors
-			__m256i vlinesize = _mm256_set1_epi32(linesize);
+			__m256i vlinesize = _mm256_set1_epi32((int)linesize);
 			int cmp1, cmp2;
 
 			// finally, fill any primes in this block's bucket
@@ -2458,12 +2458,12 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 			if (ddata->largep_offset > 0)
 			{
 				__m256i vbuck;
-				__m256i vt1;
-				__m256i vt2;
+				__m256i vt1_in;
+				__m256i vt2_in;
 				__m128i vext;
 				__m256i v262143 = _mm256_set1_epi32(262143);
 				__m256i v31 = _mm256_set1_epi32(31);
-				__m256i vfull = _mm256_set1_epi32(0xffffffff);
+				__m256i vfull = _mm256_set1_epi32((int)0xffffffff);
 				__m256i vone = _mm256_set1_epi32(1);
 				uint32_t *large_bptr = ddata->large_sieve_buckets[i];
 				uint32_t *large_nptr = ddata->large_bucket_hits;
@@ -2475,45 +2475,45 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 					// the bottleneck is not in computing the indices.
 					// keep it here for future reference: scatter might help eventually.
 					vbuck = _mm256_loadu_si256((__m256i *)(large_bptr + j));
-					vt1 = _mm256_and_si256(vbuck, v262143);
-					vt2 = _mm256_and_si256(vt1, v31);
-					vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
-					vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm256_srai_epi32(vt1, 5);
-					_mm256_store_si256((__m256i *)t, vt1);
+					vt1_in = _mm256_and_si256(vbuck, v262143);
+					vt2_in = _mm256_and_si256(vt1_in, v31);
+					vt2_in = _mm256_sllv_epi32(vone, vt2_in);        // bit location
+					vt2_in = _mm256_andnot_si256(vt2_in, vfull);      // sieve &= not(bit location)
+					vt1_in = _mm256_srai_epi32(vt1_in, 5);
+					_mm256_store_si256((__m256i *)t, vt1_in);
 					//_mm256_store_si256((__m256i *)t2, vt2);
-					vext = _mm256_extracti128_si256(vt2, 0);
+					vext = _mm256_extracti128_si256(vt2_in, 0);
 
-					flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
-					flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
-					flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
-					flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
-					vext = _mm256_extracti128_si256(vt2, 1);
-					flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
-					flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
-					flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
-					flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+					flagblock32[t[0]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[0];
+					flagblock32[t[1]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[1];
+					flagblock32[t[2]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[2];
+					flagblock32[t[3]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[3];
+					vext = _mm256_extracti128_si256(vt2_in, 1);
+					flagblock32[t[4]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[4];
+					flagblock32[t[5]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[5];
+					flagblock32[t[6]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[6];
+					flagblock32[t[7]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[7];
 
 					vbuck = _mm256_loadu_si256((__m256i *)(large_bptr + j + 8));
-					vt1 = _mm256_and_si256(vbuck, v262143);
-					vt2 = _mm256_and_si256(vt1, v31);
-					vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
-					vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm256_srai_epi32(vt1, 5);
+					vt1_in = _mm256_and_si256(vbuck, v262143);
+					vt2_in = _mm256_and_si256(vt1_in, v31);
+					vt2_in = _mm256_sllv_epi32(vone, vt2_in);        // bit location
+					vt2_in = _mm256_andnot_si256(vt2_in, vfull);      // sieve &= not(bit location)
+					vt1_in = _mm256_srai_epi32(vt1_in, 5);
 
-					_mm256_store_si256((__m256i *)t, vt1);
+					_mm256_store_si256((__m256i *)t, vt1_in);
 					//_mm256_store_si256((__m256i *)t2, vt2);
-					vext = _mm256_extracti128_si256(vt2, 0);
+					vext = _mm256_extracti128_si256(vt2_in, 0);
 
-					flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
-					flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
-					flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
-					flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
-					vext = _mm256_extracti128_si256(vt2, 1);
-					flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
-					flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
-					flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
-					flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+					flagblock32[t[0]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[0];
+					flagblock32[t[1]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[1];
+					flagblock32[t[2]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[2];
+					flagblock32[t[3]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[3];
+					vext = _mm256_extracti128_si256(vt2_in, 1);
+					flagblock32[t[4]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[4];
+					flagblock32[t[5]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[5];
+					flagblock32[t[6]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[6];
+					flagblock32[t[7]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[7];
 
 				}
 
@@ -2558,7 +2558,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 	uint64_t **buckets;
 
 	uint32_t *nptr;
-	uint32_t linesize = 1048576 * sdata->blocks, bnum;
+	uint32_t linesize = (uint32_t)(1048576 * sdata->blocks), bnum;
 
 	uint8_t *flagblock;
 	uint64_t i, j, k;
@@ -2568,7 +2568,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-	ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+	ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
 	// for the current line, find the offsets of each small/med prime past the low limit
 	// and bucket sieve large primes
@@ -2607,7 +2607,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 		}
 
 		// start where presieving left off, which is different for various cpus.
-		j = sdata->presieve_max_id;
+		j = (uint64_t)sdata->presieve_max_id;
 
 		// unroll the loop: all primes less than this max hit the interval at least 16 times
 		//maxP = 1048576 >> 4;
@@ -2615,7 +2615,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 		// at first glance it looks like AVX2 operations to compute the indices
 		// might be helpful, but since we can't address memory with SIMD registers
 		// it actually isn't.  Things might be different with a scatter operation.
-		stopid = MIN(ddata->pbounds[i], 6542); //22998); // 1901);
+		stopid = (int)MIN(ddata->pbounds[i], 6542); //22998); // 1901);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -2686,14 +2686,14 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 			for (; k < 1048576; k += prime)
 				flagblock[k >> 3] &= masks[k & 7];
 
-			ddata->offsets[j] = k - 1048576;
+			ddata->offsets[j] = (uint32_t)(k - 1048576);
 
 		}
 
 		// unroll the loop: all primes less than this max hit the interval at least 8 times
 		//maxP = 1048576 >> 3;
 
-		stopid = MIN(ddata->pbounds[i], 12251); //43388); // 3513);
+		stopid = (int)MIN(ddata->pbounds[i], 12251); //43388); // 3513);
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -2733,7 +2733,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 		// unroll the loop: all primes less than this max hit the interval at least 4 times
 		//maxP = 1048576 >> 2;
 
-		stopid = MIN(ddata->pbounds[i], 23000); //82023); // 6543
+		stopid = (int)MIN(ddata->pbounds[i], 23000); //82023); // 6543
 		for (; j < stopid; j++)
 		{
 			uint32_t tmpP;
@@ -2766,8 +2766,8 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 
 		// primes are getting fairly big now, unrolling is less useful.
 		// keep going up to the large prime bound.
-		//stopid = MIN(ddata->pbounds[i], 23002);
-		stopid = ddata->pbounds[i];
+		//stopid = (int)MIN(ddata->pbounds[i], 23002);
+		stopid = (int)ddata->pbounds[i];
 		for (; j < stopid; j++)
 		{
 			prime = sdata->sieve_p[j];
@@ -2800,7 +2800,7 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 		if (ddata->bucket_depth > 0)
 		{
 			__m256i vt1, vt2, vt3, vt4;      // temp vectors
-			__m256i vlinesize = _mm256_set1_epi32(linesize);
+			__m256i vlinesize = _mm256_set1_epi32((int)linesize);
 			int cmp1, cmp2;
 
 			// finally, fill any primes in this block's bucket
@@ -2868,12 +2868,12 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 			if (ddata->largep_offset > 0)
 			{
 				__m256i vbuck;
-				__m256i vt1;
-				__m256i vt2;
+				__m256i vt1_in;
+				__m256i vt2_in;
 				__m128i vext;
 				__m256i v1048575 = _mm256_set1_epi32(1048575);
 				__m256i v31 = _mm256_set1_epi32(31);
-				__m256i vfull = _mm256_set1_epi32(0xffffffff);
+				__m256i vfull = _mm256_set1_epi32((int)0xffffffff);
 				__m256i vone = _mm256_set1_epi32(1);
 				uint32_t *large_bptr = ddata->large_sieve_buckets[i];
 				uint32_t *large_nptr = ddata->large_bucket_hits;
@@ -2885,45 +2885,45 @@ void sieve_line_avx2_128k(thread_soedata_t *thread_data)
 					// the bottleneck is not in computing the indices.
 					// keep it here for future reference: scatter might help eventually.
 					vbuck = _mm256_loadu_si256((__m256i *)(large_bptr + j));
-					vt1 = _mm256_and_si256(vbuck, v1048575);
-					vt2 = _mm256_and_si256(vt1, v31);
-					vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
-					vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm256_srai_epi32(vt1, 5);
-					_mm256_store_si256((__m256i *)t, vt1);
+					vt1_in = _mm256_and_si256(vbuck, v1048575);
+					vt2_in = _mm256_and_si256(vt1_in, v31);
+					vt2_in = _mm256_sllv_epi32(vone, vt2_in);        // bit location
+					vt2_in = _mm256_andnot_si256(vt2_in, vfull);      // sieve &= not(bit location)
+					vt1_in = _mm256_srai_epi32(vt1_in, 5);
+					_mm256_store_si256((__m256i *)t, vt1_in);
 					//_mm256_store_si256((__m256i *)t2, vt2);
-					vext = _mm256_extracti128_si256(vt2, 0);
+					vext = _mm256_extracti128_si256(vt2_in, 0);
 
-					flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
-					flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
-					flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
-					flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
-					vext = _mm256_extracti128_si256(vt2, 1);
-					flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
-					flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
-					flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
-					flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+					flagblock32[t[0]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[0];
+					flagblock32[t[1]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[1];
+					flagblock32[t[2]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[2];
+					flagblock32[t[3]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[3];
+					vext = _mm256_extracti128_si256(vt2_in, 1);
+					flagblock32[t[4]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[4];
+					flagblock32[t[5]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[5];
+					flagblock32[t[6]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[6];
+					flagblock32[t[7]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[7];
 
 					vbuck = _mm256_loadu_si256((__m256i *)(large_bptr + j + 8));
-					vt1 = _mm256_and_si256(vbuck, v1048575);
-					vt2 = _mm256_and_si256(vt1, v31);
-					vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
-					vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
-					vt1 = _mm256_srai_epi32(vt1, 5);
+					vt1_in = _mm256_and_si256(vbuck, v1048575);
+					vt2_in = _mm256_and_si256(vt1_in, v31);
+					vt2_in = _mm256_sllv_epi32(vone, vt2_in);        // bit location
+					vt2_in = _mm256_andnot_si256(vt2_in, vfull);      // sieve &= not(bit location)
+					vt1_in = _mm256_srai_epi32(vt1_in, 5);
 
-					_mm256_store_si256((__m256i *)t, vt1);
+					_mm256_store_si256((__m256i *)t, vt1_in);
 					//_mm256_store_si256((__m256i *)t2, vt2);
-					vext = _mm256_extracti128_si256(vt2, 0);
+					vext = _mm256_extracti128_si256(vt2_in, 0);
 
-					flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
-					flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
-					flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
-					flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
-					vext = _mm256_extracti128_si256(vt2, 1);
-					flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
-					flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
-					flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
-					flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+					flagblock32[t[0]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[0];
+					flagblock32[t[1]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[1];
+					flagblock32[t[2]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[2];
+					flagblock32[t[3]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[3];
+					vext = _mm256_extracti128_si256(vt2_in, 1);
+					flagblock32[t[4]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[4];
+					flagblock32[t[5]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[5];
+					flagblock32[t[6]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[6];
+					flagblock32[t[7]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[7];
 
 				}
 
@@ -2967,7 +2967,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
     uint64_t** buckets;
 
     uint32_t* nptr;
-    uint32_t linesize = 4194304 * sdata->blocks, bnum;
+    uint32_t linesize = (uint32_t)(4194304 * sdata->blocks), bnum;
 
     uint8_t* flagblock;
     uint64_t i, j, k;
@@ -2977,7 +2977,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
 
     ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
     ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
-    ddata->blk_b_sqrt = (sqrt(ddata->ublk_b + sdata->prodN)) + 1;
+    ddata->blk_b_sqrt = (uint64_t)((sqrt((double)(ddata->ublk_b + sdata->prodN))) + 1);
 
     // for the current line, find the offsets of each small/med prime past the low limit
     // and bucket sieve large primes
@@ -3016,7 +3016,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
         }
 
         // start where presieving left off, which is different for various cpus.
-        j = sdata->presieve_max_id;
+        j = (uint64_t)sdata->presieve_max_id;
 
         // unroll the loop: all primes less than this max hit the interval at least 16 times
         //maxP = 4194304 >> 4;
@@ -3024,7 +3024,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
         // at first glance it looks like AVX2 operations to compute the indices
         // might be helpful, but since we can't address memory with SIMD registers
         // it actually isn't.  Things might be different with a scatter operation.
-        stopid = MIN(ddata->pbounds[i], 23000); //22998); // 1901);
+        stopid = (int)MIN(ddata->pbounds[i], 23000); //22998); // 1901);
         for (; j < stopid; j++)
         {
             uint32_t tmpP;
@@ -3095,14 +3095,14 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
             for (; k < 4194304; k += prime)
                 flagblock[k >> 3] &= masks[k & 7];
 
-            ddata->offsets[j] = k - 4194304;
+            ddata->offsets[j] = (uint32_t)(k - 4194304);
 
         }
 
         // unroll the loop: all primes less than this max hit the interval at least 8 times
         //maxP = 4194304 >> 3;
 
-        stopid = MIN(ddata->pbounds[i], 43390); //43388); // 3513);
+        stopid = (int)MIN(ddata->pbounds[i], 43390); //43388); // 3513);
         for (; j < stopid; j++)
         {
             uint32_t tmpP;
@@ -3142,7 +3142,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
         // unroll the loop: all primes less than this max hit the interval at least 4 times
         //maxP = 4194304 >> 2;
 
-        stopid = MIN(ddata->pbounds[i], 82025); //82023); // 6543
+        stopid = (int)MIN(ddata->pbounds[i], 82025); //82023); // 6543
         for (; j < stopid; j++)
         {
             uint32_t tmpP;
@@ -3175,8 +3175,8 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
 
         // primes are getting fairly big now, unrolling is less useful.
         // keep going up to the large prime bound.
-        //stopid = MIN(ddata->pbounds[i], 23002);
-        stopid = ddata->pbounds[i];
+        //stopid = (int)MIN(ddata->pbounds[i], 23002);
+        stopid = (int)ddata->pbounds[i];
         for (; j < stopid; j++)
         {
             prime = sdata->sieve_p[j];
@@ -3209,7 +3209,7 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
         if (ddata->bucket_depth > 0)
         {
             __m256i vt1, vt2, vt3, vt4;      // temp vectors
-            __m256i vlinesize = _mm256_set1_epi32(linesize);
+            __m256i vlinesize = _mm256_set1_epi32((int)linesize);
             int cmp1, cmp2;
 
             // finally, fill any primes in this block's bucket
@@ -3277,12 +3277,12 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
             if (ddata->largep_offset > 0)
             {
                 __m256i vbuck;
-                __m256i vt1;
-                __m256i vt2;
+                __m256i vt1_in;
+                __m256i vt2_in;
                 __m128i vext;
                 __m256i v4194303 = _mm256_set1_epi32(4194303);
                 __m256i v31 = _mm256_set1_epi32(31);
-                __m256i vfull = _mm256_set1_epi32(0xffffffff);
+                __m256i vfull = _mm256_set1_epi32((int)0xffffffff);
                 __m256i vone = _mm256_set1_epi32(1);
                 uint32_t* large_bptr = ddata->large_sieve_buckets[i];
                 uint32_t* large_nptr = ddata->large_bucket_hits;
@@ -3294,45 +3294,45 @@ void sieve_line_avx2_512k(thread_soedata_t* thread_data)
                     // the bottleneck is not in computing the indices.
                     // keep it here for future reference: scatter might help eventually.
                     vbuck = _mm256_loadu_si256((__m256i*)(large_bptr + j));
-                    vt1 = _mm256_and_si256(vbuck, v4194303);
-                    vt2 = _mm256_and_si256(vt1, v31);
-                    vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
-                    vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
-                    vt1 = _mm256_srai_epi32(vt1, 5);
-                    _mm256_store_si256((__m256i*)t, vt1);
+                    vt1_in = _mm256_and_si256(vbuck, v4194303);
+                    vt2_in = _mm256_and_si256(vt1_in, v31);
+                    vt2_in = _mm256_sllv_epi32(vone, vt2_in);        // bit location
+                    vt2_in = _mm256_andnot_si256(vt2_in, vfull);      // sieve &= not(bit location)
+                    vt1_in = _mm256_srai_epi32(vt1_in, 5);
+                    _mm256_store_si256((__m256i*)t, vt1_in);
                     //_mm256_store_si256((__m256i *)t2, vt2);
-                    vext = _mm256_extracti128_si256(vt2, 0);
+                    vext = _mm256_extracti128_si256(vt2_in, 0);
 
-                    flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
-                    flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
-                    flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
-                    flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
-                    vext = _mm256_extracti128_si256(vt2, 1);
-                    flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
-                    flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
-                    flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
-                    flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+                    flagblock32[t[0]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[0];
+                    flagblock32[t[1]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[1];
+                    flagblock32[t[2]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[2];
+                    flagblock32[t[3]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[3];
+                    vext = _mm256_extracti128_si256(vt2_in, 1);
+                    flagblock32[t[4]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[4];
+                    flagblock32[t[5]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[5];
+                    flagblock32[t[6]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[6];
+                    flagblock32[t[7]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[7];
 
                     vbuck = _mm256_loadu_si256((__m256i*)(large_bptr + j + 8));
-                    vt1 = _mm256_and_si256(vbuck, v4194303);
-                    vt2 = _mm256_and_si256(vt1, v31);
-                    vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
-                    vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
-                    vt1 = _mm256_srai_epi32(vt1, 5);
+                    vt1_in = _mm256_and_si256(vbuck, v4194303);
+                    vt2_in = _mm256_and_si256(vt1_in, v31);
+                    vt2_in = _mm256_sllv_epi32(vone, vt2_in);        // bit location
+                    vt2_in = _mm256_andnot_si256(vt2_in, vfull);      // sieve &= not(bit location)
+                    vt1_in = _mm256_srai_epi32(vt1_in, 5);
 
-                    _mm256_store_si256((__m256i*)t, vt1);
+                    _mm256_store_si256((__m256i*)t, vt1_in);
                     //_mm256_store_si256((__m256i *)t2, vt2);
-                    vext = _mm256_extracti128_si256(vt2, 0);
+                    vext = _mm256_extracti128_si256(vt2_in, 0);
 
-                    flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
-                    flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
-                    flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
-                    flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
-                    vext = _mm256_extracti128_si256(vt2, 1);
-                    flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
-                    flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
-                    flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
-                    flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+                    flagblock32[t[0]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[0];
+                    flagblock32[t[1]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[1];
+                    flagblock32[t[2]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[2];
+                    flagblock32[t[3]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[3];
+                    vext = _mm256_extracti128_si256(vt2_in, 1);
+                    flagblock32[t[4]] &= (uint32_t)_mm_extract_epi32(vext, 0); //t2[4];
+                    flagblock32[t[5]] &= (uint32_t)_mm_extract_epi32(vext, 1); //t2[5];
+                    flagblock32[t[6]] &= (uint32_t)_mm_extract_epi32(vext, 2); //t2[6];
+                    flagblock32[t[7]] &= (uint32_t)_mm_extract_epi32(vext, 3); //t2[7];
 
                 }
 

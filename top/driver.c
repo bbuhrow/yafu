@@ -18,7 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 7/28/10
 ----------------------------------------------------------------------*/
 
-#define _POSIX_C_SOURCE 200112L
+#define _XOPEN_SOURCE 600		// POSIX.1-2001 + XSI (nice)
 #include <inttypes.h>
 #include "yafu.h"
 #include "soe.h"
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
     static struct termios oldtio, newtio;
     tcgetattr(0, &oldtio);
     newtio = oldtio;
-    newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK);
+    newtio.c_lflag &= (tcflag_t)~(ICANON | ECHO | ECHOE | ECHOK);
 
     CMDHIST = (char **)malloc(CMDHIST_SIZE * sizeof(char *));
     for (i = 0; i < CMDHIST_SIZE; i++)
@@ -137,11 +137,11 @@ int main(int argc, char *argv[])
     processOpts(argc, argv, options);
 
     // some things go into globals, but this is being phased out
-    yafu_obj.VFLAG = options->verbosity;
-    yafu_obj.THREADS = options->threads;
-    yafu_obj.CMD_LINE_REPEAT = options->repeat;
-    yafu_obj.VERBOSE_PROC_INFO = options->vproc;
-    yafu_obj.LATHREADS = options->lathreads;
+    yafu_obj.VFLAG = (int)options->verbosity;
+    yafu_obj.THREADS = (int)options->threads;
+    yafu_obj.CMD_LINE_REPEAT = (int)options->repeat;
+    yafu_obj.VERBOSE_PROC_INFO = (int)options->vproc;
+    yafu_obj.LATHREADS = (int)options->lathreads;
     if (strlen(options->factorlog) == 0)
     {
         yafu_obj.LOGFLAG = 0;
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 #ifdef _MSC_VER
             _getcwd(yafu_obj.CWD, 1024);
 #else
-            getcwd(yafu_obj.CWD, 1024);
+            if (getcwd(yafu_obj.CWD, 1024) == NULL) yafu_obj.CWD[0] = '\0';
 #endif
         }
         else
@@ -190,8 +190,9 @@ int main(int argc, char *argv[])
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    ytools_get_computer_info(&comp_info, options->vproc);
+    ytools_get_computer_info(&comp_info, (int)options->vproc);
     strncpy(yafu_obj.CPU_ID_STR, comp_info.idstr, 255);
+    yafu_obj.CPU_ID_STR[255] = '\0';
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -208,9 +209,9 @@ int main(int argc, char *argv[])
     fobj->MEAS_CPU_FREQUENCY = 42;  // not used anymore
     strcpy(fobj->CPU_ID_STR, comp_info.idstr);
     
-    fobj->NUM_WITNESSES = yafu_obj.NUM_WITNESSES = options->num_prp_witnesses;
-    fobj->cache_size1 = fobj->L1CACHE = comp_info.L1cache;
-    fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
+    fobj->NUM_WITNESSES = (int)(yafu_obj.NUM_WITNESSES = options->num_prp_witnesses);
+    fobj->cache_size1 = (uint32_t)(fobj->L1CACHE = (int)comp_info.L1cache);
+    fobj->cache_size2 = (uint32_t)(fobj->L2CACHE = (int)comp_info.L2cache);
     fobj->LOGFLAG = yafu_obj.LOGFLAG;
     fobj->THREADS = yafu_obj.THREADS;
     strcpy(fobj->yafu_version, YAFU_VERSION_STRING);
@@ -309,8 +310,8 @@ int main(int argc, char *argv[])
 #endif	
 
     calc_metadata.fobj = fobj;
-    calc_metadata.pscreen = options->pscreen;
-    calc_metadata.pfile = options->pfile;
+    calc_metadata.pscreen = (int)options->pscreen;
+    calc_metadata.pfile = (int)options->pfile;
     calc_metadata.soe_analysis = options->soe_analysis;
     calc_metadata.comp_info = &comp_info;
 
@@ -324,8 +325,8 @@ int main(int argc, char *argv[])
     {
         // a default function applied to text that has no other function.
         int len = (int)strlen(options->inputExpr) + 9;
-        options->inputExpr = (char*)xrealloc(options->inputExpr, len);
-        input_exp = (char*)xrealloc(input_exp, len);
+        options->inputExpr = (char*)xrealloc(options->inputExpr, (size_t)len);
+        input_exp = (char*)xrealloc(input_exp, (size_t)len);
         sprintf(input_exp, "factor(%s)", options->inputExpr);
         strcpy(options->inputExpr, input_exp);
         strcpy(input_line, options->inputExpr);
@@ -400,7 +401,7 @@ int main(int argc, char *argv[])
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
 	print_splash(fobj, &comp_info, is_cmdline_run, logfile, yafu_obj.VFLAG, 
-        yafu_obj.MEAS_CPU_FREQUENCY, yafu_obj.NUM_WITNESSES, yafu_obj.CWD);
+        yafu_obj.MEAS_CPU_FREQUENCY, (int)yafu_obj.NUM_WITNESSES, yafu_obj.CWD);
 	
 	// start the calculator
 	// right now this just allocates room for user variables
@@ -514,9 +515,9 @@ int main(int argc, char *argv[])
             if (strlen(input_str.s) >= fobj->input_str_alloc)
             {
                 fobj->input_str = xrealloc(fobj->input_str, strlen(input_str.s) + 2);
-                fobj->input_str_alloc = strlen(input_str.s) + 2;
+                fobj->input_str_alloc = (int)(strlen(input_str.s) + 2);
             }
-            fobj->argc = argc;
+            fobj->argc = (char)argc;
             fobj->argv = argv;            
             strcpy(fobj->input_str, input_str.s);
             firstline = 1;
@@ -537,7 +538,7 @@ int main(int argc, char *argv[])
 		}
 
         // support changing options from the command line in an interactive session
-        options->verbosity = fobj->VFLAG;
+        options->verbosity = (uint32_t)fobj->VFLAG;
         options->B1ecm = fobj->ecm_obj.B1;
         options->B2ecm = fobj->ecm_obj.B2;
         options->B1pm1 = fobj->pm1_obj.B1;
@@ -548,8 +549,8 @@ int main(int argc, char *argv[])
         fobj->pp1_obj.stg2_is_default = (options->B2pp1 == 0);
         fobj->ecm_obj.stg2_is_default = (options->B2ecm == 0);
         options->rhomax = fobj->rho_obj.iterations;
-        options->num_prp_witnesses = fobj->NUM_WITNESSES;
-        options->threads = fobj->THREADS;
+        options->num_prp_witnesses = (uint32_t)fobj->NUM_WITNESSES;
+        options->threads = (uint32_t)fobj->THREADS;
 
 #if defined(WIN32) && !defined(__MINGW32__)
 		fflush(stdin);	//important!  otherwise scanf will process printf's output
@@ -785,7 +786,7 @@ char * get_input(char *input_exp, uint32_t*insize)
                 // and print the previous one
                 printf("%s", CMDHIST[p]);
                 strcpy(input_exp, CMDHIST[p]);
-                n = strlen(input_exp);
+                n = (int)strlen(input_exp);
             }
             else if ((c1 == 91) && (c2 == 66))
             {
@@ -814,7 +815,7 @@ char * get_input(char *input_exp, uint32_t*insize)
                 // and print the next one
                 printf("%s", CMDHIST[p]);
                 strcpy(input_exp, CMDHIST[p]);
-                n = strlen(input_exp);
+                n = (int)strlen(input_exp);
             }
             else if ((c1 == 91) && (c2 == 67))
             {
@@ -937,7 +938,7 @@ void helpfunc(char *s)
 	while (!feof(doc))
 	{
 		//read a line
-		fgets(str,1024,doc);
+		if (fgets(str,1024,doc) == NULL) break;
 		//is this a header?
 		//printf("(%d) %s",strlen(str),str);
         char* start = strchr(str, '[');
@@ -1220,7 +1221,7 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #ifdef _MSC_VER
         _getcwd(buf, 1024);
 #else
-        getcwd(buf, 1024);
+        if (getcwd(buf, 1024) == NULL) buf[0] = '\0';
 #endif
         logprint(logfile, "Could not parse yafu.ini from %s\n\n", buf);
     }
@@ -1283,7 +1284,7 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #ifdef _MSC_VER
             _getcwd(buf, 1024);
 #else
-            getcwd(buf, 1024);
+            if (getcwd(buf, 1024) == NULL) buf[0] = '\0';
 #endif
             printf("Could not parse yafu.ini from %s\n\n", buf);
         }
@@ -1310,9 +1311,7 @@ void yafu_set_idle_priority(void) {
 	SetPriorityClass(GetCurrentProcess(),
 			IDLE_PRIORITY_CLASS);
 #else
-#if __GNUC__ < 14
-    nice(100);
-#endif
+    if (nice(100) == -1) { /* priority is only a hint */ }
 #endif
 }
 
@@ -1365,7 +1364,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 {
 	int nChars, j, i;
 	char *line, tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
-	FILE *batchfile, *tmpfile;
+	FILE *batchfile = NULL, *tmpfile;
 
 	//try to open the file
 	if (yobj->USEBATCHFILE == 2)
@@ -1659,8 +1658,9 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 #endif	
 
 	
-    // restore the user's xover if preferred.
-    if (fobj->autofact_obj.prefer_xover)
+    // restore the user's xover if one was specified (prefer_xover may also be
+    // set by -snfs_xover alone, in which case keep tune's qs/gnfs crossover).
+    if (fobj->autofact_obj.prefer_xover && (xover != 95))
     {
         fobj->autofact_obj.qs_gnfs_xover = xover;
     }
@@ -1671,10 +1671,10 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 void options_to_factobj(fact_obj_t* fobj, options_t* options)
 {
     // set any parameters of fobj changed by user options
-    uint32_t seed1, seed2;
+    UNUSED_VAR uint32_t seed1, seed2;
     int i;
 
-    fobj->num_threads = options->threads;
+    fobj->num_threads = (int)options->threads;
     strcpy(fobj->flogname, options->factorlog);
     strcpy(fobj->factor_json_name, options->jsonlog);
 
@@ -1686,7 +1686,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->lcg_state = options->rand_seed;
     }
 
-    fobj->NUM_WITNESSES = options->num_prp_witnesses;
+    fobj->NUM_WITNESSES = (int)options->num_prp_witnesses;
 
     // initialize stuff for rho	
     fobj->rho_obj.iterations = options->rhomax;
@@ -1724,7 +1724,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->ecm_obj.ecm_multiplier = 0;
     fobj->ecm_obj.ecm_tune_freq = 0;
     fobj->ecm_obj.bail_on_factor = 0;
-    fobj->ecm_obj.save_b1 = options->saveB1;
+    fobj->ecm_obj.save_b1 = (int)options->saveB1;
     fobj->ecm_obj.rand_seed1 = fobj->seed1;
     fobj->ecm_obj.rand_seed2 = fobj->seed2;
     fobj->ecm_obj.lcg_state = (uint64_t*)xrealloc(fobj->ecm_obj.lcg_state,
@@ -1745,8 +1745,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     // an external binary
     strcpy(fobj->ecm_obj.ecm_path, options->ecm_path);
     fobj->ecm_obj.use_external = 0;
-    fobj->ecm_obj.prefer_gmpecm = options->prefer_gmpecm;
-    fobj->ecm_obj.prefer_gmpecm_stg2 = options->prefer_gmpecm_stg2;
+    fobj->ecm_obj.prefer_gmpecm = (int)options->prefer_gmpecm;
+    fobj->ecm_obj.prefer_gmpecm_stg2 = (int)options->prefer_gmpecm_stg2;
     if (options->avxecm_rns_bits >= 0)
         fobj->ecm_obj.avx_rns_bits = options->avxecm_rns_bits;
     if (options->avxecm_stg2 >= 0)
@@ -1831,13 +1831,13 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_3lp_bat = options->siqsNobat;
     fobj->qs_obj.gbl_btarget = options->siqsBT;
     fobj->qs_obj.flags = 0;
-    fobj->qs_obj.gbl_force_DLP = options->siqsForceDLP;
-    fobj->qs_obj.gbl_force_TLP = options->siqsForceTLP;
-    fobj->qs_obj.gbl_force_QLP = options->siqsForceQLP;
+    fobj->qs_obj.gbl_force_DLP = (int)options->siqsForceDLP;
+    fobj->qs_obj.gbl_force_TLP = (int)options->siqsForceTLP;
+    fobj->qs_obj.gbl_force_QLP = (int)options->siqsForceQLP;
     fobj->qs_obj.qs_exponent = 0;
     fobj->qs_obj.qs_multiplier = 0;
     fobj->qs_obj.qs_tune_freq = 0;
-    fobj->qs_obj.no_small_cutoff_opt = options->no_opt;
+    fobj->qs_obj.no_small_cutoff_opt = (int)options->no_opt;
     strcpy(fobj->qs_obj.siqs_savefile, options->qssave);
 
     init_lehman();
@@ -1849,7 +1849,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     //initialize stuff for nfs
     fobj->nfs_obj.snfs = 0;
-    fobj->nfs_obj.gnfs = options->force_gnfs;
+    fobj->nfs_obj.gnfs = (int)options->force_gnfs;
     fobj->nfs_obj.gnfs_exponent = 0;
     fobj->nfs_obj.gnfs_multiplier = 0;
     fobj->nfs_obj.gnfs_tune_freq = 0;
@@ -2013,7 +2013,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     else if (strcmp(options->poly_method, "good") == 0)
         fobj->nfs_obj.poly_option = 5;
 
-    fobj->nfs_obj.restart_flag = options->nfs_resume;
+    fobj->nfs_obj.restart_flag = (int)options->nfs_resume;
     fobj->nfs_obj.snfs_testsieve_threshold = options->snfs_testsieve_threshold;
     *fobj->nfs_obj.filearg = '\0';
 
@@ -2030,7 +2030,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.want_output_primes = 0;
     fobj->autofact_obj.want_output_factors = 0;
     fobj->autofact_obj.want_output_unfactored = 0;
-    fobj->autofact_obj.want_output_expressions = options->want_output_expr;
+    fobj->autofact_obj.want_output_expressions = (int)options->want_output_expr;
     if (strlen(options->opfile) > 0)
     {
         fobj->autofact_obj.want_output_primes = 1;
@@ -2049,10 +2049,12 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     fobj->autofact_obj.qs_gnfs_xover = options->xover;
     fobj->autofact_obj.qs_snfs_xover = options->qs_snfs_xover;
-    // use xover even when timing info is available
-    fobj->autofact_obj.prefer_xover = (options->xover != 95);   // not equal to default value
-    fobj->autofact_obj.want_only_1_factor = options->one_factor;
-    fobj->autofact_obj.no_ecm = options->no_ecm;
+    // use xover even when timing info is available.  Either crossover being
+    // specified (not equal to its default value) means the user wants the
+    // crossovers to decide between siqs/gnfs/snfs rather than tune data.
+    fobj->autofact_obj.prefer_xover = (options->xover != 95) || (options->qs_snfs_xover != 95);
+    fobj->autofact_obj.want_only_1_factor = (int)options->one_factor;
+    fobj->autofact_obj.no_ecm = (int)options->no_ecm;
     fobj->autofact_obj.target_pretest_ratio = options->pretest_ratio;
     fobj->autofact_obj.initial_work = options->work;
     fobj->autofact_obj.has_snfs_form = -1;		// not checked yet
@@ -2073,7 +2075,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->autofact_obj.yafu_pretest_plan = PRETEST_DEEP;
     else if (strcmp(options->fact_plan, "custom") == 0)
         fobj->autofact_obj.yafu_pretest_plan = PRETEST_CUSTOM;
-    fobj->autofact_obj.only_pretest = options->pretest;
+    fobj->autofact_obj.only_pretest = (int)options->pretest;
     fobj->autofact_obj.autofact_active = 0;
     fobj->autofact_obj.json_pretty = options->json_pretty;
     fobj->autofact_obj.stopbase = options->stopbase;
@@ -2090,11 +2092,11 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.max_nfs = options->max_nfs;
 
     // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
-    fobj->factors->aprcl_prove_cutoff = options->aprcl_p;
+    fobj->factors->aprcl_prove_cutoff = (int)options->aprcl_p;
     // if a number is >= aprcl_display_cutoff, we will show the APRCL progress
-    fobj->factors->aprcl_display_cutoff = options->aprcl_d;
+    fobj->factors->aprcl_display_cutoff = (int)options->aprcl_d;
 
-    fobj->VFLAG = options->verbosity;
+    fobj->VFLAG = (int)options->verbosity;
     fobj->OUTPUT_TERSE = options->terse_output;
     if (strlen(options->factorlog) == 0)
     {

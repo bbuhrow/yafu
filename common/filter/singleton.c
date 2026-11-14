@@ -91,8 +91,8 @@ static void filter_read_lp_file_1pass(msieve_obj *obj,
 				if (ideal != (uint32)(-1))
 					r_old->ideal_list[k++] = ideal;
 			}
-			r_old->ideal_count = k;
-			r_old->gf2_factors += ideal_count - k;
+			r_old->ideal_count = (uint8)k;
+			r_old->gf2_factors += (uint8)(ideal_count - k);
 			r_old = next_relation_ptr(r_old);
 			r = r_next;
 		}
@@ -199,7 +199,7 @@ void filter_read_lp_file(msieve_obj *obj, filter_t *filter,
 				(num_relation_alloc-1) * 
 				sizeof(relation_ideal_t)) {
 
-			num_relation_alloc = 1.4 * num_relation_alloc;
+			num_relation_alloc = (size_t)(1.4 * (double)num_relation_alloc);
 			relation_array = (relation_ideal_t *)xrealloc(
 					relation_array, 
 					num_relation_alloc *
@@ -219,8 +219,8 @@ void filter_read_lp_file(msieve_obj *obj, filter_t *filter,
 			if (curr_ideal != (uint32)(-1))
 				r->ideal_list[k++] = curr_ideal;
 		}
-		r->gf2_factors += j - k;
-		r->ideal_count = k;
+		r->gf2_factors += (uint8)(j - k);
+		r->ideal_count = (uint8)k;
 		curr_word += header_words + k;
 	}
 
@@ -494,7 +494,7 @@ void filter_purge_singletons_core(msieve_obj *obj,
 						curr_relation->rel_index;
 				old_relation->gf2_factors = 
 						curr_relation->gf2_factors;
-				old_relation->ideal_count = curr_num_ideals;
+				old_relation->ideal_count = (uint8)curr_num_ideals;
 				for (j = 0; j < curr_num_ideals; j++) {
 					old_relation->ideal_list[j] =
 						curr_relation->ideal_list[j];
@@ -532,7 +532,7 @@ void filter_purge_singletons_core(msieve_obj *obj,
 	filter->num_ideals = num_ideals;
 	filter->relation_array = relation_array = 
 			(relation_ideal_t *)xrealloc(relation_array,
-				(old_relation - relation_array + 1) *
+				(unsigned long)(old_relation - relation_array + 1) *
 				sizeof(relation_ideal_t));
 
 	curr_relation = relation_array;

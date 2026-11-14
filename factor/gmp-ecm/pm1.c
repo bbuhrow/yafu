@@ -102,7 +102,7 @@ int pm1_wrapper(fact_obj_t *fobj)
 	}
 
 	status = ecm_factor(pm1_data.gmp_factor, pm1_data.gmp_n,
-			fobj->pm1_obj.B1, pm1_data.params);
+			(double)fobj->pm1_obj.B1, pm1_data.params);
 
 	mpz_set(fobj->pm1_obj.gmp_n, pm1_data.gmp_n);
 
@@ -139,7 +139,7 @@ void pollard_loop(fact_obj_t *fobj)
 	//expects the input in pm1_obj->gmp_n
 	mpz_t d,t;
 	clock_t start, stop;
-	double tt;
+	UNUSED_VAR double tt;
 		
 	//check for trivial cases
 	if ((mpz_cmp_ui(fobj->pm1_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->pm1_obj.gmp_n, 0) == 0))
@@ -245,21 +245,21 @@ void pm1_print_B1_B2(fact_obj_t *fobj)
 	if (fobj->pm1_obj.B1 % 1000000000 == 0)
 	{
 		suffix = 'B';
-		sprintf(stg1str,"%u%c",fobj->pm1_obj.B1 / 1000000000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->pm1_obj.B1 / 1000000000, suffix);
 	}
 	else if (fobj->pm1_obj.B1 % 1000000 == 0)
 	{
 		suffix = 'M';
-		sprintf(stg1str,"%u%c",fobj->pm1_obj.B1 / 1000000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->pm1_obj.B1 / 1000000, suffix);
 	}
 	else if (fobj->pm1_obj.B1 % 1000 == 0)
 	{
 		suffix = 'K';
-		sprintf(stg1str,"%u%c",fobj->pm1_obj.B1 / 1000, suffix);
+		sprintf(stg1str,"%" PRIu64 "%c",fobj->pm1_obj.B1 / 1000, suffix);
 	}
 	else
 	{
-		sprintf(stg1str,"%u",fobj->pm1_obj.B1);
+		sprintf(stg1str,"%" PRIu64,fobj->pm1_obj.B1);
 	}
 
 	if (fobj->pm1_obj.stg2_is_default == 0)

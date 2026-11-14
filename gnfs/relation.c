@@ -13,6 +13,7 @@ $Id: relation.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 --------------------------------------------------------------------*/
 
 #include <ms_common.h>
+#include <inttypes.h>
 #include "gnfs.h"
 #include "savefile.h"
 
@@ -36,7 +37,7 @@ uint32 divide_factor_out(mpz_t polyval, uint64 p,
 
 	if (p < ((uint64)1 << 32)) {
 		while (1) {
-			uint32 rem = mpz_tdiv_q_ui(tmp1, polyval, p);
+			uint32 rem = (uint32)mpz_tdiv_q_ui(tmp1, polyval, p);
 			if (rem != 0 || mpz_cmp_ui(tmp1, 0) == 0)
 				break;
 
@@ -143,7 +144,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 
 		if (test_primality && !mp_is_prime_1((uint32)p))
 		{
-			printf("error -98: 'a' is not prime\n", p);
+			printf("error -98: 'a' is not prime\n");
 			return -98;
 		}
 
@@ -163,7 +164,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 		}
 
 		r->num_factors_r = 1;
-		r->num_factors_a = num_roots;
+		r->num_factors_a = (uint8)num_roots;
 		*array_size_out = array_size;
 		return 0;
 	}
@@ -210,7 +211,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 				p < ((uint64)1 << 32) &&
 				!mp_is_prime_1((uint32)p))
 			{
-				printf("error -98: 'p' is > RELATION_TF_BOUND (%u) and not prime\n", RELATION_TF_BOUND, p);
+				printf("error -98: 'p' is > RELATION_TF_BOUND (%u) and not prime\n", RELATION_TF_BOUND);
 				return -98;
 			}
 
@@ -219,7 +220,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 						&num_factors_r, compress,
 						rpoly->tmp1, rpoly->tmp2,
 						rpoly->tmp3)) {
-				printf("error -8: problem dividing factor %u out\n", p);
+				printf("error -8: problem dividing factor %" PRIu64 " out\n", p);
 				return -8;
 			}
 			tmp = next_field;
@@ -238,7 +239,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 	/* if there are rational factors still to be accounted
 	   for, assume they are small and find them by trial division */
 
-	for (i = p = 0; mpz_cmp_ui(polyval, 1) != 0 && 
+	for (i = (uint32)(p = 0); mpz_cmp_ui(polyval, 1) != 0 && 
 				p < RELATION_TF_BOUND; i++) {
 
 		p += prime_delta[i];
@@ -246,7 +247,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 				&array_size, &num_factors_r, 
 				compress, rpoly->tmp1, 
 				rpoly->tmp2, rpoly->tmp3)) {
-			printf("error -10: problem dividing factor %u out\n", p);
+			printf("error -10: problem dividing factor %" PRIu64 " out\n", p);
 			return -10;
 		}
 	}
@@ -278,7 +279,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 				p < ((uint64)1 << 32) &&
 				!mp_is_prime_1((uint32)p))
 			{
-				printf("error -98: 'p' is > RELATION_TF_BOUND (%u) and not prime\n", RELATION_TF_BOUND, p);
+				printf("error -98: 'p' is > RELATION_TF_BOUND (%u) and not prime\n", RELATION_TF_BOUND);
 				return -98;
 			}
 
@@ -287,7 +288,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 						&num_factors_a, compress,
 						apoly->tmp1, apoly->tmp2,
 						apoly->tmp3)) {
-				printf("error -13: problem dividing factor %u out\n", p);
+				printf("error -13: problem dividing factor %" PRIu64 " out\n", p);
 				return -13;
 			}
 			tmp = next_field;
@@ -297,7 +298,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 	/* if there are algebraic factors still to be accounted
 	   for, assume they are small and find them by trial division */
 
-	for (i = p = 0; mpz_cmp_ui(polyval, 1) != 0 && 
+	for (i = (uint32)(p = 0); mpz_cmp_ui(polyval, 1) != 0 && 
 					p < RELATION_TF_BOUND; i++) {
 
 		p += prime_delta[i];
@@ -305,7 +306,7 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 				&array_size, &num_factors_a, 
 				compress, apoly->tmp1,
 				apoly->tmp2, apoly->tmp3)) {
-			printf("error -14: problem dividing factor %u out\n", p);
+			printf("error -14: problem dividing factor %" PRIu64 " out\n", p);
 			return -14;
 		}
 	}
@@ -318,8 +319,8 @@ int32 nfs_read_relation(char *buf, factor_base_t *fb,
 		return -15;
 	}
 	
-	r->num_factors_r = num_factors_r;
-	r->num_factors_a = num_factors_a;
+	r->num_factors_r = (uint8)num_factors_r;
+	r->num_factors_a = (uint8)num_factors_a;
 	*array_size_out = array_size;
 	return 0;
 }
@@ -347,7 +348,7 @@ uint32 find_large_ideals(relation_t *rel,
 			ideal_t *ideal = out->ideal_list + num_ideals;
 
 			ideal->p_lo = (uint32)compressed_p;
-			ideal->p_hi = (uint16)(compressed_p >> 32);
+			ideal->p_hi = (((uint16)(compressed_p >> 32)) & 0x7FFFu);
 			ideal->rat_or_alg = RATIONAL_IDEAL;
 			ideal->r_lo = (uint32)p;
 			ideal->r_hi = (uint16)(p >> 32);
@@ -365,7 +366,7 @@ uint32 find_large_ideals(relation_t *rel,
 							&array_size);
 
 				ideal->p_lo = (uint32)compressed_p;
-				ideal->p_hi = (uint16)(compressed_p >> 32);
+				ideal->p_hi = (((uint16)(compressed_p >> 32)) & 0x7FFFu);
 				ideal->rat_or_alg = ALGEBRAIC_IDEAL;
 				ideal->r_lo = (uint32)root;
 				ideal->r_hi = (uint16)(root >> 32);
@@ -376,7 +377,7 @@ uint32 find_large_ideals(relation_t *rel,
 			out->gf2_factors += rel->num_factors_a;
 		}
 
-		out->ideal_count = num_ideals;
+		out->ideal_count = (uint8)num_ideals;
 		return num_ideals;
 	}
 
@@ -414,7 +415,7 @@ uint32 find_large_ideals(relation_t *rel,
 				return TEMP_FACTOR_LIST_SIZE + 1;
 
 			ideal->p_lo = (uint32)compressed_p;
-			ideal->p_hi = (uint16)(compressed_p >> 32);
+			ideal->p_hi = (((uint16)(compressed_p >> 32)) & 0x7FFFu);
 			ideal->rat_or_alg = RATIONAL_IDEAL;
 			ideal->r_lo = (uint32)p;
 			ideal->r_hi = (uint16)(p >> 32);
@@ -446,7 +447,7 @@ uint32 find_large_ideals(relation_t *rel,
 
 			/* this time we have to find the exact r */
 
-			bmodp = b % p;
+			bmodp = (uint32)(b % p);
 			if (bmodp == 0) {
 				ideal->r_lo = (uint32)p;
 				ideal->r_hi = (uint16)(p >> 32);
@@ -455,7 +456,7 @@ uint32 find_large_ideals(relation_t *rel,
 				uint64 root;
 				int64 mapped_a = a % (int64)p;
 				if (mapped_a < 0)
-					mapped_a += p;
+					mapped_a = (int64)((uint64)mapped_a + p);
 
 				root = (uint64)mapped_a;
 				if (p < ((uint64)1 << 32)) {
@@ -472,7 +473,7 @@ uint32 find_large_ideals(relation_t *rel,
 
 			}
 			ideal->p_lo = (uint32)compressed_p;
-			ideal->p_hi = (uint16)(compressed_p >> 32);
+			ideal->p_hi = (((uint16)(compressed_p >> 32)) & 0x7FFFu);
 			ideal->rat_or_alg = ALGEBRAIC_IDEAL;
 			num_ideals++;
 		}
@@ -481,7 +482,7 @@ uint32 find_large_ideals(relation_t *rel,
 		}
 	}
 
-	out->ideal_count = num_ideals;
+	out->ideal_count = (uint8)num_ideals;
 	return num_ideals;
 }
 
@@ -532,7 +533,7 @@ static void remap_relation_numbers(msieve_obj *obj,
 				exit(-1);
 			}
 			else {
-				c->cycle.list[j] = rptr - rlist;
+				c->cycle.list[j] = (uint32)(rptr - rlist);
 			}
 		}
 	}
@@ -823,7 +824,7 @@ void nfs_convert_cado_cycles(msieve_obj *obj) {
 	savefile_open(savefile, SAVEFILE_READ);
 	savefile_read_line(buf, sizeof(buf), savefile);
 
-	num_unique_relidx = strtoul(buf, NULL, 10);
+	num_unique_relidx = (uint32)strtoul(buf, NULL, 10);
 
 	logprintf(obj, "cycles contain %u unique purge entries\n", 
 				num_unique_relidx);
@@ -840,7 +841,7 @@ void nfs_convert_cado_cycles(msieve_obj *obj) {
 		/* the relation number is the first entry in the
 		   line from the purge file */
 
-		curr->rel_idx = strtoul(buf, NULL, 10);
+		curr->rel_idx = (uint32)strtoul(buf, NULL, 10);
 		curr->purge_idx = i;
 	}
 

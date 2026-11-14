@@ -145,7 +145,7 @@ static const uint32_t map[60] = {
 static const double INV_2_POW_32 = 1.0 / (double)((uint64_t)(1) << 32);
 
 #define NUMP 1438
-static const int primes[NUMP] = {
+UNUSED_VAR static const int primes[NUMP] = {
 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31,
 37, 41, 43, 47, 53, 59, 61, 67, 71, 73,
 79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
@@ -1415,7 +1415,7 @@ static __m512i uecm_build_x8(uecm_pt_x8* P, __m512i rho, __m512i n, uint64_t* pl
     return ps;
 }
 
-static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* ploc_lcg, uint64_t* ps, uint64_t five, uint64_t Rsqr)
+UNUSED_FUNC static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* ploc_lcg, uint64_t* ps, uint64_t five, uint64_t Rsqr)
 {
     uint64_t t1, t2, t3, t4;
     uint64_t u, v;
@@ -1931,8 +1931,8 @@ static const uint8_t b1_85[225] = {
     17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,
     43,41,31,17,7,1,11,13,19,29 };
 
-static const int numb1_125 = 319;
-static const uint8_t b1_125[319] = {
+UNUSED_VAR static const int numb1_125 = 319;
+UNUSED_VAR static const uint8_t b1_125[319] = {
     23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
     29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,
     17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,
@@ -1943,8 +1943,8 @@ static const uint8_t b1_125[319] = {
     31,19,13,7,11,17,29,43,0,47,29,19,11,7,1,41,43,59,0,53,49,37,23,13,11,7,1,17,19,29,41,43,59,0,59,49,
     41,37,23,13,1,7,11,29,43,47,53,0,59,53,49,31,23,13,7,1,17,29,43,47,0,59,31,29,19,11,7,37,49,53 };
 
-static const int numb1_165 = 435;
-static const uint8_t b1_165[435] = {
+UNUSED_VAR static const int numb1_165 = 435;
+UNUSED_VAR static const uint8_t b1_165[435] = {
     13,7,1,11,17,19,31,43,47,49,53,59,0,59,49,43,
     37,31,29,23,19,17,7,11,13,47,53,0,53,47,41,37,
     31,23,19,11,1,13,29,43,59,0,53,49,41,37,31,19,
@@ -1974,8 +1974,8 @@ static const uint8_t b1_165[435] = {
     29,31,43,0,53,31,19,17,13,7,1,29,37,59,0,49,
     47,41,29 };
 
-static const int numb1_205 = 511;
-static const uint8_t b1_205[511] = {
+UNUSED_VAR static const int numb1_205 = 511;
+UNUSED_VAR static const uint8_t b1_205[511] = {
     1,23,41,0,59,53,49,47,37,23,19,17,13,1,7,29,43,0,53,49,41,31,29,19,17,11,7,1,13,37,59,0,49,47,29,23,
     13,7,1,17,31,37,43,0,59,49,47,43,37,31,29,17,13,7,1,11,19,53,0,59,53,49,41,37,23,13,1,11,17,19,29,43,
     47,0,53,49,47,43,23,19,11,1,7,17,37,41,0,59,53,41,37,31,29,19,17,11,1,13,43,47,0,53,47,41,19,17,7,1,
@@ -2171,7 +2171,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     uecm_pt Pd1;
     uecm_pt *Pd = &Pd1;
     const uint8_t *barray = 0;
-    int numb;
+    int numb = 0;	// stays 0 (no stage 1) for an unsupported stg1_max
 
 #ifdef MICRO_ECM_VERBOSE_PRINTF
     ptadds = 0;
@@ -2280,7 +2280,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -2294,7 +2294,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -2527,7 +2527,7 @@ static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
     uecm_pt_x8 Pd1;
     uecm_pt_x8* Pd = &Pd1;
     const uint8_t* barray = 0;
-    int numb;
+    int numb = 0;	// stays 0 (no stage 1) for an unsupported stg1_max
 
 #ifdef MICRO_ECM_VERBOSE_PRINTF
     ptadds = 0;
@@ -2636,7 +2636,7 @@ static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd_x8(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -2650,7 +2650,7 @@ static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
         uecm_uadd_x8(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
-        k = map[j + 12];
+        k = (int)map[j + 12];
         j += 6;
     }
 
@@ -2876,7 +2876,6 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     //attempt to factor n with the elliptic curve method
     //following brent and montgomery's papers, and CP's book
     int curve;
-    int found = 0;
     int result;
     uecm_pt P;
     uint64_t tmp1;
@@ -2902,7 +2901,6 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     uint64_t s;
 
     int use_prebuilt_curves = 1;
-    uint32_t smallsigma[8] = { 11, 61, 56, 81, 83, 7, 30, 51 };
     uint64_t Z[8] = { 85184, 14526784, 11239424, 34012224, 36594368, 21952, 1728000, 8489664 };
     uint64_t X[8] = { 1560896ULL, 51312965696ULL, 30693697091ULL, 281784327616ULL,
         326229015104ULL, 85184ULL, 716917375ULL, 17495004736ULL };
@@ -2932,7 +2930,7 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
             P.Z = Z[curve];
             // some computation left to do for S parameter for this 'n'
 
-            uint64_t num, uvc, u3vc;
+            uint64_t num;
 
             uint64_t dem = d[curve];
             // jeff note:  uecm_modinv_64(dem, n) appears to require dem < n,
@@ -3041,7 +3039,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
     ALIGNED_MEM uint64_t uarray[8], rarray[8], tarray[8], oarray[8];
     ALIGNED_MEM uint64_t narray[8], carray[8], fivea[8], Rsqra[8];
     uint32_t stg1_max = B1;
-    __m512i v_u, v_s, v_n, v_f, v_r, v_c, v_o;
+    __m512i v_u, v_s, v_n, v_r, v_c, v_o;
     uecm_pt_x8 v_P;
     int i;
     uint32_t j = 0;
@@ -3079,7 +3077,6 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                 uint64_t two_13 = uecm_mulredc52(two_8, two_5, n64[j], rho);  // R*2^13         (mod n)
                 uint64_t two_26 = uecm_sqrredc52(two_13, n64[j], rho);        // R*2^26        (mod n)
                 uint64_t Rsqr = uecm_sqrredc52(two_26, n64[j], rho);          // R*2^52 ≡ R*R  (mod n)
-                uint64_t s;
 
                 // mark this index for loading into vectors
                 lmsk |= (1 << i);
@@ -3148,7 +3145,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                 if (result == 1)
                 {
                     f[oarray[i]] = t;
-                    msk &= (~(1 << i));
+                    msk &= (uint8_t)(~(1 << i));
                 }
             }
         }
@@ -3169,7 +3166,7 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                     if (result == 1)
                     {
                         f[oarray[i]] = t;
-                        msk &= (~(1 << i));
+                        msk &= (uint8_t)(~(1 << i));
                     }
                 }
             }
@@ -3220,14 +3217,14 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
         {
             B1 = 47;
             curves = 1;
-            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
             if (f64 > 1)
                 return f64;
         }
         {
             B1 = 70;
             curves = 1;
-            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
             if (f64 > 1)
                 return f64;
         }
@@ -3235,7 +3232,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
         {
             B1 = 125;
             curves = 1;
-            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
             if (f64 > 1)
                 return f64;
         }
@@ -3245,19 +3242,19 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
     {
         B1 = 27;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 44)
     {
         B1 = 47;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 48)
     {
         B1 = 70;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 52)
     {
@@ -3268,7 +3265,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 85;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 58)
     {
@@ -3279,7 +3276,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 125;
         curves = 32;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 62)
     {
@@ -3290,7 +3287,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 165;
         curves = 42;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
     else if (targetBits <= 64)
     {
@@ -3301,7 +3298,7 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 #endif
         B1 = 205;
         curves = 42;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+        microecm(n, &f64, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, ploc_lcg);
     }
 
     return f64;
@@ -3318,43 +3315,43 @@ static void uecm_dispatch_x8_list(uint64_t* n, uint64_t* f,
     {
         B1 = 27;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 44)
     {
         B1 = 47;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 48)
     {
         B1 = 70;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 52)
     {
         B1 = 85;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 58)
     {
         B1 = 125;
         curves = 32;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 62)
     {
         B1 = 165;
         curves = 42;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
     else if (targetBits <= 64)
     {
         B1 = 205;
         curves = 42;
-        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+        microecm_x8_list(n, f, (uint32_t)B1, (uint32_t)(25 * B1), (uint32_t)curves, num_in, ploc_lcg);
     }
 
     return;

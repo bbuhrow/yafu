@@ -158,7 +158,7 @@ void mpres_div_2exp(mpz_t R, mpz_t S, const unsigned int n, mpz_t modulus)
     else
         mpz_tdiv_q_2exp(R, S, 1);
 
-    for (i = n; i > 1; i--)
+    for (i = (int)n; i > 1; i--)
     {
         if (mpz_odd_p(R))
         {
@@ -190,7 +190,7 @@ void vec_ecm_sync(void *vptr)
 {
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
-    uint32_t tid = tpdata->tindex;
+    uint32_t tid = (uint32_t)tpdata->tindex;
 
     // phases: 0 build curves, 1 stage 1, 2 pairing stage 2 init,
     // 3 pairing stage 2, 4 FFT stage 2; each runs once per tpool_go
@@ -206,7 +206,7 @@ void vec_ecm_dispatch(void *vptr)
 {
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
-    uint32_t tid = tpdata->tindex;
+    uint32_t tid = (uint32_t)tpdata->tindex;
     
     if (udata[tid].ecm_phase == 0)
     {        
@@ -284,7 +284,7 @@ void vec_ecm_stage1_work_fcn(void *vptr)
 {
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
-    uint32_t tid = tpdata->tindex;
+    uint32_t tid = (uint32_t)tpdata->tindex;
     int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
     if (udata[tid].curve_type == AVXECM_CURVE_EDW4X)
@@ -303,7 +303,7 @@ void vec_ecm_stage2_init_work_fcn(void *vptr)
 {
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
-    uint32_t tid = tpdata->tindex;
+    uint32_t tid = (uint32_t)tpdata->tindex;
     int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
     vec_ecm_stage2_init(udata[tid].P, udata[tid].mdata, udata[tid].work, verbose);
@@ -315,12 +315,12 @@ void vec_ecm_stage2_work_fcn(void *vptr)
 {
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
-    uint32_t tid = tpdata->tindex;
+    uint32_t tid = (uint32_t)tpdata->tindex;
     int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
     vec_ecm_stage2_pair(udata[tid].pairmap_steps, udata[tid].pairmap_v, udata[tid].pairmap_u,
         udata[tid].P, udata[tid].mdata, udata[tid].work, verbose);
-    udata[tid].work->last_pid = udata[tid].nump;
+    udata[tid].work->last_pid = (uint32_t)udata[tid].nump;
 
     return;
 }
@@ -331,7 +331,7 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
 {
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *tdata = (thread_data_t *)tpdata->user_data;
-    uint32_t tid = tpdata->tindex;
+    uint32_t tid = (uint32_t)tpdata->tindex;
     mpz_t X, Z, A; // , t, n, one, r;
 #ifdef PARAM1
     mpz_t X2, Z2;
@@ -352,7 +352,6 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
 
 	for (i = 0; i < VECLEN; i++)
     {
-        int j;
 #ifdef PARAM1
         build_one_curve_param1(&tdata[tid], X, Z, X2, Z2, A, 0); // 65953669); // 36875098);
         vec_lane_set(tdata[tid].mdata, tdata[tid].P->X, X, i);
@@ -474,18 +473,18 @@ void vec_ecm_work_init(ecm_work* work)
 
         for (; j < D; j++)
         {
-            if (spGCD(j, D) == 1)
+            if (spGCD((uint64_t)j, D) == 1)
             {
-                work->map[i * D + j] = m++;
+                work->map[(uint32_t)((uint32_t)((unsigned int)i * (uint32_t)D) + (unsigned int)j)] = (uint32_t)(m++);
             }
             else
             {
-                work->map[i * D + j] = 0;
+                work->map[(unsigned int)i * (uint32_t)D + (uint32_t)j] = 0;
             }
         }
 
         if (i == 0)
-            work->map[i * D + j] = m++;
+            work->map[(uint32_t)((uint32_t)((unsigned int)i * (uint32_t)D) + (unsigned int)j)] = (uint32_t)(m++);
 
     }
 
@@ -502,10 +501,9 @@ void vec_ecm_work_init(ecm_work* work)
 
 void vec_ecm_work_free(ecm_work* work)
 {
-    int i, j;
+    int i;
     uint32_t U = work->U;
     uint32_t L = work->L;
-    uint32_t D = work->D;
     uint32_t R = work->R;
 
     vecFree(work->diff1);
@@ -571,12 +569,12 @@ void mpz_mulmod(mpz_t out, mpz_t in1, mpz_t in2, mpz_t n, mpz_t nhat, mpz_t s, i
     mpz_mul(out, in1, in2);
 
     mpz_mul(s, out, nhat);
-    mpz_tdiv_r_2exp(s, s, bits);
+    mpz_tdiv_r_2exp(s, s, (mp_bitcnt_t)bits);
 
     mpz_mul(s, s, n);
     mpz_add(out, s, out);
-    mpz_tdiv_q_2exp(out, out, bits);
-    mpz_tdiv_q_2exp(s, out, bits);
+    mpz_tdiv_q_2exp(out, out, (mp_bitcnt_t)bits);
+    mpz_tdiv_q_2exp(s, out, (mp_bitcnt_t)bits);
 
     if (mpz_cmp_ui(s, 0) > 0)
     {
@@ -611,7 +609,7 @@ void mpz_submod(mpz_t out, mpz_t a, mpz_t b, mpz_t n)
 void mpz_addmod(mpz_t out, mpz_t a, mpz_t b, mpz_t n, mpz_t s, int bits)
 {
     mpz_add(out, a, b);
-    mpz_tdiv_q_2exp(s, out, bits);
+    mpz_tdiv_q_2exp(s, out, (mp_bitcnt_t)bits);
     if (mpz_cmp_ui(s, 0) > 0)
     {
         mpz_sub(out, out, n);
@@ -745,7 +743,7 @@ int * getEseq(uint64_t d, uint64_t e)
 	uint64_t target = e;
 	int doub = 0, add = 0;
 	int seqLen = 64;
-	int *seq = (int *)malloc(seqLen * sizeof(int));
+	int *seq = (int *)malloc((unsigned long)seqLen * sizeof(int));
 	int it = 1;
 	seq[0] = 0;
 
@@ -786,7 +784,7 @@ int * getEseq(uint64_t d, uint64_t e)
 		if (it > seqLen)
 		{
 			seqLen *= 2;
-			seq = (int *)realloc(seq, seqLen * sizeof(int));
+			seq = (int *)realloc(seq, (unsigned long)seqLen * sizeof(int));
 		}
 	}
 
@@ -794,9 +792,9 @@ int * getEseq(uint64_t d, uint64_t e)
 	seqLen = it;
 	for (it = 0; it < seqLen / 2; it++)
 	{
-		uint32_t tmp = seq[it];
+		uint32_t tmp = (uint32_t)seq[it];
 		seq[it] = seq[seqLen - it - 1];
-		seq[seqLen - it - 1] = tmp;
+		seq[seqLen - it - 1] = (int)tmp;
 	}
 
 	// for fun.
@@ -806,27 +804,27 @@ int * getEseq(uint64_t d, uint64_t e)
 	if (0)
 #endif
 	{
-		uint32_t d = 0;
+		uint32_t d_in = 0;
 		uint32_t x = 1;
 		it = 0;
 
-		printf("target is %u, sequence length is %u\n", target, seqLen);
+		printf("target is %" PRIu64 ", sequence length is %u\n", target, seqLen);
 		while (seq[it] != 0)
 		{
 			if (seq[it] == 1)
 			{
-				printf("[1]: double to get %u and add %d to get %u\n", x * 2, x - d, x + x - d);
+				printf("[1]: double to get %u and add %d to get %u\n", x * 2, x - d_in, x + x - d_in);
 				x *= 2;
 			}
 			else if (seq[it] == 2)
 			{
-				x += d;
-				printf("[2]: add %d to get %u\n", d, x);
+				x += d_in;
+				printf("[2]: add %d to get %u\n", d_in, x);
 			}
 			else if (seq[it] == 3)
 			{
-				d = x - d;
-				printf("[3]: d is now %u\n", d);
+				d_in = x - d_in;
+				printf("[3]: d is now %u\n", d_in);
 			}
 			it++;
 		}
@@ -954,13 +952,13 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 
 	/* chooses the best value of v */
     cmin = 999999999.0; // ADD* (double)c;
-	for (i = d = 0; d < NV; d++)
+	for (i = (int)(d = 0); d < NV; d++)
 	{
 		cost = lucas_cost(c, val[d]);
 		if (cost < cmin)
 		{
 			cmin = cost;
-			i = d;
+			i = (int)d;
 		}
 	}
 
@@ -1415,7 +1413,7 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 
 void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 {
-	uint64_t startd;
+	UNUSED_VAR uint64_t startd;
 	uint64_t numd = 10;
 	uint64_t bestd = 0;
 	int *seq;
@@ -1445,20 +1443,20 @@ void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	while (i < numd)
 	{
 		//uint64_t d = startd - i;
-		uint64_t d = (uint64_t)((double)c * val[i]);
+		uint64_t d_in = (uint64_t)((double)c * val[i]);
 		uint64_t e = c;
 
-		if (spGCD(d, e) != 1)
+		if (spGCD(d_in, e) != 1)
 		{
 			i++;
 			continue;
 		}
 
-		cost = vec_getEcost(d, e);
+		cost = vec_getEcost(d_in, e);
 		if (cost < best)
 		{
 			best = cost;
-			bestd = d;
+			bestd = d_in;
 		}
 		i++;
 		numd--;
@@ -1765,12 +1763,12 @@ void array_mul(uint64_t *primes, uint64_t b1, int num_p, mpz_t piprimes)
 
 	if (num_p & 1)
 	{
-		p = (mpz_t *)malloc((num_p + 1) * sizeof(mpz_t));
+		p = (mpz_t *)malloc((unsigned long)(num_p + 1) * sizeof(mpz_t));
 		alloc = num_p + 1;
 	}
 	else
 	{
-		p = (mpz_t *)malloc((num_p + 0) * sizeof(mpz_t));
+		p = (mpz_t *)malloc((unsigned long)(num_p + 0) * sizeof(mpz_t));
 		alloc = num_p;
 	}
 
@@ -2416,7 +2414,6 @@ void vececm(thread_data_t* tdata)
     char fname[80];
     int found = 0;
     int result;
-    uint64_t num_found;
     mpz_t gmpt, gmpn, tmp_factor;
     // these track the range over which we currently have a prime list.
     uint64_t rangemin;
@@ -2424,8 +2421,6 @@ void vececm(thread_data_t* tdata)
     uint64_t sigma_in[VECLEN];
     int verbose = tdata[0].verbose;
     uint32_t NWORDS = tdata[0].NWORDS;
-    uint32_t NBLOCKS = tdata[0].NBLOCKS;
-    uint32_t MAXBITS = tdata[0].MAXBITS;
     uint64_t STAGE1_MAX = tdata[0].STAGE1_MAX;
     uint64_t STAGE2_MAX = tdata[0].STAGE2_MAX;
     int DO_STAGE2 = tdata[0].DO_STAGE2;
@@ -2456,12 +2451,12 @@ void vececm(thread_data_t* tdata)
     // input number.  (all math is still done relative to the base Mersenne.)
     if (tdata[0].mdata->isMersenne == 0)
     {
-        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->n, 0, NWORDS);
+        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->n, 0, (int)NWORDS);
     }
     else
     {
         // for Mersenne's, the original input is stored here.
-        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->vnhat, 0, NWORDS);
+        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->vnhat, 0, (int)NWORDS);
     }
 
     vec_set_raw_ui(tdata[0].mdata, one, 1);    // raw 1: a product with it leaves Montgomery form
@@ -2482,7 +2477,7 @@ void vececm(thread_data_t* tdata)
         printf("found %"PRIu64" primes in range [%"PRIu64" : %"PRIu64"]\n", ecm_nump, rangemin, rangemax);
     }
 
-    tpool_data = tpool_setup(tdata[0].total_threads, NULL, NULL, &vec_ecm_sync,
+    tpool_data = tpool_setup((int)tdata[0].total_threads, NULL, NULL, &vec_ecm_sync,
         &vec_ecm_dispatch, tdata);
 
     tpool_add_work_fcn(tpool_data, &vec_ecm_build_curve_work_fcn);
@@ -2523,13 +2518,13 @@ void vececm(thread_data_t* tdata)
             double curves_left;
 
             printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=%"PRIu64"",
-                (curve + VECLEN) * threads, tdata[0].curves * threads,
+                (uint32_t)(curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX, tdata[0].STAGE2_MAX); fflush(stdout);
 
             gettimeofday(&stopt, NULL);
             curve_time = ytools_difftime(&fullstartt, &stopt);
 
-            avg_curve_time = curve_time / (double)((curve) * threads);
+            avg_curve_time = curve_time / (double)((uint32_t)(curve) * threads);
             curves_left = (double)tdata[0].curves * threads - (double)(curve) * threads;
             if (curves_left < 0) curves_left = 0.;
             est_time = (double)curves_left * avg_curve_time;
@@ -2557,15 +2552,15 @@ void vececm(thread_data_t* tdata)
             rangemin = 0;
             rangemax = MIN(STAGE2_MAX + 1000, (uint64_t)PRIME_RANGE);
 
-            soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+            soe_staticdata_t* sdata_in = soe_init(0, 1, 32768);
             if (ecm_primes != NULL) {
                 free(ecm_primes);
             }
-            sdata->VFLAG = verbose;
-            ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+            sdata_in->VFLAG = verbose;
+            ecm_primes = soe_wrapper(sdata_in, rangemin, rangemax, 0, &ecm_nump, 0, 0);
             ecm_minp = ecm_primes[0];
             ecm_maxp = ecm_primes[ecm_nump - 1];
-            soe_finalize(sdata);
+            soe_finalize(sdata_in);
 
             if (verbose > 1)
             {
@@ -2592,7 +2587,7 @@ void vececm(thread_data_t* tdata)
             {
                 if (sigma_in[j] > 0)
                 {
-                    tdata[i].sigma[j] = sigma_in[j] + curve;
+                    tdata[i].sigma[j] = sigma_in[j] + (uint64_t)curve;
                 }
                 else
                 {
@@ -2609,8 +2604,8 @@ void vececm(thread_data_t* tdata)
         {
             printf("\n");
 
-            printf("Commencing curves %d-%d of %u\n", threads * curve,
-                threads * (curve + VECLEN) - 1, threads * tdata[0].curves);
+            printf("Commencing curves %d-%d of %u\n", threads * (uint32_t)curve,
+                threads * (uint32_t)(curve + VECLEN) - 1, threads * tdata[0].curves);
 
             printf("Building curves took %1.4f seconds.\n", t_time);
         }
@@ -2634,14 +2629,14 @@ void vececm(thread_data_t* tdata)
                 rangemin = rangemax;
                 rangemax = MIN(STAGE2_MAX + 1000, rangemin + (uint64_t)PRIME_RANGE);
 
-                soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+                soe_staticdata_t* sdata_in = soe_init(0, 1, 32768);
                 if (ecm_primes != NULL) {
                     free(ecm_primes);
                 }
-                ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+                ecm_primes = soe_wrapper(sdata_in, rangemin, rangemax, 0, &ecm_nump, 0, 0);
                 ecm_minp = ecm_primes[0];
                 ecm_maxp = ecm_primes[ecm_nump - 1];
-                soe_finalize(sdata);
+                soe_finalize(sdata_in);
 
                 if (verbose > 1)
                 {
@@ -2700,11 +2695,11 @@ void vececm(thread_data_t* tdata)
 
                     for (i = 0; i < VECLEN; i++)
                     {
-                        vec_lane_get(tdata[j].mdata, gmpt, vec_ecm_stage1_gcdvec(&tdata[j]), i);
+                        vec_lane_get(tdata[j].mdata, gmpt, vec_ecm_stage1_gcdvec(&tdata[j]), (int)i);
 
                         if (mpz_cmp_ui(gmpt, 0) == 0)
                         {
-                            printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                            printf("something failed: tid = %" PRIu64 ", vec = %" PRIu64 " has zero result\n", j, i);
                         }
 
                         result = vec_check_factor(gmpt, gmpn, tmp_factor);
@@ -2739,15 +2734,15 @@ void vececm(thread_data_t* tdata)
                             else
                             {
                                 tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
-                                    (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                                    (unsigned long)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                             }
 
-                            tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                            tdata[j].factors[tdata[j].numfactors].thread_id = (int)j;
                             tdata[j].factors[tdata[j].numfactors].stg_id = 1;
                             tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
-                            tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                            tdata[j].factors[tdata[j].numfactors].vec_id = (int)i;
                             tdata[j].factors[tdata[j].numfactors].curve_id =
-                                (curve * threads) + (j * VECLEN) + i;
+                                (int)(((uint32_t)((uint32_t)curve * threads)) + (j * VECLEN) + i);
                             mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
                             mpz_set(tdata[j].factors[tdata[j].numfactors++].factor, tmp_factor);
 
@@ -2761,13 +2756,13 @@ void vececm(thread_data_t* tdata)
                             mpz_init(tmp2);
                             mpz_init(tmp1);
 
-                            vec_ecm_save_curve(intsave, &tdata[j], i, gmpn, tmp1);
+                            vec_ecm_save_curve(intsave, &tdata[j], (int)i, gmpn, tmp1);
                             fprintf(intsave, "B1=%"PRIu64"; ",
                                 ecm_primes[tdata[j].work->last_pid - 1]);
                             gmp_fprintf(intsave, "N=0x%Zx; ", gmpn);
 
-                            vec_lane_get(tdata[j].mdata, tmp1, tdata[j].work->tt4, i);
-                            vec_lane_get(tdata[j].mdata, tmp2, tdata[j].work->tt3, i);
+                            vec_lane_get(tdata[j].mdata, tmp1, tdata[j].work->tt4, (int)i);
+                            vec_lane_get(tdata[j].mdata, tmp2, tdata[j].work->tt3, (int)i);
 
                             mpz_invert(tmp2, tmp2, gmpn);
                             mpz_mul(gmpt, tmp2, tmp1);
@@ -2819,11 +2814,11 @@ void vececm(thread_data_t* tdata)
                 //uint32_t msk = vec_gte52(tdata[j].work->tt3, tdata[j].work->n);
                 //vec_bignum52_mask_sub(tdata[j].work->tt3, tdata[j].work->n, tdata[j].work->tt2, msk);
                 //extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt2, i, NWORDS);
-                vec_lane_get(tdata[j].mdata, gmpt, vec_ecm_stage1_gcdvec(&tdata[j]), i);
+                vec_lane_get(tdata[j].mdata, gmpt, vec_ecm_stage1_gcdvec(&tdata[j]), (int)i);
 
                 if (mpz_cmp_ui(gmpt, 0) == 0)
                 {
-                    printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                    printf("something failed: tid = %" PRIu64 ", vec = %" PRIu64 " has zero result\n", j, i);
                 }
 
 #ifdef MPZ_VERIFY
@@ -2864,15 +2859,15 @@ void vececm(thread_data_t* tdata)
                     else
                     {
                         tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
-                            (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                            (unsigned long)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                     }
 
-                    tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                    tdata[j].factors[tdata[j].numfactors].thread_id = (int)j;
                     tdata[j].factors[tdata[j].numfactors].stg_id = 1;
                     tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
-                    tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                    tdata[j].factors[tdata[j].numfactors].vec_id = (int)i;
                     tdata[j].factors[tdata[j].numfactors].curve_id =
-                        (curve * threads) + (j * VECLEN) + i;
+                        (int)(((uint32_t)((uint32_t)curve * threads)) + (j * VECLEN) + i);
                     mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
                     mpz_set(tdata[j].factors[tdata[j].numfactors].factor, tmp_factor);
 
@@ -2887,12 +2882,12 @@ void vececm(thread_data_t* tdata)
                     mpz_init(tmp2);
                     mpz_init(tmp1);
 
-                    vec_ecm_save_curve(save, &tdata[j], i, gmpn, tmp1);
+                    vec_ecm_save_curve(save, &tdata[j], (int)i, gmpn, tmp1);
                     fprintf(save, "B1=%"PRIu64"; ", STAGE1_MAX);
                     gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
-                    vec_lane_get(tdata[j].mdata, tmp1, tdata[j].work->tt4, i);
-                    vec_lane_get(tdata[j].mdata, tmp2, tdata[j].work->tt3, i);
+                    vec_lane_get(tdata[j].mdata, tmp1, tdata[j].work->tt4, (int)i);
+                    vec_lane_get(tdata[j].mdata, tmp2, tdata[j].work->tt3, (int)i);
 
                     mpz_invert(tmp2, tmp2, gmpn);
                     mpz_mul(gmpt, tmp2, tmp1);
@@ -2933,7 +2928,7 @@ void vececm(thread_data_t* tdata)
             }
             else
             {
-                uint64_t last_p = ecm_primes[tdata[0].work->last_pid];
+                UNUSED_VAR uint64_t last_p = ecm_primes[tdata[0].work->last_pid];
 
                 // parallel stage 2
                 gettimeofday(&startt, NULL);
@@ -2981,15 +2976,15 @@ void vececm(thread_data_t* tdata)
                         rangemin = p;
                         rangemax = MIN(STAGE2_MAX + 1000, p + (uint64_t)PRIME_RANGE);
 
-                        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+                        soe_staticdata_t* sdata_in = soe_init(0, 1, 32768);
                         if (ecm_primes != NULL) {
                             free(ecm_primes);
                         }
-                        sdata->VFLAG = verbose;
-                        ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+                        sdata_in->VFLAG = verbose;
+                        ecm_primes = soe_wrapper(sdata_in, rangemin, rangemax, 0, &ecm_nump, 0, 0);
                         ecm_minp = ecm_primes[0];
                         ecm_maxp = ecm_primes[ecm_nump - 1];
-                        soe_finalize(sdata);
+                        soe_finalize(sdata_in);
 
                         for (i = 0; i < threads; i++)
                         {
@@ -3050,12 +3045,12 @@ void vececm(thread_data_t* tdata)
             {
                 for (i = 0; i < VECLEN; i++)
                 {
-                    vec_lane_get(tdata[j].mdata, gmpt, tdata[j].work->stg2acc, i);
+                    vec_lane_get(tdata[j].mdata, gmpt, tdata[j].work->stg2acc, (int)i);
                     result = vec_check_factor(gmpt, gmpn, tmp_factor);
 
                     if (mpz_cmp_ui(gmpt, 0) == 0)
                     {
-                        printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                        printf("something failed: tid = %" PRIu64 ", vec = %" PRIu64 " has zero result\n", j, i);
                     }
 
                     if (result == 1)
@@ -3088,15 +3083,15 @@ void vececm(thread_data_t* tdata)
                         else
                         {
                             tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
-                                (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                                (unsigned long)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                         }
 
-                        tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                        tdata[j].factors[tdata[j].numfactors].thread_id = (int)j;
                         tdata[j].factors[tdata[j].numfactors].stg_id = 2;
                         tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
-                        tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                        tdata[j].factors[tdata[j].numfactors].vec_id = (int)i;
                         tdata[j].factors[tdata[j].numfactors].curve_id =
-                            (curve * threads) + (j * VECLEN) + i;
+                            (int)(((uint32_t)((uint32_t)curve * threads)) + (j * VECLEN) + i);
                         mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
                         mpz_set(tdata[j].factors[tdata[j].numfactors].factor, tmp_factor);
 
@@ -3111,7 +3106,7 @@ void vececm(thread_data_t* tdata)
         if (verbose >= 0)
         {
             printf("ecm: %d/%d curves on C%d @ B1=%"PRIu64", B2=%"PRIu64"\r",
-                (curve + VECLEN) * threads, tdata[0].curves * threads,
+                (uint32_t)(curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX, tdata[0].STAGE2_MAX);  fflush(stdout);
         }
 
@@ -3128,7 +3123,7 @@ void vececm(thread_data_t* tdata)
         fclose(save);
     }
 
-    tdata[0].curves = curve * threads;
+    tdata[0].curves = (uint32_t)curve * threads;
 
     gettimeofday(&fullstopt, NULL);
     t_time = ytools_difftime(&fullstartt, &fullstopt);
@@ -3150,8 +3145,6 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
 {
     vec_monty_t *mdata = tdata->mdata;
     ecm_work *work = tdata->work;
-    uint32_t tid = tdata->tid;
-    ecm_pt *P = &work->pt1;
 
     mpz_t n, u, v, t1, t2, t3, t4;
     mpz_init(n);
@@ -3162,13 +3155,13 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
     mpz_init(t3);
     mpz_init(t4);
 
-    extract_bignum_from_vec_to_mpz(n, mdata->n, 0, mdata->NWORDS);
+    extract_bignum_from_vec_to_mpz(n, mdata->n, 0, (int)mdata->NWORDS);
 
     if (sigma == 0)
     {
         do
         {
-            work->sigma = spRandp(&tdata->lcg_state, 6, VEC_MAXDIGIT);
+            work->sigma = spRandp(&tdata->lcg_state, 6, 0xffffffff);
         } while (work->sigma < 6);
     }
     else
@@ -3674,12 +3667,9 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
 {
     vec_monty_t *mdata = tdata->mdata;
     ecm_work *work = tdata->work;
-    uint32_t tid = tdata->tid;
-    ecm_pt *P = &work->pt1;
     int i;
     mpz_t n, v, d, dorig;
     uint32_t NWORDS = tdata[0].NWORDS;
-    uint32_t NBLOCKS = tdata[0].NBLOCKS;
     uint32_t MAXBITS = tdata[0].MAXBITS;
 
     mpz_init(n);
@@ -3687,13 +3677,13 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
     mpz_init(d);
     mpz_init(dorig);
 
-    extract_bignum_from_vec_to_mpz(n, mdata->n, 0, NWORDS);
+    extract_bignum_from_vec_to_mpz(n, mdata->n, 0, (int)NWORDS);
 
     if (sigma == 0)
     {
         do
         {
-            work->sigma = spRandp(&tdata->lcg_state, 6, VEC_MAXDIGIT) & 0X3FFFFFF;  
+            work->sigma = spRandp(&tdata->lcg_state, 6, 0xffffffff) & 0X3FFFFFF;  
         } while (work->sigma < 6);
     }
     else
@@ -3909,7 +3899,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 		}
 	}
 
-	work->last_pid = i;
+	work->last_pid = (uint32_t)i;
 
     if (verbose > 1)
 	{
@@ -4174,7 +4164,6 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
     int inverr;
     int foundDuringInv = 0;
     uint32_t NWORDS = mdata->NWORDS;
-    uint32_t MAXBITS = mdata->MAXBITS;
     mpz_t gmptmp, gmptmp2, gmpn;
 
     mpz_init(gmptmp);
@@ -4192,7 +4181,7 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
         vecmulmod_ptr(pts_to_Zinvert[i].Z, A[i - 1], A[i], work->n, work->tt4, mdata);
     }
 
-    B = (vec_bignum_t **)malloc(num * sizeof(vec_bignum_t*));
+    B = (vec_bignum_t **)malloc((unsigned long)num * sizeof(vec_bignum_t*));
 
     for (j = 0; j < num; j++)
     {
@@ -4210,7 +4199,7 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
         vecCopy(A[num - 1], B[num - 1]);
     }
 
-    extract_bignum_from_vec_to_mpz(gmpn, mdata->n, 0, NWORDS);
+    extract_bignum_from_vec_to_mpz(gmpn, mdata->n, 0, (int)NWORDS);
     for (j = 0; j < VECLEN; j++)
     {
         // extract this vec position so we can use mpz_invert.
@@ -4302,7 +4291,6 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
     int foundDuringInv = 0;
     int num = stopid - startid;
     uint32_t NWORDS = mdata->NWORDS;
-    uint32_t MAXBITS = mdata->MAXBITS;
     mpz_t gmptmp, gmptmp2, gmpn;
 
     mpz_init(gmptmp);
@@ -4320,7 +4308,7 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
         vecmulmod_ptr(pts_to_Zinvert[startid + i].Z, A[i - 1], A[i], work->n, work->tt4, mdata);
     }
 
-    B = (vec_bignum_t **)malloc(num * sizeof(vec_bignum_t*));
+    B = (vec_bignum_t **)malloc((unsigned long)num * sizeof(vec_bignum_t*));
 
     for (j = 0; j < num; j++)
     {
@@ -4338,7 +4326,7 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
         vecCopy(A[num - 1], B[num - 1]);
     }
 
-    extract_bignum_from_vec_to_mpz(gmpn, mdata->n, 0, NWORDS);
+    extract_bignum_from_vec_to_mpz(gmpn, mdata->n, 0, (int)NWORDS);
     for (j = 0; j < VECLEN; j++)
     {
         // extract this vec position so we can use mpz_invert.
@@ -4493,19 +4481,15 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
     // compute points used during the stage 2 pair algorithm.
     uint32_t w = work->D;
     uint32_t U = work->U;
-    uint32_t L = work->L;
-    int i, j;
-    uint32_t amin = work->amin = (work->STAGE1_MAX + w) / (2 * w);
+    int j;
+    UNUSED_VAR uint32_t amin = work->amin = (uint32_t)((work->STAGE1_MAX + w) / (2 * w));
     int wscale = 1;
 
     int debug = 0;
-    int inverr;
     int foundDuringInv = 0;
     int doneIfFoundDuringInv = 0;
 
     uint32_t* rprime_map_U = work->map;
-    ecm_pt* Pa = work->Pa;
-    vec_bignum_t** Paprod = work->Paprod;
     vec_bignum_t** Pbprod = work->Pbprod;
     ecm_pt* Pb = work->Pb;
     ecm_pt* Pd = work->Pdnorm;
@@ -4556,7 +4540,7 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
         ecm_pt* Pout = &Pb[rprime_map_U[j]];	// Sd
 
         if (rprime_map_U[j] > 0)
-            lastMapID = rprime_map_U[j];
+            lastMapID = (int)rprime_map_U[j];
 
         // vecAdd:
         //x+ = z- * [(x1-z1)(x2+z2) + (x1+z1)(x2-z2)]^2
@@ -4609,7 +4593,7 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
 
     if (doneIfFoundDuringInv && foundDuringInv)
     {
-        work->last_pid = -1;
+        work->last_pid = (uint32_t)-1;
         return foundDuringInv;
     }
 #endif
@@ -4617,10 +4601,10 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
     // Pd = [w]Q
     vecCopy(P->Z, Pd->Z);
     vecCopy(P->X, Pd->X);
-    next_pt_vec(mdata, work, Pd, wscale * w);
+    next_pt_vec(mdata, work, Pd, (uint32_t)wscale * w);
 
     if (verbose & (debug == 2))
-        printf("Pd = [%u]Q\n", wscale * w);
+        printf("Pd = [%u]Q\n", (uint32_t)wscale * w);
 
     return foundDuringInv;
 }
@@ -4633,12 +4617,11 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
     uint32_t U = work->U;
     uint32_t L = work->L;
     uint32_t umax = U * w;
-    int i, pid;
+    int i;
     uint32_t amin = work->amin;
     int foundDuringInv = 0;
     int doneIfFoundDuringInv = 0;
     int mapid;
-    uint8_t* flags;
     int wscale = 1;
     int debug = 0;
 
@@ -4669,10 +4652,10 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
 
         vecCopy(P->Z, work->Pad->Z);
         vecCopy(P->X, work->Pad->X);
-        next_pt_vec(mdata, work, work->Pad, work->A - wscale * w);
+        next_pt_vec(mdata, work, work->Pad, work->A - (uint32_t)wscale * w);
 
         if (verbose & (debug == 2))
-            printf("Pad = [%"PRIu64"]Q\n", work->A - wscale * w);
+            printf("Pad = [%"PRIu64"]Q\n", work->A - (uint32_t)wscale * w);
 
         vecaddmod_ptr(Pa[0].X, Pa[0].Z, work->sum1, mdata);
         vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
@@ -4680,7 +4663,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
         vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, mdata);
         vec_add(mdata, work, work->Pad, &Pa[1]);
 
-        work->A += wscale * w;
+        work->A += (uint32_t)wscale * w;
         if (verbose & (debug == 2))
             printf("Pa[1] = [%"PRIu64"]Q\n", work->A);
 
@@ -4700,18 +4683,18 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
             vecmulmod_ptr(Pa[i].X, Pa[i].Z, work->Paprod[i], work->n, work->tt4, mdata);
 #endif
 
-            work->A += wscale * w;
+            work->A += (uint32_t)wscale * w;
             if (verbose & (debug == 2))
                 printf("Pa[%d] = [%"PRIu64"]Q\n", i, work->A);
         }
 
 #ifdef DO_STAGE2_INV
         // and invert all of the Pa's into a separate vector
-        foundDuringInv |= batch_invert_pt_to_bignum(Pa, work->Pa_inv, Paprod, mdata, work, 0, 2 * L);
+        foundDuringInv |= batch_invert_pt_to_bignum(Pa, work->Pa_inv, Paprod, mdata, work, 0, (int)(2 * L));
         work->numinv++;
         if (doneIfFoundDuringInv && foundDuringInv)
         {
-            work->last_pid = -1;
+            work->last_pid = (uint32_t)-1;
             return; // foundDuringInv;
         }
 #endif
@@ -4746,16 +4729,16 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
             // shift out uneeded A's.
             // update amin by U * 2 * w.
             // each point-add increments by w, so shift 2 * U times;
-            for (i = 0; i < 2 * L - shiftdist * U; i++)
+            for (i = 0; i < 2 * L - (uint32_t)shiftdist * U; i++)
             {
-                vecCopy(Pa[i + shiftdist * U].X, Pa[i].X);
-                vecCopy(Pa[i + shiftdist * U].Z, Pa[i].Z);
-                vecCopy(work->Pa_inv[i + shiftdist * U], work->Pa_inv[i]);
+                vecCopy(Pa[(uint32_t)i + (unsigned int)shiftdist * (uint32_t)U].X, Pa[i].X);
+                vecCopy(Pa[(uint32_t)i + (unsigned int)shiftdist * (uint32_t)U].Z, Pa[i].Z);
+                vecCopy(work->Pa_inv[(uint32_t)i + (unsigned int)shiftdist * (uint32_t)U], work->Pa_inv[i]);
             }
 
             // make new A's: need at least two previous points;
             // therefore we can't have U = 1
-            for (i = 2 * L - shiftdist * U; i < 2 * L; i++)
+            for (i = (int)(2 * L - (uint32_t)((uint32_t)shiftdist * U)); i < 2 * L; i++)
             {
                 //giant step - use the addition formula for ECM
                 //Pa + Pd
@@ -4771,7 +4754,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
                 vecmulmod_ptr(Pa[i].X, Pa[i].Z, work->Paprod[i], work->n, work->tt4, mdata);
 #endif
 
-                work->A += wscale * w;
+                work->A += (uint32_t)wscale * w;
             }
 
             // amin tracks the Pa[0] position in units of 2 * w, so
@@ -4781,13 +4764,13 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
 
 #ifdef DO_STAGE2_INV
             foundDuringInv = batch_invert_pt_to_bignum(Pa, work->Pa_inv,
-                work->Paprod, mdata, work, 2 * L - shiftdist * U, 2 * L);
+                work->Paprod, mdata, work, (int)(2 * L - (uint32_t)((uint32_t)shiftdist * U)), (int)(2 * L));
 #endif
         }
         else
         {
-            pa = pairmap_v[mapid] - amin;
-            pb = pairmap_u[mapid];
+            pa = (int)(pairmap_v[mapid] - amin);
+            pb = (int)pairmap_u[mapid];
 
             if (pa >= 2 * L)
             {
@@ -4826,13 +4809,13 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     uint64_t* primes, uint64_t ecm_nump, uint64_t B1, uint64_t B2, int verbose)
 {
     int i, j, pid = 0;
-    int w = work->D;
-    int U = work->U;
-    int L = work->L;
-    int R = work->R - 3;
+    int w = (int)work->D;
+    int U = (int)work->U;
+    int L = (int)work->L;
+    int R = (int)(work->R - 3);
     int umax = w * U;
     int64_t q, mq;
-    uint64_t amin = work->amin = (B1 + w) / (2 * w);
+    uint64_t amin = work->amin = (uint32_t)(((uint64_t)(B1 + (uint64_t)w)) / (unsigned long)(2 * w));
     uint64_t a, s, ap, u;
     uint32_t pairs = 0;
     uint32_t nump = 0;
@@ -4860,7 +4843,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     if (printpairmap || printpairs)
     {
         printf("commencing pair at A=%"PRIu64"\n"
-            "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
+            "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %" PRIu64 "\n",
             2 * (uint64_t)amin * (uint64_t)w, w, R, L, U, umax, amin);
     }
 
@@ -4869,50 +4852,50 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     while ((pid < ecm_nump) && (primes[pid] < B2))
     {
         s = primes[pid];
-        a = (s + w) / (2 * w);
+        a = (s + (uint64_t)w) / (uint64_t)(2 * w);
         nump++;
 
         //printf("s, a: %"PRIu64", %"PRIu64"\n", s, a);
 
-        while (a >= (amin + L))
+        while (a >= (amin + (uint64_t)L))
         {
-            int oldmin = amin;
-            amin = amin + L - U;
+            int oldmin = (int)amin;
+            amin = amin + (uint64_t)L - (uint64_t)U;
             //printf("amin now %u\n", amin);
 
             for (i = 0; i < R; i++)
             {
-                int len = Q[i]->len;
+                int len = (int)Q[i]->len;
 
                 if (Qrmap[i] > w)
                 {
-                    q = 2 * w - Qrmap[i];
+                    q = (uint32_t)(2 * w) - Qrmap[i];
                     for (j = 0; j < len; j++)
                     {
                         ap = dequeue(Q[i]);
                         if ((uint32_t)ap < amin)
                         {
-                            pairmap_v[mapid] = 2 * ap - oldmin; // 2 * ap; //2 * (ap - oldmin);
-                            pairmap_u[mapid] = q;
+                            pairmap_v[mapid] = (uint32_t)(2 * ap - (uint64_t)oldmin); // 2 * ap; //2 * (ap - oldmin);
+                            pairmap_u[mapid] = (uint32_t)q;
                             mapid++;
 
                             if (testcoverage)
                             {
-                                addflag(flags, (2 * ap) * w + q - B1, 0, B2 - B1);
-                                addflag(flags, (2 * ap) * w - q - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * (uint64_t)w + (unsigned long)q - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * (uint64_t)w - (unsigned long)q - B1, 0, B2 - B1);
                             }
                             if (printpairs)
                             {
                                 printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                                     ap, q,
-                                    2 * ap * w - q,
-                                    2 * ap * w + q);
+                                    2 * ap * (uint64_t)w - (unsigned long)q,
+                                    2 * ap * (uint64_t)w + (unsigned long)q);
                             }
                             pairs++;
                         }
                         else
                         {
-                            enqueue(Q[i], ap);
+                            enqueue(Q[i], (uint32_t)ap);
                         }
                     }
                 }
@@ -4923,27 +4906,27 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                         ap = dequeue(Q[i]);
                         if ((uint32_t)ap < amin)
                         {
-                            pairmap_v[mapid] = 2 * ap - oldmin; //2 * ap; //2 * (ap - oldmin);
+                            pairmap_v[mapid] = (uint32_t)(2 * ap - (uint64_t)oldmin); //2 * ap; //2 * (ap - oldmin);
                             pairmap_u[mapid] = Qrmap[i];
                             mapid++;
 
                             if (testcoverage)
                             {
-                                addflag(flags, (2 * ap) * w + Qrmap[i] - B1, 0, B2 - B1);
-                                addflag(flags, (2 * ap) * w - Qrmap[i] - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * (uint64_t)w + Qrmap[i] - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * (uint64_t)w - Qrmap[i] - B1, 0, B2 - B1);
                             }
                             if (printpairs)
                             {
                                 printf("pair (ap,q):(%"PRIu64",%u)  %"PRIu64":%"PRIu64"\n",
                                     ap, Qrmap[i],
-                                    2 * ap * w - Qrmap[i],
-                                    2 * ap * w + Qrmap[i]);
+                                    2 * ap * (uint64_t)w - Qrmap[i],
+                                    2 * ap * (uint64_t)w + Qrmap[i]);
                             }
                             pairs++;
                         }
                         else
                         {
-                            enqueue(Q[i], ap);
+                            enqueue(Q[i], (uint32_t)ap);
                         }
                     }
                 }
@@ -4953,9 +4936,9 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
             mapid++;
         }
 
-        q = s - 2 * a * w;
+        q = (int64_t)(s - (uint64_t)(2 * a * (uint64_t)w));
         if (q < 0)
-            mq = abs(q);
+            mq = abs((int)q);
         else
             mq = 2 * w - q;
 
@@ -4967,76 +4950,76 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
             {
                 ap = dequeue(Q[Qmap[mq]]);
                 if (q < 0)
-                    u = w * (a - ap) - abs(q);
+                    u = (uint64_t)((uint64_t)((unsigned long)w * (uint64_t)(a - ap)) - (unsigned long)abs((int)q));
                 else
-                    u = w * (a - ap) + q;
+                    u = (unsigned long)w * (uint64_t)(a - ap) + (unsigned long)q;
 
                 if (u > umax)
                 {
                     if (q < 0)
                     {
-                        int qq = abs(q);
+                        int qq = abs((int)q);
 
-                        pairmap_v[mapid] = 2 * ap - amin; //2 * ap; //2 * (ap - amin);
-                        pairmap_u[mapid] = qq;
+                        pairmap_v[mapid] = (uint32_t)(2 * ap - amin); //2 * ap; //2 * (ap - amin);
+                        pairmap_u[mapid] = (uint32_t)qq;
                         mapid++;
 
                         if (testcoverage)
                         {
-                            addflag(flags, (2 * ap) * w + qq - B1, 0, B2 - B1);
-                            addflag(flags, (2 * ap) * w - qq - B1, 0, B2 - B1);
+                            addflag(flags, (2 * ap) * (uint64_t)w + (uint64_t)qq - B1, 0, B2 - B1);
+                            addflag(flags, (2 * ap) * (uint64_t)w - (uint64_t)qq - B1, 0, B2 - B1);
                         }
                         if (printpairs)
                         {
                             printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                                 ap, q,
-                                2 * ap * w - qq,
-                                2 * ap * w + qq);
+                                2 * ap * (uint64_t)w - (uint64_t)qq,
+                                2 * ap * (uint64_t)w + (uint64_t)qq);
                         }
                     }
                     else
                     {
-                        int qq = q;
+                        int qq = (int)q;
 
                         if (qq >= w)
                             qq = 2 * w - qq;
 
-                        pairmap_v[mapid] = 2 * ap - amin; //2 * ap; //2 * (ap - amin);
-                        pairmap_u[mapid] = qq;
+                        pairmap_v[mapid] = (uint32_t)(2 * ap - amin); //2 * ap; //2 * (ap - amin);
+                        pairmap_u[mapid] = (uint32_t)qq;
                         mapid++;
 
                         if (testcoverage)
                         {
-                            addflag(flags, (2 * ap) * w + qq - B1, 0, B2 - B1);
-                            addflag(flags, (2 * ap) * w - qq - B1, 0, B2 - B1);
+                            addflag(flags, (2 * ap) * (uint64_t)w + (uint64_t)qq - B1, 0, B2 - B1);
+                            addflag(flags, (2 * ap) * (uint64_t)w - (uint64_t)qq - B1, 0, B2 - B1);
                         }
                         if (printpairs)
                         {
                             printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                                 ap, q,
-                                2 * ap * w - qq,
-                                2 * ap * w + qq);
+                                2 * ap * (uint64_t)w - (uint64_t)qq,
+                                2 * ap * (uint64_t)w + (uint64_t)qq);
                         }
                     }
                     pairs++;
                 }
                 else
                 {
-                    pairmap_v[mapid] = a + ap - amin;
-                    pairmap_u[mapid] = u;
+                    pairmap_v[mapid] = (uint32_t)(a + ap - amin);
+                    pairmap_u[mapid] = (uint32_t)u;
                     mapid++;
 
                     if (testcoverage)
                     {
-                        addflag(flags, (a + ap) * w + u - B1, 0, B2 - B1);
-                        addflag(flags, (a + ap) * w - u - B1, 0, B2 - B1);
+                        addflag(flags, (a + ap) * (uint64_t)w + u - B1, 0, B2 - B1);
+                        addflag(flags, (a + ap) * (uint64_t)w - u - B1, 0, B2 - B1);
                     }
                     if (printpairs)
                     {
                         printf("pair (a,ap,u):(%"PRIu64",%"PRIu64",%"PRIu64")  %"PRIu64":%"PRIu64"\n",
                             a, ap, u,
-                            (a + ap) * w - u,
-                            (a + ap) * w + u);
+                            (a + ap) * (uint64_t)w - u,
+                            (a + ap) * (uint64_t)w + u);
                     }
                     pairs++;
                 }
@@ -5047,12 +5030,12 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                 if (q < 0)
                 {
                     //printf("queueing a=%"PRIu64" in Q[%u](%u)\n", a, 2 * w + q, Qmap[2 * w + q]);
-                    enqueue(Q[Qmap[2 * w + q]], a);
+                    enqueue(Q[Qmap[2 * w + q]], (uint32_t)a);
                 }
                 else
                 {
                     //printf("queueing a=%"PRIu64" in Q[%d]\n", a, q);
-                    enqueue(Q[Qmap[q]], a);
+                    enqueue(Q[Qmap[q]], (uint32_t)a);
                 }
                 u = 0;
             }
@@ -5066,34 +5049,34 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     for (i = 0; i < R; i++)
     {
         //printf("queue %d (%u) has %d elements\n", i, Qrmap[i], Q[i]->len);
-        int len = Q[i]->len;
+        int len = (int)Q[i]->len;
         for (j = 0; j < len; j++)
         {
             ap = dequeue(Q[i]);
             if (Qrmap[i] > w)
             {
-                q = 2 * w - Qrmap[i];
+                q = (uint32_t)(2 * w) - Qrmap[i];
 
-                pairmap_v[mapid] = 2 * ap - amin; //2 * ap; //2 * (ap - amin);
-                pairmap_u[mapid] = q;
+                pairmap_v[mapid] = (uint32_t)(2 * ap - amin); //2 * ap; //2 * (ap - amin);
+                pairmap_u[mapid] = (uint32_t)q;
                 mapid++;
 
                 if (printpairs)
                 {
                     printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
                         ap, q,
-                        2 * ap * w - q,
-                        2 * ap * w + q);
+                        2 * ap * (uint64_t)w - (unsigned long)q,
+                        2 * ap * (uint64_t)w + (unsigned long)q);
                 }
                 if (testcoverage)
                 {
-                    addflag(flags, (2 * ap) * w + q - B1, 0, B2 - B1);
-                    addflag(flags, (2 * ap) * w - q - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * (uint64_t)w + (unsigned long)q - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * (uint64_t)w - (unsigned long)q - B1, 0, B2 - B1);
                 }
             }
             else
             {
-                pairmap_v[mapid] = 2 * ap - amin; //2 * ap; // 2 * (ap - amin);
+                pairmap_v[mapid] = (uint32_t)(2 * ap - amin); //2 * ap; // 2 * (ap - amin);
                 pairmap_u[mapid] = Qrmap[i];
                 mapid++;
 
@@ -5101,13 +5084,13 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                 {
                     printf("pair (ap,q):(%"PRIu64",%u)  %"PRIu64":%"PRIu64"\n",
                         ap, Qrmap[i],
-                        2 * ap * w - Qrmap[i],
-                        2 * ap * w + Qrmap[i]);
+                        2 * ap * (uint64_t)w - Qrmap[i],
+                        2 * ap * (uint64_t)w + Qrmap[i]);
                 }
                 if (testcoverage)
                 {
-                    addflag(flags, (2 * ap) * w + Qrmap[i] - B1, 0, B2 - B1);
-                    addflag(flags, (2 * ap) * w - Qrmap[i] - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * (uint64_t)w + Qrmap[i] - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * (uint64_t)w - Qrmap[i] - B1, 0, B2 - B1);
                 }
             }
             pairs++;
@@ -5117,17 +5100,17 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     if (printpairmap)
     {
         printf("%u pairing steps generated\n", mapid);
-        amin = (B1 + w) / (2 * w);
-        printf("amin is now %"PRIu64" (A = %"PRIu64")\n", amin, 2 * amin * w);
+        amin = (B1 + (uint64_t)w) / (uint64_t)(2 * w);
+        printf("amin is now %"PRIu64" (A = %"PRIu64")\n", amin, 2 * amin * (uint64_t)w);
         for (i = 0; i < mapid; i++)
         {
-            printf("pair: %uw+/-%u => %"PRIu64":%"PRIu64"\n", pairmap_v[i]+amin, pairmap_u[i],
-                (pairmap_v[i]+amin) * w - pairmap_u[i],
-                (pairmap_v[i]+amin) * w + pairmap_u[i]);
+            printf("pair: %" PRIu64 "w+/-%u => %"PRIu64":%"PRIu64"\n", pairmap_v[i]+amin, pairmap_u[i],
+                (pairmap_v[i]+amin) * (uint64_t)w - pairmap_u[i],
+                (pairmap_v[i]+amin) * (uint64_t)w + pairmap_u[i]);
             if (pairmap_u[i] == 0)
             {
-                amin = amin + L - U;
-                printf("amin is now %u (A = %u)\n", amin, 2 * amin * w);
+                amin = amin + (uint64_t)L - (uint64_t)U;
+                printf("amin is now %" PRIu64 " (A = %" PRIu64 ")\n", amin, 2 * amin * (uint64_t)w);
             }
         }
 

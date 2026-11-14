@@ -319,7 +319,7 @@ double minimize(double p[MAX_VARS], uint32 ndim,
 				return best_f;
 
 			if (best_f - curr_f > del) {
-				ibig = j;
+				ibig = (int32)j;
 				del = best_f - curr_f;
 			}
 			best_f = curr_f;
@@ -437,17 +437,17 @@ solve_dmatrix(double matrix[MAX_VARS][MAX_VARS],
 	double pivot;
 
 	for (i = 0; i < n; i++)
-		permute[i] = i;
+		permute[i] = (uint32)i;
 
 	for (i = 0; i < n - 1; i++) {
 
-		uint32 pivot_idx = i;
+		uint32 pivot_idx = (uint32)i;
 		double *pivot_row;
 
 		pivot = fabs(matrix[permute[i]][i]);
 
 		for (j = i + 1; j < n; j++) {
-			uint32 new_idx = j;
+			uint32 new_idx = (uint32)j;
 			double new_pivot = fabs(matrix[permute[j]][i]);
 
 			if (new_pivot > pivot) {
@@ -455,7 +455,7 @@ solve_dmatrix(double matrix[MAX_VARS][MAX_VARS],
 				pivot = new_pivot;
 			}
 		}
-		SWAP(int, permute[i], permute[pivot_idx]);
+		SWAP(uint32, permute[i], permute[pivot_idx]);
 		pivot_row = matrix[permute[i]];
 		pivot = 1.0 / pivot_row[i];
 
@@ -470,7 +470,7 @@ solve_dmatrix(double matrix[MAX_VARS][MAX_VARS],
 		}
 	}
 
-	for (i = n - 1; i >= 0; i--) {
+	for (i = (int32)(n - 1); i >= 0; i--) {
 
 		double *curr_row = matrix[permute[i]];
 		double sum = b[permute[i]];

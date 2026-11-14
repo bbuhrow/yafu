@@ -197,7 +197,7 @@ int32 read_factor_base(msieve_obj *obj, mpz_t n,
 		tmp = buf;
 		while (!isdigit(*tmp) && *tmp != '-')
 			tmp++;
-		value = strtoul(tmp, NULL, 10);
+		value = (uint32)strtoul(tmp, NULL, 10);
 
 		if (strstr(buf, "FRNUM"))
 			rfb_size = value;
@@ -260,10 +260,10 @@ int32 read_factor_base(msieve_obj *obj, mpz_t n,
 			break;
 
 		tmp = buf;
-		p = strtoul(tmp, &next_field, 10);
+		p = (uint32)strtoul(tmp, &next_field, 10);
 		tmp = next_field + 1;
 		while (1) {
-			r = strtoul(tmp, &next_field, 10);
+			r = (uint32)strtoul(tmp, &next_field, 10);
 			fb->rfb.entries[i].p = p;
 			fb->rfb.entries[i].r = r;
 			i++;
@@ -286,10 +286,10 @@ int32 read_factor_base(msieve_obj *obj, mpz_t n,
 			break;
 
 		tmp = buf;
-		p = strtoul(tmp, &next_field, 10);
+		p = (uint32)strtoul(tmp, &next_field, 10);
 		tmp = next_field + 1;
 		while (1) {
-			r = strtoul(tmp, &next_field, 10);
+			r = (uint32)strtoul(tmp, &next_field, 10);
 			fb->afb.entries[i].p = p;
 			fb->afb.entries[i].r = r;
 			i++;

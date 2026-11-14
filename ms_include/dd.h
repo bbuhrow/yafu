@@ -51,7 +51,7 @@ static INLINE dd_precision_t dd_set_precision_ieee(void) {
 #elif defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 	dd_precision_t old_prec, new_prec;
 	ASM_G volatile ("fnstcw %0":"=m"(old_prec));
-	new_prec = (old_prec & ~0x0300) | 0x0200;
+	new_prec = (dd_precision_t)((old_prec & ~0x0300) | 0x0200);
 	ASM_G volatile ("fldcw %0": :"m"(new_prec));
 	return old_prec;
 	

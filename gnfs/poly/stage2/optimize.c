@@ -326,7 +326,6 @@ double poly_rotate_callback(double* v, void* extra)
 
 double poly_rotate_callback_deg6_radial(double* v, void* extra)
 {
-	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
@@ -349,7 +348,6 @@ double poly_rotate_callback_deg6_radial(double* v, void* extra)
 	apoly.coeff[2 + 1] += r1 * c2;
 
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
 
 	const double* weights = xlate_weights[0];
 	double accum = apoly.coeff[6] * weights[6];
@@ -435,7 +433,6 @@ double poly_rotate_callback_deg6_radial(double* v, void* extra)
 
 double poly_rotate_callback_deg6_rectangular(double* v, void* extra)
 {
-	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
@@ -458,7 +455,6 @@ double poly_rotate_callback_deg6_rectangular(double* v, void* extra)
 	apoly.coeff[2 + 1] += r1 * c2;
 
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
 
 	const double* weights = xlate_weights[0];
 	double accum = apoly.coeff[6] * weights[6];
@@ -544,7 +540,6 @@ double poly_rotate_callback_deg6_rectangular(double* v, void* extra)
 
 double poly_rotate_callback_deg5_radial(double* v, void* extra)
 {
-	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
@@ -643,7 +638,6 @@ double poly_rotate_callback_deg5_radial(double* v, void* extra)
 double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 {
 
-	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
@@ -742,7 +736,6 @@ double poly_rotate_callback_deg5_rectangular(double* v, void* extra)
 
 double poly_rotate_callback_deg4_radial(double* v, void* extra)
 {
-	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
@@ -759,7 +752,6 @@ double poly_rotate_callback_deg4_radial(double* v, void* extra)
 	apoly.coeff[0 + 1] += r1 * c0;
 
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
 
 	t = -t;
 
@@ -788,8 +780,8 @@ double poly_rotate_callback_deg4_radial(double* v, void* extra)
 	translated[3] = accum4;
 	translated[4] = apoly.coeff[4];
 
-	double a0, a1, a2, a3, a4, a5;
-	double s2, s3, s4, s5;
+	double a0, a1, a2, a3, a4;
+	double s2, s3, s4;
 	double norm;
 	double* a = translated;
 
@@ -833,7 +825,6 @@ double poly_rotate_callback_deg4_radial(double* v, void* extra)
 
 double poly_rotate_callback_deg4_rectangular(double* v, void* extra)
 {
-	uint32 i;
 	opt_data_t* opt = (opt_data_t*)extra;
 	dpoly_t apoly = *(opt->dapoly);
 	double translated[MAX_POLY_DEGREE + 1];
@@ -850,7 +841,6 @@ double poly_rotate_callback_deg4_rectangular(double* v, void* extra)
 	apoly.coeff[0 + 1] += r1 * c0;
 
 	// translate_d(translated, apoly.coeff, apoly.degree, t);
-	uint32 j;
 
 	t = -t;
 
@@ -879,8 +869,8 @@ double poly_rotate_callback_deg4_rectangular(double* v, void* extra)
 	translated[3] = accum4;
 	translated[4] = apoly.coeff[4];
 
-	double a0, a1, a2, a3, a4, a5;
-	double s2, s3, s4, s5;
+	double a0, a1, a2, a3, a4;
+	double s2, s3, s4;
 	double norm;
 	double* a = translated;
 
@@ -1046,7 +1036,7 @@ optimize_initial(curr_poly_t* c, uint32 deg, double* pol_norm, uint32 skew_only)
 
 		do {
 			last_score = score;
-			score = minimize(best, num_vars, tol, 40 + verbose,
+			score = minimize(best, num_vars, tol, (uint32)(40 + verbose),
 				objective, &opt_data);
 
 			for (j = 0; j <= rotate_dim; j++) {

@@ -58,6 +58,7 @@ $Id: stage1_sieve_cpu.c 1025 2018-08-19 02:20:28Z jasonp_sf $
    problems, e.g. 200-digit GNFS */
 
 //#define NEW_P_PACKED
+#undef P_BITS
 #define P_BITS 27
 #define HASHITER_BITS (32 - P_BITS)
 
@@ -289,6 +290,7 @@ store_p_packed(uint64 p, uint32 num_roots, mpz_t *roots, void *extra)
 
 #define SIEVE_MAX 9223372036854775807ULL
 
+#undef MAX_SPECIAL_Q
 #define MAX_SPECIAL_Q ((uint32)(-1))
 #define MAX_OTHER (((uint32)1 << P_BITS) - 1)
 
@@ -324,7 +326,7 @@ handle_special_q(msieve_obj *obj, int threadid,
 	p_packed_t *tmp;
 	uint32 num_entries = hash_array->num_p;
 	uint64 sieve_size = hash_array->sieve_size;
-	int64 sieve_start = -sieve_size;
+	int64 sieve_start = (int64)-sieve_size;
 	uint32 num_blocks = 0;
 	uint32 hashtable_count;
 	uint32 hashtable_size = (uint32)1 << hashtable_size_log2;
@@ -364,7 +366,7 @@ handle_special_q(msieve_obj *obj, int threadid,
 
 				proot = mp_modsub_2(proot,
 						pp - tmp->ss_mod_pp, pp);
-				tmp->roots[j].offset = proot - sieve_size;
+				tmp->roots[j].offset = (int64)(proot - sieve_size);
 			}
 
 			tmp = p_packed_next(tmp);
@@ -446,7 +448,7 @@ handle_special_q(msieve_obj *obj, int threadid,
 				proot = montmul64(proot, qinv, pp, pp_w);
 				proot = mp_modsub_2(proot,
 						pp - tmp->ss_mod_pp, pp);
-				tmp->roots[j].offset = proot - sieve_size;
+				tmp->roots[j].offset = (int64)(proot - sieve_size);
 			}
 
 			tmp = p_packed_next(tmp);
@@ -566,8 +568,8 @@ handle_special_q(msieve_obj *obj, int threadid,
 #else
 	while (sieve_start < (int64)sieve_size) {
 		uint32 iter = hash_array->curr_hashiter;
-		int64 sieve_end = sieve_start + MIN(block_size,
-						sieve_size - sieve_start);
+		int64 sieve_end = (int64)((unsigned long)sieve_start + MIN(block_size,
+						sieve_size - (unsigned long)sieve_start));
 
 		tmp = hash_array->packed_array;
 		hashtable_count = 0;
@@ -593,7 +595,7 @@ handle_special_q(msieve_obj *obj, int threadid,
 				if (offset >= sieve_end)
 					continue;
 
-				key = offset & hashmask;
+				key = (uint32)(offset & hashmask);
 
 				while (hashtable[key].iter == iter &&
 				      hashtable[key].p != 0 &&
@@ -624,7 +626,7 @@ handle_special_q(msieve_obj *obj, int threadid,
 						p = p * hashtable[key].p;
 
 						(*num_sizeopt)++;
-						handle_collision(hash_array->task, threadid, 
+						handle_collision(hash_array->task, (uint32)threadid, 
 							(uint64)p, (uint64)special_q,
 							ht_promote128(special_q_root),
 							offset);
@@ -634,8 +636,8 @@ handle_special_q(msieve_obj *obj, int threadid,
 					/* no hit; insert this offset
 					   for root j into the table */
 
-					hashtable[key].iter = iter;
-					hashtable[key].p = tmp->p;
+					hashtable[key].iter = ((iter) & 0x1Fu);
+					hashtable[key].p = ((tmp->p) & 0x7FFFFFFu);
 					hashtable[key].offset = offset;
 
 					if (++hashtable_count == hashtable_size)
@@ -645,7 +647,7 @@ handle_special_q(msieve_obj *obj, int threadid,
 				/* compute the next offset 
 				   for root j */
 
-				offset += tmp->pp;
+				offset += (int64)tmp->pp;
 
 				/* handle overflow */
 				if (offset < sieve_end)
@@ -747,7 +749,7 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 	p_packed_init(&specialq_array);
 	p_packed_init(&hash_array);
 	mpz_init(qprod);
-	hash_array.sieve_size = sieve_size;
+	hash_array.sieve_size = (uint64)sieve_size;
 	hash_array.task = task;
 
 	/* build all the arithmetic progressions */
@@ -764,7 +766,7 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 
 
 	block_size = (uint64)p_min * p_min;
-	block_size = MIN(block_size, (uint64)2 * sieve_size);
+	block_size = MIN(block_size, (uint64)2 * (unsigned long)sieve_size);
 
 #if 0
 	printf("aprogs: %u entries, %u roots, block_size = %lu, sieve_size = %lu\n", 
@@ -785,14 +787,14 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 #else
 	for (i = 0, tmp = hash_array.packed_array; i < num_p; i++) {
 
-		calc_hashtable_size += (double)block_size / tmp->pp *
+		calc_hashtable_size += (double)block_size / (double)tmp->pp *
 							tmp->num_roots;
 
 		tmp = p_packed_next(tmp);
 	}
 #endif
 
-	hashtable_size_log2 = ceil(log(calc_hashtable_size * 5. / 3.) / M_LN2);
+	hashtable_size_log2 = (uint32)ceil(log(calc_hashtable_size * 5. / 3.) / M_LN2);
 	hashtable = (hash_entry_t *)xmalloc(sizeof(hash_entry_t) *
 				((uint32)1 << hashtable_size_log2));
 
@@ -894,7 +896,7 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 #else
 		for (i = 0, tmp = hash_array.packed_array; i < num_p; i++) {
 
-			if (mp_gcd_1(mpz_tdiv_ui(qprod, tmp->p), tmp->p) == 1)
+			if (mp_gcd_1((uint32)mpz_tdiv_ui(qprod, tmp->p), tmp->p) == 1)
 				batch_invert(batch_q, num_q,
 					batch_q_inv, tmp->p,
 					tmp->mont_r, tmp->mont_w);
@@ -1022,7 +1024,7 @@ stage1_specialq_cpu_hashtable(task_data_t *task, uint32 threadid,
 	/* the driver's envelope check guarantees special_q_max < 2^32 and
 	   p_max < 2^27, so the casts below cannot truncate. One pass over the
 	   forced window -- the driver owns p/q range selection. */
-	sieve_specialq_64(task, threadid, sieve_size,
+	sieve_specialq_64(task, (int)threadid, sieve_size,
 			t->sieve_q_fb, t->sieve_p_fb,
 			(uint32)special_q_min, (uint32)special_q_max,
 			p_min, p_max,

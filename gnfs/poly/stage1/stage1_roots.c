@@ -113,7 +113,7 @@ lift_root_32(uint32 n, uint32 r, uint32 old_power,
 	q = mp_modsub_1(n % p2, mp_expo_1(r, d, p2), p2) / old_power;
 	r = mp_modmul_1(d, mp_expo_1(r % p, d - 1, p), p);
 	r = mp_modmul_1(q, mp_modinv_1(r, p), p);
-	return rsave + old_power * r;
+	return (uint32)(rsave + old_power * r);
 }
 
 /*------------------------------------------------------------------------*/
@@ -229,7 +229,7 @@ sieve_add_aprog(sieve_fb_t *s, poly_coeff_t *c, uint32 p,
 		power *= p;
 		a->powers[i].power = power;
 
-		nmodp = mpz_tdiv_ui(c->trans_N, (unsigned long)power);
+		nmodp = (uint32)mpz_tdiv_ui(c->trans_N, (unsigned long)power);
 
 		for (j = 0; j < num_roots; j++)
 			a->powers[i].roots[j] = lift_root_32(nmodp,
@@ -317,8 +317,8 @@ sieve_fb_reset(void *s_in, uint64 p_min, uint64 p_max,
 
 	s->p_min = p_min;
 	s->p_max = p_max;
-	s->p_min_log = log(p_min);
-	s->p_max_log = log(p_max);
+	s->p_min_log = log((double)p_min);
+	s->p_max_log = log((double)p_max);
 	s->num_roots_min = num_roots_min;
 	s->num_roots_max = num_roots_max;
 	s->avail_algos = 0;
@@ -372,8 +372,8 @@ sieve_fb_reset(void *s_in, uint64 p_min, uint64 p_max,
 			s->avail_algos |= ALGO_PRIME;
 
 			free_prime_sieve(&s->p_prime);
-			init_prime_sieve(&s->p_prime, MAX(p_min, last_p + 1),
-					 MIN(p_max, P_PRIME_LIMIT));
+			init_prime_sieve(&s->p_prime, (uint32)MAX(p_min, last_p + 1),
+					 (uint32)MIN(p_max, P_PRIME_LIMIT));
 		}
 	}
 }
@@ -655,7 +655,7 @@ sieve_fb_next(void *s_in, poly_coeff_t *c,
 			p = get_next_enum(s);
 
 			if (p == P_SEARCH_DONE) {
-				s->avail_algos &= ~ALGO_ENUM;
+				s->avail_algos &= (uint32)~ALGO_ENUM;
 				continue;
 			}
 
@@ -670,11 +670,11 @@ sieve_fb_next(void *s_in, poly_coeff_t *c,
 			p = get_next_prime(&s->p_prime);
 
 			if (p >= s->p_max || p >= P_PRIME_LIMIT) {
-				s->avail_algos &= ~ALGO_PRIME;
+				s->avail_algos &= (uint32)~ALGO_PRIME;
 				continue;
 			}
 
-			num_roots = get_prime_roots(c, p, roots,
+			num_roots = get_prime_roots(c, (uint32)p, roots,
 						    &s->tmp_poly);
 			num_roots = MIN(num_roots, s->num_roots_max);
 

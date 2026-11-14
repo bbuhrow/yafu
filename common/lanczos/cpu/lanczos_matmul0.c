@@ -34,7 +34,7 @@ static void mul_packed(packed_matrix_t *p, v_t *x, v_t *b)
 		task.data = c->tasks + i;
 		threadpool_add_task(c->threadpool, &task, 1);
 	}
-	mul_packed_small_core(c->tasks + i, i);
+	mul_packed_small_core(c->tasks + i, (int)i);
 
 	/* switch to the sparse blocks */
 
@@ -52,7 +52,7 @@ static void mul_packed(packed_matrix_t *p, v_t *x, v_t *b)
 			threadpool_add_task(c->threadpool, &task, 1);
 		}
 
-		mul_packed_core(t + j, j);
+		mul_packed_core(t + j, (int)j);
 		if (j) {
 			threadpool_drain(c->threadpool, 1);
 		}
@@ -100,7 +100,7 @@ static void mul_trans_packed(packed_matrix_t *p, v_t *x, v_t *b)
 			threadpool_add_task(c->threadpool, &task, 1);
 		}
 
-		mul_trans_packed_core(t + j, j);
+		mul_trans_packed_core(t + j, (int)j);
 		if (j) {
 			threadpool_drain(c->threadpool, 1);
 		}
@@ -118,7 +118,7 @@ static void mul_trans_packed(packed_matrix_t *p, v_t *x, v_t *b)
 			threadpool_add_task(c->threadpool, &task, 1);
 		}
 
-		mul_trans_packed_small_core(c->tasks + i, i);
+		mul_trans_packed_small_core(c->tasks + i, (int)i);
 		if (i) {
 			threadpool_drain(c->threadpool, 1);
 		}
@@ -210,7 +210,7 @@ static void pack_med_block(packed_block_t *b)
 			med_entries[k+m+2] = e[j+m].col_off;
 		}
 		med_entries[k] = e[j].row_off;
-		med_entries[k+1] = m;
+		med_entries[k+1] = (uint16)m;
 		j += m;
 		k += m + 2;
 	}
@@ -327,8 +327,8 @@ static void pack_matrix_core(packed_matrix_t *p)
 
 				b = curr_stripe + row * num_block_cols;
 				e = b->d.entries + b->num_entries++;
-				e->row_off = index;
-				e->col_off = j;
+				e->row_off = (uint16)index;
+				e->col_off = (uint16)j;
 			}
 
 			free(col->data);
@@ -372,10 +372,10 @@ void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 	control.data = p;
 
 	if (num_threads > 1) {
-		c->threadpool = threadpool_init(num_threads - 1, 
+		c->threadpool = threadpool_init((int)(num_threads - 1), 
 						200, &control);
 	}
-	matrix_thread_init(p, num_threads - 1);
+	matrix_thread_init(p, (int)(num_threads - 1));
 
 	/* pre-generate the structures to drive the thread pool */
 
@@ -414,11 +414,11 @@ void matrix_extra_init(msieve_obj *obj, packed_matrix_t *p,
 
 		tmp = strstr(obj->nfs_args, "la_block=");
 		if (tmp != NULL)
-			block_size = atoi(tmp + 9);
+			block_size = (uint32)atoi(tmp + 9);
 
 		tmp = strstr(obj->nfs_args, "la_superblock=");
 		if (tmp != NULL)
-			superblock_size = atoi(tmp + 14);
+			superblock_size = (uint32)atoi(tmp + 14);
 	}
 
 	logprintf(obj, "using block size %u and superblock size %u for "
@@ -470,7 +470,7 @@ void matrix_extra_free(packed_matrix_t *p) {
 		threadpool_drain(c->threadpool, 1);
 		threadpool_free(c->threadpool);
 	}
-	matrix_thread_free(p, p->num_threads - 1);
+	matrix_thread_free(p, (int)(p->num_threads - 1));
 
 	free(c->tasks);
 	free(c);

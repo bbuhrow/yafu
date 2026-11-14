@@ -131,7 +131,7 @@ static uint32 init_one_fb_tiny(uint32 fb_size,
 
 	i = MIN_FB_OFFSET;
 	prime = 2;
-	factor_base[i].prime = prime;
+	factor_base[i].prime = (uint16)prime;
 
 	for (i++, j = 1; i < fb_size && j < NUM_PRIMES_TINY; j++) {
 
@@ -148,7 +148,7 @@ static uint32 init_one_fb_tiny(uint32 fb_size,
 		else if (mp_legendre_1(nmodp, prime) == 1) {
 			fbptr->prime = (uint16)prime;
 			fbptr->logprime = logprime_list[j];
-			fbptr->modsqrt = mp_modsqrt_1(nmodp, prime);
+			fbptr->modsqrt = (uint16)mp_modsqrt_1(nmodp, prime);
 			i++;
 		}
 	}
@@ -299,7 +299,7 @@ static void check_sieve_val_tiny(tiny_qs_params *params,
 					if (num_factors >= MAX_FACTORS_TINY)
 						return;
 					bits += logprime;
-					fb_offsets[num_factors++] = i;
+					fb_offsets[num_factors++] = (uint8)i;
 					mp_divrem_1(&res, prime, &res);
 					j = mp_mod_1(&res, prime);
 				} while (j == 0);
@@ -318,7 +318,7 @@ static void check_sieve_val_tiny(tiny_qs_params *params,
 				if (num_factors >= MAX_FACTORS_TINY)
 					return;
 				bits += logprime;
-				fb_offsets[num_factors++] = i;
+				fb_offsets[num_factors++] = (uint8)i;
 				mp_divrem_1(&res, prime, &res);
 				j = mp_mod_1(&res, prime);
 			} while (j == 0);
@@ -341,7 +341,7 @@ static void check_sieve_val_tiny(tiny_qs_params *params,
 				do {
 					if (num_factors >= MAX_FACTORS_TINY)
 						return;
-					fb_offsets[num_factors++] = i;
+					fb_offsets[num_factors++] = (uint8)i;
 					mp_divrem_1(&res, prime, &res);
 					j = mp_mod_1(&res, prime);
 				} while (j == 0);
@@ -359,7 +359,7 @@ static void check_sieve_val_tiny(tiny_qs_params *params,
 			do {
 				if (num_factors >= MAX_FACTORS_TINY)
 					return;
-				fb_offsets[num_factors++] = i;
+				fb_offsets[num_factors++] = (uint8)i;
 				mp_divrem_1(&res, (uint32)prime, &res);
 				j = mp_mod_1(&res, prime);
 			} while (j == 0);
@@ -373,7 +373,7 @@ static void check_sieve_val_tiny(tiny_qs_params *params,
 		sieve_offset |= 0x80000000;
 
 	relation->sieve_offset = sieve_offset;
-	relation->num_factors = num_factors;
+	relation->num_factors = (uint8)num_factors;
 	relation->poly_num = params->poly_num - 1;
 
 	if (res.val[0] == 1) {
@@ -386,7 +386,7 @@ static void check_sieve_val_tiny(tiny_qs_params *params,
 		uint32 table_idx = LARGE_PRIME_HASH(res.val[0]);
 		uint16 hash_entry = params->partial_list[table_idx].large_prime;
 
-		relation->large_prime = res.val[0];
+		relation->large_prime = (uint16)res.val[0];
 		if (hash_entry == res.val[0])
 			params->num_relations++;
 		else if (hash_entry == 0)
@@ -452,14 +452,14 @@ static void sieve_next_poly_tiny(tiny_qs_params *params) {
 		root2 = mp_modmul_1(amodp, bmodp + prime - modsqrt, prime);
 
 		if (root1 < root2) {
-			fbptr->root1 = root1;
-			fbptr->root2 = root2;
+			fbptr->root1 = (uint16)root1;
+			fbptr->root2 = (uint16)root2;
 			fbptr->next_loc1 = root1;
 			fbptr->next_loc2 = root2;
 		}
 		else {
-			fbptr->root1 = root2;
-			fbptr->root2 = root1;
+			fbptr->root1 = (uint16)root2;
+			fbptr->root2 = (uint16)root1;
 			fbptr->next_loc1 = root2;
 			fbptr->next_loc2 = root1;
 		}
@@ -564,7 +564,7 @@ static void solve_linear_system_tiny(tiny_qs_params *params) {
 		}
 	}
 	for (i = 0; i < nrows; i++)
-		rowperm[i] = i;
+		rowperm[i] = (uint8)i;
 	for (i = 0; i < ncols; i++)
 		params->null_vectors[i] = (uint16)get_rand(
 						&params->seed1,
@@ -582,7 +582,7 @@ static void solve_linear_system_tiny(tiny_qs_params *params) {
 
 		rowperm[j] = rowperm[start_row];
 		rowperm[start_row] = row;
-		pivot[start_row++] = i;
+		pivot[start_row++] = (uint8)i;
 
 		for (j++; j < nrows; j++) {
 			uint8 row2 = rowperm[j];

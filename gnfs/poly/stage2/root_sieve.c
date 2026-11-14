@@ -28,9 +28,9 @@ init_sieve_core(curr_poly_t *c, sieve_power_t *sp, uint32 deg, uint32 p)
 	uint32 pk = sp->power;
 
 	for (i = 0; i <= deg; i++)
-		co[i] = mpz_fdiv_ui(c->gmp_a[i], (mp_limb_t)pk);
-	md = mpz_fdiv_ui(c->gmp_d, (mp_limb_t)pk);
-	mp = mpz_fdiv_ui(c->gmp_p, (mp_limb_t)pk);
+		co[i] = (uint32)mpz_fdiv_ui(c->gmp_a[i], (mp_limb_t)pk);
+	md = (uint32)mpz_fdiv_ui(c->gmp_d, (mp_limb_t)pk);
+	mp = (uint32)mpz_fdiv_ui(c->gmp_p, (mp_limb_t)pk);
 
 	for (i = 0; i < pk; i++) {
 		mi = mp_modsub_1(md, mp_modmul_1(i, mp, pk), pk);
@@ -48,9 +48,9 @@ init_sieve_core(curr_poly_t *c, sieve_power_t *sp, uint32 deg, uint32 p)
 			}
 			if (mi % p) {
 				sieve_root_t *r = sp->roots + num_roots++;
-				r->resclass = i;
-				r->step = step;
-				r->start = mp_modmul_1(fi, 
+				r->resclass = (uint16)i;
+				r->step = (uint16)step;
+				r->start = (uint16)mp_modmul_1(fi, 
 						mp_modinv_1(mi, step), step);
 			}	/* otherwise no solutions */
 		}
@@ -119,7 +119,7 @@ static void
 make_heap(rotation_t *h, uint32 size) {
 
 	int32 i;
-	for (i = HEAP_PARENT(size); i >= 0; i--)
+	for (i = (int32)HEAP_PARENT(size); i >= 0; i--)
 		heapify(h, (uint32)i, size);
 }
 

@@ -13,10 +13,9 @@ double * parsewords(mpz_t a, int b, int fftlen)
 	// given mpz input a, make a double-float array with
 	// b bits of the input per double-float.
 	mpz_t aa;
-	int s = mpz_sizeinbase(a, 2);
+	UNUSED_VAR int s = (int)mpz_sizeinbase(a, 2);
 	int i = 0;
-	int bits = 0;
-	double* d = (double *)xmalloc(fftlen * sizeof(double));
+	double* d = (double *)xmalloc((unsigned long)fftlen * sizeof(double));
 	uint64_t mask = (1ULL << b) - 1;
 
 	mpz_init(aa);
@@ -25,7 +24,7 @@ double * parsewords(mpz_t a, int b, int fftlen)
 	while (mpz_cmp_ui(aa, 0) > 0)
 	{
 		d[i++] = (double)(mpz_get_64(aa) & mask);
-		mpz_tdiv_q_2exp(aa, aa, b);
+		mpz_tdiv_q_2exp(aa, aa, (mp_bitcnt_t)b);
 
 		if (i > fftlen)
 		{
@@ -49,22 +48,20 @@ double* parsewords_balanced(mpz_t a, int b, int fftlen)
 	// given mpz input a, make a double-float array with
 	// b bits of the input per double-float.
 	mpz_t aa;
-	int s = mpz_sizeinbase(a, 2);
+	UNUSED_VAR int s = (int)mpz_sizeinbase(a, 2);
 	int i = 0;
-	int bits = 0;
-	double* d = (double*)xmalloc(fftlen * sizeof(double));
+	double* d = (double*)xmalloc((unsigned long)fftlen * sizeof(double));
 	int64_t W = (1ULL << b);
 	int64_t mask = W - 1;
 	int64_t b2 = W / 2;
 	// TODO: this assumes that mp_limb_t is 64-bit
-	uint64_t* n = (uint64_t *)a->_mp_d;
 
 	mpz_init(aa);
 	mpz_set(aa, a);
 	int64_t carry = 0;
 	while ((mpz_cmp_ui(aa, 0) > 0) && (i < fftlen))
 	{
-		int64_t q = (mpz_get_64(aa) + carry) & mask;
+		int64_t q = (int64_t)(((unsigned long)(mpz_get_64(aa) + (unsigned long)carry)) & (unsigned long)mask);
 		if ((q == 0) && carry)
 		{
 			d[i++] = 0.0;
@@ -80,7 +77,7 @@ double* parsewords_balanced(mpz_t a, int b, int fftlen)
 			d[i++] = (double)q;
 			carry = 0;
 		}
-		mpz_tdiv_q_2exp(aa, aa, b);
+		mpz_tdiv_q_2exp(aa, aa, (mp_bitcnt_t)b);
 
 		if (i > fftlen)
 		{
@@ -110,10 +107,9 @@ double* fastparse_balanced(mpz_t a, int b, int fftlen)
 {
 	// given mpz input a, make a double-float array with
 	// b bits of the input per double-float.
-	int s = mpz_sizeinbase(a, 2);
+	int s = (int)mpz_sizeinbase(a, 2);
 	int i = 0;
-	int bits = 0;
-	double* d = (double*)xmalloc(fftlen * sizeof(double));
+	double* d = (double*)xmalloc((unsigned long)fftlen * sizeof(double));
 	int64_t W = (1ULL << b);
 	int64_t mask = W - 1;
 	int64_t b2 = W / 2;
@@ -129,12 +125,12 @@ double* fastparse_balanced(mpz_t a, int b, int fftlen)
 	{
 		int x = j / 64;
 		int y = j & 63;
-		int64_t q = (n[x] >> y) & mask;
+		int64_t q = (int64_t)((n[x] >> y) & (unsigned long)mask);
 
 		//printf("in loop: j,x,y,s = %d,%d,%d,%d, q = %"PRIx64"\n", j, x, y, s, q);
 
 		if ((y + b) > 64)
-			q += n[x + 1] << (64 - y);
+			q += (int64_t)(n[x + 1] << (64 - y));
 		q = (q + carry) & mask;
 
 		//int64_t q = (mpz_get_64(aa) + carry) & mask;
@@ -169,7 +165,7 @@ double* fastparse_balanced(mpz_t a, int b, int fftlen)
 
 	//printf("last: j,x,y,s = %d,%d,%d,%d\n", j, x, y, s);
 
-	int64_t q = ((n[x] >> y) + carry) & mask;
+	int64_t q = (int64_t)(((unsigned long)((n[x] >> y) + (unsigned long)carry)) & (unsigned long)mask);
 
 	//printf("q = %"PRIx64"\n", q);
 
@@ -256,10 +252,10 @@ void fftr(double* dar, double* dai, int fftlen, int invert)
 	if (fftlen == 1)
 		return;
 
-	double* a0r = xmalloc(fftlen / 2 * sizeof(double));
-	double* a0i = xmalloc(fftlen / 2 * sizeof(double));
-	double* a1r = xmalloc(fftlen / 2 * sizeof(double));
-	double* a1i = xmalloc(fftlen / 2 * sizeof(double));
+	double* a0r = xmalloc((unsigned long)(fftlen / 2) * sizeof(double));
+	double* a0i = xmalloc((unsigned long)(fftlen / 2) * sizeof(double));
+	double* a1r = xmalloc((unsigned long)(fftlen / 2) * sizeof(double));
+	double* a1i = xmalloc((unsigned long)(fftlen / 2) * sizeof(double));
 
 	for (i = 0; 2 * i < fftlen; i++) {
 		a0r[i] = dar[2 * i];
@@ -819,14 +815,14 @@ void reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 	for (i = 0; i < fftlen; i++)
 	{
 		mpz_set_s64(t, ci[i]);
-		mpz_mul_2exp(t, t, bits_per_word * i);
+		mpz_mul_2exp(t, t, (mp_bitcnt_t)(bits_per_word * i));
 		mpz_add(c, c, t);
 	}
 
 	if (mpz_cmp_ui(c, 0) < 0)
 	{
 		mpz_set_si(t, 1.0);
-		mpz_mul_2exp(t, t, bits_per_word * i);
+		mpz_mul_2exp(t, t, (mp_bitcnt_t)(bits_per_word * i));
 		mpz_add(c, c, t);
 		mpz_sub_ui(c, c, 1);
 	}
@@ -840,7 +836,7 @@ void fast_reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 	int j = 0;
 	int b = bits_per_word;
 	mpz_set_ui(c, 1);
-	mpz_mul_2exp(c, c, bits_per_word * fftlen);
+	mpz_mul_2exp(c, c, (mp_bitcnt_t)(bits_per_word * fftlen));
 	// TODO: this assumes that mp_limb_t is 64-bit
 	uint64_t* n = (uint64_t *)c->_mp_d;
 
@@ -849,10 +845,10 @@ void fast_reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 		int x = j / 64;
 		int y = j & 63;
 
-		n[x] += (ci[i] << j);
+		n[x] += (unsigned long)(ci[i] << j);
 
 		if ((y + b) > 64)
-			n[x + 1] = ci[i] >> (64 - y);
+			n[x + 1] = (uint64_t)(ci[i] >> (64 - y));
 		i++;
 	}
 
@@ -870,7 +866,6 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 {
 	double* dar, * dbr, * dbi, * dai;
 	int64_t *ci;
-	int sza, szb;
 	mpz_t cc;
 	int i, q;
 	int debug = 0;
@@ -890,7 +885,7 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 
 		mpz_set(cc, a);
 		mpz_set_ui(t, 1);
-		mpz_mul_2exp(m, t, bits_per_word * fftlen);
+		mpz_mul_2exp(m, t, (mp_bitcnt_t)(bits_per_word * fftlen));
 		mpz_sub_ui(m, m, 1);
 		if (debug)
 		{
@@ -914,7 +909,7 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 		printf("test took %lf seconds\n", ttest);
 	}
 
-	ci = (int64_t*)xmalloc(fftlen * sizeof(int64_t));
+	ci = (int64_t*)xmalloc((unsigned long)fftlen * sizeof(int64_t));
 
 	if (debug)
 	{
@@ -945,8 +940,8 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 		printf("\n");
 	}
 
-	dai = (double*)xmalloc(fftlen * sizeof(double));
-	dbi = (double*)xmalloc(fftlen * sizeof(double));
+	dai = (double*)xmalloc((unsigned long)fftlen * sizeof(double));
+	dbi = (double*)xmalloc((unsigned long)fftlen * sizeof(double));
 
 	for (i = 0; i < fftlen; i++)
 	{
@@ -999,7 +994,7 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 
 		for (i = 0; i < fftlen; i++)
 		{
-			ci[i] = round(dar[i]);
+			ci[i] = (int64_t)round(dar[i]);
 		}
 
 		if (debug)
@@ -1015,7 +1010,6 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 		// carry prop balanced
 		int64_t carry = 0;
 		int64_t W = (1ULL << bits_per_word);
-		int64_t mask = W - 1;
 		int done = 0;
 		int nc = 0;
 		while (!done)
@@ -1023,9 +1017,9 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 			done = 1;
 			for (i = 0; i < fftlen; i++)
 			{
-				int64_t q = ci[i];
+				int64_t q_in = ci[i];
 				ci[i] = (ci[i] + carry) % W;
-				carry = (q + carry) / W;
+				carry = (q_in + carry) / W;
 			}
 
 			if (debug)
@@ -1058,9 +1052,7 @@ void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen)
 			nc++;
 		}
 
-		int64_t p = 0;
 		carry = 0;
-		int64_t b2 = (1ULL << (bits_per_word - 1));
 
 		for (i = 0; i < fftlen; i++)
 		{

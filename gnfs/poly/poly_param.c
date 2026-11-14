@@ -112,7 +112,7 @@ static void get_default_params(double digits, poly_param_t *params,
 			           log(high->stage2_norm) * j) / dist);
 	params->final_norm = exp((log(low->final_norm) * k +
 			           log(high->final_norm) * j) / dist);
-	params->deadline = exp((log(low->deadline) * k +
+	params->deadline = (uint32)exp((log(low->deadline) * k +
 			           log(high->deadline) * j) / dist);
 }
 
@@ -134,7 +134,7 @@ void get_poly_params(msieve_obj *obj, mpz_t n,
 		const char *tmp = strstr(obj->nfs_args, "polydegree=");
 
 		if (tmp != NULL) {
-			degree = strtoul(tmp + 11, NULL, 10);
+			degree = (uint32)strtoul(tmp + 11, NULL, 10);
 			logprintf(obj, "setting degree to %u\n", degree);
 		}
 	}
@@ -142,7 +142,7 @@ void get_poly_params(msieve_obj *obj, mpz_t n,
 	/* if not, choose the degree automatically */
 
 	if (degree == 0) {
-		uint32 bits = mpz_sizeinbase(n, 2);
+		uint32 bits = (uint32)mpz_sizeinbase(n, 2);
 
 		if (digits < 108.0)
 			degree = 4;
@@ -197,7 +197,7 @@ void get_poly_params(msieve_obj *obj, mpz_t n,
 
 		tmp = strstr(obj->nfs_args, "poly_deadline=");
 		if (tmp != NULL)
-			params.deadline = strtoul(tmp + 14, NULL, 10);
+			params.deadline = (uint32)strtoul(tmp + 14, NULL, 10);
 	}
 
 	logprintf(obj, "polynomial degree: %u\n", degree);
