@@ -2015,6 +2015,10 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     fobj->nfs_obj.restart_flag = (int)options->nfs_resume;
     fobj->nfs_obj.snfs_testsieve_threshold = options->snfs_testsieve_threshold;
+    fobj->nfs_obj.keep_polys = options->keeppoly;
+    fobj->nfs_obj.user_degree = options->degree;
+    fobj->nfs_obj.min_degree = options->mindegree;
+    fobj->nfs_obj.max_degree = options->maxdegree;
     *fobj->nfs_obj.filearg = '\0';
 
     fobj->nfs_obj.polybatch = options->poly_batch;

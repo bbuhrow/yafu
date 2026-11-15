@@ -418,6 +418,10 @@ typedef struct
 	uint32_t polybatch;
 	uint32_t nfs_phases;
 	uint32_t snfs_testsieve_threshold;
+	int keep_polys;					// number of best-ranked snfs polys kept / test sieved
+	int user_degree;				// -degree: forced poly degree, gnfs and snfs (0 = automatic)
+	int min_degree;					// -mindegree: snfs polys below this degree are discarded (0 = none)
+	int max_degree;					// -maxdegree: snfs polys above this degree are discarded (0 = none)
     int skip_snfs_check;
     uint32_t minrels;
     int td;

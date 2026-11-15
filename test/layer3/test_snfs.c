@@ -263,7 +263,7 @@ static const snfs_case cases[] = {
     { "lucas_mk_1000",  "luc(1000)",   NULL, SNFS_LUCAS, ST_POLY, 168, 1, 4, 167.19 },
     { "lucas_mk_1199",  "luc(1199)",   NULL, SNFS_LUCAS, ST_POLY, 223, 1, 5, 227.80 },
     { "lucas_prime_491","luc(491)",    NULL, SNFS_LUCAS, ST_POLY, 100, 0, 4, 102.03 },
-    { "fib_prime_613",  "fib(613)",    NULL, SNFS_LUCAS, ST_POLY, 128, 0, 4, 127.34 },
+    { "fib_prime_613",  "fib(613)",    NULL, SNFS_LUCAS, ST_POLY, 128, 0, 4, 127.20 },
     { "fib_prime_997",  "fib(997)",    NULL, SNFS_LUCAS, ST_POLY, 206, 0, 5, 207.24 },
     { "fib_mk_1155",    "fib(1155)",   NULL, SNFS_LUCAS, ST_POLY, 101, 7, 4, 128.74 },
     { "fib_to_luc_1000","fib(1000)",   NULL, SNFS_LUCAS, ST_POLY, 81, 5, 4, 83.60 },
@@ -465,6 +465,14 @@ static char *ts_slurp(const char *path)
     n = (long)fread(buf, 1, (size_t)n, f);
     buf[n] = 0;
     fclose(f);
+    {
+        /* yafu's text output has CRLF line ends on Windows: drop the CRs so
+           multi-line matches work the same everywhere */
+        char *r = buf, *w = buf;
+        for (; *r; r++)
+            if (*r != '\r') *w++ = *r;
+        *w = 0;
+    }
     return buf;
 }
 
@@ -814,6 +822,91 @@ static void t_cli_nfs_np_reduced(tk_ctx *tk)
     }
 }
 
+/* L(1423): the general Lucas construction over degrees 4..8 and neighboring
+   index choices (x -> 1 + 1/x) generates the polynomials factordb lists for
+   this number; -keeppoly sets how many of the ranked ones are kept/printed. */
+static void t_cli_keeppoly(tk_ctx *tk)
+{
+    char dir[1024];
+    char *out;
+    if (!ts_find_bin()) return;
+
+    out = ts_run("keeppoly_10", "\"nfs(luc(1423))\" -np -testsieve 99999 -keeppoly 10 -v",
+        dir, sizeof dir);
+    TK_REQUIRE(tk, out != NULL, "could not run yafu");
+    TK_CHECKF(tk, strstr(out, "best 10 polynomials") != NULL, "-keeppoly 10: expected 10 printed polys");
+    /* factordb's E (degree 7) and A (degree 6, the x -> 1 + 1/x image of
+       x^6 + 12x^5 - 15x^4 + 60x^3 - 60x^2 + 42x - 11) */
+    TK_CHECKF(tk, strstr(out, "c7: 3\nc6: 7\nc5: 42\nc4: -35\nc3: 105\nc2: -84\nc1: 49\nc0: -11\n") != NULL,
+        "degree-7 poly 3x^7 + 7x^6 + 42x^5 - ... not among the kept polys");
+    TK_CHECKF(tk, strstr(out, "c6: 29\nc5: 108\nc4: 165\nc3: 140\nc2: 60\nc1: 18\nc0: 1\n") != NULL,
+        "index-shifted poly 29x^6 + 108x^5 + ... not among the kept polys");
+    ts_check_job(tk, dir, "luc(1423)", 298, "snfs");
+    free(out);
+
+    out = ts_run("keeppoly_dflt", "\"nfs(luc(1423))\" -np -testsieve 99999 -v", dir, sizeof dir);
+    TK_REQUIRE(tk, out != NULL, "could not run yafu");
+    TK_CHECKF(tk, strstr(out, "best 3 polynomials") != NULL, "default: expected 3 printed polys");
+    free(out);
+}
+
+/* degree range of the polys printed after the "best N polynomials" banner:
+   print_poly writes "skew: ..." and then the leading "c<d>: " line. */
+static int ts_kept_degrees(const char *out, int *dmin, int *dmax)
+{
+    const char *p = strstr(out, "polynomials:\n");
+    int n = 0, d;
+
+    *dmin = 99;
+    *dmax = -1;
+    while ((p != NULL) && ((p = strstr(p, "\nskew: ")) != NULL))
+    {
+        p = strchr(p + 1, '\n');
+        if ((p == NULL) || (sscanf(p + 1, "c%d:", &d) != 1))
+            break;
+        if (d < *dmin) *dmin = d;
+        if (d > *dmax) *dmax = d;
+        n++;
+    }
+    return n;
+}
+
+/* L(1423) generates polys of degree 4..8; -degree / -mindegree / -maxdegree
+   filter them before ranking, so only the allowed degrees can be printed. */
+static void t_cli_degree(tk_ctx *tk)
+{
+    char dir[1024];
+    char *out;
+    int n, lo, hi;
+    if (!ts_find_bin()) return;
+
+    out = ts_run("degree_6", "\"nfs(luc(1423))\" -np -testsieve 99999 -keeppoly 10 -degree 6 -v",
+        dir, sizeof dir);
+    TK_REQUIRE(tk, out != NULL, "could not run yafu");
+    TK_CHECKF(tk, strstr(out, "snfs polys with degree 6") != NULL, "-degree 6: no filter report");
+    n = ts_kept_degrees(out, &lo, &hi);
+    TK_CHECKF(tk, (n > 0) && (lo == 6) && (hi == 6),
+        "-degree 6: kept %d polys of degree %d..%d", n, lo, hi);
+    TK_CHECKF(tk, strstr(out, "c6: 29\nc5: 108\nc4: 165\nc3: 140\nc2: 60\nc1: 18\nc0: 1\n") != NULL,
+        "-degree 6: index-shifted poly 29x^6 + 108x^5 + ... not kept");
+    ts_check_job(tk, dir, "luc(1423)", 298, "snfs");
+    free(out);
+
+    out = ts_run("maxdegree_5", "\"nfs(luc(1423))\" -np -testsieve 99999 -keeppoly 10 -maxdegree 5 -v",
+        dir, sizeof dir);
+    TK_REQUIRE(tk, out != NULL, "could not run yafu");
+    n = ts_kept_degrees(out, &lo, &hi);
+    TK_CHECKF(tk, (n > 0) && (hi <= 5), "-maxdegree 5: kept %d polys of degree %d..%d", n, lo, hi);
+    free(out);
+
+    out = ts_run("mindegree_7", "\"nfs(luc(1423))\" -np -testsieve 99999 -keeppoly 10 -mindegree 7 -v",
+        dir, sizeof dir);
+    TK_REQUIRE(tk, out != NULL, "could not run yafu");
+    n = ts_kept_degrees(out, &lo, &hi);
+    TK_CHECKF(tk, (n > 0) && (lo >= 7), "-mindegree 7: kept %d polys of degree %d..%d", n, lo, hi);
+    free(out);
+}
+
 static const tk_test tk__snfs_tests[] = {
     { "brent_2_401m",   t_case_0,  "fast snfs integration" },
     { "brent_2_613m",   t_case_1,  "fast snfs integration" },
@@ -862,6 +955,8 @@ static const tk_test tk__snfs_tests[] = {
     { "cli_ecm_then_siqs", t_cli_ecm_then_siqs, "snfs integration cli" },
     { "cli_lucas",        t_cli_lucas,        "snfs integration cli lucas" },
     { "cli_nfs_np_reduced", t_cli_nfs_np_reduced, "snfs integration cli" },
+    { "cli_keeppoly",     t_cli_keeppoly,     "snfs integration cli lucas" },
+    { "cli_degree",       t_cli_degree,       "snfs integration cli lucas" },
 };
 
 const tk_module tk_module_snfs = {

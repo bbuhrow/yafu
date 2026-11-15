@@ -88,7 +88,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "forceQLP", "siqsMFBQ", "nfs_batch_3lp", "analysis", "keep_afb",
     "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV", "siqsMid",
     "siqsLarge", "siqsKernel", "siqsSparseKernel", "siqsLPisa", "noneon",
-    "avxecm_rns_bits", "avxecm_stg2", "avxecm_stg2mem", "avxecm_bs", "avxecm_curve" };
+    "avxecm_rns_bits", "avxecm_stg2", "avxecm_stg2mem", "avxecm_bs", "avxecm_curve",
+    "keeppoly", "mindegree", "maxdegree" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -168,7 +169,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Do not test clock speed when yafu initializes", 
     "(Integer < 32-bit): SIQS small prime variation trial factoring bound",
     "(String)          : Filename of script to execute", 
-    "(Integer < 32-bit): Not currently implemented",
+    "(Integer < 32-bit): NFS: force this polynomial degree (GNFS: 4, 5 or 6; SNFS: only polys of this degree are kept)",
     "(Floating point)  : QS/SNFS crossover", 
     "(Integer < 32-bit): Sieve of Eratosthenes block size in bytes", 
     "                  : Force use of TLP variation in SIQS",
@@ -238,7 +239,10 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
     "(Floating point)   : AVX-ECM FFT stage 2: memory limit per thread in MB",
     "(String)           : AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)",
-    "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv), x-only/Edwards stage 1 (default 2)"
+    "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv), x-only/Edwards stage 1 (default 2)",
+    "(Integer < 32-bit): SNFS: number of best-ranked polynomials kept, printed and test sieved (default 3)",
+    "(Integer < 32-bit): SNFS: discard generated polynomials of degree below this",
+    "(Integer < 32-bit): SNFS: discard generated polynomials of degree above this"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -276,7 +280,8 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,         // nfs_stage1_args, cuda_sieve, cuda_dev
     1,1,1,1,1,     // siqsSPV, siqsMid, siqsLarge, siqsKernel, siqsSparseKernel
     1, 0,          // siqsLPisa, noneon
-    1, 1, 1, 1, 1  // avxecm_rns_bits, avxecm_stg2, avxecm_stg2mem, avxecm_bs, avxecm_curve
+    1, 1, 1, 1, 1, // avxecm_rns_bits, avxecm_stg2, avxecm_stg2mem, avxecm_bs, avxecm_curve
+    1, 1, 1        // keeppoly, mindegree, maxdegree
 };
 
 // command line option aliases, specified by '--'
@@ -311,7 +316,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", ""
+    "", "", "", "", "",
+    "", "", ""
 };
 
 
@@ -998,8 +1004,13 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[74]) == 0)
     {
-        //argument "degree"
-
+        //argument "degree": force the NFS polynomial degree
+        options->degree = (int)strtol(arg, NULL, 10);
+        if ((options->degree < 2) || (options->degree > 8))
+        {
+            printf("*** degree must be 2..8; ignoring ***\n");
+            options->degree = 0;
+        }
     }
     else if (strcmp(opt, OptionArray[75]) == 0)
     {
@@ -1457,6 +1468,37 @@ void applyOpt(char* opt, char* arg, options_t* options)
             options->avxecm_curve = -1;
         }
     }
+    else if (strcmp(opt, OptionArray[145]) == 0)
+    {
+        // argument "keeppoly": how many of the best-ranked SNFS polynomials
+        // to keep, print and test sieve
+        options->keeppoly = (int)strtol(arg, NULL, 10);
+        if (options->keeppoly < 1)
+        {
+            printf("*** keeppoly must be at least 1; using 3 ***\n");
+            options->keeppoly = 3;
+        }
+    }
+    else if (strcmp(opt, OptionArray[146]) == 0)
+    {
+        // argument "mindegree": SNFS polys below this degree are discarded
+        options->mindegree = (int)strtol(arg, NULL, 10);
+        if ((options->mindegree < 2) || (options->mindegree > 8))
+        {
+            printf("*** mindegree must be 2..8; ignoring ***\n");
+            options->mindegree = 0;
+        }
+    }
+    else if (strcmp(opt, OptionArray[147]) == 0)
+    {
+        // argument "maxdegree": SNFS polys above this degree are discarded
+        options->maxdegree = (int)strtol(arg, NULL, 10);
+        if ((options->maxdegree < 2) || (options->maxdegree > 8))
+        {
+            printf("*** maxdegree must be 2..8; ignoring ***\n");
+            options->maxdegree = 0;
+        }
+    }
     else if (strcmp(opt, OptionArray[132]) == 0)
     {
         //argument "cuda_dev": comma separated CUDA device indices, e.g. 0,1
@@ -1655,6 +1697,10 @@ options_t* initOpt(void)
     options->avxecm_stg2mem = -1;
     options->avxecm_bs = 65;            // not given (AVXECM_BS_DEFAULT)
     options->avxecm_curve = -1;
+    options->keeppoly = 3;
+    options->degree = 0;
+    options->mindegree = 0;
+    options->maxdegree = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;

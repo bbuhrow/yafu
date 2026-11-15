@@ -5870,19 +5870,20 @@ static int luc_prim_degree(int m, int lucas)
 	return d;
 }
 
-// small signed Lucas / Fibonacci numbers, |r| <= 8
+// small signed Lucas / Fibonacci numbers (|r| <= 40 fits an int):
+// L(-r) = (-1)^r L(r),  F(-r) = (-1)^(r+1) F(r)
 static int luc_small(int r)
 {
-	static const int L[9] = { 2, 1, 3, 4, 7, 11, 18, 29, 47 };
-	int a = abs(r);
-	return ((r < 0) && (a & 1)) ? -L[a] : L[a];
+	int a = abs(r), i, l0 = 2, l1 = 1, t;
+	for (i = 0; i < a; i++) { t = l0 + l1; l0 = l1; l1 = t; }
+	return ((r < 0) && (a & 1)) ? -l0 : l0;
 }
 
 static int fib_small(int r)
 {
-	static const int F[9] = { 0, 1, 1, 2, 3, 5, 8, 13, 21 };
-	int a = abs(r);
-	return ((r < 0) && !(a & 1)) ? -F[a] : F[a];
+	int a = abs(r), i, f0 = 0, f1 = 1, t;
+	for (i = 0; i < a; i++) { t = f0 + f1; f0 = f1; f1 = t; }
+	return ((r < 0) && !(a & 1)) ? -f0 : f0;
 }
 
 // finish one candidate: validate, measure norms, keep if valid
@@ -6055,7 +6056,7 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 	int j = poly->exp1;
 	int lucas = (poly->coeff2 > 0);
 	snfs_t* polys;
-	int npoly = 0, apoly = 8, m, i;
+	int npoly = 0, apoly = 24, m, i;
 	mpz_t root, t, Fk, Fk1;
 
 	*npolys = 0;
@@ -6066,9 +6067,13 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 	// that half alone have half the difficulty of anything built for L(5k)
 	if (lucas && (poly->LM != 0) && ((j % 5) == 0) && (((j / 5) & 1) == 1))
 	{
-		static const int rs[4] = { 1, -1, 3, -3 };
-		polys = (snfs_t*)malloc(8 * sizeof(snfs_t));
-		for (i = 0; i < 8; i++)
+		// r and the index k' = (k - r)/m trade off: each r step of m shifts k'
+		// by one, which is the substitution x -> 1 + 1/x on the polynomial
+		// (F(k'+1)/F(k') = 1 + F(k'-1)/F(k')).  Same field and root, different
+		// coefficients and skew, so the Murphy ranking gets to choose.
+		static const int rs[8] = { 1, -1, 3, -3, 5, -5, 7, -7 };
+		polys = (snfs_t*)malloc(16 * sizeof(snfs_t));
+		for (i = 0; i < 16; i++)
 			snfs_init(&polys[i]);
 
 		if (fobj->VFLAG > 0)
@@ -6078,11 +6083,11 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 		}
 
 		for (m = 2; m <= 4; m += 2)
-			for (i = 0; i < 4; i++)
-				if (npoly < 8)
+			for (i = 0; i < 8; i++)
+				if (npoly < 16)
 					npoly += luc_aurif_poly(fobj, poly, &polys[npoly], m, rs[i], poly->LM < 0 ? -1 : 1);
 
-		for (i = npoly; i < 8; i++)
+		for (i = npoly; i < 16; i++)
 			snfs_clear(&polys[i]);
 
 		*npolys = npoly;
@@ -6094,7 +6099,7 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 		return polys;
 	}
 
-	// room for two family-A candidates per divisor of j and six from family B
+	// room for two family-A candidates per divisor of j and 20 from family B
 	for (m = 1; m <= j; m++)
 		if ((j % m) == 0)
 			apoly += 2;
@@ -6188,12 +6193,20 @@ snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 	}
 
 	// ---- family B: j = m*k + r, homogeneous form in (F(k+1), F(k)) ----
-	for (m = 4; m <= 6; m++)
+	// degrees 4..8.  For each degree, four neighboring choices of the index
+	// k (r = j mod m, shifted by -2m, -m, 0, +m): moving k by one is the
+	// substitution x -> 1 + 1/x on the polynomial (F(k+1)/F(k) =
+	// 1 + F(k-1)/F(k)), giving the same field and root with different
+	// coefficients and skew; the Murphy ranking picks among them.  When m
+	// divides j the whole set is skipped (reducible / covered by family A).
+	for (m = 4; m <= 8; m++)
 	{
 		int ri;
-		for (ri = 0; ri < 2; ri++)
+		if ((j % m) == 0)
+			continue;
+		for (ri = 0; ri < 4; ri++)
 		{
-			int r = (ri == 0) ? (j % m) : (j % m) - m;
+			int r = (j % m) + (ri - 2) * m;
 			int k = (j - r) / m;
 			int Lr = luc_small(r), Fr = fib_small(r);
 			mpz_t c[MAX_POLY_DEGREE + 1], G[MAX_POLY_DEGREE + 1], b1, b2;
@@ -6521,6 +6534,56 @@ int qcomp_snfs_sdifficulty(const void *x, const void *y)
 	//return ((snfs_t*)x)->sdifficulty - ((snfs_t*)y)->sdifficulty;
 }
 
+// apply -degree / -mindegree / -maxdegree to the generated polys.  The
+// polys whose algebraic degree is allowed are moved to the front of the
+// array (relative order kept) and their count is returned; the rest are left
+// behind them, still allocated, so the caller clears all of the generated
+// polys as before.
+int snfs_filter_degree(fact_obj_t *fobj, snfs_t *polys, int npoly)
+{
+	int lo = fobj->nfs_obj.min_degree;
+	int hi = fobj->nfs_obj.max_degree;
+	int i, k;
+
+	if (fobj->nfs_obj.user_degree > 0)
+	{
+		lo = hi = fobj->nfs_obj.user_degree;
+	}
+
+	if ((lo <= 0) && (hi <= 0))
+		return npoly;
+
+	for (i = 0, k = 0; i < npoly; i++)
+	{
+		int deg = (int)polys[i].poly->alg.degree;
+
+		if (((lo > 0) && (deg < lo)) || ((hi > 0) && (deg > hi)))
+			continue;
+
+		if (i != k)
+		{
+			snfs_t tmp = polys[k];
+			polys[k] = polys[i];
+			polys[i] = tmp;
+		}
+		k++;
+	}
+
+	if (fobj->VFLAG >= 0)
+	{
+		if (lo == hi)
+			printf("nfs: kept %d of %d snfs polys with degree %d\n", k, npoly, lo);
+		else if (hi <= 0)
+			printf("nfs: kept %d of %d snfs polys with degree >= %d\n", k, npoly, lo);
+		else if (lo <= 0)
+			printf("nfs: kept %d of %d snfs polys with degree <= %d\n", k, npoly, hi);
+		else
+			printf("nfs: kept %d of %d snfs polys with degree %d..%d\n", k, npoly, lo, hi);
+	}
+
+	return k;
+}
+
 int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly)
 {
 	// rank by scaled difficulty
@@ -6545,37 +6608,10 @@ int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly)
 		printf("nfs: rejected %d duplicate polys out of %d\n", k, npoly);
 
 	// then sort
-	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
 	qsort(polys, (size_t)npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
 
-	// don't select by preferred degree, just use Murphy/difficulty
-	//// keep the first two polys of the preferred degree, and the top
-	//// one from a competing degree, that haven't already been rejected.
-	//for (i=0, j=0; i<npoly; i++)
-	//{
-	//	if ((polys[i].poly->alg.degree == fobj->nfs_obj.pref_degree) &&
-	//		polys[i].poly->murphy > 1e-99)
-	//	{
-	//		pref_count++;
-	//		if (pref_count > 2)
-	//			polys[i].poly->murphy = 1e-99;
-	//	}
-	//	else if (polys[i].poly->alg.degree == fobj->nfs_obj.alt_degree)
-	//	{
-	//		alt_count++;
-	//		if (alt_count > 1)
-	//			polys[i].poly->murphy = 1e-99;
-	//	}
-	//	else
-	//		polys[i].poly->murphy = 1e-99;
-	//}
-	//
-	//// then sort again
-	////qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
-	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
-	//
-	//j = MIN(pref_count,2) + MIN(alt_count,1);
-	return MIN(3, npoly);
+	// keep the best few (-keeppoly, default 3) for printing and test sieving
+	return MIN(MAX(fobj->nfs_obj.keep_polys, 1), npoly);
 }
 
 int tdiv_int(int x, int *factors, uint64_t* primes, uint64_t num_p)

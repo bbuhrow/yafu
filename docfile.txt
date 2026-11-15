@@ -172,7 +172,15 @@ NFS BEHAVIOR OPTIONS - general
 -nt <file1>,<file2>...	Perform automated trial sieving of the listed job files (then exit)
 				(yafu will fill any missing ggnfs parameters as necessary)
 -testsieve <num>	Number of digits beyond which yafu will test sieve the top
-				3 polynomials discovered by snfs (default: 140)
+				polynomials discovered by snfs (default: 140)
+-keeppoly <num>		Number of best-ranked snfs polynomials kept, printed (-v)
+				and test sieved (default: 3)
+-degree <num>		Force the nfs polynomial degree.  gnfs: 4, 5 or 6 is passed
+				to msieve poly select (ignored with a warning if msieve has
+				no parameters for that degree at this size).  snfs: only generated polys of this
+				degree are kept (if none, treated as no snfs poly found)
+-mindegree <num>	snfs: discard generated polys of degree below <num>
+-maxdegree <num>	snfs: discard generated polys of degree above <num>
 				
 
 
@@ -475,7 +483,15 @@ Inputs constructed from sums of multiples of a common root m=b^p, e.g.:
 
 snfs supports all the command line flags for nfs, as well as one additional flag:
 -testsieve <num>	Number of digits beyond which yafu will test sieve the top
-				3 polynomials discovered by snfs (default: 140)
+				polynomials discovered by snfs (default: 140)
+-keeppoly <num>		Number of best-ranked snfs polynomials kept, printed (-v)
+				and test sieved (default: 3)
+-degree <num>		Force the nfs polynomial degree.  gnfs: 4, 5 or 6 is passed
+				to msieve poly select (ignored with a warning if msieve has
+				no parameters for that degree at this size).  snfs: only generated polys of this
+				degree are kept (if none, treated as no snfs poly found)
+-mindegree <num>	snfs: discard generated polys of degree below <num>
+-maxdegree <num>	snfs: discard generated polys of degree above <num>
 
 Note: if a certain poly is particularly bad and is taking too long to test sieve,
 you can safely terminate the ggnfs process, and yafu should still get an accurate

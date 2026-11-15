@@ -344,6 +344,24 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 		polys = gen_brent_poly(fobj, poly, &npoly);
 	}
 
+	// everything generated is cleared at the end, whatever survives the
+	// degree filter and the ranking.
+	npoly_gen = npoly;
+
+	// -degree / -mindegree / -maxdegree: drop polys of unwanted degree
+	npoly = snfs_filter_degree(fobj, polys, npoly);
+
+	if ((npoly == 0) && (npoly_gen > 0))
+	{
+		// polys were found, but none of an allowed degree
+		for (i = 0; i < npoly_gen; i++)
+		{
+			snfs_clear(&polys[i]);
+		}
+		free(polys);
+		polys = NULL;
+	}
+
 	if (npoly == 0)
 	{
 		job->snfs = NULL;
@@ -378,7 +396,6 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
-	npoly_gen = npoly;		// ranking keeps the top few; all generated polys must be cleared
 	snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
     if (npoly > 1)
     {
@@ -412,7 +429,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	// print the best polys
 	if (fobj->VFLAG > 0 && npoly > 1)
 	{		
-		int np = MIN(npoly, 5); // NUM_SNFS_POLYS);
+		int np = npoly;		// the polys kept by snfs_rank_polys (-keeppoly)
 
         if (fobj->LOGFLAG)
         {
@@ -526,7 +543,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 	}
 
 	// return best job, which contains the best poly
-	best = snfs_test_sieve(fobj, polys, MIN(3,npoly), jobs, 0);
+	best = snfs_test_sieve(fobj, polys, npoly, jobs, 0);
 
 	if (fobj->VFLAG > 0)
 	{
@@ -788,21 +805,58 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 	poly_params_t params = { 0 };
 
-    if (digits < 108.0) 		/* <= 110 digits */
-    {
-        fobj->nfs_obj.pref_degree = 4;
-		get_default_params(digits, &params, params_deg4, num_params_deg4);
-    }
-    else if (digits < 220.0) 		/* 110-220 digits */
-    {
-        fobj->nfs_obj.pref_degree = 5;
-		get_default_params(digits, &params, params_deg5, num_params_deg5);
-    }
-    else				/* 220+ digits */
-    {
-        fobj->nfs_obj.pref_degree = 6;
-		get_default_params(digits, &params, params_deg6, num_params_deg6);
-    }
+	// the degree msieve will search: forced by -degree, otherwise msieve's
+	// own size-based choice.  msieve only has parameters for degrees 4, 5
+	// and 6, each over a limited size range (the tables above, which match
+	// msieve's), and it exits when handed none.  So a forced degree is used
+	// only where its table covers the input; otherwise we warn and fall back.
+	if (digits < 108.0) 		/* <= 110 digits */
+		fobj->nfs_obj.pref_degree = 4;
+	else if (digits < 220.0) 	/* 110-220 digits */
+		fobj->nfs_obj.pref_degree = 5;
+	else						/* 220+ digits */
+		fobj->nfs_obj.pref_degree = 6;
+
+	if (fobj->nfs_obj.user_degree != 0)
+	{
+		int ud = fobj->nfs_obj.user_degree;
+
+		if ((ud >= 4) && (ud <= 6))
+		{
+			if (ud == 4)
+				get_default_params(digits, &params, params_deg4, num_params_deg4);
+			else if (ud == 5)
+				get_default_params(digits, &params, params_deg5, num_params_deg5);
+			else
+				get_default_params(digits, &params, params_deg6, num_params_deg6);
+		}
+
+		if (params.stage2_norm != 0.0)
+		{
+			fobj->nfs_obj.pref_degree = ud;
+			if (fobj->VFLAG >= 0)
+				printf("nfs: forcing gnfs polynomial degree %d\n", ud);
+		}
+		else if (fobj->VFLAG >= 0)
+		{
+			if ((ud >= 4) && (ud <= 6))
+				printf("nfs: no degree-%d poly select parameters for a %1.2f-digit input; "
+					"ignoring -degree %d\n", ud, digits, ud);
+			else
+				printf("nfs: gnfs poly select supports degree 4, 5 or 6; ignoring -degree %d\n", ud);
+		}
+	}
+
+	if (params.stage2_norm == 0.0)
+	{
+		memset(&params, 0, sizeof(params));
+		if (fobj->nfs_obj.pref_degree == 4)
+			get_default_params(digits, &params, params_deg4, num_params_deg4);
+		else if (fobj->nfs_obj.pref_degree == 5)
+			get_default_params(digits, &params, params_deg5, num_params_deg5);
+		else
+			get_default_params(digits, &params, params_deg6, num_params_deg6);
+	}
 
 	//for (j = 0; j < NUM_TIME_LIMITS; j++) 
     //{
@@ -1862,6 +1916,15 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 
 	sprintf(nfs_args + strlen(nfs_args), " poly_verbose=%d",
 		t->fobj->VFLAG);
+
+	// tell msieve the degree chosen in do_msieve_polyselect (forced by -degree
+	// or the size default); a polydegree= in the user's stage1 args comes
+	// first and so still wins.
+	if ((fobj->nfs_obj.pref_degree >= 4) && (fobj->nfs_obj.pref_degree <= 6))
+	{
+		sprintf(nfs_args + strlen(nfs_args), " polydegree=%d",
+			fobj->nfs_obj.pref_degree);
+	}
 
 	// if there is a heuristic early abort, pass it in.
 	if (fobj->nfs_obj.murphy_e_heuristic > 0.0) {

@@ -263,6 +263,10 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.restart_flag = 0;					//default = not a restart
     fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
     fobj->nfs_obj.snfs_testsieve_threshold = 160;
+    fobj->nfs_obj.keep_polys = 3;
+    fobj->nfs_obj.user_degree = 0;
+    fobj->nfs_obj.min_degree = 0;
+    fobj->nfs_obj.max_degree = 0;
     *fobj->nfs_obj.filearg = '\0';
     fobj->nfs_obj.minrels = 0;                      // 0 = default stopping point (heuristic)
     fobj->nfs_obj.poly_testsieve = 390;
@@ -691,6 +695,10 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->nfs_obj.restart_flag = src->nfs_obj.restart_flag;
     dest->nfs_obj.nfs_phases = src->nfs_obj.nfs_phases;
     dest->nfs_obj.snfs_testsieve_threshold = src->nfs_obj.snfs_testsieve_threshold;
+    dest->nfs_obj.keep_polys = src->nfs_obj.keep_polys;
+    dest->nfs_obj.user_degree = src->nfs_obj.user_degree;
+    dest->nfs_obj.min_degree = src->nfs_obj.min_degree;
+    dest->nfs_obj.max_degree = src->nfs_obj.max_degree;
     strcpy(dest->nfs_obj.filearg, src->nfs_obj.filearg);
     dest->nfs_obj.skip_snfs_check = src->nfs_obj.skip_snfs_check;
     dest->nfs_obj.poly_percent_max = src->nfs_obj.poly_percent_max;

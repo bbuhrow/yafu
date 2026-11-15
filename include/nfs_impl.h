@@ -292,6 +292,7 @@ void snfs_copy_poly(snfs_t* src, snfs_t* dest);
 void approx_norms(snfs_t* poly);
 void snfs_scale_difficulty(snfs_t* polys, int npoly, int VFLAG);
 int snfs_rank_polys(fact_obj_t* fobj, snfs_t* polys, int npoly);
+int snfs_filter_degree(fact_obj_t* fobj, snfs_t* polys, int npoly);
 int qcomp_snfs_sdifficulty(const void* x, const void* y);
 int qcomp_snfs_murphy(const void* x, const void* y);
 nfs_job_t* snfs_test_sieve(fact_obj_t* fobj, snfs_t* polys, int npoly, nfs_job_t* jobs, int force_test);
