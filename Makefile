@@ -953,6 +953,7 @@ endif
 # -----------------------------------------------------------------------------
 ECM_SRCS = \
     factor/gmp-ecm/ecm.c \
+    factor/gmp-ecm/ecm_prob.c \
     factor/gmp-ecm/pp1.c \
     factor/gmp-ecm/pm1.c \
     factor/avx-ecm/avxecm.c \

@@ -147,11 +147,18 @@ void init_factobj(fact_obj_t* fobj)
 
     int i;
 
+    // the probability model's tables (shared, built once)
+    ecmprob_init();
+    for (i = 0; i < ECMPROB_NDIG; i++)
+    {
+        fobj->ecm_obj.twork[i] = 0.0;
+    }
     for (i = 0; i < NUM_ECM_LEVELS; i++)
     {
         fobj->ecm_obj.tlevels[i] = 0.0;
     }
     fobj->ecm_obj.total_work = 0.0;
+    memset(&fobj->ecm_obj.last_cp, 0, sizeof(fobj->ecm_obj.last_cp));
 
     for (i = 0; i < (int)fobj->num_threads; i++)
     {
@@ -811,6 +818,10 @@ void reset_factobj(fact_obj_t *fobj)
     // start fresh set of ecm curve statistics
     fobj->ecm_obj.num_records = 0;
 
+    for (i = 0; i < ECMPROB_NDIG; i++)
+    {
+        fobj->ecm_obj.twork[i] = 0.0;
+    }
     for (i = 0; i < NUM_ECM_LEVELS; i++)
     {
         fobj->ecm_obj.tlevels[i] = 0.0;

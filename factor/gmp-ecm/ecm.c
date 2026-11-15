@@ -51,68 +51,127 @@ int ECM_ABORT;
 int TMP_THREADS;
 uint64_t ECM_TMP_STG2_MAX;
 
-void get_ecm_method(fact_obj_t* fobj, uint64_t b1, int* b1_method, int* b2_method)
+// ---------------------------------------------------------------------------
+// curve accounting (docs/ecm_prob.md): every batch of curves is recorded
+// with the parameters it actually ran with (curve family, B1, the covered
+// B2, Brent-Suyama polynomial and stage 2 pairs) and adds its expected
+// finds to ecm_obj->twork[], the expected number of times a d-digit factor
+// would have been found.  The t-level is where that number is 1 and the
+// chance that a d-digit factor was missed is exp(-twork[d]).
+// ---------------------------------------------------------------------------
+
+// GMP-ECM curves (internal library or external binary; sigma given, so
+// param 0, or param 3 on the GPU) with its default or the requested B2
+static void ecm_gmpecm_curve_params(fact_obj_t* fobj, uint64_t b1, int family,
+    ecm_curve_param_t* cp)
 {
-    // what method is currently configured for curves at this b1?
-    // this must consider quite a few user-configurable options and machine state.
+    double B2 = fobj->ecm_obj.stg2_is_default ? 0.0 : (double)fobj->ecm_obj.B2;
+    ecmprob_gmpecm_stage2(cp, (double)b1, B2, 0, family, NULL, NULL);
+}
 
-    *b1_method = 0; // default param 0
-    *b2_method = 0; // default gmp_stg2_default
+#if defined(USE_AVX512F) || defined(USE_AVX2)
+// AVX-ECM curves: what vec_ecm_main will run for this B1 (the FFT stage 2
+// with the automatic or requested B2 and Brent-Suyama polynomial, or the
+// pairing stage 2), for an input of nbits bits
+static void ecm_avxecm_curve_params(fact_obj_t* fobj, uint64_t b1, uint32_t nbits,
+    ecm_curve_param_t* cp)
+{
+    ecm_obj_t* e = &fobj->ecm_obj;
+    uint64_t B2;
 
+    cp->B1 = (double)b1;
+    cp->family = (e->avx_curve == 0) ? ECMPROB_FAM_SUYAMA : ECMPROB_FAM_EDW_IV;
+    cp->bsmodel = ECMPROB_BS_AVXECM;
+    cp->S = 0;
+    cp->nr = 0;
+
+    // as in ecm_loop and vec_ecm_main
+    if (e->stg2_is_default)
+        B2 = e->avx_stg2_fft ? (uint64_t)pow(11.0 / 6.0 * (double)b1, 1.43) : 100 * b1;
+    else
+        B2 = e->B2;
+    cp->B2 = (double)B2;
+    if (B2 <= b1)
+    {
+        cp->B2 = cp->B1;
+        return;
+    }
+    if (e->avx_stg2_fft)
+    {
+        uint64_t cB2;
+        int bs;
+        double pairs;
+        int auto_b2 = (e->avx_stg2_fft == 2) && e->stg2_is_default;
+        if (avxecm_s2fft_plan(nbits, b1, B2, fobj->THREADS, e->avx_stg2_mem, auto_b2,
+            e->avx_stg2_bs, e->avx_curve == 2, &cB2, &bs, &pairs))
+        {
+            cp->B2 = (double)cB2;
+            cp->S = bs;
+            cp->nr = pairs;
+        }
+    }
+}
+#endif
+
+void ecm_plan_curve_params(fact_obj_t* fobj, uint64_t b1, ecm_curve_param_t* cp)
+{
+    // which method runs curves at this b1?  This must consider quite a few
+    // user-configurable options and machine state; mirrors ecm_loop.
+    ecmprob_init();
 #if !(defined(USE_AVX512F) || defined(USE_AVX2))
-    if (1)
+    ecm_gmpecm_curve_params(fobj, b1, ECMPROB_FAM_SUYAMA, cp);
 #else
-    // run ecm curves using gmp-ecm, either the internal or external version,
-    // for at least stg1 and possibly stage 2 (unless prefer_avxecm_stg2 is specified), 
-    // in the following conditions
     if ((fobj->ecm_obj.prefer_gmpecm) ||
         ((fobj->ecm_obj.use_gpuecm) && (b1 > fobj->ecm_obj.ecm_ext_xover)) ||
         (b1 > fobj->ecm_obj.ecm_ext_xover) ||
         (!AVXECM_CPU_OK(fobj)))
-#endif
     {
-
-        if ((fobj->ecm_obj.use_gpuecm) && (b1 > fobj->ecm_obj.ecm_ext_xover))
-        {
-            *b1_method = 3;
-            *b2_method = 0;
-        }
-        else
-        {
-            *b1_method = 0;
-            *b2_method = 0;
-        }
+        ecm_gmpecm_curve_params(fobj, b1,
+            ((fobj->ecm_obj.use_gpuecm) && (b1 > fobj->ecm_obj.ecm_ext_xover)) ?
+            ECMPROB_FAM_P3 : ECMPROB_FAM_SUYAMA, cp);
+    }
+    else if (fobj->ecm_obj.prefer_gmpecm_stg2)
+    {
+        // AVX-ECM stage 1, GMP-ECM stage 2 on the saved residues
+        ecm_gmpecm_curve_params(fobj, b1, (fobj->ecm_obj.avx_curve == 0) ?
+            ECMPROB_FAM_SUYAMA : ECMPROB_FAM_EDW_IV, cp);
     }
     else
     {
-        if (fobj->ecm_obj.prefer_gmpecm_stg2)
-        {
-            *b1_method = 0;
-            *b2_method = 0;
-        }
-        else
-        {
-            *b1_method = 0;
-            *b2_method = 100;   // for B2=100*B1
-        }
+        uint32_t nbits = (uint32_t)mpz_sizeinbase(fobj->N, 2);
+        if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) > 0)
+            nbits = (uint32_t)mpz_sizeinbase(fobj->ecm_obj.gmp_n, 2);
+        ecm_avxecm_curve_params(fobj, b1, nbits, cp);
     }
+#endif
     return;
+}
+
+// the work grid's values at the standard levels and the t-level
+static void ecm_work_sync(ecm_obj_t* ecm_obj)
+{
+    int i;
+    for (i = 0; i < NUM_ECM_LEVELS; i++)
+    {
+        int d = ecm_levels[i] - ECMPROB_DMIN;
+        ecm_obj->tlevels[i] = ((d >= 0) && (d < ECMPROB_NDIG)) ? ecm_obj->twork[d] : 0.0;
+    }
+    ecm_obj->total_work = ecmprob_work_tlevel(ecm_obj->twork);
 }
 
 void print_std_ecm_work_done(ecm_obj_t* ecm_obj, int disp_levels, FILE* log, int VFLAG, int LOGFLAG)
 {
-    // there is probably a more elegant way to do this involving dickman's function
-    // or something, but we can get a reasonable estimate using empirical data
-    // for our fixed set of B1/B2 values.
+    // the expected finds at the standard t-levels (1.00 = a full t-level),
+    // then the chance that a factor of each size was missed
     double* tlevels = ecm_obj->tlevels;
-    int i;
+    char miss[256];
+    int i, j, d;
 
     if (LOGFLAG && (log != NULL))
     {
         logprint(log, "ecm work completed:\n");
     }
 
-    // compute the %done of each tlevel
     for (i = 0; i < NUM_ECM_LEVELS - 1; i++)
     {
         if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
@@ -125,45 +184,70 @@ void print_std_ecm_work_done(ecm_obj_t* ecm_obj, int disp_levels, FILE* log, int
             logprint(log, "\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
         }
     }
+
+    // miss chances at multiples of 5 digits from just below the t-level
+    // until a factor would almost surely have been missed
+    j = 0;
+    miss[0] = '\0';
+    for (d = 5 * (int)(ecm_obj->total_work / 5.0); d <= ECMPROB_DMAX; d += 5)
+    {
+        double m;
+        if (d < 15)
+            continue;
+        m = exp(-ecmprob_work_at(ecm_obj->twork, (double)d));
+        if (m < 0.0005)
+            continue;
+        j += snprintf(miss + j, sizeof(miss) - (size_t)j, "%sp%d %1.1f%%", j ? ", " : "", d, 100.0 * m);
+        if ((m > 0.95) || (j > 200))
+            break;
+    }
+
+    if (ecm_obj->tlevels[0] > 0.01)
+    {
+        if ((VFLAG >= 1) && disp_levels && (j > 0))
+        {
+            printf("\tchance of a missed factor: %s\n", miss);
+        }
+        if (LOGFLAG && (log != NULL) && (j > 0))
+        {
+            logprint(log, "\tchance of a missed factor: %s\n", miss);
+        }
+    }
 }
 
-void record_curves_completed(ecm_obj_t* ecm_obj, int curves, uint64_t b1, int b1_method, int b2_method)
+void record_curves_completed(ecm_obj_t* ecm_obj, int curves, const ecm_curve_param_t* cp)
 {
     int i;
-    int found = 0;
+    uint64_t b1 = (uint64_t)cp->B1, b2 = (uint64_t)cp->B2;
+
+    if (curves <= 0)
+        return;
+
     for (i = 0; i < ecm_obj->num_records; i++)
     {
         if ((b1 == ecm_obj->curve_b1_rec[i]) &&
-            (b2_method == ecm_obj->curve_b2_rec[i]) &&
-            (b1_method == ecm_obj->param_rec[i]))
+            (b2 == ecm_obj->curve_b2_rec[i]) &&
+            (cp->family == ecm_obj->param_rec[i]))
         {
             // add to the number already completed with these same parameters
             ecm_obj->num_rec[i] += curves;
-            found = 1;
             break;
         }
     }
 
-    if (!found)
+    if (i == ecm_obj->num_records)
     {
-        // if we didn't add to an existing record, make a new one.
-        if (i == 0)
+        // add a new record for these curves
+        ecm_obj->num_records++;
+        if (ecm_obj->num_records == 1)
         {
-            ecm_obj->num_records++;
-            ecm_obj->curve_b1_rec = (uint64_t*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(uint64_t));
-            ecm_obj->curve_b2_rec = (uint64_t*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(uint64_t));
-            ecm_obj->param_rec = (int*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(int));
-            ecm_obj->num_rec = (int*)xmalloc((unsigned long)ecm_obj->num_records * sizeof(int));
-
-            ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
-            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = (uint64_t)b2_method;
-            ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
-            ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
+            ecm_obj->curve_b1_rec = (uint64_t*)xmalloc(sizeof(uint64_t));
+            ecm_obj->curve_b2_rec = (uint64_t*)xmalloc(sizeof(uint64_t));
+            ecm_obj->param_rec = (int*)xmalloc(sizeof(int));
+            ecm_obj->num_rec = (int*)xmalloc(sizeof(int));
         }
-        else if (i == ecm_obj->num_records)
+        else
         {
-            // add a new record for these curves
-            ecm_obj->num_records++;
             ecm_obj->curve_b1_rec = (uint64_t*)xrealloc(ecm_obj->curve_b1_rec,
                 (unsigned long)ecm_obj->num_records * sizeof(uint64_t));
             ecm_obj->curve_b2_rec = (uint64_t*)xrealloc(ecm_obj->curve_b2_rec,
@@ -172,237 +256,36 @@ void record_curves_completed(ecm_obj_t* ecm_obj, int curves, uint64_t b1, int b1
                 (unsigned long)ecm_obj->num_records * sizeof(int));
             ecm_obj->num_rec = (int*)xrealloc(ecm_obj->num_rec,
                 (unsigned long)ecm_obj->num_records * sizeof(int));
-
-            ecm_obj->curve_b1_rec[ecm_obj->num_records - 1] = b1;
-            ecm_obj->curve_b2_rec[ecm_obj->num_records - 1] = (uint64_t)b2_method;
-            ecm_obj->param_rec[ecm_obj->num_records - 1] = b1_method;
-            ecm_obj->num_rec[ecm_obj->num_records - 1] = curves;
         }
+        ecm_obj->curve_b1_rec[i] = b1;
+        ecm_obj->curve_b2_rec[i] = b2;
+        ecm_obj->param_rec[i] = cp->family;
+        ecm_obj->num_rec[i] = curves;
     }
 
-    // add to the total work if the parameters are something we have tables for
-    int level = -1;
-    switch (b1)
-    {
-    case 2000: level = 0; break;
-    case 11000: level = 1; break;
-    case 50000: level = 2; break;
-    case 250000: level = 3; break;
-    case 1000000: level = 4; break;
-    case 3000000: level = 5; break;
-    case 11000000: level = 6; break;
-    case 43000000: level = 7; break;
-    case 110000000: level = 8; break;
-    case 260000000: level = 9; break;
-    case 850000000: level = 10; break;
-    }
-
-    if (level >= 0)
-    {
-        // we completed curves at a recognized B1 level.
-        // all t-levels are increased by completing these curves.
-        if ((b2_method == 100) && (b1_method == 0))
-        {
-            for (i = 0; i < NUM_ECM_LEVELS; i++)
-            {
-                ecm_obj->tlevels[i] += (double)curves / avx_ecm_data[i][level];
-            }
-        }
-        else if ((b1_method == 0) || (b1_method == 2))
-        {
-            for (i = 0; i < NUM_ECM_LEVELS; i++)
-            {
-                ecm_obj->tlevels[i] += (double)curves / ecm_data_param0[i][level];
-            }
-        }
-        else if (b1_method == 1)
-        {
-            for (i = 0; i < NUM_ECM_LEVELS; i++)
-            {
-                ecm_obj->tlevels[i] += (double)curves / ecm_data_param1[i][level];
-            }
-        }
-        else if (b1_method == 3)
-        {
-            for (i = 0; i < NUM_ECM_LEVELS; i++)
-            {
-                ecm_obj->tlevels[i] += (double)curves / ecm_data_param3[i][level];
-            }
-        }
-    }
-
-    // find the first tlevel less than 1
-    for (i = 0; i < NUM_ECM_LEVELS; i++)
-    {
-        if (ecm_obj->tlevels[i] < 1)
-        {
-            break;
-        }
-    }
-
-    // estimate total work done by extrapolating between this and the previous one
-    // assuming they are all spaced 5 digits apart.
-    if (i == 0)
-    {
-        ecm_obj->total_work = 0.0;
-    }
-    else
-    {
-        ecm_obj->total_work = ecm_levels[i - 1] + 5 * ecm_obj->tlevels[i];
-    }
-
+    // all t-levels are increased by completing these curves
+    ecmprob_work_add(ecm_obj->twork, cp, (double)curves);
+    ecm_work_sync(ecm_obj);
     return;
 }
 
-uint32_t get_curves_for_tlevel(int tlevel, int b1_method, int b2_method)
+uint32_t get_curves_for_tlevel(int tlevel, const ecm_curve_param_t* cp)
 {
-    uint32_t max_curves = 0;
+    // curves of this kind for one full t-level at ecm_levels[tlevel] digits
+    double n;
 
-    if ((tlevel >= 0) && (tlevel < (NUM_ECM_LEVELS - 1)))
-    {
-        if ((b2_method == 100) && (b1_method == 0))
-        {
-            max_curves = (uint32_t)avx_ecm_data[tlevel][tlevel];
-        }
-        else if ((b1_method == 0) || (b1_method == 2))
-        {
-            max_curves = (uint32_t)ecm_data_param0[tlevel][tlevel];
-        }
-        else if (b1_method == 1)
-        {
-            max_curves = (uint32_t)ecm_data_param1[tlevel][tlevel];
-        }
-        else if (b1_method == 3)
-        {
-            max_curves = (uint32_t)ecm_data_param3[tlevel][tlevel];
-        }
-        else
-        {
-            max_curves = 0;
-        }
-    }
-    else
-    {
-        max_curves = 0;
-    }
-
-    return max_curves;
+    if ((tlevel < 0) || (tlevel >= (NUM_ECM_LEVELS - 1)))
+        return 0;
+    n = ceil(ecmprob_curves(cp, (double)ecm_levels[tlevel]));
+    return (n < 4e9) ? (uint32_t)n : 4000000000u;
 }
 
-uint32_t get_curves_required(ecm_obj_t* ecm_obj, double target_tlevel, uint64_t b1, int b1_method, int b2_method)
+uint32_t get_curves_required(ecm_obj_t* ecm_obj, double target_tlevel, const ecm_curve_param_t* cp)
 {
-    // with the given b1, completed work record, and b1/b2 methods,
-    // compute how many curves would be required to achieve the target t-level.
-    int i;
-    uint32_t est_curves;
-
-    // which ecm level is this B1?
-    int level = -1;
-    switch (b1)
-    {
-    case 2000: level = 0; break;
-    case 11000: level = 1; break;
-    case 50000: level = 2; break;
-    case 250000: level = 3; break;
-    case 1000000: level = 4; break;
-    case 3000000: level = 5; break;
-    case 11000000: level = 6; break;
-    case 43000000: level = 7; break;
-    case 110000000: level = 8; break;
-    case 260000000: level = 9; break;
-    case 850000000: level = 10; break;
-    }
-
-    // copy of the current work completed.
-    double tlevels[NUM_ECM_LEVELS];
-
-    if (level >= 0)
-    {
-        // binary search for a number of curves between none and a lot,
-        // restoring the actual number of curves completed after each guess.
-        uint32_t curves_low = 0;
-        uint32_t curves_high = 1000000000;
-        uint32_t curves = (curves_high - curves_low) / 2;
-
-        while ((curves_high - curves_low) > 2)
-        {
-            double est_work;
-
-            memcpy(tlevels, ecm_obj->tlevels, NUM_ECM_LEVELS * sizeof(double));
-
-            // we are estimating completed curves at a recognized B1 level.
-            // all t-levels are increased by completing these curves.
-            if ((b2_method == 100) && (b1_method == 0))
-            {
-                for (i = 0; i < NUM_ECM_LEVELS; i++)
-                {
-                    tlevels[i] += (double)curves / avx_ecm_data[i][level];
-                }
-            }
-            else if ((b1_method == 0) || (b1_method == 2))
-            {
-                for (i = 0; i < NUM_ECM_LEVELS; i++)
-                {
-                    tlevels[i] += (double)curves / ecm_data_param0[i][level];
-                }
-            }
-            else if (b1_method == 1)
-            {
-                for (i = 0; i < NUM_ECM_LEVELS; i++)
-                {
-                    tlevels[i] += (double)curves / ecm_data_param1[i][level];
-                }
-            }
-            else if (b1_method == 3)
-            {
-                for (i = 0; i < NUM_ECM_LEVELS; i++)
-                {
-                    tlevels[i] += (double)curves / ecm_data_param3[i][level];
-                }
-            }
-
-            // find the first tlevel less than 1
-            for (i = 0; i < (NUM_ECM_LEVELS - 1); i++)
-            {
-                if (tlevels[i] < 1)
-                {
-                    break;
-                }
-            }
-
-            // estimate total work done by extrapolating between this and the previous one
-            // assuming they are all spaced 5 digits apart.
-            if (i == 0)
-            {
-                est_work = 0.0;
-            }
-            else
-            {
-                est_work = ecm_levels[i - 1] + 5.0 * tlevels[i];
-            }
-
-            if (est_work > target_tlevel)
-            {
-                curves_high = curves;
-                curves = (curves_high + curves_low) / 2;
-            }
-            else
-            {
-                curves_low = curves;
-                curves = (curves_high + curves_low) / 2;
-            }
-        }
-
-        est_curves = curves;
-    }
-    else
-    {
-        // outside of the defined curve tables, just return an 
-        // arbitrarily large number of curves
-        est_curves = 1000000000;
-    }
-
-    return est_curves;
+    // with the completed work and curves of this kind, how many more
+    // curves reach the target t-level
+    uint32_t n = ecmprob_work_curves_to(ecm_obj->twork, cp, target_tlevel);
+    return (n < 1000000000u) ? n : 1000000000u;
 }
 
 void split_residue_file(int curves_run, int nthreads, char* base_filename)
@@ -1022,16 +905,18 @@ int ecm_loop(fact_obj_t *fobj)
 
             free(tpool_data);
 
-            // we just completed GPU (param3) curves
-            record_curves_completed(&fobj->ecm_obj, total_curves_run, 
-                fobj->ecm_obj.B1, 0, 3);
+            // we just completed GPU (param 3) curves
+            ecm_curve_param_t cp;
+            ecm_gmpecm_curve_params(fobj, fobj->ecm_obj.B1, ECMPROB_FAM_P3, &cp);
+            record_curves_completed(&fobj->ecm_obj, total_curves_run, &cp);
 
         }
         else
         {
-            // we just completed standard (param0) curves
-            record_curves_completed(&fobj->ecm_obj, total_curves_run, 
-                fobj->ecm_obj.B1, 0, 0);
+            // we just completed standard (param 0) curves
+            ecm_curve_param_t cp;
+            ecm_gmpecm_curve_params(fobj, fobj->ecm_obj.B1, ECMPROB_FAM_SUYAMA, &cp);
+            record_curves_completed(&fobj->ecm_obj, total_curves_run, &cp);
         }
 
         if (fobj->VFLAG >= 0)
@@ -1243,15 +1128,19 @@ int ecm_loop(fact_obj_t *fobj)
                 printf("ecm: total stage2 elasped time = %1.2f\n", stg2time);
             }
 
-            // we just completed standard (param0) curves, stage 1 with avx-ecm and stage 2 with gmp-ecm
-            record_curves_completed(&fobj->ecm_obj, total_curves_run,
-                fobj->ecm_obj.B1, 0, 0);
+            // we just completed curves with stage 1 by avx-ecm (its curve
+            // family) and stage 2 by gmp-ecm (its default or the requested B2)
+            ecm_curve_param_t cp;
+            ecm_gmpecm_curve_params(fobj, fobj->ecm_obj.B1, (fobj->ecm_obj.avx_curve == 0) ?
+                ECMPROB_FAM_SUYAMA : ECMPROB_FAM_EDW_IV, &cp);
+            record_curves_completed(&fobj->ecm_obj, total_curves_run, &cp);
         }
         else
         {
-            // we just completed standard (param0) curves, with reduced and simplified B2
+            // we just completed avx-ecm curves: their family, B2 and
+            // Brent-Suyama polynomial as vec_ecm_main ran them
             record_curves_completed(&fobj->ecm_obj, (int)curves_run,
-                fobj->ecm_obj.B1, 0, 100);
+                &fobj->ecm_obj.last_cp);
         }
 
         // this is how we tell factor() to stop running curves at this level

@@ -974,6 +974,28 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
         for (i = 0; i < threads; i++)
             tdata[i].s2fft = s2;
+
+        // the curves as they will run, for the t-level accounting
+        // (ecm_prob.h; the caller records them with the curve count)
+        {
+            ecm_curve_param_t *cp = &fobj->ecm_obj.last_cp;
+            cp->B1 = (double)tdata[0].STAGE1_MAX;
+            cp->family = (fobj->ecm_obj.avx_curve == AVXECM_CURVE_SUYAMA) ?
+                ECMPROB_FAM_SUYAMA : ECMPROB_FAM_EDW_IV;
+            cp->bsmodel = ECMPROB_BS_AVXECM;
+            cp->S = 0;
+            cp->nr = 0;
+            if (!tdata[0].DO_STAGE2 || (tdata[0].STAGE2_MAX <= tdata[0].STAGE1_MAX))
+                cp->B2 = cp->B1;
+            else if (s2 != NULL)
+            {
+                uint64_t cB2;
+                avxecm_s2fft_info(s2, &cB2, &cp->S, &cp->nr);
+                cp->B2 = (double)cB2;
+            }
+            else
+                cp->B2 = (double)tdata[0].STAGE2_MAX;     // pairing stage 2
+        }
     }
 
 	gettimeofday(&stopt, NULL);

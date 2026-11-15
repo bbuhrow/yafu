@@ -1584,10 +1584,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		}
 	}
 
-	// get the current amount of work done - only print status prior to 
+	// get the current amount of work done - only print status prior to
 	// ecm steps
 	uint32_t curves;
-	int b1_method, b2_method;
+	ecm_curve_param_t cp;
 
 	switch (next_state)
 	{
@@ -1611,9 +1611,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			if (fobj->VFLAG >= 1)
 				printf("fac: estimated sum of completed work is t%1.6f\n", fobj->ecm_obj.total_work);
 
-			get_ecm_method(fobj, ecm_std_b1[next_state - state_ecm_15digit], &b1_method, &b2_method);
-			curves = get_curves_required(&fobj->ecm_obj, target_digits,
-				ecm_std_b1[next_state - state_ecm_15digit], b1_method, b2_method);
+			ecm_plan_curve_params(fobj, ecm_std_b1[next_state - state_ecm_15digit], &cp);
+			curves = get_curves_required(&fobj->ecm_obj, target_digits, &cp);
 
 			if ((fobj->ecm_obj.total_work > target_digits) ||
 				(curves == 0))
@@ -1763,7 +1762,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	// probably there is a more elegant way to compute this, but this seems
 	// to work.
 	uint32_t work_low, work_high, work;
-	int b1_method, b2_method;
+	ecm_curve_param_t cp;
 	uint64_t b1 = ecm_std_b1[state - state_ecm_15digit];
 
 	// if there is a user specified pretest value, use it, regardless if it
@@ -1774,8 +1773,16 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
     }
 
 	work_low = get_ecm_curves_done(fwork, state);
-	get_ecm_method(fobj, b1, &b1_method, &b2_method);
-	work_high = get_curves_for_tlevel((int)(state - state_ecm_15digit), b1_method, b2_method);
+	ecm_plan_curve_params(fobj, b1, &cp);
+	work_high = get_curves_for_tlevel((int)(state - state_ecm_15digit), &cp);
+
+	if (fobj->VFLAG >= 2)
+	{
+		printf("fac: curves at B1=%" PRIu64 ": %s, B2=%1.4g, Brent-Suyama %d, %1.4g pairs, "
+			"%1.4g curves per t%d\n", b1, ecmprob_family_name(cp.family), cp.B2, cp.S, cp.nr,
+			ecmprob_curves(&cp, (double)ecm_levels[state - state_ecm_15digit]),
+			ecm_levels[state - state_ecm_15digit]);
+	}
 
     if (fobj->VFLAG >= 1)
     {
@@ -1783,7 +1790,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
             fwork->B1, work_low, work_high);
     }
 
-	work = get_curves_required(&fobj->ecm_obj, target_digits, b1, b1_method, b2_method);
+	work = get_curves_required(&fobj->ecm_obj, target_digits, &cp);
 
 	set_ecm_curves_done(fwork, state, work_low);
 	fwork->curves = (uint32_t)ceil(work);
@@ -1817,44 +1824,31 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
-	int b1_method, b2_method, tlevel;
+	int tlevel;
+	ecm_curve_param_t cp;
+	uint32_t maxc[NUM_ECM_LEVELS - 1];
 
 	fwork->target_job_type = job_unknown;
 	fwork->snfs_equiv_size = 0;
 
-	// initialize max allowed work fields
-	get_ecm_method(fobj, ecm_std_b1[0], &b1_method, &b2_method);
-	fwork->ecm_max_15digit_curves = get_curves_for_tlevel(0, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[1], &b1_method, &b2_method);
-	fwork->ecm_max_20digit_curves = get_curves_for_tlevel(1, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[2], &b1_method, &b2_method);
-	fwork->ecm_max_25digit_curves = get_curves_for_tlevel(2, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[3], &b1_method, &b2_method);
-	fwork->ecm_max_30digit_curves = get_curves_for_tlevel(3, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[4], &b1_method, &b2_method);
-	fwork->ecm_max_35digit_curves = get_curves_for_tlevel(4, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[5], &b1_method, &b2_method);
-	fwork->ecm_max_40digit_curves = get_curves_for_tlevel(5, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[6], &b1_method, &b2_method);
-	fwork->ecm_max_45digit_curves = get_curves_for_tlevel(6, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[7], &b1_method, &b2_method);
-	fwork->ecm_max_50digit_curves = get_curves_for_tlevel(7, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[8], &b1_method, &b2_method);
-	fwork->ecm_max_55digit_curves = get_curves_for_tlevel(8, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[9], &b1_method, &b2_method);
-	fwork->ecm_max_60digit_curves = get_curves_for_tlevel(9, b1_method, b2_method);
-
-	get_ecm_method(fobj, ecm_std_b1[10], &b1_method, &b2_method);
-	fwork->ecm_max_65digit_curves = get_curves_for_tlevel(10, b1_method, b2_method);
+	// initialize max allowed work fields: one full t-level at each B1,
+	// with the curves that B1 would run
+	for (tlevel = 0; tlevel < NUM_ECM_LEVELS - 1; tlevel++)
+	{
+		ecm_plan_curve_params(fobj, ecm_std_b1[tlevel], &cp);
+		maxc[tlevel] = get_curves_for_tlevel(tlevel, &cp);
+	}
+	fwork->ecm_max_15digit_curves = maxc[0];
+	fwork->ecm_max_20digit_curves = maxc[1];
+	fwork->ecm_max_25digit_curves = maxc[2];
+	fwork->ecm_max_30digit_curves = maxc[3];
+	fwork->ecm_max_35digit_curves = maxc[4];
+	fwork->ecm_max_40digit_curves = maxc[5];
+	fwork->ecm_max_45digit_curves = maxc[6];
+	fwork->ecm_max_50digit_curves = maxc[7];
+	fwork->ecm_max_55digit_curves = maxc[8];
+	fwork->ecm_max_60digit_curves = maxc[9];
+	fwork->ecm_max_65digit_curves = maxc[10];
 
 	fwork->tdiv_limit = 0;
 	fwork->tdiv_max_limit = fobj->div_obj.limit;
@@ -1908,13 +1902,10 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		while ((fobj->ecm_obj.total_work < fwork->initial_work) && (tlevel < (NUM_ECM_LEVELS - 1)))
 		{
 			uint64_t b1 = ecm_std_b1[tlevel];
-			get_ecm_method(fobj, b1, &b1_method, &b2_method);
-			uint32_t curves = get_curves_required(&fobj->ecm_obj, fwork->initial_work, b1, b1_method, b2_method) + 1;
-			//printf("%u curves required at tlevel %d for method %d,%d\n", curves, tlevel, b1_method, b2_method);
-			curves = MIN(curves, get_curves_for_tlevel(tlevel, b1_method, b2_method));
-			//printf("recording %u of max %u curves for tlevel %d\n", 
-			//	curves, get_curves_for_tlevel(tlevel, b1_method, b2_method), tlevel);
-			record_curves_completed(&fobj->ecm_obj, (int)curves, b1, b1_method, b2_method);
+			ecm_plan_curve_params(fobj, b1, &cp);
+			uint32_t curves = get_curves_required(&fobj->ecm_obj, fwork->initial_work, &cp) + 1;
+			curves = MIN(curves, maxc[tlevel]);
+			record_curves_completed(&fobj->ecm_obj, (int)curves, &cp);
 			//printf("total work is now %1.4lf\n", fobj->ecm_obj.total_work);
 
 			switch (tlevel)
@@ -2041,6 +2032,7 @@ typedef struct
 {
 	mpz_t n;
 	factor_work_t fwork;
+	double twork[ECMPROB_NDIG];
 	double tlevels[NUM_ECM_LEVELS];
 	double total_work;
 } work_snap_t;
@@ -2104,6 +2096,7 @@ static void work_snaps_switch(work_snap_list_t* L, fact_obj_t* fobj,
 		w = &L->s[L->num++];
 		mpz_init_set(w->n, flist->factors[i].factor);
 		w->fwork = *fwork;
+		memcpy(w->twork, fobj->ecm_obj.twork, sizeof(w->twork));
 		memcpy(w->tlevels, fobj->ecm_obj.tlevels, sizeof(w->tlevels));
 		w->total_work = fobj->ecm_obj.total_work;
 	}
@@ -2113,6 +2106,7 @@ static void work_snaps_switch(work_snap_list_t* L, fact_obj_t* fobj,
 	if (id >= 0)
 	{
 		*fwork = L->s[id].fwork;
+		memcpy(fobj->ecm_obj.twork, L->s[id].twork, sizeof(L->s[id].twork));
 		memcpy(fobj->ecm_obj.tlevels, L->s[id].tlevels, sizeof(L->s[id].tlevels));
 		fobj->ecm_obj.total_work = L->s[id].total_work;
 		fobj->autofact_obj.ecm_total_work_performed = L->s[id].total_work;

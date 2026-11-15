@@ -39,6 +39,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c">
       <Filter>Source Files\gmp-ecm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\ecm_prob.c">
+      <Filter>Source Files\gmp-ecm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c">
       <Filter>Source Files\gmp-ecm</Filter>
     </ClCompile>

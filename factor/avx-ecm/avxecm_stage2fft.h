@@ -31,6 +31,16 @@ typedef struct avxecm_s2fft_s avxecm_s2fft_t;
 avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
     int threads, double mem_mb, int auto_b2, int bs, int edw_stage1, int verbose);
 uint64_t avxecm_s2fft_B2(avxecm_s2fft_t *s);
+// the covered B2, Brent-Suyama polynomial and stage 2 pairs (baby roots x
+// giant steps) of a setup, for the ECM probability model (ecm_prob.h)
+void avxecm_s2fft_info(avxecm_s2fft_t *s, uint64_t *B2, int *bs, double *pairs);
+// what avxecm_s2fft_setup would choose for an nbits-bit modulus, without
+// building it (bs may be AVXECM_BS_DEFAULT, resolved as setup's caller
+// does): returns 0 if the FFT stage 2 is unavailable, else 1 with the
+// covered B2, the polynomial and the pairs
+int avxecm_s2fft_plan(uint32_t nbits, uint64_t B1, uint64_t B2, int threads,
+    double mem_mb, int auto_b2, int bs, int edw_stage1,
+    uint64_t *B2out, int *bsout, double *pairs);
 void avxecm_s2fft_free(avxecm_s2fft_t *s);
 
 #endif

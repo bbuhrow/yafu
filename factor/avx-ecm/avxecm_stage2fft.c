@@ -530,25 +530,23 @@ static int s2_auto_bs(int n, uint64_t B1, uint64_t B2, int threads, double cap, 
     return bbs;
 }
 
-// Shared setup (see avxecm_stage2fft.h).  Order: resolve the polynomial
-// option; automatic B2 (with the polynomial when bs is AVXECM_BS_AUTO) or,
-// for a fixed B2, the automatic polynomial; then the least-cost (t, k,
-// lean) within the memory limit; then D, S1, j0, the block count and the
-// covered B2, and the vecpoly context (NTT primes, twiddles, CRT tables)
-// shared read-only by all threads.  Per-thread state is allocated lazily
-// by the first avxecm_s2fft_run of each thread.
-avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
-    int threads, double mem_mb, int auto_b2, int bs, int edw_stage1, int verbose)
+// The configuration avxecm_s2fft_setup builds, for a modulus of n words.
+// Order: resolve the polynomial option; automatic B2 (with the polynomial
+// when bs is AVXECM_BS_AUTO) or, for a fixed B2, the automatic polynomial;
+// then the least-cost (t, k, lean) within the memory limit.  Returns 0 if
+// the FFT stage 2 is unavailable, else 1 with *B2io (the requested or
+// automatic bound, before rounding up to whole blocks), *bsio, *auto_b2io
+// (0 if the automatic B2 found nothing) and the configuration.
+static int s2_choose(int n, uint64_t B1, uint64_t *B2io, int threads, double mem_mb,
+    int *auto_b2io, int *bsio, int edw_stage1, uint32_t *bsMo, int *bto, int *bko,
+    int *blo, double *bmemo, double *bctxo, double *aratio, double *adig)
 {
-    avxecm_s2fft_t *s;
-    int n, t, bt = 0, bk = 1, bl = 0, bs_auto = (bs == AVXECM_BS_AUTO);
+    int bt = 0, bk = 1, bl = 0, bs = *bsio, bs_auto = (bs == AVXECM_BS_AUTO);
+    int auto_b2 = *auto_b2io;
     uint32_t bsM = 0;                       // 0: s2_bs_m per configuration
+    uint64_t B2 = *B2io;
     double bmem = 0, bctx = 0, cap = mem_mb * 1048576.0;
-    double aratio = 0, adig = 0;
-    uint32_t j;
 
-    if (mpz_even_p(N))
-        return NULL;
     s2_c1 = edw_stage1 ? s2m.c1e : s2m.c1;
     if (threads < 1) threads = 1;
     // Brent-Suyama: |S| <= 1 is the plain stage 2; |S| <= 32
@@ -566,12 +564,10 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
             bsM = (uint32_t)atoi(e);
         while (bsM & (bsM - 1)) bsM &= bsM - 1;    // power of 2
     }
-    n = (int)((mpz_sizeinbase(N, 2) + 3 + 51) / 52);
-    if (n < 2) n = 2;
 
     if (auto_b2)
     {
-        uint64_t aB2 = s2_auto_B2(n, B1, threads, cap, &bs, bsM, &bt, &bk, &bl, &aratio, &adig);
+        uint64_t aB2 = s2_auto_B2(n, B1, threads, cap, &bs, bsM, &bt, &bk, &bl, aratio, adig);
         if (aB2 > B1)
         {
             B2 = aB2;
@@ -586,9 +582,9 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
         }
     }
     if (B2 <= B1)
-        return NULL;
+        return 0;
     if (bs == AVXECM_BS_AUTO)
-        bs = s2_auto_bs(n, B1, B2, threads, cap, bsM, &adig);
+        bs = s2_auto_bs(n, B1, B2, threads, cap, bsM, adig);
 
     if (bt == 0)                    // fixed B2 (or auto found nothing)
         s2_fixed_cfg(n, B1, B2, threads, cap, bs, bsM, &bt, &bk, &bl, &bmem, &bctx);
@@ -604,6 +600,81 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
         }
     }
     if (bt == 0)
+        return 0;
+
+    *B2io = B2;
+    *auto_b2io = auto_b2;
+    *bsio = bs;
+    *bsMo = bsM;
+    *bto = bt; *bko = bk; *blo = bl;
+    *bmemo = bmem; *bctxo = bctx;
+    return 1;
+}
+
+// giant steps j = j0 .. j0 + blocks*dF - 1 for D = s2_D[t] cover
+// (j0 D - D/2, *B2c] with *B2c >= B2; returns the block count
+static uint32_t s2_blocks(int t, uint64_t B1, uint64_t B2, uint64_t *j0o, uint64_t *B2c)
+{
+    uint64_t D = s2_D[t], dF = (uint64_t)1 << t, j0 = (B1 + D / 2) / D;
+    uint32_t blocks;
+    if (j0 < 1) j0 = 1;
+    blocks = (uint32_t)((B2 + D / 2 - j0 * D) / (dF * D) + 1);
+    *j0o = j0;
+    *B2c = (j0 + (uint64_t)blocks * dF - 1) * D + D / 2 - 1;
+    return blocks;
+}
+
+int avxecm_s2fft_plan(uint32_t nbits, uint64_t B1, uint64_t B2, int threads,
+    double mem_mb, int auto_b2, int bs, int edw_stage1,
+    uint64_t *B2out, int *bsout, double *pairs)
+{
+    int n = (int)((nbits + 3 + 51) / 52), bt, bk, bl;
+    uint32_t bsM, blocks;
+    uint64_t j0, B2c;
+    double bmem, bctx, aratio = 0, adig = 0;
+
+    if (n < 2) n = 2;
+    if (bs == AVXECM_BS_DEFAULT)
+        bs = auto_b2 ? AVXECM_BS_AUTO : 0;
+    if (!s2_choose(n, B1, &B2, threads, mem_mb, &auto_b2, &bs, edw_stage1,
+        &bsM, &bt, &bk, &bl, &bmem, &bctx, &aratio, &adig))
+        return 0;
+    blocks = s2_blocks(bt, B1, B2, &j0, &B2c);
+    *B2out = B2c;
+    *bsout = bs;
+    *pairs = s2_nbaby(s2_D[bt]) * (double)blocks * (double)(1u << bt);
+    return 1;
+}
+
+void avxecm_s2fft_info(avxecm_s2fft_t *s, uint64_t *B2, int *bs, double *pairs)
+{
+    *B2 = s->B2;
+    *bs = s->bs;
+    *pairs = (double)s->nbaby * (double)s->blocks * (double)s->dF;
+}
+
+// Shared setup (see avxecm_stage2fft.h): the configuration (s2_choose),
+// then D, S1, j0, the block count and the covered B2, and the vecpoly
+// context (NTT primes, twiddles, CRT tables) shared read-only by all
+// threads.  Per-thread state is allocated lazily by the first
+// avxecm_s2fft_run of each thread.
+avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
+    int threads, double mem_mb, int auto_b2, int bs, int edw_stage1, int verbose)
+{
+    avxecm_s2fft_t *s;
+    int n, t, bt = 0, bk = 1, bl = 0, bs_auto = (bs == AVXECM_BS_AUTO);
+    uint32_t bsM = 0;
+    double bmem = 0, bctx = 0;
+    double aratio = 0, adig = 0;
+    uint32_t j;
+
+    if (mpz_even_p(N))
+        return NULL;
+    if (threads < 1) threads = 1;
+    n = (int)((mpz_sizeinbase(N, 2) + 3 + 51) / 52);
+    if (n < 2) n = 2;
+    if (!s2_choose(n, B1, &B2, threads, mem_mb, &auto_b2, &bs, edw_stage1,
+        &bsM, &bt, &bk, &bl, &bmem, &bctx, &aratio, &adig))
         return NULL;
 
     s = (avxecm_s2fft_t *)calloc(1, sizeof(avxecm_s2fft_t));
@@ -640,11 +711,8 @@ avxecm_s2fft_t *avxecm_s2fft_setup(mpz_t N, uint64_t B1, uint64_t B2,
         if (s2_gcd(j, s->D) == 1)
             s->baby[s->nbaby++] = j;
 
-    // giant steps j = j0 .. j0 + blocks*dF - 1 cover (j0 D - D/2, ...)
-    s->j0 = (B1 + s->D / 2) / s->D;
-    if (s->j0 < 1) s->j0 = 1;
-    s->blocks = (uint32_t)((B2 + s->D / 2 - s->j0 * s->D) / ((uint64_t)s->dF * s->D) + 1);
-    s->B2 = (s->j0 + (uint64_t)s->blocks * s->dF - 1) * s->D + s->D / 2 - 1;
+    // giant steps j = j0 .. j0 + blocks*dF - 1 cover (j0 D - D/2, B2]
+    s->blocks = s2_blocks(t, B1, B2, &s->j0, &s->B2);
 
     s->ctx = vp_ctx_init(N, n, t + 1);
     if (s->ctx == NULL)
