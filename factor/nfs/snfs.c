@@ -292,6 +292,13 @@ void print_snfs(snfs_t *poly, FILE *out)
             poly->base1, poly->exp1, poly->difficulty,
             poly->anorm, poly->rnorm);
     }
+	else if (poly->form_type == SNFS_LUCAS)
+	{
+		gmp_fprintf(out, "# %c(%d)%s, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n",
+			(poly->coeff2 > 0) ? 'L' : 'F', poly->exp1,
+			(poly->LM == 1) ? " Aurifeuillian M" : (poly->LM == -1) ? " Aurifeuillian L" : "",
+			poly->difficulty, poly->anorm, poly->rnorm);
+	}
 	else if (poly->form_type == SNFS_BRENT)
 	{
 		char auri_str[80];
@@ -1147,63 +1154,73 @@ done:
 
 void find_lucas_form(mpz_t n, snfs_t* form, int verbose, char* flogname)
 {
-	// by brute force, detect if the input is a lucas or fibonacci number.
-	// we check up to fib(1500), about 1024 bits.
-	mpz_t F, L, r;
+	// detect if the input divides a Lucas number L(i) or a Fibonacci number
+	// F(i), for i < 1500 (about 1040 bits).  Run the recurrence mod n and take
+	// the smallest i with L(i) == 0 or F(i) == 0 mod n.  (n | L(j) implies
+	// n | F(2j), so scanning i upward finds the Lucas form first; n | F(i)
+	// with i even and n | L(i/2) is likewise found as L(i/2).)
+	//
+	// Encoding of the form, chosen so that the cyclotomic machinery for
+	// x^e +/- 1 applies (L(e) ~ "+", F(e) ~ "-", see remove_algebraic_factors):
+	//   form_type = SNFS_LUCAS, exp1 = i, coeff1 = 1,
+	//   coeff2 = +1 for L(i), -1 for F(i), base1 = base2 = 1.
+	mpz_t F0, F1, t;
 	int i;
 
-	mpz_init(F);
-	mpz_init(L);
-	mpz_init(r);
+	if (mpz_cmp_ui(n, 1000) <= 0)
+		return;
 
-	for (i = 3; i < 1500; i++)
+	mpz_init(F0);		// F(i) mod n
+	mpz_init(F1);		// F(i+1) mod n
+	mpz_init(t);
+
+	mpz_set_ui(F0, 1);	// F(1)
+	mpz_set_ui(F1, 1);	// F(2)
+
+	for (i = 1; i < 1500; i++)
 	{
-		mpz_fib_ui(F, (unsigned long)i);
-		mpz_lucnum_ui(L, (unsigned long)i);
+		// L(i) = 2*F(i+1) - F(i)
+		mpz_mul_2exp(t, F1, 1);
+		mpz_sub(t, t, F0);
+		mpz_mod(t, t, n);
 
-		mpz_gcd(r, F, n);
-
-		if (mpz_cmp_ui(r, 1) > 0)
+		if (mpz_sgn(t) == 0)
 		{
-			form->form_type = SNFS_LUCAS;
-
-			if (verbose >= 0) gmp_printf("nfs: input divides fib(%d)\n", i);
-			logprint_oc(flogname, "a", "nfs: input divides fib(%d)\n", i);
-
-			form->coeff1 = 1;
-			mpz_set(form->base1, r);
-			form->exp1 = 1;				// codes fibonacci number
-			mpz_set_ui(form->base2, 1);
-			form->coeff2 = 0;
-			form->exp2 = i;
-			mpz_set(form->n, r);
-
+			if (verbose >= 0) printf("nfs: input divides L(%d)\n", i);
+			logprint_oc(flogname, "a", "nfs: input divides L(%d)\n", i);
+			form->coeff2 = 1;
 			break;
 		}
 
-		mpz_gcd(r, L, n);
-
-		if (mpz_cmp_ui(r, 1) > 0)
+		if ((mpz_sgn(F0) == 0) && (i > 2))
 		{
-			form->form_type = SNFS_LUCAS;
-
-			if (verbose >= 0) gmp_printf("nfs: input divides luc(%d)\n", i);
-			logprint_oc(flogname, "a", "nfs: input divides luc(%d)\n", i);
-
-			form->coeff1 = 1;
-			mpz_set(form->base1, r);
-			form->exp1 = 2;				// codes lucas number
-			mpz_set_ui(form->base2, 1);
-			form->coeff2 = 0;
-			form->exp2 = i;
-			mpz_set(form->n, r);
+			if (verbose >= 0) printf("nfs: input divides F(%d)\n", i);
+			logprint_oc(flogname, "a", "nfs: input divides F(%d)\n", i);
+			form->coeff2 = -1;
 			break;
 		}
+
+		// advance: F(i+2) = F(i+1) + F(i)
+		mpz_add(t, F0, F1);
+		mpz_mod(t, t, n);
+		mpz_set(F0, F1);
+		mpz_set(F1, t);
 	}
 
-	mpz_clear(F);
-	mpz_clear(L);
-	mpz_clear(r);
+	if (i < 1500)
+	{
+		form->form_type = SNFS_LUCAS;
+		form->coeff1 = 1;
+		form->exp1 = i;
+		form->exp2 = 0;
+		mpz_set_ui(form->base1, 1);
+		mpz_set_ui(form->base2, 1);
+		mpz_set(form->n, n);
+	}
+
+	mpz_clear(F0);
+	mpz_clear(F1);
+	mpz_clear(t);
 
 	return;
 }
@@ -2859,12 +2876,101 @@ static int raf_divisors(int n, int* divs, int maxd)
 	return nd;
 }
 
+// Aurifeuillian factorization of Lucas numbers: for odd k,
+//   L(5k) = L(k) * A * B,  A = 5F(k)^2 - 5F(k) + 1,  B = 5F(k)^2 + 5F(k) + 1
+// (from L(k)^2 = 5F(k)^2 - 4 for odd k:  L(5k)/L(k) = L(k)^4 + 5L(k)^2 + 5
+//  = (L(k)^2 + 5)^2 - 25F(k)^2).  A and B are coprime.  Fibonacci numbers
+// have no such factorization (F(5k)/F(k), k even, is just the F/L split).
+// Called with the form canonicalized to L(j); splits nfs_obj.gmp_n along A
+// and B, keeps the larger part, records the other in the factor list, and
+// marks which half is kept in poly->LM (-1: A, "L"; 1: B, "M").
+static void luc_aurif_split(fact_obj_t* fobj, snfs_t* poly, int VFLAG)
+{
+	int j = poly->exp1;
+	int k, h;
+	mpz_t F, half, g, co;
+
+	if ((poly->coeff2 <= 0) || ((j % 5) != 0) || (((j / 5) & 1) == 0))
+		return;
+	k = j / 5;
+
+	mpz_init(F);
+	mpz_init(half);
+	mpz_init(g);
+	mpz_init(co);
+
+	mpz_fib_ui(F, (unsigned long)k);
+
+	for (h = 0; h < 2; h++)
+	{
+		// half = 5F^2 -/+ 5F + 1
+		mpz_mul(half, F, F);
+		mpz_mul_ui(half, half, 5);
+		if (h == 0)
+			mpz_submul_ui(half, F, 5);
+		else
+			mpz_addmul_ui(half, F, 5);
+		mpz_add_ui(half, half, 1);
+
+		mpz_gcd(g, fobj->nfs_obj.gmp_n, half);
+		if (mpz_cmp_ui(g, 1) == 0)
+		{
+			// the input lies entirely in the other half
+			poly->LM = (h == 0) ? 1 : -1;
+			continue;
+		}
+		if (mpz_cmp(g, fobj->nfs_obj.gmp_n) == 0)
+		{
+			poly->LM = (h == 0) ? -1 : 1;
+			continue;
+		}
+
+		mpz_divexact(co, fobj->nfs_obj.gmp_n, g);
+
+		if (VFLAG >= 0)
+		{
+			// the smaller part is the one recorded; g lies in half h (A or B)
+			int g_smaller = (mpz_cmp(g, co) < 0);
+			int removed_is_A = g_smaller ? (h == 0) : (h != 0);
+			printf("gen: found %d-digit Aurifeuillian %c-factor of L(%d)\n",
+				gmp_base10(g_smaller ? g : co), removed_is_A ? 'L' : 'M', j);
+		}
+		logprint_oc(fobj->flogname, "a", "gen: found Aurifeuillian factor of L(%d)\n", j);
+
+		// keep the larger part as the input, record the smaller
+		if (mpz_cmp(g, co) >= 0)
+		{
+			add_to_factor_list(fobj->factors, co, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+			mpz_set(fobj->nfs_obj.gmp_n, g);
+			poly->LM = (h == 0) ? -1 : 1;
+		}
+		else
+		{
+			add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
+			mpz_set(fobj->nfs_obj.gmp_n, co);
+			poly->LM = (h == 0) ? 1 : -1;
+		}
+	}
+
+	mpz_set(poly->n, fobj->nfs_obj.gmp_n);
+
+	mpz_clear(F);
+	mpz_clear(half);
+	mpz_clear(g);
+	mpz_clear(co);
+	return;
+}
+
 void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
 	int e = poly->exp1;
 	int plus = (poly->coeff2 > 0);
 	int E = plus ? 2 * e : e;
 	int is_h = (poly->form_type == SNFS_H_CUNNINGHAM);
+	// Lucas / Fibonacci forms: L(e) ~ "+", F(e) ~ "-" with (x, y) = (phi, psi).
+	// phi^k - psi^k = sqrt(5) F(k), and the sqrt(5)'s cancel in every
+	// Phi_d(phi, psi) with d > 1, so use x^k - y^k -> F(k) (Phi_1 -> 1).
+	int is_luc = (poly->form_type == SNFS_LUCAS);
 	int* divs;
 	int nd, i, j;
 	int target = -1;
@@ -2890,8 +2996,11 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 
 	if (VFLAG > 0)
 	{
-		gmp_printf("gen: searching for algebraic factors of exponent %d, bases %Zd, %Zd, coeffs %d, %d\n",
-			e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
+		if (is_luc)
+			printf("gen: searching for algebraic factors of %c(%d)\n", plus ? 'L' : 'F', e);
+		else
+			gmp_printf("gen: searching for algebraic factors of exponent %d, bases %Zd, %Zd, coeffs %d, %d\n",
+				e, poly->base1, poly->base2, poly->coeff1, poly->coeff2);
 	}
 
 	mpz_init(phi);
@@ -2912,6 +3021,11 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 	{
 		mpz_init(fk[i]);
 		mpz_init_set_ui(piece[i], 1);
+		if (is_luc)
+		{
+			mpz_fib_ui(fk[i], (unsigned long)divs[i]);
+			continue;
+		}
 		mpz_pow_ui(fk[i], poly->base1, (unsigned long)divs[i]);
 		mpz_pow_ui(t, y, (unsigned long)divs[i]);
 		mpz_sub(fk[i], fk[i], t);
@@ -3013,8 +3127,12 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 
 		if ((VFLAG > 0) && ((poly->exp1 != e) || ((poly->coeff2 > 0) != plus)))
 		{
-			gmp_printf("gen: input divides primitive part of %Zd^%d %c %Zd^%d\n",
-				poly->base1, poly->exp1, poly->coeff2 > 0 ? '+' : '-', y, poly->exp1);
+			if (is_luc)
+				printf("gen: input divides primitive part of %c(%d)\n",
+					poly->coeff2 > 0 ? 'L' : 'F', poly->exp1);
+			else
+				gmp_printf("gen: input divides primitive part of %Zd^%d %c %Zd^%d\n",
+					poly->base1, poly->exp1, poly->coeff2 > 0 ? '+' : '-', y, poly->exp1);
 		}
 	}
 
@@ -3043,7 +3161,12 @@ void remove_algebraic_factors(fact_obj_t* fobj, snfs_t* poly, uint64_t* primes, 
 
 	// with the form canonicalized, look for Aurifeuillian splits of what remains
 	if (mpz_cmp_ui(poly->n, 1) > 0)
-		find_aurifeuillian_form(fobj, poly);
+	{
+		if (is_luc)
+			luc_aurif_split(fobj, poly, VFLAG);
+		else
+			find_aurifeuillian_form(fobj, poly);
+	}
 
 	return;
 }
@@ -5486,178 +5609,723 @@ snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 	return final_polys;
 }
 
-snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
+// ---------------------------------------------------------------------------
+// SNFS polynomials for Lucas and Fibonacci numbers.
+//
+// Notation: phi, psi = (1 +/- sqrt(5))/2, phi*psi = -1,
+//   L(n) = phi^n + psi^n,  F(n) = (phi^n - psi^n)/sqrt(5).
+// The target is L(j) (form coeff2 > 0) or F(j) (coeff2 < 0), j = exp1, after
+// remove_algebraic_factors() has reduced the input to the primitive piece
+// Phi_2j(phi,psi) (Lucas) or Phi_j(phi,psi) (Fibonacci) and canonicalized j.
+//
+// Family A, j = m*k (the L(mk) construction).  With x = phi^k, Q = (-1)^k:
+//   x + Q/x = L(k), so  L(mk) = D_m(L(k), Q)  and  F(mk)/F(k) = U_m(L(k), Q),
+// where D_m, U_m are the Dickson polynomials of the first and second kind:
+//   D_0 = 2, D_1 = y;  U_0 = 0, U_1 = 1;  X_{m+1} = y X_m - Q X_{m-1}.
+// Their coefficients are small and the root L(k) is an integer, so
+//   f(y) = G_m(y),  g(y) = y - L(k)
+// is an SNFS pair.  The algebraic factors L(mk/t) (t odd) resp. F(mk/t) are
+// removed exactly as for b^n +/- 1:
+//   Lucas:     G_m = prod_{t | rad_odd(m)} D_{m/t}^mu(t),  deg = m prod_{p|m, p odd}(1 - 1/p)
+//   Fibonacci: G_m = prod_{t | rad(m)}     U_{m/t}^mu(t),  deg = phi(m)
+// G_m is even in y (for m > 1 with an odd prime, and for all even m), so it is
+// also a polynomial of half the degree in z = y^2 with root L(k)^2.
+// Every divisor m of j gives candidates of degree 4..8 in y or z.
+//
+// Family B, any j = m*k + r (small r != 0, m = 4, 5, 6): with A = L(k), B = F(k),
+// phi^k = (A + B sqrt5)/2 and phi^r = (L(r) + F(r) sqrt5)/2, so
+//   2^m L(j) = rational part of    (L(r) + F(r) s)(A + B s)^m,   s = sqrt(5)
+//   2^m F(j) = coefficient of s in (L(r) + F(r) s)(A + B s)^m
+// which is a homogeneous form in (A, B).  Substituting A = 2C - B with
+// C = F(k+1) and removing the content (2^m) gives a degree-m polynomial
+// with small coefficients and root F(k+1)/F(k):
+//   f(X) = sum_e G_e X^e,  g(X) = F(k) X - F(k+1).
+// This works for prime j, where family A has nothing.  (For F(5k+r), r = 1 it
+// is the quintic x^5 + 10x^3 - 10x^2 + 10x - 3 used before.)
+// ---------------------------------------------------------------------------
+
+typedef struct { int deg; int alloc; mpz_t* c; } lpoly_t;     // c[i]: coeff of y^i
+
+static void lp_init(lpoly_t* p, int alloc)
 {
-	mpz_t n, m, t;
-	int f[100];
-	int e, k, r;
-	int numf = 0;
-	UNUSED_VAR double skew;
-	snfs_t* polys = NULL;
-	int npoly = 0;
-	int is_fib = (poly->exp1 == 1);
-	int VFLAG = fobj->VFLAG;
+	int i;
+	p->alloc = alloc;
+	p->deg = -1;
+	p->c = (mpz_t*)malloc((size_t)alloc * sizeof(mpz_t));
+	for (i = 0; i < alloc; i++)
+		mpz_init(p->c[i]);
+}
 
-	mpz_init(n);
-	mpz_init(m);
-	mpz_init(t);
+static void lp_clear(lpoly_t* p)
+{
+	int i;
+	for (i = 0; i < p->alloc; i++)
+		mpz_clear(p->c[i]);
+	free(p->c);
+	p->alloc = 0;
+	p->deg = -1;
+}
 
-	if (is_fib)
+static void lp_norm(lpoly_t* p)
+{
+	while ((p->deg >= 0) && (mpz_sgn(p->c[p->deg]) == 0))
+		p->deg--;
+}
+
+static void lp_set(lpoly_t* d, lpoly_t* s)
+{
+	int i;
+	for (i = 0; i < d->alloc; i++)
 	{
-		e = poly->exp2;
-		k = e / 5;
-		r = e - k * 5;
+		if (i <= s->deg)
+			mpz_set(d->c[i], s->c[i]);
+		else
+			mpz_set_ui(d->c[i], 0);
+	}
+	d->deg = s->deg;
+}
 
-		mpz_set_ui(t, (unsigned long)e);
+// r = a * b (r must not alias a or b)
+static void lp_mul(lpoly_t* r, lpoly_t* a, lpoly_t* b)
+{
+	int i, j;
+	for (i = 0; i < r->alloc; i++)
+		mpz_set_ui(r->c[i], 0);
+	r->deg = -1;
+	if ((a->deg < 0) || (b->deg < 0))
+		return;
+	for (i = 0; i <= a->deg; i++)
+		for (j = 0; j <= b->deg; j++)
+			mpz_addmul(r->c[i + j], a->c[i], b->c[j]);
+	r->deg = a->deg + b->deg;
+	lp_norm(r);
+}
 
-		numf = tdiv_mpz(t, f, fobj->primes, fobj->num_p);
+// q = a / b, exact, b monic or at least dividing exactly.  Returns 0 if inexact.
+static int lp_divexact(lpoly_t* q, lpoly_t* a, lpoly_t* b)
+{
+	lpoly_t rem;
+	int i, j, ok = 1;
 
-		for (k = 0; k < numf; k++)
+	lp_init(&rem, a->alloc);
+	lp_set(&rem, a);
+	for (i = 0; i < q->alloc; i++)
+		mpz_set_ui(q->c[i], 0);
+	q->deg = a->deg - b->deg;
+
+	for (i = a->deg - b->deg; i >= 0; i--)
+	{
+		if (!mpz_divisible_p(rem.c[i + b->deg], b->c[b->deg]))
 		{
-			// does this term divide the input we are trying to autofactor?
-			mpz_fib_ui(m, (unsigned long)f[k]);
+			ok = 0;
+			break;
+		}
+		mpz_divexact(q->c[i], rem.c[i + b->deg], b->c[b->deg]);
+		for (j = 0; j <= b->deg; j++)
+			mpz_submul(rem.c[i + j], q->c[i], b->c[j]);
+	}
+	for (i = 0; ok && (i < rem.alloc); i++)
+		if (mpz_sgn(rem.c[i]) != 0)
+			ok = 0;
 
-			mpz_gcd(t, fobj->nfs_obj.gmp_n, m);
-			if ((mpz_cmp_ui(t, 1) > 0) && (mpz_cmp(t, fobj->nfs_obj.gmp_n) < 0))
+	lp_clear(&rem);
+	lp_norm(q);
+	return ok;
+}
+
+// Dickson polynomial of the first (kind 1, D_m) or second (kind 2, U_m) kind
+// with parameter a = +/-1.  out must have alloc >= m + 2.
+static void lp_dickson(lpoly_t* out, int m, int a, int kind)
+{
+	lpoly_t x0, x1, x2;
+	int i, s;
+
+	lp_init(&x0, m + 2);
+	lp_init(&x1, m + 2);
+	lp_init(&x2, m + 2);
+
+	if (kind == 1)
+	{
+		mpz_set_ui(x0.c[0], 2); x0.deg = 0;
+		mpz_set_ui(x1.c[1], 1); x1.deg = 1;
+	}
+	else
+	{
+		x0.deg = -1;
+		mpz_set_ui(x1.c[0], 1); x1.deg = 0;
+	}
+
+	if (m == 0)
+		lp_set(out, &x0);
+	else
+	{
+		for (s = 1; s < m; s++)
+		{
+			// x2 = y*x1 - a*x0
+			for (i = 0; i < x2.alloc; i++)
+				mpz_set_ui(x2.c[i], 0);
+			for (i = 0; i <= x1.deg; i++)
+				mpz_set(x2.c[i + 1], x1.c[i]);
+			for (i = 0; i <= x0.deg; i++)
 			{
-				if (VFLAG > 2)
-				{
-					gmp_printf("gen: adding algebraic factor fib(%d) = %Zd of autofactor input %Zd to factor list (gcd of term %Zd)\n",
-						k, t, fobj->nfs_obj.gmp_n, m);
-				}
-				else if (VFLAG >= 0)
-				{
-					gmp_printf("gen: found algebraic factor fib(%d) = %Zd\n", f[k], t);
-				}
+				if (a > 0)
+					mpz_sub(x2.c[i], x2.c[i], x0.c[i]);
+				else
+					mpz_add(x2.c[i], x2.c[i], x0.c[i]);
+			}
+			x2.deg = x1.deg + 1;
+			lp_norm(&x2);
+			lp_set(&x0, &x1);
+			lp_set(&x1, &x2);
+		}
+		lp_set(out, &x1);
+	}
 
-				add_to_factor_list(fobj->factors, t, fobj->VFLAG, fobj->NUM_WITNESSES, 0);
-				mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, t);
+	lp_clear(&x0);
+	lp_clear(&x1);
+	lp_clear(&x2);
+}
+
+// distinct prime factors of m (odd ones only if odd_only); returns the count
+static int luc_primes(int m, int* p, int odd_only)
+{
+	int q, np = 0;
+	for (q = 2; q * q <= m; q++)
+	{
+		if ((m % q) == 0)
+		{
+			if (!(odd_only && (q == 2)))
+				p[np++] = q;
+			while ((m % q) == 0)
+				m /= q;
+		}
+	}
+	if ((m > 1) && !(odd_only && (m == 2)))
+		p[np++] = m;
+	return np;
+}
+
+// the primitive Dickson polynomial G_m (see above); returns its degree or -1
+static int luc_prim_poly(lpoly_t* out, int m, int a, int lucas)
+{
+	int p[8], np, sub, i, t, ok;
+	lpoly_t num, den, tmp, dk;
+	int alloc = 2 * m + 4;
+
+	np = luc_primes(m, p, lucas);
+
+	lp_init(&num, alloc);
+	lp_init(&den, alloc);
+	lp_init(&tmp, alloc);
+	lp_init(&dk, alloc);
+	mpz_set_ui(num.c[0], 1); num.deg = 0;
+	mpz_set_ui(den.c[0], 1); den.deg = 0;
+
+	for (sub = 0; sub < (1 << np); sub++)
+	{
+		int bits = 0;
+		t = 1;
+		for (i = 0; i < np; i++)
+		{
+			if (sub & (1 << i))
+			{
+				t *= p[i];
+				bits++;
 			}
 		}
 
-		polys = (snfs_t*)malloc(sizeof(snfs_t));
-		snfs_init(polys);
-		npoly = 1;
-		snfs_copy_poly(poly, polys);		// copy algebraic form
+		lp_dickson(&dk, m / t, a, lucas ? 1 : 2);
+		if (dk.deg < 0)
+			continue;			// U_0 = 0 never occurs here (m/t >= 1)
 
-		polys->poly->alg.degree = 5;
-		fobj->nfs_obj.pref_degree = 5;
-
-		mpz_set_ui(polys->c[5], 1);
-		mpz_set_ui(polys->c[4], 0);
-
-		// tests for each
-		// fib(613) r = -2
-		// fib(659) r = -1
-		// fib(467) r = +2
-		// fib(491) r = +1 (noecm)
-		switch (r)
+		if (bits & 1)
 		{
-		case 1:
-			mpz_fib_ui(m, (unsigned long)k);
-			mpz_fib_ui(t, (unsigned long)(k + 1));
-			mpz_set(polys[0].poly->rat.coeff[0], t);
-			mpz_set(polys[0].poly->rat.coeff[1], m);
-
-			mpz_invert(m, m, poly->n);
-			mpz_mul(m, m, t);
-			mpz_mod(m, m, poly->n);
-			mpz_set(polys->poly->m, m);
-			polys->difficulty = log10(mpz_get_d(m));
-
-			mpz_set_si(polys->c[3], 10);
-			mpz_set_si(polys->c[2], -10);
-			mpz_set_si(polys->c[1], 10);
-			mpz_set_si(polys->c[0], -3);
-
-			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
-			break;
-
-		case 2:
-			mpz_fib_ui(m, (unsigned long)k);
-			mpz_fib_ui(t, (unsigned long)(k + 2));
-			mpz_set(polys[0].poly->rat.coeff[0], t);
-			mpz_set(polys[0].poly->rat.coeff[1], m);
-
-			mpz_invert(m, m, poly->n);
-			mpz_mul(m, m, t);
-			mpz_mod(m, m, poly->n);
-			mpz_set(polys->poly->m, m);
-			polys->difficulty = log10(mpz_get_d(m));
-
-			mpz_set_si(polys->c[3], -10);
-			mpz_set_si(polys->c[2], 30);
-			mpz_set_si(polys->c[1], -40);
-			mpz_set_si(polys->c[0], 21);
-
-			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
-			break;
-
-		case 4:
-			mpz_fib_ui(m, (unsigned long)(k + 1));
-			mpz_fib_ui(t, (unsigned long)k);
-			mpz_set(polys[0].poly->rat.coeff[0], t);
-			mpz_set(polys[0].poly->rat.coeff[1], m);
-
-			mpz_invert(m, m, poly->n);
-			mpz_mul(m, m, t);
-			mpz_mod(m, m, poly->n);
-			mpz_set(polys->poly->m, m);
-			polys->difficulty = log10(mpz_get_d(m));
-
-			mpz_set_si(polys->c[3], 10);
-			mpz_set_si(polys->c[2], 10);
-			mpz_set_si(polys->c[1], 10);
-			mpz_set_si(polys->c[0], 3);
-
-			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
-			break;
-
-		case 3:
-			mpz_fib_ui(m, (unsigned long)(k + 1));
-			mpz_fib_ui(t, (unsigned long)(k - 1));
-			mpz_set(polys[0].poly->rat.coeff[0], t);
-			mpz_set(polys[0].poly->rat.coeff[1], m);
-
-			mpz_invert(m, m, poly->n);
-			mpz_mul(m, m, t);
-			mpz_mod(m, m, poly->n);
-			mpz_set(polys->poly->m, m);
-			polys->difficulty = log10(mpz_get_d(m));
-
-			mpz_set_si(polys->c[3], -10);
-			mpz_set_si(polys->c[2], 30);
-			mpz_set_si(polys->c[1], -40);
-			mpz_set_si(polys->c[0], 21);
-
-			polys->poly->skew = pow(fabs(mpz_get_d(polys->c[0])), 1. / (double)5);
-			break;
-		}
-
-		mpz_mul_si(polys[0].poly->rat.coeff[0], polys[0].poly->rat.coeff[0], -1);
-
-		npoly = 0;
-		check_poly(&polys[npoly], fobj->VFLAG);
-		approx_norms(&polys[npoly]);
-
-		if (polys[npoly].valid)
-		{
-			if (fobj->VFLAG > 0) print_snfs(&polys[npoly], stdout);
-			npoly++;
+			lp_mul(&tmp, &den, &dk);
+			lp_set(&den, &tmp);
 		}
 		else
-		{	// being explicit
-			snfs_clear(&polys[npoly]);
-			snfs_init(&polys[npoly]);
+		{
+			lp_mul(&tmp, &num, &dk);
+			lp_set(&num, &tmp);
 		}
-
-		*npolys = 1;
 	}
 
+	ok = lp_divexact(out, &num, &den);
 
-	mpz_clear(n);
-	mpz_clear(m);
+	lp_clear(&num);
+	lp_clear(&den);
+	lp_clear(&tmp);
+	lp_clear(&dk);
+
+	return ok ? out->deg : -1;
+}
+
+// degree of G_m without building it
+static int luc_prim_degree(int m, int lucas)
+{
+	int p[8], np, i, d = m;
+	np = luc_primes(m, p, lucas);
+	for (i = 0; i < np; i++)
+		d = d / p[i] * (p[i] - 1);
+	return d;
+}
+
+// small signed Lucas / Fibonacci numbers, |r| <= 8
+static int luc_small(int r)
+{
+	static const int L[9] = { 2, 1, 3, 4, 7, 11, 18, 29, 47 };
+	int a = abs(r);
+	return ((r < 0) && (a & 1)) ? -L[a] : L[a];
+}
+
+static int fib_small(int r)
+{
+	static const int F[9] = { 0, 1, 1, 2, 3, 5, 8, 13, 21 };
+	int a = abs(r);
+	return ((r < 0) && !(a & 1)) ? -F[a] : F[a];
+}
+
+// finish one candidate: validate, measure norms, keep if valid
+static int luc_keep(fact_obj_t* fobj, snfs_t* p)
+{
+	check_poly(p, fobj->VFLAG);
+	approx_norms(p);
+	if (p->valid)
+	{
+		if (fobj->VFLAG > 1)
+			print_snfs(p, stdout);
+		return 1;
+	}
+	snfs_clear(p);
+	snfs_init(p);
+	return 0;
+}
+
+// Polynomial for one Aurifeuillian half of L(5k), k odd (see luc_aurif_split):
+//   half = 5F(k)^2 + sign*5F(k) + 1 = L(2k) + 3 + sign*5F(k)
+// With k = m*k' + r (m even, r odd), X = L(k'), Y = F(k'), s = sqrt(5):
+//   P   = (L(r) + F(r) s)(X + Y s)^m    = 2^(m+1) phi^k        (degree m)
+//   2^m F(k)       = Irr(P)        (coefficient of s)
+//   2^(2m+1) L(2k) = Rat(P^2)
+//   X^2 - 5Y^2     = 4(-1)^k'  homogenizes the remaining terms, giving
+//   2^(2m+1) half  = Rat(P^2) + 6 (X^2-5Y^2)^m + 10 sign (-1)^(k'm/2) (X^2-5Y^2)^(m/2) Irr(P)
+// a degree-2m form whose value is exactly the half (no extra factors).
+// Substituting X = 2C - Y, C = F(k'+1), and removing the content 2^(2m+1)
+// leaves small coefficients and the root C/Y = F(k'+1)/F(k').
+// m = 2 gives quartics, m = 4 octics.  Returns 1 if a valid poly was made.
+static int luc_aurif_poly(fact_obj_t* fobj, snfs_t* poly, snfs_t* p, int m, int r, int sign)
+{
+	int j = poly->exp1;
+	int k = j / 5;
+	int kp, d = 2 * m, i, e, ok = 0;
+	int Lr = luc_small(r), Fr = fib_small(r);
+	int sk = 1;
+	mpz_t pr[5], pi[5], H[9], N1[9], N2[9], tmp[9], G[9], t, b, Fk, Fk1, root;
+
+	if (((k - r) % m) != 0)
+		return 0;
+	kp = (k - r) / m;
+	if (kp < 2)
+		return 0;
+	if (((kp * m) / 2) & 1)
+		sk = -1;			// (-1)^(k' m/2)
+
+	for (i = 0; i < 5; i++) { mpz_init(pr[i]); mpz_init(pi[i]); }
+	for (i = 0; i < 9; i++) { mpz_init(H[i]); mpz_init(N1[i]); mpz_init(N2[i]); mpz_init(tmp[i]); mpz_init(G[i]); }
+	mpz_init(t); mpz_init(b); mpz_init(Fk); mpz_init(Fk1); mpz_init(root);
+
+	// (X + Y s)^m, then times (L(r) + F(r) s); index i = coeff of X^(m-i) Y^i
+	for (i = 0; i <= m; i++)
+	{
+		mpz_bin_uiui(b, (unsigned long)m, (unsigned long)i);
+		mpz_ui_pow_ui(t, 5, (unsigned long)(i / 2));
+		mpz_mul(b, b, t);
+		// rational part if i even, irrational if odd
+		if ((i & 1) == 0)
+		{
+			mpz_mul_si(pr[i], b, Lr);		// Lr * a
+			mpz_mul_si(pi[i], b, Fr);		// Fr * a
+		}
+		else
+		{
+			mpz_mul_si(pr[i], b, 5 * Fr);	// 5 Fr * b
+			mpz_mul_si(pi[i], b, Lr);		// Lr * b
+		}
+	}
+
+	// Rat(P^2)
+	for (i = 0; i <= m; i++)
+	{
+		for (e = 0; e <= m; e++)
+		{
+			mpz_addmul(H[i + e], pr[i], pr[e]);
+			mpz_mul(t, pi[i], pi[e]);
+			mpz_addmul_ui(H[i + e], t, 5);
+		}
+	}
+
+	// N1 = (X^2 - 5Y^2)^(m/2), N2 = (X^2 - 5Y^2)^m
+	mpz_set_ui(N1[0], 1);
+	for (e = 0; e < m / 2; e++)
+	{
+		for (i = 0; i < 9; i++) mpz_set_ui(tmp[i], 0);
+		for (i = 0; i <= 2 * e; i++)
+		{
+			mpz_add(tmp[i], tmp[i], N1[i]);
+			mpz_submul_ui(tmp[i + 2], N1[i], 5);
+		}
+		for (i = 0; i < 9; i++) mpz_set(N1[i], tmp[i]);
+	}
+	for (i = 0; i < 9; i++) mpz_set_ui(N2[i], 0);
+	for (i = 0; i <= m; i++)
+		for (e = 0; e <= m; e++)
+			mpz_addmul(N2[i + e], N1[i], N1[e]);
+
+	// + 6 N2 + 10 sign sk N1 * Irr(P)
+	for (i = 0; i <= d; i++)
+		mpz_addmul_ui(H[i], N2[i], 6);
+	for (i = 0; i <= m; i++)
+	{
+		for (e = 0; e <= m; e++)
+		{
+			mpz_mul(t, N1[i], pi[e]);
+			mpz_mul_si(t, t, 10 * sign * sk);
+			mpz_add(H[i + e], H[i + e], t);
+		}
+	}
+
+	// X = 2C - Y:  G_e = sum_i H_i binom(d-i, e) 2^e (-1)^(d-i-e)
+	for (e = 0; e <= d; e++)
+	{
+		for (i = 0; i <= d - e; i++)
+		{
+			mpz_bin_uiui(b, (unsigned long)(d - i), (unsigned long)e);
+			mpz_mul_2exp(b, b, (unsigned long)e);
+			mpz_mul(b, b, H[i]);
+			if ((d - i - e) & 1)
+				mpz_sub(G[e], G[e], b);
+			else
+				mpz_add(G[e], G[e], b);
+		}
+	}
+	mpz_set_ui(t, 0);
+	for (e = 0; e <= d; e++)
+		mpz_gcd(t, t, G[e]);
+
+	mpz_fib_ui(Fk, (unsigned long)kp);
+	mpz_fib_ui(Fk1, (unsigned long)(kp + 1));
+
+	if ((mpz_sgn(t) != 0) && (mpz_sgn(G[0]) != 0) && (mpz_sgn(G[d]) != 0) &&
+		mpz_invert(root, Fk, poly->n))
+	{
+		for (e = 0; e <= d; e++)
+			mpz_divexact(G[e], G[e], t);
+
+		snfs_copy_poly(poly, p);
+		for (i = 0; i <= MAX_POLY_DEGREE; i++)
+			mpz_set_ui(p->c[i], 0);
+		for (e = 0; e <= d; e++)
+			mpz_set(p->c[e], G[e]);
+		p->poly->alg.degree = (uint32_t)d;
+		p->poly->rat.degree = 1;
+		mpz_set(p->poly->rat.coeff[1], Fk);
+		mpz_neg(p->poly->rat.coeff[0], Fk1);
+		mpz_mul(root, root, Fk1);
+		mpz_mod(root, root, poly->n);
+		mpz_set(p->poly->m, root);
+		p->difficulty = (double)d * log10(mpz_get_d(Fk1)) + log10(fabs(mpz_get_d(G[d])));
+		p->poly->skew = pow(fabs(mpz_get_d(G[0])) / fabs(mpz_get_d(G[d])), 1.0 / (double)d);
+
+		if (fobj->VFLAG > 1)
+		{
+			printf("gen: Aurifeuillian %c half of L(%d): k = %d*%d%+d, degree %d in F(k+1)/F(k)\n",
+				sign < 0 ? 'L' : 'M', j, m, kp, r, d);
+		}
+		ok = luc_keep(fobj, p);
+	}
+
+	for (i = 0; i < 5; i++) { mpz_clear(pr[i]); mpz_clear(pi[i]); }
+	for (i = 0; i < 9; i++) { mpz_clear(H[i]); mpz_clear(N1[i]); mpz_clear(N2[i]); mpz_clear(tmp[i]); mpz_clear(G[i]); }
+	mpz_clear(t); mpz_clear(b); mpz_clear(Fk); mpz_clear(Fk1); mpz_clear(root);
+	return ok;
+}
+
+snfs_t* gen_lucas_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
+{
+	int j = poly->exp1;
+	int lucas = (poly->coeff2 > 0);
+	snfs_t* polys;
+	int npoly = 0, apoly = 8, m, i;
+	mpz_t root, t, Fk, Fk1;
+
+	*npolys = 0;
+	if (j < 2)
+		return NULL;
+
+	// the input is one Aurifeuillian half of L(5k), k odd: polynomials for
+	// that half alone have half the difficulty of anything built for L(5k)
+	if (lucas && (poly->LM != 0) && ((j % 5) == 0) && (((j / 5) & 1) == 1))
+	{
+		static const int rs[4] = { 1, -1, 3, -3 };
+		polys = (snfs_t*)malloc(8 * sizeof(snfs_t));
+		for (i = 0; i < 8; i++)
+			snfs_init(&polys[i]);
+
+		if (fobj->VFLAG > 0)
+		{
+			printf("gen: building polynomials for the Aurifeuillian %c half of L(%d)\n",
+				poly->LM < 0 ? 'L' : 'M', j);
+		}
+
+		for (m = 2; m <= 4; m += 2)
+			for (i = 0; i < 4; i++)
+				if (npoly < 8)
+					npoly += luc_aurif_poly(fobj, poly, &polys[npoly], m, rs[i], poly->LM < 0 ? -1 : 1);
+
+		for (i = npoly; i < 8; i++)
+			snfs_clear(&polys[i]);
+
+		*npolys = npoly;
+		if (npoly == 0)
+		{
+			free(polys);
+			return NULL;
+		}
+		return polys;
+	}
+
+	// room for two family-A candidates per divisor of j and six from family B
+	for (m = 1; m <= j; m++)
+		if ((j % m) == 0)
+			apoly += 2;
+
+	polys = (snfs_t*)malloc((size_t)apoly * sizeof(snfs_t));
+	for (i = 0; i < apoly; i++)
+		snfs_init(&polys[i]);
+
+	mpz_init(root);
+	mpz_init(t);
+	mpz_init(Fk);
+	mpz_init(Fk1);
+
+	if (fobj->VFLAG > 0)
+	{
+		printf("gen: building polynomials for %c(%d)\n", lucas ? 'L' : 'F', j);
+	}
+
+	// ---- family A: j = m*k, primitive Dickson polynomial in L(k) or L(k)^2 ----
+	for (m = 2; m <= j; m++)
+	{
+		int k, a, deg, form;
+		lpoly_t G;
+
+		if ((j % m) != 0)
+			continue;
+
+		deg = luc_prim_degree(m, lucas);
+		if ((deg < 4) || (deg > 16))
+			continue;
+
+		k = j / m;
+		if (k < 2)
+			continue;
+		a = (k & 1) ? -1 : 1;
+
+		lp_init(&G, 2 * m + 4);
+		if (luc_prim_poly(&G, m, a, lucas) != deg)
+		{
+			lp_clear(&G);
+			continue;
+		}
+
+		for (form = 0; form < 2; form++)
+		{
+			// form 0: in y = L(k); form 1: in z = L(k)^2 (G even)
+			int d = (form == 0) ? deg : deg / 2;
+			int step = (form == 0) ? 1 : 2;
+			snfs_t* p;
+
+			if ((d < 4) || (d > 8))
+				continue;
+			if (form == 1)
+			{
+				int even = (deg % 2) == 0;
+				for (i = 1; even && (i <= deg); i += 2)
+					if (mpz_sgn(G.c[i]) != 0)
+						even = 0;
+				if (!even)
+					continue;
+			}
+
+			mpz_lucnum_ui(root, (unsigned long)k);
+			if (form == 1)
+				mpz_mul(root, root, root);
+
+			p = &polys[npoly];
+			snfs_copy_poly(poly, p);
+			for (i = 0; i <= MAX_POLY_DEGREE; i++)
+				mpz_set_ui(p->c[i], 0);
+			for (i = 0; i <= d; i++)
+				mpz_set(p->c[i], G.c[i * step]);
+			p->poly->alg.degree = (uint32_t)d;
+			p->poly->rat.degree = 1;
+			mpz_set_si(p->poly->rat.coeff[1], -1);
+			mpz_set(p->poly->rat.coeff[0], root);
+			mpz_set(p->poly->m, root);
+			p->difficulty = (double)d * log10(mpz_get_d(root));
+			p->poly->skew = pow(fabs(mpz_get_d(p->c[0])) / fabs(mpz_get_d(p->c[d])), 1.0 / (double)d);
+
+			if (fobj->VFLAG > 1)
+			{
+				printf("gen: %c(%d) = %c(%d*%d): degree %d in %s\n", lucas ? 'L' : 'F', j,
+					lucas ? 'L' : 'F', m, k, d, (form == 0) ? "L(k)" : "L(k)^2");
+			}
+
+			if (luc_keep(fobj, p))
+				npoly++;
+		}
+		lp_clear(&G);
+	}
+
+	// ---- family B: j = m*k + r, homogeneous form in (F(k+1), F(k)) ----
+	for (m = 4; m <= 6; m++)
+	{
+		int ri;
+		for (ri = 0; ri < 2; ri++)
+		{
+			int r = (ri == 0) ? (j % m) : (j % m) - m;
+			int k = (j - r) / m;
+			int Lr = luc_small(r), Fr = fib_small(r);
+			mpz_t c[MAX_POLY_DEGREE + 1], G[MAX_POLY_DEGREE + 1], b1, b2;
+			snfs_t* p;
+			int e, valid_g = 1;
+
+			if ((r == 0) || (k < 2))
+				continue;
+
+			mpz_init(b1);
+			mpz_init(b2);
+			for (i = 0; i <= m; i++)
+			{
+				mpz_init(c[i]);
+				mpz_init(G[i]);
+			}
+
+			// c_i: coefficient of A^(m-i) B^i
+			for (i = 0; i <= m; i++)
+			{
+				mpz_bin_uiui(c[i], (unsigned long)m, (unsigned long)i);
+				if (lucas)
+				{
+					if ((i & 1) == 0)
+					{
+						mpz_ui_pow_ui(t, 5, (unsigned long)(i / 2));
+						mpz_mul_si(t, t, Lr);
+					}
+					else
+					{
+						mpz_ui_pow_ui(t, 5, (unsigned long)((i + 1) / 2));
+						mpz_mul_si(t, t, Fr);
+					}
+				}
+				else
+				{
+					if ((i & 1) == 0)
+					{
+						mpz_ui_pow_ui(t, 5, (unsigned long)(i / 2));
+						mpz_mul_si(t, t, Fr);
+					}
+					else
+					{
+						mpz_ui_pow_ui(t, 5, (unsigned long)((i - 1) / 2));
+						mpz_mul_si(t, t, Lr);
+					}
+				}
+				mpz_mul(c[i], c[i], t);
+			}
+
+			// A = 2C - B:  G_e = sum_i c_i binom(m-i, e) 2^e (-1)^(m-i-e)
+			for (e = 0; e <= m; e++)
+			{
+				for (i = 0; i <= m - e; i++)
+				{
+					mpz_bin_uiui(b1, (unsigned long)(m - i), (unsigned long)e);
+					mpz_mul_2exp(b1, b1, (unsigned long)e);
+					mpz_mul(b1, b1, c[i]);
+					if ((m - i - e) & 1)
+						mpz_sub(G[e], G[e], b1);
+					else
+						mpz_add(G[e], G[e], b1);
+				}
+			}
+
+			// remove the content (2^m)
+			mpz_set_ui(b2, 0);
+			for (e = 0; e <= m; e++)
+				mpz_gcd(b2, b2, G[e]);
+			if ((mpz_sgn(b2) == 0) || (mpz_sgn(G[0]) == 0) || (mpz_sgn(G[m]) == 0))
+				valid_g = 0;
+			for (e = 0; valid_g && (e <= m); e++)
+				mpz_divexact(G[e], G[e], b2);
+
+			mpz_fib_ui(Fk, (unsigned long)k);
+			mpz_fib_ui(Fk1, (unsigned long)(k + 1));
+			if (valid_g && !mpz_invert(root, Fk, poly->n))
+				valid_g = 0;
+
+			if (valid_g)
+			{
+				p = &polys[npoly];
+				snfs_copy_poly(poly, p);
+				for (i = 0; i <= MAX_POLY_DEGREE; i++)
+					mpz_set_ui(p->c[i], 0);
+				for (e = 0; e <= m; e++)
+					mpz_set(p->c[e], G[e]);
+				p->poly->alg.degree = (uint32_t)m;
+				p->poly->rat.degree = 1;
+				mpz_set(p->poly->rat.coeff[1], Fk);
+				mpz_neg(p->poly->rat.coeff[0], Fk1);
+				mpz_mul(root, root, Fk1);
+				mpz_mod(root, root, poly->n);
+				mpz_set(p->poly->m, root);
+				p->difficulty = (double)m * log10(mpz_get_d(Fk1)) + log10(fabs(mpz_get_d(G[m])));
+				p->poly->skew = pow(fabs(mpz_get_d(G[0])) / fabs(mpz_get_d(G[m])), 1.0 / (double)m);
+
+				if (fobj->VFLAG > 1)
+				{
+					printf("gen: %c(%d) = %c(%d*%d%+d): degree %d in F(k+1)/F(k)\n", lucas ? 'L' : 'F',
+						j, lucas ? 'L' : 'F', m, k, r, m);
+				}
+
+				if (luc_keep(fobj, p))
+					npoly++;
+			}
+
+			for (i = 0; i <= m; i++)
+			{
+				mpz_clear(c[i]);
+				mpz_clear(G[i]);
+			}
+			mpz_clear(b1);
+			mpz_clear(b2);
+		}
+	}
+
+	// unused slots
+	for (i = npoly; i < apoly; i++)
+		snfs_clear(&polys[i]);
+
+	mpz_clear(root);
 	mpz_clear(t);
+	mpz_clear(Fk);
+	mpz_clear(Fk1);
+
+	*npolys = npoly;
+	if (npoly == 0)
+	{
+		free(polys);
+		return NULL;
+	}
 	return polys;
 }
 

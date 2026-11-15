@@ -209,8 +209,8 @@ snfs_t * snfs_find_form(fact_obj_t *fobj, mpz_t n)
 
 	if (poly->form_type == SNFS_NONE)
 	{
-		//if (fobj->VFLAG >= 0) printf("nfs: searching for lucas special forms...\n");
-		//find_lucas_form(n, poly, fobj->VFLAG, fobj->flogname);
+		if (fobj->VFLAG >= 0) printf("nfs: searching for lucas/fibonacci special forms...\n");
+		find_lucas_form(n, poly, fobj->VFLAG, fobj->flogname);
 	}
 
     gettimeofday(&stopt, NULL);

@@ -372,6 +372,7 @@ static void nfs_run(fact_obj_t *fobj)
 				mpz_t orig_n;
 				int snfs_status = 0;
 				int check_gnfs = 0;
+				int use_snfs = 0;
 
 				mpz_init(orig_n);
 				mpz_set(orig_n, fobj->nfs_obj.gmp_n);
@@ -516,8 +517,9 @@ static void nfs_run(fact_obj_t *fobj)
 					// found snfs polynomial but algebraic factors were removed.
 					// check if what's left is better by gnfs or siqs.
 
-					// check if this is really a siqs job
-					if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover)
+					// check if this is really a siqs job (unless snfs was requested)
+					if (!fobj->nfs_obj.snfs &&
+						(mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_snfs_xover))
 					{
 						if (fobj->VFLAG >= 0)
 						{
@@ -539,7 +541,8 @@ static void nfs_run(fact_obj_t *fobj)
 						nfs_state = NFS_STATE_CLEANUP;
 						break;
 					}
-					else if ((est_gnfs_size(&job) > (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)))
+					else if (!fobj->nfs_obj.snfs &&
+						(est_gnfs_size(&job) > (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)))
 					{
 						if (fobj->VFLAG >= 0)
 						{
@@ -556,8 +559,21 @@ static void nfs_run(fact_obj_t *fobj)
 						free(job.snfs);
 						job.snfs = NULL;
 					}
+					else
+					{
+						// algebraic factors were removed and snfs is still the
+						// best method for what is left.  (This case used to fall
+						// through without marking the job as snfs, which started
+						// gnfs poly selection after the snfs poly was chosen.)
+						use_snfs = 1;
+					}
 				}
 				else
+				{
+					use_snfs = 1;
+				}
+
+				if (use_snfs)
 				{
 					// this will be a snfs job.
 					fobj->nfs_obj.snfs = 1;

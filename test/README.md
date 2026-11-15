@@ -102,7 +102,7 @@ make test-full
   report its method choice and the sieve it would start, then stop. This
   checks `-gnfs`, `-xover`, `-snfs_xover` and `-pretest`, and the SNFS ECM
   depth. It also checks `-np` job files from factor() and snfs(), and an SNFS
-  input where ECM with `-sigma 938848200 -threads 1` finds a factor and the
+  input where ECM with `-sigma 781956810 -threads 1` finds a factor and the
   job falls back to SIQS. Without a binary these tests print a note and pass.
 
 ## OpenCL kernel tests

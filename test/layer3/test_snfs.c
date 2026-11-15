@@ -28,7 +28,9 @@
     coefficients, composite and large bases; homogeneous cunninghams;
     xyyxf; direct forms; Aurifeuillian forms (brent and homogeneous); sums /
     differences of k-th powers with non-unit coefficients; prime exponents
-    with no algebraic factor at degrees 4, 5 and 6.
+    with no algebraic factor at degrees 4, 5 and 7; Lucas and Fibonacci
+    numbers (L(mk)/F(mk) Dickson polynomials, prime indices, F(j) reduced to
+    L(j/2), Aurifeuillian halves of L(5k)).
 
  2) Black-box (run when the yafu binary is found).  Runs the built yafu
     in a scratch directory (no yafu.ini there, so defaults apply) and checks
@@ -89,6 +91,14 @@ static void ts_atom(ts_lex *L, mpz_t r)
         L->p++;
         ts_atom(L, r);
         mpz_neg(r, r);
+    } else if (strncmp(L->p, "luc(", 4) == 0 || strncmp(L->p, "fib(", 4) == 0) {
+        /* luc(n), fib(n): Lucas and Fibonacci numbers, as in yafu's calc */
+        int is_luc = (L->p[0] == 'l');
+        L->p += 3;
+        ts_atom(L, r);              /* the parenthesized index */
+        if (!mpz_fits_ulong_p(r)) L->err = 1;
+        else if (is_luc) mpz_lucnum_ui(r, mpz_get_ui(r));
+        else mpz_fib_ui(r, mpz_get_ui(r));
     } else if (isdigit((unsigned char)*L->p)) {
         const char *s = L->p;
         char *buf;
@@ -248,6 +258,21 @@ static const snfs_case cases[] = {
     /* --- sums / differences of k-th powers with non-unit coefficients --- */
     { "pow_diff_sq",    "30^74-50625", C92_DIFF_SQ, SNFS_BRENT, ST_DONE, 0, 1, ANY, -1 },
     { "pow_diff_cube",  "8*7^99-27",   NULL,        SNFS_BRENT, ST_DONE, 0, 1, ANY, -1 },
+    /* --- Lucas / Fibonacci: L(mk) / F(mk) Dickson polys (family A), any
+           index via (F(k+1), F(k)) forms (family B), cyclotomic splits --- */
+    { "lucas_mk_1000",  "luc(1000)",   NULL, SNFS_LUCAS, ST_POLY, 168, 1, 4, 167.19 },
+    { "lucas_mk_1199",  "luc(1199)",   NULL, SNFS_LUCAS, ST_POLY, 223, 1, 5, 227.80 },
+    { "lucas_prime_491","luc(491)",    NULL, SNFS_LUCAS, ST_POLY, 100, 0, 4, 102.03 },
+    { "fib_prime_613",  "fib(613)",    NULL, SNFS_LUCAS, ST_POLY, 128, 0, 4, 127.34 },
+    { "fib_prime_997",  "fib(997)",    NULL, SNFS_LUCAS, ST_POLY, 206, 0, 5, 207.24 },
+    { "fib_mk_1155",    "fib(1155)",   NULL, SNFS_LUCAS, ST_POLY, 101, 7, 4, 128.74 },
+    { "fib_to_luc_1000","fib(1000)",   NULL, SNFS_LUCAS, ST_POLY, 81, 5, 4, 83.60 },
+    { "lucas_done_630", "luc(630)",    NULL, SNFS_LUCAS, ST_DONE, 0, 4, ANY, -1 },
+    /* --- Lucas Aurifeuillian: L(5k), k odd = L(k)(5F^2-5F+1)(5F^2+5F+1),
+           and quartic/octic polys for one half alone --- */
+    { "luc_aurif_515",  "luc(515)",    NULL, SNFS_LUCAS, ST_POLY, 44, 2, 4, 42.07 },
+    { "luc_aurif_1005", "luc(1005)",   NULL, SNFS_LUCAS, ST_POLY, 55, 4, 4, 83.03 },
+    { "luc_aurif_1495", "luc(1495)",   NULL, SNFS_LUCAS, ST_POLY, 112, 3, 4, 123.99 },
 };
 #define NCASES ((int)(sizeof cases / sizeof cases[0]))
 
@@ -386,7 +411,9 @@ CASE_FN(0)  CASE_FN(1)  CASE_FN(2)  CASE_FN(3)  CASE_FN(4)  CASE_FN(5)
 CASE_FN(6)  CASE_FN(7)  CASE_FN(8)  CASE_FN(9)  CASE_FN(10) CASE_FN(11)
 CASE_FN(12) CASE_FN(13) CASE_FN(14) CASE_FN(15) CASE_FN(16) CASE_FN(17)
 CASE_FN(18) CASE_FN(19) CASE_FN(20) CASE_FN(21) CASE_FN(22) CASE_FN(23)
-CASE_FN(24) CASE_FN(25)
+CASE_FN(24) CASE_FN(25) CASE_FN(26) CASE_FN(27) CASE_FN(28) CASE_FN(29)
+CASE_FN(30) CASE_FN(31) CASE_FN(32) CASE_FN(33) CASE_FN(34) CASE_FN(35)
+CASE_FN(36)
 
 /* ------------------------------------------------------------------ *
  * Black-box: run the yafu binary
@@ -725,10 +752,14 @@ static void t_cli_ecm_then_siqs(tk_ctx *tk)
     char *out, *log;
     if (!ts_find_bin()) return;
     /* 2^401-1: the c110 left after trial division / P-1 is an snfs job.  ECM
-       curve 0 at B1=11000 with sigma 938848200 finds the prp22; the c88 left is
-       a siqs job, which -max_siqs 85 declines, so nothing is sieved. */
-    out = ts_run("ecm_sigma", "\"factor(2^401-1)\" -sigma 938848200 -threads 1 "
-        "-plan light -max_siqs 85", dir, sizeof dir);
+       curve 0 at B1=11000 with sigma 781956810 finds the prp22; the c88 left is
+       a siqs job, which -max_siqs 85 declines, so nothing is sieved.
+       -max_nfs 1 keeps the test from ever sieving if ecm misses the factor.
+       The sigma is specific to the default ecm curve family (twisted Edwards
+       since -avxecm_curve 2 became the default): if that changes, find the
+       new one with a -v run and update it here. */
+    out = ts_run("ecm_sigma", "\"factor(2^401-1)\" -sigma 781956810 -threads 1 "
+        "-plan light -max_siqs 85 -max_nfs 1", dir, sizeof dir);
     TK_REQUIRE(tk, out != NULL, "could not run yafu");
     TK_CHECKF(tk, ts_job_type(out, "snfs", 1), "expected an snfs job before ecm");
     TK_CHECKF(tk, strstr(out, "found prp22 factor = 2136958965524920285681") != NULL,
@@ -738,10 +769,49 @@ static void t_cli_ecm_then_siqs(tk_ctx *tk)
         "779609977566650816255226156185129") != NULL, "expected the c88 cofactor to remain");
     snprintf(path, sizeof path, "%s/factor.log", dir);
     log = ts_slurp(path);
-    TK_CHECKF(tk, log != NULL && strstr(log, "sigma=938848200") != NULL,
-        "factor.log does not record the ecm find with sigma 938848200");
+    TK_CHECKF(tk, log != NULL && strstr(log, "sigma=781956810") != NULL,
+        "factor.log does not record the ecm find with sigma 781956810");
     free(log);
     free(out);
+}
+
+static void t_cli_lucas(tk_ctx *tk)
+{
+    char dir[1024];
+    char *out;
+    if (!ts_find_bin()) return;
+    /* the primitive c168 of L(1000) is an snfs job */
+    out = ts_decide(tk, "lucas_1000", "luc(1000)", "", NULL, dir, sizeof dir);
+    TK_CHECKF(tk, strstr(out, "input divides L(1000)") != NULL, "L(1000) form not detected");
+    ts_expect(tk, out, "L(1000)", "snfs", "gnfs", "nfs");
+    free(out);
+}
+
+/* nfs()/snfs() on an input that still contains algebraic factors: the form
+   detection removes them inside nfs(), and when snfs is still the best
+   method it must stay an snfs job (this used to start gnfs poly selection
+   after writing the snfs poly).  -ggnfsT bounds any gnfs poly select. */
+static void t_cli_nfs_np_reduced(tk_ctx *tk)
+{
+    static const struct { const char *tag, *expr; int nd; } c[] = {
+        { "nfs_np_luc1000", "luc(1000)", 168 },
+        { "nfs_np_2_1208m", "2^1208-1",  178 },
+    };
+    char dir[1024], args[256];
+    char *out;
+    int i;
+    if (!ts_find_bin()) return;
+    for (i = 0; i < 2; i++) {
+        snprintf(args, sizeof args, "\"nfs(%s)\" -np -testsieve 99999 -ggnfsT 10 -v", c[i].expr);
+        out = ts_run(c[i].tag, args, dir, sizeof dir);
+        TK_REQUIRE(tk, out != NULL, "could not run yafu");
+        TK_CHECKF(tk, strstr(out, "removing") != NULL, "%s: no algebraic factor removed", c[i].expr);
+        TK_CHECKF(tk, strstr(out, "polynomial selection") == NULL &&
+            strstr(out, "setting deadline") == NULL,
+            "%s: gnfs poly selection started after the snfs poly was chosen", c[i].expr);
+        ts_check_job(tk, dir, c[i].expr, c[i].nd, "snfs");
+        free(out);
+    }
 }
 
 static const tk_test tk__snfs_tests[] = {
@@ -771,6 +841,17 @@ static const tk_test tk__snfs_tests[] = {
     { "direct_16_19",   t_case_23, "fast snfs integration" },
     { "pow_diff_sq",    t_case_24, "fast snfs integration" },
     { "pow_diff_cube",  t_case_25, "fast snfs integration" },
+    { "lucas_mk_1000",  t_case_26, "fast snfs integration lucas" },
+    { "lucas_mk_1199",  t_case_27, "fast snfs integration lucas" },
+    { "lucas_prime_491",t_case_28, "fast snfs integration lucas" },
+    { "fib_prime_613",  t_case_29, "fast snfs integration lucas" },
+    { "fib_prime_997",  t_case_30, "fast snfs integration lucas" },
+    { "fib_mk_1155",    t_case_31, "fast snfs integration lucas" },
+    { "fib_to_luc_1000",t_case_32, "fast snfs integration lucas" },
+    { "lucas_done_630", t_case_33, "fast snfs integration lucas" },
+    { "luc_aurif_515",  t_case_34, "fast snfs integration lucas" },
+    { "luc_aurif_1005", t_case_35, "fast snfs integration lucas" },
+    { "luc_aurif_1495", t_case_36, "fast snfs integration lucas" },
     { "cli_snfs_default", t_cli_snfs_default, "snfs integration cli" },
     { "cli_gnfs_flag",    t_cli_gnfs_flag,    "snfs integration cli" },
     { "cli_snfs_xover",   t_cli_snfs_xover,   "snfs integration cli" },
@@ -779,6 +860,8 @@ static const tk_test tk__snfs_tests[] = {
     { "cli_factor_np",    t_cli_factor_np,    "snfs integration cli" },
     { "cli_snfs_np",      t_cli_snfs_np,      "snfs integration cli" },
     { "cli_ecm_then_siqs", t_cli_ecm_then_siqs, "snfs integration cli" },
+    { "cli_lucas",        t_cli_lucas,        "snfs integration cli lucas" },
+    { "cli_nfs_np_reduced", t_cli_nfs_np_reduced, "snfs integration cli" },
 };
 
 const tk_module tk_module_snfs = {
