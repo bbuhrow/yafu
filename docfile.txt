@@ -93,6 +93,8 @@ flags to change program behavior.  Supported flags are:
 					        <name> = bayesian: run ECM while the next step's expected
 					        	saving in sieve time exceeds its cost (docs/ecm_bayes.md);
 					        	needs tune() and bayestune() data, else follows normal
+					        	(-bayes_prior hard: assume a balanced semiprime, so
+					        	ECM is run only when it pays even for one)
 -pretest_ratio <num>	A fractional value used in the plan=custom mode of operation to 
 				          determine the depth of pretesting.  Inputs are pretested 
 				          to t-level equal to size of input * pretest_ratio
@@ -584,6 +586,8 @@ command line flags affecting factor:
 					<name> = bayesian: run ECM while the next step's expected
 						saving in sieve time exceeds its cost (docs/ecm_bayes.md);
 						needs tune() and bayestune() data, else follows normal
+						(-bayes_prior hard: assume a balanced semiprime, so
+						ECM is run only when it pays even for one)
 -pretest_ratio <num>	A fractional value used in the plan=custom mode of operation to 
 				determine the depth of pretesting.  Inputs are pretested 
 				to t-level equal to size of input * pretest_ratio

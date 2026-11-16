@@ -523,6 +523,7 @@ typedef struct
     int max_nfs;
 
     enum pretest_plan yafu_pretest_plan;
+    int bayes_prior;        // -bayes_prior: 0 random integer, 1 hard (ECMBAYES_PRIOR_*)
     char plan_str[1024];
     int only_pretest;
     int autofact_active;
@@ -679,5 +680,8 @@ int bayes_tune_load(fact_obj_t* fobj);
 // wall seconds per ECM curve at B1 for a digits-digit input with fobj->THREADS
 // threads, from bayes_tune.txt; -1 if there is no data
 double bayes_ecm_sec_per_curve(fact_obj_t* fobj, double digits, double B1);
+// whole-job sieve time (wall s, fobj->THREADS threads) by SIQS (method 0) or
+// GNFS (method 1) from the siqs/nfs lines of bayes_tune.txt; -1 if absent
+double bayes_sieve_sec(fact_obj_t* fobj, int method, double digits);
 
 #endif //_FACTOR_H

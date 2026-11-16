@@ -2066,6 +2066,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     //pretesting plan used by factor()
     fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
     strcpy(fobj->autofact_obj.plan_str, options->fact_plan);
+    fobj->autofact_obj.bayes_prior = options->bayes_prior;
 
     if (strcmp(options->fact_plan, "none") == 0)
         fobj->autofact_obj.yafu_pretest_plan = PRETEST_NONE;

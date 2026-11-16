@@ -336,6 +336,7 @@ void init_factobj(fact_obj_t* fobj)
 
     //pretesting plan used by factor()
     fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
+    fobj->autofact_obj.bayes_prior = 0;
     strcpy(fobj->autofact_obj.plan_str, "normal");
     fobj->autofact_obj.only_pretest = 0;
     fobj->autofact_obj.autofact_active = 0;
@@ -767,12 +768,13 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->autofact_obj.stopprime = src->autofact_obj.stopprime;
     dest->autofact_obj.check_stop_conditions = src->autofact_obj.check_stop_conditions;
     dest->autofact_obj.max_siqs = src->autofact_obj.max_siqs;
-    dest->autofact_obj.max_nfs = src->autofact_obj.max_siqs;
+    dest->autofact_obj.max_nfs = src->autofact_obj.max_nfs;
     dest->autofact_obj.initial_work = src->autofact_obj.initial_work;
     dest->autofact_obj.ecm_total_work_performed = src->autofact_obj.ecm_total_work_performed;
 
     //pretesting plan used by factor()
     dest->autofact_obj.yafu_pretest_plan = src->autofact_obj.yafu_pretest_plan;
+    dest->autofact_obj.bayes_prior = src->autofact_obj.bayes_prior;
     strcpy(dest->autofact_obj.plan_str, src->autofact_obj.plan_str);
     dest->autofact_obj.only_pretest = src->autofact_obj.only_pretest;
     dest->autofact_obj.autofact_active = src->autofact_obj.autofact_active;

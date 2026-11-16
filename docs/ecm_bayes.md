@@ -100,7 +100,10 @@ Compared with one batch per thread (8 curves):
   - curve parameters from `ecm_plan_curve_params`;
   - seconds per curve from `bayes_ecm_sec_per_curve`;
   - at least 8 x threads curves per step.
-- It calls `ecmbayes_decide()` with `ecm_obj.twork`, the random-integer prior, and T(d) = min(SIQS, GNFS) from the tune fits, divided by threads x 0.75 as in `get_*_time_estimate`. The input's own job is timed at the SNFS equivalent size when an SNFS polynomial was chosen.
+- It calls `ecmbayes_decide()` with `ecm_obj.twork`, the prior, and T(d) = min(SIQS, GNFS):
+  - **Prior:** `-bayes_prior random` (the default) is the random-integer prior. `-bayes_prior hard` puts the smaller factor within 5 digits of half the size, for inputs known to be balanced semiprimes. On the C80 test, `hard` skips ECM entirely: 6.9 s, against 9.9 s with `random`.
+  - **Sieve times:** each method uses the whole-job times from the `siqs <digits> <s>` / `nfs <digits> <s>` lines of `bayes_tune.txt` when the file has at least two of them (log-linear interpolation, extrapolation from the nearest two points, scaled linearly if the thread count differs). Otherwise it uses the tune fits divided by threads x 0.75, as in `get_*_time_estimate`.
+  - **SNFS:** the input's own job is timed at the SNFS equivalent size when an SNFS polynomial was chosen.
 - It then either runs the chosen level with the chosen curves (capped at that level's maximum) or switches to the sieve.
 - The t-level target is disabled while the plan is active, including during the P-1/P+1 states. The normal target is still used only for the trivial-input check.
 - The options' work grids are cached per input size. Recomputing them for every level on every step cost about 0.5 s per step.
@@ -116,7 +119,7 @@ Compared with one batch per thread (8 curves):
 The build files changed with it:
 - `ecm_prob.c` and `ecm_bayes.c` are now common sources (Makefile `COMMON_SRCS`, VS `factor_common` project). `siqs_demo` links `factor_common`, which calls `ecmprob_init`, so it failed to link before.
 - The Makefile link targets now depend on the archive rules instead of re-archiving inline. Under `make -j`, several targets rewriting the same `.a` raced and broke the `ecm_demo` link.
-- All four targets build with `make -j12` in WSL. The MSVC and MinGW builds are untested.
+- All four targets build with `make -j12` in WSL. Under VS 2022 (clang-cl), every changed source compiles in the `factor_common`, `ecm` and `yafu` projects (compile only, output redirected; linking not tested). The MinGW build is untested.
 
 First runs (i5-11600K, WSL, 6 threads):
 
@@ -131,16 +134,27 @@ How to read these:
 - Single inputs can't show the expected gain. The comparison needs a set of random composites (or aliquot cofactors) per size, run with both plans.
 - At C100 the decision used a SIQS estimate of 432 s, extrapolated from the tune fit. It is worth checking against a real C100 SIQS run.
 
+### Sieve-time lines and tools
+
+- `bayestune()` measures only ECM. It keeps any `siqs`/`nfs` lines (and `# sieve` comments) already in the file when it rewrites it.
+- `docs/nfs_job_data/fit_sieve_times.py RUNS.csv [--testsieve TS.csv] --append bayes_tune.txt` writes the `nfs` lines:
+  - RUNS.csv is the output of `parse_yafu_nfs.py`, and the script fits ln T against digits over the complete local runs;
+  - optional test-sieve rows (`digits,rels_needed,rels_per_sec`) for larger sizes add points T = (rels/rate + post) / (1 - poly fraction);
+  - post-processing (filter + LA + sqrt) is fitted from the runs, or with one run assumed to grow as 1.07^(1.75 D);
+  - any existing `nfs` lines are replaced.
+- `docs/ecm_bayes_bench.py --yafu ./yafu --sizes 70,80,90 --count 20` benchmarks the two plans:
+  - it factors the same random composites (or `--kind semiprime`) with each plan, one batch per plan and size;
+  - it reports totals, medians and the paired difference with its standard error;
+  - run it on an idle machine.
+
 ## 5. Open items
 
-1. **Remaining timing inputs** for `bayestune()`:
-   - NFS T(D) from `docs/nfs_job_data`: min_rels x 0.85, test-sieve rate, LA fit, poly select budget;
-   - SIQS from the existing tune;
-   - per-method thread efficiency.
-2. **Integration follow-ups.**
-   - Add `-bayes_prior random|hard` (the code always uses the random prior).
-   - Benchmark normal against bayesian on sets of random composites per size.
-   - Build and test under MSVC and MinGW.
-3. **Step choice.** The greedy ranking can pick small B1 values when the quantum is small. That doesn't change the stop much but costs about 1% in E[total] (quantum 10 s against T/1000 at C150). Consider ranking by benefit/cost over a few look-ahead steps, or restricting to B1 >= the current t-level's B1.
-4. **Cofactor value.** V(c) ignores further ECM on the cofactor (an upper bound). That is fine in the GNFS range; check near the SIQS crossover.
-5. **Prior for real inputs.** Validate on aliquot and Cunningham cofactor corpora: compare the predicted find rate per t-level with the observed one.
+1. **NFS sieve times.** When the local runs (C120-C140) and the C150+ test sieving are in:
+   - run `parse_yafu_nfs.py` and `fit_sieve_times.py` and append the `nfs` lines;
+   - optionally add `siqs` lines from a few real SIQS runs. The tune-fit C100 SIQS estimate of 432 s needs checking.
+   - In-yafu NFS test sieving inside `bayestune()` is not written. The script route needs no new C code.
+2. **Benchmark** normal against bayesian with `ecm_bayes_bench.py` on an idle machine: random composites C70-C100, then semiprimes as a control.
+3. **Windows builds:** a full MSVC link, and MinGW.
+4. **Step choice.** The greedy ranking can pick small B1 values when the quantum is small. That doesn't change the stop much but costs about 1% in E[total] (quantum 10 s against T/1000 at C150). Consider ranking by benefit/cost over a few look-ahead steps, or restricting to B1 >= the current t-level's B1.
+5. **Cofactor value.** V(c) ignores further ECM on the cofactor (an upper bound). That is fine in the GNFS range; check near the SIQS crossover.
+6. **Prior for real inputs.** Validate on aliquot and Cunningham cofactor corpora: compare the predicted find rate per t-level with the observed one.

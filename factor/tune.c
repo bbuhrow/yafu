@@ -1633,6 +1633,10 @@ static struct
     int nb1[BT_MAXSIZES];
     double b1[BT_MAXSIZES][BT_MAXB1];
     double spc[BT_MAXSIZES][BT_MAXB1];
+    // whole-job sieve times (wall s at 'threads'): BT_SIQS, BT_NFS
+    int nsieve[2];
+    double sdig[2][BT_MAXSIZES];
+    double ssec[2][BT_MAXSIZES];
 } bt_ecm;
 
 // n = p * q with p, q near digits/2 digits, n exactly 'digits' digits
@@ -1723,11 +1727,39 @@ void bayes_tune(fact_obj_t *fobj)
     gmp_randstate_t rs;
     mpz_t n;
     struct timeval tstart, tnow;
+    char *keep = NULL;
+    size_t keeplen = 0;
+
+    // keep the sieve-time lines ("siqs"/"nfs", from scripts or by hand):
+    // this run only measures ECM
+    {
+        FILE *old = fopen(BAYES_TUNE_FILE, "r");
+        char line[1024];
+        if (old != NULL)
+        {
+            while (fgets(line, sizeof(line), old) != NULL)
+            {
+                if ((strncmp(line, "siqs ", 5) == 0) || (strncmp(line, "nfs ", 4) == 0) ||
+                    (strncmp(line, "# sieve", 7) == 0))
+                {
+                    size_t l = strlen(line);
+                    keep = (char *)realloc(keep, keeplen + l + 2);
+                    memcpy(keep + keeplen, line, l);
+                    keeplen += l;
+                    if (keep[keeplen - 1] != '\n')
+                        keep[keeplen++] = '\n';
+                    keep[keeplen] = '\0';
+                }
+            }
+            fclose(old);
+        }
+    }
 
     out = fopen(BAYES_TUNE_FILE, "w");
     if (out == NULL)
     {
         printf("bayestune: could not open %s for writing\n", BAYES_TUNE_FILE);
+        free(keep);
         return;
     }
 
@@ -1746,6 +1778,11 @@ void bayes_tune(fact_obj_t *fobj)
     fprintf(out, "ecm_options: avxecm_curve=%d avx_stg2_fft=%d ext_xover=%" PRIu64
         " prefer_gmpecm=%d\n", fobj->ecm_obj.avx_curve, fobj->ecm_obj.avx_stg2_fft,
         fobj->ecm_obj.ecm_ext_xover, fobj->ecm_obj.prefer_gmpecm);
+    if (keep != NULL)
+    {
+        fputs(keep, out);
+        free(keep);
+    }
     fprintf(out, "# ecm <digits> <bits> <B1> <curves> <wall s per curve, all threads> <B2 (0: unknown)>\n");
 
     printf("bayestune: ECM wall-clock time per curve, %d threads, %u curves per point\n",
@@ -1849,6 +1886,25 @@ int bayes_tune_load(fact_obj_t *fobj)
             strncpy(bt_ecm.cpu, s, sizeof(bt_ecm.cpu) - 1);
             bt_ecm.cpu[strcspn(bt_ecm.cpu, "\r\n")] = '\0';
         }
+        else if ((strncmp(line, "siqs ", 5) == 0) || (strncmp(line, "nfs ", 4) == 0))
+        {
+            int m = (line[0] == 's') ? 0 : 1;
+            double dd, sec;
+            if ((sscanf(line + (m ? 4 : 5), "%lf %lf", &dd, &sec) == 2) && (sec > 0) &&
+                (bt_ecm.nsieve[m] < BT_MAXSIZES))
+            {
+                // keep sorted by digits
+                int k = bt_ecm.nsieve[m]++;
+                while ((k > 0) && (bt_ecm.sdig[m][k - 1] > dd))
+                {
+                    bt_ecm.sdig[m][k] = bt_ecm.sdig[m][k - 1];
+                    bt_ecm.ssec[m][k] = bt_ecm.ssec[m][k - 1];
+                    k--;
+                }
+                bt_ecm.sdig[m][k] = dd;
+                bt_ecm.ssec[m][k] = sec;
+            }
+        }
         else if ((strncmp(line, "ecm ", 4) == 0) &&
             (sscanf(line + 4, "%d %d %lf %d %lf %lf", &d, &bits, &B1, &curves,
                 &spc, &B2) == 6) && (spc > 0))
@@ -1871,7 +1927,7 @@ int bayes_tune_load(fact_obj_t *fobj)
     }
     fclose(in);
 
-    if (bt_ecm.nsizes == 0)
+    if ((bt_ecm.nsizes == 0) && (bt_ecm.nsieve[0] < 2) && (bt_ecm.nsieve[1] < 2))
         return 0;
     bt_ecm.loaded = 1;
 
@@ -1920,6 +1976,8 @@ double bayes_ecm_sec_per_curve(fact_obj_t *fobj, double digits, double B1)
 
     if (!bt_ecm.loaded && !bayes_tune_load(NULL))
         return -1.0;
+    if (bt_ecm.nsizes == 0)
+        return -1.0;
 
     if (bt_ecm.nsizes == 1)
     {
@@ -1942,6 +2000,37 @@ double bayes_ecm_sec_per_curve(fact_obj_t *fobj, double digits, double B1)
                 t = exp(y0 + (y1 - y0) * (digits - d0) / (d1 - d0));
         }
     }
+
+    if ((fobj != NULL) && (bt_ecm.threads > 0) && (fobj->THREADS > 0) &&
+        (fobj->THREADS != bt_ecm.threads))
+        t *= (double)bt_ecm.threads / (double)fobj->THREADS;
+    return t;
+}
+
+// Whole-job sieve time (wall s, fobj->THREADS threads) for a composite of
+// 'digits' digits by SIQS (method 0) or GNFS (method 1), from the "siqs" /
+// "nfs" lines of bayes_tune.txt: log-linear interpolation, extrapolation with
+// the slope of the nearest two points.  -1 if there are fewer than two points.
+double bayes_sieve_sec(fact_obj_t *fobj, int method, double digits)
+{
+    int n, k;
+    double d0, d1, y0, y1, t;
+
+    if ((method < 0) || (method > 1))
+        return -1.0;
+    if (!bt_ecm.loaded && !bayes_tune_load(NULL))
+        return -1.0;
+    n = bt_ecm.nsieve[method];
+    if (n < 2)
+        return -1.0;
+    for (k = 1; k < n - 1; k++)
+        if (digits < bt_ecm.sdig[method][k])
+            break;
+    d0 = bt_ecm.sdig[method][k - 1];
+    d1 = bt_ecm.sdig[method][k];
+    y0 = log(bt_ecm.ssec[method][k - 1]);
+    y1 = log(bt_ecm.ssec[method][k]);
+    t = exp(y0 + (y1 - y0) * (digits - d0) / (d1 - d0));
 
     if ((fobj != NULL) && (bt_ecm.threads > 0) && (fobj->THREADS > 0) &&
         (fobj->THREADS != bt_ecm.threads))

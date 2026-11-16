@@ -1573,9 +1573,17 @@ static double bayes_sieve_time(double digits, void *vctx)
 		return 0.0;
 	if (fabs(digits - c->D) < 1e-9)
 		digits = c->D_time;
-	q = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
-	g = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
-	return MIN(q, g) / bayes_thread_div(fobj);
+	// measured whole-job times (bayes_tune.txt siqs/nfs lines) when present,
+	// else the tune() fits with the usual threading allowance
+	q = bayes_sieve_sec(fobj, 0, digits);
+	if (q < 0)
+		q = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits) /
+			bayes_thread_div(fobj);
+	g = bayes_sieve_sec(fobj, 1, digits);
+	if (g < 0)
+		g = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits) /
+			bayes_thread_div(fobj);
+	return MIN(q, g);
 }
 
 // 1 if the data -plan bayesian needs are present (else, once, say so)
@@ -1659,7 +1667,10 @@ static int bayes_schedule(factor_work_t *fwork, fact_obj_t *fobj, int numdigits,
 	if ((fwork->target_job_type == job_snfs) && (fwork->snfs_equiv_size > 0))
 		ctx.D_time = (double)MIN(fwork->snfs_equiv_size, numdigits);
 
-	ecmbayes_prior(lambda, ECMBAYES_PRIOR_RANDOM, (double)numdigits, 0.0, 0.0);
+	// hard: a balanced semiprime, its smaller factor within 5 digits of half
+	// the size (ECM is then hardly ever worth running)
+	ecmbayes_prior(lambda, (fobj->autofact_obj.bayes_prior == 1) ?
+		ECMBAYES_PRIOR_HARD : ECMBAYES_PRIOR_RANDOM, (double)numdigits, 0.0, 5.0);
 	ecmbayes_decide(lambda, fobj->ecm_obj.twork, (double)numdigits,
 		bayes_sieve_time, &ctx, optv, nopt, 0.0, &dec);
 

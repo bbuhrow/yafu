@@ -89,7 +89,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "nfs_stage1_args", "cuda_sieve", "cuda_dev", "siqsSPV", "siqsMid",
     "siqsLarge", "siqsKernel", "siqsSparseKernel", "siqsLPisa", "noneon",
     "avxecm_rns_bits", "avxecm_stg2", "avxecm_stg2mem", "avxecm_bs", "avxecm_curve",
-    "keeppoly", "mindegree", "maxdegree" };
+    "keeppoly", "mindegree", "maxdegree", "bayes_prior" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -242,7 +242,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv), x-only/Edwards stage 1 (default 2)",
     "(Integer < 32-bit): SNFS: number of best-ranked polynomials kept, printed and test sieved (default 3)",
     "(Integer < 32-bit): SNFS: discard generated polynomials of degree below this",
-    "(Integer < 32-bit): SNFS: discard generated polynomials of degree above this"
+    "(Integer < 32-bit): SNFS: discard generated polynomials of degree above this",
+    "(String)          : -plan bayesian: factor-size prior, random (default) or hard",
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -281,7 +282,8 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,1,1,     // siqsSPV, siqsMid, siqsLarge, siqsKernel, siqsSparseKernel
     1, 0,          // siqsLPisa, noneon
     1, 1, 1, 1, 1, // avxecm_rns_bits, avxecm_stg2, avxecm_stg2mem, avxecm_bs, avxecm_curve
-    1, 1, 1        // keeppoly, mindegree, maxdegree
+    1, 1, 1,       // keeppoly, mindegree, maxdegree
+    1              // bayes_prior
 };
 
 // command line option aliases, specified by '--'
@@ -317,7 +319,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", ""
+    "", "", "", ""
 };
 
 
@@ -1491,6 +1493,16 @@ void applyOpt(char* opt, char* arg, options_t* options)
             options->mindegree = 0;
         }
     }
+    else if (strcmp(opt, OptionArray[148]) == 0)
+    {
+        // argument "bayes_prior": factor-size prior of -plan bayesian
+        if (strcmp(arg, "random") == 0)
+            options->bayes_prior = 0;
+        else if (strcmp(arg, "hard") == 0)
+            options->bayes_prior = 1;
+        else
+            printf("*** bayes_prior must be random or hard; ignoring ***\n");
+    }
     else if (strcmp(opt, OptionArray[147]) == 0)
     {
         // argument "maxdegree": SNFS polys above this degree are discarded
@@ -1703,6 +1715,7 @@ options_t* initOpt(void)
     options->degree = 0;
     options->mindegree = 0;
     options->maxdegree = 0;
+    options->bayes_prior = 0;
     options->siqsNobat = 0;
     options->siqsSSidx = 0;
     options->siqsSSalloc = 12;
