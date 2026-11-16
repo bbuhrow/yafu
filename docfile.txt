@@ -90,6 +90,9 @@ flags to change program behavior.  Supported flags are:
 					        	input before starting qs/nfs
 					        <name> = custom: pretest to t-level specified by the 
 					        	ratio in the –pretest_ratio option 
+					        <name> = bayesian: run ECM while the next step's expected
+					        	saving in sieve time exceeds its cost (docs/ecm_bayes.md);
+					        	needs tune() and bayestune() data, else follows normal
 -pretest_ratio <num>	A fractional value used in the plan=custom mode of operation to 
 				          determine the depth of pretesting.  Inputs are pretested 
 				          to t-level equal to size of input * pretest_ratio
@@ -341,6 +344,17 @@ Montgomery arithmetic on this machine (AVX-512 builds).  Times one 8-curve batch
 table, and writes the crossover to yafu.ini as avxecm_rns_bits (0 if RNS is never
 faster).  Takes about a minute.  tune() runs it as well.
 
+[bayestune]
+usage: bayestune()
+
+description:
+extended tune for the Bayesian pretest plan (docs/ecm_bayes.md); separate from
+tune(), which it does not replace.  Times ECM as factor() runs it (same engine,
+curve family, stage 2 and -threads) for inputs of 60 to 310 digits at B1 = 50k,
+250k, 1M and 3M (3M for C90-C200 only), measures 1-thread vs all-thread efficiency
+at C150, and writes wall-clock seconds per curve to bayes_tune.txt with the CPU and
+thread count.  Re-run it after changing -threads, the CPU or ECM options.
+
 [siqstune]
 usage: siqstune()
 
@@ -567,6 +581,9 @@ command line flags affecting factor:
 						input before starting qs/nfs
 					<name> = custom: pretest to t-level specified by the 
 						ratio in the –pretest_ratio option 
+					<name> = bayesian: run ECM while the next step's expected
+						saving in sieve time exceeds its cost (docs/ecm_bayes.md);
+						needs tune() and bayestune() data, else follows normal
 -pretest_ratio <num>	A fractional value used in the plan=custom mode of operation to 
 				determine the depth of pretesting.  Inputs are pretested 
 				to t-level equal to size of input * pretest_ratio

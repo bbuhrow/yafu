@@ -45,6 +45,12 @@
     <ClCompile Include="..\..\factor\factor_common.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\ecm_prob.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\ecm_bayes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c">
       <Filter>Source Files</Filter>
     </ClCompile>

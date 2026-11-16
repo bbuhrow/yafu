@@ -898,6 +898,8 @@ YAFU_SRCS = \
 # -----------------------------------------------------------------------------
 COMMON_SRCS = \
     factor/batch_factor.c \
+    factor/gmp-ecm/ecm_prob.c \
+    factor/ecm_bayes.c \
     factor/factor_common.c \
     factor/rho.c \
     factor/squfof.c \
@@ -953,7 +955,6 @@ endif
 # -----------------------------------------------------------------------------
 ECM_SRCS = \
     factor/gmp-ecm/ecm.c \
-    factor/gmp-ecm/ecm_prob.c \
     factor/gmp-ecm/pp1.c \
     factor/gmp-ecm/pm1.c \
     factor/avx-ecm/avxecm.c \
@@ -1293,49 +1294,21 @@ $(DEPS_SUBDIRS):
 # 25. LINK TARGETS
 # -----------------------------------------------------------------------------
 
-yafu: _dep_status \
-      $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) \
-      $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
-      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(BATCH_GPU_OBJS) $(GPU_OBJS)
-	rm -f libmsieve.a
-	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	ranlib libmsieve.a
-	rm -f libysiqs.a
-	ar r  libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
-	ranlib libysiqs.a
-	rm -f libyecm.a
-	ar r  libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
-	ranlib libyecm.a
-	rm -f libynfs.a
-	ar r  libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
-	ranlib libynfs.a
+# The link targets depend on the archive rules (section 25a) instead of
+# re-archiving inline: with make -j, several targets rewriting the same .a at
+# once raced and broke the ecm_demo / siqs_demo links.
+yafu: _dep_status $(YAFU_OBJS) libysiqs.a libyecm.a libynfs.a libmsieve.a $(GPU_OBJS)
 	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu$(EXE_EXT) \
 	    -lysiqs -lyecm -lynfs -lmsieve $(LIBS)
 
-msieve: _dep_status \
-        $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
-	rm -f libmsieve.a
-	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	ranlib libmsieve.a
+msieve: _dep_status libmsieve.a $(GPU_OBJS)
 	$(CC) $(CFLAGS) demo.c -o msieve$(EXE_EXT) \
 	    libmsieve.a $(MSIEVE_LIBS)
 
-siqs: _dep_status \
-      $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) \
-      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	rm -f libysiqs.a
-	ar r  libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
-	ranlib libysiqs.a
-	rm -f libmsieve.a
-	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	ranlib libmsieve.a
+siqs: _dep_status $(SIQS_BIN_OBJS) libysiqs.a libmsieve.a
 	$(CC) $(CFLAGS) $(SIQS_BIN_OBJS) -o siqs_demo$(EXE_EXT) -lysiqs -lmsieve $(LIBS)
 
-ecm: _dep_status \
-     $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
-	rm -f libyecm.a
-	ar r  libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
-	ranlib libyecm.a
+ecm: _dep_status $(ECM_BIN_OBJS) libyecm.a
 	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo$(EXE_EXT) -lyecm $(LIBS)
 
 
@@ -1431,8 +1404,8 @@ TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c \
 TEST_FULL_BIN := yafu_test_full$(EXE_EXT)
 TEST_ARCHIVES := libysiqs.a libyecm.a libynfs.a libmsieve.a
 
-# Standalone archive rules mirroring the inline `ar` steps in the yafu/msieve
-# recipes (same member sets), so test-full can depend on them directly.
+# Archive rules, shared by the yafu / msieve / siqs / ecm link targets and
+# test-full.
 libysiqs.a: $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
 	rm -f $@
 	ar r  $@ $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)

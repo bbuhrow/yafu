@@ -132,7 +132,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : Filename where primes found during factor() are output",
     "(String)          : Filename where factors found during factor() are output",
     "(String)          : Filename where unfactored residues remaining after factor() are output",
-    "(String)          : ECM pretesting plan (light = 2/9, deep = 1/3, normal = 4/13, none, or custom (pretest_ratio)",
+    "(String)          : ECM pretesting plan (light = 2/9, deep = 1/3, normal = 4/13, none, custom, bayesian)",
     "(Integer < 32-bit): Only ECM pretest (no NFS or SIQS) to specified digit level",
     "                  : For use with op, of, or ou, to output expressions",
     "(String)          : NFS output filename",
@@ -693,6 +693,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
                 strcpy(options->fact_plan, "normal");
             else if (strcmp(arg, "custom") == 0)
                 strcpy(options->fact_plan, "custom");
+            else if ((strcmp(arg, "bayesian") == 0) || (strcmp(arg, "bayes") == 0))
+                strcpy(options->fact_plan, "bayesian");
             else
             {
                 printf("*** unknown plan option, ignoring ***\n");

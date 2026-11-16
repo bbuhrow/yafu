@@ -7,6 +7,7 @@
 #include "yafu_ecm.h"
 #include <stdint.h>
 #include <math.h>
+#include <time.h>
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
@@ -1605,3 +1606,345 @@ void ecm_rns_tune(fact_obj_t *fobj)
 }
 
 #endif
+
+// ---------------------------------------------------------------------------
+// bayestune(): extended tune for -plan bayesian (docs/ecm_bayes.md), kept
+// separate from tune() so that users who don't want the Bayesian pretest
+// plan can skip it.  It writes bayes_tune.txt:
+//   ECM: wall-clock seconds per curve with all threads, through ecm_loop()
+//   (the same engine, curve family, stage 2 and threading that factor() will
+//   use), for input sizes C60..C310 and B1 = 50k..3M, plus the 1-thread vs
+//   N-thread efficiency at one point.
+// Planned: NFS test-sieving (docs/nfs_job_data/local_collection.md).
+// bayes_tune_load() / bayes_ecm_sec_per_curve() read it back.
+// ---------------------------------------------------------------------------
+
+#define BAYES_TUNE_FILE "bayes_tune.txt"
+#define BT_MAXSIZES 64
+#define BT_MAXB1 8
+
+static struct
+{
+    int loaded;
+    int threads;
+    char cpu[80];
+    int nsizes;
+    double digits[BT_MAXSIZES];
+    int nb1[BT_MAXSIZES];
+    double b1[BT_MAXSIZES][BT_MAXB1];
+    double spc[BT_MAXSIZES][BT_MAXB1];
+} bt_ecm;
+
+// n = p * q with p, q near digits/2 digits, n exactly 'digits' digits
+static void bt_semiprime(mpz_t n, int digits, gmp_randstate_t rs)
+{
+    mpz_t p, q, t;
+    mpz_init(p);
+    mpz_init(q);
+    mpz_init(t);
+    do
+    {
+        int pbits = (int)((double)digits * 3.321928 / 2.0);
+        mpz_urandomb(p, rs, (mp_bitcnt_t)pbits);
+        mpz_setbit(p, (mp_bitcnt_t)(pbits - 1));
+        mpz_nextprime(p, p);
+
+        // t uniform in [1.5, 9] * 10^(digits-1)
+        mpz_ui_pow_ui(t, 10, (unsigned long)(digits - 1));
+        mpz_mul_ui(t, t, 15 + (unsigned long)gmp_urandomm_ui(rs, 75));
+        mpz_tdiv_q_ui(t, t, 10);
+        mpz_tdiv_q(q, t, p);
+        mpz_nextprime(q, q);
+        mpz_mul(n, p, q);
+    } while (gmp_base10(n) != digits);
+    mpz_clear(p);
+    mpz_clear(q);
+    mpz_clear(t);
+}
+
+// wall seconds per curve for one ecm_loop() call of ncurves curves at B1;
+// *found = 1 if a factor turned up (the time is then not usable)
+static double bt_ecm_run(fact_obj_t *fobj, mpz_t n, uint64_t B1,
+    uint32_t ncurves, int *curves, double *B2, int *found)
+{
+    struct timeval start, stop;
+    int c;
+    double t;
+
+    reset_factobj(fobj);
+    mpz_set(fobj->N, n);
+    mpz_set(fobj->ecm_obj.gmp_n, n);
+    fobj->ecm_obj.B1 = B1;
+    fobj->ecm_obj.num_curves = ncurves;
+    fobj->ecm_obj.last_cp.B2 = 0;
+
+    gettimeofday(&start, NULL);
+    c = ecm_loop(fobj);
+    gettimeofday(&stop, NULL);
+    t = ytools_difftime(&start, &stop);
+
+    *found = (mpz_cmp(fobj->ecm_obj.gmp_n, n) != 0);
+    *curves = c;
+    *B2 = fobj->ecm_obj.last_cp.B2;
+    return (c > 0) ? t / (double)c : 0.0;
+}
+
+// time one (size, B1) point, drawing a new input if a curve finds a factor
+static double bt_ecm_point(fact_obj_t *fobj, mpz_t n, int digits,
+    uint64_t B1, uint32_t ncurves, gmp_randstate_t rs, int *curves,
+    double *B2)
+{
+    int tries, found = 0;
+    double spc = 0.0;
+    for (tries = 0; tries < 5; tries++)
+    {
+        spc = bt_ecm_run(fobj, n, B1, ncurves, curves, B2, &found);
+        if (!found)
+            return spc;
+        bt_semiprime(n, digits, rs);
+    }
+    return -1.0;
+}
+
+void bayes_tune(fact_obj_t *fobj)
+{
+    static const int sizes[] = { 60, 70, 80, 90, 100, 110, 120, 130, 140,
+        150, 160, 170, 180, 190, 200, 220, 250, 280, 310 };
+    static const uint64_t b1s[] = { 50000, 250000, 1000000, 3000000 };
+    const int nsz = (int)(sizeof(sizes) / sizeof(sizes[0]));
+    const int nb1 = (int)(sizeof(b1s) / sizeof(b1s[0]));
+    int saved_vflag = fobj->VFLAG;
+    int saved_logflag = fobj->LOGFLAG;
+    int threads = fobj->THREADS;
+    uint32_t ncurves;
+    int i, j;
+    FILE *out;
+    time_t now = time(NULL);
+    gmp_randstate_t rs;
+    mpz_t n;
+    struct timeval tstart, tnow;
+
+    out = fopen(BAYES_TUNE_FILE, "w");
+    if (out == NULL)
+    {
+        printf("bayestune: could not open %s for writing\n", BAYES_TUNE_FILE);
+        return;
+    }
+
+    if (threads < 1)
+        threads = 1;
+    // two 8-curve batches per thread (AVX-ECM runs curves in vector batches):
+    // one batch leaves per-call setup (threads, stage 2 tables) too visible
+    ncurves = 16 * (uint32_t)threads;
+
+    fprintf(out, "# yafu bayestune: timing data for -plan bayesian (docs/ecm_bayes.md)\n");
+    fprintf(out, "# re-run bayestune() after changing threads, CPU, or ECM options\n");
+    fprintf(out, "version: 1\n");
+    fprintf(out, "cpu: %s\n", fobj->CPU_ID_STR);
+    fprintf(out, "threads: %d\n", threads);
+    fprintf(out, "date: %s", ctime(&now));
+    fprintf(out, "ecm_options: avxecm_curve=%d avx_stg2_fft=%d ext_xover=%" PRIu64
+        " prefer_gmpecm=%d\n", fobj->ecm_obj.avx_curve, fobj->ecm_obj.avx_stg2_fft,
+        fobj->ecm_obj.ecm_ext_xover, fobj->ecm_obj.prefer_gmpecm);
+    fprintf(out, "# ecm <digits> <bits> <B1> <curves> <wall s per curve, all threads> <B2 (0: unknown)>\n");
+
+    printf("bayestune: ECM wall-clock time per curve, %d threads, %u curves per point\n",
+        threads, ncurves);
+    printf("   C  |        B1 |  s/curve |       B2 | elapsed\n");
+
+    gmp_randinit_default(rs);
+    gmp_randseed_ui(rs, 31415);
+    mpz_init(n);
+    fobj->VFLAG = -1;
+    fobj->LOGFLAG = 0;
+    gettimeofday(&tstart, NULL);
+
+    for (i = 0; i < nsz; i++)
+    {
+        bt_semiprime(n, sizes[i], rs);
+        for (j = 0; j < nb1; j++)
+        {
+            int curves;
+            double B2, spc;
+
+            // keep the factors out of reach (C60-C80 have 30-40 digit
+            // factors) and the run time down at the largest sizes
+            if ((b1s[j] > 1000000) && ((sizes[i] < 90) || (sizes[i] > 200)))
+                continue;
+
+            spc = bt_ecm_point(fobj, n, sizes[i], b1s[j], ncurves, rs, &curves, &B2);
+            gettimeofday(&tnow, NULL);
+            if (spc <= 0)
+            {
+                printf(" %4d | %9" PRIu64 " | factor found 5 times, skipped\n",
+                    sizes[i], b1s[j]);
+                continue;
+            }
+            printf(" %4d | %9" PRIu64 " | %8.4f | %8.3g | %6.0f s\n", sizes[i], b1s[j],
+                spc, B2, ytools_difftime(&tstart, &tnow));
+            fflush(stdout);
+            fprintf(out, "ecm %d %d %" PRIu64 " %d %.6g %.6g\n", sizes[i],
+                (int)mpz_sizeinbase(n, 2), b1s[j], curves, spc, B2);
+            fflush(out);
+        }
+    }
+
+    // thread efficiency at one point: 1 thread (one batch) vs all threads
+    if (threads > 1)
+    {
+        int curves1, curvesN;
+        double B2, s1, sN;
+        bt_semiprime(n, 150, rs);
+        fobj->THREADS = 1;
+        s1 = bt_ecm_point(fobj, n, 150, 250000, 16, rs, &curves1, &B2);
+        fobj->THREADS = threads;
+        sN = bt_ecm_point(fobj, n, 150, 250000, ncurves, rs, &curvesN, &B2);
+        if ((s1 > 0) && (sN > 0))
+        {
+            printf("bayestune: ECM thread efficiency at C150, B1=250k: %1.3f "
+                "(%1.4f s/curve on 1 thread, %1.4f on %d)\n",
+                s1 / (sN * threads), s1, sN, threads);
+            fprintf(out, "ecm_eff 150 250000 %d %.6g %.6g %.4f\n", threads, s1, sN,
+                s1 / (sN * threads));
+        }
+    }
+
+    fclose(out);
+    fobj->VFLAG = saved_vflag;
+    fobj->LOGFLAG = saved_logflag;
+    fobj->THREADS = threads;
+    reset_factobj(fobj);
+    mpz_clear(n);
+    gmp_randclear(rs);
+
+    gettimeofday(&tnow, NULL);
+    printf("bayestune: wrote %s (%1.0f s)\n", BAYES_TUNE_FILE,
+        ytools_difftime(&tstart, &tnow));
+
+    bt_ecm.loaded = 0;
+    bayes_tune_load(fobj);
+}
+
+int bayes_tune_load(fact_obj_t *fobj)
+{
+    FILE *in;
+    char line[1024];
+
+    memset(&bt_ecm, 0, sizeof(bt_ecm));
+    in = fopen(BAYES_TUNE_FILE, "r");
+    if (in == NULL)
+        return 0;
+
+    while (fgets(line, sizeof(line), in) != NULL)
+    {
+        int d, bits, curves;
+        double B1, spc, B2;
+
+        if (strncmp(line, "threads:", 8) == 0)
+            bt_ecm.threads = atoi(line + 8);
+        else if (strncmp(line, "cpu:", 4) == 0)
+        {
+            char *s = line + 4;
+            while (*s == ' ') s++;
+            strncpy(bt_ecm.cpu, s, sizeof(bt_ecm.cpu) - 1);
+            bt_ecm.cpu[strcspn(bt_ecm.cpu, "\r\n")] = '\0';
+        }
+        else if ((strncmp(line, "ecm ", 4) == 0) &&
+            (sscanf(line + 4, "%d %d %lf %d %lf %lf", &d, &bits, &B1, &curves,
+                &spc, &B2) == 6) && (spc > 0))
+        {
+            int k = bt_ecm.nsizes - 1;
+            if ((k < 0) || (bt_ecm.digits[k] != (double)d))
+            {
+                if (bt_ecm.nsizes == BT_MAXSIZES)
+                    continue;
+                k = bt_ecm.nsizes++;
+                bt_ecm.digits[k] = d;
+            }
+            if (bt_ecm.nb1[k] < BT_MAXB1)
+            {
+                bt_ecm.b1[k][bt_ecm.nb1[k]] = B1;
+                bt_ecm.spc[k][bt_ecm.nb1[k]] = spc;
+                bt_ecm.nb1[k]++;
+            }
+        }
+    }
+    fclose(in);
+
+    if (bt_ecm.nsizes == 0)
+        return 0;
+    bt_ecm.loaded = 1;
+
+    if ((fobj != NULL) && (fobj->VFLAG >= 0))
+    {
+        if (bt_ecm.threads != fobj->THREADS)
+            printf("bayestune: %s was measured with %d threads, running with %d: "
+                "ECM times scaled linearly; re-run bayestune() for accuracy\n",
+                BAYES_TUNE_FILE, bt_ecm.threads, fobj->THREADS);
+        if (strcmp(bt_ecm.cpu, fobj->CPU_ID_STR) != 0)
+            printf("bayestune: %s was measured on '%s', this is '%s'\n",
+                BAYES_TUNE_FILE, bt_ecm.cpu, fobj->CPU_ID_STR);
+    }
+    return 1;
+}
+
+// log-log interpolation in B1 at size index k (extrapolation uses the end
+// segment's slope, clamped to [0.8, 1.5])
+static double bt_spc_at(int k, double B1)
+{
+    int m = bt_ecm.nb1[k], j;
+    double x = log(B1), x0, x1, y0, y1, s;
+
+    if (m == 1)
+        return bt_ecm.spc[k][0] * B1 / bt_ecm.b1[k][0];
+    for (j = 1; j < m - 1; j++)
+        if (B1 < bt_ecm.b1[k][j])
+            break;
+    x0 = log(bt_ecm.b1[k][j - 1]);
+    x1 = log(bt_ecm.b1[k][j]);
+    y0 = log(bt_ecm.spc[k][j - 1]);
+    y1 = log(bt_ecm.spc[k][j]);
+    s = (y1 - y0) / (x1 - x0);
+    if ((B1 < bt_ecm.b1[k][0]) || (B1 > bt_ecm.b1[k][m - 1]))
+    {
+        if (s < 0.8) s = 0.8;
+        if (s > 1.5) s = 1.5;
+    }
+    return exp(y0 + s * (x - x0));
+}
+
+double bayes_ecm_sec_per_curve(fact_obj_t *fobj, double digits, double B1)
+{
+    int k;
+    double t;
+
+    if (!bt_ecm.loaded && !bayes_tune_load(NULL))
+        return -1.0;
+
+    if (bt_ecm.nsizes == 1)
+    {
+        double r = digits / bt_ecm.digits[0];
+        t = bt_spc_at(0, B1) * r * r;
+    }
+    else
+    {
+        for (k = 1; k < bt_ecm.nsizes - 1; k++)
+            if (digits < bt_ecm.digits[k])
+                break;
+        {
+            double d0 = bt_ecm.digits[k - 1], d1 = bt_ecm.digits[k];
+            double y0 = log(bt_spc_at(k - 1, B1)), y1 = log(bt_spc_at(k, B1));
+            if (digits < d0)
+                t = exp(y0) * (digits / d0) * (digits / d0);        // ~ size^2
+            else if (digits > d1)
+                t = exp(y1) * (digits / d1) * (digits / d1);
+            else
+                t = exp(y0 + (y1 - y0) * (digits - d0) / (d1 - d0));
+        }
+    }
+
+    if ((fobj != NULL) && (bt_ecm.threads > 0) && (fobj->THREADS > 0) &&
+        (fobj->THREADS != bt_ecm.threads))
+        t *= (double)bt_ecm.threads / (double)fobj->THREADS;
+    return t;
+}

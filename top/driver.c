@@ -2079,6 +2079,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->autofact_obj.yafu_pretest_plan = PRETEST_DEEP;
     else if (strcmp(options->fact_plan, "custom") == 0)
         fobj->autofact_obj.yafu_pretest_plan = PRETEST_CUSTOM;
+    else if (strcmp(options->fact_plan, "bayesian") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_BAYES;
     fobj->autofact_obj.only_pretest = (int)options->pretest;
     fobj->autofact_obj.autofact_active = 0;
     fobj->autofact_obj.json_pretty = options->json_pretty;

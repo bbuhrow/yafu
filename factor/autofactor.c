@@ -27,6 +27,7 @@ code to the public domain.
 #include "nfs.h"
 #include "nfs_impl.h"
 #include "yafu_ecm.h"
+#include "ecm_bayes.h"
 #include "ytools.h"
 #include "mpz_aprcl.h"
 #include "cmdOptions.h"
@@ -1144,7 +1145,64 @@ int check_if_done(fact_obj_t *fobj, factor_work_t* fwork, mpz_t N)
 	return done;
 }
 
+// The maximum curves at each ECM level (one full t-level at its B1, with the
+// curves that B1 would run) cost a stage 2 plan each, so they are computed
+// when a level is first reached rather than for all levels up front: lists of
+// small inputs never get near the high levels.
+#define ECM_MAX_UNKNOWN 0xFFFFFFFFu
+
+static uint32_t *ecm_max_field(factor_work_t *fwork, int lvl)
+{
+	switch (lvl)
+	{
+	case 0: return &fwork->ecm_max_15digit_curves;
+	case 1: return &fwork->ecm_max_20digit_curves;
+	case 2: return &fwork->ecm_max_25digit_curves;
+	case 3: return &fwork->ecm_max_30digit_curves;
+	case 4: return &fwork->ecm_max_35digit_curves;
+	case 5: return &fwork->ecm_max_40digit_curves;
+	case 6: return &fwork->ecm_max_45digit_curves;
+	case 7: return &fwork->ecm_max_50digit_curves;
+	case 8: return &fwork->ecm_max_55digit_curves;
+	case 9: return &fwork->ecm_max_60digit_curves;
+	default: return &fwork->ecm_max_65digit_curves;
+	}
+}
+
+// the maximum curves at ECM level lvl (0 = 15 digits), computed on first use
+static uint32_t ecm_level_max(factor_work_t *fwork, fact_obj_t *fobj, int lvl)
+{
+	uint32_t *m = ecm_max_field(fwork, lvl);
+	if (*m == ECM_MAX_UNKNOWN)
+	{
+		ecm_curve_param_t cp;
+		ecm_plan_curve_params(fobj, ecm_std_b1[lvl], &cp);
+		*m = get_curves_for_tlevel(lvl, &cp);
+	}
+	return *m;
+}
+
+static enum factorization_state get_next_state_raw(factor_work_t *fwork, fact_obj_t *fobj);
+
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
+{
+	// an ECM level whose maximum isn't known yet counts as not complete;
+	// when one comes up, compute its maximum and look again
+	for (;;)
+	{
+		enum factorization_state s = get_next_state_raw(fwork, fobj);
+		int lvl = (int)s - (int)state_ecm_15digit;
+		if ((lvl >= 0) && (lvl <= (int)(state_ecm_65digit - state_ecm_15digit)) &&
+			(*ecm_max_field(fwork, lvl) == ECM_MAX_UNKNOWN))
+		{
+			ecm_level_max(fwork, fobj, lvl);
+			continue;
+		}
+		return s;
+	}
+}
+
+static enum factorization_state get_next_state_raw(factor_work_t *fwork, fact_obj_t *fobj)
 {
 	enum factorization_state next_state;
 
@@ -1481,6 +1539,170 @@ uint32_t  get_max_ecm_curves(factor_work_t *fwork, enum factorization_state stat
 }
 #endif
 
+// ---------------------------------------------------------------------------
+// -plan bayesian (docs/ecm_bayes.md): run the ECM step with the best expected
+// saving in sieve time per second while that saving exceeds its cost.
+// ECM costs come from bayes_tune.txt (bayestune()), sieve times from the
+// tune() fits in yafu.ini.
+// ---------------------------------------------------------------------------
+typedef struct
+{
+	fact_obj_t *fobj;
+	double D;		// input digits
+	double D_time;	// digits to time the input's own sieve job at (snfs: its
+					// equivalent gnfs size)
+} bayes_ctx_t;
+
+static double bayes_thread_div(fact_obj_t *fobj)
+{
+	// same threading allowance as get_qs/gnfs_time_estimate
+	int cpu = (int)ytools_get_cpu_type();
+	double eff = ((cpu == 9) || (cpu == 10)) ? 0.90 : 0.75;
+	if (fobj->THREADS <= 1)
+		return 1.0;
+	return (double)fobj->THREADS * eff;
+}
+
+static double bayes_sieve_time(double digits, void *vctx)
+{
+	bayes_ctx_t *c = (bayes_ctx_t *)vctx;
+	fact_obj_t *fobj = c->fobj;
+	double q, g;
+
+	if (digits < 1.0)
+		return 0.0;
+	if (fabs(digits - c->D) < 1e-9)
+		digits = c->D_time;
+	q = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
+	g = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
+	return MIN(q, g) / bayes_thread_div(fobj);
+}
+
+// 1 if the data -plan bayesian needs are present (else, once, say so)
+static int bayes_data_ok(fact_obj_t *fobj, int numdigits)
+{
+	static int warned = 0;
+	if (check_tune_params(fobj) &&
+		(bayes_ecm_sec_per_curve(fobj, (double)numdigits, 1e6) >= 0))
+		return 1;
+	if (!warned && (fobj->VFLAG >= 0))
+		printf("fac: -plan bayesian needs tune() and bayestune() data; "
+			"following the normal plan\n");
+	warned = 1;
+	return 0;
+}
+
+// Decide the next step.  Returns 0 if the data it needs are missing (the
+// caller then follows the normal plan); otherwise 1, with *state_out the ECM
+// level to run (*curves_out curves at its B1) or state_nfs to stop pretesting.
+static int bayes_schedule(factor_work_t *fwork, fact_obj_t *fobj, int numdigits,
+	enum factorization_state first, enum factorization_state *state_out,
+	uint32_t *curves_out)
+{
+	// the options (curve parameters, cost and one curve's work grid) depend
+	// only on the input size and the options, so keep them between calls:
+	// computing the work grids for every level is slow
+	static ecmbayes_option_t cache[NUM_ECM_LEVELS];
+	static int cache_digits = -1, cache_threads = -1;
+	ecmbayes_option_t optv[NUM_ECM_LEVELS];
+	enum factorization_state ostate[NUM_ECM_LEVELS];
+	uint32_t oleft[NUM_ECM_LEVELS];
+	double lambda[ECMBAYES_NLAM];
+	ecmbayes_decision_t dec;
+	bayes_ctx_t ctx;
+	int nopt = 0, lvl;
+	double min_curves = 8.0 * (double)(fobj->THREADS > 0 ? fobj->THREADS : 1);
+
+	if (!bayes_data_ok(fobj, numdigits))
+		return 0;
+
+	ecmprob_init();
+	if ((cache_digits != numdigits) || (cache_threads != fobj->THREADS))
+	{
+		for (lvl = 0; lvl < NUM_ECM_LEVELS; lvl++)
+			cache[lvl].sec_per_curve = 0.0;		// not computed yet
+		cache_digits = numdigits;
+		cache_threads = fobj->THREADS;
+	}
+	for (lvl = (int)(first - state_ecm_15digit);
+		lvl <= (int)(state_ecm_65digit - state_ecm_15digit); lvl++)
+	{
+		enum factorization_state s = (enum factorization_state)(state_ecm_15digit + lvl);
+		uint64_t b1 = ecm_std_b1[lvl];
+		ecm_curve_param_t cp;
+		uint32_t done = get_ecm_curves_done(fwork, s), maxc;
+
+		if (cache[lvl].sec_per_curve == 0.0)
+		{
+			double spc = bayes_ecm_sec_per_curve(fobj, (double)numdigits, (double)b1);
+			ecm_plan_curve_params(fobj, b1, &cp);
+			if (spc > 0)
+				ecmbayes_option_init(&cache[lvl], &cp, spc, min_curves);
+			else
+				cache[lvl].sec_per_curve = -1.0;	// no timing: never use
+		}
+		if (cache[lvl].sec_per_curve < 0.0)
+			continue;
+		cp = cache[lvl].cp;
+		maxc = ecm_level_max(fwork, fobj, lvl);
+		if (done >= maxc)
+			continue;
+		optv[nopt] = cache[lvl];
+		ostate[nopt] = s;
+		oleft[nopt] = maxc - done;
+		nopt++;
+	}
+
+	ctx.fobj = fobj;
+	ctx.D = (double)numdigits;
+	ctx.D_time = (double)numdigits;
+	if ((fwork->target_job_type == job_snfs) && (fwork->snfs_equiv_size > 0))
+		ctx.D_time = (double)MIN(fwork->snfs_equiv_size, numdigits);
+
+	ecmbayes_prior(lambda, ECMBAYES_PRIOR_RANDOM, (double)numdigits, 0.0, 0.0);
+	ecmbayes_decide(lambda, fobj->ecm_obj.twork, (double)numdigits,
+		bayes_sieve_time, &ctx, optv, nopt, 0.0, &dec);
+
+	if (dec.stop)
+	{
+		*state_out = state_nfs;
+		*curves_out = 0;
+	}
+	else
+	{
+		double c = ceil(dec.curves);
+		if (c > (double)oleft[dec.best])
+			c = (double)oleft[dec.best];
+		*state_out = ostate[dec.best];
+		*curves_out = (uint32_t)c;
+	}
+
+	if (fobj->VFLAG >= 1)
+	{
+		if (dec.best >= 0)
+			printf("fac: bayes: sieve time %1.4g s; best step %1.0f curves at B1=%" PRIu64
+				" (%1.4g s), P(factor) %1.4g, saving/cost %1.3f -> %s\n",
+				dec.tsieve, dec.curves, (uint64_t)optv[dec.best].cp.B1, dec.cost,
+				dec.pfind, dec.ratio, dec.stop ? "stop ECM" : "run it");
+		else
+			printf("fac: bayes: no ECM step left -> stop ECM\n");
+	}
+	if (fobj->LOGFLAG && (dec.best >= 0))
+	{
+		FILE *flog = fopen(fobj->flogname, "a");
+		if (flog != NULL)
+		{
+			logprint(flog, "bayes: t%1.2f, sieve %1.4g s, best %1.0f curves at B1=%"
+				PRIu64 " (%1.4g s) P(factor) %1.4g ratio %1.3f: %s\n",
+				fobj->ecm_obj.total_work, dec.tsieve, dec.curves,
+				(uint64_t)optv[dec.best].cp.B1, dec.cost, dec.pfind, dec.ratio,
+				dec.stop ? "stop" : "run");
+			fclose(flog);
+		}
+	}
+	return 1;
+}
+
 enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
 {
 	int have_tune;
@@ -1584,6 +1806,19 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		}
 	}
 
+	// -plan bayesian: the stopping rule replaces the t-level target (which
+	// stays as computed above, the normal plan's, for the trivial-input check
+	// and as the fallback without tune data)
+	int bayes_active = (fobj->autofact_obj.yafu_pretest_plan == PRETEST_BAYES) &&
+		(fobj->autofact_obj.only_pretest <= 1) && bayes_data_ok(fobj, numdigits);
+	uint32_t bayes_curves = 0;
+	double trivial_target = target_digits;
+
+	// the Bayesian rule decides when to stop, not the t-level (also in the
+	// P-1 / P+1 states between ECM levels)
+	if (bayes_active)
+		target_digits = 1e9;
+
 	// get the current amount of work done - only print status prior to
 	// ecm steps
 	uint32_t curves;
@@ -1602,7 +1837,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_55digit:
 		case state_ecm_60digit:
 		case state_ecm_65digit:
-			if (fobj->VFLAG >= 1)
+			if ((fobj->VFLAG >= 1) && !bayes_active)
 				printf("fac: setting target pretesting digits to %1.6f\n", target_digits);
 			
 			print_std_ecm_work_done(&fobj->ecm_obj, 1, NULL, fobj->VFLAG, fobj->LOGFLAG);
@@ -1610,6 +1845,17 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			
 			if (fobj->VFLAG >= 1)
 				printf("fac: estimated sum of completed work is t%1.6f\n", fobj->ecm_obj.total_work);
+
+			if (bayes_active)
+			{
+				enum factorization_state bs;
+				if (bayes_schedule(fwork, fobj, numdigits, next_state, &bs, &bayes_curves))
+				{
+					next_state = bs;
+					break;
+				}
+				bayes_active = 0;
+			}
 
 			ecm_plan_curve_params(fobj, ecm_std_b1[next_state - state_ecm_15digit], &cp);
 			curves = get_curves_required(&fobj->ecm_obj, target_digits, &cp);
@@ -1639,7 +1885,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 	// if there is a trivial amount of ecm to do, skip directly to a sieve method
 	int is_trivial = 0;
-	if ((target_digits < 15) && (numdigits <= 45))
+	if ((trivial_target < 15) && (numdigits <= 45))
 	{
 		if (fobj->VFLAG > 0)
 			printf("fac: trivial ECM work to do... skipping to sieve method\n");
@@ -1739,7 +1985,15 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_55digit:
 		case state_ecm_60digit:
 		case state_ecm_65digit:
-			// figure out how many curves at this level need to be done 
+			if (bayes_active && (bayes_curves > 0))
+			{
+				// curves chosen by the Bayesian rule (already capped at
+				// this level's maximum)
+				fwork->curves = bayes_curves;
+				break;
+			}
+
+			// figure out how many curves at this level need to be done
 			// to get to the target level
 			interp_and_set_curves(fwork, fobj, next_state, fobj->ecm_obj.total_work,
 				target_digits, fobj->LOGFLAG);
@@ -1826,29 +2080,14 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
 	int tlevel;
 	ecm_curve_param_t cp;
-	uint32_t maxc[NUM_ECM_LEVELS - 1];
 
 	fwork->target_job_type = job_unknown;
 	fwork->snfs_equiv_size = 0;
 
-	// initialize max allowed work fields: one full t-level at each B1,
-	// with the curves that B1 would run
+	// max allowed work at each ECM level: computed when the level is first
+	// reached (ecm_level_max)
 	for (tlevel = 0; tlevel < NUM_ECM_LEVELS - 1; tlevel++)
-	{
-		ecm_plan_curve_params(fobj, ecm_std_b1[tlevel], &cp);
-		maxc[tlevel] = get_curves_for_tlevel(tlevel, &cp);
-	}
-	fwork->ecm_max_15digit_curves = maxc[0];
-	fwork->ecm_max_20digit_curves = maxc[1];
-	fwork->ecm_max_25digit_curves = maxc[2];
-	fwork->ecm_max_30digit_curves = maxc[3];
-	fwork->ecm_max_35digit_curves = maxc[4];
-	fwork->ecm_max_40digit_curves = maxc[5];
-	fwork->ecm_max_45digit_curves = maxc[6];
-	fwork->ecm_max_50digit_curves = maxc[7];
-	fwork->ecm_max_55digit_curves = maxc[8];
-	fwork->ecm_max_60digit_curves = maxc[9];
-	fwork->ecm_max_65digit_curves = maxc[10];
+		*ecm_max_field(fwork, tlevel) = ECM_MAX_UNKNOWN;
 
 	fwork->tdiv_limit = 0;
 	fwork->tdiv_max_limit = fobj->div_obj.limit;
@@ -1904,7 +2143,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 			uint64_t b1 = ecm_std_b1[tlevel];
 			ecm_plan_curve_params(fobj, b1, &cp);
 			uint32_t curves = get_curves_required(&fobj->ecm_obj, fwork->initial_work, &cp) + 1;
-			curves = MIN(curves, maxc[tlevel]);
+			curves = MIN(curves, ecm_level_max(fwork, fobj, tlevel));
 			record_curves_completed(&fobj->ecm_obj, (int)curves, &cp);
 			//printf("total work is now %1.4lf\n", fobj->ecm_obj.total_work);
 

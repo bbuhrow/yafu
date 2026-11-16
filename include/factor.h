@@ -476,6 +476,7 @@ enum pretest_plan {
     PRETEST_NORMAL = 3,
     PRETEST_DEEP = 4,
     PRETEST_CUSTOM = 5,
+    PRETEST_BAYES = 6,     // -plan bayesian: Bayesian ECM stop (docs/ecm_bayes.md)
 };
 
 typedef struct
@@ -671,5 +672,12 @@ void factor_tune(fact_obj_t* inobj);
 void siqs_param_tune(fact_obj_t* fobj);
 // AVX-ECM radix-2^52 / RNS crossover: measure, write avxecm_rns_bits to yafu.ini
 void ecm_rns_tune(fact_obj_t* fobj);
+// extended tune for -plan bayesian: ECM time per curve (bayes_tune.txt)
+void bayes_tune(fact_obj_t* fobj);
+// read bayes_tune.txt (1 if present); fobj may be NULL (no messages)
+int bayes_tune_load(fact_obj_t* fobj);
+// wall seconds per ECM curve at B1 for a digits-digit input with fobj->THREADS
+// threads, from bayes_tune.txt; -1 if there is no data
+double bayes_ecm_sec_per_curve(fact_obj_t* fobj, double digits, double B1);
 
 #endif //_FACTOR_H
