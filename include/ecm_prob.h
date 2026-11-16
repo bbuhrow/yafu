@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2019, Ben Buhrow
+Copyright (c) 2026, Ben Buhrow
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
