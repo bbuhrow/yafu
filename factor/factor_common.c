@@ -1240,6 +1240,7 @@ void generate_factorization_str(yfactor_list_t* flist)
         }
 
         flist->factorization_str = (char*)xmalloc(2 * sizeof(char));
+        flist->str_alloc = 2;   // so clear_factor_list frees it
         strcpy(flist->factorization_str, "");
         return;
     }

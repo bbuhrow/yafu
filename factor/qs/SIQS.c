@@ -1010,7 +1010,8 @@ static void SIQS_run(fact_obj_t *fobj)
 	// 4.) get ready to find the factor base
 
 	// fill in the factorization object	
-	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
+	// (qs_obj.savefile.name is pointed at qs_obj.siqs_savefile by
+	// savefile_init in siqs_static_init; nothing to allocate here)
 	{
 		// copy at most 80 chars, always terminated
 		size_t sflen = strlen(fobj->qs_obj.siqs_savefile);
@@ -1019,15 +1020,6 @@ static void SIQS_run(fact_obj_t *fobj)
 		fobj->savefile_name[sflen] = '\0';
 	}
 
-    // The above leaks a little memory:
-    // == 148041 == 80 bytes in 1 blocks are definitely lost in loss record 2 of 2
-    // == 148041 == at 0x4C2B0F7: malloc(vg_replace_malloc.c:381)
-    // == 148041 == by 0x42E5E7 : SIQS(SIQS.c:687)
-    // == 148041 == by 0x420046 : feval(calc.c:2575)
-    // == 148041 == by 0x41F175 : calc(calc.c:1947)
-    // == 148041 == by 0x41CBE2 : calc_with_assignment(calc.c:1527)
-    // == 148041 == by 0x41CBE2 : process_expression(calc.c:1473)
-    // == 148041 == by 0x405FD2 : main(driver.c:401)
 
 
 	// initialize the data objects both shared (static) and 

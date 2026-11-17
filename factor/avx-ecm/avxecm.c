@@ -545,6 +545,7 @@ void vec_ecm_work_free(ecm_work* work)
 
     free(work->Pbprod);
     free(work->Paprod);
+    free(work->Pa_inv);
     free(work->Pb);
     vecFree(work->stg2acc);
     avxecm_edw_free(work);
@@ -3132,7 +3133,11 @@ void vececm(thread_data_t* tdata)
         printf("\necm: process took %1.4f seconds.\n", t_time);
     }
 
-    vecClear(one);
+    vecFree(one);
+    free(ecm_primes);
+    for (j = 0; j < threads; j++)
+        tdata[j].primes = NULL;
+    free(tpool_data);
     mpz_clear(gmpn);
     mpz_clear(gmpt);
     mpz_clear(tmp_factor);

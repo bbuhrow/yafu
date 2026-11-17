@@ -1052,6 +1052,27 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     *curves_run = tdata[0].curves;
 
+    // stage 2 pairing data, allocated once in thread 0 (the pairmaps are
+    // shared by every thread)
+    {
+        uint32_t D = tdata[0].work->D;
+        uint32_t k;
+        for (k = 0; (k < 2 * D) && (tdata[0].Qrmap[k] != (uint32_t)-1); k++)
+        {
+            clearQueue(tdata[0].Q[k]);
+            free(tdata[0].Q[k]);
+        }
+        free(tdata[0].Q);
+        free(tdata[0].Qmap);
+        free(tdata[0].Qrmap);
+        free(tdata[0].pairmap_v);
+        free(tdata[0].pairmap_u);
+        for (i = 0; i < threads; i++)
+        {
+            tdata[i].pairmap_v = tdata[i].pairmap_u = NULL;
+        }
+    }
+
     // record factors and clean up thread data
     if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
     {
@@ -1224,6 +1245,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // clean up local/global data
     mpz_clear(g);
     mpz_clear(r);
+    mpz_clear(N);
     avxecm_rns_detach(montyconst);      // after the threads: owns the fixed tables
     vec_monty_free(montyconst);
 	free(montyconst);
