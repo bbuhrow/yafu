@@ -355,7 +355,12 @@ tune(), which it does not replace.  Times ECM as factor() runs it (same engine,
 curve family, stage 2 and -threads) for inputs of 60 to 310 digits at B1 = 50k,
 250k, 1M and 3M (3M for C90-C200 only), measures 1-thread vs all-thread efficiency
 at C150, and writes wall-clock seconds per curve to bayes_tune.txt with the CPU and
-thread count.  Re-run it after changing -threads, the CPU or ECM options.
+thread count.  It then factors one random semiprime by SIQS at each of 60 to 95
+digits (in memory, step 5) and writes the whole-job times as "siqs" lines.
+GNFS times are not measured (hours per point): "nfs <digits> <seconds> <threads>"
+lines from docs/nfs_job_data/fit_sieve_times.py, or added by hand, are kept when
+bayestune() rewrites the file.  Without nfs lines, the tune() fit is used.
+Re-run it after changing -threads, the CPU or ECM options.
 
 [bayessim]
 usage: bayessim()

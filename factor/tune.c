@@ -1615,8 +1615,12 @@ void ecm_rns_tune(fact_obj_t *fobj)
 //   (the same engine, curve family, stage 2 and threading that factor() will
 //   use), for input sizes C60..C310 and B1 = 50k..3M, plus the 1-thread vs
 //   N-thread efficiency at one point.
-// Planned: NFS test-sieving (docs/nfs_job_data/local_collection.md).
-// bayes_tune_load() / bayes_ecm_sec_per_curve() read it back.
+//   SIQS: whole-job wall time on random balanced semiprimes (two from C85),
+//   C60..C95, in memory; written as a log-linear fit from C70.
+//   NFS: not measured here (hours per point).  "nfs <digits> <s> [threads]"
+//   lines come from docs/nfs_job_data/fit_sieve_times.py and are kept when
+//   this runs again.
+// bayes_tune_load() / bayes_ecm_sec_per_curve() / bayes_sieve_sec() read it.
 // ---------------------------------------------------------------------------
 
 #define BAYES_TUNE_FILE "bayes_tune.txt"
@@ -1633,10 +1637,12 @@ static struct
     int nb1[BT_MAXSIZES];
     double b1[BT_MAXSIZES][BT_MAXB1];
     double spc[BT_MAXSIZES][BT_MAXB1];
-    // whole-job sieve times (wall s at 'threads'): BT_SIQS, BT_NFS
+    // whole-job sieve times: siqs (0), nfs (1), stored as thread-seconds
+    // (wall s x the thread count the line was measured with)
     int nsieve[2];
     double sdig[2][BT_MAXSIZES];
     double ssec[2][BT_MAXSIZES];
+    int sthr[2][BT_MAXSIZES];
 } bt_ecm;
 
 // n = p * q with p, q near digits/2 digits, n exactly 'digits' digits
@@ -1730,8 +1736,8 @@ void bayes_tune(fact_obj_t *fobj)
     char *keep = NULL;
     size_t keeplen = 0;
 
-    // keep the sieve-time lines ("siqs"/"nfs", from scripts or by hand):
-    // this run only measures ECM
+    // keep the nfs lines (from fit_sieve_times.py or by hand) and their
+    // comment: this run measures ECM and SIQS only
     {
         FILE *old = fopen(BAYES_TUNE_FILE, "r");
         char line[1024];
@@ -1739,8 +1745,7 @@ void bayes_tune(fact_obj_t *fobj)
         {
             while (fgets(line, sizeof(line), old) != NULL)
             {
-                if ((strncmp(line, "siqs ", 5) == 0) || (strncmp(line, "nfs ", 4) == 0) ||
-                    (strncmp(line, "# sieve", 7) == 0))
+                if ((strncmp(line, "nfs ", 4) == 0) || (strncmp(line, "# sieve", 7) == 0))
                 {
                     size_t l = strlen(line);
                     keep = (char *)realloc(keep, keeplen + l + 2);
@@ -1846,6 +1851,79 @@ void bayes_tune(fact_obj_t *fobj)
         }
     }
 
+    // SIQS: whole jobs on random semiprimes, C60..C95.  In memory (no
+    // savefile, so a siqs.dat in this directory is left alone).  Larger sizes
+    // are extrapolated from the last two lines; NFS takes over near C100.
+    {
+        static const int qsizes[] = { 60, 65, 70, 75, 80, 85, 90, 95 };
+        const int nq = (int)(sizeof(qsizes) / sizeof(qsizes[0]));
+        uint32_t saved_inmem = fobj->qs_obj.inmem_cutoff;
+        double sx = 0, sy = 0, sxx = 0, sxy = 0, a = 0, b = 0;
+        double lnt[8];
+        int nfit = 0;
+
+        fprintf(out, "# siqs times: bayestune, random semiprimes (raw times in comments)\n");
+        printf("bayestune: SIQS whole-job time, %d threads\n", threads);
+        fobj->qs_obj.inmem_cutoff = 200;
+        for (i = 0; i < nq; i++)
+        {
+            // single inputs vary by about +-30% (multiplier, factor base):
+            // two inputs from C85, where the fit below matters most
+            int reps = (qsizes[i] >= 85) ? 2 : 1;
+            lnt[i] = 0;
+            for (j = 0; j < reps; j++)
+            {
+                struct timeval s0, s1;
+                double tq;
+
+                bt_semiprime(n, qsizes[i], rs);
+                reset_factobj(fobj);
+                mpz_set(fobj->N, n);
+                mpz_set(fobj->qs_obj.gmp_n, n);
+                gettimeofday(&s0, NULL);
+                SIQS(fobj);
+                gettimeofday(&s1, NULL);
+                tq = ytools_difftime(&s0, &s1);
+                gettimeofday(&tnow, NULL);
+                printf("   C%d: %8.2f s | %6.0f s\n", qsizes[i], tq,
+                    ytools_difftime(&tstart, &tnow));
+                fflush(stdout);
+                fprintf(out, "# siqs raw %d %.6g\n", qsizes[i], tq);
+                fflush(out);
+                lnt[i] += log(tq > 1e-6 ? tq : 1e-6) / reps;
+            }
+            if (qsizes[i] >= 70)
+            {
+                sx += qsizes[i];
+                sy += lnt[i];
+                sxx += (double)qsizes[i] * qsizes[i];
+                sxy += qsizes[i] * lnt[i];
+                nfit++;
+            }
+        }
+        fobj->qs_obj.inmem_cutoff = saved_inmem;
+
+        // write a least-squares fit of ln t from C70 (below that, fixed
+        // overheads bend the curve) so that one slow or fast input doesn't
+        // set the extrapolation slope toward the NFS crossover
+        if (nfit > 1)
+        {
+            b = (nfit * sxy - sx * sy) / (nfit * sxx - sx * sx);
+            a = (sy - b * sx) / nfit;
+        }
+        fprintf(out, "# siqs <digits> <wall s, whole job> <threads>: measured below C70, "
+            "fit ln t = %.5g + %.5g D (x2 per %.1f digits) from C70\n", a, b,
+            (b > 0) ? log(2.0) / b : 0.0);
+        for (i = 0; i < nq; i++)
+        {
+            double v = ((qsizes[i] >= 70) && (nfit > 1)) ? exp(a + b * qsizes[i]) : exp(lnt[i]);
+            fprintf(out, "siqs %d %.6g %d\n", qsizes[i], v, threads);
+        }
+        if ((nfit > 1) && (b > 0))
+            printf("bayestune: SIQS fit from C70: x2 per %.1f digits, C100 ~ %1.0f s\n",
+                log(2.0) / b, exp(a + b * 100));
+    }
+
     fclose(out);
     fobj->VFLAG = saved_vflag;
     fobj->LOGFLAG = saved_logflag;
@@ -1888,10 +1966,12 @@ int bayes_tune_load(fact_obj_t *fobj)
         }
         else if ((strncmp(line, "siqs ", 5) == 0) || (strncmp(line, "nfs ", 4) == 0))
         {
+            // siqs|nfs <digits> <wall s> [threads; default: the threads: header]
             int m = (line[0] == 's') ? 0 : 1;
+            int thr = 0;
             double dd, sec;
-            if ((sscanf(line + (m ? 4 : 5), "%lf %lf", &dd, &sec) == 2) && (sec > 0) &&
-                (bt_ecm.nsieve[m] < BT_MAXSIZES))
+            if ((sscanf(line + (m ? 4 : 5), "%lf %lf %d", &dd, &sec, &thr) >= 2) &&
+                (sec > 0) && (bt_ecm.nsieve[m] < BT_MAXSIZES))
             {
                 // keep sorted by digits
                 int k = bt_ecm.nsieve[m]++;
@@ -1899,10 +1979,12 @@ int bayes_tune_load(fact_obj_t *fobj)
                 {
                     bt_ecm.sdig[m][k] = bt_ecm.sdig[m][k - 1];
                     bt_ecm.ssec[m][k] = bt_ecm.ssec[m][k - 1];
+                    bt_ecm.sthr[m][k] = bt_ecm.sthr[m][k - 1];
                     k--;
                 }
                 bt_ecm.sdig[m][k] = dd;
                 bt_ecm.ssec[m][k] = sec;
+                bt_ecm.sthr[m][k] = (thr > 0) ? thr : 0;
             }
         }
         else if ((strncmp(line, "ecm ", 4) == 0) &&
@@ -1926,6 +2008,19 @@ int bayes_tune_load(fact_obj_t *fobj)
         }
     }
     fclose(in);
+
+    // sieve lines to thread-seconds (lines without a thread count use the
+    // header's)
+    {
+        int m, k;
+        for (m = 0; m < 2; m++)
+            for (k = 0; k < bt_ecm.nsieve[m]; k++)
+            {
+                if (bt_ecm.sthr[m][k] == 0)
+                    bt_ecm.sthr[m][k] = (bt_ecm.threads > 0) ? bt_ecm.threads : 1;
+                bt_ecm.ssec[m][k] *= (double)bt_ecm.sthr[m][k];
+            }
+    }
 
     if ((bt_ecm.nsizes == 0) && (bt_ecm.nsieve[0] < 2) && (bt_ecm.nsieve[1] < 2))
         return 0;
@@ -2010,7 +2105,8 @@ double bayes_ecm_sec_per_curve(fact_obj_t *fobj, double digits, double B1)
 // Whole-job sieve time (wall s, fobj->THREADS threads) for a composite of
 // 'digits' digits by SIQS (method 0) or GNFS (method 1), from the "siqs" /
 // "nfs" lines of bayes_tune.txt: log-linear interpolation, extrapolation with
-// the slope of the nearest two points.  -1 if there are fewer than two points.
+// the slope of the nearest two points, scaled linearly from each line's thread
+// count.  -1 if there are fewer than two points.
 double bayes_sieve_sec(fact_obj_t *fobj, int method, double digits)
 {
     int n, k;
@@ -2023,6 +2119,12 @@ double bayes_sieve_sec(fact_obj_t *fobj, int method, double digits)
     n = bt_ecm.nsieve[method];
     if (n < 2)
         return -1.0;
+    // no extrapolation more than 5 digits below the first line (the caller
+    // then uses the tune() fit): small-size NFS behaves differently (lpb
+    // steps at C101/C106, poly and LA overheads), and the lines there are
+    // an extrapolation of larger runs anyway
+    if (digits < bt_ecm.sdig[method][0] - 5.0)
+        return -1.0;
     for (k = 1; k < n - 1; k++)
         if (digits < bt_ecm.sdig[method][k])
             break;
@@ -2032,8 +2134,10 @@ double bayes_sieve_sec(fact_obj_t *fobj, int method, double digits)
     y1 = log(bt_ecm.ssec[method][k]);
     t = exp(y0 + (y1 - y0) * (digits - d0) / (d1 - d0));
 
-    if ((fobj != NULL) && (bt_ecm.threads > 0) && (fobj->THREADS > 0) &&
-        (fobj->THREADS != bt_ecm.threads))
-        t *= (double)bt_ecm.threads / (double)fobj->THREADS;
+    // thread-seconds -> wall seconds at this run's thread count
+    if ((fobj != NULL) && (fobj->THREADS > 0))
+        t /= (double)fobj->THREADS;
+    else if (bt_ecm.threads > 0)
+        t /= (double)bt_ecm.threads;
     return t;
 }

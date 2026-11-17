@@ -1,8 +1,8 @@
 # Bayesian ECM-vs-sieve stopping rule
 
 Status (2026-11-15, branch `ecm_prob`, uncommitted):
-- Written: the core model with a standalone test driver, the ECM part of the extended tune (`bayestune()`, §3), and `-plan bayesian` in `factor()` (§4).
-- Not done: the NFS part of `bayestune()`. Until then, sieve times come from the `tune()` fits in yafu.ini.
+- Written: the core model with a standalone test driver, the extended tune (`bayestune()`, §3: ECM and SIQS measured, NFS lines from local runs), and `-plan bayesian` in `factor()` (§4).
+- NFS times (2026-11-17): fitted from complete local C120/C130/C140 runs (§3.1). Above C140 they are extrapolated until the C150+ test sieving is in.
 
 Code: `factor/ecm_bayes.c`, `include/ecm_bayes.h`. It depends only on `ecm_prob.h`.
 
@@ -91,7 +91,32 @@ Compared with one batch per thread (8 curves):
 - From C130 up at B1 >= 250k the two runs agree within about ±8%, which is the run-to-run noise. The earlier non-monotone points (C150 vs C160, C190 vs C200) are gone.
 - The C150, 1M figure (0.082) is close to the test driver's placeholder (k = 0.1).
 
-**Thread efficiency is 0.60 at 6 threads** (C150, B1 = 250k: 0.064 s/curve on 1 thread, 0.018 on 6), and it was the same with one batch per thread. So it is not setup overhead. Likely causes are AVX-512 all-core clocks and memory bandwidth in the FFT stage 2. This is the size of thread-scaling effect discussed in planning, and it is below the 0.75 that `get_*_time_estimate` assumes for sieving. Measuring all three methods at the run's thread count keeps the ECM/sieve ratio honest.
+**Thread efficiency is 0.60 at 6 threads** (0.56-0.58 on the 2026-11-17 reruns) (C150, B1 = 250k: 0.064 s/curve on 1 thread, 0.018 on 6), and it was the same with one batch per thread. So it is not setup overhead. Likely causes are AVX-512 all-core clocks and memory bandwidth in the FFT stage 2. This is the size of thread-scaling effect discussed in planning, and it is below the 0.75 that `get_*_time_estimate` assumes for sieving. Measuring all three methods at the run's thread count keeps the ECM/sieve ratio honest.
+
+### 3.1 Sieve times
+
+**SIQS** is measured by `bayestune()` after the ECM part:
+- whole jobs on random balanced semiprimes at C60, C65, ..., C95, two inputs per size from C85 (one per size below), in memory so no `siqs.dat` is touched;
+- single inputs vary by about ±30% (a second C95 took 177 s against 237 s for the first), so the `siqs` lines from C70 up are a least-squares fit of ln t against digits, and the raw times are kept as `# siqs raw` comments;
+- this adds about 10 minutes; the whole tune took 1067 s at 6 threads (ECM 460 s, SIQS 607 s).
+
+On the i5-11600K (6 threads, WSL) the fit is ln t = -14.16 + 0.2051 D (x2 per 3.4 digits; C90 74 s, C95 206 s, C100 extrapolated 574 s). The `tune()` fit in yafu.ini has the same slope (0.206) and gives 56 s at C90 and 432 s at C100, so the estimate used in §4's first runs was about 25% low.
+
+**NFS** is not measured by `bayestune()` (hours per point). `nfs <digits> <s> <threads>` lines come from `docs/nfs_job_data/fit_sieve_times.py` and survive a `bayestune()` rerun (it keeps `nfs` lines and `# sieve` comments and re-measures the `siqs` lines).
+
+Local complete runs (i5-11600K, 6 sieve threads, default yafu parameters; `docs/nfs_job_data/runs.csv`):
+
+| C | poly | sieve + filter | relproc | LA | sqrt | total | `tune()` fit |
+|---|---|---|---|---|---|---|---|
+| 120 | 301 | 3024 | 352 | 355 | 276 | 3957 | 4330 |
+| 130 | 892 | 9525 | 917 | 1093 | 178 | 11690 | 13450 |
+| 140 | 2647 | 28540 | 1213 | 7135 | 1591 | 39910 | 41750 |
+
+(seconds; relproc, the msieve filtering, is included in sieve + filter; the `tune()` column is the WIN64 `tune_info` GNFS fit divided by 6 threads x 0.75, as `get_gnfs_time_estimate` does.) The old fallback was already within 15% here. The poly phase is logged as "1 threads" because msieve threads it internally, and it runs to a wall-clock deadline, so it is used as logged.
+
+The three points fit ln T = a + b·D (x2 per 6.0 digits) and the GNFS shape ln T = a + k·L(D), L = (64/9)^(1/3) x^(1/3) (ln x)^(2/3) with x = D ln 10, equally well (residual sd 0.06-0.08 in ln). They differ only when extrapolated: at C180 the linear fit gives 3.96M s and the L shape 2.30M s (k = 0.81, x2 per 6.3 digits at C140 and 7.3 at C180). `fit_sieve_times.py` defaults to the L shape (`--model linear` for the other). A factor 1.7 at C180 moves the ECM stop by about ln 1.7 / ln r, under a digit; the C150+ test sieving will pin it down. The fitted lines (C110-C200) are in `docs/nfs_job_data/bayes_tune_i5-11600K_6t.txt`, together with the ECM and SIQS data from the same machine.
+
+`bayes_sieve_sec()` does not extrapolate more than 5 digits below a method's first line; there the plan uses the `tune()` fit instead. Without this, NFS lines extrapolated from C120-C140 down to C95 gave 151 s against 206 s for SIQS, a crossover near C92, while `tune()` measures about C101 on this machine (lpb steps at C101/C106 and fixed overheads make small NFS jobs slower than the fit). The result is a small step at C105 (the `tune()` fit gives about 750 s at C104.9, the lines 580 s at C105). Estimates the plan used on balanced semiprimes after this change: C95 206 s (SIQS), C100 493 s and C103 689 s (`tune()` NFS fit, below SIQS), C108 861 s, C125 6966 s, C140 38590 s, C160 321600 s (NFS lines).
 
 ## 4. `-plan bayesian`
 
@@ -102,7 +127,7 @@ Compared with one batch per thread (8 curves):
   - at least 8 x threads curves per step.
 - It calls `ecmbayes_decide()` with `ecm_obj.twork`, the prior, and T(d) = min(SIQS, GNFS):
   - **Prior:** `-bayes_prior random` (the default) is the random-integer prior. `-bayes_prior hard` puts the smaller factor within 5 digits of half the size, for inputs known to be balanced semiprimes. On the C80 test, `hard` skips ECM entirely: 6.9 s, against 9.9 s with `random`.
-  - **Sieve times:** each method uses the whole-job times from the `siqs <digits> <s>` / `nfs <digits> <s>` lines of `bayes_tune.txt` when the file has at least two of them (log-linear interpolation, extrapolation from the nearest two points, scaled linearly if the thread count differs). Otherwise it uses the tune fits divided by threads x 0.75, as in `get_*_time_estimate`.
+  - **Sieve times:** each method uses the whole-job times from the `siqs <digits> <s> [threads]` / `nfs <digits> <s> [threads]` lines of `bayes_tune.txt` when the file has at least two of them (log-linear interpolation, extrapolation from the nearest two points). Each line is scaled linearly from its own thread count (the file's `threads:` header when the line has none). Otherwise it uses the tune fits divided by threads x 0.75, as in `get_*_time_estimate`.
   - **SNFS:** the input's own job is timed at the SNFS equivalent size when an SNFS polynomial was chosen.
 - It then either runs the chosen level with the chosen curves (capped at that level's maximum) or switches to the sieve.
 - The t-level target is disabled while the plan is active, including during the P-1/P+1 states. The normal target is still used only for the trivial-input check.
@@ -132,16 +157,16 @@ How to read these:
 - The predicted step costs matched the run: about 0.5 s per 48 curves at B1 = 250k on the C100.
 - The C80 stop is deeper than the normal plan because ECM is cheap next to the estimated 7 s SIQS. That is the right choice in expectation over random inputs, but it costs about 3 s on a balanced semiprime.
 - Single inputs can't show the expected gain. The comparison needs a set of random composites (or aliquot cofactors) per size, run with both plans.
-- At C100 the decision used a SIQS estimate of 432 s, extrapolated from the tune fit. It is worth checking against a real C100 SIQS run.
+- At C100 the decision used a SIQS estimate of 432 s, extrapolated from the tune fit. The measured SIQS times (§3.1) confirm it to within about 30%.
 
 ### Sieve-time lines and tools
 
-- `bayestune()` measures only ECM. It keeps any `siqs`/`nfs` lines (and `# sieve` comments) already in the file when it rewrites it.
+- `bayestune()` measures ECM and SIQS (§3.1). It keeps any `nfs` lines (and `# sieve` comments) already in the file when it rewrites it; `siqs` lines are re-measured.
 - `docs/nfs_job_data/fit_sieve_times.py RUNS.csv [--testsieve TS.csv] --append bayes_tune.txt` writes the `nfs` lines:
-  - RUNS.csv is the output of `parse_yafu_nfs.py`, and the script fits ln T against digits over the complete local runs;
+  - RUNS.csv is the output of `parse_yafu_nfs.py`, and the script fits ln T over the complete local runs, against L(D) by default or against digits with `--model linear`;
   - optional test-sieve rows (`digits,rels_needed,rels_per_sec`) for larger sizes add points T = (rels/rate + post) / (1 - poly fraction);
   - post-processing (filter + LA + sqrt) is fitted from the runs, or with one run assumed to grow as 1.07^(1.75 D);
-  - any existing `nfs` lines are replaced.
+  - lines are written as `nfs <digits> <s> <threads>`; any existing `nfs` lines are replaced.
 - `docs/ecm_bayes_bench.py --yafu ./yafu --sizes 70,80,90 --count 20` benchmarks the two plans:
   - it factors the same random composites (or `--kind semiprime`) with each plan, one batch per plan and size;
   - it reports totals, medians and the paired difference with its standard error;
@@ -149,10 +174,7 @@ How to read these:
 
 ## 5. Open items
 
-1. **NFS sieve times.** When the local runs (C120-C140) and the C150+ test sieving are in:
-   - run `parse_yafu_nfs.py` and `fit_sieve_times.py` and append the `nfs` lines;
-   - optionally add `siqs` lines from a few real SIQS runs. The tune-fit C100 SIQS estimate of 432 s needs checking.
-   - In-yafu NFS test sieving inside `bayestune()` is not written. The script route needs no new C code.
+1. **NFS sieve times above C140.** The C120-C140 runs are fitted (§3.1). When the C150+ test sieving is in, rerun `fit_sieve_times.py runs.csv --testsieve ts.csv --append bayes_tune.txt`, and check which model (L or linear) the test-sieve points follow. In-yafu NFS test sieving inside `bayestune()` is not written; the script route needs no new C code.
 2. **Benchmark.** The first run (`test_bayes_t3`, 1000 random inputs each at C60-C90) did not exercise the rule: the bayesian runs follow the normal plan's steps exactly (section 6), so `-plan bayesian` fell back to the normal plan on that machine (no `tune_info` for its CPU or no `bayes_tune.txt`). Re-run with both present, and check for the "following the normal plan" notice. The replay predicts about -17% at C80 and -25% at C90, so 200-300 inputs per size are enough to see it.
 3. **Windows builds:** a full MSVC link, and MinGW.
 4. **Step choice.** The greedy ranking can pick small B1 values when the quantum is small. That doesn't change the stop much but costs about 1% in E[total] (quantum 10 s against T/1000 at C150). Consider ranking by benefit/cost over a few look-ahead steps, or restricting to B1 >= the current t-level's B1.

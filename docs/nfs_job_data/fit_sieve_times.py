@@ -4,7 +4,8 @@ lines for bayes_tune.txt (docs/ecm_bayes.md).
 
 Usage:
   python fit_sieve_times.py RUNS.csv [--testsieve TS.csv] [--threads N]
-                            [--from 90] [--to 200] [--step 5] [--append FILE]
+                            [--from 110] [--to 200] [--step 5] [--model L|linear]
+                            [--append FILE]
 
 RUNS.csv   output of parse_yafu_nfs.py: complete local yafu NFS runs (digits,
            total_s, sieve_threads, poly_s, sieve_filter_s, la_s, sqrt_s,
@@ -22,9 +23,22 @@ Model (fitted in log space, least squares):
                      from the NFS@Home medians C150-C175; with one run only,
                      d = 1.75 ln 1.07 = 0.118 is assumed)
   poly selection:    fraction of T from the runs (yafu's poly budget scales
-                     with the expected sieve time)
+                     with the expected sieve time).  It is used as logged:
+                     yafu logs "poly selection with 1 threads" (msieve threads
+                     internally) and stops at a wall-clock deadline.
 When test-sieve rows exist they replace the run fit at their sizes, and the
-emitted curve is a log-linear fit over runs + test-sieve points together.
+emitted curve is fitted over runs + test-sieve points together:
+  --model L (default):  ln T = a + k * L(D), L = (64/9)^(1/3) x^(1/3) (ln x)^(2/3),
+                        x = D ln 10: the GNFS L[1/3] shape with a fitted scale k,
+                        so the doubling distance grows with size (C120-C140 runs
+                        on an i5-11600K: x2 per 6.3 digits at C140, 7.3 at C180)
+  --model linear:       ln T = a + b D (x2 per 6.0 digits everywhere; this
+                        overshoots the L shape by ~1.7x at C180)
+Both fit C120-C140 equally well; they differ only in extrapolation, which
+test-sieve points at C150+ pin down.
+
+Each emitted line is "nfs <digits> <seconds> <threads>"; yafu scales the time
+linearly when run with a different thread count.
 """
 import argparse
 import csv
@@ -43,6 +57,11 @@ def linfit(xs, ys):
     return my - b * mx, b
 
 
+def lshape(D):
+    x = D * math.log(10.0)
+    return (64.0 / 9.0) ** (1.0 / 3.0) * x ** (1.0 / 3.0) * math.log(x) ** (2.0 / 3.0)
+
+
 def num(r, k):
     try:
         return float(r[k])
@@ -57,9 +76,12 @@ def main():
     ap.add_argument('--testsieve')
     ap.add_argument('--threads', type=int, default=0,
                     help='thread count the times are for (default: the runs\' sieve threads)')
-    ap.add_argument('--from', dest='d0', type=int, default=90)
+    ap.add_argument('--from', dest='d0', type=int, default=110,
+                    help='first size written (yafu does not extrapolate more than 5 digits '
+                    'below it, and uses the tune() fit there instead)')
     ap.add_argument('--to', dest='d1', type=int, default=200)
     ap.add_argument('--step', type=int, default=5)
+    ap.add_argument('--model', choices=('L', 'linear'), default='L')
     ap.add_argument('--append', help='append the lines to this bayes_tune.txt '
                     '(replacing its existing nfs lines)')
     a = ap.parse_args()
@@ -105,15 +127,19 @@ def main():
 
     if len({x for x, _ in pts}) < 2:
         sys.exit('need runs/test-sieve points at two or more sizes')
-    A, B = linfit([x for x, _ in pts], [math.log(y) for _, y in pts])
-    resid = [math.log(y) - (A + B * x) for x, y in pts]
+    f = lshape if a.model == 'L' else (lambda D: D)
+    A, B = linfit([f(x) for x, _ in pts], [math.log(y) for _, y in pts])
+    model = lambda D: A + B * f(D)
+    resid = [math.log(y) - model(x) for x, y in pts]
     sd = math.sqrt(sum(e * e for e in resid) / max(1, len(resid) - 2)) if len(resid) > 2 else 0.0
+    dbl = lambda D: math.log(2) / (model(D + 0.5) - model(D - 0.5))
 
-    lines = ['# sieve times: fit_sieve_times.py, %d points C%.0f-C%.0f, x2 per %.1f digits, '
-             'resid sd %.2f (ln), %d threads' % (len(pts), min(x for x, _ in pts),
-                                                 max(x for x, _ in pts), math.log(2) / B, sd, threads)]
+    lo, hi = min(x for x, _ in pts), max(x for x, _ in pts)
+    lines = ['# sieve times: fit_sieve_times.py, %s model, %d points C%.0f-C%.0f, '
+             'x2 per %.1f digits at C%.0f / %.1f at C%d, resid sd %.2f (ln), %d threads'
+             % (a.model, len(pts), lo, hi, dbl(hi), hi, dbl(a.d1), a.d1, sd, threads)]
     for D in range(a.d0, a.d1 + 1, a.step):
-        lines.append('nfs %d %.6g' % (D, math.exp(A + B * D)))
+        lines.append('nfs %d %.6g %d' % (D, math.exp(model(D)), threads))
     out = '\n'.join(lines) + '\n'
 
     if a.append:
