@@ -275,6 +275,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\factor\autofactor.c" />
+    <ClCompile Include="..\..\factor\bayes_sim.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\cmdParser\calc.c" />
     <ClCompile Include="..\..\top\cmdParser\cmdOptions.c" />

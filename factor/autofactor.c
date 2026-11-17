@@ -48,132 +48,10 @@ code to the public domain.
 
 #include <math.h>
 
-enum job_type_e {
-	job_snfs,
-	job_gnfs,
-	job_siqs,
-	job_ecm,
-	job_unknown
-};
+#include "autofactor_priv.h"
 
-typedef struct
-{	
-	// total effort so far
-	double total_time;
-	double qs_time;
-	double nfs_time;
-	double trialdiv_time;
-	double fermat_time;
-	double rho_time;
-	double pp1_time;
-	double pm1_time;
-	double ecm_time;
-	double pp1_lvl1_time_per_curve;
-	double pp1_lvl2_time_per_curve;
-	double pp1_lvl3_time_per_curve;
-	double pm1_lvl1_time_per_curve;
-	double pm1_lvl2_time_per_curve;
-	double pm1_lvl3_time_per_curve;
-	double ecm_15digit_time_per_curve;
-	double ecm_20digit_time_per_curve;
-	double ecm_25digit_time_per_curve;
-	double ecm_30digit_time_per_curve;
-	double ecm_35digit_time_per_curve;
-	double ecm_40digit_time_per_curve;
-	double ecm_45digit_time_per_curve;
-	double ecm_50digit_time_per_curve;
-	double ecm_55digit_time_per_curve;
-	double ecm_60digit_time_per_curve;
-	double ecm_65digit_time_per_curve;
-    double initial_work;
-
-	// amount of work we've done in various areas
-	uint32_t  tdiv_limit;
-	uint32_t  fermat_iterations;
-	uint32_t  rho_iterations;
-	uint32_t  rho_bases;
-	uint32_t  pp1_lvl1_curves;
-	uint32_t  pm1_lvl1_curves;
-	uint32_t  pp1_lvl2_curves;
-	uint32_t  pm1_lvl2_curves;
-	uint32_t  pp1_lvl3_curves;
-	uint32_t  pm1_lvl3_curves;
-	uint32_t  ecm_15digit_curves;
-	uint32_t  ecm_20digit_curves;
-	uint32_t  ecm_25digit_curves;
-	uint32_t  ecm_30digit_curves;
-	uint32_t  ecm_35digit_curves;
-	uint32_t  ecm_40digit_curves;
-	uint32_t  ecm_45digit_curves;
-	uint32_t  ecm_50digit_curves;
-	uint32_t  ecm_55digit_curves;
-	uint32_t  ecm_60digit_curves;
-	uint32_t  ecm_65digit_curves;
-	int min_pretest_done;
-
-	// max amount of work we'll allow in various areas.
-	// to be filled in during init, or overriden by user
-	uint32_t  tdiv_max_limit;
-	uint32_t  fermat_max_iterations;
-	uint32_t  rho_max_iterations;
-	uint32_t  rho_max_bases;
-	uint32_t  pp1_max_lvl1_curves;
-	uint32_t  pm1_max_lvl1_curves;
-	uint32_t  pp1_max_lvl2_curves;
-	uint32_t  pm1_max_lvl2_curves;
-	uint32_t  pp1_max_lvl3_curves;
-	uint32_t  pm1_max_lvl3_curves;
-	uint32_t  ecm_max_15digit_curves;
-	uint32_t  ecm_max_20digit_curves;
-	uint32_t  ecm_max_25digit_curves;
-	uint32_t  ecm_max_30digit_curves;
-	uint32_t  ecm_max_35digit_curves;
-	uint32_t  ecm_max_40digit_curves;
-	uint32_t  ecm_max_45digit_curves;
-	uint32_t  ecm_max_50digit_curves;	
-	uint32_t  ecm_max_55digit_curves;	
-	uint32_t  ecm_max_60digit_curves;	
-	uint32_t  ecm_max_65digit_curves;	
-
-	// current parameters
-	uint32_t  B1;
-	uint64_t  B2;
-	uint32_t  curves;
-
-	// target job type
-	enum job_type_e target_job_type;
-
-	// equivalent gnfs size of the snfs job, when target_job_type == job_snfs
-	int snfs_equiv_size;
-
-} factor_work_t;
-
-enum factorization_state {
-	state_idle,
-	state_trialdiv,
-	state_fermat,
-	state_rho,
-	state_pp1_lvl1,
-	state_pm1_lvl1,
-	state_pp1_lvl2,
-	state_pm1_lvl2,
-	state_pp1_lvl3,
-	state_pm1_lvl3,
-	state_ecm_15digit,
-	state_ecm_20digit,
-	state_ecm_25digit,
-	state_ecm_30digit,
-	state_ecm_35digit,
-	state_ecm_40digit,
-	state_ecm_45digit,
-	state_ecm_50digit,
-	state_ecm_55digit,
-	state_ecm_60digit,
-	state_ecm_65digit,
-	state_qs,
-	state_nfs,
-	state_done
-};
+// -plan bayesian cost estimates supplied by bayessim() (NULL: the tune data)
+bayes_cost_hook_t *bayes_cost_hook = NULL;
 
 // local functions to do state based factorization
 double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b);
@@ -1573,6 +1451,8 @@ static double bayes_sieve_time(double digits, void *vctx)
 		return 0.0;
 	if (fabs(digits - c->D) < 1e-9)
 		digits = c->D_time;
+	if (bayes_cost_hook != NULL)
+		return bayes_cost_hook->sieve_sec(bayes_cost_hook->ctx, digits);
 	// measured whole-job times (bayes_tune.txt siqs/nfs lines) when present,
 	// else the tune() fits with the usual threading allowance
 	q = bayes_sieve_sec(fobj, 0, digits);
@@ -1590,6 +1470,8 @@ static double bayes_sieve_time(double digits, void *vctx)
 static int bayes_data_ok(fact_obj_t *fobj, int numdigits)
 {
 	static int warned = 0;
+	if (bayes_cost_hook != NULL)
+		return 1;
 	if (check_tune_params(fobj) &&
 		(bayes_ecm_sec_per_curve(fobj, (double)numdigits, 1e6) >= 0))
 		return 1;
@@ -1608,10 +1490,17 @@ static int bayes_schedule(factor_work_t *fwork, fact_obj_t *fobj, int numdigits,
 	uint32_t *curves_out)
 {
 	// the options (curve parameters, cost and one curve's work grid) depend
-	// only on the input size and the options, so keep them between calls:
-	// computing the work grids for every level is slow
-	static ecmbayes_option_t cache[NUM_ECM_LEVELS];
-	static int cache_digits = -1, cache_threads = -1;
+	// only on the input size and the options, so keep them between calls,
+	// one set per size (cofactors and replays revisit sizes): computing the
+	// work grids for every level is slow
+#define BAYES_CACHE_MAXD 400
+	static ecmbayes_option_t *caches[BAYES_CACHE_MAXD + 1];
+	static int cache_digits[BAYES_CACHE_MAXD + 1];
+	static int cache_threads[BAYES_CACHE_MAXD + 1];
+	static int cache_gen[BAYES_CACHE_MAXD + 1];
+	int ci = MIN(numdigits, BAYES_CACHE_MAXD);
+	int gen = (bayes_cost_hook != NULL) ? bayes_cost_hook->gen : 0;
+	ecmbayes_option_t *cache;
 	ecmbayes_option_t optv[NUM_ECM_LEVELS];
 	enum factorization_state ostate[NUM_ECM_LEVELS];
 	uint32_t oleft[NUM_ECM_LEVELS];
@@ -1625,12 +1514,22 @@ static int bayes_schedule(factor_work_t *fwork, fact_obj_t *fobj, int numdigits,
 		return 0;
 
 	ecmprob_init();
-	if ((cache_digits != numdigits) || (cache_threads != fobj->THREADS))
+	if (ci < 0)
+		ci = 0;
+	if (caches[ci] == NULL)
+	{
+		caches[ci] = (ecmbayes_option_t *)xmalloc(NUM_ECM_LEVELS * sizeof(ecmbayes_option_t));
+		cache_digits[ci] = -1;
+	}
+	cache = caches[ci];
+	if ((cache_digits[ci] != numdigits) || (cache_threads[ci] != fobj->THREADS) ||
+		(cache_gen[ci] != gen))
 	{
 		for (lvl = 0; lvl < NUM_ECM_LEVELS; lvl++)
 			cache[lvl].sec_per_curve = 0.0;		// not computed yet
-		cache_digits = numdigits;
-		cache_threads = fobj->THREADS;
+		cache_digits[ci] = numdigits;
+		cache_threads[ci] = fobj->THREADS;
+		cache_gen[ci] = gen;
 	}
 	for (lvl = (int)(first - state_ecm_15digit);
 		lvl <= (int)(state_ecm_65digit - state_ecm_15digit); lvl++)
@@ -1642,7 +1541,10 @@ static int bayes_schedule(factor_work_t *fwork, fact_obj_t *fobj, int numdigits,
 
 		if (cache[lvl].sec_per_curve == 0.0)
 		{
-			double spc = bayes_ecm_sec_per_curve(fobj, (double)numdigits, (double)b1);
+			double spc = (bayes_cost_hook != NULL) ?
+				bayes_cost_hook->ecm_sec_per_curve(bayes_cost_hook->ctx, (double)numdigits,
+					(double)b1) :
+				bayes_ecm_sec_per_curve(fobj, (double)numdigits, (double)b1);
 			ecm_plan_curve_params(fobj, b1, &cp);
 			if (spc > 0)
 				ecmbayes_option_init(&cache[lvl], &cp, spc, min_curves);

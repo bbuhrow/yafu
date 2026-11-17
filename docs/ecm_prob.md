@@ -287,6 +287,40 @@ reproduces them as described in section 4.)
     ecm_prob_test std iv gmp|avx100|edwfft    # table at the standard B1 values
     ecm_prob_test prob iv B1 B2 S pairs bsmodel digits
 
+### ecmprob utility
+
+`tools/ecmprob.c` turns a list of curve strings into the t-level and the
+table yafu prints after ECM: expected finds (multiples of a t-level) and the
+chance a factor was missed at each size.  `make ecmprob` links it against
+libyecm with the build's ISA flags, so AVX-ECM's FFT stage 2 is planned by
+`avxecm_s2fft_plan` exactly as yafu plans it (this ISA's cost model).
+Without AVX2 / AVX-512 it builds from the model alone
+(`gcc -O2 -Iinclude tools/ecmprob.c factor/gmp-ecm/ecm_prob.c -lm`) and the
+FFT stage 2 falls back to the fixed B2 (11/6 B1)^1.43.  Strings follow the
+`t-level` utility (github.com/brubsby/t-level), with yafu's curve families,
+stage 2s and plan inputs added:
+
+    [done/]curves@B1[,B2][,param][,S=D6][,nr=pairs][,s2=gmp|avx|pair|none]
+        [,mem=MB|512M|2G][,threads=t][,bits=b | digits=d]
+
+    param:   0 / p0 / suyama, 1, 2, 3 (GMP-ECM params), 4 / edw / iv (Edwards (iv))
+    B2:      omitted or '-' = the stage 2's default, 0 = stage 1 only
+    s2:      gmp (default for params 0-3), avx (default for edw: FFT stage 2,
+             automatic B2 and polynomial when B2 is omitted), pair (AVX-ECM
+             pairing stage 2, B2 = 100 B1), none
+    mem, threads, bits/digits: the s2=avx plan's inputs (defaults 256 MB per
+             thread, 1 thread, 500 bits; also -mem, -threads, -bits, -digits)
+
+    ecmprob "7550@43e6;5000@11e7,p=3"     table and t-level
+    ecmprob -q 5208@11e6                  t45.001
+    ecmprob -v -threads 8 1@3e6,edw,mem=1G     B2 7.786e9, D6 (section 5's table)
+    ecmprob -v 2000@3e6,5.2e9,edw,S=D6,nr=5.3e8
+    ecmprob -threads 8 -mem 1G -t 55 -p edw 7550@43e6   curves to reach t55
+
+Checked against section 5 (IFMA, 8 threads, 500 bits): the planned B2 and
+polynomial at 2e3, 2.5e5, 3e6 and 110e6 for 256 MB and at 3e6 and 110e6 for
+1024 MB, and the expected curves, match the tables.
+
 ## 7. Open items
 
 * The AVX-ECM automatic B2 / polynomial choice (`s2_prob` in

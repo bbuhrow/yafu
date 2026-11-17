@@ -513,13 +513,77 @@ void ecmprob_gmpecm_stage2(ecm_curve_param_t *c, double B1, double B2, int S,
 // ---------------------------------------------------------------------------
 // t-level accounting on the digit grid
 // ---------------------------------------------------------------------------
+// One curve's success probabilities on the digit grid.  Each grid costs
+// ECMPROB_NDIG probability evaluations (about 1 ms), and the same few curve
+// kinds come up again and again (every ECM step's accounting, every
+// get_curves_required, the bayessim replay), so the last grids are kept,
+// per thread.
+#if defined(_MSC_VER)
+#define ECMPROB_TLS __declspec(thread)
+#else
+#define ECMPROB_TLS __thread
+#endif
+#define ECMPROB_GRID_CACHE 256
+
+typedef struct
+{
+    ecm_curve_param_t c;
+    double pv[ECMPROB_NDIG];
+} ecmprob_grid_t;
+
+static ECMPROB_TLS ecmprob_grid_t *grid_cache = NULL;
+static ECMPROB_TLS int grid_num = 0, grid_next = 0;
+
+static int same_curve(const ecm_curve_param_t *a, const ecm_curve_param_t *b)
+{
+    return (a->B1 == b->B1) && (a->B2 == b->B2) && (a->nr == b->nr) &&
+        (a->S == b->S) && (a->bsmodel == b->bsmodel) && (a->family == b->family);
+}
+
+static const double *prob_grid(const ecm_curve_param_t *c)
+{
+    ecmprob_grid_t *g;
+    int i;
+
+    if (grid_cache == NULL)
+    {
+        grid_cache = (ecmprob_grid_t *)malloc(ECMPROB_GRID_CACHE * sizeof(ecmprob_grid_t));
+        if (grid_cache == NULL)
+            return NULL;
+    }
+    for (i = 0; i < grid_num; i++)
+        if (same_curve(&grid_cache[i].c, c))
+            return grid_cache[i].pv;
+
+    // not cached: fill the next slot (round robin once full)
+    if (grid_num < ECMPROB_GRID_CACHE)
+        g = &grid_cache[grid_num++];
+    else
+    {
+        g = &grid_cache[grid_next];
+        grid_next = (grid_next + 1) % ECMPROB_GRID_CACHE;
+    }
+    g->c = *c;
+    for (i = 0; i < ECMPROB_NDIG; i++)
+        g->pv[i] = ecmprob_prob_digits(c, (double)(ECMPROB_DMIN + i));
+    return g->pv;
+}
+
 void ecmprob_work_add(double *w, const ecm_curve_param_t *c, double curves)
 {
     int i;
+    const double *pv;
     if (curves <= 0)
         return;
+    pv = prob_grid(c);
+    if (pv == NULL)
+    {
+        for (i = 0; i < ECMPROB_NDIG; i++)
+            w[i] += curves * ecmprob_prob_digits(c, (double)(ECMPROB_DMIN + i));
+        return;
+    }
     for (i = 0; i < ECMPROB_NDIG; i++)
-        w[i] += curves * ecmprob_prob_digits(c, (double)(ECMPROB_DMIN + i));
+        w[i] += curves * pv[i];
 }
 
 double ecmprob_work_tlevel(const double *w)
@@ -560,13 +624,15 @@ uint32_t ecmprob_work_curves_to(const double *w, const ecm_curve_param_t *c,
     double target)
 {
     double pv[ECMPROB_NDIG], t[ECMPROB_NDIG];
+    const double *g;
     uint64_t lo = 0, hi = 1, mid;
     int i;
 
     if (ecmprob_work_tlevel(w) >= target)
         return 0;
+    g = prob_grid(c);
     for (i = 0; i < ECMPROB_NDIG; i++)
-        pv[i] = ecmprob_prob_digits(c, (double)(ECMPROB_DMIN + i));
+        pv[i] = (g != NULL) ? g[i] : ecmprob_prob_digits(c, (double)(ECMPROB_DMIN + i));
 
     // smallest n with tlevel(w + n pv) >= target: grow, then bisect
     while (1)

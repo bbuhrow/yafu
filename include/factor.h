@@ -680,6 +680,8 @@ int bayes_tune_load(fact_obj_t* fobj);
 // wall seconds per ECM curve at B1 for a digits-digit input with fobj->THREADS
 // threads, from bayes_tune.txt; -1 if there is no data
 double bayes_ecm_sec_per_curve(fact_obj_t* fobj, double digits, double B1);
+// bayessim(): replay pretest plans on known factorizations (docs/ecm_bayes.md)
+void bayes_sim(fact_obj_t* fobj);
 // whole-job sieve time (wall s, fobj->THREADS threads) by SIQS (method 0) or
 // GNFS (method 1) from the siqs/nfs lines of bayes_tune.txt; -1 if absent
 double bayes_sieve_sec(fact_obj_t* fobj, int method, double digits);

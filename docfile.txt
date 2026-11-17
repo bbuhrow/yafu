@@ -357,6 +357,19 @@ curve family, stage 2 and -threads) for inputs of 60 to 310 digits at B1 = 50k,
 at C150, and writes wall-clock seconds per curve to bayes_tune.txt with the CPU and
 thread count.  Re-run it after changing -threads, the CPU or ECM options.
 
+[bayessim]
+usage: bayessim()
+
+description:
+replays pretest plans (normal, light, deep, custom, bayesian) on inputs whose
+factorizations are known, without running ECM or the sieve (docs/ecm_bayes.md,
+section 6).  The real scheduler picks every step; ECM finds, P-1 finds and all
+costs are simulated from a cost model.  Every plan sees the same random ECM luck,
+so differences of a few percent show up in seconds.  Reads bayes_sim_in.txt and
+bayes_sim_cost.txt (written from a factor.json by docs/bayes_sim_prep.py) and
+writes bayes_sim_out.csv and bayes_sim_paths.csv.  Run it with the -threads of
+the machine the cost model came from.
+
 [siqstune]
 usage: siqstune()
 

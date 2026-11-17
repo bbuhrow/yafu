@@ -153,8 +153,62 @@ How to read these:
    - run `parse_yafu_nfs.py` and `fit_sieve_times.py` and append the `nfs` lines;
    - optionally add `siqs` lines from a few real SIQS runs. The tune-fit C100 SIQS estimate of 432 s needs checking.
    - In-yafu NFS test sieving inside `bayestune()` is not written. The script route needs no new C code.
-2. **Benchmark** normal against bayesian with `ecm_bayes_bench.py` on an idle machine: random composites C70-C100, then semiprimes as a control.
+2. **Benchmark.** The first run (`test_bayes_t3`, 1000 random inputs each at C60-C90) did not exercise the rule: the bayesian runs follow the normal plan's steps exactly (section 6), so `-plan bayesian` fell back to the normal plan on that machine (no `tune_info` for its CPU or no `bayes_tune.txt`). Re-run with both present, and check for the "following the normal plan" notice. The replay predicts about -17% at C80 and -25% at C90, so 200-300 inputs per size are enough to see it.
 3. **Windows builds:** a full MSVC link, and MinGW.
 4. **Step choice.** The greedy ranking can pick small B1 values when the quantum is small. That doesn't change the stop much but costs about 1% in E[total] (quantum 10 s against T/1000 at C150). Consider ranking by benefit/cost over a few look-ahead steps, or restricting to B1 >= the current t-level's B1.
 5. **Cofactor value.** V(c) ignores further ECM on the cofactor (an upper bound). That is fine in the GNFS range; check near the SIQS crossover.
 6. **Prior for real inputs.** Validate on aliquot and Cunningham cofactor corpora: compare the predicted find rate per t-level with the observed one.
+
+## 6. Replay: `bayessim()`
+
+A benchmark of real factorizations needs thousands of inputs to see a few percent: which plan's ECM happens to find a factor is luck, and single runs stall now and then (34 of the 8000 `test_bayes_t3` runs lost about 10 s each, in both plans). `bayessim()` replays the plans instead, on inputs whose factorizations are known.
+
+**What is real and what is simulated.** The real `schedule_work()` picks every step, so curve planning, level maxima, the P-1 states, the trivial-input rule and `-plan bayesian` behave as in `factor()`. Only the work is simulated:
+- trial division and rho remove the primes below `rho_bound` (10^6);
+- P-1 finds p when p - 1 is B1-smooth but for one prime up to B2 (B2 approximates GMP-ECM's P-1 default);
+- ECM: each prime has an Exp(1) threshold, drawn per (input, replicate, prime). It is found in the step where its accumulated hazard, the sum of curves x -ln(1 - P(curve finds p)) from `ecmprob_prob`, first passes the threshold. All plans use the same thresholds (common random numbers), so they are compared on the same luck;
+- AVX-ECM curve counts are rounded up as `vec_ecm_main` runs them (whole vectors per thread);
+- the sieve finishes whatever composite is left.
+
+**Costs** come from a model of the machine the inputs ran on. `docs/bayes_sim_prep.py prep factor.json` fits it from the runs themselves:
+- ECM: a per-call overhead plus curves x c (B1/1e5)^e (digits/70)^q. Above the largest B1 in the data, the per-curve time grows as B1^`ecm_e_hi` (default 1: stage 1 is linear in B1);
+- P-1: a + b digits per level;
+- SIQS: the median time per composite size, smoothed. It comes from runs where the SIQS input is known: exactly two prime factors above the rho bound, and SIQS ran.
+
+`-plan bayesian` can be given the model's true costs, or scaled ones (`bayes <siqs_scale> <ecm_scale>`), through `bayes_cost_hook` in autofactor.c. That shows what wrong cost estimates cost. `bayes_tune` uses the machine's own tune data instead.
+
+**Files** (working directory):
+- `bayes_sim_in.txt`: `<class> <prime> <prime> ...`, one input per line;
+- `bayes_sim_cost.txt`: `reps`, `seed`, `lanes`, `rho_bound`, `ecm_step`, `ecm_curve c e q`, `ecm_b1max`, `ecm_e_hi`, `pm1 B1 B2 a b`, `siqs digits seconds`, and `policy <name> normal|light|deep|noecm|custom <r>|bayes <sq> <ecm>|bayes_tune` lines (the first is the baseline);
+- output: `bayes_sim_out.csv` (each input's mean costs per plan) and `bayes_sim_paths.csv` (each input's steps per plan when ECM finds nothing).
+
+`bayes_sim_prep.py check factor.json --sim-dir D` compares the replay with the runs it was fitted from.
+
+Two supporting changes:
+- `ecm_prob.c` keeps the last 256 per-curve probability grids (per thread), so `record_curves_completed` and `get_curves_required` no longer spend about 1.5 ms evaluating 81 probabilities on every call;
+- `bayes_schedule()` caches step options per input size instead of only for the last size.
+
+**test_bayes_t3** (bench machine, 8 threads; 4000 inputs, 16 replicates, 75 s):
+
+Validation of the normal plan:
+- its replayed ECM steps match the observed runs on 96-98% of inputs: identical, or the observed run stopped earlier because it found a factor;
+- the mean ECM + P-1 + SIQS time per input is within 7% of observed at C70-C90 (C90: replay 2.24 s, observed 2.10 s). At C60, P-1 is overestimated by about 5 ms.
+
+The bayesian runs:
+- the observed bayesian runs match the replayed normal path just as well (C90: 278 identical, 406 prefix, 12 different, against 274/410/12 for the normal runs), and the replayed bayesian path poorly. So the benchmark compared the normal plan with itself.
+
+Replay, mean seconds per input (ECM + P-1 + sieve) and the paired difference from the normal plan:
+
+| class | normal | bayes | bayes, SIQS believed x0.5 | x2 | deep | light |
+|---|---|---|---|---|---|---|
+| C60 | 0.041 | +0.4% (se 0.8) | +2.1% | +8.1% | -0.4% | +1.3% |
+| C70 | 0.098 | -0.9% (se 1.8) | -1.2% | +9.7% | -1.5% | +23% |
+| C80 | 0.400 | **-17.3%** (se 3.4) | -13.9% | -11.8% | -3.6% | +46% |
+| C90 | 2.24 | **-24.8%** (se 4.6) | -21.4% | -16.3% | -7.5% | +62% |
+
+How to read this:
+- At C80-C90 the normal plan stops ECM far too early on this machine. Its 4/13 target (t25-t28) leaves about 2 s of SIQS at C90. On inputs that reach the sieve, the rule keeps running 64-curve steps up through B1 = 1M and 3M.
+- The gain survives a factor of 2 error in the believed SIQS time either way, and large-B1 curves costed as B1^1.2 (C80 -16.6%, C90 -22.2%). The sieve estimate is not the critical input at these sizes.
+- At C60-C70 the plans are within noise of each other. Believing SIQS twice as expensive as it is costs about 8-10% there, so a sieve estimate biased high (for example a fit with too few points) hurts small inputs.
+- The replay's ECM finds come from the same `ecm_prob` model the rule uses. The normal-plan check validates it only up to B1 = 250k, so a real benchmark with the rule active should confirm the C80-C90 gain.
+- With `-plan bayesian` the P-1 level-2 state is rarely reached: the rule leaves lower ECM levels unfinished, and P-1 level 2 follows the 25-digit level. The replay counts what that costs; it is included in the numbers above.

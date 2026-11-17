@@ -63,7 +63,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 85
+#define NUM_FUNC 86
 
 // symbols in calc
 #define EOE 1
@@ -168,7 +168,8 @@ static char function_names[NUM_FUNC][11] = {
     "sigma", "totient", "smallmpqs", "testrange", "bigprimes",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
     "semiprimes", "fftmul", "tinyprp", "toom3", "special",
-    "divisors", "expansion", "siqstune", "ecmtune", "bayestune"};
+    "divisors", "expansion", "siqstune", "ecmtune", "bayestune",
+    "bayessim"};
 
 // Declared arity per function.  This table is what the argument-collection
 // loop in calc() uses to place actual arguments:  with arity na and k
@@ -194,7 +195,8 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 1,
-    1, 0, 0, 0, 0};
+    1, 0, 0, 0, 0,
+    0};
 
 
 // =====================================================================
@@ -4264,6 +4266,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         bayes_tune(fobj);
+        mpz_set_ui(operands[0], 1);
+        break;
+
+    case 85:
+        // bayessim, no arguments: replay pretest plans on known factorizations
+        // (bayes_sim_in.txt, bayes_sim_cost.txt; docs/ecm_bayes.md section 6)
+        if (check_args(funcnum, nargs)) break;
+
+        bayes_sim(fobj);
         mpz_set_ui(operands[0], 1);
         break;
 

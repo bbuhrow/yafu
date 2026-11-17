@@ -889,6 +889,7 @@ YAFU_SRCS = \
     top/test.c \
     factor/tune.c \
     factor/autofactor.c \
+    factor/bayes_sim.c \
     top/cmdParser/cmdOptions.c \
     top/cmdParser/calc.c
 
@@ -1267,7 +1268,7 @@ endif
 # -----------------------------------------------------------------------------
 # 22. PHONY TARGETS
 # -----------------------------------------------------------------------------
-.PHONY: all yafu msieve siqs ecm lasieve lasieve-clean clean info help _dep_status
+.PHONY: all yafu msieve siqs ecm ecmprob lasieve lasieve-clean clean info help _dep_status
 
 # -----------------------------------------------------------------------------
 # 23. DEFAULT GOAL
@@ -1310,6 +1311,13 @@ siqs: _dep_status $(SIQS_BIN_OBJS) libysiqs.a libmsieve.a
 
 ecm: _dep_status $(ECM_BIN_OBJS) libyecm.a
 	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo$(EXE_EXT) -lyecm $(LIBS)
+
+# t-level / missed-factor calculator (tools/ecmprob.c).  Linked like ecm_demo
+# so AVX-ECM's FFT stage 2 is planned by avxecm_s2fft_plan with this build's
+# ISA cost model (ecm_prob.o is in libyecm.a too).  Without USE_AVX2 /
+# USE_AVX512 the planner isn't built and ecmprob uses a fixed B2.
+ecmprob: _dep_status tools/ecmprob.c include/ecm_prob.h libyecm.a
+	$(CC) $(CFLAGS) tools/ecmprob.c -o ecmprob$(EXE_EXT) -lyecm $(LIBS)
 
 
 # -----------------------------------------------------------------------------
@@ -1565,7 +1573,7 @@ clean:
 	    $(DEPS_DIR) \
 	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
 	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
-	    *.ptx
+	    ecmprob$(EXE_EXT) *.ptx
 	$(RM_RF) $(TEST_OBJS) libyafu_common.a $(TEST_BIN)
 	@echo "Note: use 'make lasieve-clean' to also clean factor/lasieve5_64"
 
@@ -1633,6 +1641,7 @@ help:
 	@echo "    make siqs            build siqs_demo standalone binary"
 	@echo "    make ecm             build ecm_demo standalone binary"
 	@echo "    make all             build all four targets above"
+	@echo "    make ecmprob         build ecmprob (ECM t-level / missed-factor chances)"
 	@echo "    make test            build the test suite (yafu_test)"
 	@echo "    make test-run        build and run the test suite"
 	@echo "    make test-clean      remove test build artefacts"
