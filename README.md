@@ -30,6 +30,14 @@ Not sure which to pick? Run `wmic cpu get name` in a Windows command prompt and 
 
 ### First run
 
+Run the "tune" function first.  YAFU uses a variety of factorization algorithms and it is very helpful to know when to stop using one and start another.  Tune gathers data to help decide this.  Specifically, it computes a crossover between SIQS and NFS, and an early exit point for nfs poly selection to improve nfs performance.
+
+```
+yafu "tune()"
+```
+
+After that try:
+
 ```
 yafu "factor(rsa(200))"
 ```
