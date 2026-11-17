@@ -111,6 +111,7 @@ void tpool_stop(tpool_t* t)
 #else
 
     //pthread_mutex_lock(&t->run_lock);
+#if 0
     int count = 0;
     while (1)
     {
@@ -150,6 +151,14 @@ void tpool_stop(tpool_t* t)
             break;
         }
     }
+    pthread_cond_signal(&t->run_cond);
+    pthread_mutex_unlock(&t->run_lock);
+    pthread_join(t->thread_id, NULL);
+
+#endif
+
+    pthread_mutex_lock(&t->run_lock);
+    t->state = TPOOL_STATE_END;      // set under the lock
     pthread_cond_signal(&t->run_cond);
     pthread_mutex_unlock(&t->run_lock);
     pthread_join(t->thread_id, NULL);
@@ -217,10 +226,10 @@ void *tpool_worker_main(void *thread_data) {
         else if (t->state == TPOOL_STATE_END)
         {
             if (t->debug > 1)
-            {
                 printf("tpool: thread %d state end\n", t->tindex);
-            }
-
+#if !(defined(_WIN32) || defined(_WIN64))
+            pthread_mutex_unlock(&t->run_lock);   // <-- add
+#endif
             break;
         }
 

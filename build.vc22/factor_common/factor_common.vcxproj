@@ -159,6 +159,8 @@
     <ClCompile Include="..\..\arith\limb\limb2.c" />
     <ClCompile Include="..\..\factor\batch_factor.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\ecm_prob.c" />
+    <ClCompile Include="..\..\factor\ecm_bayes.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm_edw_x4.c" />

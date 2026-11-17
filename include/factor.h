@@ -34,6 +34,8 @@ code to the public domain.
 #define GSTR_MAXSIZE 1024
 #define NUM_ECM_LEVELS 12
 
+#include "ecm_prob.h"
+
 #include "siqs_strategy.h"
 
 //#define NO_ZLIB
@@ -220,17 +222,26 @@ typedef struct
     int use_cgbn;
 
     // record curves run at particular b1/b2/param values
+    // (param_rec: ECMPROB_FAM_*; curve_b2_rec: the covered B2)
     int num_records;
     uint64_t *curve_b1_rec;
     uint64_t *curve_b2_rec;
     int *param_rec;
     int *num_rec;
 
-    // record the standard tlevels completed
+    // expected finds of a d-digit factor from all curves run so far,
+    // d = ECMPROB_DMIN .. ECMPROB_DMAX (ecm_prob.h); the chance that a
+    // d-digit factor was missed is exp(-twork[d - ECMPROB_DMIN])
+    double twork[ECMPROB_NDIG];
+
+    // the same at the standard t-levels 15, 20, .. 70 (ecm_levels[])
     double tlevels[NUM_ECM_LEVELS];
 
-    // record the total work completed
+    // the t-level of the completed work (ecmprob_work_tlevel)
     double total_work;
+
+    // the curve parameters of the last AVX-ECM run (set by vec_ecm_main)
+    ecm_curve_param_t last_cp;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;
@@ -465,6 +476,7 @@ enum pretest_plan {
     PRETEST_NORMAL = 3,
     PRETEST_DEEP = 4,
     PRETEST_CUSTOM = 5,
+    PRETEST_BAYES = 6,     // -plan bayesian: Bayesian ECM stop (docs/ecm_bayes.md)
 };
 
 typedef struct
@@ -511,6 +523,7 @@ typedef struct
     int max_nfs;
 
     enum pretest_plan yafu_pretest_plan;
+    int bayes_prior;        // -bayes_prior: 0 random integer, 1 hard (ECMBAYES_PRIOR_*)
     char plan_str[1024];
     int only_pretest;
     int autofact_active;
@@ -660,5 +673,17 @@ void factor_tune(fact_obj_t* inobj);
 void siqs_param_tune(fact_obj_t* fobj);
 // AVX-ECM radix-2^52 / RNS crossover: measure, write avxecm_rns_bits to yafu.ini
 void ecm_rns_tune(fact_obj_t* fobj);
+// extended tune for -plan bayesian: ECM time per curve (bayes_tune.txt)
+void bayes_tune(fact_obj_t* fobj);
+// read bayes_tune.txt (1 if present); fobj may be NULL (no messages)
+int bayes_tune_load(fact_obj_t* fobj);
+// wall seconds per ECM curve at B1 for a digits-digit input with fobj->THREADS
+// threads, from bayes_tune.txt; -1 if there is no data
+double bayes_ecm_sec_per_curve(fact_obj_t* fobj, double digits, double B1);
+// bayessim(): replay pretest plans on known factorizations (docs/ecm_bayes.md)
+void bayes_sim(fact_obj_t* fobj);
+// whole-job sieve time (wall s, fobj->THREADS threads) by SIQS (method 0) or
+// GNFS (method 1) from the siqs/nfs lines of bayes_tune.txt; -1 if absent
+double bayes_sieve_sec(fact_obj_t* fobj, int method, double digits);
 
 #endif //_FACTOR_H

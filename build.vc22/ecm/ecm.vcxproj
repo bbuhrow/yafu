@@ -187,6 +187,7 @@
     <ClInclude Include="..\..\arith\rns\rns_vec52.h" />
     <ClInclude Include="..\..\arith\vecpoly\vecpoly.h" />
     <ClInclude Include="..\..\factor\avx-ecm\avxecm_stage2fft.h" />
+    <ClInclude Include="..\..\include\ecm_prob.h" />
     <ClInclude Include="..\..\arith\rns\rns_yaob_kern.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />

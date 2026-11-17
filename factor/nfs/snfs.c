@@ -426,6 +426,8 @@ void approx_norms(snfs_t *poly)
 	// along with several other values.  This will be used to rank the polynomials generated.
 	analyze_one_poly_xface(poly);
 
+	mpz_clear(tmp);
+	mpz_clear(res);
 	return;
 }
 
@@ -3786,7 +3788,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	int numf = 0;
 	snfs_t *polys = NULL;
 	int npoly = 0;
-	int apoly;	
+	int apoly = 0;		// slots initialized in polys (multi-poly path only)
 	int algebraic = 0, halved = 0;
 
 	mpz_init(n);
@@ -4991,6 +4993,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 
 done:
+	// the caller clears the npoly valid polys; clear the unused slots
+	for (i = npoly; i < apoly; i++)
+	{
+		snfs_clear(&polys[i]);
+	}
+
 	mpz_clear(m);
 	mpz_clear(n);
 	mpz_clear(t);

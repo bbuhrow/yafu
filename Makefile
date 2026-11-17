@@ -889,6 +889,7 @@ YAFU_SRCS = \
     top/test.c \
     factor/tune.c \
     factor/autofactor.c \
+    factor/bayes_sim.c \
     top/cmdParser/cmdOptions.c \
     top/cmdParser/calc.c
 
@@ -898,6 +899,8 @@ YAFU_SRCS = \
 # -----------------------------------------------------------------------------
 COMMON_SRCS = \
     factor/batch_factor.c \
+    factor/gmp-ecm/ecm_prob.c \
+    factor/ecm_bayes.c \
     factor/factor_common.c \
     factor/rho.c \
     factor/squfof.c \
@@ -1265,7 +1268,7 @@ endif
 # -----------------------------------------------------------------------------
 # 22. PHONY TARGETS
 # -----------------------------------------------------------------------------
-.PHONY: all yafu msieve siqs ecm lasieve lasieve-clean clean info help _dep_status
+.PHONY: all yafu msieve siqs ecm ecmprob lasieve lasieve-clean clean info help _dep_status
 
 # -----------------------------------------------------------------------------
 # 23. DEFAULT GOAL
@@ -1292,50 +1295,29 @@ $(DEPS_SUBDIRS):
 # 25. LINK TARGETS
 # -----------------------------------------------------------------------------
 
-yafu: _dep_status \
-      $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) \
-      $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) \
-      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(BATCH_GPU_OBJS) $(GPU_OBJS)
-	rm -f libmsieve.a
-	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	ranlib libmsieve.a
-	rm -f libysiqs.a
-	ar r  libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
-	ranlib libysiqs.a
-	rm -f libyecm.a
-	ar r  libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
-	ranlib libyecm.a
-	rm -f libynfs.a
-	ar r  libynfs.a $(YAFU_NFS_OBJS) $(YAFU_COMMON_OBJS) $(BATCH_GPU_OBJS)
-	ranlib libynfs.a
+# The link targets depend on the archive rules (section 25a) instead of
+# re-archiving inline: with make -j, several targets rewriting the same .a at
+# once raced and broke the ecm_demo / siqs_demo links.
+yafu: _dep_status $(YAFU_OBJS) libysiqs.a libyecm.a libynfs.a libmsieve.a $(GPU_OBJS)
 	$(CC) $(CFLAGS) $(YAFU_OBJS) -o yafu$(EXE_EXT) \
 	    -lysiqs -lyecm -lynfs -lmsieve $(LIBS)
 
-msieve: _dep_status \
-        $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS) $(GPU_OBJS)
-	rm -f libmsieve.a
-	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	ranlib libmsieve.a
+msieve: _dep_status libmsieve.a $(GPU_OBJS)
 	$(CC) $(CFLAGS) demo.c -o msieve$(EXE_EXT) \
 	    libmsieve.a $(MSIEVE_LIBS)
 
-siqs: _dep_status \
-      $(MSIEVE_YAFU_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(SIQS_BIN_OBJS) \
-      $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	rm -f libysiqs.a
-	ar r  libysiqs.a $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
-	ranlib libysiqs.a
-	rm -f libmsieve.a
-	ar r  libmsieve.a $(MSIEVE_COMMON_OBJS) $(QS_OBJS) $(NFS_OBJS)
-	ranlib libmsieve.a
+siqs: _dep_status $(SIQS_BIN_OBJS) libysiqs.a libmsieve.a
 	$(CC) $(CFLAGS) $(SIQS_BIN_OBJS) -o siqs_demo$(EXE_EXT) -lysiqs -lmsieve $(LIBS)
 
-ecm: _dep_status \
-     $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS) $(ECM_BIN_OBJS)
-	rm -f libyecm.a
-	ar r  libyecm.a $(YAFU_ECM_OBJS) $(YAFU_COMMON_OBJS)
-	ranlib libyecm.a
+ecm: _dep_status $(ECM_BIN_OBJS) libyecm.a
 	$(CC) $(CFLAGS) $(ECM_BIN_OBJS) -o ecm_demo$(EXE_EXT) -lyecm $(LIBS)
+
+# t-level / missed-factor calculator (tools/ecmprob.c).  Linked like ecm_demo
+# so AVX-ECM's FFT stage 2 is planned by avxecm_s2fft_plan with this build's
+# ISA cost model (ecm_prob.o is in libyecm.a too).  Without USE_AVX2 /
+# USE_AVX512 the planner isn't built and ecmprob uses a fixed B2.
+ecmprob: _dep_status tools/ecmprob.c include/ecm_prob.h libyecm.a
+	$(CC) $(CFLAGS) tools/ecmprob.c -o ecmprob$(EXE_EXT) -lyecm $(LIBS)
 
 
 # -----------------------------------------------------------------------------
@@ -1430,8 +1412,8 @@ TEST_L3_SRCS  := $(TEST_DIR)/layer3/test_siqs.c \
 TEST_FULL_BIN := yafu_test_full$(EXE_EXT)
 TEST_ARCHIVES := libysiqs.a libyecm.a libynfs.a libmsieve.a
 
-# Standalone archive rules mirroring the inline `ar` steps in the yafu/msieve
-# recipes (same member sets), so test-full can depend on them directly.
+# Archive rules, shared by the yafu / msieve / siqs / ecm link targets and
+# test-full.
 libysiqs.a: $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
 	rm -f $@
 	ar r  $@ $(YAFU_SIQS_OBJS) $(YAFU_COMMON_OBJS) $(MSIEVE_YAFU_OBJS)
@@ -1591,7 +1573,7 @@ clean:
 	    $(DEPS_DIR) \
 	    libmsieve.a libysiqs.a libyecm.a libynfs.a \
 	    yafu$(EXE_EXT) msieve$(EXE_EXT) siqs_demo$(EXE_EXT) ecm_demo$(EXE_EXT) \
-	    *.ptx
+	    ecmprob$(EXE_EXT) *.ptx
 	$(RM_RF) $(TEST_OBJS) libyafu_common.a $(TEST_BIN)
 	@echo "Note: use 'make lasieve-clean' to also clean factor/lasieve5_64"
 
@@ -1659,6 +1641,7 @@ help:
 	@echo "    make siqs            build siqs_demo standalone binary"
 	@echo "    make ecm             build ecm_demo standalone binary"
 	@echo "    make all             build all four targets above"
+	@echo "    make ecmprob         build ecmprob (ECM t-level / missed-factor chances)"
 	@echo "    make test            build the test suite (yafu_test)"
 	@echo "    make test-run        build and run the test suite"
 	@echo "    make test-clean      remove test build artefacts"

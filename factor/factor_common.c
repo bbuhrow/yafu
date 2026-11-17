@@ -147,11 +147,18 @@ void init_factobj(fact_obj_t* fobj)
 
     int i;
 
+    // the probability model's tables (shared, built once)
+    ecmprob_init();
+    for (i = 0; i < ECMPROB_NDIG; i++)
+    {
+        fobj->ecm_obj.twork[i] = 0.0;
+    }
     for (i = 0; i < NUM_ECM_LEVELS; i++)
     {
         fobj->ecm_obj.tlevels[i] = 0.0;
     }
     fobj->ecm_obj.total_work = 0.0;
+    memset(&fobj->ecm_obj.last_cp, 0, sizeof(fobj->ecm_obj.last_cp));
 
     for (i = 0; i < (int)fobj->num_threads; i++)
     {
@@ -329,6 +336,7 @@ void init_factobj(fact_obj_t* fobj)
 
     //pretesting plan used by factor()
     fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
+    fobj->autofact_obj.bayes_prior = 0;
     strcpy(fobj->autofact_obj.plan_str, "normal");
     fobj->autofact_obj.only_pretest = 0;
     fobj->autofact_obj.autofact_active = 0;
@@ -760,12 +768,13 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     dest->autofact_obj.stopprime = src->autofact_obj.stopprime;
     dest->autofact_obj.check_stop_conditions = src->autofact_obj.check_stop_conditions;
     dest->autofact_obj.max_siqs = src->autofact_obj.max_siqs;
-    dest->autofact_obj.max_nfs = src->autofact_obj.max_siqs;
+    dest->autofact_obj.max_nfs = src->autofact_obj.max_nfs;
     dest->autofact_obj.initial_work = src->autofact_obj.initial_work;
     dest->autofact_obj.ecm_total_work_performed = src->autofact_obj.ecm_total_work_performed;
 
     //pretesting plan used by factor()
     dest->autofact_obj.yafu_pretest_plan = src->autofact_obj.yafu_pretest_plan;
+    dest->autofact_obj.bayes_prior = src->autofact_obj.bayes_prior;
     strcpy(dest->autofact_obj.plan_str, src->autofact_obj.plan_str);
     dest->autofact_obj.only_pretest = src->autofact_obj.only_pretest;
     dest->autofact_obj.autofact_active = src->autofact_obj.autofact_active;
@@ -811,6 +820,10 @@ void reset_factobj(fact_obj_t *fobj)
     // start fresh set of ecm curve statistics
     fobj->ecm_obj.num_records = 0;
 
+    for (i = 0; i < ECMPROB_NDIG; i++)
+    {
+        fobj->ecm_obj.twork[i] = 0.0;
+    }
     for (i = 0; i < NUM_ECM_LEVELS; i++)
     {
         fobj->ecm_obj.tlevels[i] = 0.0;
@@ -1227,6 +1240,7 @@ void generate_factorization_str(yfactor_list_t* flist)
         }
 
         flist->factorization_str = (char*)xmalloc(2 * sizeof(char));
+        flist->str_alloc = 2;   // so clear_factor_list frees it
         strcpy(flist->factorization_str, "");
         return;
     }

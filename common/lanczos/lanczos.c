@@ -1668,5 +1668,6 @@ uint64 * block_lanczos(msieve_obj *obj,
 
 	packed_matrix_free(&packed_matrix);
 	aligned_free(lanczos_output);
+	free(post_lanczos_matrix);
 	return dependencies;
 }

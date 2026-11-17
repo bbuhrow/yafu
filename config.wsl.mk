@@ -1,0 +1,155 @@
+# =============================================================================
+# config.mk — Local dependency configuration for yafu
+#
+# Copy or rename this file to config.mk in the project root (same directory
+# as the Makefile) and uncomment / edit any paths that differ from the
+# system defaults.
+#
+# NOTE: run make info to see what is automatically found by Make
+#
+# This file is intentionally NOT tracked by git.
+# Add "config.mk" to .gitignore and commit this file as "config.mk.example"
+# so new contributors can: cp config.mk.example config.mk
+#
+# Precedence (highest → lowest):
+#   1. Command-line:   make GMP_PREFIX=/opt/gmp
+#   2. This file
+#   3. Makefile auto-detection
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# GMP  (required)
+# Set GMP_PREFIX for a self-contained install tree, or set INC/LIB dirs
+# individually for split installations.
+# Example (WSL / custom build):
+GMP_PREFIX := ../gmp-install/6.2.1
+# NOTE: run make info to see what is automatically found by Make
+# -----------------------------------------------------------------------------
+# GMP_PREFIX  := ../gmp-install/mingw
+# GMP_INCDIR  := $(GMP_PREFIX)/include
+# GMP_LIBDIR  := $(GMP_PREFIX)/lib
+
+
+# -----------------------------------------------------------------------------
+# GMP-ECM  (optional)
+# If not found, ECM support is disabled and -DHAVE_GMP_ECM is not set.
+# Example:
+ECM_PREFIX := ../ecm-install/7.0.6-wsl
+# NOTE: run make info to see what is automatically found by Make
+# -----------------------------------------------------------------------------
+# ECM_PREFIX  := ../ecm-install/mingw-ucrt64
+# ECM_INCDIR  := $(ECM_PREFIX)/include
+# ECM_LIBDIR  := $(ECM_PREFIX)/lib
+
+
+# -----------------------------------------------------------------------------
+# CUDA Toolkit  (optional)
+# BATCH_CUDA, CUDA_POLY, CUDA_LA features require a CUDA toolkit install.
+# If not found, all CUDA features are disabled.
+# CUDA_ROOT on linux and CUDA_PATH on windows are automatically
+# searched for a toolkit.
+# if your install is in a custom location, supply the path here.
+# Common locations:
+#   Linux  : /usr/local/cuda  or  /usr/local/cuda-12
+#   Windows: set CUDA_PATH in your environment and leave this commented out.
+# NOTE: run make info to see what is automatically found by Make
+# -----------------------------------------------------------------------------
+# CUDA_PREFIX := /usr/local/cuda-12
+# CUDA_INCDIR := $(CUDA_PREFIX)/include
+# CUDA_LIBDIR := $(CUDA_PREFIX)/lib64    # use lib/x64 on Windows
+# NVCC        := $(CUDA_PREFIX)/bin/nvcc
+#
+# SM (compute capability, without the dot — e.g. 80 for Ampere, 89 for Ada).
+# Leave commented out to let the Makefile auto-detect via nvidia-smi.
+# Set explicitly when cross-compiling or targeting a specific card remotely.
+# SM          := 80
+
+
+# -----------------------------------------------------------------------------
+# OpenCL  (optional)
+# BATCH_CUDA feature require either CUDA or OpenCL.  If your OpenCL
+# installation is in a custom / non-standard location, supply the location 
+# here for:
+# Headers (CL/cl.h) and ICD loader (libOpenCL).
+# If not found, OpenCL support is disabled.
+# NOTE: run make info to see what is automatically found by Make
+# -----------------------------------------------------------------------------
+# OCL_PREFIX  := /opt/opencl
+# OCL_INCDIR  := $(OCL_PREFIX)/include
+# OCL_LIBDIR  := $(OCL_PREFIX)/lib
+
+
+# -----------------------------------------------------------------------------
+# Optional feature flags
+# Uncomment to enable features that were previously set on the make command
+# line, so you don't have to type them every time.
+# NOTE: the comments describing the flags can't follow the assignment
+# because the makefile in some cases looks for a value == 1 and comments
+# following the assignment put extra whitespace after the 1 which breaks the
+# comparison in the makefile
+# -----------------------------------------------------------------------------
+# OpenMP threading
+# OMP      := 1
+
+# Link GMP-ECM and enable ECM factorisation
+ECM      := 1
+
+# GPU cofactorisation (NFS + SIQS)  — requires CUDA or OpenCL
+# BATCH_CUDA := 1
+
+# GPU NFS polynomial selection      — requires CUDA
+# CUDA_POLY  := 1
+
+# GPU NFS linear algebra            — requires CUDA  
+# CUDA_LA    := 1
+
+# MPI parallel processing (msieve LA)
+# MPI        := 1
+
+# Enable repo-local zlib (if not installed on system)
+# NO_ZLIB    := 1
+
+# Linear algebra vector width: 64 (default), 128, 256
+VBITS      := 128
+
+# Fully static Windows .exe — runs in PowerShell/cmd.exe
+# without any DLLs. MinGW/MSYS2 only. Requires static
+# (.a) versions of GMP, zlib etc. (included in mingw
+# pacman packages by default).
+STATIC_WIN := 1
+
+# CUDA toolkit version, default is 12
+# TOOLKIT_VERSION := 13
+
+# -----------------------------------------------------------------------------
+# ISA feature flags
+# Uncomment the highest level your CPU supports.
+# The Makefile enables all lower levels automatically.
+#
+# Implication chain:
+#   USE_AVX512IFMA  →  USE_AVX512  →  USE_AVX2  →  USE_SSE41
+#   USE_AVX512PF    →  USE_AVX512  →  USE_BMI2
+#
+# USE_AVX512=1     Any AVX-512-capable CPU (Skylake-X, Ice Lake, Zen 4, etc.)
+# USE_AVX512IFMA=1 Ice Lake, Zen4 and later (adds IFMA extensions)
+# USE_AVX512PF=1   Xeon Phi / Knights Landing only
+#
+# Deprecated aliases — still accepted, but will print a notice at build time:
+#   SKYLAKEX=1  maps to  USE_AVX512=1
+#   ICELAKE=1   maps to  USE_AVX512IFMA=1
+#   KNL=1       maps to  USE_AVX512PF=1
+# -----------------------------------------------------------------------------
+# USE_SSE41      := 1
+# USE_AVX2       := 1
+# USE_BMI2       := 1
+# USE_AVX512     := 1
+USE_AVX512IFMA := 1
+# USE_AVX512PF   := 1
+
+
+# -----------------------------------------------------------------------------
+# Extra user CFLAGS / LDFLAGS  (appended after all auto-generated flags)
+# -----------------------------------------------------------------------------
+# USER_CFLAGS  :=
+# USER_LDFLAGS :=

@@ -1,0 +1,16 @@
+python3.12 ./ecm_bayes_bench.py --yafu ./benchifma --sizes 60,70,80,90 --count 1000 --plans normal,bayesian --threads 8 --kind random
+--seed 42 --workdir test_bayes_t3 --out cmp_bayes_results.csv
+
+C60 normal    total    164.0 s  median    0.16 s  (wall 171.5 s)
+C60 bayesian  total    178.3 s  median    0.16 s  (wall 185.8 s)
+C60 bayesian - normal: mean +0.01 s per input (se 0.03), total +8.7%
+C70 normal    total    287.2 s  median    0.24 s  (wall 295.4 s)
+C70 bayesian  total    300.1 s  median    0.24 s  (wall 308.3 s)
+C70 bayesian - normal: mean +0.01 s per input (se 0.03), total +4.5%
+C80 normal    total    635.8 s  median    0.32 s  (wall 644.5 s)
+C80 bayesian  total    680.0 s  median    0.33 s  (wall 688.8 s)
+C80 bayesian - normal: mean +0.04 s per input (se 0.03), total +6.9%
+C90 normal    total   2522.7 s  median    0.40 s  (wall 2533.6 s)
+C90 bayesian  total   2547.7 s  median    0.39 s  (wall 2558.6 s)
+C90 bayesian - normal: mean +0.02 s per input (se 0.10), total +1.0%
+wrote cmp_bayes_results.csv

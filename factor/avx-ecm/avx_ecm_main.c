@@ -974,6 +974,28 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
         for (i = 0; i < threads; i++)
             tdata[i].s2fft = s2;
+
+        // the curves as they will run, for the t-level accounting
+        // (ecm_prob.h; the caller records them with the curve count)
+        {
+            ecm_curve_param_t *cp = &fobj->ecm_obj.last_cp;
+            cp->B1 = (double)tdata[0].STAGE1_MAX;
+            cp->family = (fobj->ecm_obj.avx_curve == AVXECM_CURVE_SUYAMA) ?
+                ECMPROB_FAM_SUYAMA : ECMPROB_FAM_EDW_IV;
+            cp->bsmodel = ECMPROB_BS_AVXECM;
+            cp->S = 0;
+            cp->nr = 0;
+            if (!tdata[0].DO_STAGE2 || (tdata[0].STAGE2_MAX <= tdata[0].STAGE1_MAX))
+                cp->B2 = cp->B1;
+            else if (s2 != NULL)
+            {
+                uint64_t cB2;
+                avxecm_s2fft_info(s2, &cB2, &cp->S, &cp->nr);
+                cp->B2 = (double)cB2;
+            }
+            else
+                cp->B2 = (double)tdata[0].STAGE2_MAX;     // pairing stage 2
+        }
     }
 
 	gettimeofday(&stopt, NULL);
@@ -1029,6 +1051,27 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	    printf("\n");
 
     *curves_run = tdata[0].curves;
+
+    // stage 2 pairing data, allocated once in thread 0 (the pairmaps are
+    // shared by every thread)
+    {
+        uint32_t D = tdata[0].work->D;
+        uint32_t k;
+        for (k = 0; (k < 2 * D) && (tdata[0].Qrmap[k] != (uint32_t)-1); k++)
+        {
+            clearQueue(tdata[0].Q[k]);
+            free(tdata[0].Q[k]);
+        }
+        free(tdata[0].Q);
+        free(tdata[0].Qmap);
+        free(tdata[0].Qrmap);
+        free(tdata[0].pairmap_v);
+        free(tdata[0].pairmap_u);
+        for (i = 0; i < threads; i++)
+        {
+            tdata[i].pairmap_v = tdata[i].pairmap_u = NULL;
+        }
+    }
 
     // record factors and clean up thread data
     if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
@@ -1202,6 +1245,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // clean up local/global data
     mpz_clear(g);
     mpz_clear(r);
+    mpz_clear(N);
     avxecm_rns_detach(montyconst);      // after the threads: owns the fixed tables
     vec_monty_free(montyconst);
 	free(montyconst);
