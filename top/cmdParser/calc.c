@@ -195,7 +195,7 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 1, 4, 3, 
     3, 1, 0, 1, 1,
     2, 4, 0, 3, 1,
-    1, 0, 0, 0, 0,
+    1, 0, 0, 0, 1,
     0};
 
 
@@ -4261,11 +4261,16 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
 
     case 84:
-        // bayestune, no arguments: extended tune for -plan bayesian
-        // (ECM time per curve vs input size and B1), written to bayes_tune.txt
-        if (check_args(funcnum, nargs)) break;
+        // bayestune([what]): extended tune for -plan bayesian (ECM, SIQS and
+        // NFS times), written to bayes_tune.txt.  what: bit mask, 1 ECM, 2 SIQS,
+        // 4 NFS, 8 NFS + comparison with NFS@Home parameters; default 7
+        if (nargs > 1)
+        {
+            printf("wrong number of arguments in bayestune, expected 0 or 1\n");
+            break;
+        }
 
-        bayes_tune(fobj);
+        bayes_tune(fobj, (nargs == 1) ? (int)mpz_get_ui(operands[0]) : 0);
         mpz_set_ui(operands[0], 1);
         break;
 

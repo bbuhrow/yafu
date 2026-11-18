@@ -1617,9 +1617,12 @@ void ecm_rns_tune(fact_obj_t *fobj)
 //   N-thread efficiency at one point.
 //   SIQS: whole-job wall time on random balanced semiprimes (two from C85),
 //   C60..C95, in memory; written as a log-linear fit from C70.
-//   NFS: not measured here (hours per point).  "nfs <digits> <s> [threads]"
-//   lines come from docs/nfs_job_data/fit_sieve_times.py and are kept when
-//   this runs again.
+//   NFS: test sieving of reference polys C120-C170 (bt_nfs_refs): three
+//   blocks of special-q across the range each job needs, integrated to a
+//   sieve time and scaled to a whole job.  bayestune(what) runs parts only
+//   (1 ECM, 2 SIQS, 4 NFS, 8 NFS plus NFS@Home-parameter comparison) and
+//   keeps the other parts' lines; "nfs" lines can also come from
+//   docs/nfs_job_data/fit_sieve_times.py.
 // bayes_tune_load() / bayes_ecm_sec_per_curve() / bayes_sieve_sec() read it.
 // ---------------------------------------------------------------------------
 
@@ -1716,7 +1719,354 @@ static double bt_ecm_point(fact_obj_t *fobj, mpz_t n, int digits,
     return -1.0;
 }
 
-void bayes_tune(fact_obj_t *fobj)
+// what bayestune(what) measures (bit mask; bayestune() = ECM | SIQS | NFS)
+#define BT_DO_ECM 1
+#define BT_DO_SIQS 2
+#define BT_DO_NFS 4
+#define BT_DO_NFS_COMPARE 8
+
+// whole GNFS job time per second of sieving: poly select ~7% of the job,
+// filtering + LA + sqrt ~33% of the sieve time (complete C120/C130/C140 yafu
+// runs on an i5-11600K, 6 threads: 1.48, 1.36, 1.46)
+#define BT_NFS_TOTAL_PER_SIEVE 1.43
+// target wall time of each thread's test-sieve block
+#define BT_NFS_BLOCK_SEC 120.0
+
+// Reference GNFS jobs for the NFS test sieving: a typical polynomial per
+// size (C120-C140: yafu's own poly select on the local calibration runs;
+// C150+: the median-Murphy-E NFS@Home poly of docs/nfs_job_data/polys), plus
+// for C150+ the parameters NFS@Home sieved with and the median raw relation
+// count of NFS@Home jobs with those parameters at that size (jobs.csv), for
+// the comparison mode.
+typedef struct
+{
+    int digits;
+    const char *name;
+    const char *poly;
+    const char *own;        // NFS@Home parameter lines (NULL: none)
+    int own_siever;
+    uint32_t own_q0;
+    double own_rels;
+} bt_nfs_ref_t;
+
+static const bt_nfs_ref_t bt_nfs_refs[] = {
+    { 120, "local C120 run",
+      "n: 326026769054469373585656403973021038065594659042330457601126530142220255457270935289475287783176236229586981677615616841\n"
+      "skew: 395839.98\n"
+      "c0: 213424040346523771560021371285\n"
+      "c1: 3382706438461988268171541\n"
+      "c2: 52509510896041622473\n"
+      "c3: -46114004981635\n"
+      "c4: -504885636\n"
+      "c5: 156\n"
+      "Y0: -291310524262297515725154\n"
+      "Y1: 341740905217679\n", NULL, 0, 0, 0 },
+    { 130, "local C130 run",
+      "n: 1793745623039204287496874646909253275177942377082382889603744117550679912273343992708689975487443314894743928421441817425415799161\n"
+      "skew: 1794046.19\n"
+      "c0: -214170324545115532473123989784192\n"
+      "c1: 2362969886060313593941759804\n"
+      "c2: -1413744886029776133688\n"
+      "c3: -1410085693472259\n"
+      "c4: 338170380\n"
+      "c5: 180\n"
+      "Y0: -25099388576195464055193145\n"
+      "Y1: 5316472426412777\n", NULL, 0, 0, 0 },
+    { 140, "local C140 run",
+      "n: 11667371413438610779651027524046401627437336389434906334441488004602840071783461929613705043678146111557846512173371540646602509533990141837\n"
+      "skew: 2591213.05\n"
+      "c0: 13659687464312813382518506327484240\n"
+      "c1: 68389010700344902433972729920\n"
+      "c2: 115351739183662847273118\n"
+      "c3: 38226763455403805\n"
+      "c4: -17582733488\n"
+      "c5: 1200\n"
+      "Y0: -1576107201356115944555987331\n"
+      "Y1: 33926256534213953\n", NULL, 0, 0, 0 },
+    { 150, "NFS@Home C150_829332_3736",
+      "n: 177732960376900606849058002878068392783762464885373262455240888929003248313962586024387471460430146330150149604688127330913894732763747367564849904673\n"
+      "skew: 6935452.02\n"
+      "c0: -23341990681687169106151987572257851485\n"
+      "c1: 34681493022024207656054533609801\n"
+      "c2: -804632905643326178855684\n"
+      "c3: -3624274055195821611\n"
+      "c4: -26294732501\n"
+      "c5: 10200\n"
+      "Y0: -111746405762145756395883594856\n"
+      "Y1: 1343118053814467\n",
+      "rlim: 67000000\nalim: 67000000\nlpbr: 29\nlpba: 29\nmfbr: 58\nmfba: 58\n"
+      "rlambda: 2.6\nalambda: 2.6\n", 14, 22000000, 64.9e6 },
+    { 160, "NFS@Home C160_79_97_30",
+      "n: 7147899195279076005126628539754280064346946453412379189519824669359603847180966162236261056367430639886117774702656241878940665411756142451546604262530551006287\n"
+      "skew: 97406052.37\n"
+      "c0: 104777786762760223299872473905044429299760\n"
+      "c1: 16875649516643952940668249495488548\n"
+      "c2: -24127128300196636843374592\n"
+      "c3: -15496623762132245911\n"
+      "c4: 8270171990\n"
+      "c5: 120\n"
+      "Y0: -35892145829078601856632218857329\n"
+      "Y1: 66002327228495723\n",
+      "rlim: 67000000\nalim: 67000000\nlpbr: 30\nlpba: 30\nmfbr: 60\nmfba: 60\n"
+      "rlambda: 2.6\nalambda: 2.6\n", 14, 18000000, 130.5e6 },
+    { 170, "NFS@Home C170_2381080_10275",
+      "n: 14025988976053049132159502332472688247751009029636890956825855204662666432255313357443754674215769618001836605564383554679441797813037930016520085017530420942230022367911\n"
+      "skew: 67841913.93\n"
+      "c0: 12180003646158940602804670732376704254985385\n"
+      "c1: 637176744251647249541970539059383766\n"
+      "c2: -13644590466155451804249707265\n"
+      "c3: -625708083069497050582\n"
+      "c4: 4662579178504\n"
+      "c5: 18480\n"
+      "Y0: -946338041270337441832323675036756\n"
+      "Y1: 297290394217753127\n",
+      "rlim: 67000000\nalim: 67000000\nlpbr: 30\nlpba: 30\nmfbr: 60\nmfba: 60\n"
+      "rlambda: 2.5\nalambda: 2.5\n", 15, 20000000, 126.5e6 },
+};
+
+// Relations yafu ends up gathering, as a multiple of its min_rels, where
+// min_rels comes from nfs_set_min_rels()'s formula (table rows from C150 have
+// none).  From the NFS@Home filtering brackets (docs/nfs_job_data/summary.md
+// section 1): unique need / formula = ~0.95 at lpb 29, ~0.84 at lpb 30, ~0.77
+// at lpb 31-32; raw = unique / (1 - ~17% duplicates); yafu filters at min_rels
+// and adds 5% after each failed attempt.
+static double bt_nfs_need_corr(int digits, int lpb)
+{
+    if (digits < 149)
+        return 1.0;     // table min_rels, matched by the local runs
+    if (lpb <= 29)
+        return 1.10;
+    if (lpb == 30)
+        return 1.05;
+    return 1.0;
+}
+
+// Sieve time from q0 until 'need' relations: yield y (rels per q) and wall
+// time s (seconds per q, all threads) linear in q between the measured
+// points, constant outside them.
+static double bt_nfs_integrate(const double *qs, const double *y, const double *s,
+    int np, double q0, double need, double *qend)
+{
+    double q = q0, rels = 0, t = 0, dq;
+    int it = 0;
+
+    dq = need / y[0] / 4000.0;
+    if (dq < 1.0)
+        dq = 1.0;
+    while ((rels < need) && (it++ < 1000000))
+    {
+        double qm = q + dq / 2, yy, ss;
+        int k;
+        if (qm <= qs[0])
+        {
+            yy = y[0];
+            ss = s[0];
+        }
+        else if (qm >= qs[np - 1])
+        {
+            yy = y[np - 1];
+            ss = s[np - 1];
+        }
+        else
+        {
+            for (k = 1; k < np - 1; k++)
+                if (qm < qs[k])
+                    break;
+            yy = y[k - 1] + (y[k] - y[k - 1]) * (qm - qs[k - 1]) / (qs[k] - qs[k - 1]);
+            ss = s[k - 1] + (s[k] - s[k - 1]) * (qm - qs[k - 1]) / (qs[k] - qs[k - 1]);
+        }
+        if (yy <= 0)
+            break;
+        rels += yy * dq;
+        t += ss * dq;
+        q += dq;
+    }
+    *qend = q;
+    return t;
+}
+
+// Test-sieve one reference job (own = 0: yafu's parameters; 1: the NFS@Home
+// job's).  All threads sieve at once, each its own block at its own special-q
+// spread over the range the job needs, so that each siever's time and yield
+// is an independent sample at its q under a full machine load (and no thread
+// waits for another at the end of a block).  Writes comment lines; returns
+// the whole-job time estimate in seconds, or -1.
+static double bt_nfs_ref(fact_obj_t *fobj, const bt_nfs_ref_t *r, int own,
+    int threads, FILE *out, struct timeval *tstart)
+{
+    char job[4096];
+    char desc[256];
+    nfs_bayes_info_t info;
+    double need, corr = 1.0, q0, startup, secq, y0, R, S, sieve, qend, total;
+    double *qs, *y, *s, *secs;
+    uint32_t *qv, *rels;
+    int i, k, lpb, npts, rounds, T = (threads > 0) ? threads : 1;
+    struct timeval tnow;
+
+    snprintf(job, sizeof(job), "%s%s", r->poly, own ? r->own : "");
+    if (nfs_bayes_setup(fobj, job, own ? r->own_siever : 0, &info) != 0)
+        return -1.0;
+
+    lpb = (info.lpbr > info.lpba) ? info.lpbr : info.lpba;
+    if (own)
+    {
+        need = r->own_rels;
+        q0 = r->own_q0;
+        snprintf(desc, sizeof(desc), "need %1.1fM raw (median of NFS@Home jobs "
+            "with these parameters)", need / 1e6);
+    }
+    else
+    {
+        corr = bt_nfs_need_corr(r->digits, lpb);
+        need = info.min_rels * corr;
+        q0 = info.startq;
+        snprintf(desc, sizeof(desc), "need %1.1fM raw (min_rels %1.1fM x %1.2f)",
+            need / 1e6, info.min_rels / 1e6, corr);
+    }
+
+    // at least 3 sample points; with fewer threads, several rounds
+    rounds = (T >= 3) ? 1 : (3 + T - 1) / T;
+    npts = rounds * T;
+    qs = (double *)malloc((size_t)npts * sizeof(double));
+    y = (double *)malloc((size_t)npts * sizeof(double));
+    s = (double *)malloc((size_t)npts * sizeof(double));
+    secs = (double *)malloc((size_t)T * sizeof(double));
+    qv = (uint32_t *)malloc((size_t)T * sizeof(uint32_t));
+    rels = (uint32_t *)malloc((size_t)T * sizeof(uint32_t));
+
+    // siever start-up (factor base) time: one special-q per thread
+    for (i = 0; i < T; i++)
+        qv[i] = (uint32_t)q0 + (uint32_t)i;
+    nfs_bayes_spread(fobj, qv, 1, secs, rels);
+    for (startup = 0, i = 0; i < T; i++)
+        startup += secs[i] / T;
+
+    // pilot near the start: 100 special-q per thread, to size the blocks
+    // and estimate the span of special-q the job needs
+    for (i = 0; i < T; i++)
+        qv[i] = (uint32_t)q0 + 100 * (uint32_t)i;
+    nfs_bayes_spread(fobj, qv, 100, secs, rels);
+    for (secq = 0, y0 = 0, i = 0; i < T; i++)
+    {
+        secq += ((secs[i] - startup > 0.2 * secs[i]) ? secs[i] - startup : 0.2 * secs[i]) /
+            (100.0 * T);
+        y0 += rels[i] / (100.0 * T);
+    }
+    if (y0 <= 0)
+    {
+        nfs_bayes_done(fobj);
+        free(qs); free(y); free(s); free(secs); free(qv); free(rels);
+        return -1.0;
+    }
+    R = 10.0 * floor(BT_NFS_BLOCK_SEC / secq / 10.0 + 0.5);
+    if (R < 50) R = 50;
+    if (R > 200000) R = 200000;
+    // yields fall with q, so the start's yield underestimates the span:
+    // sample to 1.2x it (the integration holds the last point beyond)
+    S = 1.2 * need / y0;
+
+    printf("bayestune: C%d %s, %s params: lim %1.1fM/%1.1fM lpb %d/%d mfb %d/%d %de, %s\n",
+        r->digits, r->name, own ? "NFS@Home" : "yafu", info.rlim / 1e6, info.alim / 1e6,
+        info.lpbr, info.lpba, info.mfbr, info.mfba, info.siever, desc);
+    fprintf(out, "# nfs%s C%d %s, %s params: lim %1.1fM/%1.1fM lpb %d/%d mfb %d/%d "
+        "lambda %1.2f/%1.2f %de side %c, %s; siever start-up %1.1f s; %d blocks of "
+        "%1.0f q, one per thread\n",
+        own ? " compare" : "", r->digits, r->name, own ? "NFS@Home" : "yafu",
+        info.rlim / 1e6, info.alim / 1e6, info.lpbr, info.lpba, info.mfbr, info.mfba,
+        info.rlambda, info.alambda, info.siever, info.side, desc, startup, npts, R);
+
+    for (k = 0; k < rounds; k++)
+    {
+        for (i = 0; i < T; i++)
+        {
+            int p = k * T + i;
+            qs[p] = q0 + ((npts > 1) ? S * p / (npts - 1) : 0.0);
+            qv[i] = (uint32_t)qs[p];
+        }
+        nfs_bayes_spread(fobj, qv, (uint32_t)R, secs, rels);
+        for (i = 0; i < T; i++)
+        {
+            int p = k * T + i;
+            // that siever's own rate; s = wall seconds per q with all T
+            // threads sieving at that rate
+            double busy = (secs[i] - startup > 0.5 * secs[i]) ? secs[i] - startup : 0.5 * secs[i];
+            y[p] = rels[i] / R;
+            s[p] = busy / R / T;
+            fprintf(out, "#   q %1.3fM: %1.3f rels/q, %1.1f rels/s per thread "
+                "(%u rels in %1.1f s)\n", qs[p] / 1e6, y[p], rels[i] / busy, rels[i], secs[i]);
+        }
+        gettimeofday(&tnow, NULL);
+        for (i = 0; i < T; i++)
+        {
+            int p = k * T + i;
+            printf("   q %8.3fM: %5.2f rels/q, %6.1f rels/s per thread\n", qs[p] / 1e6, y[p],
+                y[p] / s[p] / T);
+        }
+        printf("   (%1.0f s)\n", ytools_difftime(tstart, &tnow));
+        fflush(stdout);
+        fflush(out);
+    }
+    nfs_bayes_done(fobj);
+
+    sieve = bt_nfs_integrate(qs, y, s, npts, q0, need, &qend);
+    total = sieve * BT_NFS_TOTAL_PER_SIEVE;
+    printf("   sieve q %1.2fM-%1.2fM: %1.0f s at %d threads; whole job ~%1.0f s (%1.1f days)\n",
+        q0 / 1e6, qend / 1e6, sieve, T, total, total / 86400);
+    fprintf(out, "#   sieve q %1.2fM-%1.2fM: %1.0f s; whole job x%1.2f = %1.0f s%s\n",
+        q0 / 1e6, qend / 1e6, sieve, BT_NFS_TOTAL_PER_SIEVE, total,
+        own ? " (comparison only, not used)" : "");
+    fflush(out);
+    free(qs); free(y); free(s); free(secs); free(qv); free(rels);
+    return total;
+}
+
+// returns the number of reference jobs measured
+static int bt_nfs_section(fact_obj_t *fobj, FILE *out, int threads, int compare,
+    struct timeval *tstart)
+{
+    const int nref = (int)(sizeof(bt_nfs_refs) / sizeof(bt_nfs_refs[0]));
+    double T[16];
+    int i, ok = 0;
+
+    printf("bayestune: NFS test sieving, %d threads: %d reference jobs, about %1.0f "
+        "minutes each%s\n", threads, nref, (BT_NFS_BLOCK_SEC + 30.0) / 60.0,
+        compare ? " (twice from C150: yafu and NFS@Home parameters)" : "");
+    fprintf(out, "# nfs times: bayestune test sieving of reference polys; whole job = "
+        "sieve x %1.2f\n", BT_NFS_TOTAL_PER_SIEVE);
+    for (i = 0; i < nref; i++)
+    {
+        T[i] = bt_nfs_ref(fobj, &bt_nfs_refs[i], 0, threads, out, tstart);
+        if (T[i] > 0)
+            ok++;
+        if (compare && (bt_nfs_refs[i].own != NULL))
+            bt_nfs_ref(fobj, &bt_nfs_refs[i], 1, threads, out, tstart);
+    }
+    if (ok == 0)
+    {
+        printf("bayestune: NFS test sieving failed (sievers in ggnfs_dir?)\n");
+        fprintf(out, "# nfs: test sieving failed\n");
+        return 0;
+    }
+    fprintf(out, "# nfs <digits> <wall s, whole job> <threads>\n");
+    for (i = 0; i < nref; i++)
+        if (T[i] > 0)
+            fprintf(out, "nfs %d %.6g %d\n", bt_nfs_refs[i].digits, T[i], threads);
+    fflush(out);
+    return ok;
+}
+
+static void bt_append(char **buf, size_t *len, const char *line)
+{
+    size_t l = strlen(line);
+    *buf = (char *)realloc(*buf, *len + l + 2);
+    memcpy(*buf + *len, line, l);
+    *len += l;
+    if ((*buf)[*len - 1] != '\n')
+        (*buf)[(*len)++] = '\n';
+    (*buf)[*len] = '\0';
+}
+
+void bayes_tune(fact_obj_t *fobj, int what)
 {
     static const int sizes[] = { 60, 70, 80, 90, 100, 110, 120, 130, 140,
         150, 160, 170, 180, 190, 200, 220, 250, 280, 310 };
@@ -1733,30 +2083,34 @@ void bayes_tune(fact_obj_t *fobj)
     gmp_randstate_t rs;
     mpz_t n;
     struct timeval tstart, tnow;
-    char *keep = NULL;
-    size_t keeplen = 0;
+    // the previous file, by section: parts not measured this time are kept
+    char *old[4] = { NULL, NULL, NULL, NULL };      // header, ecm, siqs, nfs
+    size_t oldlen[4] = { 0, 0, 0, 0 };
 
-    // keep the nfs lines (from fit_sieve_times.py or by hand) and their
-    // comment: this run measures ECM and SIQS only
+    if (what <= 0)
+        what = BT_DO_ECM | BT_DO_SIQS | BT_DO_NFS;
+    if (what & BT_DO_NFS_COMPARE)
+        what |= BT_DO_NFS;
+
     {
-        FILE *old = fopen(BAYES_TUNE_FILE, "r");
+        FILE *f = fopen(BAYES_TUNE_FILE, "r");
         char line[1024];
-        if (old != NULL)
+        if (f != NULL)
         {
-            while (fgets(line, sizeof(line), old) != NULL)
+            while (fgets(line, sizeof(line), f) != NULL)
             {
-                if ((strncmp(line, "nfs ", 4) == 0) || (strncmp(line, "# sieve", 7) == 0))
-                {
-                    size_t l = strlen(line);
-                    keep = (char *)realloc(keep, keeplen + l + 2);
-                    memcpy(keep + keeplen, line, l);
-                    keeplen += l;
-                    if (keep[keeplen - 1] != '\n')
-                        keep[keeplen++] = '\n';
-                    keep[keeplen] = '\0';
-                }
+                int s = 0;
+                if ((strncmp(line, "ecm ", 4) == 0) || (strncmp(line, "ecm_eff ", 8) == 0) ||
+                    (strncmp(line, "# ecm", 5) == 0))
+                    s = 1;
+                else if ((strncmp(line, "siqs ", 5) == 0) || (strncmp(line, "# siqs", 6) == 0))
+                    s = 2;
+                else if ((strncmp(line, "nfs ", 4) == 0) || (strncmp(line, "# nfs", 5) == 0) ||
+                    (strncmp(line, "#   ", 4) == 0) || (strncmp(line, "# sieve", 7) == 0))
+                    s = 3;
+                bt_append(&old[s], &oldlen[s], line);
             }
-            fclose(old);
+            fclose(f);
         }
     }
 
@@ -1764,7 +2118,8 @@ void bayes_tune(fact_obj_t *fobj)
     if (out == NULL)
     {
         printf("bayestune: could not open %s for writing\n", BAYES_TUNE_FILE);
-        free(keep);
+        for (i = 0; i < 4; i++)
+            free(old[i]);
         return;
     }
 
@@ -1774,26 +2129,6 @@ void bayes_tune(fact_obj_t *fobj)
     // one batch leaves per-call setup (threads, stage 2 tables) too visible
     ncurves = 16 * (uint32_t)threads;
 
-    fprintf(out, "# yafu bayestune: timing data for -plan bayesian (docs/ecm_bayes.md)\n");
-    fprintf(out, "# re-run bayestune() after changing threads, CPU, or ECM options\n");
-    fprintf(out, "version: 1\n");
-    fprintf(out, "cpu: %s\n", fobj->CPU_ID_STR);
-    fprintf(out, "threads: %d\n", threads);
-    fprintf(out, "date: %s", ctime(&now));
-    fprintf(out, "ecm_options: avxecm_curve=%d avx_stg2_fft=%d ext_xover=%" PRIu64
-        " prefer_gmpecm=%d\n", fobj->ecm_obj.avx_curve, fobj->ecm_obj.avx_stg2_fft,
-        fobj->ecm_obj.ecm_ext_xover, fobj->ecm_obj.prefer_gmpecm);
-    if (keep != NULL)
-    {
-        fputs(keep, out);
-        free(keep);
-    }
-    fprintf(out, "# ecm <digits> <bits> <B1> <curves> <wall s per curve, all threads> <B2 (0: unknown)>\n");
-
-    printf("bayestune: ECM wall-clock time per curve, %d threads, %u curves per point\n",
-        threads, ncurves);
-    printf("   C  |        B1 |  s/curve |       B2 | elapsed\n");
-
     gmp_randinit_default(rs);
     gmp_randseed_ui(rs, 31415);
     mpz_init(n);
@@ -1801,59 +2136,96 @@ void bayes_tune(fact_obj_t *fobj)
     fobj->LOGFLAG = 0;
     gettimeofday(&tstart, NULL);
 
-    for (i = 0; i < nsz; i++)
+    // header: new when ECM is measured (the ECM lines are per the header's
+    // thread count), else the previous one
+    if ((what & BT_DO_ECM) || (old[0] == NULL))
     {
-        bt_semiprime(n, sizes[i], rs);
-        for (j = 0; j < nb1; j++)
-        {
-            int curves;
-            double B2, spc;
-
-            // keep the factors out of reach (C60-C80 have 30-40 digit
-            // factors) and the run time down at the largest sizes
-            if ((b1s[j] > 1000000) && ((sizes[i] < 90) || (sizes[i] > 200)))
-                continue;
-
-            spc = bt_ecm_point(fobj, n, sizes[i], b1s[j], ncurves, rs, &curves, &B2);
-            gettimeofday(&tnow, NULL);
-            if (spc <= 0)
-            {
-                printf(" %4d | %9" PRIu64 " | factor found 5 times, skipped\n",
-                    sizes[i], b1s[j]);
-                continue;
-            }
-            printf(" %4d | %9" PRIu64 " | %8.4f | %8.3g | %6.0f s\n", sizes[i], b1s[j],
-                spc, B2, ytools_difftime(&tstart, &tnow));
-            fflush(stdout);
-            fprintf(out, "ecm %d %d %" PRIu64 " %d %.6g %.6g\n", sizes[i],
-                (int)mpz_sizeinbase(n, 2), b1s[j], curves, spc, B2);
-            fflush(out);
-        }
+        fprintf(out, "# yafu bayestune: timing data for -plan bayesian (docs/ecm_bayes.md)\n");
+        fprintf(out, "# re-run bayestune() after changing threads, CPU, or ECM options\n");
+        fprintf(out, "version: 1\n");
+        fprintf(out, "cpu: %s\n", fobj->CPU_ID_STR);
+        fprintf(out, "threads: %d\n", threads);
+        fprintf(out, "date: %s", ctime(&now));
+        fprintf(out, "ecm_options: avxecm_curve=%d avx_stg2_fft=%d ext_xover=%" PRIu64
+            " prefer_gmpecm=%d\n", fobj->ecm_obj.avx_curve, fobj->ecm_obj.avx_stg2_fft,
+            fobj->ecm_obj.ecm_ext_xover, fobj->ecm_obj.prefer_gmpecm);
     }
+    else
+        fputs(old[0], out);
 
-    // thread efficiency at one point: 1 thread (one batch) vs all threads
-    if (threads > 1)
+    if (!(what & BT_DO_ECM))
     {
-        int curves1, curvesN;
-        double B2, s1, sN;
-        bt_semiprime(n, 150, rs);
-        fobj->THREADS = 1;
-        s1 = bt_ecm_point(fobj, n, 150, 250000, 16, rs, &curves1, &B2);
-        fobj->THREADS = threads;
-        sN = bt_ecm_point(fobj, n, 150, 250000, ncurves, rs, &curvesN, &B2);
-        if ((s1 > 0) && (sN > 0))
+        if (old[1] != NULL)
+            fputs(old[1], out);
+    }
+    else
+    {
+        fprintf(out, "# ecm <digits> <bits> <B1> <curves> <wall s per curve, all threads> <B2 (0: unknown)>\n");
+
+        printf("bayestune: ECM wall-clock time per curve, %d threads, %u curves per point\n",
+            threads, ncurves);
+        printf("   C  |        B1 |  s/curve |       B2 | elapsed\n");
+
+        for (i = 0; i < nsz; i++)
         {
-            printf("bayestune: ECM thread efficiency at C150, B1=250k: %1.3f "
-                "(%1.4f s/curve on 1 thread, %1.4f on %d)\n",
-                s1 / (sN * threads), s1, sN, threads);
-            fprintf(out, "ecm_eff 150 250000 %d %.6g %.6g %.4f\n", threads, s1, sN,
-                s1 / (sN * threads));
+            bt_semiprime(n, sizes[i], rs);
+            for (j = 0; j < nb1; j++)
+            {
+                int curves;
+                double B2, spc;
+
+                // keep the factors out of reach (C60-C80 have 30-40 digit
+                // factors) and the run time down at the largest sizes
+                if ((b1s[j] > 1000000) && ((sizes[i] < 90) || (sizes[i] > 200)))
+                    continue;
+
+                spc = bt_ecm_point(fobj, n, sizes[i], b1s[j], ncurves, rs, &curves, &B2);
+                gettimeofday(&tnow, NULL);
+                if (spc <= 0)
+                {
+                    printf(" %4d | %9" PRIu64 " | factor found 5 times, skipped\n",
+                        sizes[i], b1s[j]);
+                    continue;
+                }
+                printf(" %4d | %9" PRIu64 " | %8.4f | %8.3g | %6.0f s\n", sizes[i], b1s[j],
+                    spc, B2, ytools_difftime(&tstart, &tnow));
+                fflush(stdout);
+                fprintf(out, "ecm %d %d %" PRIu64 " %d %.6g %.6g\n", sizes[i],
+                    (int)mpz_sizeinbase(n, 2), b1s[j], curves, spc, B2);
+                fflush(out);
+            }
+        }
+
+        // thread efficiency at one point: 1 thread (one batch) vs all threads
+        if (threads > 1)
+        {
+            int curves1, curvesN;
+            double B2, s1, sN;
+            bt_semiprime(n, 150, rs);
+            fobj->THREADS = 1;
+            s1 = bt_ecm_point(fobj, n, 150, 250000, 16, rs, &curves1, &B2);
+            fobj->THREADS = threads;
+            sN = bt_ecm_point(fobj, n, 150, 250000, ncurves, rs, &curvesN, &B2);
+            if ((s1 > 0) && (sN > 0))
+            {
+                printf("bayestune: ECM thread efficiency at C150, B1=250k: %1.3f "
+                    "(%1.4f s/curve on 1 thread, %1.4f on %d)\n",
+                    s1 / (sN * threads), s1, sN, threads);
+                fprintf(out, "ecm_eff 150 250000 %d %.6g %.6g %.4f\n", threads, s1, sN,
+                    s1 / (sN * threads));
+            }
         }
     }
 
     // SIQS: whole jobs on random semiprimes, C60..C95.  In memory (no
     // savefile, so a siqs.dat in this directory is left alone).  Larger sizes
     // are extrapolated from the last two lines; NFS takes over near C100.
+    if (!(what & BT_DO_SIQS))
+    {
+        if (old[2] != NULL)
+            fputs(old[2], out);
+    }
+    else
     {
         static const int qsizes[] = { 60, 65, 70, 75, 80, 85, 90, 95 };
         const int nq = (int)(sizeof(qsizes) / sizeof(qsizes[0]));
@@ -1924,6 +2296,20 @@ void bayes_tune(fact_obj_t *fobj)
                 log(2.0) / b, exp(a + b * 100));
     }
 
+    // NFS: test sieving of reference jobs (bt_nfs_refs)
+    if (!(what & BT_DO_NFS))
+    {
+        if (old[3] != NULL)
+            fputs(old[3], out);
+    }
+    else if ((bt_nfs_section(fobj, out, threads, (what & BT_DO_NFS_COMPARE) != 0,
+        &tstart) == 0) && (old[3] != NULL))
+    {
+        // nothing measured: keep the previous nfs lines
+        fprintf(out, "# nfs: previous lines kept\n");
+        fputs(old[3], out);
+    }
+
     fclose(out);
     fobj->VFLAG = saved_vflag;
     fobj->LOGFLAG = saved_logflag;
@@ -1931,6 +2317,8 @@ void bayes_tune(fact_obj_t *fobj)
     reset_factobj(fobj);
     mpz_clear(n);
     gmp_randclear(rs);
+    for (i = 0; i < 4; i++)
+        free(old[i]);
 
     gettimeofday(&tnow, NULL);
     printf("bayestune: wrote %s (%1.0f s)\n", BAYES_TUNE_FILE,

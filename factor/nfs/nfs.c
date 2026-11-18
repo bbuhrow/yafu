@@ -19,6 +19,7 @@ benefit from your work.
 #include <signal.h>
 #include <stdlib.h>
 #include "ytools.h"
+#include "threadpool.h"
 #include <math.h>
 
 #ifndef _WIN32
@@ -1888,9 +1889,19 @@ double ggnfs_table_Gimarel[GGNFS_TABLE_ROWS_NEW][GGNFS_TABLE_COLS_NEW] = {
 	{147, 7060000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 72000000	},
 	{148, 7320000, 10800000, 30, 30, 60, 60, 2.533, 2.533, 13, 2700000, 5000, 74000000	},
 
-	{150, 25000000, 25000000, 29, 29,  58, 58, 2.6, 2.6, 14, 12500000, 16000, 0},
-	{155, 32000000, 32000000, 29, 29,  58, 58, 2.6, 2.6, 14, 16000000, 16000, 0},
-	{160, 40000000, 40000000, 30, 30,  60, 60, 2.6, 2.6, 14, 20000000, 16000, 0},	// snfs 232
+	// C150-C160: extrapolated from the rows above and chosen by test sieving
+	// (Nov 2026, i5-11600K, median-E NFS@Home polys; see
+	// docs/nfs_job_data/table_c150_c160.md).  min_rels: lpb 30/30 follows the
+	// +2M/digit trend above; lpb 30/31 is 1.27x that (an estimate, to be
+	// checked by full jobs).
+	{150, 12000000, 24000000, 30, 30, 60, 60, 2.533, 2.533, 13, 6000000, 5000, 78000000	},
+	{152, 14000000, 26000000, 30, 30, 60, 60, 2.533, 2.533, 13, 6500000, 5000, 82000000	},
+	{154, 16000000, 28000000, 30, 30, 60, 60, 2.533, 2.533, 13, 7000000, 5000, 86000000	},
+	{156, 18000000, 32000000, 30, 31, 60, 62, 2.533, 2.533, 13, 8000000, 5000, 114000000	},
+	{158, 20000000, 36000000, 30, 31, 60, 62, 2.533, 2.533, 14, 9000000, 5000, 119000000	},
+	{160, 24000000, 40000000, 30, 31, 60, 62, 2.533, 2.533, 14, 10000000, 5000, 124000000	},
+
+	// older estimates
 	{165, 49000000, 49000000, 30, 30,  60, 60, 2.6, 2.6, 14, 24500000, 16000, 0},	// 241
 	{170, 59000000, 59000000, 31, 31,  62, 62, 2.6, 2.6, 14, 29500000, 32000, 0},	// 250
 	{175, 70000000, 70000000, 31, 31,  62, 62, 2.6, 2.6, 15, 35000000, 32000, 0},	// 259
@@ -2704,6 +2715,273 @@ void mpz_polys_free(mpz_polys_t* poly) {
     mpz_poly_free(&poly->rat);
     mpz_poly_free(&poly->alg);
     mpz_clear(poly->m);
+}
+
+// ---------------------------------------------------------------------------
+// bayestune() NFS test sieving (factor/tune.c, docs/ecm_bayes.md).  Sieves
+// special-q blocks of one job, set up the way nfs() sets up a job from a job
+// file (parse_job_file / get_ggnfs_params / fill_job_file; lasieve_launcher:
+// the same siever binaries and launcher as a real job), with all files named
+// bayestune_nfs.* so that a job in the working directory is left alone.
+// ---------------------------------------------------------------------------
+
+#define NFS_BT_BASE "bayestune_nfs"
+
+static struct
+{
+	int active;
+	nfs_job_t job;
+	char job_infile[GSTR_MAXSIZE];
+	char outputfile[GSTR_MAXSIZE];
+	char logfile[GSTR_MAXSIZE];
+	char fbfile[GSTR_MAXSIZE];
+	char flogname[1024];
+	uint32_t startq, rangeq, siever, minrels;
+	int logflag;
+	int had_scorefile;
+	mpz_t n;
+} nfs_bt;
+
+static void nfs_bt_remove_files(void)
+{
+	static const char* ext[] = { ".job", ".dat", ".dat.ranges", ".log", ".fb",
+		".flog", ".job.afb.0" };
+	char name[64];
+	int i;
+
+	for (i = 0; i < (int)(sizeof(ext) / sizeof(ext[0])); i++)
+	{
+		sprintf(name, NFS_BT_BASE "%s", ext[i]);
+		remove(name);
+	}
+}
+
+void nfs_bayes_done(fact_obj_t* fobj)
+{
+	if (!nfs_bt.active)
+		return;
+
+	if (nfs_bt.job.poly != NULL)
+	{
+		mpz_polys_free(nfs_bt.job.poly);
+		free(nfs_bt.job.poly);
+		nfs_bt.job.poly = NULL;
+	}
+	nfs_bt_remove_files();
+	// poly scoring (fill_job_file) leaves this behind
+	if (!nfs_bt.had_scorefile)
+		remove("YAFU_get_poly_score.out");
+
+	strcpy(fobj->nfs_obj.job_infile, nfs_bt.job_infile);
+	strcpy(fobj->nfs_obj.outputfile, nfs_bt.outputfile);
+	strcpy(fobj->nfs_obj.logfile, nfs_bt.logfile);
+	strcpy(fobj->nfs_obj.fbfile, nfs_bt.fbfile);
+	strcpy(fobj->flogname, nfs_bt.flogname);
+	fobj->nfs_obj.startq = nfs_bt.startq;
+	fobj->nfs_obj.rangeq = nfs_bt.rangeq;
+	fobj->nfs_obj.siever = nfs_bt.siever;
+	fobj->nfs_obj.minrels = nfs_bt.minrels;
+	fobj->LOGFLAG = nfs_bt.logflag;
+	mpz_set(fobj->nfs_obj.gmp_n, nfs_bt.n);
+	mpz_clear(nfs_bt.n);
+	nfs_bt.active = 0;
+}
+
+// Set up a job from 'jobtext' (job-file lines: n:, skew:, c0:.., Y0:, Y1: and
+// optionally parameter lines; parameters not given are chosen by yafu as for
+// any job).  siever > 0 forces lasieve4I<siever>e.  Returns 0 on success,
+// -1 if the job could not be set up or the siever is missing.
+int nfs_bayes_setup(fact_obj_t* fobj, const char* jobtext, int siever,
+	nfs_bayes_info_t* info)
+{
+	FILE* f;
+	const char* s;
+	uint32_t missing;
+
+	nfs_bayes_done(fobj);
+
+	strcpy(nfs_bt.job_infile, fobj->nfs_obj.job_infile);
+	strcpy(nfs_bt.outputfile, fobj->nfs_obj.outputfile);
+	strcpy(nfs_bt.logfile, fobj->nfs_obj.logfile);
+	strcpy(nfs_bt.fbfile, fobj->nfs_obj.fbfile);
+	strcpy(nfs_bt.flogname, fobj->flogname);
+	nfs_bt.startq = fobj->nfs_obj.startq;
+	nfs_bt.rangeq = fobj->nfs_obj.rangeq;
+	nfs_bt.siever = fobj->nfs_obj.siever;
+	nfs_bt.minrels = fobj->nfs_obj.minrels;
+	nfs_bt.logflag = fobj->LOGFLAG;
+	f = fopen("YAFU_get_poly_score.out", "r");
+	nfs_bt.had_scorefile = (f != NULL);
+	if (f != NULL)
+		fclose(f);
+	mpz_init_set(nfs_bt.n, fobj->nfs_obj.gmp_n);
+	memset(&nfs_bt.job, 0, sizeof(nfs_job_t));
+	nfs_bt.active = 1;
+
+	strcpy(fobj->nfs_obj.job_infile, NFS_BT_BASE ".job");
+	strcpy(fobj->nfs_obj.outputfile, NFS_BT_BASE ".dat");
+	strcpy(fobj->nfs_obj.logfile, NFS_BT_BASE ".log");
+	strcpy(fobj->nfs_obj.fbfile, NFS_BT_BASE ".fb");
+	strcpy(fobj->flogname, NFS_BT_BASE ".flog");
+	fobj->LOGFLAG = 0;
+	fobj->nfs_obj.startq = 0;
+	fobj->nfs_obj.rangeq = 0;
+	fobj->nfs_obj.minrels = 0;
+	fobj->nfs_obj.siever = (uint32_t)siever;
+	nfs_bt_remove_files();
+
+	s = strstr(jobtext, "n:");
+	if ((s == NULL) || (gmp_sscanf(s + 2, "%Zd", fobj->nfs_obj.gmp_n) != 1))
+	{
+		nfs_bayes_done(fobj);
+		return -1;
+	}
+
+	f = fopen(fobj->nfs_obj.job_infile, "w");
+	if (f == NULL)
+	{
+		nfs_bayes_done(fobj);
+		return -1;
+	}
+	fputs(jobtext, f);
+	fclose(f);
+
+	// parameter tables (nfs() sets them up on entry)
+	if (!gnfs_table_rdy)
+		set_ggnfs_tables(fobj);
+	NFS_ABORT = 0;
+
+	nfs_bt.job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+	mpz_polys_init(nfs_bt.job.poly);
+	nfs_bt.job.poly->rat.degree = 1;
+	missing = parse_job_file(fobj, &nfs_bt.job);
+	if (nfs_bt.job.poly->side == NEITHER_SPQ)
+		missing |= PARAM_FLAG_INFO1;
+	get_ggnfs_params(fobj, &nfs_bt.job);
+	fill_job_file(fobj, &nfs_bt.job, missing);
+	gettimeofday(&nfs_bt.job.jobstart, NULL);
+
+	f = fopen(nfs_bt.job.sievername, "rb");
+	if (f == NULL)
+	{
+		if (fobj->VFLAG >= 0)
+			printf("bayestune: siever %s not found\n", nfs_bt.job.sievername);
+		nfs_bayes_done(fobj);
+		return -1;
+	}
+	fclose(f);
+
+	if (info != NULL)
+	{
+		info->rlim = nfs_bt.job.rlim;
+		info->alim = nfs_bt.job.alim;
+		info->lpbr = (int)nfs_bt.job.lpbr;
+		info->lpba = (int)nfs_bt.job.lpba;
+		info->mfbr = (int)nfs_bt.job.mfbr;
+		info->mfba = (int)nfs_bt.job.mfba;
+		info->rlambda = nfs_bt.job.rlambda;
+		info->alambda = nfs_bt.job.alambda;
+		info->siever = (int)fobj->nfs_obj.siever;
+		info->startq = nfs_bt.job.startq;
+		info->min_rels = nfs_bt.job.min_rels;
+		info->side = (nfs_bt.job.poly->side == RATIONAL_SPQ) ? 'r' : 'a';
+	}
+	return 0;
+}
+
+typedef struct
+{
+	nfs_threaddata_t* td;
+	int* started;
+} nfs_bt_pool_t;
+
+static void nfs_bt_dispatch(void* vptr)
+{
+	tpool_t* tdata = (tpool_t*)vptr;
+	nfs_bt_pool_t* u = (nfs_bt_pool_t*)tdata->user_data;
+	int tid = tdata->tindex;
+
+	if (!u->started[tid])
+	{
+		u->started[tid] = 1;
+		tdata->work_fcn_id = 0;
+	}
+	else
+		tdata->work_fcn_id = tdata->num_work_fcn;
+}
+
+static void nfs_bt_work(void* vptr)
+{
+	tpool_t* tdata = (tpool_t*)vptr;
+	nfs_bt_pool_t* u = (nfs_bt_pool_t*)tdata->user_data;
+
+	lasieve_launcher_tdata(&u->td[tdata->tindex]);
+}
+
+// Sieve special-q [q[i], q[i] + range) for i = 0..fobj->THREADS-1, one siever
+// per thread, all at the same time (so the machine is loaded as in a real
+// job), with the job from nfs_bayes_setup().  Each thread's own time and
+// relations give an independent rate at its q: secs[i] (wall seconds of that
+// siever run, start-up included) and rels[i] (raw relations).
+int nfs_bayes_spread(fact_obj_t* fobj, const uint32_t* q, uint32_t range,
+	double* secs, uint32_t* rels)
+{
+	int T = (fobj->THREADS > 0) ? (int)fobj->THREADS : 1;
+	int i;
+	nfs_bt_pool_t u;
+	nfs_threaddata_t* td;
+	tpool_t* pool;
+
+	if (!nfs_bt.active)
+		return -1;
+
+	td = (nfs_threaddata_t*)calloc((size_t)T, sizeof(nfs_threaddata_t));
+	u.td = td;
+	u.started = (int*)calloc((size_t)T, sizeof(int));
+
+	for (i = 0; i < T; i++)
+	{
+		sprintf(td[i].outfilename, NFS_BT_BASE ".%d.dat", i);
+		remove(td[i].outfilename);
+		strcpy(td[i].job_infile_name, fobj->nfs_obj.job_infile);
+		td[i].job.poly = nfs_bt.job.poly;
+		td[i].job.rlim = nfs_bt.job.rlim;
+		td[i].job.alim = nfs_bt.job.alim;
+		td[i].job.rlambda = nfs_bt.job.rlambda;
+		td[i].job.alambda = nfs_bt.job.alambda;
+		td[i].job.lpbr = nfs_bt.job.lpbr;
+		td[i].job.lpba = nfs_bt.job.lpba;
+		td[i].job.mfbr = nfs_bt.job.mfbr;
+		td[i].job.mfba = nfs_bt.job.mfba;
+		td[i].job.startq = q[i];
+		td[i].job.qrange = range;
+		strcpy(td[i].job.sievername, nfs_bt.job.sievername);
+		td[i].siever = fobj->nfs_obj.siever;
+		td[i].tindex = i;
+		td[i].fobj = fobj;
+	}
+
+	if (T == 1)
+	{
+		lasieve_launcher_tdata(&td[0]);
+	}
+	else
+	{
+		pool = tpool_setup(T, NULL, NULL, NULL, &nfs_bt_dispatch, &u);
+		tpool_add_work_fcn(pool, &nfs_bt_work);
+		tpool_go(pool);
+		free(pool);
+	}
+
+	for (i = 0; i < T; i++)
+	{
+		secs[i] = td[i].test_time;
+		rels[i] = td[i].job.current_rels;
+		remove(td[i].outfilename);
+	}
+	free(u.started);
+	free(td);
+	return 0;
 }
 
 #else

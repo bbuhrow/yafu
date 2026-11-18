@@ -347,20 +347,27 @@ table, and writes the crossover to yafu.ini as avxecm_rns_bits (0 if RNS is neve
 faster).  Takes about a minute.  tune() runs it as well.
 
 [bayestune]
-usage: bayestune()
+usage: bayestune([what])
 
 description:
 extended tune for the Bayesian pretest plan (docs/ecm_bayes.md); separate from
-tune(), which it does not replace.  Times ECM as factor() runs it (same engine,
-curve family, stage 2 and -threads) for inputs of 60 to 310 digits at B1 = 50k,
-250k, 1M and 3M (3M for C90-C200 only), measures 1-thread vs all-thread efficiency
-at C150, and writes wall-clock seconds per curve to bayes_tune.txt with the CPU and
-thread count.  It then factors one random semiprime by SIQS at each of 60 to 95
-digits (in memory, step 5) and writes the whole-job times as "siqs" lines.
-GNFS times are not measured (hours per point): "nfs <digits> <seconds> <threads>"
-lines from docs/nfs_job_data/fit_sieve_times.py, or added by hand, are kept when
-bayestune() rewrites the file.  Without nfs lines, the tune() fit is used.
-Re-run it after changing -threads, the CPU or ECM options.
+tune(), which it does not replace.  Writes bayes_tune.txt with the CPU and
+thread count.  'what' is a bit mask (default 7 = all three parts):
+  1  ECM: times ECM as factor() runs it (same engine, curve family, stage 2
+     and -threads) for inputs of 60 to 310 digits at B1 = 50k, 250k, 1M and
+     3M (3M for C90-C200 only), plus 1-thread vs all-thread efficiency at C150
+  2  SIQS: factors random semiprimes of 60 to 95 digits (in memory, step 5)
+     and writes whole-job times as "siqs" lines
+  4  NFS: test-sieves reference polynomials of 120 to 170 digits with yafu's
+     own parameters (three blocks of special-q across the range each job
+     needs, about 3 minutes per size) and writes whole-job time estimates as
+     "nfs" lines.  Needs the lattice sievers in ggnfs_dir.
+  8  as 4, plus the same polynomials from 150 digits with the parameters
+     NFS@Home used for them, written as comments for comparison only
+Parts not run keep their lines from the existing file.  "nfs" lines can also
+come from docs/nfs_job_data/fit_sieve_times.py.  The whole default run takes
+about 40 minutes at 6 threads.  Re-run it after changing -threads, the CPU or
+ECM options.
 
 [bayessim]
 usage: bayessim()

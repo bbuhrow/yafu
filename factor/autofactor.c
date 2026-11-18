@@ -1600,6 +1600,16 @@ static int bayes_schedule(factor_work_t *fwork, fact_obj_t *fobj, int numdigits,
 		else
 			printf("fac: bayes: no ECM step left -> stop ECM\n");
 	}
+	else if (fobj->VFLAG == 0)
+	{
+		if (dec.best >= 0)
+			printf("fac: bayes: best step %1.0f curves at B1=%" PRIu64
+				", P(factor) %1.4g, saving/cost %1.3f -> %s\n",
+				dec.curves, (uint64_t)optv[dec.best].cp.B1, 
+				dec.pfind, dec.ratio, dec.stop ? "stop ECM" : "run it");
+		else
+			printf("fac: bayes: no ECM step left -> stop ECM\n");
+	}
 	if (fobj->LOGFLAG && (dec.best >= 0))
 	{
 		FILE *flog = fopen(fobj->flogname, "a");

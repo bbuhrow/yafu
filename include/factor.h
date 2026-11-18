@@ -674,7 +674,7 @@ void siqs_param_tune(fact_obj_t* fobj);
 // AVX-ECM radix-2^52 / RNS crossover: measure, write avxecm_rns_bits to yafu.ini
 void ecm_rns_tune(fact_obj_t* fobj);
 // extended tune for -plan bayesian: ECM time per curve (bayes_tune.txt)
-void bayes_tune(fact_obj_t* fobj);
+void bayes_tune(fact_obj_t* fobj, int what);
 // read bayes_tune.txt (1 if present); fobj may be NULL (no messages)
 int bayes_tune_load(fact_obj_t* fobj);
 // wall seconds per ECM curve at B1 for a digits-digit input with fobj->THREADS
@@ -685,5 +685,18 @@ void bayes_sim(fact_obj_t* fobj);
 // whole-job sieve time (wall s, fobj->THREADS threads) by SIQS (method 0) or
 // GNFS (method 1) from the siqs/nfs lines of bayes_tune.txt; -1 if absent
 double bayes_sieve_sec(fact_obj_t* fobj, int method, double digits);
+
+// bayestune() NFS test sieving (factor/nfs/nfs.c)
+typedef struct
+{
+	uint32_t rlim, alim, startq, min_rels;
+	int lpbr, lpba, mfbr, mfba, siever;
+	double rlambda, alambda;
+	char side;
+} nfs_bayes_info_t;
+int nfs_bayes_setup(fact_obj_t* fobj, const char* jobtext, int siever, nfs_bayes_info_t* info);
+int nfs_bayes_spread(fact_obj_t* fobj, const uint32_t* q, uint32_t range, double* secs,
+	uint32_t* rels);
+void nfs_bayes_done(fact_obj_t* fobj);
 
 #endif //_FACTOR_H

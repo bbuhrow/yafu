@@ -2,7 +2,7 @@
 
 Status (2026-11-15, branch `ecm_prob`, uncommitted):
 - Written: the core model with a standalone test driver, the extended tune (`bayestune()`, §3: ECM and SIQS measured, NFS lines from local runs), and `-plan bayesian` in `factor()` (§4).
-- NFS times (2026-11-17): fitted from complete local C120/C130/C140 runs (§3.1). Above C140 they are extrapolated until the C150+ test sieving is in.
+- NFS times (2026-11-17): `bayestune()` test-sieves reference polys C120-C170 with yafu's parameters (§3.1); it matches the complete local C120-C140 runs to within -6% to +11% on sieve time and -3% to +8% on the whole job.
 
 Code: `factor/ecm_bayes.c`, `include/ecm_bayes.h`. It depends only on `ecm_prob.h`.
 
@@ -102,7 +102,42 @@ Compared with one batch per thread (8 curves):
 
 On the i5-11600K (6 threads, WSL) the fit is ln t = -14.16 + 0.2051 D (x2 per 3.4 digits; C90 74 s, C95 206 s, C100 extrapolated 574 s). The `tune()` fit in yafu.ini has the same slope (0.206) and gives 56 s at C90 and 432 s at C100, so the estimate used in §4's first runs was about 25% low.
 
-**NFS** is not measured by `bayestune()` (hours per point). `nfs <digits> <s> <threads>` lines come from `docs/nfs_job_data/fit_sieve_times.py` and survive a `bayestune()` rerun (it keeps `nfs` lines and `# sieve` comments and re-measures the `siqs` lines).
+**NFS** is measured by test sieving reference polynomials (`bt_nfs_refs` in tune.c), 2-3 minutes per size:
+- **References:** C120, C130 and C140 are the polys yafu's own poly select found for the local calibration runs below. C150, C160 and C170 are the median-Murphy-E NFS@Home polys from `docs/nfs_job_data/polys/`.
+- **Parameters:** yafu's own choice for each job (`parse_job_file` / `get_ggnfs_params` / `fill_job_file`, the path `nfs()` takes for a job file with only a poly), so the time predicts what `factor()` would run.
+- **Relations needed:** yafu's `min_rels`. From C149 up, where yafu falls back on the `nfs_set_min_rels` formula, it is scaled by the NFS@Home filtering brackets (`summary.md` §1): unique need / formula is about 0.95 at lpb 29, 0.84 at lpb 30 and 0.77 at lpb 31-32; raw = unique / (1 - ~17% duplicates); and yafu filters at `min_rels` and adds 5% per failed attempt. That gives x1.10 at lpb 29, x1.05 at lpb 30, x1.0 above.
+- **Sampling** (suggested by the user in place of contiguous blocks): every thread runs its own siever on its own block of special-q, all at the same time, through `lasieve_launcher_tdata()` on a ytools threadpool (`nfs_bayes_spread()` in nfs.c). Each siever's own time and relation count is an independent rate at its q, the machine is loaded as in a real job, and no thread waits for another at the end of a block. The siever start-up time (one special-q per thread) is measured first and subtracted, because a real job pays it once per much larger range. A 100-q-per-thread pilot at the start sizes the blocks (120 s per thread) and estimates the span the job needs; the T blocks are then spread evenly from the start q to 1.2x that span (yields fall with q, so the start's yield underestimates it). With fewer than 3 threads, several rounds give at least 3 points.
+- **Sieve time:** yield (rels/q) and wall time per q (one thread's seconds per q / T) are interpolated linearly in q between the points and held beyond them, and integrated from the start q until the needed relations are reached.
+- **Whole job:** sieve time x 1.43. That factor is poly select (~7% of the job) plus filtering, LA and sqrt (~33% of the sieve time), from the local runs: 1.48, 1.36 and 1.46 at C120, C130, C140.
+- `bayestune(8)` also sieves C150-C170 with the parameters NFS@Home used for those polys and the median raw relation count of NFS@Home jobs with those parameters (C150: 65M, C160: 131M, C170: 127M, from `jobs.csv`), written as `# nfs compare` comments that the model does not read.
+- Files are named `bayestune_nfs.*` (and removed), so an NFS job in the working directory is not touched. The `nfs` lines are also kept when `bayestune()` runs without the NFS part, and `fit_sieve_times.py` remains for machines with complete runs.
+
+Results on the i5-11600K (6 threads, WSL), against the complete local runs:
+
+Two runs, sieve time (s), yafu parameters; the second run is the one saved in `docs/nfs_job_data/bayes_tune_i5-11600K_6t.txt`:
+
+| C | yafu params | need (raw) | rels/s per thread at start | sieve, run 1 | sieve, run 2 | whole job (run 2) | local run: sieve / total |
+|---|---|---|---|---|---|---|---|
+| 120 | 1.3M/3.2M 29/29 12e | 19.2M | 957 | 2,690 | 2,691 | 3,848 s | 2,672 / 3,957 s |
+| 130 | 2.8M/8.6M 30/30 13e | 36.0M | 610 | 8,323 | 8,119 | 11,611 s | 8,608 / 11,690 s |
+| 140 | 5.2M/10.8M 30/30 13e | 58.0M | 274 | 30,233 | 27,793 | 39,744 s | 27,327 / 39,910 s |
+| 150 | 25M/25M 29/29 14e | 49.4M | 50 | 169,980 | 167,080 | 238,924 s (2.8 days) | |
+| 160 | 40M/40M 30/30 14e | 96.5M | 37 | 423,747 | 410,197 | 586,582 s (6.8 days) | |
+| 170 | 59M/59M 31/31 14e | 181.9M | 31 | 1,162,800 | 1,203,419 | 1,720,889 s (19.9 days) | |
+
+("sieve" for the local runs is sieve + filter minus relproc.) Repeat runs agree within about 8% (C140). Against the local runs the per-thread version is within -6% to +11% on sieve time and -3% to +8% on the whole job. The first version sieved three contiguous blocks with `do_sieving_nfs`; it read 10%, 1% and 18% high at C120-C140, because threads that finished their chunk early sat idle until the block ended.
+
+Comparison mode (`bayestune(8)`): the same polys with the parameters NFS@Home used and the median raw relation count of NFS@Home jobs with those parameters:
+
+| C | NFS@Home params | need (raw) | sieve | vs yafu params |
+|---|---|---|---|---|
+| 150 | 67M/67M 29/29 14e | 64.9M | 256,768 s | 1.54x |
+| 160 | 67M/67M 30/30 14e | 130.5M | 596,653 s | 1.45x |
+| 170 | 67M/67M 30/30 15e | 126.5M | 1,986,045 s | 1.65x |
+
+On this machine yafu's parameters are faster at all three sizes. The NFS@Home counts are medians of oversieved jobs, so their need is overstated, but that does not make up 1.5x. The hand test sieve of the C150 poly with NFS@Home's parameters (`docs/nfs_job_data/test_sieve_c150`, about 36 rels/s per thread at 37.5-67M) agrees with the comparison run.
+
+C150 is 6.0x C140 (2.9x per 10 digits from C120 to C140). The step coincides with the change in yafu's table between C148 (lpb 30, 13e, 7M/11M limits) and C150 (lpb 29, 14e, 25M/25M). NFS@Home's larger limits are slower still, so they are not the fix; whether something like the C148 row carried further would be faster is open (the C150-C185 rows are old extrapolations, `summary.md`). The Bayesian plan uses what yafu would actually run.
 
 Local complete runs (i5-11600K, 6 sieve threads, default yafu parameters; `docs/nfs_job_data/runs.csv`):
 
@@ -161,7 +196,7 @@ How to read these:
 
 ### Sieve-time lines and tools
 
-- `bayestune()` measures ECM and SIQS (§3.1). It keeps any `nfs` lines (and `# sieve` comments) already in the file when it rewrites it; `siqs` lines are re-measured.
+- `bayestune([what])` measures ECM (1), SIQS (2) and NFS (4) (§3.1), all three by default; 8 adds the NFS@Home-parameter comparison. Parts not run keep their lines from the existing file.
 - `docs/nfs_job_data/fit_sieve_times.py RUNS.csv [--testsieve TS.csv] --append bayes_tune.txt` writes the `nfs` lines:
   - RUNS.csv is the output of `parse_yafu_nfs.py`, and the script fits ln T over the complete local runs, against L(D) by default or against digits with `--model linear`;
   - optional test-sieve rows (`digits,rels_needed,rels_per_sec`) for larger sizes add points T = (rels/rate + post) / (1 - poly fraction);
@@ -174,7 +209,7 @@ How to read these:
 
 ## 5. Open items
 
-1. **NFS sieve times above C140.** The C120-C140 runs are fitted (§3.1). When the C150+ test sieving is in, rerun `fit_sieve_times.py runs.csv --testsieve ts.csv --append bayes_tune.txt`, and check which model (L or linear) the test-sieve points follow. In-yafu NFS test sieving inside `bayestune()` is not written; the script route needs no new C code.
+1. **NFS above C140.** `bayestune()` now test-sieves C120-C170 (§3.1). Open: the 1.43 whole-job factor is from C120-C140 runs (LA grows faster than sieving, so it is probably low at C160+); no reference above C170, so C180+ is extrapolated from C160-C170; and C150 is 6x C140 at yafu's table step from 13e to 14e. NFS@Home's parameters are 1.5x slower on this machine, so the open question is whether yafu's C150+ rows can be smoothed (test-sieve the C150 poly with the C148 row's parameters).
 2. **Benchmark.** The first run (`test_bayes_t3`, 1000 random inputs each at C60-C90) did not exercise the rule: the bayesian runs follow the normal plan's steps exactly (section 6), so `-plan bayesian` fell back to the normal plan on that machine (no `tune_info` for its CPU or no `bayes_tune.txt`). Re-run with both present, and check for the "following the normal plan" notice. The replay predicts about -17% at C80 and -25% at C90, so 200-300 inputs per size are enough to see it.
 3. **Windows builds:** a full MSVC link, and MinGW.
 4. **Step choice.** The greedy ranking can pick small B1 values when the quantum is small. That doesn't change the stop much but costs about 1% in E[total] (quantum 10 s against T/1000 at C150). Consider ranking by benefit/cost over a few look-ahead steps, or restricting to B1 >= the current t-level's B1.
@@ -183,7 +218,7 @@ How to read these:
 
 ## 6. Replay: `bayessim()`
 
-A benchmark of real factorizations needs thousands of inputs to see a few percent: which plan's ECM happens to find a factor is luck, and single runs stall now and then (34 of the 8000 `test_bayes_t3` runs lost about 10 s each, in both plans). `bayessim()` replays the plans instead, on inputs whose factorizations are known.
+A benchmark of real factorizations needs thousands of inputs to see a few percent: which plan's ECM happens to find a factor is luck, and single runs could stall (34 of the 8000 `test_bayes_t3` runs lost about 10 s each, in both plans: a race in the ytools threadpool that missed a mutex unlock until a retry timeout, since fixed in threadpool.c). `bayessim()` replays the plans instead, on inputs whose factorizations are known.
 
 **What is real and what is simulated.** The real `schedule_work()` picks every step, so curve planning, level maxima, the P-1 states, the trivial-input rule and `-plan bayesian` behave as in `factor()`. Only the work is simulated:
 - trial division and rho remove the primes below `rho_bound` (10^6);
