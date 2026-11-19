@@ -14,6 +14,7 @@ $Id: demo.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 
 #include <ms_msieve.h>
 #include <signal.h>
+#include <string.h>
 
 #ifdef HAVE_MPI
 #include <mpi.h>

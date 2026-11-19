@@ -2464,7 +2464,8 @@ void vececm(thread_data_t* tdata)
 
 
     rangemin = 0;
-    rangemax = MIN(STAGE2_MAX + 1000, (uint64_t)PRIME_RANGE);
+    //rangemax = MIN(STAGE2_MAX + 1000, (uint64_t)PRIME_RANGE);
+    rangemax = MIN(STAGE1_MAX + 1000, (uint64_t)PRIME_RANGE);
 
     soe_staticdata_t* sdata = soe_init(0, 1, 32768);
     ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);

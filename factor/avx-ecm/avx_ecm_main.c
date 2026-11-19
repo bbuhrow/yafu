@@ -675,7 +675,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     // not currently used, but the mechanisms exist to pass in an initial
     // list of primes to use here.
-    tdata[0].PRIME_RANGE = 100000000;
+    tdata[0].PRIME_RANGE = 1000000000;
 
     if (numcurves < threads)
     {
