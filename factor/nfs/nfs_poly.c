@@ -457,13 +457,13 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job, snfs_t* polyin, int optim
 
 	// initialize job structures to pass into test sieving.  test sieving may modify parameters
 	// of the job to optimize rels/q.
-	jobs = (nfs_job_t*)malloc((unsigned long)npoly * sizeof(nfs_job_t));
+	jobs = (nfs_job_t*)malloc((size_t)npoly * sizeof(nfs_job_t));
 	if( !jobs )
 	{
 		printf("out of memory\n");
 		exit(-1);
 	}
-	memset(jobs, 0, (unsigned long)npoly * sizeof(nfs_job_t));
+	memset(jobs, 0, (size_t)npoly * sizeof(nfs_job_t));
 	
 	// assign initial parameters
 	for (i=0; i<npoly; i++)
@@ -1122,10 +1122,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	gettimeofday(&startt, NULL);
 
 	//init each thread data structure with info needed to do poly search on a range
-	thread_data = (nfs_threaddata_t *)malloc((unsigned long)fobj->THREADS * sizeof(nfs_threaddata_t));
+	thread_data = (nfs_threaddata_t *)malloc((size_t)fobj->THREADS * sizeof(nfs_threaddata_t));
 
 	// allocate the queue of threads waiting for work
-	thread_queue = (int *)malloc((unsigned long)fobj->THREADS * sizeof(int));
+	thread_queue = (int *)malloc((size_t)fobj->THREADS * sizeof(int));
 	threads_waiting = (int *)malloc(sizeof(int));
 
 	if (fobj->THREADS > 1)

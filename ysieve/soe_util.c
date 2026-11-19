@@ -1050,7 +1050,7 @@ uint64_t init_sieve(soe_staticdata_t *sdata)
     {
         //don't allocate anything now, but
         //provide an figure for the memory that will be allocated later
-        numbytes = numlinebytes * sizeof(uint8_t) * (unsigned long)sdata->THREADS;
+        numbytes = numlinebytes * sizeof(uint8_t) * (size_t)sdata->THREADS;
     }
 
 
@@ -1237,7 +1237,7 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
 	uint32_t bucket_depth = sdata->num_bucket_primes;
 	int i,j;
 	
-	allocated_bytes += (unsigned long)sdata->THREADS * sizeof(thread_soedata_t);
+	allocated_bytes += (size_t)sdata->THREADS * sizeof(thread_soedata_t);
 	for (i=0; i< sdata->THREADS; i++)
 	{
 		thread_soedata_t *thread = thread_data + i;
@@ -1245,14 +1245,14 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
         if (sdata->analysis > 1)
         {
             thread->ddata.analysis_carry_data =
-                (uint8_t*)xmalloc((unsigned long)(sdata->analysis / 8 + 1) * sizeof(uint8_t));
+                (uint8_t*)xmalloc((size_t)(sdata->analysis / 8 + 1) * sizeof(uint8_t));
         }
 
         if (sdata->gapmin > 0)
         {
             sdata->analysis = 1;
             thread->ddata.analysis_carry_data =
-                (uint8_t*)xmalloc((unsigned long)(sdata->gapmin / 8 + 1) * sizeof(uint8_t));
+                (uint8_t*)xmalloc((size_t)(sdata->gapmin / 8 + 1) * sizeof(uint8_t));
         }
 
         // presieving scratch space
@@ -1270,8 +1270,8 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
 		// actually only need those primes less than BUCKETSTARTP since bucket sieving
 		// doesn't use the offset array.
         j = (int)MIN(sdata->pboundi, sdata->BUCKETSTARTI);
-        thread->ddata.offsets = (uint32_t *)xmalloc_align((unsigned long)j * sizeof(uint32_t));
-		allocated_bytes += (unsigned long)j * sizeof(uint32_t);
+        thread->ddata.offsets = (uint32_t *)xmalloc_align((size_t)j * sizeof(uint32_t));
+		allocated_bytes += (size_t)j * sizeof(uint32_t);
 		if (thread->ddata.offsets == NULL)
 		{
 			printf("error allocating offsets\n");
@@ -1282,7 +1282,7 @@ uint64_t alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data
             if (sdata->VFLAG > 2)
             {
                 printf("allocated %u bytes for offsets for %d sieving primes \n",
-                    (uint32_t)((unsigned long)j * sizeof(uint32_t)), j);
+                    (uint32_t)((size_t)j * sizeof(uint32_t)), j);
             }
 		}
 		thread->ddata.bucket_depth = 0;

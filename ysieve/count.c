@@ -659,14 +659,14 @@ void count_line_special(thread_soedata_t *thread_data)
 
 		//then correct the counts
 		//zero out any bits below the requested range
-		for (i= (unsigned long)(start * 64) * prodN + sdata->rclass[current_line] + lowlimit, ix=0; i < lower; i += prodN, ix++)
+		for (i= (uint64_t)(start * 64) * prodN + sdata->rclass[current_line] + lowlimit, ix=0; i < lower; i += prodN, ix++)
 		{
 			if (line[(ix >> 3) + (start << 3)] & nmasks[ix & 7])
 				it--;
 		}
 		
 		//and any high bits above the requested range
-		for (i=(unsigned long)(stop * 64) * prodN + sdata->rclass[current_line] - prodN + lowlimit, ix=0; i > upper; i -= prodN, ix++)
+		for (i=(uint64_t)(stop * 64) * prodN + sdata->rclass[current_line] - prodN + lowlimit, ix=0; i > upper; i -= prodN, ix++)
 		{
 			if (line[(stop << 3) - 1 - (ix >> 3)] & nmasks[7 - (ix & 7)])
 				it--;

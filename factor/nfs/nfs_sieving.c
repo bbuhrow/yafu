@@ -233,7 +233,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 				{
 					qrange_data->alloc_r *= 2;
 					qrange_data->qranges_r = (qrange_t*)xrealloc(qrange_data->qranges_r,
-						(unsigned long)qrange_data->alloc_r * sizeof(qrange_t));
+						(size_t)qrange_data->alloc_r * sizeof(qrange_t));
 				}
 
 				qrange_data->qranges_r[qrange_data->num_r].qrange_start = startq;
@@ -246,7 +246,7 @@ qrange_data_t* sort_completed_ranges(fact_obj_t* fobj, nfs_job_t* job)
 				{
 					qrange_data->alloc_a *= 2;
 					qrange_data->qranges_a = (qrange_t*)xrealloc(qrange_data->qranges_a,
-						(unsigned long)qrange_data->alloc_a * sizeof(qrange_t));
+						(size_t)qrange_data->alloc_a * sizeof(qrange_t));
 				}
 
 				qrange_data->qranges_a[qrange_data->num_a].qrange_start = startq;
@@ -295,7 +295,7 @@ void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_
 		{
 			qrange_data->alloc_a *= 2;
 			qrange_data->qranges_a = (qrange_t*)xrealloc(qrange_data->qranges_a,
-				(unsigned long)qrange_data->alloc_a * sizeof(qrange_t));
+				(size_t)qrange_data->alloc_a * sizeof(qrange_t));
 		}
 
 		qrange_data->qranges_a[qrange_data->num_a].qrange_start = start;
@@ -310,7 +310,7 @@ void insert_range(qrange_data_t* qrange_data, char side, uint32_t start, uint32_
 		{
 			qrange_data->alloc_r *= 2;
 			qrange_data->qranges_r = (qrange_t*)xrealloc(qrange_data->qranges_r,
-				(unsigned long)qrange_data->alloc_r * sizeof(qrange_t));
+				(size_t)qrange_data->alloc_r * sizeof(qrange_t));
 		}
 
 		qrange_data->qranges_r[qrange_data->num_r].qrange_start = start;
@@ -731,7 +731,7 @@ void nfs_sieve_start(void* vptr)
 	udata->requested_side = (job->poly->side == ALGEBRAIC_SPQ) ? 'a' : 'r';
 	UNUSED_VAR int side = udata->requested_side;
 
-	udata->thread_data = (nfs_threaddata_t*)malloc((unsigned long)fobj->THREADS * sizeof(nfs_threaddata_t));
+	udata->thread_data = (nfs_threaddata_t*)malloc((size_t)fobj->THREADS * sizeof(nfs_threaddata_t));
 
 	// initialize a database of q-ranges from the global .ranges file, if it exists,
 	// or prepare to start a new job with default/user input if not.
@@ -1484,7 +1484,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 {
 	uint32_t count;
 	int i, minscore_id = 0;
-	double* score = (double*)malloc((unsigned long)njobs * sizeof(double));
+	double* score = (double*)malloc((size_t)njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char time[80];
@@ -1519,13 +1519,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	{ // read files into job structs (get fblim)
 
 		filenames = (char**) args;
-		jobs = (nfs_job_t*)malloc((unsigned long)njobs * sizeof(nfs_job_t));
+		jobs = (nfs_job_t*)malloc((size_t)njobs * sizeof(nfs_job_t));
 		if( jobs == NULL )
 		{
 			printf("Couldn't alloc memory!\n");
 			exit(-1);
 		}
-		memset(jobs, 0, (unsigned long)njobs*sizeof(nfs_job_t));
+		memset(jobs, 0, (size_t)njobs*sizeof(nfs_job_t));
 
 		for(i = 0; i < njobs; i++)
 		{
@@ -1548,7 +1548,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	else
 	{ // create poly files
 		jobs = (nfs_job_t *) args;
-		filenames = (char**)malloc((unsigned long)njobs*sizeof(char*));
+		filenames = (char**)malloc((size_t)njobs*sizeof(char*));
 		if( !filenames )
 		{
 			printf("malloc derped it up!\n");

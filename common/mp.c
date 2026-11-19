@@ -716,8 +716,8 @@ static void mp_divrem_core(big_mp_t *num, mp_t *denom,
 		nacc[i] = num->val[i-1] >> comp_shift;
 	}
 	else {
-		memcpy(dacc, denom->val, (unsigned long)j * sizeof(uint32));
-		memcpy(nacc, num->val, (unsigned long)i * sizeof(uint32));
+		memcpy(dacc, denom->val, (size_t)j * sizeof(uint32));
+		memcpy(nacc, num->val, (size_t)i * sizeof(uint32));
 		nacc[i] = 0;
 	}
 	high_denom = dacc[j-1];
@@ -782,7 +782,7 @@ static void mp_divrem_core(big_mp_t *num, mp_t *denom,
 		rem->val[k] = nacc[k] >> shift;
 	}
 	else {
-		memcpy(rem->val, nacc, (unsigned long)j * sizeof(uint32));
+		memcpy(rem->val, nacc, (size_t)j * sizeof(uint32));
 	}
 
 	j = (int32)MIN(num->nwords - denom->nwords + 1, MAX_MP_WORDS);
@@ -957,7 +957,7 @@ static uint64 mp_mod_2(uint32 num[4], uint64 p) {
 		nacc[i] = num[i-1] >> comp_shift;
 	}
 	else {
-		memcpy(nacc, num, (unsigned long)i * sizeof(uint32));
+		memcpy(nacc, num, (size_t)i * sizeof(uint32));
 		nacc[i] = 0;
 	}
 

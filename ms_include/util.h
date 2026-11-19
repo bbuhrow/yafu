@@ -191,7 +191,7 @@ int msieve_gettimeofday(struct timeval* tv, struct timezone* tz);
 static INLINE void * xmalloc(size_t len) {
 	void *ptr = malloc(len);
 	if (ptr == NULL) {
-		printf("failed to allocate %u bytes\n", (uint32)len);
+		printf("failed to allocate %llu bytes\n", (unsigned long long)len);
 		exit(-1);
 	}
 	return ptr;
@@ -200,7 +200,8 @@ static INLINE void * xmalloc(size_t len) {
 static INLINE void * xcalloc(size_t num, size_t len) {
 	void *ptr = calloc(num, len);
 	if (ptr == NULL) {
-		printf("failed to calloc %u bytes\n", (uint32)(num * len));
+		printf("failed to calloc %llu x %llu bytes\n",
+			(unsigned long long)num, (unsigned long long)len);
 		exit(-1);
 	}
 	return ptr;
@@ -209,7 +210,7 @@ static INLINE void * xcalloc(size_t num, size_t len) {
 static INLINE void * xrealloc(void *iptr, size_t len) {
 	void *ptr = realloc(iptr, len);
 	if (ptr == NULL) {
-		printf("failed to reallocate %u bytes\n", (uint32)len);
+		printf("failed to reallocate %llu bytes\n", (unsigned long long)len);
 		exit(-1);
 	}
 	return ptr;

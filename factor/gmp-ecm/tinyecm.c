@@ -5083,7 +5083,7 @@ void tinyecm_test(int sizeb, int num, int type)
 		return;
 	}
 
-	inputs = (u128_t *)malloc((unsigned long)num * sizeof(u128_t));
+	inputs = (u128_t *)malloc((size_t)num * sizeof(u128_t));
 
 	// build the requested input type, quantity and size
 	for (i = 0; i < num; i++)

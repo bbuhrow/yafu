@@ -891,7 +891,7 @@ finish_search(task_data_t *task, uint32 threadid, uint32 match_bits)
 
 			handle_collision(task, threadid, (uint64)p0 * p1,
 				   td->curr_q, td->curr_q_root,
-				   (int64)((unsigned long)(int64)td->match[i].key - sieve_size / 2));
+				   (int64)td->match[i].key - (int64)(sieve_size / 2));
 		}
 	}
 }

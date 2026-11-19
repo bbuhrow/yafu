@@ -240,7 +240,7 @@ sieve_xyz_run_deg6(root_sieve_t *rs, uint64 lattice_size,
 	next_z = xyz->z_base;
 	for (i = 0; i < z_blocks; i++) {
 		dpoly_t apoly;
-		int64 curr_z = (int64)((unsigned long)xyz->z_base + i * lattice_size);
+		int64 curr_z = (int64)((uint64)xyz->z_base + i * lattice_size);
 
 		if (curr_z < next_z) {
 			if (line_min >= line_max) {

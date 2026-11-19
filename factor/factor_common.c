@@ -456,7 +456,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->ecm_obj.gmp_f);
     mpz_set_ui(fobj->ecm_obj.gmp_n, 0);
     mpz_set_ui(fobj->ecm_obj.gmp_f, 0);
-    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc((unsigned long)fobj->num_threads * sizeof(uint64_t));
+    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc((size_t)fobj->num_threads * sizeof(uint64_t));
     
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
@@ -596,7 +596,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src, int parameters_only)
     if (!parameters_only)
     {
         dest->ecm_obj.lcg_state = (uint64_t*)xrealloc(dest->ecm_obj.lcg_state,
-            (unsigned long)src->num_threads * sizeof(uint64_t));
+            (size_t)src->num_threads * sizeof(uint64_t));
         for (i = 0; i < (int)src->num_threads; i++)
         {
             dest->ecm_obj.lcg_state[i] =
@@ -1025,7 +1025,7 @@ static void add_to_factor_list_r(yfactor_list_t* flist, mpz_t n, int mult,
         {
             flist->alloc_factors *= 2;
             flist->factors = (yfactor_t*)realloc(flist->factors,
-                (unsigned long)flist->alloc_factors * sizeof(yfactor_t));
+                (size_t)flist->alloc_factors * sizeof(yfactor_t));
         }
 
         memset(&flist->factors[fid], 0, sizeof(yfactor_t));
@@ -1107,7 +1107,7 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
             // just a handle to its limbs).
             mpz_clear(flist->factors[i].factor);
             memmove(&flist->factors[i], &flist->factors[i + 1],
-                (unsigned long)(flist->num_factors - 1 - i) * sizeof(yfactor_t));
+                (size_t)(flist->num_factors - 1 - i) * sizeof(yfactor_t));
 
             flist->num_factors--;
             break;
@@ -1124,7 +1124,7 @@ void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
     dest->aprcl_prove_cutoff = src->aprcl_prove_cutoff;
     if (alloc_dest)
     {
-        dest->factorization_str = (char*)xmalloc((unsigned long)src->str_alloc * sizeof(char));
+        dest->factorization_str = (char*)xmalloc((size_t)src->str_alloc * sizeof(char));
     }
     strcpy(dest->factorization_str, src->factorization_str);
 
@@ -1139,7 +1139,7 @@ void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
 
     if (alloc_dest)
     {
-        dest->factors = (yfactor_t*)xmalloc((unsigned long)src->alloc_factors * sizeof(yfactor_t));
+        dest->factors = (yfactor_t*)xmalloc((size_t)src->alloc_factors * sizeof(yfactor_t));
     }
 
     int i;
@@ -1165,7 +1165,7 @@ void copy_factor_list(yfactor_list_t* dest, yfactor_list_t* src, int alloc_dest)
 char* append_factor(char* in, mpz_t factor)
 {
     int numb = (int)((size_t)(strlen(in) + (size_t)gmp_base10(factor)) + 4);
-    char* out = (char*)xmalloc((unsigned long)numb * sizeof(char));
+    char* out = (char*)xmalloc((size_t)numb * sizeof(char));
     if (out == NULL)
     {
         printf("could not allocate %d bytes for output buffer\n", numb);
@@ -1184,7 +1184,7 @@ void init_factor_list(yfactor_list_t* flist, mpz_t n)
     flist->alloc_factors = 2;
     flist->num_factors = 0;
     flist->total_factors = 0;
-    flist->factors = (yfactor_t*)xmalloc((unsigned long)flist->alloc_factors * sizeof(yfactor_t));
+    flist->factors = (yfactor_t*)xmalloc((size_t)flist->alloc_factors * sizeof(yfactor_t));
     int i;
     for (i = 0; i < flist->alloc_factors; i++)
     {

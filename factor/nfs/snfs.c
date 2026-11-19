@@ -4429,7 +4429,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             apoly = 2 * 5;
         }
 
-		polys = (snfs_t *)malloc((unsigned long)apoly * sizeof(snfs_t));
+		polys = (snfs_t *)malloc((size_t)apoly * sizeof(snfs_t));
         for (i = 0; i < apoly; i++)
         {
             snfs_init(&polys[i]);
@@ -5071,7 +5071,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 		printf("gen: number of factors: %d, %d, total polys = %d\n", numf1, numf2, apoly);
 	}
 
-	polys = (snfs_t*)malloc((unsigned long)apoly * sizeof(snfs_t));
+	polys = (snfs_t*)malloc((size_t)apoly * sizeof(snfs_t));
 	for (i = 0; i < apoly; i++)
 	{
 		snfs_init(&polys[i]);
@@ -5351,7 +5351,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys)
 		printf("gen: actual polys = %d, %d, total actual polys = %d\n", nump1, nump2, apoly);
 	}
 
-	final_polys = (snfs_t*)malloc((unsigned long)apoly * sizeof(snfs_t));
+	final_polys = (snfs_t*)malloc((size_t)apoly * sizeof(snfs_t));
 	for (i = 0; i < apoly; i++)
 	{
 		snfs_init(&final_polys[i]);

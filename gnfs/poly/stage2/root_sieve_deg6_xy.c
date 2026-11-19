@@ -337,7 +337,7 @@ xydata_init(xydata_t *xydata, uint32 num_lattice_primes,
 			uint32 p = curr_xypower->power;
 			uint32 latsize_mod = curr_xypower->latsize_mod;
 			uint32 y_mod_p = (uint32)(lattice_xyz->y % p);
-			int64 z_start = (int64)((unsigned long)z_base + lattice_xyz->z);
+			int64 z_start = (int64)((uint64)z_base + lattice_xyz->z);
 			int32 z_start_mod = (int32)(z_start % p);
 			uint32 z_mod_p = (uint32)((z_start_mod < 0) ? 
 					(z_start_mod + (int32)p) : z_start_mod);
@@ -577,7 +577,7 @@ sieve_xy_run_deg6(root_sieve_t *rs)
 
 		line_min = xyz->y_line_min[curr_plane->which_z_block];
 		line_max = xyz->y_line_max[curr_plane->which_z_block];
-		z_base = (int64)((unsigned long)xyz->z_base + curr_plane->which_z_block *
+		z_base = (int64)((uint64)xyz->z_base + curr_plane->which_z_block *
 					xyz->lattice_size);
 
 		xy->apoly = rs->apoly;
@@ -605,7 +605,7 @@ sieve_xy_run_deg6(root_sieve_t *rs)
 				xy->mp_lattice_size);
 
 		xy->curr_score = lattice_xyz->score + lattice_xy->score;
-		rs->curr_z = (int64)((unsigned long)z_base + lattice_xyz->z); 
+		rs->curr_z = (int64)((uint64)z_base + lattice_xyz->z); 
 
 		sieve_x_run_deg6(rs);
 

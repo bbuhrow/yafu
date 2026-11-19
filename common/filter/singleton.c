@@ -530,9 +530,17 @@ void filter_purge_singletons_core(msieve_obj *obj,
 	filter->max_ideal_weight = j;
 	filter->num_relations = num_relations;
 	filter->num_ideals = num_ideals;
-	filter->relation_array = relation_array = 
+	/* note: relations are packed, so old_relation is generally not
+	   a whole number of relation_ideal_t's past relation_array; do
+	   the pointer difference in bytes. (old_relation - relation_array)
+	   is UB here, and gcc compiles it as an exact division (multiply
+	   by a modular inverse) that only works if the result is kept
+	   at full 64-bit width; truncating it, e.g. via an (unsigned long)
+	   cast on LLP64 Windows, produces a garbage size of 100s of GB */
+	filter->relation_array = relation_array =
 			(relation_ideal_t *)xrealloc(relation_array,
-				(unsigned long)(old_relation - relation_array + 1) *
+				(size_t)((uint8 *)old_relation -
+					 (uint8 *)relation_array) +
 				sizeof(relation_ideal_t));
 
 	curr_relation = relation_array;

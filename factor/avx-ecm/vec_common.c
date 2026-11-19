@@ -66,7 +66,7 @@ void vecCopy(vec_bignum_t * src, vec_bignum_t * dest)
     //physically copy the digits of u into the digits of v
     int su = (int)(VECLEN * (2 * src->WORDS_ALLOC + 1));
 
-    memcpy(dest->data, src->data, (unsigned long)su * sizeof(base_t));
+    memcpy(dest->data, src->data, (size_t)su * sizeof(base_t));
     dest->size = src->size; // = NWORDS;
     dest->WORDS_ALLOC = src->WORDS_ALLOC;
     return;
@@ -77,7 +77,7 @@ void vecCopyn(vec_bignum_t * src, vec_bignum_t * dest, int size)
     //physically copy the digits of u into the digits of v
     int su = VECLEN * size;
 
-    memcpy(dest->data, src->data, (unsigned long)su * sizeof(base_t));
+    memcpy(dest->data, src->data, (size_t)su * sizeof(base_t));
     dest->size = size;
     dest->WORDS_ALLOC = src->WORDS_ALLOC;
     return;

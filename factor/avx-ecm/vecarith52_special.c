@@ -11471,15 +11471,15 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
 
     /* zero everything above the recursive scratch; safe here because the
         pointwise recursive calls below only touch [0, K). */
-    memset(scratch + K * VECLEN_I, 0, (unsigned long)((T - K) * VECLEN_I) * sizeof(uint64_t));
+    memset(scratch + K * VECLEN_I, 0, (size_t)((T - K) * VECLEN_I) * sizeof(uint64_t));
 
     /* padded copies of the six split pieces */
-    memcpy(a0p, a, (unsigned long)(w0 * VECLEN_I) * sizeof(uint64_t));
-    memcpy(a1p, a + w0 * VECLEN_I, (unsigned long)(w1 * VECLEN_I) * sizeof(uint64_t));
-    memcpy(a2p, a + 2 * w0 * VECLEN_I, (unsigned long)(w2 * VECLEN_I) * sizeof(uint64_t));
-    memcpy(b0p, b, (unsigned long)(w0 * VECLEN_I) * sizeof(uint64_t));
-    memcpy(b1p, b + w0 * VECLEN_I, (unsigned long)(w1 * VECLEN_I) * sizeof(uint64_t));
-    memcpy(b2p, b + 2 * w0 * VECLEN_I, (unsigned long)(w2 * VECLEN_I) * sizeof(uint64_t));
+    memcpy(a0p, a, (size_t)(w0 * VECLEN_I) * sizeof(uint64_t));
+    memcpy(a1p, a + w0 * VECLEN_I, (size_t)(w1 * VECLEN_I) * sizeof(uint64_t));
+    memcpy(a2p, a + 2 * w0 * VECLEN_I, (size_t)(w2 * VECLEN_I) * sizeof(uint64_t));
+    memcpy(b0p, b, (size_t)(w0 * VECLEN_I) * sizeof(uint64_t));
+    memcpy(b1p, b + w0 * VECLEN_I, (size_t)(w1 * VECLEN_I) * sizeof(uint64_t));
+    memcpy(b2p, b + 2 * w0 * VECLEN_I, (size_t)(w2 * VECLEN_I) * sizeof(uint64_t));
 
 #ifdef TMULN_PROFILE
     tp1 = __rdtsc();    /* end of setup (memset + split copies) */
@@ -11567,8 +11567,8 @@ void tmuln(uint64_t* a, uint64_t* b, uint64_t* c, uint64_t* scratch, int words)
        non-negative and < B^(2*words) < B^A, limbs [0, A) of the exact
        digit-wise sum are the product (the B^A multiples land in the
        dropped carry out of limb A-1). */
-    memcpy(c, r0, (unsigned long)(P * VECLEN_I) * sizeof(uint64_t));         /* acc = i0 */
-    memset(c + P * VECLEN_I, 0, (unsigned long)((A - P) * VECLEN_I) * sizeof(uint64_t));
+    memcpy(c, r0, (size_t)(P * VECLEN_I) * sizeof(uint64_t));         /* acc = i0 */
+    memset(c + P * VECLEN_I, 0, (size_t)((A - P) * VECLEN_I) * sizeof(uint64_t));
 
     {
         __m512i vlmask = _mm512_set1_epi64(0x000fffffffffffffULL);

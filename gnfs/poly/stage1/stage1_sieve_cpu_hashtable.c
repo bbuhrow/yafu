@@ -568,8 +568,8 @@ handle_special_q(msieve_obj *obj, int threadid,
 #else
 	while (sieve_start < (int64)sieve_size) {
 		uint32 iter = hash_array->curr_hashiter;
-		int64 sieve_end = (int64)((unsigned long)sieve_start + MIN(block_size,
-						sieve_size - (unsigned long)sieve_start));
+		int64 sieve_end = (int64)((uint64)sieve_start + MIN(block_size,
+						sieve_size - (uint64)sieve_start));
 
 		tmp = hash_array->packed_array;
 		hashtable_count = 0;
@@ -766,7 +766,7 @@ sieve_specialq_64(task_data_t *task, int threadid, int64 sieve_size,
 
 
 	block_size = (uint64)p_min * p_min;
-	block_size = MIN(block_size, (uint64)2 * (unsigned long)sieve_size);
+	block_size = MIN(block_size, (uint64)2 * (uint64)sieve_size);
 
 #if 0
 	printf("aprogs: %u entries, %u roots, block_size = %lu, sieve_size = %lu\n", 

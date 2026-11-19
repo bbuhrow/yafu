@@ -451,7 +451,7 @@ struct threadpool* threadpool_init(int num_of_threads,
 	/* Init the queues. */
 	threadpool_queue_init(&(pool->tasks_queue), queue_size);
 	threadpool_queue_init(&(pool->free_tasks_queue), queue_size);
-	pool->tasks = (task_control_t *)xmalloc((unsigned long)queue_size *
+	pool->tasks = (task_control_t *)xmalloc((size_t)queue_size *
 					sizeof(task_control_t));
 
 	/* Add all the free tasks to the free tasks queue. */
@@ -464,13 +464,13 @@ struct threadpool* threadpool_init(int num_of_threads,
 	}
 
 	/* Create the thr_arr. */
-	if ((pool->thr_arr = malloc(sizeof(pthread_t) * (unsigned long)num_of_threads)) == NULL) {
+	if ((pool->thr_arr = malloc(sizeof(pthread_t) * (size_t)num_of_threads)) == NULL) {
 		perror("malloc: ");
 		free(pool);
 		return NULL;
 	}
 
-	if ((pool->thr_init = malloc(sizeof(struct thread_init) * (unsigned long)num_of_threads)) == NULL) {
+	if ((pool->thr_init = malloc(sizeof(struct thread_init) * (size_t)num_of_threads)) == NULL) {
 		perror("malloc: ");
 		free(pool);
 		return NULL;

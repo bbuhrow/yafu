@@ -582,7 +582,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
     // now that we know NWORDS, can allocate the monty structure.
     montyconst = vec_monty_alloc(nwords);
-    tdata = (thread_data_t*)malloc((unsigned long)threads * sizeof(thread_data_t));
+    tdata = (thread_data_t*)malloc((size_t)threads * sizeof(thread_data_t));
 
     tdata[0].MAXBITS = montyconst->MAXBITS = maxbits;
     tdata[0].NBLOCKS = montyconst->NBLOCKS = nblocks;
@@ -911,7 +911,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 tdata[i].Qrmap[k] = (uint32_t)-1;
             }
 
-            tdata[i].Q = (Queue_t * *)malloc((unsigned long)j * sizeof(Queue_t*));
+            tdata[i].Q = (Queue_t * *)malloc((size_t)j * sizeof(Queue_t*));
             for (k = 0; k < j; k++)
             {
                 tdata[i].Q[k] = newQueue(D, 0);

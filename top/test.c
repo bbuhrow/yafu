@@ -529,7 +529,7 @@ tinyqs_marker:
 			minBits = 99999;
 			maxBits = 0;
 
-			mpz_t* inputs = (mpz_t*)xmalloc((unsigned long)num * sizeof(mpz_t));
+			mpz_t* inputs = (mpz_t*)xmalloc((size_t)num * sizeof(mpz_t));
 
 			for (i = 0; i < num; i++)
 			{
@@ -616,7 +616,7 @@ kmpqs_marker:
 			minBits = 99999;
 			maxBits = 0;
 
-			mpz_t* inputs = (mpz_t*)xmalloc((unsigned long)num * sizeof(mpz_t));
+			mpz_t* inputs = (mpz_t*)xmalloc((size_t)num * sizeof(mpz_t));
 
 			for (i = 0; i < num; i++)
 			{
@@ -1292,7 +1292,7 @@ mpqs_marker:
 		minBits = 99999;
 		maxBits = 0;
 
-		mpz_t* inputs = (mpz_t*)xmalloc((unsigned long)num * sizeof(mpz_t));
+		mpz_t* inputs = (mpz_t*)xmalloc((size_t)num * sizeof(mpz_t));
 
 		for (i = 0; i < num; i++)
 		{

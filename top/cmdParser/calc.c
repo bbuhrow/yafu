@@ -242,7 +242,7 @@ void toStr(char* src, str_t* dest)
 void sGrow(str_t* str, int size)
 {
     //printf("growing str_t size...\n");
-    str->s = (char*)xrealloc(str->s, (unsigned long)size * sizeof(char));
+    str->s = (char*)xrealloc(str->s, (size_t)size * sizeof(char));
     str->alloc = size;
 
     return;
@@ -267,10 +267,10 @@ void sCopy(str_t* dest, str_t* src)
 {
     if (dest->alloc < src->nchars + 2)
     {
-        dest->s = (char*)xrealloc(dest->s, (unsigned long)(src->nchars + 2) * sizeof(char));
+        dest->s = (char*)xrealloc(dest->s, (size_t)(src->nchars + 2) * sizeof(char));
         dest->alloc = src->nchars + 2;
     }
-    memcpy(dest->s, src->s, (unsigned long)src->nchars * sizeof(char));
+    memcpy(dest->s, src->s, (size_t)src->nchars * sizeof(char));
     dest->nchars = src->nchars;
     return;
 }
@@ -282,7 +282,7 @@ void sCopy(str_t* dest, str_t* src)
 int stack_init(int num, bstack_t* stack, int type)
 {
     int i;
-    stack->elements = (str_t**)xmalloc((unsigned long)num * sizeof(str_t*));		//array of elements
+    stack->elements = (str_t**)xmalloc((size_t)num * sizeof(str_t*));		//array of elements
     //space for each element (a str_t)
     for (i = 0; i < num; i++)
     {
@@ -319,7 +319,7 @@ void push(str_t* str, bstack_t* stack)
     {
         stack->size *= 2;
         stack->elements = (str_t**)xrealloc(stack->elements,
-            (unsigned long)stack->size * sizeof(str_t*));
+            (size_t)stack->size * sizeof(str_t*));
         if (stack->elements == NULL)
         {
             printf("error allocating stack space\n");
@@ -1031,7 +1031,7 @@ str_t* preprocess(str_t* in, int* numlines)
             if ((openp == closedp) && (openb == closedb))
             {
                 (*numlines)++;
-                out = (str_t*)xrealloc(out, (unsigned long)*numlines * sizeof(str_t));
+                out = (str_t*)xrealloc(out, (size_t)*numlines * sizeof(str_t));
                 out[*numlines - 2].s[i] = '\0';
                 sInit(&out[*numlines - 1]);
                 current = &out[*numlines - 1];
@@ -1098,7 +1098,7 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
     char** tokens;
 
     token_alloc = 100;		//100 tokens
-    tokens = (char**)xmalloc((unsigned long)token_alloc * sizeof(char*));
+    tokens = (char**)xmalloc((size_t)token_alloc * sizeof(char*));
     *num_tokens = 0;
 
     tmp = (char*)xmalloc(GSTR_MAXSIZE * sizeof(char));
@@ -1222,8 +1222,8 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
 
                 if (*num_tokens >= token_alloc)
                 {
-                    tokens = (char**)xrealloc(tokens, (unsigned long)(token_alloc * 2) * sizeof(char*));
-                    token_types = (int*)xrealloc(token_types, (unsigned long)(token_alloc * 2) * sizeof(int));
+                    tokens = (char**)xrealloc(tokens, (size_t)(token_alloc * 2) * sizeof(char*));
+                    token_types = (int*)xrealloc(token_types, (size_t)(token_alloc * 2) * sizeof(int));
                     token_alloc *= 2;
                 }
             }
@@ -1240,7 +1240,7 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
             if (i == (tmpsize - 1))
             {
                 tmpsize += GSTR_MAXSIZE;
-                tmp = (char*)xrealloc(tmp, (unsigned long)tmpsize * sizeof(char));
+                tmp = (char*)xrealloc(tmp, (size_t)tmpsize * sizeof(char));
                 //printf("tmp string is now size %d\n", tmpsize);
             }
             tmp[i] = ch;
@@ -2000,7 +2000,7 @@ int calc(str_t* in, meta_t* metadata)
                     int sz = (int)(mpz_sizeinbase(operands[j], 10) + 10);
                     if (tmp->alloc < sz)
                     {
-                        tmp->s = (char*)realloc(tmp->s, (unsigned long)sz * sizeof(char));
+                        tmp->s = (char*)realloc(tmp->s, (size_t)sz * sizeof(char));
                         tmp->alloc = sz;
                     }
                     mpz_get_str(tmp->s, 10, operands[j]);
@@ -2017,7 +2017,7 @@ int calc(str_t* in, meta_t* metadata)
                 sz = (int)(mpz_sizeinbase(tmpz, 10) + 10);
                 if (gstr1.alloc < sz)
                 {
-                    gstr1.s = (char*)xrealloc(gstr1.s, (unsigned long)sz * sizeof(char));
+                    gstr1.s = (char*)xrealloc(gstr1.s, (size_t)sz * sizeof(char));
                     gstr1.alloc = sz;
                 }
                 mpz_get_str(gstr1.s, 10, tmpz);
@@ -4306,7 +4306,7 @@ int new_uvar(const char* name, mpz_t data)
     if (uvars.num == uvars.alloc)
     {
         //need more room for variables
-        uvars.vars = (uvar_t*)xrealloc(uvars.vars, (unsigned long)(uvars.num * 2) * sizeof(uvar_t));
+        uvars.vars = (uvar_t*)xrealloc(uvars.vars, (size_t)(uvars.num * 2) * sizeof(uvar_t));
         uvars.alloc *= 2;
         for (i = uvars.num; i < uvars.alloc; i++)
             mpz_init(uvars.vars[i].data);
@@ -4474,7 +4474,7 @@ int new_strvar(const char* name, char* data)
     if (strvars.num == strvars.alloc)
     {
         // need more room for variables
-        strvars.vars = (strvar_t*)xrealloc(strvars.vars, (unsigned long)(strvars.num * 2) * sizeof(strvar_t));
+        strvars.vars = (strvar_t*)xrealloc(strvars.vars, (size_t)(strvars.num * 2) * sizeof(strvar_t));
         strvars.alloc *= 2;
         for (i = strvars.num; i < strvars.alloc; i++)
         {

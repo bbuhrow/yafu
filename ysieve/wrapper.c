@@ -679,7 +679,7 @@ uint64_t *sieve_to_depth(soe_staticdata_t* sdata,
             soe_userdata_t udata;
 
 			// allocate thread data structure
-			thread_data = (thread_soedata_t *)malloc((unsigned long)sdata->THREADS * sizeof(thread_soedata_t));
+			thread_data = (thread_soedata_t *)malloc((size_t)sdata->THREADS * sizeof(thread_soedata_t));
 			
 			// conduct PRP tests on all surviving values
             if (sdata->VFLAG > 0)

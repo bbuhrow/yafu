@@ -744,7 +744,7 @@ int * getEseq(uint64_t d, uint64_t e)
 	uint64_t target = e;
 	int doub = 0, add = 0;
 	int seqLen = 64;
-	int *seq = (int *)malloc((unsigned long)seqLen * sizeof(int));
+	int *seq = (int *)malloc((size_t)seqLen * sizeof(int));
 	int it = 1;
 	seq[0] = 0;
 
@@ -785,7 +785,7 @@ int * getEseq(uint64_t d, uint64_t e)
 		if (it > seqLen)
 		{
 			seqLen *= 2;
-			seq = (int *)realloc(seq, (unsigned long)seqLen * sizeof(int));
+			seq = (int *)realloc(seq, (size_t)seqLen * sizeof(int));
 		}
 	}
 
@@ -1764,12 +1764,12 @@ void array_mul(uint64_t *primes, uint64_t b1, int num_p, mpz_t piprimes)
 
 	if (num_p & 1)
 	{
-		p = (mpz_t *)malloc((unsigned long)(num_p + 1) * sizeof(mpz_t));
+		p = (mpz_t *)malloc((size_t)(num_p + 1) * sizeof(mpz_t));
 		alloc = num_p + 1;
 	}
 	else
 	{
-		p = (mpz_t *)malloc((unsigned long)(num_p + 0) * sizeof(mpz_t));
+		p = (mpz_t *)malloc((size_t)(num_p + 0) * sizeof(mpz_t));
 		alloc = num_p;
 	}
 
@@ -2735,7 +2735,7 @@ void vececm(thread_data_t* tdata)
                             else
                             {
                                 tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
-                                    (unsigned long)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                                    (size_t)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                             }
 
                             tdata[j].factors[tdata[j].numfactors].thread_id = (int)j;
@@ -2860,7 +2860,7 @@ void vececm(thread_data_t* tdata)
                     else
                     {
                         tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
-                            (unsigned long)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                            (size_t)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                     }
 
                     tdata[j].factors[tdata[j].numfactors].thread_id = (int)j;
@@ -3084,7 +3084,7 @@ void vececm(thread_data_t* tdata)
                         else
                         {
                             tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
-                                (unsigned long)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                                (size_t)(tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                         }
 
                         tdata[j].factors[tdata[j].numfactors].thread_id = (int)j;
@@ -4186,7 +4186,7 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
         vecmulmod_ptr(pts_to_Zinvert[i].Z, A[i - 1], A[i], work->n, work->tt4, mdata);
     }
 
-    B = (vec_bignum_t **)malloc((unsigned long)num * sizeof(vec_bignum_t*));
+    B = (vec_bignum_t **)malloc((size_t)num * sizeof(vec_bignum_t*));
 
     for (j = 0; j < num; j++)
     {
@@ -4313,7 +4313,7 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
         vecmulmod_ptr(pts_to_Zinvert[startid + i].Z, A[i - 1], A[i], work->n, work->tt4, mdata);
     }
 
-    B = (vec_bignum_t **)malloc((unsigned long)num * sizeof(vec_bignum_t*));
+    B = (vec_bignum_t **)malloc((size_t)num * sizeof(vec_bignum_t*));
 
     for (j = 0; j < num; j++)
     {
@@ -4820,7 +4820,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     int R = (int)(work->R - 3);
     int umax = w * U;
     int64_t q, mq;
-    uint64_t amin = work->amin = (uint32_t)(((uint64_t)(B1 + (uint64_t)w)) / (unsigned long)(2 * w));
+    uint64_t amin = work->amin = (uint32_t)(((uint64_t)(B1 + (uint64_t)w)) / (uint64_t)(2 * w));
     uint64_t a, s, ap, u;
     uint32_t pairs = 0;
     uint32_t nump = 0;
@@ -4886,15 +4886,15 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                             if (testcoverage)
                             {
-                                addflag(flags, (2 * ap) * (uint64_t)w + (unsigned long)q - B1, 0, B2 - B1);
-                                addflag(flags, (2 * ap) * (uint64_t)w - (unsigned long)q - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * (uint64_t)w + (uint64_t)q - B1, 0, B2 - B1);
+                                addflag(flags, (2 * ap) * (uint64_t)w - (uint64_t)q - B1, 0, B2 - B1);
                             }
                             if (printpairs)
                             {
-                                printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
+                                printf("pair (ap,q):(%"PRIu64",%"PRId64")  %"PRIu64":%"PRIu64"\n",
                                     ap, q,
-                                    2 * ap * (uint64_t)w - (unsigned long)q,
-                                    2 * ap * (uint64_t)w + (unsigned long)q);
+                                    2 * ap * (uint64_t)w - (uint64_t)q,
+                                    2 * ap * (uint64_t)w + (uint64_t)q);
                             }
                             pairs++;
                         }
@@ -4955,9 +4955,9 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
             {
                 ap = dequeue(Q[Qmap[mq]]);
                 if (q < 0)
-                    u = (uint64_t)((uint64_t)((unsigned long)w * (uint64_t)(a - ap)) - (unsigned long)abs((int)q));
+                    u = (uint64_t)((uint64_t)((uint64_t)w * (uint64_t)(a - ap)) - (uint64_t)abs((int)q));
                 else
-                    u = (unsigned long)w * (uint64_t)(a - ap) + (unsigned long)q;
+                    u = (uint64_t)w * (uint64_t)(a - ap) + (uint64_t)q;
 
                 if (u > umax)
                 {
@@ -4976,7 +4976,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                         }
                         if (printpairs)
                         {
-                            printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
+                            printf("pair (ap,q):(%"PRIu64",%"PRId64")  %"PRIu64":%"PRIu64"\n",
                                 ap, q,
                                 2 * ap * (uint64_t)w - (uint64_t)qq,
                                 2 * ap * (uint64_t)w + (uint64_t)qq);
@@ -5000,7 +5000,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
                         }
                         if (printpairs)
                         {
-                            printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
+                            printf("pair (ap,q):(%"PRIu64",%"PRId64")  %"PRIu64":%"PRIu64"\n",
                                 ap, q,
                                 2 * ap * (uint64_t)w - (uint64_t)qq,
                                 2 * ap * (uint64_t)w + (uint64_t)qq);
@@ -5068,15 +5068,15 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 
                 if (printpairs)
                 {
-                    printf("pair (ap,q):(%"PRIu64",%ld)  %"PRIu64":%"PRIu64"\n",
+                    printf("pair (ap,q):(%"PRIu64",%"PRId64")  %"PRIu64":%"PRIu64"\n",
                         ap, q,
-                        2 * ap * (uint64_t)w - (unsigned long)q,
-                        2 * ap * (uint64_t)w + (unsigned long)q);
+                        2 * ap * (uint64_t)w - (uint64_t)q,
+                        2 * ap * (uint64_t)w + (uint64_t)q);
                 }
                 if (testcoverage)
                 {
-                    addflag(flags, (2 * ap) * (uint64_t)w + (unsigned long)q - B1, 0, B2 - B1);
-                    addflag(flags, (2 * ap) * (uint64_t)w - (unsigned long)q - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * (uint64_t)w + (uint64_t)q - B1, 0, B2 - B1);
+                    addflag(flags, (2 * ap) * (uint64_t)w - (uint64_t)q - B1, 0, B2 - B1);
                 }
             }
             else

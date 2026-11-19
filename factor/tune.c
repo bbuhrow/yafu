@@ -863,7 +863,7 @@ double best_fit(double *x, double *y, int numpts,
 	double avgX, avgY, varX, varY, cov, *yy;
 	int i;
 
-	yy = (double *)malloc((unsigned long)numpts * sizeof(double));
+	yy = (double *)malloc((size_t)numpts * sizeof(double));
 
 	for (i = 0; i < numpts; i++)
 	{
@@ -1175,18 +1175,18 @@ void siqs_param_tune(fact_obj_t* fobj)
         "%d thread%s\n", ncand, SIQS_CANDIDATES_FILE, seconds, fobj->THREADS,
         fobj->THREADS > 1 ? "s" : "");
 
-    out = (siqs_param_row_t*)malloc((unsigned long)ncand * sizeof(siqs_param_row_t));
-    meas = (siqstune_meas_t*)malloc((unsigned long)ncand * sizeof(siqstune_meas_t));
+    out = (siqs_param_row_t*)malloc((size_t)ncand * sizeof(siqs_param_row_t));
+    meas = (siqstune_meas_t*)malloc((size_t)ncand * sizeof(siqstune_meas_t));
     mpz_init(n);
     gmp_randinit_default(st);
 
     for (i = 0, maxrank = 0; i < ncand; i++)
         if (cand[i].rank > maxrank)
             maxrank = cand[i].rank;
-    rank_sum = (double*)malloc((unsigned long)(maxrank + 1) * sizeof(double));
-    rank_cnt = (int*)malloc((unsigned long)(maxrank + 1) * sizeof(int));
-    rank_full = (int*)malloc((unsigned long)(maxrank + 1) * sizeof(int));
-    rank_row = (int*)malloc((unsigned long)(maxrank + 1) * sizeof(int));
+    rank_sum = (double*)malloc((size_t)(maxrank + 1) * sizeof(double));
+    rank_cnt = (int*)malloc((size_t)(maxrank + 1) * sizeof(int));
+    rank_full = (int*)malloc((size_t)(maxrank + 1) * sizeof(int));
+    rank_row = (int*)malloc((size_t)(maxrank + 1) * sizeof(int));
 
     for (i = 0; i < ncand; i++)
     {

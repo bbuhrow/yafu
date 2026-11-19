@@ -512,7 +512,7 @@ void* xmalloc_align(size_t len)
     if (ptr == NULL)
     {
         if (ptr == NULL) {
-            printf("failed to allocate %u bytes in xmalloc_align\n", (uint32_t)len);
+            printf("failed to allocate %llu bytes in xmalloc_align\n", (unsigned long long)len);
             exit(-1);
         }
     }
@@ -522,7 +522,7 @@ void* xmalloc_align(size_t len)
 void* xmalloc(size_t len) {
     void* ptr = malloc(len);
     if (ptr == NULL) {
-        printf("failed to allocate %u bytes\n", (uint32_t)len);
+        printf("failed to allocate %llu bytes\n", (unsigned long long)len);
         exit(-1);
     }
     return ptr;
@@ -531,7 +531,8 @@ void* xmalloc(size_t len) {
 void* xcalloc(size_t num, size_t len) {
     void* ptr = calloc(num, len);
     if (ptr == NULL) {
-        printf("failed to calloc %u bytes\n", (uint32_t)(num * len));
+        printf("failed to calloc %llu x %llu bytes\n",
+            (unsigned long long)num, (unsigned long long)len);
         exit(-1);
     }
     return ptr;
@@ -540,7 +541,7 @@ void* xcalloc(size_t num, size_t len) {
 void* xrealloc(void* iptr, size_t len) {
     void* ptr = realloc(iptr, len);
     if (ptr == NULL) {
-        printf("failed to reallocate %u bytes\n", (uint32_t)len);
+        printf("failed to reallocate %llu bytes\n", (unsigned long long)len);
         exit(-1);
     }
     return ptr;
@@ -1921,7 +1922,7 @@ int qcomp_double(const void *x, const void *y)
 
 uint32_t* merge_sort(uint32_t* a, uint32_t* b, int sz_a, int sz_b)
 {
-    uint32_t* c = (uint32_t*)malloc((unsigned long)(sz_a + sz_b) * sizeof(uint32_t));
+    uint32_t* c = (uint32_t*)malloc((size_t)(sz_a + sz_b) * sizeof(uint32_t));
     int i = 0, j = 0, k = 0;
 
     while ((i < sz_a) && (j < sz_b)) {
@@ -2407,7 +2408,7 @@ void CombinationRepetitionUtil(int chosen[], int arr[],
 void CombinationRepetition(int arr[], int n, int r)
 {
     // Allocate memory
-    int* chosen = (int*)xmalloc((unsigned long)(r + 1) * sizeof(int));
+    int* chosen = (int*)xmalloc((size_t)(r + 1) * sizeof(int));
     int num;
 
     // Call the recursive function

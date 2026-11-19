@@ -23,7 +23,14 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	FILE *tmp, *logfile;
 	uint32_t relations_needed;
 	uint32_t flags = 0;
-	char nfs_args[100];
+	char nfs_args[256];
+	size_t args_len = 0;
+
+	// must start empty: msieve parses obj->nfs_args for any recognized
+	// option (including the old-style "X,Y" lpbound,maxrels format), so
+	// stale stack contents here can silently change filtering parameters.
+	nfs_args[0] = '\0';
+	obj->nfs_args = NULL;
 
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
 	if (fobj->VFLAG > 0)
@@ -33,8 +40,8 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 
 	if (job->use_max_rels > 0)
 	{
-		sprintf(nfs_args, "filter_maxrels=%u", job->use_max_rels);
-		obj->nfs_args = nfs_args;
+		args_len += (size_t)snprintf(nfs_args + args_len, sizeof(nfs_args) - args_len,
+			"filter_maxrels=%u", job->use_max_rels);
 		if (fobj->VFLAG >= 0)
 			printf("nfs: commencing msieve filtering with reduced relation set\n");
 	}
@@ -43,19 +50,19 @@ uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 		if (fobj->VFLAG >= 0)
 			printf("nfs: commencing msieve filtering\n");
 	}
-	
-	if(fobj->nfs_obj.td > 0){
-        if (strlen(nfs_args) > 0)
-        {
-            sprintf(nfs_args + strlen(nfs_args), " target_density=%d", fobj->nfs_obj.td);
-        }
-        else
-        {
-            sprintf(nfs_args, "target_density=%d", fobj->nfs_obj.td);
-        }
 
-	    obj->nfs_args = nfs_args;
-    }
+	if ((fobj->nfs_obj.td > 0) && (args_len < sizeof(nfs_args)))
+	{
+		args_len += (size_t)snprintf(nfs_args + args_len, sizeof(nfs_args) - args_len,
+			"%starget_density=%d", (args_len > 0) ? " " : "", fobj->nfs_obj.td);
+	}
+
+	if (nfs_args[0] != '\0')
+	{
+		obj->nfs_args = nfs_args;
+		if (fobj->VFLAG > 0)
+			printf("nfs: msieve filtering args: %s\n", nfs_args);
+	}
 
     if (fobj->LOGFLAG)
     {

@@ -617,7 +617,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (strlen(arg) < MAXARGLEN)
         {
             options->num_tune_info++;
-            options->tune_info = (char**)xrealloc(options->tune_info, (unsigned long)options->num_tune_info * sizeof(char*));
+            options->tune_info = (char**)xrealloc(options->tune_info, (size_t)options->num_tune_info * sizeof(char*));
             options->tune_info[options->num_tune_info - 1] = (char*)xmalloc(MAXARGLEN * sizeof(char));
             strcpy(options->tune_info[options->num_tune_info-1], arg);
         }

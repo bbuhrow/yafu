@@ -535,7 +535,7 @@ uint64_t spSOE(soe_staticdata_t *sdata, mpz_t offset,
 	*highlimit = sdata->highlimit;
 
 	// allocate thread data structure
-	thread_data = (thread_soedata_t *)malloc((unsigned long)THREADS * sizeof(thread_soedata_t));
+	thread_data = (thread_soedata_t *)malloc((size_t)THREADS * sizeof(thread_soedata_t));
 
 	// find all roots of prime with prodN.  These are used when finding offsets.
 	getRoots(sdata, thread_data);

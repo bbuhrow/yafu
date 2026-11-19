@@ -249,13 +249,13 @@ void record_curves_completed(ecm_obj_t* ecm_obj, int curves, const ecm_curve_par
         else
         {
             ecm_obj->curve_b1_rec = (uint64_t*)xrealloc(ecm_obj->curve_b1_rec,
-                (unsigned long)ecm_obj->num_records * sizeof(uint64_t));
+                (size_t)ecm_obj->num_records * sizeof(uint64_t));
             ecm_obj->curve_b2_rec = (uint64_t*)xrealloc(ecm_obj->curve_b2_rec,
-                (unsigned long)ecm_obj->num_records * sizeof(uint64_t));
+                (size_t)ecm_obj->num_records * sizeof(uint64_t));
             ecm_obj->param_rec = (int*)xrealloc(ecm_obj->param_rec,
-                (unsigned long)ecm_obj->num_records * sizeof(int));
+                (size_t)ecm_obj->num_records * sizeof(int));
             ecm_obj->num_rec = (int*)xrealloc(ecm_obj->num_rec,
-                (unsigned long)ecm_obj->num_records * sizeof(int));
+                (size_t)ecm_obj->num_records * sizeof(int));
         }
         ecm_obj->curve_b1_rec[i] = b1;
         ecm_obj->curve_b2_rec[i] = b2;
@@ -820,7 +820,7 @@ int ecm_loop(fact_obj_t *fobj)
         //init ecm process
         ecm_process_init(fobj);
 
-        thread_data = (ecm_thread_data_t*)malloc((unsigned long)fobj->THREADS * sizeof(ecm_thread_data_t));
+        thread_data = (ecm_thread_data_t*)malloc((size_t)fobj->THREADS * sizeof(ecm_thread_data_t));
         for (i = 0; i < fobj->THREADS; i++)
         {
             // several things in the thread structure need to be tied
@@ -1043,7 +1043,7 @@ int ecm_loop(fact_obj_t *fobj)
             //init ecm process
             ecm_process_init(fobj);
 
-            thread_data = (ecm_thread_data_t*)malloc((unsigned long)fobj->THREADS * sizeof(ecm_thread_data_t));
+            thread_data = (ecm_thread_data_t*)malloc((size_t)fobj->THREADS * sizeof(ecm_thread_data_t));
             
             // split the residue file into one file per thread
             split_residue_file((int)curves_run, fobj->THREADS, "avx_ecm_resume");

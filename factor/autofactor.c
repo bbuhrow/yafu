@@ -3104,7 +3104,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 		if (nump > 0)
 		{
-			int* printed = (int*)xmalloc((unsigned long)flist->num_factors * sizeof(int));
+			int* printed = (int*)xmalloc((size_t)flist->num_factors * sizeof(int));
 			for (i = 0; i < flist->num_factors; i++)
 			{
 				printed[i] = 0;

@@ -1950,7 +1950,7 @@ double* parse_params_file(char* filename, int *numrows)
 				if ((*numrows) == 0)
 					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
 				else
-					table = (double*)xrealloc(table, (unsigned long)(((*numrows) + 1) * 
+					table = (double*)xrealloc(table, (size_t)(((*numrows) + 1) * 
 						GGNFS_TABLE_COLS) * sizeof(double));
 
 				table[(*numrows) * GGNFS_TABLE_COLS + 0] = d;
@@ -1974,7 +1974,7 @@ double* parse_params_file(char* filename, int *numrows)
 				if ((*numrows) == 0)
 					table = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
 				else
-					table = (double*)xrealloc(table, (unsigned long)(((*numrows) + 1) *
+					table = (double*)xrealloc(table, (size_t)(((*numrows) + 1) *
 						GGNFS_TABLE_COLS) * sizeof(double));
 
 				table[(*numrows) * GGNFS_TABLE_COLS + 0] = d;
@@ -2025,7 +2025,7 @@ void set_ggnfs_tables(fact_obj_t* fobj)
 
 		if (parsed_table != NULL)
 		{
-			gnfs_table = (double**)xmalloc((unsigned long)parsed_rows * sizeof(double*));
+			gnfs_table = (double**)xmalloc((size_t)parsed_rows * sizeof(double*));
 			for (i = 0; i < parsed_rows; i++)
 			{
 				gnfs_table[i] = (double*)xmalloc(GGNFS_TABLE_COLS * sizeof(double));
