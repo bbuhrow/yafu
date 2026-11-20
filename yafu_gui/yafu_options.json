@@ -1,0 +1,1045 @@
+[
+ {
+  "name": "B1pm1",
+  "help": "B1 bound of P-1 algorithm",
+  "help_raw": "(Integer < 64-bit): B1 bound of P-1 algorithm",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "B1pp1",
+  "help": "B1 bound of P+1 algorithm",
+  "help_raw": "(Integer < 64-bit): B1 bound of P+1 algorithm",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "B1ecm",
+  "help": "B1 bound of ECM algorithm",
+  "help_raw": "(Integer < 64-bit): B1 bound of ECM algorithm",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "rhomax",
+  "help": "Iteration limit of Rho algorithm",
+  "help_raw": "(Integer < 32-bit): Iteration limit of Rho algorithm",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "B2pm1",
+  "help": "B2 bound of P-1 algorithm",
+  "help_raw": "(Integer < 64-bit): B2 bound of P-1 algorithm",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "B2pp1",
+  "help": "B2 bound of P+1 algorithm",
+  "help_raw": "(Integer < 64-bit): B2 bound of P+1 algorithm",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "B2ecm",
+  "help": "B2 bound of ECM algorithm",
+  "help_raw": "(Integer < 64-bit): B2 bound of ECM algorithm",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "qssave",
+  "help": "name of SIQS save file",
+  "help_raw": "(String)          : name of SIQS save file",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siqsB",
+  "help": "Size of SIQS factor base (number of primes)",
+  "help_raw": "(Integer < 32-bit): Size of SIQS factor base (number of primes)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsTF",
+  "help": "SIQS trial factoring bound",
+  "help_raw": "(Integer < 32-bit): SIQS trial factoring bound",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsR",
+  "help": "SIQS Number of relations to gather",
+  "help_raw": "(Integer < 32-bit): SIQS Number of relations to gather",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsT",
+  "help": "SIQS timeout in seconds",
+  "help_raw": "(Integer < 32-bit): SIQS timeout in seconds",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsNB",
+  "help": "SIQS Number of sieve blocks",
+  "help_raw": "(Integer < 32-bit): SIQS Number of sieve blocks",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsM",
+  "help": "SIQS Large prime variation multiplier",
+  "help_raw": "(Integer < 32-bit): SIQS Large prime variation multiplier",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "logfile",
+  "help": "Name of factoring logfile",
+  "help_raw": "(String)          : Name of factoring logfile",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "batchfile",
+  "help": "Name of input batchfile",
+  "help_raw": "(String)          : Name of input batchfile",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "seed",
+  "help": "Seed for RNG",
+  "help_raw": "(Integer < 64-bit): Seed for RNG",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "sigma",
+  "help": "ECM sigma",
+  "help_raw": "(Integer < 64-bit): ECM sigma",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "session",
+  "help": "Name of session logfile",
+  "help_raw": "(String)          : Name of session logfile",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "threads",
+  "help": "Number of threads",
+  "help_raw": "(Integer < 32-bit): Number of threads",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "v",
+  "help": "Increase verbosity",
+  "help_raw": "                  : Increase verbosity",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "silent",
+  "help": "Set verbosity to -1 (no output)",
+  "help_raw": "                  : Set verbosity to -1 (no output)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "pfile",
+  "help": "Output primes to file primes.dat",
+  "help_raw": "                  : Output primes to file primes.dat",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "pscreen",
+  "help": "Output primes to screen",
+  "help_raw": "                  : Output primes to screen",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "forceDLP",
+  "help": "Force use of DLP variation in SIQS",
+  "help_raw": "                  : Force use of DLP variation in SIQS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "fmtmax",
+  "help": "Max iteration for Fermat factorization method",
+  "help_raw": "(Integer < 32-bit): Max iteration for Fermat factorization method",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "noopt",
+  "help": "Do not optimize small prime variation cutoff in SIQS",
+  "help_raw": "                  : Do not optimize small prime variation cutoff in SIQS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "vproc",
+  "help": "Verbose output of processor info",
+  "help_raw": "                  : Verbose output of processor info",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "noecm",
+  "help": "Do not use ECM in factor()",
+  "help_raw": "                  : Do not use ECM in factor()",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "ggnfs_dir",
+  "help": "Directory containing ggnfs executables",
+  "help_raw": "(String)          : Directory containing ggnfs executables",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "tune_info",
+  "help": "Input tuning information for SIQS/NFS crossover",
+  "help_raw": "(String)          : Input tuning information for SIQS/NFS crossover",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "pretest_ratio",
+  "help": "ECM/NFS pretesting ratio: projected-difficulty * ratio = ECM depth",
+  "help_raw": "(Floating point)  : ECM/NFS pretesting ratio: projected-difficulty * ratio = ECM depth",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "xover",
+  "help": "SIQS/NFS crossover point (decimal digits)",
+  "help_raw": "(Floating point)  : SIQS/NFS crossover point (decimal digits)",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "one",
+  "help": "Stop after one factor found",
+  "help_raw": "                  : Stop after one factor found",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "op",
+  "help": "Filename where primes found during factor() are output",
+  "help_raw": "(String)          : Filename where primes found during factor() are output",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "of",
+  "help": "Filename where factors found during factor() are output",
+  "help_raw": "(String)          : Filename where factors found during factor() are output",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "ou",
+  "help": "Filename where unfactored residues remaining after factor() are output",
+  "help_raw": "(String)          : Filename where unfactored residues remaining after factor() are output",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "plan",
+  "help": "ECM pretesting plan (light = 2/9, deep = 1/3, normal = 4/13, none, custom, bayesian)",
+  "help_raw": "(String)          : ECM pretesting plan (light = 2/9, deep = 1/3, normal = 4/13, none, custom, bayesian)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "pretest",
+  "help": "Only ECM pretest (no NFS or SIQS) to specified digit level",
+  "help_raw": "(Integer < 32-bit): Only ECM pretest (no NFS or SIQS) to specified digit level",
+  "needs_arg": 2,
+  "type": "int"
+ },
+ {
+  "name": "no_expr",
+  "help": "For use with op, of, or ou, to output expressions",
+  "help_raw": "                  : For use with op, of, or ou, to output expressions",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "o",
+  "help": "NFS output filename",
+  "help_raw": "(String)          : NFS output filename",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "a",
+  "help": "Algebraic side GGNFS sieving",
+  "help_raw": "                  : Algebraic side GGNFS sieving",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "r",
+  "help": "Rational side GGNFS sieving",
+  "help_raw": "                  : Rational side GGNFS sieving",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "ggnfsT",
+  "help": "NFS sieving timeout in seconds",
+  "help_raw": "(Integer < 32-bit): NFS sieving timeout in seconds",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "job",
+  "help": "NFS input jobfile name",
+  "help_raw": "(String)          : NFS input jobfile name",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "ns",
+  "help": "Perform only sieving phase of NFS within specified 32-bit start,stop lattice Q's",
+  "help_raw": "(Start,Stop)      : Perform only sieving phase of NFS within specified 32-bit start,stop lattice Q's",
+  "needs_arg": 2,
+  "type": "range"
+ },
+ {
+  "name": "np",
+  "help": "Perform only poly-search phase of NFS within specified 32-bit start,stop leading coefficients",
+  "help_raw": "(Start,Stop)      : Perform only poly-search phase of NFS within specified 32-bit start,stop leading coefficients",
+  "needs_arg": 2,
+  "type": "range"
+ },
+ {
+  "name": "nc",
+  "help": "Perform only post-processing phase of NFS, starting with filtering",
+  "help_raw": "                  : Perform only post-processing phase of NFS, starting with filtering",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "psearch",
+  "help": "NFS poly-search methology ('deep', 'wide', 'fast', 'min', 'avg', or 'good')",
+  "help_raw": "(String)          : NFS poly-search methology ('deep', 'wide', 'fast', 'min', 'avg', or 'good')",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "R",
+  "help": "Resume NFS with an existing data/job file",
+  "help_raw": "                  : Resume NFS with an existing data/job file",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "pbatch",
+  "help": "Range of leading coefficients to distribute to threads during NFS poly-search",
+  "help_raw": "(Integer < 32-bit): Range of leading coefficients to distribute to threads during NFS poly-search",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "ecm_path",
+  "help": "Path of GMP-ECM executable",
+  "help_raw": "(String)          : Path of GMP-ECM executable",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siever",
+  "help": "Version of GGNFS to use (11,12,13,14,15,16)",
+  "help_raw": "(Integer < 32-bit): Version of GGNFS to use (11,12,13,14,15,16)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "ncr",
+  "help": "Restart LA phase of NFS from an existing checkpoint",
+  "help_raw": "                  : Restart LA phase of NFS from an existing checkpoint",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "lathreads",
+  "help": "Number of threads to use in LA (if different from -threads)",
+  "help_raw": "(Integer < 32-bit): Number of threads to use in LA (if different from -threads)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "nc2",
+  "help": "Perform only LA phase of NFS",
+  "help_raw": "                  : Perform only LA phase of NFS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "nc3",
+  "help": "Perform only SQRT post-processing phase of NFS",
+  "help_raw": "                  : Perform only SQRT post-processing phase of NFS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "p",
+  "help": "Set yafu to idle priority",
+  "help_raw": "                  : Set yafu to idle priority",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "work",
+  "help": "Input work level (prior ECM work to specified number of digits)",
+  "help_raw": "(Floating point)  : Input work level (prior ECM work to specified number of digits)",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "nprp",
+  "help": "Number of witnesses to use in Miller-Rabin PRP tests",
+  "help_raw": "(Integer < 32-bit): Number of witnesses to use in Miller-Rabin PRP tests",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "ext_ecm",
+  "help": "B1 bound crossover point for switching to external ECM executable",
+  "help_raw": "(Integer < 64-bit): B1 bound crossover point for switching to external ECM executable",
+  "needs_arg": 1,
+  "type": "int64"
+ },
+ {
+  "name": "testsieve",
+  "help": "Difficulty level above which SNFS testsieving is automatically performed to select best poly",
+  "help_raw": "(Integer < 32-bit): Difficulty level above which SNFS testsieving is automatically performed to select best poly",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "nt",
+  "help": "Comma-delimited list of job files to GNFS test sieve",
+  "help_raw": "(String)          : Comma-delimited list of job files to GNFS test sieve",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "aprcl_p",
+  "help": "setting the threshold below which numbers are proved prime using APR-CL",
+  "help_raw": "(Integer < 32-bit): setting the threshold below which numbers are proved prime using APR-CL",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "aprcl_d",
+  "help": "setting the threshold above which numbers that are proved prime using APR-CL have additional verbosity",
+  "help_raw": "(Integer < 32-bit): setting the threshold above which numbers that are proved prime using APR-CL have additional verbosity",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "filt_bump",
+  "help": "If NFS filtering fails to produce a matrix, increment relations by specified percentage",
+  "help_raw": "(Floating point)  : If NFS filtering fails to produce a matrix, increment relations by specified percentage",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "nc1",
+  "help": "Perform only filtering phase of NFS",
+  "help_raw": "                  : Perform only filtering phase of NFS ",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "gnfs",
+  "help": "Force GNFS instead of SNFS",
+  "help_raw": "                  : Force GNFS instead of SNFS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "e",
+  "help": "Supplies expression to execution",
+  "help_raw": "(String)          : Supplies expression to execution",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "repeat",
+  "help": "Repeat input command line specified number of times",
+  "help_raw": "(Integer < 32-bit): Repeat input command line specified number of times",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "ecmtime",
+  "help": "Not currently implemented",
+  "help_raw": "(Integer < 32-bit): Not currently implemented",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "no_clk_test",
+  "help": "Do not test clock speed when yafu initializes",
+  "help_raw": "                  : Do not test clock speed when yafu initializes",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "siqsTFSm",
+  "help": "SIQS small prime variation trial factoring bound",
+  "help_raw": "(Integer < 32-bit): SIQS small prime variation trial factoring bound",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "script",
+  "help": "Filename of script to execute",
+  "help_raw": "(String)          : Filename of script to execute",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "degree",
+  "help": "NFS: force this polynomial degree (GNFS: 4, 5 or 6; SNFS: only polys of this degree are kept)",
+  "help_raw": "(Integer < 32-bit): NFS: force this polynomial degree (GNFS: 4, 5 or 6; SNFS: only polys of this degree are kept)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "snfs_xover",
+  "help": "QS/SNFS crossover",
+  "help_raw": "(Floating point)  : QS/SNFS crossover",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "soe_block",
+  "help": "Sieve of Eratosthenes block size in bytes",
+  "help_raw": "(Integer < 32-bit): Sieve of Eratosthenes block size in bytes",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "forceTLP",
+  "help": "Force use of TLP variation in SIQS",
+  "help_raw": "                  : Force use of TLP variation in SIQS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "siqsLPB",
+  "help": "SIQS large prime bound, in bits (2^bits)",
+  "help_raw": "(Integer < 32-bit): SIQS large prime bound, in bits (2^bits)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsMFBD",
+  "help": "Exponent of SIQS DLP: attempt to split residues up to LPB^exponent",
+  "help_raw": "(Floating point)  : Exponent of SIQS DLP: attempt to split residues up to LPB^exponent",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "siqsMFBT",
+  "help": "Exponent of SIQS TLP: attempt to split residues up to LPB^exponent",
+  "help_raw": "(Floating point)  : Exponent of SIQS TLP: attempt to split residues up to LPB^exponent",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "siqsBDiv",
+  "help": "SIQS Batch Divisor: specifies max prime to include in batch GCD as divisor of max factorbase prime",
+  "help_raw": "(Floating point)  : SIQS Batch Divisor: specifies max prime to include in batch GCD as divisor of max factorbase prime",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "siqsBT",
+  "help": "SIQS Batch Target: how many residues to batch before doing batch GCD",
+  "help_raw": "(Integer < 32-bit): SIQS Batch Target: how many residues to batch before doing batch GCD",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "prefer_gmpecm",
+  "help": "Uses external GMP-ECM instead of internal AVX-ECM",
+  "help_raw": "                  : Uses external GMP-ECM instead of internal AVX-ECM",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "saveB1",
+  "help": "Create savefile with B1 residues in AVX-ECM",
+  "help_raw": "                  : Create savefile with B1 residues in AVX-ECM",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "siqsNobat",
+  "help": "Do not use SIQS Batch GCD",
+  "help_raw": "                  : Do not use SIQS Batch GCD",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "inmem",
+  "help": "Digit level below which SIQS in-memory is used (no savefile)",
+  "help_raw": "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "prefer_gmpecm_stg2",
+  "help": "Use GMP-ECM for stage 2",
+  "help_raw": "                  : Use GMP-ECM for stage 2",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "vpp1_work_file",
+  "help": "Filename for vecP+1 work input",
+  "help_raw": "(String)          : Filename for vecP+1 work input",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "vpm1_work_file",
+  "help": "Filename for vecP-1 work input",
+  "help_raw": "(String)          : Filename for vecP-1 work input",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "resume",
+  "help": "Filename to resume parallel P+1 or P-1",
+  "help_raw": "(String)          : Filename to resume parallel P+1 or P-1",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "jsonpretty",
+  "help": "Output JSON info pretty printed (one pair per line)",
+  "help_raw": "                  : Output JSON info pretty printed (one pair per line) ",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "cadoMsieve",
+  "help": "cadoMsieve",
+  "help_raw": "                  : cadoMsieve",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "cado_dir",
+  "help": "cado_dir",
+  "help_raw": "                  : cado_dir",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "convert_poly_path",
+  "help": "convert_poly_path",
+  "help_raw": "                  : convert_poly_path",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "gpucurves",
+  "help": "Number of gpu curves to run in a batch",
+  "help_raw": "(Integer < 32-bit): Number of gpu curves to run in a batch",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "cgbn",
+  "help": "use cgbn with gpu-ecm (external ecm binary enabled with this option must exist)",
+  "help_raw": "                  : use cgbn with gpu-ecm (external ecm binary enabled with this option must exist)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "use_gpuecm",
+  "help": "use gpu-ecm (external ecm binary enabled with this option must exist)",
+  "help_raw": "                  : use gpu-ecm (external ecm binary enabled with this option must exist)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "use_gpudev",
+  "help": "gpu device number",
+  "help_raw": "(Integer < 32-bit): gpu device number",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "prefer_avxecm_stg2",
+  "help": "use AVX-ECM for stage 2",
+  "help_raw": "                  : use AVX-ECM for stage 2",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "stoplt",
+  "help": "stop if a factor is found of less than <n> digits",
+  "help_raw": "(Integer < 32-bit): stop if a factor is found of less than <n> digits",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stople",
+  "help": "stop if a factor is found of less than or equal to <n> digits",
+  "help_raw": "(Integer < 32-bit): stop if a factor is found of less than or equal to <n> digits",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stopeq",
+  "help": "stop if a factor is found of equal to <n> digits",
+  "help_raw": "(Integer < 32-bit): stop if a factor is found of equal to <n> digits",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stopgt",
+  "help": "stop if a factor is found of greater than <n> digits",
+  "help_raw": "(Integer < 32-bit): stop if a factor is found of greater than <n> digits",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stopge",
+  "help": "stop if a factor is found of greater than or equal to <n> digits",
+  "help_raw": "(Integer < 32-bit): stop if a factor is found of greater than or equal to <n> digits",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stopbase",
+  "help": "Base to use for stopXY options(default 10, range: 2 <= b <= 62)",
+  "help_raw": "(Integer < 32-bit): Base to use for stopXY options(default 10, range: 2 <= b <= 62)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stopprime",
+  "help": "Use for stopXY options to add constraint that number is prime",
+  "help_raw": "                  : Use for stopXY options to add constraint that number is prime",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "siqsSSidx",
+  "help": "Factor base index at which to start using subset sum algorithm (default 0: unused)",
+  "help_raw": "(Integer < 32-bit): Factor base index at which to start using subset sum algorithm (default 0: unused)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsSSalloc",
+  "help": "Size of a poly-bucket, in bits.  Smaller is better as long as it's big enough. 12 is default.",
+  "help_raw": "(Integer < 32-bit): Size of a poly-bucket, in bits.  Smaller is better as long as it's big enough. 12 is default.",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "skipSNFScheck",
+  "help": "Set this to skip all checks for the existance of SNFS polynomials for the input",
+  "help_raw": "                  : Set this to skip all checks for the existance of SNFS polynomials for the input",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "obase",
+  "help": "Output base in octal (8), decimal (default, 10), or hexadecimal (16)",
+  "help_raw": "(Integer==8,10,16): Output base in octal (8), decimal (default, 10), or hexadecimal (16)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "minrels",
+  "help": "Minimum relations to find in NFS before trying to filter",
+  "help_raw": "(Integer < 32-bit): Minimum relations to find in NFS before trying to filter",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stopk",
+  "help": "Stop factor() after finding k factors",
+  "help_raw": "(Integer < 32-bit): Stop factor() after finding k factors",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "stop_strict",
+  "help": "Stop factor() after finding k factors, including small primes (trialdiv/rho)",
+  "help_raw": "                  : Stop factor() after finding k factors, including small primes (trialdiv/rho)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "terse",
+  "help": "Also output a one-line terse summary of the complete factorization found",
+  "help_raw": "                  : Also output a one-line terse summary of the complete factorization found",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "max_siqs",
+  "help": "do not start SIQS on composites above this size",
+  "help_raw": "(Integer < 32-bit): do not start SIQS on composites above this size",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "max_nfs",
+  "help": "do not start NFS on composites above this size",
+  "help_raw": "(Integer < 32-bit): do not start NFS on composites above this size",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "np1",
+  "help": "only run stage 1 of msieve nfs poly generation",
+  "help_raw": "                  : only run stage 1 of msieve nfs poly generation",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "nps",
+  "help": "only run stage 2 sizeopt of msieve nfs poly generation",
+  "help_raw": "                  : only run stage 2 sizeopt of msieve nfs poly generation",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "npr",
+  "help": "only run stage 2 rootopt of msieve nfs poly generation",
+  "help_raw": "                  : only run stage 2 rootopt of msieve nfs poly generation",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "nfs_params",
+  "help": "file containing nfs comma-delimited parameters, assumes algebraic-side sieving",
+  "help_raw": "(String)          : file containing nfs comma-delimited parameters, assumes algebraic-side sieving",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "poly_testsieve",
+  "help": "input size (in bits) above which poly select will test sieve to est. sieve time as a stopping condition",
+  "help_raw": "(Integer < 32-bit): input size (in bits) above which poly select will test sieve to est. sieve time as a stopping condition",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "poly_percent_max",
+  "help": "the maximum threshold (in percent) of poly select compared to estimated sieve time",
+  "help_raw": "(Integer < 32-bit): the maximum threshold (in percent) of poly select compared to estimated sieve time",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "td",
+  "help": "target density",
+  "help_raw": "                  : target density",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "jsonlog",
+  "help": "Name of output JSON logfile",
+  "help_raw": "(String)          : Name of output JSON logfile",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "forceQLP",
+  "help": "force the use of QLP SIQS (4 large primes)",
+  "help_raw": "                  : force the use of QLP SIQS (4 large primes)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "siqsMFBQ",
+  "help": "Exponent of SIQS QLP: attempt to split residues up to LPB^exponent",
+  "help_raw": "(Floating point)  : Exponent of SIQS QLP: attempt to split residues up to LPB^exponent",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "nfs_batch_3lp",
+  "help": "Use batch factorization of 3LP cofactors in NFS",
+  "help_raw": "                  : Use batch factorization of 3LP cofactors in NFS",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "analysis",
+  "help": "analysis type for the sieve of Eratosthenes (default = 1 (find primes), 2 (find twins)",
+  "help_raw": "(Integer < 32-bit): analysis type for the sieve of Eratosthenes (default = 1 (find primes), 2 (find twins)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "keep_afb",
+  "help": "NFS: build the siever factor base cache once per job (needs sievers with cache validation)",
+  "help_raw": "                  : NFS: build the siever factor base cache once per job (needs sievers with cache validation)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "nfs_stage1_args",
+  "help": "raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable",
+  "help_raw": "(String)          : raw args appended to msieve NFS poly stage1 (e.g.stage1_engine = cpu_hashtable",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "cuda_sieve",
+  "help": "NFS: path to the cuda-sieve executable; sieve with it instead of gnfs-lasieve",
+  "help_raw": "(String)          : NFS: path to the cuda-sieve executable; sieve with it instead of gnfs-lasieve",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "cuda_dev",
+  "help": "NFS: comma separated CUDA device list for cuda_sieve, e.g. 0,1 (default 0)",
+  "help_raw": "(String)          : NFS: comma separated CUDA device list for cuda_sieve, e.g. 0,1 (default 0)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siqsSPV",
+  "help": "SIQS small prime variation bound (primes below this are not sieved)",
+  "help_raw": "(Integer < 32-bit): SIQS small prime variation bound (primes below this are not sieved)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "siqsMid",
+  "help": "SIQS sieve for primes 32k..interval: bucket or sparse (default: auto)",
+  "help_raw": "(String)          : SIQS sieve for primes 32k..interval: bucket or sparse (default: auto)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siqsLarge",
+  "help": "SIQS sieve for primes > interval: bucket or direct (default: auto)",
+  "help_raw": "(String)          : SIQS sieve for primes > interval: bucket or direct (default: auto)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siqsKernel",
+  "help": "SIQS direct sieve scatter kernel: bitloop, sink, creg or cmem (default: auto)",
+  "help_raw": "(String)          : SIQS direct sieve scatter kernel: bitloop, sink, creg or cmem (default: auto)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siqsSparseKernel",
+  "help": "SIQS sparse sieve kernel: bitloop, creg or cmem (default: auto)",
+  "help_raw": "(String)          : SIQS sparse sieve kernel: bitloop, creg or cmem (default: auto)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "siqsLPisa",
+  "help": "SIQS large-prime kernel ISA: scalar, sse41, avx2, avx512, neon (default: best)",
+  "help_raw": "(String)          : SIQS large-prime kernel ISA: scalar, sse41, avx2, avx512, neon (default: best)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "noneon",
+  "help": "AArch64: use the portable C kernels instead of NEON (for A/B testing)",
+  "help_raw": "                  : AArch64: use the portable C kernels instead of NEON (for A/B testing)",
+  "needs_arg": 0,
+  "type": "flag"
+ },
+ {
+  "name": "avxecm_rns_bits",
+  "help": "AVX-ECM: use RNS arithmetic for inputs of at least this many bits (0 = never; ecmtune() measures it)",
+  "help_raw": "(Integer < 32-bit): AVX-ECM: use RNS arithmetic for inputs of at least this many bits (0 = never; ecmtune() measures it)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "avxecm_stg2",
+  "help": "AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
+  "help_raw": "(Integer < 32-bit): AVX-ECM stage 2: 0 pairing (B2=100*B1), 1 FFT (B2 as GMP-ECM), 2 FFT (B2 from memory limit)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "avxecm_stg2mem",
+  "help": "AVX-ECM FFT stage 2: memory limit per thread in MB",
+  "help_raw": "(Floating point)   : AVX-ECM FFT stage 2: memory limit per thread in MB",
+  "needs_arg": 1,
+  "type": "float"
+ },
+ {
+  "name": "avxecm_bs",
+  "help": "AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)",
+  "help_raw": "(String)           : AVX-ECM FFT stage 2 Brent-Suyama: 0 off, S or pS x^S, dS Dickson D_S(x,-1)",
+  "needs_arg": 1,
+  "type": "str"
+ },
+ {
+  "name": "avxecm_curve",
+  "help": "AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv), x-only/Edwards stage 1 (default 2)",
+  "help_raw": "(Integer)          : AVX-ECM curves: 0 Suyama, 1/2 twisted Edwards family (iv), x-only/Edwards stage 1 (default 2)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "keeppoly",
+  "help": "SNFS: number of best-ranked polynomials kept, printed and test sieved (default 3)",
+  "help_raw": "(Integer < 32-bit): SNFS: number of best-ranked polynomials kept, printed and test sieved (default 3)",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "mindegree",
+  "help": "SNFS: discard generated polynomials of degree below this",
+  "help_raw": "(Integer < 32-bit): SNFS: discard generated polynomials of degree below this",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "maxdegree",
+  "help": "SNFS: discard generated polynomials of degree above this",
+  "help_raw": "(Integer < 32-bit): SNFS: discard generated polynomials of degree above this",
+  "needs_arg": 1,
+  "type": "int"
+ },
+ {
+  "name": "bayes_prior",
+  "help": "-plan bayesian: factor-size prior, random (default) or hard",
+  "help_raw": "(String)          : -plan bayesian: factor-size prior, random (default) or hard",
+  "needs_arg": 1,
+  "type": "str"
+ }
+]
