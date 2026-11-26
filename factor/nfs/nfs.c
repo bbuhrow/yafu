@@ -290,7 +290,10 @@ static void nfs_run(fact_obj_t *fobj)
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
-
+			if (fobj->nfs_obj.cadoMsieve) {
+				nfs_state = NFS_STATE_CADO;
+				break;
+			}
             s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
             strcpy(input, s);
             free(s);
