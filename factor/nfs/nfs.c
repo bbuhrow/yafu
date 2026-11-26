@@ -290,13 +290,13 @@ static void nfs_run(fact_obj_t *fobj)
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
+            s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+            strcpy(input, s);
+            free(s);
 			if (fobj->nfs_obj.cadoMsieve) {
 				nfs_state = NFS_STATE_CADO;
 				break;
 			}
-            s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
-            strcpy(input, s);
-            free(s);
 
 			// create an msieve_obj
 			// this will initialize the savefile to the outputfile name provided
@@ -769,7 +769,7 @@ static void nfs_run(fact_obj_t *fobj)
 			sprintf(syscmd, "%s %sparameters/factor/params.c%d N=%s ", buffer, fobj->nfs_obj.cado_dir, cadoPower, input);
 
 			// Roundup of fobj->num_threads / 2
-			int nrclients = (int)((uint32_t)(fobj->num_threads / 2) + (obj->num_threads % 2));
+			int nrclients = (int)((uint32_t)(fobj->num_threads / 2) + (fobj->num_threads % 2));
 			// Spawn clients based on fobj->num_threads
 			// Use sprintf to append to end of syscmd
 			sprintf(syscmd + strlen(syscmd), "slaves.nrclients=%d slaves.hostnames=localhost ", nrclients);
