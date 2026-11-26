@@ -3,10 +3,11 @@
 *.o
 *.a
 /yafu
+/msieve
+/ecm_demo
+/siqs_demo
 /kmpqs_bench
 /kmpqs_bench_stat
-/kmpqs_bench.exe
-/kmpqs_bench_stat.exe
 *.no
 *.qo
 .deps/
@@ -14,8 +15,12 @@ msiqs/
 ignore/
 tuning/
 lib/
+bin/
 yafu_test_snfs.tmp/
 build.vc22/*/x64/*
+*.exe
+*lasieve4I*
+cuda_ecm80.ptx
 
 # Logs / Checkpoints / data files
 *.log
@@ -28,6 +33,9 @@ nfs.*
 *.tlog
 *.last_spq*
 semiprimes*.dat
+factor.json
+YAFU_get_poly_score.out
+yafu.ini
 
 # visual studio build
 build.vc22/.vs/*
