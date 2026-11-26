@@ -356,6 +356,7 @@ int main(int argc, char *argv[])
         // a default function applied to text that has no other function.
         int len = (int)strlen(options->inputExpr) + 9;
         options->inputExpr = (char*)xrealloc(options->inputExpr, (size_t)len);
+        input_line = (char*)xrealloc(input_line, (size_t)len);
         input_exp = (char*)xrealloc(input_exp, (size_t)len);
         sprintf(input_exp, "factor(%s)", options->inputExpr);
         strcpy(options->inputExpr, input_exp);
@@ -364,6 +365,9 @@ int main(int argc, char *argv[])
     }
     else
     {
+        int len = (int)strlen(options->inputExpr) + 1;
+        input_line = (char*)xrealloc(input_line, (size_t)len);
+        input_exp = (char*)xrealloc(input_exp, (size_t)len);
         strcpy(input_line, options->inputExpr);
         strcpy(input_exp, options->inputExpr);
     }
@@ -1446,7 +1450,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 				break;
 
 			// else reallocate the buffer and get some more
-			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE) * sizeof(char));
+			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE + 1) * sizeof(char));
 		} 
 
         //printf("got end-of-line.  full line = %s\n", line);
