@@ -20,6 +20,18 @@ $Id: demo.c 1025 2018-08-19 02:20:28Z jasonp_sf $
 #include <mpi.h>
 #endif
 
+#if defined(WIN32)
+#define _CRT_RAND_S
+#include <stdlib.h>
+#include <process.h>
+#include <Windows.h>
+#endif
+#if defined(__linux__)
+#include <sys/random.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+
 msieve_obj *g_curr_factorization = NULL;
 
 /*--------------------------------------------------------------------*/
@@ -37,46 +49,47 @@ void handle_signal(int sig) {
 
 /*--------------------------------------------------------------------*/
 void get_random_seeds(uint32 *seed1, uint32 *seed2) {
+    uint32 tmp[2] = {0, 0};
+    int seeded = 0;
 
-	uint32 tmp_seed1, tmp_seed2;
-
-	/* In a multithreaded program, every msieve object
-	   should have two unique, non-correlated seeds
-	   chosen for it */
-
-#if !defined(WIN32) && !defined(_WIN64)
-
-	FILE *rand_device = fopen("/dev/urandom", "r");
-
-	if (rand_device != NULL) {
-
-		/* Yay! Cryptographic-quality nondeterministic randomness! */
-
-		fread(&tmp_seed1, sizeof(uint32), (size_t)1, rand_device);
-		fread(&tmp_seed2, sizeof(uint32), (size_t)1, rand_device);
-		fclose(rand_device);
-	}
-	else
-
+#if defined(_WIN32)
+    if (rand_s(&tmp[0]) == 0 && rand_s(&tmp[1]) == 0) {
+        seeded = 1;
+    }
+#elif defined(__linux__)
+    /* Pull all 8 bytes in a single syscall; returns 8 on success */
+    if (getrandom(tmp, sizeof(tmp), 0) == (ssize_t)sizeof(tmp)) {
+        seeded = 1;
+    }
+#else
+    FILE *rand_device = fopen("/dev/urandom", "rb");
+    if (rand_device != NULL) {
+        if (fread(tmp, sizeof(uint32_t), 2, rand_device) == 2) {
+            seeded = 1;
+        }
+        fclose(rand_device);
+    }
 #endif
-	{
-		/* <Shrug> For everyone else, sample the current time,
-		   the high-res timer (hopefully not correlated to the
-		   current time), and the process ID. Multithreaded
-		   applications should fold in the thread ID too */
 
-		uint64 high_res_time = read_clock();
-		tmp_seed1 = ((uint32)(high_res_time >> 32) ^
-			     (uint32)time(NULL)) * 
-			    (uint32)getpid();
-		tmp_seed2 = (uint32)high_res_time;
-	}
+    if (!seeded) {
+        struct timeval start;
+        gettimeofday(&start, NULL);
+        uint64_t high_res_time = (uint64_t)start.tv_sec * 1000000ULL + (uint64_t)start.tv_usec;
+        uint32_t pid =
+#ifdef _WIN32
+            (uint32_t)_getpid();
+#else
+            (uint32_t)getpid();
+#endif
+        tmp[0] = ((uint32_t)(high_res_time >> 32) ^ (uint32_t)time(NULL)) * pid;
+        tmp[1] = (uint32_t)high_res_time;
+    }
 
 	/* The final seeds are the result of a multiplicative
 	   hash of the initial seeds */
 
-	(*seed1) = tmp_seed1 * ((uint32)40499 * 65543);
-	(*seed2) = tmp_seed2 * ((uint32)40499 * 65543);
+	*seed1 = tmp[0] * ((uint32)40499 * 65543);
+	*seed2 = tmp[1] * ((uint32)40499 * 65543);
 }
 
 /*--------------------------------------------------------------------*/
