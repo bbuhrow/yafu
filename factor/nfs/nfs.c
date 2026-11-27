@@ -293,11 +293,6 @@ static void nfs_run(fact_obj_t *fobj)
             s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
             strcpy(input, s);
             free(s);
-			if (fobj->nfs_obj.cadoMsieve) {
-				nfs_state = NFS_STATE_CADO;
-				break;
-			}
-
 			// create an msieve_obj
 			// this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
@@ -305,6 +300,11 @@ static void nfs_run(fact_obj_t *fobj)
 				(uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE, 
                 (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
 			fobj->nfs_obj.mobj = obj;
+
+			if (fobj->nfs_obj.cadoMsieve) {
+				nfs_state = NFS_STATE_CADO;
+				break;
+			}
 
 			// initialize these before checking existing files.  If poly
 			// select is resumed they will be changed by check_existing_files.
