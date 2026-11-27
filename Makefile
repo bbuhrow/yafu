@@ -407,6 +407,8 @@ endif
 # -----------------------------------------------------------------------------
 # 6. BASE CFLAGS
 # -----------------------------------------------------------------------------
+# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
+# violations in the AVX2 sieve buffer casting code. 
 CFLAGS := \
     -fno-common \
     -m64 \
@@ -418,13 +420,12 @@ CFLAGS := \
     -D_LARGEFILE64_SOURCE \
 	-DHAVE_CPU_HASHTABLE \
     -Wall \
-    -Wconversion
+    -Wconversion \
+    -fno-strict-aliasing
 
-# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
-# violations in the AVX2 sieve buffer casting code. 
 # Todo: audit __m256i casts throughout siqs when using avx2 only.
 ifeq ($(OS),Windows_NT)
-    CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+    CFLAGS += -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
 endif
 
 ifeq ($(IS_ARM),1)
