@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
         // a default function applied to text that has no other function.
         int len = (int)strlen(options->inputExpr) + 9;
         options->inputExpr = (char*)xrealloc(options->inputExpr, (size_t)len);
-        input_line = (char*)xrealloc(input_line, (size_t)len);
+        input_line = (char*)xrealloc(input_line, (size_t)(len > GSTR_MAXSIZE ? len : GSTR_MAXSIZE));
         input_exp = (char*)xrealloc(input_exp, (size_t)len);
         sprintf(input_exp, "factor(%s)", options->inputExpr);
         strcpy(options->inputExpr, input_exp);
@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
     else
     {
         int len = (int)strlen(options->inputExpr) + 1;
-        input_line = (char*)xrealloc(input_line, (size_t)len);
+        input_line = (char*)xrealloc(input_line, (size_t)(len > GSTR_MAXSIZE ? len : GSTR_MAXSIZE));
         input_exp = (char*)xrealloc(input_exp, (size_t)len);
         strcpy(input_line, options->inputExpr);
         strcpy(input_exp, options->inputExpr);
