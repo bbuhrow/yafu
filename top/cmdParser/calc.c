@@ -122,7 +122,7 @@ int is_strvar(const char* name);
 void free_strvars(void);
 int invalid_dest(char* dest);
 int invalid_num(char* num);
-char** tokenize(char* in, int* token_types, int* num_tokens);
+char** tokenize(char* in, int** token_types, int* num_tokens);
 int get_el_type2(char s);
 int is_new_token(int el_type, int el_type2);
 int invalid_dest(char* dest);
@@ -317,6 +317,7 @@ void push(str_t* str, bstack_t* stack)
     // add an element to the stack, growing the stack if necessary
     if (stack->num >= stack->size)
     {
+        int old_size = stack->size;
         stack->size *= 2;
         stack->elements = (str_t**)xrealloc(stack->elements,
             (size_t)stack->size * sizeof(str_t*));
@@ -324,6 +325,11 @@ void push(str_t* str, bstack_t* stack)
         {
             printf("error allocating stack space\n");
             return;
+        }
+        for (int i = old_size; i < stack->size; i++)
+        {
+            stack->elements[i] = (str_t*)xmalloc(sizeof(str_t));
+            sInit(stack->elements[i]);
         }
     }
 
@@ -1073,7 +1079,7 @@ int is_new_token(int el_type, int el_type2)
     return 0;
 }
 
-char** tokenize(char* in, int* token_types, int* num_tokens)
+char** tokenize(char* in, int** token_types, int* num_tokens)
 {
     // take a string as input
     // break it into tokens
@@ -1217,13 +1223,13 @@ char** tokenize(char* in, int* token_types, int* num_tokens)
                 //printf("copying size %d tmp string to token\n", strlen(tmp));
                 tokens[*num_tokens] = (char*)xmalloc((strlen(tmp) + 2) * sizeof(char));
                 strcpy(tokens[*num_tokens], tmp);
-                token_types[*num_tokens] = el_type;
+                (*token_types)[*num_tokens] = el_type;
                 *num_tokens = *num_tokens + 1;
 
                 if (*num_tokens >= token_alloc)
                 {
                     tokens = (char**)xrealloc(tokens, (size_t)(token_alloc * 2) * sizeof(char*));
-                    token_types = (int*)xrealloc(token_types, (size_t)(token_alloc * 2) * sizeof(int));
+                    *token_types = (int*)xrealloc(*token_types, (size_t)(token_alloc * 2) * sizeof(int));
                     token_alloc *= 2;
                 }
             }
@@ -1688,8 +1694,8 @@ int calc(str_t* in, meta_t* metadata)
     retval = 0;
 
     //initialize and find tokens
-    token_types = (int*)xmalloc(100 * sizeof(int));
-    tokens = tokenize(in->s, token_types, &num_tokens);
+    token_types = (int*)xmalloc(1030 * sizeof(int));
+    tokens = tokenize(in->s, &token_types, &num_tokens);
     if (tokens == NULL)
     {
         free(token_types);

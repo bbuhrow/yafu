@@ -939,6 +939,11 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 						//just trying to figure out how many relations we have
 						//so read in the large primes and add to cycles
 						substr = strchr(substr, 'L');
+						if (substr == NULL || *substr == '\0')
+						{
+							// ignore corrupted relation
+							continue;
+						}
 						yafu_read_large_primes(substr, lp, lp + 1);
 						if (lp[0] != lp[1])
 						{

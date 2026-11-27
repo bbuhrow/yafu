@@ -20,6 +20,7 @@ code to the public domain.
 
 #define _XOPEN_SOURCE 600		// POSIX.1-2001 + XSI (nice)
 #include <inttypes.h>
+#include <stdlib.h>
 #include "yafu.h"
 #include "soe.h"
 #include "calc.h"
@@ -37,6 +38,7 @@ code to the public domain.
 #endif
 #include <stdio.h>
 #include "tinyecm.h"
+#include "sigill.h"
 
 #if defined(__unix__)
 #include <termios.h>
@@ -194,6 +196,34 @@ int main(int argc, char *argv[])
     strncpy(yafu_obj.CPU_ID_STR, comp_info.idstr, 255);
     yafu_obj.CPU_ID_STR[255] = '\0';
 
+    // Open the session log and install SIGILL handling before factor-object
+    // initialization, which may execute instructions unsupported by the CPU.
+    if (yafu_obj.LOGFLAG)
+    {
+        logfile = fopen(yafu_obj.sessionname, "a");
+        if (logfile == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("couldn't open %s for appending\n", yafu_obj.sessionname);
+            slog = 0;
+        }
+        else
+            slog = 1;
+    }
+    else
+    {
+        logfile = NULL;
+        slog = 0;
+    }
+
+    if (!install_sigill_handler(logfile))
+    {
+        fprintf(stderr, "could not install SIGILL handler\n");
+        if (slog)
+            fclose(logfile);
+        return EXIT_FAILURE;
+    }
+
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
 	// this is not used.  initialize and pass in all of the options.
@@ -326,6 +356,7 @@ int main(int argc, char *argv[])
         // a default function applied to text that has no other function.
         int len = (int)strlen(options->inputExpr) + 9;
         options->inputExpr = (char*)xrealloc(options->inputExpr, (size_t)len);
+        input_line = (char*)xrealloc(input_line, (size_t)(len > GSTR_MAXSIZE ? len : GSTR_MAXSIZE));
         input_exp = (char*)xrealloc(input_exp, (size_t)len);
         sprintf(input_exp, "factor(%s)", options->inputExpr);
         strcpy(options->inputExpr, input_exp);
@@ -334,6 +365,9 @@ int main(int argc, char *argv[])
     }
     else
     {
+        int len = (int)strlen(options->inputExpr) + 1;
+        input_line = (char*)xrealloc(input_line, (size_t)(len > GSTR_MAXSIZE ? len : GSTR_MAXSIZE));
+        input_exp = (char*)xrealloc(input_exp, (size_t)len);
         strcpy(input_line, options->inputExpr);
         strcpy(input_exp, options->inputExpr);
     }
@@ -380,25 +414,6 @@ int main(int argc, char *argv[])
         yafu_obj.VFLAG = 0;
     }
 
-	//session log
-    if (yafu_obj.LOGFLAG)
-    {
-        logfile = fopen(yafu_obj.sessionname, "a");
-        if (logfile == NULL)
-        {
-            printf("fopen error: %s\n", strerror(errno));
-            printf("couldn't open %s for appending\n", yafu_obj.sessionname);
-            slog = 0;
-        }
-        else
-            slog = 1;
-    }
-    else
-    {
-        logfile = NULL;
-        slog = 0;
-    }
-		
 	// print the splash screen, to the logfile and depending on options, to the screen
 	print_splash(fobj, &comp_info, is_cmdline_run, logfile, yafu_obj.VFLAG, 
         yafu_obj.MEAS_CPU_FREQUENCY, (int)yafu_obj.NUM_WITNESSES, yafu_obj.CWD);
@@ -1435,7 +1450,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 				break;
 
 			// else reallocate the buffer and get some more
-			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE) * sizeof(char));
+			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE + 1) * sizeof(char));
 		} 
 
         //printf("got end-of-line.  full line = %s\n", line);

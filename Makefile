@@ -407,6 +407,8 @@ endif
 # -----------------------------------------------------------------------------
 # 6. BASE CFLAGS
 # -----------------------------------------------------------------------------
+# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
+# violations in the AVX2 sieve buffer casting code. 
 CFLAGS := \
     -fno-common \
     -m64 \
@@ -418,13 +420,12 @@ CFLAGS := \
     -D_LARGEFILE64_SOURCE \
 	-DHAVE_CPU_HASHTABLE \
     -Wall \
-    -Wconversion
+    -Wconversion \
+    -fno-strict-aliasing
 
-# GCC 12+ strict aliasing is more aggressive than GCC 11 and triggers
-# violations in the AVX2 sieve buffer casting code. 
 # Todo: audit __m256i casts throughout siqs when using avx2 only.
 ifeq ($(OS),Windows_NT)
-    CFLAGS += -fno-strict-aliasing -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+    CFLAGS += -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
 endif
 
 ifeq ($(IS_ARM),1)
@@ -886,6 +887,7 @@ MSIEVE_YAFU_OBJS = $(MSIEVE_YAFU_SRCS:.c=$(OBJ_EXT))
 # -----------------------------------------------------------------------------
 YAFU_SRCS = \
     top/driver.c \
+    top/sigill.c \
     top/test.c \
     factor/tune.c \
     factor/autofactor.c \
@@ -1495,6 +1497,21 @@ lasieve-clean:
 # -----------------------------------------------------------------------------
 # 26. COMPILE RULES
 # -----------------------------------------------------------------------------
+
+# Build the SIGILL handler for the x86-64 baseline even when the rest of YAFU
+# is compiled with optional SIMD extensions enabled.
+ifneq (,$(findstring x86_64,$(DETECTED_ARCH)))
+top/sigill.o: top/sigill.c | $(DEPS_SUBDIRS)
+ifeq ($(COMPILER_FAMILY),icc)
+	$(CC) $(CFLAGS) -xSSE2 -MMD -MP -MF $(DEPS_DIR)/top/sigill.d -c -o $@ $<
+else
+	$(CC) $(CFLAGS) -march=x86-64 -mtune=generic \
+	    -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2 \
+	    -mno-avx -mno-avx2 -mno-bmi -mno-bmi2 \
+	    -mno-avx512f -mno-avx512bw \
+	    -MMD -MP -MF $(DEPS_DIR)/top/sigill.d -c -o $@ $<
+endif
+endif
 
 # Standard .c → .o
 # -MF redirects the dependency file into .deps/, mirroring the source tree.
